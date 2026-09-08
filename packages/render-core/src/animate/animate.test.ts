@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
 
-import { loadSystemStyleMap, type StyleDoc } from "@montaj/caption-styles";
+import { loadSystemStyleMap, type Gradient, type StyleDoc } from "@montaj/caption-styles";
 
 import { hashCommands } from "../commands/hash.js";
 import { type DrawCommand, walkCommands } from "../commands/types.js";
@@ -287,6 +287,132 @@ describe("word state and colour", () => {
     const word = podcastLayout.words[0];
     if (word === undefined) throw new Error("no word");
     expect(wordColour(word, podcast, 2900, { sp2: "#3fa7d6" })).toBe("#3fa7d6");
+  });
+});
+
+describe("K08: gradient text colour", () => {
+  const gradient: Gradient = {
+    stops: [
+      { offset: 0, color: "#ff2e63ff" },
+      { offset: 1, color: "#3fa7d6ff" },
+    ],
+    angleDeg: 45,
+  };
+
+  it("gradientPaint runs the ramp left-to-right at 0° and top-to-bottom at 90°", () => {
+    const box: [number, number, number, number] = [0, 0, 100, 50];
+    const stops = [
+      { offset: 0, color: "#ff0000ff" },
+      { offset: 1, color: "#0000ffff" },
+    ];
+    expect(__testing.gradientPaint(box, { angleDeg: 0, stops })).toEqual({
+      type: "linear-gradient",
+      from: [0, 25],
+      to: [100, 25],
+      stops,
+    });
+    expect(__testing.gradientPaint(box, { angleDeg: 90, stops })).toEqual({
+      type: "linear-gradient",
+      from: [50, 0],
+      to: [50, 50],
+      stops,
+    });
+  });
+
+  it("wordColour returns the Gradient object itself, not a resolved string", () => {
+    const base = style("vertical-clean");
+    const doc = style("vertical-clean", { colors: { ...base.colors, text: gradient } });
+    const word = lay(doc, 1500).words[0];
+    if (word === undefined) throw new Error("no word");
+    expect(wordColour(word, doc, 1500)).toEqual(gradient);
+  });
+
+  it("paints each word's glyph fill as its own linear-gradient spanning that word's own box", () => {
+    const base = style("vertical-clean");
+    const doc = style("vertical-clean", { colors: { ...base.colors, text: gradient } });
+    const commands = draw(doc, 1500);
+    const froms: string[] = [];
+    let sawGradient = false;
+    for (const command of walkCommands(commands)) {
+      if (command.kind !== "text" || command.fill === undefined) continue;
+      expect(command.fill.paint.type).toBe("linear-gradient");
+      if (command.fill.paint.type === "linear-gradient") {
+        sawGradient = true;
+        froms.push(command.fill.paint.from.join(","));
+      }
+    }
+    expect(sawGradient).toBe(true);
+    // Not one gradient spanning the whole line: each word's own paint is built
+    // from that word's own (different) box, so the absolute from/to points
+    // differ word to word rather than repeating.
+    expect(new Set(froms).size).toBeGreaterThan(1);
+  });
+
+  it("still paints a plain solid colour when colors.text is a hex string (no regression)", () => {
+    const commands = draw(style("vertical-clean"), 1500);
+    let checked = false;
+    for (const command of walkCommands(commands)) {
+      if (command.kind !== "text" || command.fill === undefined) continue;
+      expect(command.fill.paint.type).toBe("solid");
+      checked = true;
+    }
+    expect(checked).toBe(true);
+  });
+
+  it("colours the karaoke-fill overlay with the same per-word gradient as the base ink", () => {
+    // karaoke-fill's shipped JSON sets activeText/upcomingText, which shadow
+    // colors.text in every word state (`wordColour`'s karaoke-fill branch) —
+    // clear them so this fixture actually exercises the colors.text fallback
+    // the overlay and the base ink both read.
+    const doc = style("karaoke-fill", {
+      colors: { text: gradient, activeText: undefined, upcomingText: undefined, accent: undefined },
+    });
+    const word = lay(doc, 1000).words[1];
+    if (word === undefined) throw new Error("no word");
+    const commands = draw(doc, word.startMs + 1);
+    let sawGradient = false;
+    for (const command of walkCommands(commands)) {
+      if (command.kind !== "text" || command.fill === undefined) continue;
+      if (command.fill.paint.type === "linear-gradient") sawGradient = true;
+    }
+    expect(sawGradient).toBe(true);
+  });
+
+  it(
+    "resolves an emphasis preset's Gradient colour to a solid stand-in for its own decorative " +
+      "ground, while still painting the word's own ink as the full gradient",
+    () => {
+      const doc = style("vertical-clean", {
+        emphasisPresets: [{ id: "grad", color: gradient, effect: "highlight" }],
+      });
+      const marked = WORDS.map((word, index) =>
+        index === 0 ? { ...word, emphasisPresetId: "grad" } : word,
+      );
+      const commands = draw(doc, 1500, marked);
+      let groundChecked = false;
+      let inkIsGradient = false;
+      for (const command of walkCommands(commands)) {
+        if (command.kind === "roundRect" && command.fill !== undefined && !groundChecked) {
+          expect(command.fill.paint).toEqual({ type: "solid", color: "#ff2e63ff" });
+          groundChecked = true;
+        }
+        if (command.kind === "text" && command.fill?.paint.type === "linear-gradient") {
+          inkIsGradient = true;
+        }
+      }
+      expect(groundChecked).toBe(true);
+      expect(inkIsGradient).toBe(true);
+    },
+  );
+
+  it("golden-hash safety: every shipped system style still keeps a plain string colors.text", () => {
+    for (const doc of styles.values()) {
+      expect(typeof doc.colors.text, doc.id).toBe("string");
+      for (const preset of doc.emphasisPresets) {
+        if (preset.color === undefined) continue;
+        expect(typeof preset.color, `${doc.id}/${preset.id}`).toBe("string");
+      }
+    }
   });
 });
 

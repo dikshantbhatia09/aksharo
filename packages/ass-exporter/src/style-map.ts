@@ -8,7 +8,7 @@
  * itself.
  */
 
-import type { StyleDoc } from "@montaj/caption-styles";
+import { resolveColour, type StyleDoc } from "@montaj/caption-styles";
 
 import { toAssColour, toAssColourNoAlpha } from "./colour.js";
 
@@ -64,9 +64,14 @@ export { STYLE_FORMAT };
 /** Builds the `Style:` line for one `StyleDoc`, keyed by its own `id`. */
 export function buildStyleLine(style: StyleDoc, canvas: AssCanvas): AssStyleLine {
   const sizePx = fontSizePx(style, canvas);
-  const primary = toAssColour(style.colors.text);
+  // ASS has no gradient fill (RR-04, `styles/capabilities.ts`'s own note on
+  // `prism-split`), and this package never calls `render-core`, so a `Gradient`
+  // `colors.text`/`.accent`/`.activeText` (K08) resolves to its first stop —
+  // the same solid stand-in `render-core`'s own solid-only ground (stroke,
+  // shadow, emphasis decoration) falls back to.
+  const primary = toAssColour(resolveColour(style.colors.text));
   const secondary = toAssColour(
-    style.colors.accent ?? style.colors.activeText ?? style.colors.text,
+    resolveColour(style.colors.accent ?? style.colors.activeText ?? style.colors.text),
   );
   const outlineColour = style.stroke.enabled
     ? toAssColour(style.stroke.color ?? "#000000ff")

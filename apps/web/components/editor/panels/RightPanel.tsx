@@ -11,10 +11,18 @@
 
 import { useState } from "react";
 
+import { resolveColour } from "@montaj/caption-styles";
 import type { Depth3d, EmphasisPreset, StyleDoc } from "@montaj/caption-styles";
 import { CATALOGUE } from "@montaj/fonts";
 
-import { ColourField, SearchSelectField, SelectField, SliderField, ToggleField } from "./controls";
+import {
+  ColorOrGradientField,
+  ColourField,
+  SearchSelectField,
+  SelectField,
+  SliderField,
+  ToggleField,
+} from "./controls";
 import {
   type PanelScope,
   setStyleField,
@@ -411,33 +419,69 @@ function EmphasisTypographyFields({ style, scope, onOp }: TabProps): React.JSX.E
   );
 }
 
+/**
+ * K08: the Emphasis section's own colour, Solid or Gradient — the addendum's
+ * primary piece of evidence for this WP ("New gap 3": the reference product's
+ * Gradient sub-mode is shown *inside* Emphasis, with its own Stops/Reset/
+ * Angle editor). Nothing in `ColorsPanel` edited `emphasisPresets[0].color`
+ * before this WP — the panel only ever *read* it, as the fallback ground
+ * colour `emphasisGround`'s highlight/underline/glow draw with — so this is a
+ * new control, not a rewire of an existing one, unlike the Text field below.
+ * Writes through `withDefaultEmphasisField`, the exact same "rebuild
+ * `emphasisPresets[0]`" shape `EmphasisTypographyFields` already uses for
+ * `fontFamily`/`weight`/`italic`/`underline`.
+ */
+function EmphasisColourField({ style, scope, onOp }: TabProps): React.JSX.Element | null {
+  const defaultPreset = style.emphasisPresets[0];
+  if (defaultPreset === undefined) return null;
+  const effective = defaultPreset.color ?? resolveColour(style.colors.text);
+  return (
+    <ColorOrGradientField
+      label="Colour"
+      idPrefix="field-emphasis-color"
+      value={effective}
+      onChange={(next) => {
+        onOp(
+          setStyleField(
+            scope,
+            "emphasisPresets",
+            withDefaultEmphasisField(style.emphasisPresets, "color", next),
+          ),
+        );
+      }}
+    />
+  );
+}
+
 export function ColorsPanel({ style, scope, onOp }: TabProps): React.JSX.Element {
   return (
     <div className="flex flex-col gap-3" data-testid="colors-panel">
       <SectionHeading>Color</SectionHeading>
-      <ColourField
+      <ColorOrGradientField
         label="Text"
-        path="colors.text"
+        idPrefix="field-colors-text"
         value={style.colors.text}
-        scope={scope}
-        onOp={onOp}
+        onChange={(next) => {
+          onOp(setStyleField(scope, "colors.text", next));
+        }}
       />
       <ColourField
         label="Highlight"
         path="colors.activeText"
-        value={style.colors.activeText ?? style.colors.text}
+        value={style.colors.activeText ?? resolveColour(style.colors.text)}
         scope={scope}
         onOp={onOp}
       />
       <ColourField
         label="Accent"
         path="colors.accent"
-        value={style.colors.accent ?? style.colors.text}
+        value={style.colors.accent ?? resolveColour(style.colors.text)}
         scope={scope}
         onOp={onOp}
       />
       <SectionHeading>Emphasis</SectionHeading>
       <EmphasisField style={style} scope={scope} onOp={onOp} />
+      <EmphasisColourField style={style} scope={scope} onOp={onOp} />
       <EmphasisTypographyFields style={style} scope={scope} onOp={onOp} />
       <SectionHeading>Stroke &amp; background</SectionHeading>
       <ToggleField

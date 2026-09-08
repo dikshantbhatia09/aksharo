@@ -30,6 +30,47 @@ export const ColorSchema = z
   .string()
   .regex(/^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/, "expected #RRGGBB or #RRGGBBAA");
 
+/** One colour stop in a `Gradient`: `offset` 0 (the ramp's start) – 1 (its end). */
+export const GradientStopSchema = z.object({
+  offset: z.number().min(0).max(1),
+  color: ColorSchema,
+});
+
+/**
+ * A linear-gradient fill for a colour field that opts into one (K08): the
+ * reference product's Emphasis-section "Gradient" sub-mode (ADDENDUM-full-
+ * frame-audit.md, "New gap 3" — a Stops editor, Reset, a gradient bar with
+ * handles, an Angle slider at 90°). `render-core`'s `Paint` union
+ * (`commands/types.ts`) has carried full `linear-gradient`/`radial-gradient`
+ * support since D33; this is the schema half of that pairing — the first
+ * `StyleDoc` field that can actually *produce* one. Deliberately a plain
+ * object, not the render command's own `Paint` shape: a `StyleDoc` field
+ * knows nothing about canvas pixels (D33 invariant 1), so it carries only
+ * what a designer sets — the stop ramp and an angle — and leaves the
+ * absolute `from`/`to` points for paint time, once there is a glyph run's own
+ * bounding box to fill (`render-core/src/animate/animate.ts`'s `textPaint`).
+ * `angleDeg` follows the CSS gradient-angle convention: 0 paints
+ * left-to-right, 90 top-to-bottom, measured clockwise — see `textPaint`'s own
+ * doc comment for the exact from/to derivation.
+ */
+export const GradientSchema = z.object({
+  stops: z.array(GradientStopSchema).min(2).max(6),
+  angleDeg: z.number().min(0).max(360),
+});
+
+/**
+ * A colour field that may carry a flat colour or a `Gradient` (K08). Additive
+ * in effect — every StyleDoc on disk still has a plain `"#RRGGBB(AA)"` string
+ * in every field this union touches, which still validates as this union's
+ * plain-string arm unchanged — but the *type* a reader sees widens from
+ * `string` to `string | Gradient`. `isGradient`/`resolveColour` below are the
+ * two functions every reader in this repo now goes through: the former to
+ * branch, the latter to fall back to a single representative solid colour in
+ * a context that cannot paint a gradient at all (a stroke, a shadow, an
+ * emphasis preset's decorative ground, an ASS/MOGRT/AE export).
+ */
+export const ColorOrGradientSchema = z.union([ColorSchema, GradientSchema]);
+
 /** Catalogue shelf the style sits on. */
 export const StyleCategorySchema = z.enum([
   "bold",
@@ -151,8 +192,15 @@ export const TypographySchema = z.object({
 });
 
 export const ColorsSchema = z.object({
-  /** Resting colour of every word. */
-  text: ColorSchema,
+  /**
+   * Resting colour of every word: a plain `#RRGGBB(AA)` string, or (K08) a
+   * `Gradient`. `render-core`'s `wordColour`/`textPaint` are the readers that
+   * turn this into paint; every other reader in the repo (ASS/MOGRT/AE
+   * export, this field's own panel fallback in `activeText`/`accent`) goes
+   * through `resolveColour` for a solid stand-in, since none of those paint a
+   * gradient.
+   */
+  text: ColorOrGradientSchema,
   /** The word being spoken, when `animation.wordHighlight` colours it. */
   activeText: ColorSchema.optional(),
   /** Words not yet spoken, for read-ahead styles. */
@@ -293,7 +341,19 @@ export const EmphasisPresetSchema = z.object({
     // eslint-disable-next-line security/detect-unsafe-regex -- reviewed and timed against adversarial input -- linear, no nested unbounded quantifiers -- not exponential (see M06 report)
     .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, "emphasis preset ids are kebab-case"),
   label: z.string().min(1).max(48).optional(),
-  color: ColorSchema.optional(),
+  /**
+   * Fill colour for this preset's word when it overrides the base caption's
+   * own `colors.text` — a plain string or, since K08, a `Gradient`, matching
+   * the reference product's Emphasis-section Gradient sub-mode (addendum
+   * "New gap 3"). Flows into the word's own glyph-ink `Paint` exactly like
+   * `colors.text` does (`render-core`'s `wordCommands`: `preset?.color ??
+   * baseColour`). The preset's own *decorative ground* — the `highlight`/
+   * `underline`/`glow` `effect` below, and the `outline` effect's stroke —
+   * stays solid-only: out of this WP's scope (stroke/box-fill/shadow
+   * colours), so `render-core`'s `emphasisGround` resolves a Gradient preset
+   * colour to `resolveColour`'s first-stop stand-in for those.
+   */
+  color: ColorOrGradientSchema.optional(),
   /** Multiplier on the word's size. */
   scale: z.number().min(0.5).max(2.5).optional(),
   weight: z.number().int().min(100).max(900).optional(),
@@ -368,6 +428,8 @@ export const StyleDocSchema = z
 export type StyleId = z.infer<typeof StyleIdSchema>;
 export type StyleCategory = z.infer<typeof StyleCategorySchema>;
 export type MinPlan = z.infer<typeof MinPlanSchema>;
+export type GradientStop = z.infer<typeof GradientStopSchema>;
+export type Gradient = z.infer<typeof GradientSchema>;
 export type ScriptScale = z.infer<typeof ScriptScaleSchema>;
 export type Typography = z.infer<typeof TypographySchema>;
 export type Colors = z.infer<typeof ColorsSchema>;
@@ -388,3 +450,31 @@ export type StyleDoc = z.infer<typeof StyleDocSchema>;
 
 /** What an author writes: the parity flags may be omitted. */
 export type StyleDocInput = z.input<typeof StyleDocSchema>;
+
+/**
+ * Narrows a `string | Gradient` colour field to its `Gradient` arm (K08) —
+ * the `typeof value === "string"` discriminator every reader of
+ * `colors.text`/`emphasisPresets[].color` now needs, named once so call
+ * sites read as intent rather than a bare `typeof` check.
+ */
+export function isGradient(value: string | Gradient): value is Gradient {
+  return typeof value !== "string";
+}
+
+/**
+ * A single representative solid colour for a `string | Gradient` field, for
+ * a context that cannot paint a gradient at all: a stroke, a shadow, an
+ * emphasis preset's decorative ground, an ASS/MOGRT/AE export, or a panel
+ * control (`activeText`/`accent`) that still only accepts a flat colour. The
+ * gradient's first stop — the same "read the start of the ramp" choice every
+ * one of those call sites would otherwise make independently.
+ */
+export function resolveColour(value: string | Gradient): string {
+  if (!isGradient(value)) return value;
+  const first = value.stops[0];
+  // Unreachable once GradientSchema's `min(2)` has validated the document —
+  // kept as a typed fallback rather than a non-null assertion so a value
+  // built by hand (a panel draft before it round-trips through the schema)
+  // never throws here.
+  return first === undefined ? "#000000ff" : first.color;
+}

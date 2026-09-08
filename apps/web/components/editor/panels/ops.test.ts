@@ -221,4 +221,16 @@ describe("withDefaultEmphasisField (K05)", () => {
   it("returns an empty array unchanged — nothing to default", () => {
     expect(withDefaultEmphasisField([], "fontFamily", "Poppins")).toEqual([]);
   });
+
+  it("K08: writes a Gradient object to the first preset's colour, same as any other value", () => {
+    const gradient = {
+      stops: [
+        { offset: 0, color: "#ff2e63" },
+        { offset: 1, color: "#3fa7d6" },
+      ],
+      angleDeg: 90,
+    };
+    const [first] = withDefaultEmphasisField(presets, "color", gradient);
+    expect(first).toMatchObject({ id: "pop", color: gradient });
+  });
 });

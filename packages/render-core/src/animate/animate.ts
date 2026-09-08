@@ -19,7 +19,13 @@
  * The whole caption is then wrapped in the cue's own transform and opacity.
  */
 
-import { type EmphasisPreset, type StyleDoc } from "@montaj/caption-styles";
+import {
+  type EmphasisPreset,
+  type Gradient,
+  type GradientStop,
+  resolveColour,
+  type StyleDoc,
+} from "@montaj/caption-styles";
 
 import { contrastingInk, withAlpha } from "../colour.js";
 import {
@@ -290,13 +296,19 @@ function highlightProgress(word: LayoutWord, tMs: number, durationMs: number): n
   return progress(tMs, word.startMs, durationMs);
 }
 
-/** Resting colour of one word, before any highlight ground is drawn. */
+/**
+ * Resting colour of one word, before any highlight ground is drawn. A plain
+ * string, or (K08) the `Gradient` `style.colors.text` itself carries — this
+ * function only *resolves which colour source wins* (speaker, karaoke state,
+ * word-highlight, upcoming-text); it is `textPaint` below, called with the
+ * word's own box, that turns a `Gradient` result into an absolute `Paint`.
+ */
 export function wordColour(
   word: LayoutWord,
   style: StyleDoc,
   tMs: number,
   speakerColours?: Readonly<Record<string, string>>,
-): string {
+): string | Gradient {
   const speaker = word.sp === undefined ? undefined : speakerColours?.[word.sp];
   const base = speaker ?? style.colors.text;
   const state = wordState(word, tMs);
@@ -321,18 +333,59 @@ function boxRadius(box: Rect, radiusPct: number): number {
   return (radiusPct / 100) * rectHeight(box);
 }
 
-function textPaint(style: StyleDoc, layout: Layout, colour: string): Paint {
+/**
+ * A linear-gradient `Paint` from a stop ramp and the box it fills — shared by
+ * the schema-driven per-word/per-run gradient (K08's `Gradient`, `box` is the
+ * word's own bounding box) and the legacy per-style gradient lookup
+ * (`gradientOf`, `box` is the whole caption's `layout.box`) in `textPaint`
+ * below, so both compute the same from/to geometry from an angle and neither
+ * duplicates the trig. `angleDeg` follows the CSS gradient-angle convention
+ * (documented on `GradientSchema`): 0 is left-to-right, 90 is top-to-bottom,
+ * measured clockwise — at 0° `dx = width/2, dy = 0` runs the ramp along the
+ * box's own horizontal axis; at 90° `dx = 0, dy = height/2` runs it along the
+ * vertical one.
+ */
+function gradientPaint(
+  box: Rect,
+  gradient: { readonly angleDeg: number; readonly stops: readonly GradientStop[] },
+): Paint {
+  const radians = (gradient.angleDeg * Math.PI) / 180;
+  const width = rectWidth(box);
+  const height = rectHeight(box);
+  const dx = (Math.cos(radians) * width) / 2;
+  const dy = (Math.sin(radians) * height) / 2;
+  const cx = (box[0] + box[2]) / 2;
+  const cy = (box[1] + box[3]) / 2;
+  return linearGradient([cx - dx, cy - dy], [cx + dx, cy + dy], gradient.stops);
+}
+
+/**
+ * The `Paint` for one word's glyph ink. `wordBox` is always the word's own
+ * bounding box (`word.box`), never the whole caption's — K08 ships gradient
+ * scope per-word (the reference evidence's Word/Character "Level" dropdown
+ * is a documented follow-up, see REPORT.md), so a multi-word caption repeats
+ * the same ramp across each word rather than stretching one ramp across the
+ * whole line.
+ *
+ * Two independent gradient sources can apply, checked in order: `colour`
+ * itself is a `Gradient` (K08, schema-driven — a style or an override set
+ * `colors.text`/an emphasis preset's `color` to one), or the style's `id` is
+ * one of the four `capabilitiesOf`/`gradientOf` entries (`styles/
+ * capabilities.ts` — the pre-existing, per-style-id side channel `prism-split`
+ * and `gradient-sweep` use, unrelated to and unchanged by this WP: it still
+ * paints across the whole `layout.box`, exactly as before). No shipped style
+ * uses both, so there is no real precedence question today — the schema
+ * branch is checked first only because it is the cheaper, more specific test.
+ */
+function textPaint(
+  style: StyleDoc,
+  layout: Layout,
+  wordBox: Rect,
+  colour: string | Gradient,
+): Paint {
+  if (typeof colour !== "string") return gradientPaint(wordBox, colour);
   const gradient = gradientOf(style.id);
-  if (gradient?.target === "text") {
-    const radians = (gradient.angleDeg * Math.PI) / 180;
-    const width = rectWidth(layout.box);
-    const height = rectHeight(layout.box);
-    const dx = (Math.cos(radians) * width) / 2;
-    const dy = (Math.sin(radians) * height) / 2;
-    const cx = (layout.box[0] + layout.box[2]) / 2;
-    const cy = (layout.box[1] + layout.box[3]) / 2;
-    return linearGradient([cx - dx, cy - dy], [cx + dx, cy + dy], gradient.stops);
-  }
+  if (gradient?.target === "text") return gradientPaint(layout.box, gradient);
   return solid(colour);
 }
 
@@ -376,7 +429,12 @@ function wordInk(word: LayoutWord, fill: Fill, stroke: Stroke | undefined): Draw
   return commands;
 }
 
-function karaokeOverlay(word: LayoutWord, style: StyleDoc, tMs: number): DrawCommand[] {
+function karaokeOverlay(
+  word: LayoutWord,
+  style: StyleDoc,
+  layout: Layout,
+  tMs: number,
+): DrawCommand[] {
   const state = wordState(word, tMs);
   if (state !== "speaking") return [];
   const fraction = clamp01((tMs - word.startMs) / Math.max(1, word.endMs - word.startMs));
@@ -386,7 +444,7 @@ function karaokeOverlay(word: LayoutWord, style: StyleDoc, tMs: number): DrawCom
   return [
     clipRect(
       [word.box[0], word.box[1], sweepRight, word.box[3]],
-      wordInk(word, makeFill(colour), undefined),
+      wordInk(word, makeFill(textPaint(style, layout, word.box, colour)), undefined),
     ),
   ];
 }
@@ -469,9 +527,16 @@ function emphasisOf(style: StyleDoc, word: LayoutWord): EmphasisPreset | undefin
   return style.emphasisPresets.find((preset) => preset.id === word.emphasisPresetId);
 }
 
-/** Ground and extra ink an emphasis preset adds behind or around one word. */
+/**
+ * Ground and extra ink an emphasis preset adds behind or around one word.
+ * Solid-only by design (a highlight box, an underline rule, a glow shadow
+ * cast from the word's own silhouette): out of K08's scope, which is the
+ * word's own glyph fill, not its decorative ground. A `Gradient` preset
+ * colour resolves to `resolveColour`'s first-stop stand-in here — the same
+ * approximation a stroke or a shadow colour would need.
+ */
 function emphasisGround(preset: EmphasisPreset, word: LayoutWord, layout: Layout): DrawCommand[] {
-  const colour = preset.color ?? "#ffd400";
+  const colour = preset.color === undefined ? "#ffd400" : resolveColour(preset.color);
   switch (preset.effect) {
     case "highlight": {
       const box = inflate(word.box, ofFontSize(8, layout.fontSizePx));
@@ -544,11 +609,20 @@ function wordCommands(
   const baseColour = highlighted
     ? contrastingInk(style.colors.accent ?? style.colors.activeText ?? "#ffffff")
     : wordColour(word, style, tMs, options.speakerColours);
+  // The word's own glyph-fill colour (K08: `string | Gradient`) — the only
+  // place in this function a `Gradient` is actually painted as one, via
+  // `textPaint(..., word.box, colour)` below. Every other use of `colour` in
+  // this function (stroke, underline, strikethrough) is solid-only ground, so
+  // it goes through `resolveColour` first.
   const colour = preset?.color ?? baseColour;
+  const solidColour = resolveColour(colour);
 
   let stroke = typeStroke(style, layout);
   if (preset?.effect === "outline" && stroke === undefined) {
-    stroke = makeStroke(preset.color ?? "#000000", ofFontSize(7, layout.fontSizePx));
+    stroke = makeStroke(
+      preset.color === undefined ? "#000000" : resolveColour(preset.color),
+      ofFontSize(7, layout.fontSizePx),
+    );
   }
   // A heavier emphasis weight cannot re-shape the run (the face was resolved at
   // layout time), so it is drawn as a faux bold: a hairline stroke in the fill
@@ -559,25 +633,25 @@ function wordCommands(
     stroke === undefined
   ) {
     const delta = (preset.weight - style.typography.weight) / 900;
-    stroke = makeStroke(colour, ofFontSize(6 * delta, layout.fontSizePx));
+    stroke = makeStroke(solidColour, ofFontSize(6 * delta, layout.fontSizePx));
   }
 
   const ink =
     highlight.type === "karaoke-fill"
       ? [
-          ...wordInk(word, makeFill(textPaint(style, layout, colour)), stroke),
-          ...karaokeOverlay(word, style, tMs),
+          ...wordInk(word, makeFill(textPaint(style, layout, word.box, colour)), stroke),
+          ...karaokeOverlay(word, style, layout, tMs),
         ]
-      : wordInk(word, makeFill(textPaint(style, layout, colour)), stroke);
+      : wordInk(word, makeFill(textPaint(style, layout, word.box, colour)), stroke);
 
   // K05: an emphasis preset's own `underline` overrides the base caption's
   // `typography.underline` for this word only; absent, it falls back to the
   // base caption's own setting, so a preset with no typography override
   // renders byte-identical to before this WP.
   const underlineOn = preset?.underline ?? style.typography.underline === true;
-  const underline = underlineOn ? typeUnderline(word, colour, layout) : [];
+  const underline = underlineOn ? typeUnderline(word, solidColour, layout) : [];
   const strikethrough =
-    style.typography.strikethrough === true ? typeStrikethrough(word, colour, layout) : [];
+    style.typography.strikethrough === true ? typeStrikethrough(word, solidColour, layout) : [];
 
   const children = [...ground, ...ink, ...underline, ...strikethrough];
 
@@ -863,4 +937,7 @@ export const __testing = {
   wordCuePhase,
   dynamicCueDurationMs,
   animateWordScope,
+  textPaint,
+  gradientPaint,
+  emphasisGround,
 };

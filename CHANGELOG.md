@@ -8,6 +8,60 @@ Entries are grouped by work package id (see `docs/PLAN.md`).
 
 ## [Unreleased]
 
+- **K08: colour gradients for caption text and Emphasis.** Kalakar-parity
+  wave follow-up (`_orchestration/kalakar-styling`), scoped from the full-
+  frame audit's "New gap 3" — the reference product's Emphasis section has its
+  own Gradient sub-mode (Stops, Reset, a gradient bar, an Angle slider at
+  90°). Investigation found `render-core`'s `Paint` union (`commands/
+types.ts`) already carried complete `linear-gradient`/`radial-gradient`
+  support (D33) with nothing in the schema ever constructing one from a
+  style — a schema + one call-site + UI-wiring job, not new rendering-engine
+  work, and _narrower_ than that: `render-core/src/styles/capabilities.ts`
+  turned out to already have an unrelated, pre-existing, per-style-id
+  gradient side channel (`gradientOf`, backing the `prism-split`/
+  `gradient-sweep` system styles) — this WP adds the general, schema-driven
+  path alongside it without touching that one.
+  `packages/caption-styles/src/schema.ts` adds `GradientSchema` (`stops`: 2-6
+  `{offset: 0-1, color}` entries, `angleDeg: 0-360`) and widens
+  `ColorsSchema.text` and `EmphasisPresetSchema.color` from `ColorSchema` to
+  `z.union([ColorSchema, GradientSchema])` — additive in effect (every
+  existing style's plain hex string still validates unchanged) but the
+  _type_ every reader sees moves from `string` to `string | Gradient`;
+  `isGradient`/`resolveColour` (also new) are the discriminator and the
+  solid-stand-in fallback every reader in the repo now goes through,
+  including three outside this WP's own file boundary that the type change
+  would otherwise leave broken (`@montaj/ass-exporter`'s `style-map.ts`/
+  `events.ts`, `plugins/ae-cep`'s `textLayerSpec.ts`, `render-core`'s own
+  `textfx/frame.ts` — ASS/MOGRT/AE/title-text exports all resolve a Gradient
+  to its first stop, since none of those paths can paint one).
+  `render-core/src/animate/animate.ts`'s `textPaint` (the one function every
+  per-word glyph fill already went through) grows a `gradientPaint` branch:
+  when the resolved word colour is a `Gradient` object it builds
+  `{type: "linear-gradient", from, to, stops}` from the _word's own_
+  bounding box (`word.box`) and `angleDeg` — CSS gradient-angle convention (0°
+  left-to-right, 90° top-to-bottom) — so gradient scope ships **per-word**
+  for this WP; the reference evidence's Word/Character "Level" dropdown is a
+  documented follow-up, not silently dropped. Every other colour use in the
+  word-paint path (stroke, faux-bold, underline, strikethrough, an emphasis
+  preset's decorative ground) stays solid-only by resolving through
+  `resolveColour` first — explicitly out of scope (stroke/box-fill/shadow
+  colours), matching the brief. `apps/web/components/editor/panels/
+controls.tsx` gains `ColorOrGradientField`, a Solid/Gradient toggle (Solid:
+  the existing hex input; Gradient: a 2-6 stop list with colour + position
+  and add/remove, an angle slider, and a Reset) wired into `ColorsPanel`'s
+  Text field and a new Emphasis "Colour" field, both through the same
+  `onOp`/`setStyleField`/`withDefaultEmphasisField` paths every other control
+  in the file already uses — no new plumbing, no `editor-client.tsx` touch.
+  Investigation found the brief's "existing Solid/Gradient toggle" did not
+  actually exist anywhere in `ColorsPanel` (the only close relative,
+  `EMPHASIS_EFFECT_OPTIONS`'s Emphasis/Spotlight/Solid selector, is a
+  different, K01-scoped control over `effect`, not colour) — both fields are
+  new, not rewires. Verified with real PNGs rendered through
+  `@montaj/render-canvaskit`'s `CanvasKitBackend` (the same no-dev-server
+  path K01/K05 used): a visible left-to-right and top-to-bottom gradient
+  across a word's glyphs, and the golden-hash suite unchanged (all 30 shipped
+  styles still carry a plain string `colors.text`, so none of them exercise
+  the new branch).
 - **K07: export dialog gains Instagram Story/Feed presets and a caption-opacity
   slider.** Kalakar-parity wave (`_orchestration/kalakar-styling`), "New gap
   6". `VideoTab.tsx`'s preset picker gains two entries backed by two new
