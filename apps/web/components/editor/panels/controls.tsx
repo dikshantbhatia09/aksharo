@@ -1,22 +1,47 @@
 "use client";
 
 /**
- * The three control primitives the Colors, Look and Anim tabs are built from.
+ * The control primitives the Colors, Look, Effects and Anim tabs are built from.
  *
  * They are deliberately dumb: each takes a value and a `path` into the StyleDoc
  * and calls back with a `SetStyle` op for that one field. No panel keeps a copy
  * of the style — the editor's document is the only state — which is what makes
  * "the panel emits the right op" a testable statement about `ops.ts` rather
  * than about React.
+ *
+ * Every field wears the same row: label on the left, control on the right, and
+ * a reset that only appears once the field differs from the catalogue style it
+ * came from (08 §1's tokens throughout — `bg-0` for a control well against the
+ * `bg-1` panel, one 32 px control height, lime reserved for state that is
+ * actually *on*).
  */
 
+import { ChevronDown, RotateCcw } from "lucide-react";
 import { useEffect, useState } from "react";
 
-import type { Gradient, GradientStop } from "@montaj/caption-styles";
+import type { Gradient, GradientStop, StyleDoc } from "@montaj/caption-styles";
 
 import { type PanelScope, setStyleField, type SetStyleOp } from "./ops";
 
 import { cn } from "@/lib/utils";
+
+/** Shared row geometry, so a new field cannot drift from the others. */
+const ROW = "flex min-h-8 items-center justify-between gap-3";
+const LABEL = "text-sm text-fg-1";
+const CLUSTER = "flex items-center gap-1.5";
+const WELL = "h-8 rounded-sm border border-border bg-bg-0 text-xs text-fg-0";
+
+/**
+ * The catalogue value behind a dotted `path`, used to decide whether a field is
+ * still at its style's default. `Reflect.get` rather than bracket access so the
+ * lookup is not a dynamic-property sink.
+ */
+function valueAtPath(root: unknown, path: string): unknown {
+  return path.split(".").reduce<unknown>((node, key) => {
+    if (node === null || node === undefined || typeof node !== "object") return undefined;
+    return Reflect.get(node, key);
+  }, root);
+}
 
 export interface FieldProps<T> {
   readonly label: string;
@@ -25,7 +50,64 @@ export interface FieldProps<T> {
   readonly value: T;
   readonly scope: PanelScope;
   readonly onOp: (op: SetStyleOp) => void;
+  /**
+   * The catalogue style this document started from. Supplied, the field grows a
+   * reset affordance whenever `value` no longer matches the catalogue's value
+   * for `path`; omitted, the field simply has no reset.
+   */
+  readonly base?: StyleDoc;
   readonly className?: string;
+}
+
+/**
+ * Per-row reset, the reference product's circular arrow: present only when
+ * there is something to go back to, so a row at its default carries no noise.
+ */
+function ResetButton({
+  id,
+  label,
+  onReset,
+}: {
+  readonly id: string;
+  readonly label: string;
+  readonly onReset: () => void;
+}): React.JSX.Element {
+  return (
+    <button
+      type="button"
+      onClick={onReset}
+      aria-label={`Reset ${label}`}
+      title={`Reset ${label}`}
+      className="text-fg-2 hover:text-fg-0 flex size-[22px] shrink-0 items-center justify-center rounded-[6px] transition-colors duration-[160ms]"
+      data-testid={`${id}-reset`}
+    >
+      <RotateCcw className="size-3.5" aria-hidden="true" />
+    </button>
+  );
+}
+
+/** The reset for a field, or nothing when the field is already at its default. */
+function useReset<T>(
+  props: Pick<FieldProps<T>, "path" | "value" | "scope" | "onOp" | "base" | "label">,
+  id: string,
+): React.JSX.Element | null {
+  const { path, value, scope, onOp, base, label } = props;
+  if (base === undefined) return null;
+  const fallback = valueAtPath(base, path);
+  if (fallback === undefined || fallback === value) return null;
+  return (
+    <ResetButton
+      id={id}
+      label={label}
+      onReset={() => {
+        onOp(setStyleField(scope, path, fallback));
+      }}
+    />
+  );
+}
+
+function fieldId(path: string): string {
+  return `field-${path.replace(/\./g, "-")}`;
 }
 
 export function ColourField({
@@ -34,27 +116,32 @@ export function ColourField({
   value,
   scope,
   onOp,
+  base,
   className,
 }: FieldProps<string>): React.JSX.Element {
-  const id = `field-${path.replace(/\./g, "-")}`;
+  const id = fieldId(path);
+  const reset = useReset({ label, path, value, scope, onOp, base }, id);
   return (
-    <label
-      className={cn("flex items-center justify-between gap-3 text-sm", className)}
-      htmlFor={id}
-    >
-      <span className="text-white/80">{label}</span>
-      <input
-        id={id}
-        type="color"
-        // `<input type=color>` only understands `#RRGGBB`.
-        value={value.slice(0, 7)}
-        onChange={(event) => {
-          onOp(setStyleField(scope, path, event.target.value));
-        }}
-        className="h-7 w-12 cursor-pointer rounded border border-white/10 bg-transparent"
-        data-testid={id}
-      />
-    </label>
+    <div className={cn(ROW, className)}>
+      <label className={LABEL} htmlFor={id}>
+        {label}
+      </label>
+      <div className={CLUSTER}>
+        <span className="text-2xs text-fg-2 tabular-nums uppercase">{value.slice(0, 7)}</span>
+        <input
+          id={id}
+          type="color"
+          // `<input type=color>` only understands `#RRGGBB`.
+          value={value.slice(0, 7)}
+          onChange={(event) => {
+            onOp(setStyleField(scope, path, event.target.value));
+          }}
+          className="panel-swatch"
+          data-testid={id}
+        />
+        {reset}
+      </div>
+    </div>
   );
 }
 
@@ -95,6 +182,25 @@ function nextStopOffset(stops: readonly GradientStop[]): number {
 function cssGradientAngle(angleDeg: number): number {
   return angleDeg + 90;
 }
+
+/** The percentage a range input has filled, as the `--fill` custom property. */
+function fillStyle(value: number, min: number, max: number): React.CSSProperties {
+  const span = max - min;
+  const pct = span === 0 ? 0 : Math.min(100, Math.max(0, ((value - min) / span) * 100));
+  return { "--fill": `${String(pct)}%` } as React.CSSProperties;
+}
+
+/** A segmented pair/triple: the panel's one-of-N control. */
+function segmentedItem(active: boolean): string {
+  return cn(
+    "h-[26px] rounded-[6px] border px-2.5 text-xs font-medium transition-colors duration-[160ms]",
+    active
+      ? "border-lime-500/45 bg-lime-500/12 text-lime-500"
+      : "text-fg-2 hover:text-fg-0 border-transparent bg-transparent",
+  );
+}
+
+const SEGMENTED_TRACK = "flex gap-0.5 rounded-sm border border-border bg-bg-0 p-0.5";
 
 export interface ColorOrGradientFieldProps {
   readonly label: string;
@@ -166,10 +272,10 @@ export function ColorOrGradientField({
   }
 
   return (
-    <div className={cn("flex flex-col gap-2 text-sm", className)} data-testid={`${idPrefix}-field`}>
-      <div className="flex items-center justify-between gap-3">
-        <span className="text-white/80">{label}</span>
-        <div className="flex gap-1" role="radiogroup" aria-label={`${label} fill type`}>
+    <div className={cn("flex flex-col gap-2", className)} data-testid={`${idPrefix}-field`}>
+      <div className={ROW}>
+        <span className={LABEL}>{label}</span>
+        <div className={SEGMENTED_TRACK} role="radiogroup" aria-label={`${label} fill type`}>
           <button
             type="button"
             role="radio"
@@ -177,10 +283,7 @@ export function ColorOrGradientField({
             onClick={() => {
               if (isGradient) onChange(solidValue);
             }}
-            className={cn(
-              "rounded-md px-2 py-1 text-xs",
-              !isGradient ? "bg-white text-black" : "bg-white/10 text-white/80",
-            )}
+            className={segmentedItem(!isGradient)}
             data-testid={`${idPrefix}-mode-solid`}
           >
             Solid
@@ -192,10 +295,7 @@ export function ColorOrGradientField({
             onClick={() => {
               if (!isGradient) onChange(defaultGradient(solidValue));
             }}
-            className={cn(
-              "rounded-md px-2 py-1 text-xs",
-              isGradient ? "bg-white text-black" : "bg-white/10 text-white/80",
-            )}
+            className={segmentedItem(isGradient)}
             data-testid={`${idPrefix}-mode-gradient`}
           >
             Gradient
@@ -204,19 +304,25 @@ export function ColorOrGradientField({
       </div>
 
       {!isGradient ? (
-        <input
-          type="color"
-          value={solidValue.slice(0, 7)}
-          onChange={(event) => {
-            onChange(event.target.value);
-          }}
-          className="h-7 w-12 cursor-pointer rounded border border-white/10 bg-transparent"
-          data-testid={`${idPrefix}-solid`}
-        />
+        <div className="flex items-center justify-end gap-1.5">
+          <span className="text-2xs text-fg-2 tabular-nums uppercase">
+            {solidValue.slice(0, 7)}
+          </span>
+          <input
+            type="color"
+            value={solidValue.slice(0, 7)}
+            onChange={(event) => {
+              onChange(event.target.value);
+            }}
+            className="panel-swatch"
+            aria-label={`${label} colour`}
+            data-testid={`${idPrefix}-solid`}
+          />
+        </div>
       ) : (
-        <div className="flex flex-col gap-2 rounded-md border border-white/10 p-2">
+        <div className="border-border flex flex-col gap-2 rounded-sm border p-2">
           <div
-            className="h-4 w-full rounded"
+            className="h-4 w-full rounded-[6px]"
             style={{
               background: `linear-gradient(${String(cssGradientAngle(value.angleDeg))}deg, ${[
                 ...value.stops,
@@ -240,7 +346,8 @@ export function ColorOrGradientField({
                 onChange={(event) => {
                   setStop(index, { color: event.target.value });
                 }}
-                className="h-6 w-8 cursor-pointer rounded border border-white/10 bg-transparent"
+                className="panel-swatch w-7"
+                aria-label={`Stop ${String(index + 1)} colour`}
                 data-testid={`${idPrefix}-stop-${String(index)}-color`}
               />
               <input
@@ -252,11 +359,12 @@ export function ColorOrGradientField({
                 onChange={(event) => {
                   setStop(index, { offset: Number(event.target.value) });
                 }}
-                className="flex-1"
+                className="panel-range flex-1"
+                style={fillStyle(stop.offset, 0, 1)}
                 aria-label={`Stop ${String(index + 1)} position`}
                 data-testid={`${idPrefix}-stop-${String(index)}-offset`}
               />
-              <span className="w-9 text-right text-xs tabular-nums text-white/60">
+              <span className="text-2xs text-fg-2 w-9 text-right tabular-nums">
                 {Math.round(stop.offset * 100)}%
               </span>
               <button
@@ -265,11 +373,11 @@ export function ColorOrGradientField({
                   removeStop(index);
                 }}
                 disabled={value.stops.length <= 2}
-                className="rounded px-1.5 py-0.5 text-xs text-white/60 hover:text-white disabled:opacity-30"
+                className="text-fg-2 hover:text-fg-0 disabled:text-fg-disabled flex size-[22px] shrink-0 items-center justify-center rounded-[6px] text-xs transition-colors disabled:cursor-not-allowed disabled:hover:text-fg-disabled"
                 data-testid={`${idPrefix}-stop-${String(index)}-remove`}
                 aria-label={`Remove stop ${String(index + 1)}`}
               >
-                ✕
+                &times;
               </button>
             </div>
           ))}
@@ -278,7 +386,7 @@ export function ColorOrGradientField({
               type="button"
               onClick={addStop}
               disabled={value.stops.length >= 6}
-              className="rounded-md bg-white/10 px-2 py-1 text-xs text-white/80 disabled:opacity-30"
+              className="bg-bg-2 border-border text-fg-1 hover:text-fg-0 disabled:text-fg-disabled h-8 rounded-sm border px-2.5 text-xs font-medium transition-colors disabled:cursor-not-allowed"
               data-testid={`${idPrefix}-add-stop`}
             >
               + Stop
@@ -288,30 +396,42 @@ export function ColorOrGradientField({
               onClick={() => {
                 onChange(defaultGradient(solidValue));
               }}
-              className="rounded-md bg-white/10 px-2 py-1 text-xs text-white/80"
+              className="bg-bg-2 border-border text-fg-1 hover:text-fg-0 h-8 rounded-sm border px-2.5 text-xs font-medium transition-colors"
               data-testid={`${idPrefix}-reset`}
             >
               Reset
             </button>
           </div>
-          <label className="flex flex-col gap-1" htmlFor={`${idPrefix}-angle`}>
-            <span className="flex items-center justify-between text-white/80">
-              <span>Angle</span>
-              <span className="tabular-nums text-white/60">{value.angleDeg}°</span>
-            </span>
-            <input
-              id={`${idPrefix}-angle`}
-              type="range"
-              min={0}
-              max={360}
-              step={1}
-              value={value.angleDeg}
-              onChange={(event) => {
-                onChange({ ...value, angleDeg: Number(event.target.value) });
-              }}
-              data-testid={`${idPrefix}-angle`}
-            />
-          </label>
+          <div className={ROW}>
+            <label className={LABEL} htmlFor={`${idPrefix}-angle`}>
+              Angle
+            </label>
+            <div className={CLUSTER}>
+              <input
+                id={`${idPrefix}-angle`}
+                type="range"
+                min={0}
+                max={360}
+                step={1}
+                value={value.angleDeg}
+                onChange={(event) => {
+                  onChange({ ...value, angleDeg: Number(event.target.value) });
+                }}
+                className="panel-range w-[92px]"
+                style={fillStyle(value.angleDeg, 0, 360)}
+                data-testid={`${idPrefix}-angle`}
+              />
+              <span
+                className={cn(
+                  WELL,
+                  "flex w-[62px] items-center justify-center gap-0.5 tabular-nums",
+                )}
+              >
+                {value.angleDeg}
+                <span className="text-2xs text-fg-2">&deg;</span>
+              </span>
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -331,34 +451,44 @@ export function SliderField({
   value,
   scope,
   onOp,
+  base,
   min,
   max,
   step = 1,
   unit,
   className,
 }: SliderFieldProps): React.JSX.Element {
-  const id = `field-${path.replace(/\./g, "-")}`;
+  const id = fieldId(path);
+  const reset = useReset({ label, path, value, scope, onOp, base }, id);
   return (
-    <div className={cn("flex flex-col gap-1 text-sm", className)}>
-      <label className="flex items-center justify-between text-white/80" htmlFor={id}>
-        <span>{label}</span>
-        <span className="tabular-nums text-white/60">
-          {value}
-          {unit ?? ""}
-        </span>
+    <div className={cn(ROW, className)}>
+      <label className={LABEL} htmlFor={id}>
+        {label}
       </label>
-      <input
-        id={id}
-        type="range"
-        min={min}
-        max={max}
-        step={step}
-        value={value}
-        onChange={(event) => {
-          onOp(setStyleField(scope, path, Number(event.target.value)));
-        }}
-        data-testid={id}
-      />
+      <div className={CLUSTER}>
+        <input
+          id={id}
+          type="range"
+          min={min}
+          max={max}
+          step={step}
+          value={value}
+          onChange={(event) => {
+            onOp(setStyleField(scope, path, Number(event.target.value)));
+          }}
+          className="panel-range w-[92px]"
+          style={fillStyle(value, min, max)}
+          data-testid={id}
+        />
+        <span
+          className={cn(WELL, "flex w-[62px] items-center justify-center gap-0.5")}
+          aria-hidden="true"
+        >
+          <span className="tabular-nums">{value}</span>
+          {unit === undefined ? null : <span className="text-2xs text-fg-2">{unit}</span>}
+        </span>
+        {reset}
+      </div>
     </div>
   );
 }
@@ -373,32 +503,45 @@ export function SelectField<T extends string>({
   value,
   scope,
   onOp,
+  base,
   options,
   className,
 }: SelectFieldProps<T>): React.JSX.Element {
-  const id = `field-${path.replace(/\./g, "-")}`;
+  const id = fieldId(path);
+  const reset = useReset({ label, path, value, scope, onOp, base }, id);
   return (
-    <label
-      className={cn("flex items-center justify-between gap-3 text-sm", className)}
-      htmlFor={id}
-    >
-      <span className="text-white/80">{label}</span>
-      <select
-        id={id}
-        value={value}
-        onChange={(event) => {
-          onOp(setStyleField(scope, path, event.target.value));
-        }}
-        className="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-sm"
-        data-testid={id}
-      >
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-    </label>
+    <div className={cn(ROW, className)}>
+      <label className={LABEL} htmlFor={id}>
+        {label}
+      </label>
+      <div className={CLUSTER}>
+        <div className="relative">
+          <select
+            id={id}
+            value={value}
+            onChange={(event) => {
+              onOp(setStyleField(scope, path, event.target.value));
+            }}
+            className={cn(
+              WELL,
+              "hover:border-fg-2/60 w-[168px] appearance-none pr-7 pl-2.5 transition-colors",
+            )}
+            data-testid={id}
+          >
+            {options.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          <ChevronDown
+            className="text-fg-2 pointer-events-none absolute top-1/2 right-2 size-3.5 -translate-y-1/2"
+            aria-hidden="true"
+          />
+        </div>
+        {reset}
+      </div>
+    </div>
   );
 }
 
@@ -425,13 +568,15 @@ export function SearchSelectField({
   value,
   scope,
   onOp,
+  base,
   options,
   placeholder,
   className,
 }: SearchSelectFieldProps): React.JSX.Element {
-  const id = `field-${path.replace(/\./g, "-")}`;
+  const id = fieldId(path);
   const listId = `${id}-options`;
   const [text, setText] = useState(value);
+  const reset = useReset({ label, path, value, scope, onOp, base }, id);
 
   useEffect(() => {
     setText(value);
@@ -445,32 +590,46 @@ export function SearchSelectField({
   }
 
   return (
-    <label className={cn("flex flex-col gap-1 text-sm", className)} htmlFor={id}>
-      <span className="text-white/80">{label}</span>
-      <input
-        id={id}
-        type="text"
-        list={listId}
-        value={text}
-        placeholder={placeholder}
-        onChange={(event) => {
-          setText(event.target.value);
-          commit(event.target.value);
-        }}
-        onBlur={(event) => {
-          if (!options.some((option) => option.value === event.target.value)) setText(value);
-        }}
-        className="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-sm"
-        data-testid={id}
-      />
-      <datalist id={listId}>
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </datalist>
-    </label>
+    <div className={cn(ROW, className)}>
+      <label className={LABEL} htmlFor={id}>
+        {label}
+      </label>
+      <div className={CLUSTER}>
+        <div className="relative">
+          <input
+            id={id}
+            type="text"
+            list={listId}
+            value={text}
+            placeholder={placeholder}
+            onChange={(event) => {
+              setText(event.target.value);
+              commit(event.target.value);
+            }}
+            onBlur={(event) => {
+              if (!options.some((option) => option.value === event.target.value)) setText(value);
+            }}
+            className={cn(
+              WELL,
+              "placeholder:text-fg-2 hover:border-fg-2/60 w-[168px] pr-7 pl-2.5 transition-colors",
+            )}
+            data-testid={id}
+          />
+          <ChevronDown
+            className="text-fg-2 pointer-events-none absolute top-1/2 right-2 size-3.5 -translate-y-1/2"
+            aria-hidden="true"
+          />
+          <datalist id={listId}>
+            {options.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </datalist>
+        </div>
+        {reset}
+      </div>
+    </div>
   );
 }
 
@@ -480,24 +639,30 @@ export function ToggleField({
   value,
   scope,
   onOp,
+  base,
   className,
 }: FieldProps<boolean>): React.JSX.Element {
-  const id = `field-${path.replace(/\./g, "-")}`;
+  const id = fieldId(path);
+  const reset = useReset({ label, path, value, scope, onOp, base }, id);
   return (
-    <label
-      className={cn("flex items-center justify-between gap-3 text-sm", className)}
-      htmlFor={id}
-    >
-      <span className="text-white/80">{label}</span>
-      <input
-        id={id}
-        type="checkbox"
-        checked={value}
-        onChange={(event) => {
-          onOp(setStyleField(scope, path, event.target.checked));
-        }}
-        data-testid={id}
-      />
-    </label>
+    <div className={cn(ROW, className)}>
+      <label className={LABEL} htmlFor={id}>
+        {label}
+      </label>
+      <div className={CLUSTER}>
+        <input
+          id={id}
+          type="checkbox"
+          role="switch"
+          checked={value}
+          onChange={(event) => {
+            onOp(setStyleField(scope, path, event.target.checked));
+          }}
+          className="panel-switch"
+          data-testid={id}
+        />
+        {reset}
+      </div>
+    </div>
   );
 }

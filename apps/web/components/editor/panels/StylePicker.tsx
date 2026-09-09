@@ -9,6 +9,7 @@
  * document, or the selected segment.
  */
 
+import { Bookmark, BookmarkPlus, Search, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import type { StyleCategory, StyleDoc } from "@montaj/caption-styles";
@@ -26,6 +27,22 @@ import { cn } from "@/lib/utils";
  * before, so nothing regresses where a real canvas cannot be known.
  */
 export const DEFAULT_PREVIEW_CANVAS: CanvasSize = { width: 1080, height: 1920 };
+
+/**
+ * The panel's one-of-N control, copied from `controls.tsx` so the Style tab's
+ * source sub-nav and category shelf read as the same family as every other
+ * segmented control in the right panel (08 §1: lime only for state that is on).
+ */
+function segmentedItem(active: boolean): string {
+  return cn(
+    "h-[26px] rounded-[6px] border px-2.5 text-xs font-medium transition-colors duration-[160ms]",
+    active
+      ? "border-lime-500/45 bg-lime-500/12 text-lime-500"
+      : "text-fg-2 hover:text-fg-0 border-transparent bg-transparent",
+  );
+}
+
+const SEGMENTED_TRACK = "flex gap-0.5 rounded-sm border border-border bg-bg-0 p-0.5";
 
 export interface StylePickerProps {
   readonly styles: readonly StyleDoc[];
@@ -104,7 +121,7 @@ export function StylePicker({
   return (
     <div className={cn("flex h-full min-h-0 flex-col gap-3", className)} data-testid="style-picker">
       {showMyPresets ? (
-        <div className="flex gap-1" role="tablist" aria-label="Style source">
+        <div className={SEGMENTED_TRACK} role="tablist" aria-label="Style source">
           <button
             type="button"
             role="tab"
@@ -112,10 +129,7 @@ export function StylePicker({
             onClick={() => {
               setSource("builtin");
             }}
-            className={cn(
-              "flex-1 rounded-md px-2 py-1 text-xs",
-              source === "builtin" ? "bg-white text-black" : "bg-white/10 text-white/80",
-            )}
+            className={cn(segmentedItem(source === "builtin"), "flex-1")}
             data-testid="style-picker-source-builtin"
           >
             Built-in
@@ -127,10 +141,7 @@ export function StylePicker({
             onClick={() => {
               setSource("mine");
             }}
-            className={cn(
-              "flex-1 rounded-md px-2 py-1 text-xs",
-              source === "mine" ? "bg-white text-black" : "bg-white/10 text-white/80",
-            )}
+            className={cn(segmentedItem(source === "mine"), "flex-1")}
             data-testid="style-picker-source-mine"
           >
             My Presets ({myPresets?.length ?? 0})
@@ -138,20 +149,26 @@ export function StylePicker({
         </div>
       ) : null}
 
-      <input
-        type="search"
-        value={query}
-        placeholder={onMine ? "Search my presets" : "Search styles"}
-        aria-label={onMine ? "Search my presets" : "Search caption styles"}
-        onChange={(event) => {
-          setQuery(event.target.value);
-        }}
-        className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm"
-        data-testid="style-picker-search"
-      />
+      <div className="relative">
+        <Search
+          className="text-fg-2 pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2"
+          aria-hidden="true"
+        />
+        <input
+          type="search"
+          value={query}
+          placeholder={onMine ? "Search my presets" : "Search styles"}
+          aria-label={onMine ? "Search my presets" : "Search caption styles"}
+          onChange={(event) => {
+            setQuery(event.target.value);
+          }}
+          className="border-border bg-bg-0 text-fg-0 placeholder:text-fg-2 hover:border-fg-2/60 h-8 w-full rounded-sm border pr-2.5 pl-8 text-xs transition-colors"
+          data-testid="style-picker-search"
+        />
+      </div>
 
       {onMine ? null : (
-        <div className="flex flex-wrap gap-1" role="tablist" aria-label="Style categories">
+        <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="Style categories">
           {(["all", ...categories] as const).map((entry) => (
             <button
               key={entry}
@@ -161,10 +178,7 @@ export function StylePicker({
               onClick={() => {
                 setCategory(entry);
               }}
-              className={cn(
-                "rounded-full px-3 py-1 text-xs capitalize",
-                category === entry ? "bg-white text-black" : "bg-white/10 text-white/80",
-              )}
+              className={cn(segmentedItem(category === entry), "capitalize")}
               data-testid={`style-picker-category-${entry}`}
             >
               {entry}
@@ -174,11 +188,22 @@ export function StylePicker({
       )}
 
       {onMine && visible.length === 0 ? (
-        <p className="px-1 text-xs text-white/50" data-testid="style-picker-empty-mine">
-          {(myPresets?.length ?? 0) === 0
-            ? "Nothing saved yet — pick a look and use “Save as template” below."
-            : "No saved preset matches that search."}
-        </p>
+        <div
+          className="flex flex-col items-center gap-1.5 px-1 py-6 text-center"
+          data-testid="style-picker-empty-mine"
+        >
+          <Bookmark className="text-fg-disabled size-6" aria-hidden="true" />
+          <p className="text-fg-1 text-sm">
+            {(myPresets?.length ?? 0) === 0
+              ? "Nothing saved yet — pick a look and use “Save as template” below."
+              : "No saved preset matches that search."}
+          </p>
+          <p className="text-2xs text-fg-2">
+            {(myPresets?.length ?? 0) === 0
+              ? "Saved presets stay on this device."
+              : "Try a different search term."}
+          </p>
+        </div>
       ) : null}
 
       <div
@@ -200,8 +225,10 @@ export function StylePicker({
                 setHovered((current) => (current === style.id ? undefined : current));
               }}
               className={cn(
-                "w-full overflow-hidden rounded-lg border text-left",
-                style.id === selectedStyleId ? "border-sky-400" : "border-white/10",
+                "bg-bg-0 w-full overflow-hidden rounded-sm border text-left transition-colors duration-[160ms]",
+                style.id === selectedStyleId
+                  ? "border-lime-500 ring-1 ring-lime-500"
+                  : "border-border hover:border-fg-2/60",
               )}
               data-testid={`style-picker-tile-${style.id}`}
             >
@@ -211,7 +238,14 @@ export function StylePicker({
                 playing={hovered === style.id}
                 className="mx-auto"
               />
-              <span className="block truncate px-2 py-1 text-xs">{style.name}</span>
+              <span
+                className={cn(
+                  "text-2xs block truncate px-2 py-1.5",
+                  style.id === selectedStyleId ? "text-fg-0" : "text-fg-1",
+                )}
+              >
+                {style.name}
+              </span>
             </button>
             {onMine && onDeletePreset !== undefined ? (
               <button
@@ -221,10 +255,10 @@ export function StylePicker({
                   event.stopPropagation();
                   onDeletePreset(style.id);
                 }}
-                className="absolute top-1 right-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-xs text-white/80 hover:bg-black/80"
+                className="text-fg-2 hover:text-rejected bg-bg-1/90 absolute top-1 right-1 flex size-[22px] items-center justify-center rounded-[6px] transition-colors"
                 data-testid={`style-picker-delete-${style.id}`}
               >
-                ×
+                <Trash2 className="size-3.5" aria-hidden="true" />
               </button>
             ) : null}
           </div>
@@ -235,9 +269,10 @@ export function StylePicker({
         <button
           type="button"
           onClick={onSaveTemplate}
-          className="rounded-md bg-white/10 px-3 py-2 text-sm"
+          className="bg-lime-500 hover:bg-lime-600 text-on-accent flex h-8 w-full items-center justify-center gap-2 rounded-sm text-sm font-medium transition-colors duration-[160ms]"
           data-testid="style-picker-save-template"
         >
+          <BookmarkPlus className="size-3.5" aria-hidden="true" />
           Save as template
         </button>
       )}

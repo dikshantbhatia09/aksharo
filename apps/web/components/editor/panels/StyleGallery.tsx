@@ -34,7 +34,8 @@ export function StyleGallery({ styles = SYSTEM_STYLES }: StyleGalleryProps): Rea
     return mergeOverrides(base, overrides);
   }, [styles, styleId, overrides]);
 
-  if (style === undefined) return <p>The style catalogue is empty.</p>;
+  if (style === undefined)
+    return <p className="text-fg-1 text-sm">The style catalogue is empty.</p>;
 
   return (
     <div className="flex gap-6">
@@ -54,7 +55,7 @@ export function StyleGallery({ styles = SYSTEM_STYLES }: StyleGalleryProps): Rea
         }}
       />
       <pre
-        className="max-h-[70vh] flex-1 overflow-auto rounded-lg bg-black/40 p-3 text-xs"
+        className="border-border bg-bg-0 text-fg-1 max-h-[70vh] flex-1 overflow-auto rounded-sm border p-3 text-xs"
         data-testid="style-gallery-ops"
       >
         {ops.map((op) => JSON.stringify(op)).join("\n")}

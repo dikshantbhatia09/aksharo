@@ -1119,13 +1119,13 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
               maxSize={percent(32)}
             >
               <div
-                className="flex h-full min-h-0 flex-col gap-2 overflow-y-auto border-l border-white/10 p-3"
+                className="bg-bg-1 border-border scrollbar-thin flex h-full min-h-0 flex-col gap-2 overflow-y-auto border-l p-3"
                 data-coach-mark="style"
               >
                 {reflow?.current.belowComfortableMinimum === true ? (
                   <p
                     data-testid="below-comfortable-minimum-hint"
-                    className="rounded-md bg-amber-400/10 px-2 py-1.5 text-xs text-amber-300"
+                    className="border-proposed/40 bg-proposed/10 text-proposed rounded-sm border px-2 py-1.5 text-xs"
                   >
                     This style shows one short word per caption.
                   </p>

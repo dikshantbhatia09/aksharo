@@ -14,6 +14,129 @@
  * holds only what belongs to the Next app itself.
  */
 
+/*
+ * The caption panel's three native form controls. Every one of them needs a
+ * pseudo-element no utility class can reach — a range's track and thumb, a
+ * colour input's swatch, a checkbox rendered as a switch — and all three have
+ * to stay native elements because the panel's tests drive them by value
+ * (`toHaveValue` on the colour input, `fill()` on the range).
+ */
+@layer components {
+  .panel-range {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 4px;
+    border-radius: 999px;
+    border: 0;
+    padding: 0;
+    cursor: pointer;
+    /* `--fill` is set inline from the field's own value; 0% until it is. */
+    background: linear-gradient(
+      to right,
+      var(--color-lime-500) 0%,
+      var(--color-lime-500) var(--fill, 0%),
+      var(--color-bg-2) var(--fill, 0%),
+      var(--color-bg-2) 100%
+    );
+  }
+
+  .panel-range::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 12px;
+    height: 12px;
+    border-radius: 999px;
+    background: var(--color-fg-0);
+    border: 1px solid var(--color-border);
+    box-shadow: 0 1px 2px rgb(0 0 0 / 0.4);
+  }
+
+  .panel-range::-moz-range-thumb {
+    width: 12px;
+    height: 12px;
+    border-radius: 999px;
+    background: var(--color-fg-0);
+    border: 1px solid var(--color-border);
+  }
+
+  .panel-range:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+
+  .panel-swatch {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 44px;
+    height: 26px;
+    padding: 0;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background-color: transparent;
+    cursor: pointer;
+  }
+
+  .panel-swatch::-webkit-color-swatch-wrapper {
+    padding: 0;
+  }
+
+  .panel-swatch::-webkit-color-swatch {
+    border: 0;
+    border-radius: 7px;
+  }
+
+  .panel-swatch::-moz-color-swatch {
+    border: 0;
+    border-radius: 7px;
+  }
+
+  /*
+   * A checkbox wearing the design system's switch (08 §1): same 36x20 track and
+   * 16px thumb as `@montaj/ui`'s Radix `Switch`, but on a real checkbox so the
+   * panel's fields stay one uniform, testable shape.
+   */
+  .panel-switch {
+    -webkit-appearance: none;
+    appearance: none;
+    position: relative;
+    flex-shrink: 0;
+    width: 36px;
+    height: 20px;
+    margin: 0;
+    border: 1px solid var(--color-border);
+    border-radius: 999px;
+    background-color: var(--color-bg-2);
+    cursor: pointer;
+    transition: background-color var(--animate-duration-base) var(--ease-out-soft);
+  }
+
+  .panel-switch::after {
+    content: "";
+    position: absolute;
+    top: 1px;
+    left: 2px;
+    width: 16px;
+    height: 16px;
+    border-radius: 999px;
+    background-color: var(--color-fg-0);
+    transition: transform var(--animate-duration-base) var(--ease-out-soft);
+  }
+
+  .panel-switch:checked {
+    background-color: var(--color-lime-500);
+  }
+
+  .panel-switch:checked::after {
+    background-color: var(--color-on-accent);
+    transform: translateX(16px);
+  }
+
+  .panel-switch:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+}
+
 @layer base {
   /*
    * The skip link is the first thing in the tab order and the only element that

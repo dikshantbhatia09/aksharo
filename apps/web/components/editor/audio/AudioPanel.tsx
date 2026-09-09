@@ -1,5 +1,6 @@
 "use client";
 
+import { ChevronDown, Wand2 } from "lucide-react";
 import * as React from "react";
 
 import { Button, ProgressBar, Switch } from "@montaj/ui";
@@ -34,6 +35,24 @@ export type AudioCleanTier = "quick" | "deep";
 
 const STRENGTHS: readonly AudioCleanStrength[] = ["light", "medium", "strong"];
 const TARGETS: readonly AudioCleanTarget[] = ["social", "youtube", "podcast"];
+
+/** Shared row geometry, so this tab cannot drift from the rest of the panel (08 §1). */
+const ROW = "flex min-h-8 items-center justify-between gap-3";
+const LABEL = "text-sm text-fg-1";
+const WELL = "h-8 rounded-sm border border-border bg-bg-0 text-xs text-fg-0";
+const SELECT = `${WELL} hover:border-fg-2/60 w-[132px] appearance-none pr-7 pl-2.5 transition-colors duration-[160ms]`;
+const SEGMENTED_TRACK = "flex gap-0.5 rounded-sm border border-border bg-bg-0 p-0.5";
+const CHEVRON = "text-fg-2 pointer-events-none absolute top-1/2 right-2 size-3.5 -translate-y-1/2";
+
+/** The panel's one-of-N control: lime only for the item that is actually on. */
+function segmentedItem(active: boolean): string {
+  return [
+    "h-[26px] rounded-[6px] border px-2.5 text-xs font-medium transition-colors duration-[160ms]",
+    active
+      ? "border-lime-500/45 bg-lime-500/12 text-lime-500"
+      : "text-fg-2 hover:text-fg-0 border-transparent bg-transparent",
+  ].join(" ");
+}
 
 function latestOf(cleans: readonly AudioClean[]): AudioClean | undefined {
   return cleans[0];
@@ -89,14 +108,14 @@ export function AudioPanel(props: AudioPanelProps): React.JSX.Element {
 
   return (
     <section aria-label="Audio clean" className="flex flex-col gap-3 p-3">
-      <div className="flex gap-2" role="radiogroup" aria-label="Clean tier">
+      <div className={SEGMENTED_TRACK} role="radiogroup" aria-label="Clean tier">
         <button
           type="button"
           role="radio"
           aria-checked={tier === "quick"}
           onClick={() => setTier("quick")}
           data-testid="audio-tier-quick"
-          className="flex-1 rounded-md px-2 py-1 text-xs"
+          className={`${segmentedItem(tier === "quick")} flex-1`}
         >
           Quick clean
         </button>
@@ -108,43 +127,51 @@ export function AudioPanel(props: AudioPanelProps): React.JSX.Element {
           onClick={() => deepCleanEnabled && setTier("deep")}
           data-testid="audio-tier-deep"
           title={deepCleanEnabled ? undefined : "coming to cloud renders"}
-          className="flex-1 rounded-md px-2 py-1 text-xs disabled:opacity-50"
+          className={`${segmentedItem(tier === "deep")} disabled:text-fg-disabled disabled:hover:text-fg-disabled flex-1 disabled:cursor-not-allowed`}
         >
           Deep clean
         </button>
       </div>
       {!deepCleanEnabled && (
-        <p className="text-xs text-muted-foreground" data-testid="audio-tier-deep-copy">
+        <p className="text-2xs text-fg-2" data-testid="audio-tier-deep-copy">
           Deep clean (DeepFilterNet) is coming to cloud renders.
         </p>
       )}
 
-      <div className="flex gap-2">
-        <label className="flex flex-col gap-1 text-xs">
-          Strength
-          <select
-            value={strength}
-            onChange={(event) => setStrength(event.target.value as AudioCleanStrength)}
-          >
-            {STRENGTHS.map((value) => (
-              <option key={value} value={value}>
-                {value}
-              </option>
-            ))}
-          </select>
+      <div className="flex flex-col gap-1">
+        <label className={ROW}>
+          <span className={LABEL}>Strength</span>
+          <div className="relative">
+            <select
+              value={strength}
+              onChange={(event) => setStrength(event.target.value as AudioCleanStrength)}
+              className={SELECT}
+            >
+              {STRENGTHS.map((value) => (
+                <option key={value} value={value}>
+                  {value}
+                </option>
+              ))}
+            </select>
+            <ChevronDown className={CHEVRON} aria-hidden="true" />
+          </div>
         </label>
-        <label className="flex flex-col gap-1 text-xs">
-          Target
-          <select
-            value={target}
-            onChange={(event) => setTarget(event.target.value as AudioCleanTarget)}
-          >
-            {TARGETS.map((value) => (
-              <option key={value} value={value}>
-                {value}
-              </option>
-            ))}
-          </select>
+        <label className={ROW}>
+          <span className={LABEL}>Target</span>
+          <div className="relative">
+            <select
+              value={target}
+              onChange={(event) => setTarget(event.target.value as AudioCleanTarget)}
+              className={SELECT}
+            >
+              {TARGETS.map((value) => (
+                <option key={value} value={value}>
+                  {value}
+                </option>
+              ))}
+            </select>
+            <ChevronDown className={CHEVRON} aria-hidden="true" />
+          </div>
         </label>
       </div>
 
@@ -160,20 +187,23 @@ export function AudioPanel(props: AudioPanelProps): React.JSX.Element {
 
       <Button
         type="button"
+        variant="primary"
         onClick={handleRun}
         disabled={starting || props.isLocalProject === true}
+        className="bg-lime-500 hover:bg-lime-600 text-on-accent disabled:bg-bg-2 disabled:text-fg-disabled flex h-8 items-center justify-center gap-2 rounded-sm px-4 text-sm font-medium transition-colors duration-[160ms]"
       >
+        <Wand2 className="size-4" aria-hidden="true" />
         {starting ? "Starting…" : "Clean audio"}
       </Button>
 
       {error !== undefined && (
-        <p role="alert" className="text-xs text-red-600">
+        <p role="alert" className="text-rejected text-xs">
           {error}
         </p>
       )}
 
       {loading ? (
-        <p className="text-xs text-muted-foreground">Loading…</p>
+        <p className="text-fg-2 text-xs">Loading…</p>
       ) : latest !== undefined ? (
         <div className="flex flex-col gap-2" data-testid="audio-clean-result">
           {(latest.status === "queued" || latest.status === "running") && (
@@ -183,46 +213,53 @@ export function AudioPanel(props: AudioPanelProps): React.JSX.Element {
             />
           )}
           {latest.status === "failed" && (
-            <p role="alert" className="text-xs text-red-600">
+            <p role="alert" className="text-rejected text-xs">
               {latest.failureReason ?? "The clean failed."}
             </p>
           )}
           {latest.status === "succeeded" && (
             <>
-              <p className="text-xs text-muted-foreground">{metricsSummary(latest)}</p>
+              <p className="text-2xs text-fg-2 tabular-nums">{metricsSummary(latest)}</p>
 
-              <div className="flex items-center gap-2">
-                <span className="text-xs">A/B preview</span>
-                <button
-                  type="button"
-                  aria-pressed={!abCleaned}
-                  onClick={() => setAbCleaned(false)}
-                  className="text-xs"
-                >
-                  Original
-                </button>
-                <button
-                  type="button"
-                  aria-pressed={abCleaned}
-                  onClick={() => setAbCleaned(true)}
-                  className="text-xs"
-                >
-                  Cleaned
-                </button>
+              <div className={ROW}>
+                <span className={LABEL}>A/B preview</span>
+                <div className={SEGMENTED_TRACK}>
+                  <button
+                    type="button"
+                    aria-pressed={!abCleaned}
+                    onClick={() => setAbCleaned(false)}
+                    className={segmentedItem(!abCleaned)}
+                  >
+                    Original
+                  </button>
+                  <button
+                    type="button"
+                    aria-pressed={abCleaned}
+                    onClick={() => setAbCleaned(true)}
+                    className={segmentedItem(abCleaned)}
+                  >
+                    Cleaned
+                  </button>
+                </div>
               </div>
               {previewSrc !== undefined && (
-                <audio controls src={previewSrc} data-testid="ab-preview-player" />
+                <audio
+                  controls
+                  src={previewSrc}
+                  data-testid="ab-preview-player"
+                  className="w-full"
+                />
               )}
 
-              <label className="flex items-center gap-2 text-xs">
+              <label className={ROW}>
+                <span className={LABEL}>Apply to export</span>
                 <Switch checked={applied} onCheckedChange={handleApplyToggle} />
-                Apply to export
               </label>
             </>
           )}
         </div>
       ) : (
-        <p className="text-xs text-muted-foreground">No clean run yet.</p>
+        <p className="text-2xs text-fg-2">No clean run yet.</p>
       )}
     </section>
   );
