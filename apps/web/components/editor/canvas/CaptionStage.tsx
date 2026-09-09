@@ -21,6 +21,8 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
+import type { Surface } from "canvaskit-wasm";
+
 import type { StyleDoc } from "@montaj/caption-styles";
 import { layoutFrame, renderFrame } from "@montaj/render-core";
 import type { DisplayScript, EdgProjection } from "@montaj/render-core";
@@ -254,15 +256,33 @@ export function CaptionStage({
     };
   }, [onEnded, onMediaError, src]);
 
-  // Draw the overlay for the current output instant.
+  // The overlay's WebGL/CPU surface: created once per element+size, never
+  // per frame. `outputMs` changes on every presented video frame, and
+  // recreating a WebGL context that often is how a long editing session
+  // takes the GPU process down — Chromium caps live contexts per page and
+  // churn like that exhausts driver memory fast, well before any single
+  // frame's draw would.
+  const surfaceRef = useRef<Surface | undefined>(undefined);
+
   useEffect(() => {
     const element = overlayRef.current;
-    if (element === null || backend === undefined || engine === undefined) return;
+    if (element === null || backend === undefined) return;
     element.width = surfaceCanvas.width;
     element.height = surfaceCanvas.height;
     const surface =
       backend.ck.MakeWebGLCanvasSurface(element) ?? backend.ck.MakeSWCanvasSurface(element);
-    if (surface === null) return;
+    surfaceRef.current = surface ?? undefined;
+    return (): void => {
+      surface?.delete();
+      surfaceRef.current = undefined;
+    };
+  }, [backend, surfaceCanvas]);
+
+  // Draw the overlay for the current output instant, onto the surface above.
+  useEffect(() => {
+    const surface = surfaceRef.current;
+    if (surface === null || surface === undefined || backend === undefined || engine === undefined)
+      return;
 
     const options = {
       projection: withDragPreview(projection, selectedSegmentId, dragPreview),
@@ -285,10 +305,6 @@ export function CaptionStage({
         ? laid[0]
         : laid.find((entry) => entry.layout.segmentId === selectedSegmentId);
     setCaptionBox(selected === undefined ? undefined : (selected.layout.paddedBox as Box));
-
-    return (): void => {
-      surface.delete();
-    };
   }, [
     backend,
     engine,
