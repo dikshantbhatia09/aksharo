@@ -12,8 +12,13 @@
 import { Bold, ChevronDown, HelpCircle, Italic, Strikethrough, Underline } from "lucide-react";
 import { useState } from "react";
 
-import { resolveColour } from "@montaj/caption-styles";
 import type { Depth3d, EmphasisPreset, StyleDoc } from "@montaj/caption-styles";
+// The `/browser` subpath, not the barrel, for the *runtime* import: the barrel
+// re-exports the fs-backed style registry, which cannot run in a bundle and
+// (being CommonJS at a path pnpm resolves outside `node_modules`) breaks
+// `next dev` outright. See `packages/caption-styles/src/browser.ts`. The type
+// import above is erased at compile time, so it never reaches the bundler.
+import { resolveColour } from "@montaj/caption-styles/browser";
 import { CATALOGUE } from "@montaj/fonts";
 
 import {

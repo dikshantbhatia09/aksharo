@@ -20,7 +20,13 @@
  * boundary does not cover. Documented in REPORT.md.
  */
 
-import { STYLE_DOC_VERSION, StyleDocSchema, type StyleDoc } from "@montaj/caption-styles";
+// The `/browser` subpath, not the barrel: this module runs in the browser
+// (localStorage), and the barrel re-exports the fs-backed style registry.
+import {
+  STYLE_DOC_VERSION,
+  StyleDocSchema,
+  type StyleDoc,
+} from "@montaj/caption-styles/browser";
 
 const STORAGE_PREFIX = "montaj:my-presets:";
 

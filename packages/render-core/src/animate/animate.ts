@@ -19,13 +19,15 @@
  * The whole caption is then wrapped in the cue's own transform and opacity.
  */
 
+// The `/browser` subpath, not the barrel: this module is in the browser
+// renderer's graph, and the barrel re-exports the fs-backed style registry.
 import {
   type EmphasisPreset,
   type Gradient,
   type GradientStop,
   resolveColour,
   type StyleDoc,
-} from "@montaj/caption-styles";
+} from "@montaj/caption-styles/browser";
 
 import { contrastingInk, withAlpha } from "../colour.js";
 import {

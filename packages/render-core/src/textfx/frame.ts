@@ -15,7 +15,8 @@
  * keyframes.
  */
 
-import { resolveColour, type StyleDoc } from "@montaj/caption-styles";
+// The `/browser` subpath, not the barrel — see `animate.ts` for why.
+import { resolveColour, type StyleDoc } from "@montaj/caption-styles/browser";
 import { type TimeQuery } from "@montaj/timemap";
 
 import { countUpText } from "./count.js";
