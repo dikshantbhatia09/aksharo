@@ -26,6 +26,7 @@ test-results/
 blob-report/
 .playwright/
 playwright/.cache/
+apps/web/qa-sweep/results/
 
 # ---- Prisma ----
 apps/api/prisma/migrations/**/*.sql.bak
