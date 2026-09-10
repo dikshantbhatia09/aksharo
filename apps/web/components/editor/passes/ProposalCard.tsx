@@ -3,7 +3,8 @@
 import * as React from "react";
 
 import type { ItemState, PassItem } from "@montaj/edg";
-import { Badge, Button } from "@montaj/ui";
+import { Badge, Button, cn } from "@montaj/ui";
+import type { BadgeProps } from "@montaj/ui";
 
 const KIND_LABEL: Record<PassItem["kind"], string> = {
   cut: "Cut",
@@ -90,6 +91,30 @@ const SFX_GAIN_MIN = -24;
 const SFX_GAIN_MAX = 12;
 
 /**
+ * The signal token a review state wears (08 §1: proposed/accepted/rejected are
+ * the product's three signal colours). A switch rather than a keyed record so
+ * the lookup is not a dynamic-property sink.
+ */
+function stateTone(state: ItemState): NonNullable<BadgeProps["tone"]> {
+  switch (state) {
+    case "accepted":
+      return "accepted";
+    case "rejected":
+      return "rejected";
+    case "proposed":
+      return "proposed";
+    default:
+      return "neutral";
+  }
+}
+
+/** The percentage a range input has filled, as the `--fill` custom property. */
+function fillStyle(value: number, min: number, max: number): React.CSSProperties {
+  const pct = Math.min(100, Math.max(0, ((value - min) / (max - min)) * 100));
+  return { "--fill": `${String(Math.round(pct))}%` } as React.CSSProperties;
+}
+
+/**
  * One AI proposal: reason, confidence, accept/reject/undo (brief §2). Renders
  * identically whichever kind the item is — the kind-specific summary line is
  * the only branch — so `PassesTab` does not need a card per kind.
@@ -118,46 +143,53 @@ export function ProposalCard({
       data-testid={`proposal-card-${item.itemId}`}
       data-focused={focused ? "true" : "false"}
       data-state={item.state}
-      className={className}
       role="listitem"
       aria-current={focused}
-      style={{
-        border: focused ? "2px solid var(--accent, #6366f1)" : "1px solid var(--border, #333)",
-        borderRadius: 8,
-        padding: 12,
-        display: "flex",
-        flexDirection: "column",
-        gap: 8,
-      }}
+      className={cn(
+        "bg-bg-0 flex flex-col gap-2 rounded-sm border p-2.5 transition-colors duration-[160ms]",
+        focused ? "border-lime-500/45 ring-1 ring-lime-500/45" : "border-border",
+        className,
+      )}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <div className="flex flex-wrap items-center gap-2">
         <Badge>{KIND_LABEL[item.kind]}</Badge>
         {isPartnerAsset(item) ? (
           <Badge tone="info" data-testid="proposal-card-partner-badge">
             Partner — cloud render only
           </Badge>
         ) : null}
-        <span data-testid="proposal-card-range">
+        <span
+          className="text-2xs text-fg-2 font-mono tabular-nums"
+          data-testid="proposal-card-range"
+        >
           {formatMs(item.startMs)} – {formatMs(item.endMs)}
         </span>
         {item.confidence !== undefined ? (
-          <span data-testid="proposal-card-confidence">{Math.round(item.confidence * 100)}%</span>
+          <span
+            className="text-2xs text-fg-2 flex items-center gap-1.5 tabular-nums"
+            data-testid="proposal-card-confidence"
+          >
+            <span className="bg-bg-2 h-1.5 w-10 overflow-hidden rounded-full" aria-hidden="true">
+              <span
+                className="bg-lime-500 block h-full rounded-full"
+                style={{ width: `${String(Math.round(item.confidence * 100))}%` }}
+              />
+            </span>
+            {Math.round(item.confidence * 100)}%
+          </span>
         ) : null}
-        <span data-testid="proposal-card-state" style={{ marginLeft: "auto" }}>
+        <Badge tone={stateTone(item.state)} className="ml-auto" data-testid="proposal-card-state">
           {item.state}
-        </span>
+        </Badge>
       </div>
 
       {item.kind === "title" ? (
-        <p
-          data-testid="proposal-card-title-text"
-          style={{ margin: 0, fontSize: 15, fontWeight: 600 }}
-        >
+        <p className="text-fg-0 m-0 text-sm font-semibold" data-testid="proposal-card-title-text">
           “{item.payload.text}”
           {item.payload.motionPreset !== undefined ? (
             <span
+              className="text-fg-2 ml-2 text-xs font-normal"
               data-testid="proposal-card-title-preset"
-              style={{ marginLeft: 8, fontSize: 12, fontWeight: 400, opacity: 0.7 }}
             >
               {item.payload.motionPreset}
             </span>
@@ -166,14 +198,16 @@ export function ProposalCard({
       ) : null}
 
       {item.kind === "sfx" ? (
-        <div
-          data-testid="proposal-card-sfx"
-          style={{ display: "flex", flexDirection: "column", gap: 6 }}
-        >
+        <div className="flex flex-col gap-1.5" data-testid="proposal-card-sfx">
           {sfxPreviewUrl !== undefined ? (
-            <audio data-testid="proposal-card-sfx-preview" controls src={sfxPreviewUrl} />
+            <audio
+              className="h-8 w-full"
+              data-testid="proposal-card-sfx-preview"
+              controls
+              src={sfxPreviewUrl}
+            />
           ) : null}
-          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}>
+          <label className="text-fg-1 flex items-center gap-2 text-xs">
             Gain
             <input
               type="range"
@@ -183,26 +217,35 @@ export function ProposalCard({
               value={gainDb}
               aria-label="SFX gain (dB)"
               data-testid="proposal-card-sfx-gain"
+              className="panel-range flex-1"
+              style={fillStyle(gainDb, SFX_GAIN_MIN, SFX_GAIN_MAX)}
               onChange={(e) => {
                 const next = Number(e.target.value);
                 setGainDb(next);
                 onGainDbPreview?.(next);
               }}
             />
-            <span data-testid="proposal-card-sfx-gain-value">{gainDb.toFixed(1)} dB</span>
+            <span
+              className="text-2xs text-fg-2 w-14 text-right font-mono tabular-nums"
+              data-testid="proposal-card-sfx-gain-value"
+            >
+              {gainDb.toFixed(1)} dB
+            </span>
           </label>
         </div>
       ) : null}
 
       {item.kind === "music" ? (
-        <div
-          data-testid="proposal-card-music"
-          style={{ display: "flex", flexDirection: "column", gap: 6 }}
-        >
+        <div className="flex flex-col gap-1.5" data-testid="proposal-card-music">
           {musicPreviewUrl !== undefined ? (
-            <audio data-testid="proposal-card-music-preview" controls src={musicPreviewUrl} />
+            <audio
+              className="h-8 w-full"
+              data-testid="proposal-card-music-preview"
+              controls
+              src={musicPreviewUrl}
+            />
           ) : null}
-          <div style={{ display: "flex", gap: 8, fontSize: 12, opacity: 0.85 }}>
+          <div className="text-fg-2 flex gap-2 text-xs">
             {item.payload.mood.length > 0 ? (
               <span data-testid="proposal-card-music-mood">{item.payload.mood.join(", ")}</span>
             ) : null}
@@ -226,12 +269,12 @@ export function ProposalCard({
       ) : null}
 
       {item.reason !== undefined ? (
-        <p data-testid="proposal-card-reason" style={{ margin: 0, fontSize: 13, opacity: 0.85 }}>
+        <p className="text-fg-1 m-0 text-xs" data-testid="proposal-card-reason">
           {item.reason}
         </p>
       ) : null}
 
-      <div style={{ display: "flex", gap: 8 }}>
+      <div className="flex items-center gap-2">
         {onPreview !== undefined ? (
           <>
             <Button type="button" variant="ghost" onClick={() => onPreview("before")}>
@@ -242,7 +285,7 @@ export function ProposalCard({
             </Button>
           </>
         ) : null}
-        <span style={{ flex: 1 }} />
+        <span className="flex-1" />
         {decided ? (
           <Button type="button" variant="outline" onClick={onUndo} data-testid="proposal-card-undo">
             Undo

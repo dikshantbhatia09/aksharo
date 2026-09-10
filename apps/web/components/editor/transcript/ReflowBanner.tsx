@@ -7,6 +7,8 @@
  * never resegments on its own, because that would silently invalidate manual
  * splits, merges and hidden captions.
  */
+import { TriangleAlert } from "lucide-react";
+
 import { cn } from "@/lib/utils";
 
 export interface ReflowBannerProps {
@@ -30,18 +32,21 @@ export function ReflowBanner({
       role="status"
       data-testid="reflow-banner"
       className={cn(
-        "flex items-center justify-between gap-3 rounded-md border border-sky-400/40 bg-sky-400/10 px-3 py-2 text-sm",
+        "border-proposed/40 bg-proposed/10 text-proposed flex items-center justify-between gap-3 rounded-sm border px-3 py-2 text-sm",
         className,
       )}
     >
-      <span>This style fits captions differently now. Reflow to re-cut lines for it?</span>
+      <span className="flex items-center gap-2">
+        <TriangleAlert className="size-3.5 shrink-0" aria-hidden="true" />
+        This style fits captions differently now. Reflow to re-cut lines for it?
+      </span>
       <span className="flex shrink-0 gap-2">
         <button
           type="button"
           data-testid="reflow-banner-apply"
           disabled={busy}
           className={cn(
-            "rounded-md bg-sky-400 px-2.5 py-1 font-medium text-black",
+            "bg-proposed text-on-accent flex h-8 items-center rounded-sm px-3 text-xs font-medium transition-colors duration-[160ms]",
             busy && "cursor-wait opacity-60",
           )}
           onClick={onReflow}
@@ -51,7 +56,7 @@ export function ReflowBanner({
         <button
           type="button"
           data-testid="reflow-banner-dismiss"
-          className="text-fg-3 px-2 py-1 hover:underline"
+          className="text-fg-2 hover:text-fg-0 flex h-8 items-center rounded-sm px-2 text-xs transition-colors duration-[160ms]"
           onClick={onDismiss}
         >
           Not now

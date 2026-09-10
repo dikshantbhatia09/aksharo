@@ -42,19 +42,22 @@ export function PlayerToolbar({
 }: PlayerToolbarProps): React.JSX.Element {
   return (
     <div
-      className={`flex w-full items-center gap-3 px-1 pb-2 text-xs ${className ?? ""}`}
+      className={`flex w-full items-center gap-2.5 px-1 pb-2 text-xs ${className ?? ""}`}
       data-testid="player-toolbar"
     >
       <span
-        className="text-fg-2 rounded-sm bg-white/5 px-2 py-1 font-medium tabular-nums"
+        className="border-border bg-bg-2 text-fg-2 text-2xs inline-flex items-center rounded-full border px-2 py-0.5 font-mono font-medium tabular-nums"
         data-testid="resolution-indicator"
         title="This project's canvas — set when it was created, shown here for reference"
       >
         {canvas.width}×{canvas.height} · {canvas.aspect}
       </span>
 
-      <span className="ml-auto flex items-center gap-3">
-        <label className="text-fg-2 flex items-center gap-1.5" data-testid="safe-zone-toggle">
+      <span className="ml-auto flex items-center gap-2.5">
+        <label
+          className="text-fg-2 hover:text-fg-0 flex items-center gap-2 text-xs transition-colors duration-[160ms]"
+          data-testid="safe-zone-toggle"
+        >
           Safe zone
           <Switch
             checked={safeZonesOn}

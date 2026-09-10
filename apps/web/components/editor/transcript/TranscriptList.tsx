@@ -172,7 +172,7 @@ export function TranscriptList({
       ref={scrollRef}
       onScroll={onScroll}
       data-testid="transcript-list"
-      className={cn("h-full overflow-y-auto overscroll-contain", className)}
+      className={cn("bg-bg-1 scrollbar-thin h-full overflow-y-auto overscroll-contain", className)}
     >
       <div style={{ height: listRef.current.totalHeight(), position: "relative" }}>
         <div

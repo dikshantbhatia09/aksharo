@@ -86,7 +86,11 @@ function Row({
 
 export function EditorMenubar({ ctx }: EditorMenubarProps): React.JSX.Element {
   return (
-    <Menubar data-testid="editor-menubar" aria-label="Editor menu">
+    <Menubar
+      data-testid="editor-menubar"
+      aria-label="Editor menu"
+      className="border-border bg-bg-0"
+    >
       {EDITOR_MENUS.map((menu) => {
         const actions = EDITOR_ACTIONS.filter((action) => action.menu === menu.id);
         if (actions.length === 0) return null;
@@ -95,7 +99,12 @@ export function EditorMenubar({ ctx }: EditorMenubarProps): React.JSX.Element {
 
         return (
           <MenubarMenu key={menu.id} value={menu.id}>
-            <MenubarTrigger data-testid={`menu-${menu.id}`}>{menu.label}</MenubarTrigger>
+            <MenubarTrigger
+              data-testid={`menu-${menu.id}`}
+              className="hover:bg-bg-2 data-[state=open]:bg-bg-2 rounded-sm transition-colors duration-[160ms]"
+            >
+              {menu.label}
+            </MenubarTrigger>
             <MenubarContent>
               {safe.map((action) => (
                 <Row key={action.id} action={action} ctx={ctx} />

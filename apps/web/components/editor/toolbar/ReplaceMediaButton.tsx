@@ -117,13 +117,14 @@ export function ReplaceMediaButton({
         size="sm"
         disabled={disabledReason !== undefined}
         title={disabledReason ?? "Swap this project's source video, keeping captions and edits"}
+        className="bg-bg-2 border-border text-fg-1 hover:text-fg-0 disabled:text-fg-disabled flex h-8 items-center gap-1.5 rounded-sm border px-3 text-xs font-medium transition-colors duration-[160ms] disabled:cursor-not-allowed"
         onClick={() => {
           setStage({ kind: "idle" });
           setOpen(true);
         }}
         data-testid="replace-media-button"
       >
-        <Replace aria-hidden="true" />
+        <Replace className="size-3.5" aria-hidden="true" />
         Replace media
       </Button>
 

@@ -42,17 +42,34 @@ export function CropWindowOverlay(props: CropWindowOverlayProps): React.JSX.Elem
   return (
     <div
       data-testid="crop-window-overlay"
-      className={className}
+      className={`pointer-events-none absolute rounded-sm border-2 border-lime-500 ${className ?? ""}`}
       style={{
-        position: "absolute",
         left,
         top,
         width,
         height,
-        border: "2px solid #7c8ff0",
-        boxShadow: "0 0 0 9999px rgba(0,0,0,0.35)",
-        pointerEvents: "none",
+        // The world outside the crop window, dimmed to `bg-0` at 60% — one
+        // huge spread shadow rather than four dimming panels, so the geometry
+        // above stays the only place a rectangle is computed.
+        boxShadow: "0 0 0 9999px color-mix(in srgb, var(--color-bg-0) 60%, transparent)",
       }}
-    />
+    >
+      <span
+        className="absolute -top-1 -left-1 size-1.5 rounded-full bg-lime-500"
+        aria-hidden="true"
+      />
+      <span
+        className="absolute -top-1 -right-1 size-1.5 rounded-full bg-lime-500"
+        aria-hidden="true"
+      />
+      <span
+        className="absolute -bottom-1 -left-1 size-1.5 rounded-full bg-lime-500"
+        aria-hidden="true"
+      />
+      <span
+        className="absolute -right-1 -bottom-1 size-1.5 rounded-full bg-lime-500"
+        aria-hidden="true"
+      />
+    </div>
   );
 }

@@ -400,7 +400,7 @@ export function CaptionStage({
   return (
     <div
       ref={containerRef}
-      className={cn("relative h-full w-full touch-none select-none bg-black", className)}
+      className={cn("bg-bg-0 relative h-full w-full touch-none select-none", className)}
       data-testid="caption-stage"
       data-state={error !== undefined ? "error" : loading ? "loading" : "ready"}
       onPointerDown={onPointerDown}
@@ -410,7 +410,7 @@ export function CaptionStage({
     >
       {src === undefined ? (
         <div
-          className="absolute flex items-center justify-center text-xs text-white/50"
+          className="bg-bg-2 text-fg-2 absolute flex items-center justify-center overflow-hidden rounded-md text-xs"
           style={{ left: fit.left, top: fit.top, width: fit.width, height: fit.height }}
           data-testid="caption-stage-no-media"
         >
@@ -422,7 +422,7 @@ export function CaptionStage({
           src={src}
           playsInline
           preload="auto"
-          className="absolute"
+          className="bg-bg-2 absolute overflow-hidden rounded-md"
           style={{ left: fit.left, top: fit.top, width: fit.width, height: fit.height }}
           data-testid="caption-stage-video"
         />
@@ -435,7 +435,7 @@ export function CaptionStage({
       />
       {showSafeZones && safeAreaPct > 0 ? (
         <div
-          className="pointer-events-none absolute border border-dashed border-white/25"
+          className="border-fg-0/20 pointer-events-none absolute border border-dashed"
           style={{
             left: fit.left + zones.safe[0] * fit.scale,
             top: fit.top + zones.safe[1] * fit.scale,
@@ -447,7 +447,7 @@ export function CaptionStage({
       ) : null}
       {handle !== undefined && selectedSegmentId !== undefined ? (
         <div
-          className="pointer-events-none absolute rounded-sm border border-sky-400/80 bg-sky-400/5"
+          className="border-lime-500/60 pointer-events-none absolute rounded-sm border bg-lime-500/8"
           style={handle}
           data-testid="caption-stage-box"
         />

@@ -17,6 +17,7 @@
  * too — it calls the very callbacks the buttons and the keyboard map call, so
  * click, shortcut and right-click can never drift apart.
  */
+import { ArrowDown } from "lucide-react";
 import { memo, useCallback, useState } from "react";
 
 import type { Segment, Word } from "@montaj/edg";
@@ -175,10 +176,8 @@ function SegmentCardImpl({
           role="group"
           aria-label={`Caption starting at ${formatTimestamp(segment.startMs)}`}
           className={cn(
-            "flex flex-col gap-1 rounded-lg border px-3 py-2",
-            selected
-              ? "border-lime-400/60 bg-white/[0.06]"
-              : "border-white/5 hover:bg-white/[0.03]",
+            "bg-bg-0 flex flex-col gap-1.5 rounded-sm border p-2.5 transition-colors duration-[160ms]",
+            selected ? "border-lime-500" : "border-border hover:border-fg-2/40",
             segment.hidden === true && "opacity-40",
           )}
           onClick={() => onSelect?.(segment.id)}
@@ -195,7 +194,7 @@ function SegmentCardImpl({
             <button
               type="button"
               data-testid={`segment-timestamp-${segment.id}`}
-              className="text-fg-3 shrink-0 font-mono text-xs hover:underline"
+              className="text-fg-2 hover:text-fg-0 shrink-0 font-mono text-2xs tabular-nums transition-colors duration-[160ms]"
               onClick={(event) => {
                 event.stopPropagation();
                 onSeek?.(segment.startMs);
@@ -208,7 +207,7 @@ function SegmentCardImpl({
                 type="button"
                 data-testid={`segment-hide-${segment.id}`}
                 title={segment.hidden === true ? "Show caption" : "Hide caption"}
-                className="text-fg-3 rounded px-1.5 py-0.5 text-xs hover:bg-white/10"
+                className="text-fg-2 hover:text-fg-0 hover:bg-bg-2 rounded-sm px-1.5 py-0.5 text-2xs font-medium transition-colors duration-[160ms]"
                 onClick={(event) => {
                   event.stopPropagation();
                   onHideToggle?.(segment.id, segment.hidden !== true);
@@ -221,13 +220,14 @@ function SegmentCardImpl({
                   type="button"
                   data-testid={`segment-merge-next-${segment.id}`}
                   title="Merge with next (M)"
-                  className="text-fg-3 rounded px-1.5 py-0.5 text-xs hover:bg-white/10"
+                  className="text-fg-2 hover:text-fg-0 hover:bg-bg-2 flex items-center gap-1 rounded-sm px-1.5 py-0.5 text-2xs font-medium transition-colors duration-[160ms]"
                   onClick={(event) => {
                     event.stopPropagation();
                     onMergeWithNext?.(segment.id);
                   }}
                 >
-                  Merge ↓
+                  Merge
+                  <ArrowDown className="size-3.5" aria-hidden="true" />
                 </button>
               )}
             </div>
@@ -235,7 +235,7 @@ function SegmentCardImpl({
 
           {isWordDisplayScript(script) ? (
             <div
-              className="flex flex-wrap gap-x-1 gap-y-0.5 text-sm leading-relaxed"
+              className="flex flex-wrap gap-1 text-sm leading-relaxed"
               data-testid={`segment-words-${segment.id}`}
             >
               {words.map((word) => (
@@ -261,7 +261,7 @@ function SegmentCardImpl({
             </div>
           ) : (
             <p
-              className="text-fg-2 text-sm italic"
+              className="text-fg-2 text-xs italic"
               data-testid={`segment-translated-${segment.id}`}
             >
               {segment.textOverrides?.["translated"] ??

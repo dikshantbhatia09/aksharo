@@ -95,13 +95,13 @@ describe("WordChip", () => {
     expect(screen.queryByTestId("word-chip-0:0")).not.toBeInTheDocument();
   });
 
-  it("a low-confidence word is underlined amber", () => {
+  it("a low-confidence word is underlined with the proposed signal", () => {
     render(<WordChip word={word({ c: 0.2 })} script="roman" onCommit={vi.fn()} />);
-    expect(screen.getByTestId("word-chip-0:0").className).toMatch(/decoration-amber-400/);
+    expect(screen.getByTestId("word-chip-0:0").className).toMatch(/decoration-proposed/);
   });
 
   it("a confident word is not underlined", () => {
     render(<WordChip word={word({ c: 0.95 })} script="roman" onCommit={vi.fn()} />);
-    expect(screen.getByTestId("word-chip-0:0").className).not.toMatch(/decoration-amber-400/);
+    expect(screen.getByTestId("word-chip-0:0").className).not.toMatch(/decoration-proposed/);
   });
 });

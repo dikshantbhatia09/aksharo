@@ -115,12 +115,14 @@ function WordChipImpl({
       data-filler={word.filler === true ? "true" : undefined}
       data-active={active ? "true" : undefined}
       className={cn(
-        "inline-block cursor-text rounded px-0.5 py-px outline-none",
-        "focus-visible:ring-2 focus-visible:ring-lime-400",
-        active && "bg-lime-400/30",
-        selected && !active && "bg-sky-400/20",
-        word.filler === true && "text-fg-3 opacity-50",
-        lowConfidence && "underline decoration-amber-400 decoration-2 underline-offset-2",
+        "bg-bg-2 text-fg-1 inline-block cursor-text rounded-[6px] px-1.5 py-0.5 text-xs outline-none transition-colors duration-[160ms]",
+        "hover:bg-bg-2 hover:text-fg-0",
+        "focus-visible:ring-2 focus-visible:ring-lime-500",
+        active && "bg-lime-500/12 text-lime-500 hover:bg-lime-500/12 hover:text-lime-500",
+        selected && !active && "ring-1 ring-lime-500",
+        word.filler === true && "text-fg-disabled",
+        lowConfidence &&
+          "text-proposed underline decoration-proposed decoration-dotted underline-offset-2",
       )}
       onDoubleClick={(event) => {
         if (editing) return;

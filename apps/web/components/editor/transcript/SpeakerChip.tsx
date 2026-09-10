@@ -35,14 +35,14 @@ export function SpeakerChip({
       title="Rename speaker (coming soon)"
       onClick={() => onRenameRequested?.(speakerId)}
       className={cn(
-        "inline-flex shrink-0 items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-xs font-medium",
+        "border-border bg-bg-2 text-fg-1 hover:text-fg-0 text-2xs inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2 py-0.5 font-medium transition-colors duration-[160ms]",
         className,
       )}
       style={color === undefined ? undefined : { borderColor: color }}
     >
       <span
         aria-hidden="true"
-        className="h-1.5 w-1.5 rounded-full"
+        className="size-1.5 shrink-0 rounded-full"
         style={{ backgroundColor: color ?? "currentColor" }}
       />
       {label}

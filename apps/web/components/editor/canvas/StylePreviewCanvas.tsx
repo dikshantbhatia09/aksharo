@@ -98,7 +98,7 @@ export function StylePreviewCanvas({
   return (
     <canvas
       ref={canvasRef}
-      className={cn("block rounded-md", className)}
+      className={cn("bg-bg-2 block overflow-hidden rounded-md", className)}
       style={{ width, height }}
       role="img"
       aria-label={label ?? `${style.name} caption style preview`}

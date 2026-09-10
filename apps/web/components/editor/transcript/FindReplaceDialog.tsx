@@ -5,6 +5,7 @@
  * default (brief §3); "Replace all" emits one `EditWord` per match, batched as
  * a single undo step by the caller.
  */
+import { X } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import type { Word } from "@montaj/edg";
@@ -44,21 +45,23 @@ export function FindReplaceDialog({
       role="dialog"
       aria-label="Find and replace"
       data-testid="find-replace-dialog"
-      className="border-white/10 bg-bg-1 fixed top-16 right-4 z-30 flex w-80 flex-col gap-2 rounded-lg border p-3 shadow-xl"
+      className="border-border bg-bg-1 fixed top-16 right-4 z-30 flex w-80 flex-col gap-2 rounded-md border p-3 shadow-xl"
       onKeyDown={(event) => {
         if (event.key === "Escape") onClose();
       }}
     >
       <div className="flex items-center justify-between">
-        <span className="text-sm font-medium">Find &amp; replace</span>
+        <span className="text-fg-2 text-2xs font-medium tracking-wide uppercase">
+          Find &amp; replace
+        </span>
         <button
           type="button"
           data-testid="find-replace-close"
           aria-label="Close"
-          className="text-fg-3 hover:text-fg-0"
+          className="text-fg-2 hover:text-fg-0 flex size-7 items-center justify-center rounded-sm transition-colors duration-[160ms]"
           onClick={onClose}
         >
-          ×
+          <X className="size-3.5" aria-hidden="true" />
         </button>
       </div>
 
@@ -72,7 +75,7 @@ export function FindReplaceDialog({
         onChange={(event) => {
           setQuery(event.target.value);
         }}
-        className="w-full rounded-md border border-white/10 bg-white/5 px-2 py-1 text-sm"
+        className="border-border bg-bg-0 text-fg-0 placeholder:text-fg-2 h-8 w-full rounded-sm border px-2.5 text-xs"
       />
       <input
         type="text"
@@ -83,11 +86,12 @@ export function FindReplaceDialog({
         onChange={(event) => {
           setReplacement(event.target.value);
         }}
-        className="w-full rounded-md border border-white/10 bg-white/5 px-2 py-1 text-sm"
+        className="border-border bg-bg-0 text-fg-0 placeholder:text-fg-2 h-8 w-full rounded-sm border px-2.5 text-xs"
       />
 
-      <div className="flex gap-3 text-xs">
-        <label className="flex items-center gap-1">
+      <div className="flex flex-col">
+        <label className="text-fg-1 flex min-h-8 items-center justify-between gap-3 text-sm">
+          Regex
           <input
             type="checkbox"
             checked={regex}
@@ -95,10 +99,11 @@ export function FindReplaceDialog({
             onChange={(event) => {
               setRegex(event.target.checked);
             }}
+            className="panel-switch"
           />
-          Regex
         </label>
-        <label className="flex items-center gap-1">
+        <label className="text-fg-1 flex min-h-8 items-center justify-between gap-3 text-sm">
+          Case sensitive
           <input
             type="checkbox"
             checked={caseSensitive}
@@ -106,12 +111,12 @@ export function FindReplaceDialog({
             onChange={(event) => {
               setCaseSensitive(event.target.checked);
             }}
+            className="panel-switch"
           />
-          Case sensitive
         </label>
       </div>
 
-      <div className="text-fg-3 text-xs" data-testid="find-replace-count">
+      <div className="text-fg-2 text-2xs tabular-nums" data-testid="find-replace-count">
         {matches.length} match{matches.length === 1 ? "" : "es"}
       </div>
 
@@ -120,7 +125,7 @@ export function FindReplaceDialog({
         data-testid="find-replace-apply"
         disabled={matches.length === 0}
         className={cn(
-          "rounded-md bg-lime-400 px-3 py-1.5 text-sm font-medium text-black",
+          "bg-lime-500 hover:bg-lime-600 text-on-accent flex h-8 items-center justify-center gap-2 rounded-sm px-4 text-sm font-medium transition-colors duration-[160ms]",
           matches.length === 0 && "cursor-not-allowed opacity-40",
         )}
         onClick={() => {

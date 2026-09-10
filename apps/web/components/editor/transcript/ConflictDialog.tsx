@@ -28,46 +28,50 @@ export function ConflictDialog({
       role="alertdialog"
       aria-label="Someone else edited this at the same time"
       data-testid="conflict-dialog"
-      className="border-amber-400/40 bg-bg-1 fixed top-16 left-1/2 z-40 flex w-96 -translate-x-1/2 flex-col gap-3 rounded-lg border p-4 shadow-xl"
+      className="border-border bg-bg-1 fixed top-16 left-1/2 z-40 flex w-96 -translate-x-1/2 flex-col gap-3 rounded-md border p-4 shadow-xl"
     >
-      <p className="text-sm font-medium">
+      <p className="text-fg-0 text-sm font-medium">
         Someone else edited this {conflict.target === "word" ? "word" : "caption"} at the same time.
       </p>
-      <p className="text-fg-3 text-xs">Choose which version to keep — both are shown below.</p>
+      <p className="text-fg-2 text-xs">Choose which version to keep — both are shown below.</p>
 
       <div className="flex flex-col gap-2">
         <button
           type="button"
           data-testid="conflict-choose-mine"
-          className="rounded-md border border-white/10 px-3 py-2 text-left text-sm hover:bg-white/5"
+          className="border-border bg-bg-0 text-fg-0 hover:bg-bg-2 rounded-sm border px-3 py-2 text-left text-sm transition-colors duration-[160ms]"
           onClick={() => {
             onResolve(conflict.opId, "mine");
           }}
         >
-          <span className="text-fg-3 block text-xs">Yours</span>
+          <span className="text-fg-2 text-2xs block font-medium tracking-wide uppercase">
+            Yours
+          </span>
           {conflict.yours}
         </button>
         <button
           type="button"
           data-testid="conflict-choose-theirs"
-          className="rounded-md border border-white/10 px-3 py-2 text-left text-sm hover:bg-white/5"
+          className="border-border bg-bg-0 text-fg-0 hover:bg-bg-2 rounded-sm border px-3 py-2 text-left text-sm transition-colors duration-[160ms]"
           onClick={() => {
             onResolve(conflict.opId, "theirs");
           }}
         >
-          <span className="text-fg-3 block text-xs">Theirs</span>
+          <span className="text-fg-2 text-2xs block font-medium tracking-wide uppercase">
+            Theirs
+          </span>
           {conflict.theirs}
         </button>
       </div>
 
       {conflicts.length > 1 ? (
-        <p className="text-fg-3 text-xs">{conflicts.length - 1} more waiting.</p>
+        <p className="text-fg-2 text-xs tabular-nums">{conflicts.length - 1} more waiting.</p>
       ) : null}
 
       <button
         type="button"
         data-testid="conflict-dismiss"
-        className="text-fg-3 self-end text-xs hover:underline"
+        className="text-fg-2 hover:text-fg-0 self-end rounded-sm text-xs transition-colors duration-[160ms]"
         onClick={() => {
           onDismiss(conflict.opId);
         }}

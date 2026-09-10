@@ -19,6 +19,10 @@ export interface ResegmentParams {
   readonly dropFillers: boolean;
 }
 
+/** The secondary button the three bulk actions share, so none can drift. */
+const BULK_BUTTON =
+  "bg-bg-0 border-border text-fg-1 hover:text-fg-0 disabled:text-fg-disabled h-8 rounded-sm border px-2.5 text-xs font-medium transition-colors duration-[160ms] disabled:cursor-not-allowed";
+
 export interface BulkActionsBarProps {
   readonly onMergeShort: () => void;
   readonly onSplitLong: () => void;
@@ -40,12 +44,18 @@ export function BulkActionsBar({
   const [params, setParams] = useState<ResegmentParams>(defaultParams);
 
   return (
-    <div className={cn("flex items-center gap-1.5", className)} data-testid="bulk-actions-bar">
+    <div
+      className={cn(
+        "border-border bg-bg-2 flex items-center gap-1.5 rounded-sm border p-1.5",
+        className,
+      )}
+      data-testid="bulk-actions-bar"
+    >
       <button
         type="button"
         data-testid="bulk-merge-short"
         disabled={busy}
-        className="text-fg-2 rounded-md bg-white/5 px-2 py-1 text-xs hover:bg-white/10 disabled:opacity-40"
+        className={BULK_BUTTON}
         onClick={onMergeShort}
       >
         Merge short
@@ -54,7 +64,7 @@ export function BulkActionsBar({
         type="button"
         data-testid="bulk-split-long"
         disabled={busy}
-        className="text-fg-2 rounded-md bg-white/5 px-2 py-1 text-xs hover:bg-white/10 disabled:opacity-40"
+        className={BULK_BUTTON}
         onClick={onSplitLong}
       >
         Split long
@@ -63,7 +73,7 @@ export function BulkActionsBar({
         type="button"
         data-testid="bulk-resegment-open"
         disabled={busy}
-        className="text-fg-2 rounded-md bg-white/5 px-2 py-1 text-xs hover:bg-white/10 disabled:opacity-40"
+        className={BULK_BUTTON}
         onClick={() => {
           setParams(defaultParams);
           setDialogOpen(true);
@@ -77,10 +87,10 @@ export function BulkActionsBar({
           role="dialog"
           aria-label="Auto-resegment"
           data-testid="resegment-dialog"
-          className="border-white/10 bg-bg-1 fixed top-1/2 left-1/2 z-50 flex w-80 -translate-x-1/2 -translate-y-1/2 flex-col gap-2 rounded-lg border p-4 shadow-xl"
+          className="border-border bg-bg-1 fixed top-1/2 left-1/2 z-50 flex w-80 -translate-x-1/2 -translate-y-1/2 flex-col gap-2 rounded-md border p-4 shadow-xl"
         >
-          <span className="text-sm font-medium">Auto-resegment</span>
-          <p className="text-fg-3 text-xs">
+          <span className="text-fg-0 text-sm font-medium">Auto-resegment</span>
+          <p className="text-fg-2 text-xs">
             Re-cuts every caption from the live transcript. Manual splits, merges and hidden
             captions on the current captions are replaced.
           </p>
@@ -92,7 +102,10 @@ export function BulkActionsBar({
               ["maxMs", "Max caption length (ms)", 1000, 12000],
             ] as const
           ).map(([key, label, min, max]) => (
-            <label key={key} className="flex items-center justify-between gap-2 text-xs">
+            <label
+              key={key}
+              className="text-fg-1 flex min-h-8 items-center justify-between gap-3 text-sm"
+            >
               {label}
               <input
                 type="number"
@@ -106,11 +119,12 @@ export function BulkActionsBar({
                   if (Number.isFinite(value))
                     setParams((current) => ({ ...current, [key]: value }));
                 }}
-                className="w-20 rounded-md border border-white/10 bg-white/5 px-2 py-1 text-right"
+                className="border-border bg-bg-0 text-fg-0 h-8 w-20 rounded-sm border px-2 text-right text-xs tabular-nums"
               />
             </label>
           ))}
-          <label className="flex items-center gap-1.5 text-xs">
+          <label className="text-fg-1 flex min-h-8 items-center justify-between gap-3 text-sm">
+            Drop filler words
             <input
               type="checkbox"
               checked={params.dropFillers}
@@ -118,14 +132,14 @@ export function BulkActionsBar({
               onChange={(event) => {
                 setParams((current) => ({ ...current, dropFillers: event.target.checked }));
               }}
+              className="panel-switch"
             />
-            Drop filler words
           </label>
           <div className="mt-2 flex justify-end gap-2">
             <button
               type="button"
               data-testid="resegment-cancel"
-              className="text-fg-3 px-3 py-1.5 text-sm hover:underline"
+              className="bg-bg-2 border-border text-fg-1 hover:text-fg-0 h-8 rounded-sm border px-3 text-sm font-medium transition-colors duration-[160ms]"
               onClick={() => {
                 setDialogOpen(false);
               }}
@@ -135,7 +149,7 @@ export function BulkActionsBar({
             <button
               type="button"
               data-testid="resegment-confirm"
-              className="rounded-md bg-lime-400 px-3 py-1.5 text-sm font-medium text-black"
+              className="bg-lime-500 hover:bg-lime-600 text-on-accent flex h-8 items-center justify-center gap-2 rounded-sm px-4 text-sm font-medium transition-colors duration-[160ms]"
               onClick={() => {
                 setDialogOpen(false);
                 onResegment(params);

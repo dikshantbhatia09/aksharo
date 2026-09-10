@@ -227,7 +227,7 @@ export function EditorClient({
   if (load.status === "loading") {
     return (
       <div className="flex h-full items-center justify-center" data-testid="editor-loading">
-        <p className="text-fg-3 text-sm">Loading the editor…</p>
+        <p className="text-fg-2 text-sm">Loading the editor…</p>
       </div>
     );
   }
@@ -239,7 +239,7 @@ export function EditorClient({
     }
     return (
       <div className="flex h-full items-center justify-center" data-testid="editor-error">
-        <p className="text-sm text-red-400">
+        <p className="text-rejected text-sm">
           {load.error?.message ?? "This project could not be opened."}
         </p>
       </div>
@@ -846,7 +846,7 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
 
   return (
     <div className="flex h-[calc(100dvh-3.5rem)] flex-col" data-testid="editor-root">
-      <header className="flex items-center gap-3 border-b border-white/10 px-4 py-2">
+      <header className="bg-bg-1 border-border flex h-[52px] shrink-0 items-center gap-3 border-b px-4">
         {/* The header's own "← Projects" link is gone: File → Back to projects
             is the same navigation, and two ways out of the editor side by side
             is the duplicate chrome the menubar exists to replace. */}
@@ -864,7 +864,7 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
           open={retranscribeOpen}
           onOpenChange={setRetranscribeOpen}
         />
-        <label className="text-fg-3 ml-4 flex items-center gap-1.5 text-xs">
+        <label className="text-fg-1 border-border bg-bg-0 ml-4 flex h-8 items-center gap-1.5 rounded-sm border px-2.5 text-xs">
           <input
             type="checkbox"
             checked={hideFillers}
@@ -873,7 +873,7 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
           />
           Hide fillers
         </label>
-        <label className="text-fg-3 flex items-center gap-1.5 text-xs">
+        <label className="text-fg-1 border-border bg-bg-0 flex h-8 items-center gap-1.5 rounded-sm border px-2.5 text-xs">
           <input
             type="checkbox"
             checked={follow}
@@ -900,7 +900,7 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
             data-testid="editor-undo"
             disabled={!snapshot.canUndo}
             title="Undo (Ctrl+Z)"
-            className="rounded-md bg-white/5 px-2 py-1 text-xs disabled:opacity-30"
+            className="text-fg-2 hover:text-fg-0 disabled:text-fg-disabled flex h-8 items-center gap-1.5 rounded-sm px-2 text-xs transition-colors duration-[160ms] disabled:cursor-not-allowed"
             onClick={() => store.undo()}
           >
             ⟲ Undo
@@ -910,7 +910,7 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
             data-testid="editor-redo"
             disabled={!snapshot.canRedo}
             title="Redo (Ctrl+Y)"
-            className="rounded-md bg-white/5 px-2 py-1 text-xs disabled:opacity-30"
+            className="text-fg-2 hover:text-fg-0 disabled:text-fg-disabled flex h-8 items-center gap-1.5 rounded-sm px-2 text-xs transition-colors duration-[160ms] disabled:cursor-not-allowed"
             onClick={() => store.redo()}
           >
             ⟳ Redo
@@ -918,7 +918,7 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
           {snapshot.offline ? (
             <span
               data-testid="editor-offline"
-              className="rounded-full bg-amber-400/20 px-2 py-1 text-xs text-amber-300"
+              className="border-proposed/40 bg-proposed/10 text-proposed text-2xs inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 font-medium"
             >
               Offline — retrying…
             </span>
@@ -939,14 +939,14 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
 
       {snapshot.tooStale ? (
         <div
-          className="flex items-center justify-between gap-3 border-b border-red-400/30 bg-red-400/10 px-4 py-2 text-sm"
+          className="border-rejected/30 bg-rejected/10 text-fg-1 flex items-center justify-between gap-3 border-b px-4 py-2 text-sm"
           data-testid="editor-too-stale"
         >
           <span>This editor fell too far behind to catch up automatically.</span>
           <button
             type="button"
             data-testid="editor-reload"
-            className="rounded-md bg-white px-2.5 py-1 font-medium text-black"
+            className="border-lime-500/45 bg-lime-500/12 text-lime-500 h-8 rounded-sm border px-2.5 text-sm font-medium transition-colors duration-[160ms]"
             onClick={() => void store.reload()}
           >
             Reload
@@ -988,7 +988,10 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
               defaultSize={percent(COLUMNS_DEFAULT.transcript)}
               minSize={percent(16)}
             >
-              <div className="h-full min-w-0 border-r border-white/10" data-coach-mark="transcript">
+              <div
+                className="border-border bg-bg-1 h-full min-w-0 border-r"
+                data-coach-mark="transcript"
+              >
                 {/* K04: the left icon rail (Captions/Custom Fonts/Library) — the
                     Captions tab's content below is byte-for-byte what this column
                     rendered directly before the rail existed. */}
@@ -1045,7 +1048,7 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
               minSize={percent(30)}
             >
               <div
-                className="min-w-0 h-full bg-black/40 p-4 flex flex-col"
+                className="bg-bg-0 flex h-full min-w-0 flex-col p-4"
                 style={{ containerType: "size" }}
               >
                 {/* K04: resolution indicator, Safe Zone toggle and Replace-media —
@@ -1197,7 +1200,7 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
                * different event and is untouched.
                */}
               <div
-                className="h-full overflow-y-auto border-t border-white/10 bg-black/30 p-2"
+                className="border-border bg-bg-1 scrollbar-thin h-full overflow-y-auto border-t p-2"
                 data-testid="editor-timeline-row"
                 onPointerDownCapture={(event) => {
                   if (event.button !== 0) event.stopPropagation();
@@ -1296,7 +1299,7 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
               {timelineMenu.hint === undefined ? null : (
                 <ContextMenuLabel
                   data-testid="timeline-menu-hint"
-                  className="text-fg-3 text-xs font-normal tracking-normal normal-case"
+                  className="text-fg-2 text-xs font-normal tracking-normal normal-case"
                 >
                   {timelineMenu.hint}
                 </ContextMenuLabel>
@@ -1355,17 +1358,19 @@ function ShortcutsDialog({
             Every editor action, and the key it answers to. Actions with no key are menu-only.
           </DialogDescription>
         </DialogHeader>
-        <div className="flex max-h-[60vh] flex-col gap-4 overflow-y-auto">
+        <div className="scrollbar-thin flex max-h-[60vh] flex-col gap-4 overflow-y-auto">
           {EDITOR_MENUS.map((menu) => (
             <section key={menu.id}>
-              <h3 className="text-fg-3 text-2xs mb-1 font-medium tracking-wide uppercase">
+              <h3 className="text-fg-2 text-2xs mb-1 font-medium tracking-wide uppercase">
                 {menu.label}
               </h3>
               <dl className="flex flex-col gap-1">
                 {EDITOR_ACTIONS.filter((action) => action.menu === menu.id).map((action) => (
                   <div key={action.id} className="flex items-baseline justify-between gap-4">
                     <dt className="text-fg-1 text-sm">{action.label}</dt>
-                    <dd className="text-fg-3 text-2xs tracking-widest">{action.shortcut ?? "—"}</dd>
+                    <dd className="text-fg-2 text-2xs font-mono tracking-widest">
+                      {action.shortcut ?? "—"}
+                    </dd>
                   </div>
                 ))}
               </dl>

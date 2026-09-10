@@ -47,16 +47,23 @@ export function ResizablePanelGroup({
   return (
     <ResizablePrimitive.Group
       data-slot="resizable-panel-group"
-      className={cn("min-h-0 min-w-0", className)}
+      className={cn("bg-bg-1 min-h-0 min-w-0", className)}
       {...props}
     />
   );
 }
 
 export function ResizablePanel({
+  className,
   ...props
 }: React.ComponentProps<typeof ResizablePrimitive.Panel>): React.JSX.Element {
-  return <ResizablePrimitive.Panel data-slot="resizable-panel" {...props} />;
+  return (
+    <ResizablePrimitive.Panel
+      data-slot="resizable-panel"
+      className={cn("bg-bg-1 min-h-0 min-w-0", className)}
+      {...props}
+    />
+  );
 }
 
 export function ResizableHandle({
@@ -72,9 +79,9 @@ export function ResizableHandle({
       data-slot="resizable-handle"
       onDoubleClick={onResetLayout}
       className={cn(
-        "relative flex w-px items-center justify-center bg-white/10",
+        "bg-border relative flex w-px items-center justify-center transition-colors duration-[160ms]",
         "after:absolute after:inset-y-0 after:left-1/2 after:w-1.5 after:-translate-x-1/2",
-        "hover:bg-lime-400/60 focus-visible:ring-1 focus-visible:ring-lime-400 focus-visible:outline-none",
+        "hover:bg-lime-500/40 focus-visible:ring-1 focus-visible:ring-lime-500 focus-visible:outline-none",
         "aria-[orientation=horizontal]:h-px aria-[orientation=horizontal]:w-full",
         "aria-[orientation=horizontal]:after:left-0 aria-[orientation=horizontal]:after:h-1.5",
         "aria-[orientation=horizontal]:after:w-full aria-[orientation=horizontal]:after:translate-x-0 aria-[orientation=horizontal]:after:-translate-y-1/2",

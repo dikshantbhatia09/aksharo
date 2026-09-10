@@ -752,8 +752,10 @@ describe("<Timeline /> FIX-03 transcript reference column", () => {
 
   it("highlights the segment the playhead is currently over, not the others", () => {
     renderTimeline({ words, segments, playheadMs: 2_200 });
-    expect(screen.getByTestId("timeline-transcript-row-s2").className).toMatch(/bg-white\/10/);
-    expect(screen.getByTestId("timeline-transcript-row-s1").className).not.toMatch(/bg-white\/10/);
+    expect(screen.getByTestId("timeline-transcript-row-s2").className).toMatch(/bg-lime-500\/12/);
+    expect(screen.getByTestId("timeline-transcript-row-s1").className).not.toMatch(
+      /bg-lime-500\/12/,
+    );
   });
 
   it("seeks to and selects a segment when its transcript row is clicked", () => {

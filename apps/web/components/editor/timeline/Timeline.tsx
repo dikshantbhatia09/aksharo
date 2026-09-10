@@ -22,6 +22,17 @@
  * as `CaptionStage`'s `onOp`, so the caller (the editor page) is the only
  * place that touches `EditorStore`.
  */
+import {
+  ChevronDown,
+  GitMerge,
+  Pause,
+  Play,
+  Search,
+  Shield,
+  X,
+  ZoomIn,
+  ZoomOut,
+} from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { newId, parseWordId } from "@montaj/edg";
@@ -131,6 +142,47 @@ const FALLBACK_RESEGMENT_PARAMS: ResegmentParams = {
  */
 const CAPTION_DELAY_RANGE_MS = 5_000;
 const CAPTION_DELAY_STEP_MS = 50;
+
+// ---------------------------------------------------------------------------
+// Chrome recipes (08 §1 tokens). Spelled out once, so a control added to the
+// toolbar or the Caption Tools menu later cannot drift from the caption
+// panel's own primitives (`components/editor/panels/controls.tsx`) — same
+// heights, same wells, same one-of-N segmented control, lime reserved for
+// state that is actually *on*.
+// ---------------------------------------------------------------------------
+
+/** 28 px ghost icon button — the toolbar's default tool affordance. */
+const TOOL_BUTTON =
+  "text-fg-2 hover:text-fg-0 flex size-7 shrink-0 items-center justify-center rounded-sm transition-colors duration-[160ms]";
+/** A labelled toolbar button: bordered, on `bg-2`, never the accent. */
+const TOOLBAR_BUTTON =
+  "bg-bg-2 border-border text-fg-1 hover:text-fg-0 flex h-7 shrink-0 items-center gap-1.5 rounded-sm border px-2.5 text-xs font-medium transition-colors duration-[160ms]";
+const SEGMENTED_TRACK = "flex gap-0.5 rounded-sm border border-border bg-bg-0 p-0.5";
+const TOOLBAR_DIVIDER = "bg-border h-5 w-px shrink-0";
+const SECTION_LABEL = "text-2xs font-medium tracking-wide uppercase text-fg-2";
+/** The Caption Tools menu's row and control well, matching `controls.tsx`'s `ROW`/`WELL`. */
+const MENU_ROW = "flex min-h-8 items-center justify-between gap-2 text-sm text-fg-1";
+const MENU_WELL =
+  "h-8 rounded-sm border border-border bg-bg-0 px-2 text-right text-xs text-fg-0 disabled:cursor-not-allowed disabled:text-fg-disabled";
+const MENU_ACTION =
+  "bg-bg-2 border-border text-fg-1 hover:text-fg-0 disabled:text-fg-disabled h-8 rounded-sm border px-2.5 text-left text-xs font-medium transition-colors duration-[160ms] disabled:cursor-not-allowed";
+
+/** The panel's one-of-N item (`controls.tsx`'s `segmentedItem`), on the accent tone when active. */
+function segmentedItem(active: boolean): string {
+  return cn(
+    "text-2xs h-[26px] rounded-[6px] border px-2.5 font-medium tracking-wide uppercase transition-colors duration-[160ms]",
+    active
+      ? "border-lime-500/45 bg-lime-500/12 text-lime-500"
+      : "text-fg-2 hover:text-fg-0 border-transparent bg-transparent",
+  );
+}
+
+/** The percentage a `.panel-range` has filled, as its `--fill` custom property. */
+function rangeFillStyle(value: number, min: number, max: number): React.CSSProperties {
+  const span = max - min;
+  const pct = span === 0 ? 0 : Math.min(100, Math.max(0, ((value - min) / span) * 100));
+  return { "--fill": `${String(pct)}%` } as React.CSSProperties;
+}
 
 /** One user-marked protected range, as stored on `EdgHot.protected` (CONTRACTS §2). */
 export interface ProtectedRange {
@@ -1711,7 +1763,10 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
   return (
     <div
       ref={containerRef}
-      className={cn("flex w-full select-none items-start gap-2", className)}
+      className={cn(
+        "bg-bg-1 border-border flex w-full select-none items-start gap-3 border-t p-3",
+        className,
+      )}
       data-testid="timeline-root"
       role="application"
       aria-label="Caption timeline"
@@ -1720,19 +1775,28 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
       onKeyDown={onKeyDown}
     >
       <div ref={canvasColumnRef} className="relative min-w-0 flex-1">
-        <div className="flex items-center gap-2 px-1 pb-1 text-xs text-white/60">
+        <div className="text-fg-2 flex items-center gap-2 pb-2 text-xs">
           <button
             type="button"
             data-testid="timeline-play-pause"
-            className="rounded bg-white/10 px-2 py-0.5"
+            aria-label={playing ? "Pause" : "Play"}
+            title={playing ? "Pause" : "Play"}
+            className={TOOL_BUTTON}
             onClick={onTogglePlay}
           >
-            {playing ? "Pause" : "Play"}
+            {playing ? (
+              <Pause className="size-4" aria-hidden="true" />
+            ) : (
+              <Play className="size-4" aria-hidden="true" />
+            )}
           </button>
+          <div className={TOOLBAR_DIVIDER} aria-hidden="true" />
           <button
             type="button"
             data-testid="timeline-zoom-in"
-            className="rounded bg-white/10 px-2 py-0.5"
+            aria-label="Zoom in"
+            title="Zoom in"
+            className={TOOL_BUTTON}
             onClick={() => {
               const next = zoomAround({ msPerPx, scrollMs }, widthPx / 2, "in");
               setMsPerPx(next.msPerPx);
@@ -1741,12 +1805,14 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
               );
             }}
           >
-            Zoom in
+            <ZoomIn className="size-4" aria-hidden="true" />
           </button>
           <button
             type="button"
             data-testid="timeline-zoom-out"
-            className="rounded bg-white/10 px-2 py-0.5"
+            aria-label="Zoom out"
+            title="Zoom out"
+            className={TOOL_BUTTON}
             onClick={() => {
               const next = zoomAround({ msPerPx, scrollMs }, widthPx / 2, "out");
               setMsPerPx(next.msPerPx);
@@ -1755,23 +1821,15 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
               );
             }}
           >
-            Zoom out
+            <ZoomOut className="size-4" aria-hidden="true" />
           </button>
-          <div
-            className="ml-2 flex items-center gap-0.5 rounded bg-white/10 p-0.5"
-            role="group"
-            aria-label="Caption granularity"
-          >
+          <div className={TOOLBAR_DIVIDER} aria-hidden="true" />
+          <div className={SEGMENTED_TRACK} role="group" aria-label="Caption granularity">
             <button
               type="button"
               data-testid="timeline-granularity-word"
               aria-pressed={granularity === "word"}
-              className={cn(
-                "rounded px-1.5 py-0.5 text-[10px] font-semibold tracking-wide uppercase",
-                granularity === "word"
-                  ? "bg-white/25 text-white"
-                  : "text-white/50 hover:text-white/80",
-              )}
+              className={segmentedItem(granularity === "word")}
               onClick={() => setGranularity("word")}
             >
               Word
@@ -1780,18 +1838,17 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
               type="button"
               data-testid="timeline-granularity-line"
               aria-pressed={granularity === "line"}
-              className={cn(
-                "rounded px-1.5 py-0.5 text-[10px] font-semibold tracking-wide uppercase",
-                granularity === "line"
-                  ? "bg-white/25 text-white"
-                  : "text-white/50 hover:text-white/80",
-              )}
+              className={segmentedItem(granularity === "line")}
               onClick={() => setGranularity("line")}
             >
               Line
             </button>
           </div>
-          <div className="flex items-center gap-1">
+          <div className="relative flex items-center gap-1.5">
+            <Search
+              className="text-fg-2 pointer-events-none absolute left-2 size-3.5"
+              aria-hidden="true"
+            />
             <input
               type="text"
               data-testid="timeline-search"
@@ -1799,21 +1856,21 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
               aria-label="Search captions"
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
-              className="w-32 rounded bg-white/10 px-2 py-0.5 text-white placeholder:text-white/40 focus:ring-1 focus:ring-white/40 focus:outline-none"
+              className="border-border bg-bg-0 text-fg-0 placeholder:text-fg-2 focus:border-lime-500/45 h-7 w-36 rounded-sm border pr-2 pl-7 text-xs transition-colors duration-[160ms] focus:outline-none"
             />
             {searchQuery !== "" ? (
               <>
-                <span data-testid="timeline-search-count" className="tabular-nums text-white/50">
+                <span data-testid="timeline-search-count" className="text-fg-2 tabular-nums">
                   {searchMatches.length} match{searchMatches.length === 1 ? "" : "es"}
                 </span>
                 <button
                   type="button"
                   data-testid="timeline-search-clear"
                   aria-label="Clear search"
-                  className="rounded px-1 text-white/50 hover:text-white/80"
+                  className={TOOL_BUTTON}
                   onClick={() => setSearchQuery("")}
                 >
-                  ×
+                  <X className="size-3.5" aria-hidden="true" />
                 </button>
               </>
             ) : null}
@@ -1825,17 +1882,18 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
                 data-testid="timeline-caption-tools-trigger"
                 aria-haspopup="true"
                 aria-expanded={captionToolsOpen}
-                className="rounded bg-white/10 px-2 py-0.5"
+                className={TOOLBAR_BUTTON}
                 onClick={() => setCaptionToolsOpen((open) => !open)}
               >
-                Caption Tools ▾
+                Caption Tools
+                <ChevronDown className="size-3.5" aria-hidden="true" />
               </button>
               {captionToolsOpen ? (
                 <div
                   role="menu"
                   aria-label="Caption Tools"
                   data-testid="timeline-caption-tools-menu"
-                  className="border-white/10 bg-bg-1 absolute top-full left-0 z-40 mt-1 flex w-72 max-h-[75vh] flex-col gap-3 overflow-y-auto rounded-lg border p-3 text-left shadow-xl"
+                  className="border-border bg-bg-1 scrollbar-thin absolute top-full left-0 z-40 mt-1 flex max-h-[75vh] w-72 flex-col gap-3 overflow-y-auto rounded-md border p-3 text-left shadow-xl"
                 >
                   {/*
                    * K06 (`ADDENDUM-full-frame-audit.md` "New gap 4"): the real
@@ -1854,22 +1912,20 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
                     data-testid="caption-tools-display-settings"
                     className="flex flex-col gap-1.5"
                   >
-                    <div className="text-[10px] font-semibold tracking-wide text-white/40 uppercase">
-                      Display Settings
-                    </div>
-                    <label className="flex items-center justify-between gap-2 text-xs text-white/80">
+                    <div className={SECTION_LABEL}>Display Settings</div>
+                    <label className={MENU_ROW}>
                       Words
                       <select
                         data-testid="caption-tools-words"
                         disabled
                         title="No other grouping exists yet in this app's data model — Default is the only real option."
-                        className="w-28 rounded-md border border-white/10 bg-white/5 px-2 py-1 text-right disabled:opacity-50"
+                        className={cn(MENU_WELL, "w-28")}
                         defaultValue="default"
                       >
                         <option value="default">Default</option>
                       </select>
                     </label>
-                    <label className="flex items-center justify-between gap-2 text-xs text-white/80">
+                    <label className={MENU_ROW}>
                       Max Chars
                       <input
                         type="number"
@@ -1886,10 +1942,10 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
                         onKeyDown={(event) => {
                           if (event.key === "Enter") commitDisplaySettings();
                         }}
-                        className="w-20 rounded-md border border-white/10 bg-white/5 px-2 py-1 text-right disabled:opacity-50"
+                        className={cn(MENU_WELL, "w-20")}
                       />
                     </label>
-                    <label className="flex items-center justify-between gap-2 text-xs text-white/80">
+                    <label className={MENU_ROW}>
                       Lines
                       <select
                         data-testid="caption-tools-lines"
@@ -1900,28 +1956,26 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
                           setMaxLinesDraft(value);
                           commitDisplaySettings({ maxLines: value });
                         }}
-                        className="w-28 rounded-md border border-white/10 bg-white/5 px-2 py-1 text-right disabled:opacity-50"
+                        className={cn(MENU_WELL, "w-28")}
                       >
                         <option value={1}>1 Line</option>
                         <option value={2}>2 Lines</option>
                         <option value={3}>3 Lines</option>
                       </select>
                     </label>
-                    <p className="text-[10px] text-white/40">
+                    <p className="text-2xs text-fg-2">
                       Re-cuts every caption from the transcript — manual splits, merges and hidden
                       captions are replaced.
                     </p>
                   </div>
 
                   <div data-testid="caption-tools-actions" className="flex flex-col gap-1.5">
-                    <div className="text-[10px] font-semibold tracking-wide text-white/40 uppercase">
-                      Actions
-                    </div>
+                    <div className={SECTION_LABEL}>Actions</div>
                     <button
                       type="button"
                       data-testid="caption-tools-remove-punctuation"
                       disabled={onCaptionToolsAction === undefined}
-                      className="text-fg-2 rounded-md bg-white/5 px-2 py-1 text-left text-xs hover:bg-white/10 disabled:opacity-40"
+                      className={MENU_ACTION}
                       onClick={runRemovePunctuation}
                     >
                       Remove Punctuation
@@ -1930,7 +1984,7 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
                       type="button"
                       data-testid="caption-tools-remove-emphasis"
                       disabled={onCaptionToolsAction === undefined}
-                      className="text-fg-2 rounded-md bg-white/5 px-2 py-1 text-left text-xs hover:bg-white/10 disabled:opacity-40"
+                      className={MENU_ACTION}
                       onClick={runRemoveEmphasis}
                     >
                       Remove Emphasis
@@ -1939,7 +1993,7 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
                       type="button"
                       data-testid="caption-tools-remove-gaps"
                       disabled={onCaptionToolsAction === undefined}
-                      className="text-fg-2 rounded-md bg-white/5 px-2 py-1 text-left text-xs hover:bg-white/10 disabled:opacity-40"
+                      className={MENU_ACTION}
                       onClick={runRemoveGaps}
                     >
                       Remove Gaps in Captions
@@ -1948,7 +2002,7 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
                       type="button"
                       data-testid="caption-tools-remove-emojis"
                       disabled={onCaptionToolsAction === undefined}
-                      className="text-fg-2 rounded-md bg-white/5 px-2 py-1 text-left text-xs hover:bg-white/10 disabled:opacity-40"
+                      className={MENU_ACTION}
                       onClick={runRemoveEmojis}
                     >
                       Remove Emojis
@@ -1956,15 +2010,13 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
                   </div>
 
                   <div data-testid="caption-tools-timing" className="flex flex-col gap-1.5">
-                    <div className="text-[10px] font-semibold tracking-wide text-white/40 uppercase">
-                      Timing
-                    </div>
-                    <label className="flex flex-col gap-1 text-xs text-white/80">
+                    <div className={SECTION_LABEL}>Timing</div>
+                    <label className="text-fg-1 flex flex-col gap-2 text-sm">
                       <span className="flex items-center justify-between">
                         Caption Delay
                         <span
                           data-testid="caption-tools-delay-value"
-                          className="tabular-nums text-white/50"
+                          className="text-fg-2 font-mono text-xs tabular-nums"
                         >
                           {delayPreviewMs > 0 ? "+" : ""}
                           {(delayPreviewMs / 1000).toFixed(2)}s
@@ -1978,6 +2030,12 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
                         step={CAPTION_DELAY_STEP_MS}
                         value={delayPreviewMs}
                         onChange={(event) => onDelaySliderChange(Number(event.target.value))}
+                        className="panel-range w-full"
+                        style={rangeFillStyle(
+                          delayPreviewMs,
+                          -CAPTION_DELAY_RANGE_MS,
+                          CAPTION_DELAY_RANGE_MS,
+                        )}
                       />
                     </label>
                     <div className="flex justify-end gap-2">
@@ -1985,7 +2043,7 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
                         type="button"
                         data-testid="caption-tools-delay-reset"
                         disabled={delayPreviewMs === 0}
-                        className="text-fg-3 px-2 py-1 text-xs hover:underline disabled:opacity-40"
+                        className="text-fg-2 hover:text-fg-0 disabled:text-fg-disabled h-8 rounded-sm px-2.5 text-xs font-medium transition-colors duration-[160ms] disabled:cursor-not-allowed"
                         onClick={resetCaptionDelay}
                       >
                         Reset
@@ -1994,7 +2052,7 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
                         type="button"
                         data-testid="caption-tools-delay-apply"
                         disabled={delayPreviewMs === 0 || onCaptionToolsAction === undefined}
-                        className="rounded-md bg-lime-400 px-2 py-1 text-xs font-medium text-black disabled:opacity-40"
+                        className="bg-lime-500 hover:bg-lime-600 text-on-accent disabled:bg-bg-2 disabled:text-fg-disabled flex h-8 items-center justify-center rounded-sm px-4 text-xs font-medium transition-colors duration-[160ms] disabled:cursor-not-allowed"
                         onClick={applyCaptionDelay}
                       >
                         Apply
@@ -2002,7 +2060,7 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
                     </div>
                   </div>
 
-                  <div className="h-px bg-white/10" />
+                  <div className="bg-border h-px" />
 
                   {/*
                    * K03 brief §3: "call the same underlying handlers/store actions
@@ -2012,9 +2070,7 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
                    * produce identical results to the transcript column's own copy.
                    */}
                   <div data-testid="caption-tools-structure" className="flex flex-col gap-1.5">
-                    <div className="text-[10px] font-semibold tracking-wide text-white/40 uppercase">
-                      Structure
-                    </div>
+                    <div className={SECTION_LABEL}>Structure</div>
                     <BulkActionsBar
                       onMergeShort={() => {
                         onMergeShortCaptions?.();
@@ -2038,7 +2094,7 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
             </div>
           ) : null}
           {outputModeAvailable(timeMap) ? (
-            <label className="ml-2 flex items-center gap-1">
+            <label className="text-fg-1 ml-2 flex shrink-0 items-center gap-2 text-xs">
               <input
                 type="checkbox"
                 data-testid="timeline-output-mode-toggle"
@@ -2046,6 +2102,7 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
                 onChange={(event) =>
                   onDisplayModeChange?.(event.target.checked ? "output" : "source")
                 }
+                className="panel-switch"
               />
               Output time
             </label>
@@ -2055,7 +2112,7 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
             <button
               type="button"
               data-testid="timeline-toggle-protection"
-              className="rounded bg-white/10 px-2 py-0.5"
+              className={TOOLBAR_BUTTON}
               onClick={() => {
                 const selectedSegment = segments.find((s) => s.id === selectedSegmentId);
                 const selectedWord = liveWords.find((w) => w.wid === selectedWordId);
@@ -2068,6 +2125,7 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
                 if (range !== undefined) onToggleProtection(range.s, range.e);
               }}
             >
+              <Shield className="size-3.5" aria-hidden="true" />
               Protect (P)
             </button>
           ) : null}
@@ -2075,23 +2133,28 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
             <button
               type="button"
               data-testid="timeline-merge"
-              className="ml-auto rounded bg-white/10 px-2 py-0.5"
+              className={cn(TOOLBAR_BUTTON, "ml-auto")}
               onClick={() => {
                 const index = segments.findIndex((s) => s.id === selectedSegmentId);
                 const next = segments[index + 1];
                 if (next !== undefined) onMergeSegments([selectedSegmentId, next.id]);
               }}
             >
+              <GitMerge className="size-3.5" aria-hidden="true" />
               Merge with next
             </button>
           ) : null}
-          <span data-testid="timeline-display-clock" className="ml-auto tabular-nums">
+          <span
+            data-testid="timeline-display-clock"
+            className="text-fg-2 ml-auto shrink-0 font-mono text-xs tabular-nums"
+          >
             {formatMs(displayPlayheadMs)} / {formatMs(displayDuration)}
           </span>
         </div>
         <canvas
           ref={canvasRef}
           data-testid="timeline-canvas"
+          className="bg-bg-0 block rounded-[6px]"
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
@@ -2117,11 +2180,11 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
        */}
       <div
         data-testid="timeline-transcript-panel"
-        className="w-64 shrink-0 overflow-y-auto border-l border-white/10 pl-2 text-xs leading-snug text-white/70"
+        className="border-border text-fg-1 scrollbar-thin w-64 shrink-0 overflow-y-auto border-l pl-2 text-xs leading-snug"
         style={{ height: laneTops.totalHeight }}
       >
         {segments.length === 0 ? (
-          <p className="p-2 text-white/40">No transcript yet.</p>
+          <p className="text-fg-2 p-2">No transcript yet.</p>
         ) : (
           <ul className="flex flex-col gap-0.5 py-1">
             {segments.map((segment) => (
@@ -2133,9 +2196,11 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
                 }}
                 data-testid={`timeline-transcript-row-${segment.id}`}
                 className={cn(
-                  "cursor-pointer rounded px-1.5 py-1",
-                  segment.id === activeSegmentId ? "bg-white/10 text-white" : "hover:bg-white/5",
-                  segment.hidden === true && "text-white/30 line-through",
+                  "cursor-pointer rounded-sm border px-1.5 py-1 transition-colors duration-[160ms]",
+                  segment.id === activeSegmentId
+                    ? "border-lime-500/45 bg-lime-500/12 text-lime-500"
+                    : "hover:bg-bg-2 hover:text-fg-0 border-transparent",
+                  segment.hidden === true && "text-fg-disabled line-through",
                 )}
                 onClick={() => {
                   onSelectSegment?.(segment.id);
