@@ -71,77 +71,18 @@ export const IMPORT_MAX_BYTES = 2 * 1024 * 1024;
 export const IMPORT_FETCH_TIMEOUT_MS = 10_000;
 
 /**
- * Media types an upload may declare (THREAT-MODEL **T7**).
+ * Media formats an upload may use.
  *
- * An allow-list, because the alternative is enumerating everything ffmpeg can be
- * persuaded to open. The declared type is also only ever a *claim*: the probe
- * worker (A07) reads the actual container and rewrites `mime`, and the API's copy
- * exists to reject the obvious before a gigabyte moves.
+ * Re-exported from `@montaj/config` rather than defined here: the browser's
+ * file picker needs the identical list, and when this file was the only copy
+ * the web kept a hand-written subset that silently greyed out `.avi`, `.m4v`,
+ * `.mpeg` and `.3gp` in the file dialog. One list, two readers.
  */
-export const ALLOWED_MEDIA_MIME_TYPES: readonly string[] = [
-  "video/mp4",
-  "video/quicktime",
-  "video/x-matroska",
-  "video/webm",
-  "video/x-msvideo",
-  "video/mpeg",
-  "video/3gpp",
-  "audio/mpeg",
-  "audio/mp4",
-  "audio/aac",
-  "audio/wav",
-  "audio/x-wav",
-  "audio/vnd.wave",
-  "audio/ogg",
-  "audio/opus",
-  "audio/flac",
-  "audio/x-flac",
-  "audio/webm",
-];
-
-/** Extensions that may appear in a raw key, paired with the list above. */
-export const ALLOWED_MEDIA_EXTENSIONS: readonly string[] = [
-  "mp4",
-  "m4v",
-  "mov",
-  "mkv",
-  "webm",
-  "avi",
-  "mpg",
-  "mpeg",
-  "3gp",
-  "mp3",
-  "m4a",
-  "aac",
-  "wav",
-  "ogg",
-  "oga",
-  "opus",
-  "flac",
-  "weba",
-];
-
-/** Extension used when a filename has none we recognise but the MIME is allowed. */
-export const MIME_FALLBACK_EXTENSIONS: Readonly<Record<string, string>> = {
-  "video/mp4": "mp4",
-  "video/quicktime": "mov",
-  "video/x-matroska": "mkv",
-  "video/webm": "webm",
-  "video/x-msvideo": "avi",
-  "video/mpeg": "mpg",
-  "video/3gpp": "3gp",
-  "audio/mpeg": "mp3",
-  "audio/mp4": "m4a",
-  "audio/aac": "aac",
-  "audio/wav": "wav",
-  "audio/x-wav": "wav",
-  "audio/vnd.wave": "wav",
-  "audio/ogg": "ogg",
-  "audio/opus": "opus",
-  "audio/flac": "flac",
-  "audio/x-flac": "flac",
-  "audio/webm": "weba",
-};
+export {
+  ALLOWED_MEDIA_EXTENSIONS,
+  ALLOWED_MEDIA_MIME_TYPES,
+  MIME_FALLBACK_EXTENSIONS,
+} from "@montaj/config";
 
 /**
  * Object tags every upload carries.

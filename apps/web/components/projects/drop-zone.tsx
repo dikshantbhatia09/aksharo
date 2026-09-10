@@ -2,7 +2,11 @@
 
 /**
  * The Home drop zone (08 §Home): "Drop videos or audio here · up to 4 GB / 3 h
- * on Creator · MP4 MOV MKV WEBM MP3 WAV" plus the transcription-time badge.
+ * on Creator", the formats accepted, and the transcription-time badge.
+ *
+ * The format line is derived from `@montaj/config`'s allow-list rather than
+ * written out, so the copy, the `accept` attribute and the API's own validation
+ * cannot disagree about what may be uploaded.
  *
  * The badge quotes no number: the free-stack pipeline (local Whisper on CPU)
  * cannot hold a 60-second promise, and UI never quotes a number the pipeline
@@ -15,21 +19,32 @@ import { UploadCloud } from "lucide-react";
 import * as React from "react";
 
 import { useEntitlement } from "@montaj/api-client";
-import { cn } from "@montaj/ui";
+import {
+  ALLOWED_MEDIA_EXTENSIONS,
+  isAllowedMediaFile,
+  MEDIA_ACCEPT_ATTRIBUTE,
+} from "@montaj/config";
+import { cn, toast } from "@montaj/ui";
 
-/** The brief's own list (07 F-101): a subset of the backend's full allow-list. */
-export const ACCEPTED_EXTENSIONS = [
-  "mp4",
-  "mov",
-  "mkv",
-  "webm",
-  "mp3",
-  "wav",
-  "m4a",
-  "aac",
-] as const;
+/**
+ * Every format the API accepts — not a subset of it.
+ *
+ * This list used to be hand-written here as "a subset of the backend's full
+ * allow-list", and the subset is what made `.avi`, `.m4v`, `.mpeg`, `.mpg` and
+ * `.3gp` unselectable in the file dialog even though the API would have taken
+ * them: the picker greys out anything `accept` does not name, so the file
+ * simply could not be chosen and nothing ever reached the server to be logged.
+ * `@montaj/config/media-formats` is now the single list both sides read.
+ */
+export const ACCEPTED_EXTENSIONS = ALLOWED_MEDIA_EXTENSIONS;
 
-export const ACCEPT_ATTRIBUTE = ACCEPTED_EXTENSIONS.map((ext) => `.${ext}`).join(",");
+export const ACCEPT_ATTRIBUTE = MEDIA_ACCEPT_ATTRIBUTE;
+
+/**
+ * The formats named under the drop zone, derived so the copy cannot promise
+ * less (or more) than the picker actually accepts.
+ */
+const FORMAT_SUMMARY = ACCEPTED_EXTENSIONS.map((extension) => extension.toUpperCase()).join(" ");
 
 function formatBytes(bytes: number): string {
   if (!Number.isFinite(bytes) || bytes <= 0) return "0 B";
@@ -65,9 +80,51 @@ export function DropZone({
     if (!disabled) inputRef.current?.click();
   };
 
+  /**
+   * A drop bypasses `accept` entirely — that attribute only filters the file
+   * picker — so without this check an unsupported file went all the way to a
+   * full client-side hash (minutes, for a large file) before the API answered
+   * 415. Refusing it here costs nothing and says why.
+   */
   const handleFiles = (list: FileList | null): void => {
     if (list === null || list.length === 0) return;
-    onFiles(Array.from(list));
+    const files = Array.from(list);
+    const accepted = files.filter((file) => isAllowedMediaFile(file.name, file.type));
+    const rejected = files.filter((file) => !isAllowedMediaFile(file.name, file.type));
+
+    if (rejected.length > 0) {
+      const names = rejected.map((file) => file.name);
+      toast.error(
+        rejected.length === 1
+          ? `${names[0] ?? "That file"} is not a media file we can read`
+          : `${String(rejected.length)} files are not media we can read`,
+        { description: `Supported: ${ACCEPTED_EXTENSIONS.join(", ").toUpperCase()}.` },
+      );
+    }
+
+    // The plan's own cap, checked before anything starts rather than after.
+    // `UploadJob` hashes the whole file before `POST /media/init` can answer
+    // 413, so an over-cap file used to sit in the tray "Uploading" for the
+    // minutes that hash takes and only then report that it was never eligible.
+    // `undefined` means the entitlement has not loaded — never block on that.
+    const cap = maxFileBytes === undefined ? undefined : Number(maxFileBytes);
+    const tooLarge =
+      cap === undefined || !Number.isFinite(cap) || cap <= 0
+        ? []
+        : accepted.filter((file) => file.size > cap);
+    if (tooLarge.length > 0 && cap !== undefined) {
+      toast.error(
+        tooLarge.length === 1
+          ? `${tooLarge[0]?.name ?? "That file"} is larger than your plan allows`
+          : `${String(tooLarge.length)} files are larger than your plan allows`,
+        {
+          description: `The ${planKey ?? "current"} plan allows files up to ${formatBytes(cap)}.`,
+        },
+      );
+    }
+
+    const ready = accepted.filter((file) => !tooLarge.includes(file));
+    if (ready.length > 0) onFiles(ready);
   };
 
   return (
@@ -110,10 +167,10 @@ export function DropZone({
         <p className="text-fg-0 text-base font-medium">Drop videos or audio here</p>
         <p className="text-fg-2 text-sm" data-testid="drop-zone-limits">
           {maxFileBytes === undefined || maxDurationMs === undefined
-            ? "MP4 MOV MKV WEBM MP3 WAV M4A AAC"
+            ? FORMAT_SUMMARY
             : `Up to ${formatBytes(Number(maxFileBytes))} / ${formatDuration(Number(maxDurationMs))}${
                 planKey === undefined ? "" : ` on ${planKey}`
-              } · MP4 MOV MKV WEBM MP3 WAV M4A AAC`}
+              } · ${FORMAT_SUMMARY}`}
         </p>
         <span
           className="border-lime-500/40 bg-lime-500/10 text-lime-500 inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium"
