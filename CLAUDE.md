@@ -112,11 +112,54 @@ pnpm --filter @montaj/render-core test
 pnpm --filter @montaj/web build            # must exit 0
 ```
 
-The e2e suite (`playwright test`) currently **cannot create accounts**: its
-`signUpAndVerify` fixture waits for a `signup-sent` screen, but this backend
-auto-logs-in after signup, so every account-dependent spec fails in the fixture
-before reaching any product code. It also runs against the production API. Treat
-e2e as unavailable until that fixture is fixed.
+The e2e suite runs against the **production API** (see §1) — do not point it
+there. Its account fixtures have been unreliable; verify the fixture before
+trusting a red e2e run as a product failure.
+
+What `POST /auth/signup` actually does here (measured 2026-09-10, correcting an
+earlier note in this file that claimed it auto-logs-in): it answers **202
+`{"status":"verification_sent"}`**. Because `.env.local-run` sets
+`AUTH_DEV_AUTO_VERIFY=1` the account is usable straight away, so
+`POST /auth/login` with the same credentials succeeds immediately — there is no
+inbox step to wait for.
+
+---
+
+## 4b. The upload path (measured end to end, 2026-09-10)
+
+The whole chain is healthy; if a user says "I can't upload", find out **where**
+before assuming a service is down.
+
+```
+browser: hash file (streaming SHA-256 in a Web Worker chunk)
+  -> POST /projects                    (creates the project; sourceLanguage set here)
+  -> POST /projects/{id}/media/init    (413 if over the plan's maxFileBytes)
+  -> PUT   each 16 MiB part -> aksharo-media...  (presigned; ETag read per part)
+  -> POST /projects/{id}/media/{mediaId}/complete
+  -> POST /projects/{id}/transcribe    (409 media/not_ready is EXPECTED, see below)
+```
+
+Facts worth not re-deriving:
+
+- **MinIO exposes `ETag`** on the actual PUT response (`Access-Control-Expose-Headers`),
+  which is what `part-upload.ts` needs. A preflight not listing it means nothing —
+  expose-headers only matters on the real response.
+- **Part size is 16 MiB**, well under Cloudflare's request-body limit. Not a suspect.
+- **`connect-src` is `'self' https:`**, so the media host is allowed. Not a suspect.
+- The **409 on `/transcribe` right after `complete` is by design**: the probe has
+  not run yet. `AutoTranscribeTrigger` (`apps/api/src/transcripts/`) restarts it
+  on `media.proxy` success — but only when the project has a `sourceLanguage`,
+  no existing transcript or edg document, and the workspace has credits. A
+  brand-new Free workspace is created with **0 credits and 0 monthly grant**, so
+  on a fresh test account the upload succeeds and transcription silently never
+  starts. That is not an upload bug.
+- **The Free plan cap is 500 MB / 20 min.** The size cap is enforced at `init`;
+  the duration cap only after probing.
+
+Diagnosing without guessing: `access_logs` (per workspace) shows whether the
+browser reached the API at all. No `project.create` row means the failure was
+**client-side, before any request** — look at the file picker, the Prepare Media
+modal and hashing, not at the server.
 
 ---
 
