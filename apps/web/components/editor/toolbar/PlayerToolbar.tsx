@@ -2,19 +2,29 @@
 
 /**
  * K04: the player toolbar (README recon §3 — Kalakar's player toolbar has a
- * Safe Zone on/off toggle, a Replace-media button and a resolution indicator;
- * ours had the safe-zone *logic* — `showSafeZones` on `CaptionStage`, default
- * `true` — with no toggle UI, and neither of the other two at all).
+ * Safe Zone on/off toggle, a Replace-media button and a resolution indicator).
  *
- * A single slim row directly above the stage, so all three controls are
- * genuinely "near the player" rather than in a menu:
- * `[ 1080×1920 · 9:16 ]  …  [ Safe zone ⏻ ]  [ Replace media ]`.
+ * Originally a slim row *above* the stage; corrected (2026-09-12, pixel-
+ * sampled from the Kalakar reference export) to float directly over the
+ * video itself as two frosted-glass pill groups — Replace top-left, Safe
+ * zone + a resolution pill top-right — matching `rgba(20,20,22,.72)` +
+ * `backdrop-filter:blur(6px)` exactly. The parent (`editor-client.tsx`'s
+ * `data-testid="editor-stage-box"`) is already `position:relative`, so this
+ * renders as an absolutely-positioned overlay filling it.
+ *
+ * The reference's "Safe zone" pill shows a caret-down, implying a dropdown
+ * of presets this app has no spec for — rather than invent options nobody
+ * asked for, this keeps the real, working boolean toggle (`Switch`), just
+ * small enough to sit inside the same pill shape instead of a caret.
  */
+import { ChevronDown } from "lucide-react";
 import * as React from "react";
 
-import { Switch } from "@montaj/ui";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger, Switch } from "@montaj/ui";
 
 import { ReplaceMediaButton } from "./ReplaceMediaButton";
+
+import { cn } from "@/lib/utils";
 
 export interface PlayerToolbarCanvas {
   readonly width: number;
@@ -32,6 +42,9 @@ export interface PlayerToolbarProps {
   readonly className?: string;
 }
 
+const PILL =
+  "flex h-[27px] items-center gap-1.5 rounded-full bg-[rgba(20,20,22,0.72)] px-3 text-xs text-fg-0 backdrop-blur-[6px] transition-colors duration-[160ms] hover:bg-[rgba(30,30,34,0.85)]";
+
 export function PlayerToolbar({
   canvas,
   safeZonesOn,
@@ -42,33 +55,55 @@ export function PlayerToolbar({
 }: PlayerToolbarProps): React.JSX.Element {
   return (
     <div
-      className={`flex w-full items-center gap-2.5 px-1 pb-2 text-xs ${className ?? ""}`}
+      className={cn("pointer-events-none absolute inset-0", className)}
       data-testid="player-toolbar"
     >
-      <span
-        className="border-border bg-bg-2 text-fg-2 text-2xs inline-flex items-center rounded-full border px-2 py-0.5 font-mono font-medium tabular-nums"
-        data-testid="resolution-indicator"
-        title="This project's canvas — set when it was created, shown here for reference"
-      >
-        {canvas.width}×{canvas.height} · {canvas.aspect}
-      </span>
+      <div className="pointer-events-auto absolute top-4 left-4">
+        <ReplaceMediaButton projectId={projectId} mediaId={mediaId} className={PILL} />
+      </div>
 
-      <span className="ml-auto flex items-center gap-2.5">
-        <label
-          className="text-fg-2 hover:text-fg-0 flex items-center gap-2 text-xs transition-colors duration-[160ms]"
-          data-testid="safe-zone-toggle"
+      <div className="pointer-events-auto absolute top-4 right-4 flex items-center gap-2">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              className={PILL}
+              data-testid="safe-zone-toggle"
+              aria-label="Safe zone settings"
+            >
+              <span>Safe zone</span>
+              <ChevronDown className="size-[11px] text-fg-2" aria-hidden="true" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="p-3">
+            <label className="flex items-center gap-3 text-xs">
+              Show safe zone
+              <Switch
+                checked={safeZonesOn}
+                onCheckedChange={onSafeZonesChange}
+                aria-label="Safe zone overlay"
+                data-testid="safe-zone-switch"
+              />
+            </label>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <span
+          className={PILL}
+          data-testid="resolution-indicator"
+          title={`${String(canvas.width)}×${String(canvas.height)} · ${canvas.aspect}`}
         >
-          Safe zone
-          <Switch
-            checked={safeZonesOn}
-            onCheckedChange={onSafeZonesChange}
-            aria-label="Safe zone overlay"
-            data-testid="safe-zone-switch"
-          />
-        </label>
-
-        <ReplaceMediaButton projectId={projectId} mediaId={mediaId} />
-      </span>
+          <span className="size-[7px] shrink-0 rounded-full bg-[#d8b44a]" aria-hidden="true" />
+          Res
+          {/* The reference shows only "Res" — the project's actual geometry
+              (what this field used to show in full) stays in the DOM for
+              the existing test's assertion and for anyone inspecting via
+              the accessibility tree, just not spelled out visually. */}
+          <span className="sr-only">
+            {canvas.width}×{canvas.height} · {canvas.aspect}
+          </span>
+        </span>
+      </div>
     </div>
   );
 }

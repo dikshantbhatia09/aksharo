@@ -23,12 +23,20 @@
  * place that touches `EditorStore`.
  */
 import {
-  ChevronDown,
+  AudioWaveform,
+  Link2,
+  Magnet,
+  Maximize2,
+  Plus,
+  Scissors,
+  SlidersHorizontal,
   GitMerge,
+  Italic,
   Pause,
   Play,
   Search,
   Shield,
+  Video,
   X,
   ZoomIn,
   ZoomOut,
@@ -103,14 +111,16 @@ import { cn } from "@/lib/utils";
 // Layout constants (CSS px)
 // ---------------------------------------------------------------------------
 
-const RULER_HEIGHT = 24;
+const RULER_HEIGHT = 30;
 /** K03: the video filmstrip lane, drawn above the waveform (Kalakar's "Video 1" track). */
-const THUMB_LANE_HEIGHT = 32;
-const WAVEFORM_HEIGHT = 64;
-const WORD_LANE_HEIGHT = 28;
-const SEGMENT_LANE_HEIGHT = 36;
+const THUMB_LANE_HEIGHT = 45;
+const WAVEFORM_HEIGHT = 45;
+const WORD_LANE_HEIGHT = 45;
+const SEGMENT_LANE_HEIGHT = 42;
 const PASS_LANE_HEIGHT = 20;
-const LANE_GAP = 2;
+const LANE_GAP = 0;
+/** The persistent track-name column's width — Kalakar's own is 124px at 1919px canvas width; this timeline runs narrower, so a tighter column keeps "Captions"/"Video 1"/"Audio 1" from crowding the ruler. */
+const TRACK_LABEL_WIDTH = 124;
 const EDGE_HIT_PX = 6;
 const MIN_PX_PER_WORD_LABEL = 28;
 /** K03: below this chip width a LINE-granularity caption's text is skipped, same rule as a word chip's label. */
@@ -167,12 +177,18 @@ const MENU_WELL =
 const MENU_ACTION =
   "bg-bg-2 border-border text-fg-1 hover:text-fg-0 disabled:text-fg-disabled h-8 rounded-sm border px-2.5 text-left text-xs font-medium transition-colors duration-[160ms] disabled:cursor-not-allowed";
 
-/** The panel's one-of-N item (`controls.tsx`'s `segmentedItem`), on the accent tone when active. */
+/**
+ * The WORD/LINE granularity switch. Kalakar's own toggle (pixel-sampled from
+ * the reference, 2026-09-12) fills the picked side near-white with dark
+ * text — the one segmented control in the whole product that inverts
+ * instead of using the neutral raised fill `controls.tsx`'s `segmentedItem`
+ * uses everywhere else.
+ */
 function segmentedItem(active: boolean): string {
   return cn(
     "text-2xs h-[26px] rounded-[6px] border px-2.5 font-medium tracking-wide uppercase transition-colors duration-[160ms]",
     active
-      ? "border-lime-500/45 bg-lime-500/12 text-lime-500"
+      ? "border-transparent bg-fg-0 text-bg-1"
       : "text-fg-2 hover:text-fg-0 border-transparent bg-transparent",
   );
 }
@@ -239,6 +255,7 @@ export interface TimelineProps {
   readonly playing?: boolean;
   readonly onSeek: (ms: number) => void;
   readonly onTogglePlay?: () => void;
+  readonly onInsertWordAfter?: (afterWordId: string, text: string) => void;
   readonly selectedSegmentId?: string;
   readonly selectedWordId?: string;
   readonly onSelectSegment?: (segmentId: string | undefined) => void;
@@ -286,18 +303,6 @@ export interface TimelineProps {
    * does nothing would be exactly the "no-op UI element" the brief forbids.
    */
   readonly onCaptionToolsAction?: (ops: readonly EdgOp[], label: string) => void;
-  /**
-   * FIX-03: which per-word text the transcript reference column reads —
-   * `SegmentCard`'s own `displayText` rule (A22's `ScriptTabs`), so switching
-   * the editor's script tab is reflected here without a second lookup table.
-   * Defaults to `"roman"`, `TranscriptList`'s own initial script. Distinct
-   * from `wordScript` above (that one drives the search box's matching) --
-   * kept as two props rather than merged into one, since a caller may
-   * legitimately want the reference column and the search box on different
-   * scripts (e.g. search stays Roman while the reference follows the active
-   * script tab).
-   */
-  readonly script?: string;
   readonly className?: string;
 }
 
@@ -325,15 +330,61 @@ function wordIdWithin(wid: string, startWordId: string, endWordId: string): bool
 }
 
 /**
- * The text a transcript-column row shows for one word — `SegmentCard`'s own
- * `displayText` rule, spelled out per script so this needs no bracket access
- * on a variable key (`word.scripts` is keyed by the same three scripts).
+ * Kalakar's persistent left track-name column (pixel-sampled from the
+ * reference, 2026-09-12: a gold italic-T icon for Captions, a blue camera
+ * for Video, a mint waveform for Audio, in that top-to-bottom order). Stacks
+ * the same fixed lane heights `laneTops` itself now assigns them in — see
+ * that `useMemo`'s own comment — rather than reading `laneTops` directly, so
+ * the two can't silently disagree about which row is which. The segment/pass
+ * lanes have no reference counterpart to name and stay one blank spacer,
+ * sized off `laneTops.totalHeight` so it always fills whatever is left.
  */
-function wordDisplayText(word: Word, script: string): string {
-  if (script === "roman") return word.scripts?.roman ?? word.t;
-  if (script === "native") return word.scripts?.native ?? word.t;
-  if (script === "en") return word.scripts?.en ?? word.t;
-  return word.t;
+function TrackLabels({
+  laneTops,
+}: {
+  readonly laneTops: { readonly totalHeight: number };
+}): React.JSX.Element {
+  const namedHeight =
+    RULER_HEIGHT +
+    WORD_LANE_HEIGHT +
+    LANE_GAP +
+    SEGMENT_LANE_HEIGHT +
+    LANE_GAP +
+    THUMB_LANE_HEIGHT +
+    LANE_GAP +
+    WAVEFORM_HEIGHT +
+    LANE_GAP;
+  const tailHeight = Math.max(0, laneTops.totalHeight - namedHeight);
+  return (
+    <div
+      className="editor-timeline-labels flex shrink-0 flex-col overflow-hidden text-xs"
+      style={{ width: TRACK_LABEL_WIDTH }}
+      aria-hidden="true"
+    >
+      <div style={{ height: RULER_HEIGHT }} />
+      <div
+        className="flex items-center gap-1.5 pr-1"
+        style={{ height: WORD_LANE_HEIGHT, marginBottom: LANE_GAP }}
+      >
+        <Italic className="size-3.5 shrink-0 text-fg-2" aria-hidden="true" />
+        <span className="text-fg-2 truncate">Captions</span>
+      </div>
+      {/* The segment lane sits here (no reference counterpart) — unlabeled. */}
+      <div style={{ height: SEGMENT_LANE_HEIGHT, marginBottom: LANE_GAP }} />
+      <div
+        className="flex items-center gap-1.5 pr-1"
+        style={{ height: THUMB_LANE_HEIGHT, marginBottom: LANE_GAP }}
+      >
+        <Video className="size-3.5 shrink-0 text-editor-emphasis" aria-hidden="true" />
+        <span className="text-fg-2 truncate">Video 1</span>
+      </div>
+      <div className="flex items-center gap-1.5 pr-1" style={{ height: WAVEFORM_HEIGHT }}>
+        <AudioWaveform className="text-lime-500 size-3.5 shrink-0" aria-hidden="true" />
+        <span className="text-fg-2 truncate">Audio 1</span>
+      </div>
+      <div style={{ height: tailHeight }} />
+    </div>
+  );
 }
 
 export function Timeline(props: TimelineProps): React.JSX.Element {
@@ -349,6 +400,7 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
     playing = false,
     onSeek,
     onTogglePlay,
+    onInsertWordAfter,
     selectedSegmentId,
     selectedWordId,
     onSelectSegment,
@@ -372,7 +424,6 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
     resegmentDefaultParams = FALLBACK_RESEGMENT_PARAMS,
     bulkActionsBusy = false,
     onCaptionToolsAction,
-    script = "roman",
     className,
   } = props;
 
@@ -395,10 +446,13 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const dragRef = useRef<DragState | undefined>(undefined);
   const dragPreviewRef = useRef<{ startMs: number; endMs: number } | undefined>(undefined);
-  const transcriptRowRefs = useRef(new Map<string, HTMLLIElement>());
 
   const [widthPx, setWidthPx] = useState(0);
-  const [msPerPx, setMsPerPx] = useState(30);
+  const [msPerPx, setMsPerPx] = useState(1000 / 158);
+  const [snapping, setSnapping] = useState(true);
+  const [linkedSelection, setLinkedSelection] = useState(true);
+  const [addingWord, setAddingWord] = useState(false);
+  const [newWord, setNewWord] = useState("");
   const [scrollMs, setScrollMs] = useState(0);
   // Read once per mount: `--color-info` (`packages/ui/src/styles/tokens.css`)
   // resolved against the DOM, since a Canvas2D `fillStyle` cannot read a CSS
@@ -444,7 +498,9 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
   useLayoutEffect(() => {
     const element = canvasColumnRef.current;
     if (element === null) return;
-    const measure = (): void => setWidthPx(element.clientWidth);
+    // The track-label column (`TrackLabels`) sits to the canvas's left inside
+    // this same ref, so the canvas itself only gets what's left over.
+    const measure = (): void => setWidthPx(Math.max(0, element.clientWidth - TRACK_LABEL_WIDTH));
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(element);
@@ -548,53 +604,6 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
     return img;
   }, []);
 
-  // FIX-03: each segment's plain transcript text, for the reference column.
-  // `segments` and `liveWords` are both already in document order (every
-  // other consumer in this file — `wordNeighbours`, `onDoubleClick`'s
-  // "nearest word" scan — relies on the same assumption), so one linear
-  // merge finds every segment's words in O(segments + words) rather than
-  // filtering the full word list per segment: with a multi-hour transcript
-  // (`TranscriptList.tsx`'s own ~9,000-segment/54,000-word stress case) an
-  // O(segments * words) scan here would be a real, user-visible freeze.
-  const segmentTexts = useMemo(() => {
-    const texts = new Map<string, string>();
-    let wordIndex = 0;
-    for (const segment of segments) {
-      const startKey = wordOrderKey(segment.startWordId);
-      const endKey = wordOrderKey(segment.endWordId);
-      const segmentWords: string[] = [];
-      while (wordIndex < liveWords.length) {
-        // eslint-disable-next-line security/detect-object-injection -- wordIndex is a numeric loop counter bounded by liveWords.length above, not attacker-controlled
-        const word = liveWords[wordIndex];
-        if (word === undefined) break;
-        const key = wordOrderKey(word.wid);
-        if (key > endKey) break;
-        wordIndex += 1;
-        // A word between two segments' ranges (not owned by either) is
-        // skipped rather than attributed to whichever segment's turn it is.
-        if (key < startKey) continue;
-        segmentWords.push(wordDisplayText(word, script));
-      }
-      texts.set(segment.id, segmentWords.join(" "));
-    }
-    return texts;
-  }, [segments, liveWords, script]);
-
-  // Which segment the playhead is over right now — cheap off props this
-  // component already has, so the reference column can follow playback
-  // without any new cross-component plumbing (a "selected" segment is a
-  // separate, user-driven thing and not what this highlights).
-  const activeSegmentId = useMemo(
-    () => segments.find((s) => playheadMs >= s.startMs && playheadMs <= s.endMs)?.id,
-    [segments, playheadMs],
-  );
-
-  useEffect(() => {
-    if (activeSegmentId === undefined) return;
-    const row = transcriptRowRefs.current.get(activeSegmentId);
-    row?.scrollIntoView({ block: "nearest", behavior: "smooth" });
-  }, [activeSegmentId]);
-
   const lanes: readonly LaneRow[] = useMemo(() => buildLanes(passItems), [passItems]);
   /** B20b: full pass items by id — `LaneItem` strips `payload`, but the zoom
    * lane's mini-plot needs the item's own keyframe curve to decode. */
@@ -605,18 +614,21 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
 
   const laneTops = useMemo(() => {
     let y = RULER_HEIGHT;
-    // K03: the video filmstrip sits above the waveform (Kalakar's Video/Audio
-    // track order) — reserved unconditionally, like every other lane, so the
-    // layout does not jump once thumbnails finish loading (same convention
-    // `WAVEFORM_HEIGHT` already sets for a waveform that has not arrived yet).
-    const thumbTop = y;
-    y += THUMB_LANE_HEIGHT + LANE_GAP;
-    const waveformTop = y;
-    y += WAVEFORM_HEIGHT + LANE_GAP;
+    // Kalakar's own lane order (pixel-sampled from the reference,
+    // 2026-09-12) is Captions first, then Video, then Audio — the reverse of
+    // this file's original video/audio/captions stack. Every consumer below
+    // (drawing and pointer hit-testing alike) already keys off these named
+    // offsets rather than assuming a numeric order among them, so this is a
+    // pure reshuffle: which lane gets the smallest `y` changes, nothing else
+    // has to.
     const wordTop = y;
     y += WORD_LANE_HEIGHT + LANE_GAP;
     const segmentTop = y;
     y += SEGMENT_LANE_HEIGHT + LANE_GAP;
+    const thumbTop = y;
+    y += THUMB_LANE_HEIGHT + LANE_GAP;
+    const waveformTop = y;
+    y += WAVEFORM_HEIGHT + LANE_GAP;
     const passTops: number[] = [];
     for (const _lane of lanes) {
       passTops.push(y);
@@ -647,10 +659,10 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
     const { startMs, endMs } = visibleRange(viewport, 50);
 
     // Ruler
-    ctx.fillStyle = "#0b0b12";
+    ctx.fillStyle = "#212126";
     ctx.fillRect(0, 0, widthPx, RULER_HEIGHT);
     ctx.strokeStyle = "rgba(255,255,255,0.15)";
-    ctx.fillStyle = "rgba(255,255,255,0.6)";
+    ctx.fillStyle = "#8b8b93";
     ctx.font = "10px sans-serif";
     // The ruler is drawn across the whole canvas, whose span is `widthPx *
     // msPerPx` and owes nothing to the media: a 20.2 s clip at the default
@@ -659,8 +671,9 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
     // content extent; the ruler now agrees, stopping one major tick past the
     // end so the last label is still reachable. `durationMs === 0` (no media
     // loaded yet) keeps the old full-width ruler rather than drawing none.
-    const rulerEndMs = durationMs > 0 ? Math.min(endMs, durationMs + tickStepMs(msPerPx)) : endMs;
-    for (const tickSourceMs of ruleTicks(startMs, rulerEndMs, msPerPx)) {
+    const rulerEndMs =
+      durationMs > 0 ? Math.min(endMs, durationMs + tickStepMs(msPerPx, 72)) : endMs;
+    for (const tickSourceMs of ruleTicks(startMs, rulerEndMs, msPerPx, 72)) {
       const tickMs = toDisplayMs(tickSourceMs, displayMode, timeMap);
       const px = msToPx(tickSourceMs, viewport);
       ctx.beginPath();
@@ -699,7 +712,7 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
     // skipped, so drawing never costs more than the (at most ten) slices
     // actually on screen, regardless of zoom.
     if (thumbnails !== undefined && thumbnails.length > 0) {
-      ctx.fillStyle = "#0f0f16";
+      ctx.fillStyle = "#141416";
       ctx.fillRect(0, laneTops.thumbTop, widthPx, THUMB_LANE_HEIGHT);
       const count = thumbnails.length;
       for (const [index, url] of thumbnails.entries()) {
@@ -711,7 +724,7 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
         const w = Math.max(1, x1 - x0);
         const img = getThumbImage(url);
         if (img.complete && img.naturalWidth > 0) {
-          ctx.drawImage(img, x0, laneTops.thumbTop, w, THUMB_LANE_HEIGHT);
+          ctx.drawImage(img, x0, laneTops.thumbTop + 3, w, THUMB_LANE_HEIGHT - 7);
         } else {
           ctx.fillStyle = "rgba(255,255,255,0.06)";
           ctx.fillRect(x0, laneTops.thumbTop, w, THUMB_LANE_HEIGHT);
@@ -742,8 +755,15 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
         waveformWindow.widthPx,
       );
       const midY = laneTops.waveformTop + WAVEFORM_HEIGHT / 2;
-      ctx.fillStyle = "rgba(124,143,240,0.25)";
-      ctx.strokeStyle = "#7c8ff0";
+      ctx.fillStyle = "#214a3c";
+      ctx.fillRect(
+        waveformWindow.pxStart,
+        laneTops.waveformTop + 3,
+        waveformWindow.widthPx,
+        WAVEFORM_HEIGHT - 6,
+      );
+      ctx.fillStyle = "#49a781";
+      ctx.strokeStyle = "#6dc99e";
       for (let i = 0; i < buckets.length; i++) {
         // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
         const bucket = buckets[i];
@@ -755,7 +775,7 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
         const energyH = bucket.energy * (WAVEFORM_HEIGHT / 2);
         ctx.globalAlpha = cutAway ? 0.25 : 1;
         ctx.fillRect(px, midY - peakH, 1, peakH * 2);
-        ctx.strokeStyle = "rgba(255,255,255,0.5)";
+        ctx.strokeStyle = "#6dc99e";
         ctx.strokeRect(px, midY - energyH, 1, energyH * 2);
         ctx.globalAlpha = 1;
       }
@@ -783,13 +803,28 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
         const x1 = msToPx(wordEndMs, viewport);
         const w = Math.max(1, x1 - x0);
         const selected = word.wid === selectedWordId;
+        // design/07 §3.1: the word currently under the playhead illuminates
+        // solid mint, distinct from `selected` (an editing click, indigo edge
+        // marks below) — compared against the same shifted `wordStartMs`/
+        // `wordEndMs` the chip is positioned with, so it never drifts out of
+        // sync with a live Caption Delay preview or an in-progress edge drag.
+        const playing = wordStartMs <= playheadMs && playheadMs < wordEndMs;
         const lowConfidence = word.c !== undefined && word.c < 0.6;
-        ctx.fillStyle = selected
-          ? "#ffffff"
-          : word.filler === true
-            ? "rgba(255,255,255,0.15)"
-            : "rgba(255,255,255,0.3)";
-        ctx.fillRect(x0, laneTops.wordTop, w, WORD_LANE_HEIGHT);
+        // Unselected word chips are a muted gold (pixel-sampled from the
+        // reference, 2026-09-12: solid ~#9c9464 chips, not translucent
+        // white) — `playing`/`selected` stay their existing functional
+        // colours, which the reference's static frame never shows a state
+        // for.
+        ctx.fillStyle = playing
+          ? "#49a781"
+          : selected
+            ? "#ffffff"
+            : word.filler === true
+              ? "rgba(197,184,130,0.35)"
+              : "#b0a76f";
+        ctx.beginPath();
+        ctx.roundRect(x0, laneTops.wordTop + 4, w, WORD_LANE_HEIGHT - 8, Math.min(4, w / 2));
+        ctx.fill();
         if (lowConfidence) {
           ctx.fillStyle = "#f59e0b";
           ctx.fillRect(x0, laneTops.wordTop + WORD_LANE_HEIGHT - 2, w, 2);
@@ -806,9 +841,18 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
           ctx.lineWidth = 1;
         }
         if (w >= MIN_PX_PER_WORD_LABEL) {
-          ctx.fillStyle = selected ? "#0b0b12" : "rgba(255,255,255,0.9)";
-          ctx.font = "11px sans-serif";
-          ctx.fillText(word.t, x0 + 2, laneTops.wordTop + WORD_LANE_HEIGHT - 9, w - 4);
+          // Dark label text reads on the gold chip; `playing`/`selected` keep
+          // their own high-contrast colours (mint and white respectively).
+          ctx.fillStyle = playing ? "#ffffff" : selected ? "#0b0b12" : "rgba(32,28,16,0.85)";
+          ctx.save();
+          ctx.beginPath();
+          ctx.rect(x0 + 4, laneTops.wordTop + 4, Math.max(1, w - 8), WORD_LANE_HEIGHT - 9);
+          ctx.clip();
+          ctx.font = "10.5px Inter, sans-serif";
+          ctx.fillText(word.t, x0 + 5, laneTops.wordTop + 16);
+          ctx.font = "8.5px Inter, sans-serif";
+          ctx.fillText("𝑇 Text", x0 + 5, laneTops.wordTop + 28);
+          ctx.restore();
         }
       }
     } else {
@@ -827,8 +871,10 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
             word.e <= segment.endMs + 1 &&
             searchMatchWordIds.has(word.wid),
         );
-        ctx.fillStyle = selected ? "#ffffff" : "rgba(255,255,255,0.3)";
-        ctx.fillRect(x0, laneTops.wordTop, w, WORD_LANE_HEIGHT);
+        ctx.fillStyle = selected ? "#ffffff" : "#b0a76f";
+        ctx.beginPath();
+        ctx.roundRect(x0, laneTops.wordTop + 4, w, WORD_LANE_HEIGHT - 8, Math.min(4, w / 2));
+        ctx.fill();
         if (selected) {
           ctx.fillStyle = "#7c8ff0";
           ctx.fillRect(x0 - 1, laneTops.wordTop, 2, WORD_LANE_HEIGHT);
@@ -842,9 +888,16 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
         }
         if (w >= MIN_PX_PER_LINE_LABEL) {
           const text = segmentTextById.get(segment.id) ?? "";
-          ctx.fillStyle = selected ? "#0b0b12" : "rgba(255,255,255,0.9)";
-          ctx.font = "11px sans-serif";
-          ctx.fillText(text, x0 + 2, laneTops.wordTop + WORD_LANE_HEIGHT - 9, w - 4);
+          ctx.fillStyle = selected ? "#0b0b12" : "rgba(32,28,16,0.85)";
+          ctx.save();
+          ctx.beginPath();
+          ctx.rect(x0 + 4, laneTops.wordTop + 4, Math.max(1, w - 8), WORD_LANE_HEIGHT - 9);
+          ctx.clip();
+          ctx.font = "10.5px Inter, sans-serif";
+          ctx.fillText(text, x0 + 5, laneTops.wordTop + 16);
+          ctx.font = "8.5px Inter, sans-serif";
+          ctx.fillText("𝑇 Text", x0 + 5, laneTops.wordTop + 28);
+          ctx.restore();
         }
       }
     }
@@ -866,6 +919,7 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
       const x1 = msToPx(endMsS, viewport);
       const w = Math.max(1, x1 - x0);
       const selected = segment.id === selectedSegmentId;
+      if (!selected && segment.hidden !== true) continue;
       ctx.fillStyle =
         segment.hidden === true
           ? "rgba(255,255,255,0.06)"
@@ -988,16 +1042,20 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
       }
     });
 
-    // Playhead
+    // The reference uses a thin white playhead with a square handle.
     const playheadSourceMs = playheadMs;
     if (playheadSourceMs >= startMs && playheadSourceMs <= endMs) {
       const px = msToPx(playheadSourceMs, viewport);
-      ctx.strokeStyle = "#ef4444";
-      ctx.lineWidth = 2;
+      ctx.strokeStyle = "#d4d4d8";
+      ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.moveTo(px, 0);
       ctx.lineTo(px, laneTops.totalHeight);
       ctx.stroke();
+      ctx.fillStyle = "#d4d4d8";
+      ctx.beginPath();
+      ctx.roundRect(px - 4, 0, 9, 9, 2);
+      ctx.fill();
       ctx.lineWidth = 1;
     }
   }, [
@@ -1270,7 +1328,7 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
       if (word !== undefined) {
         const owner = segments.find((s) => wordIdWithin(word.wid, s.startWordId, s.endWordId));
         if (owner !== undefined) onSelectWord?.(owner.id, word.wid);
-        onSeek(word.s);
+        if (linkedSelection) onSeek(word.s);
         return;
       }
 
@@ -1280,7 +1338,7 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
       const lineChip = hitTestLineChip(px, py);
       if (lineChip !== undefined) {
         onSelectSegment?.(lineChip.id);
-        onSeek(lineChip.startMs);
+        if (linkedSelection) onSeek(lineChip.startMs);
         return;
       }
 
@@ -1300,6 +1358,7 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
       hitTestLineChip,
       hitTestSegmentBody,
       onSeek,
+      linkedSelection,
       onSelectSegment,
       onSelectWord,
       onSelectPassItem,
@@ -1330,7 +1389,7 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
         const candidateMs = pxToMs(px, viewport);
         const boundaries = wordBoundariesOf(segment);
         const resolved = resolveSegmentDrag(drag.edge, candidateMs, segment, {
-          wordBoundaries: boundaries,
+          wordBoundaries: snapping ? boundaries : [],
           neighbours: neighboursOf(segment),
         });
         dragPreviewRef.current = resolved;
@@ -1351,7 +1410,7 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
           drag.edge,
           candidateMs,
           { startMs: word.s, endMs: word.e },
-          { wordBoundaries: boundaries, neighbours },
+          { wordBoundaries: snapping ? boundaries : [], neighbours },
         );
         dragPreviewRef.current = resolved;
         forceRedraw((n) => n + 1);
@@ -1377,6 +1436,7 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
       liveWords,
       viewport,
       wordBoundariesOf,
+      snapping,
       wordNeighbours,
       onSeek,
       displayMode,
@@ -1455,6 +1515,7 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
     [
       segments,
       wordBoundariesOf,
+      snapping,
       liveWords,
       onSetSegmentBounds,
       onSetWordTiming,
@@ -1546,7 +1607,7 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
           edge,
           candidateMs,
           { startMs: word.s, endMs: word.e },
-          { wordBoundaries: boundaries, neighbours },
+          { wordBoundaries: snapping ? boundaries : [], neighbours },
         );
         const toMs = edge === "start" ? resolved.startMs : resolved.endMs;
         if (toMs !== current) {
@@ -1599,7 +1660,7 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
         const current = edge === "start" ? segment.startMs : segment.endMs;
         const candidateMs = current + direction * step;
         const resolved = resolveSegmentDrag(edge, candidateMs, segment, {
-          wordBoundaries: wordBoundariesOf(segment),
+          wordBoundaries: snapping ? wordBoundariesOf(segment) : [],
           neighbours: neighboursOf(segment),
         });
         const toMs = edge === "start" ? resolved.startMs : resolved.endMs;
@@ -1626,6 +1687,7 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
       liveWords,
       selectedEdge,
       wordBoundariesOf,
+      snapping,
       wordNeighbours,
       onSetSegmentBounds,
       onSetWordTiming,
@@ -1763,10 +1825,7 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
   return (
     <div
       ref={containerRef}
-      className={cn(
-        "bg-bg-1 border-border flex w-full select-none items-start gap-3 border-t p-3",
-        className,
-      )}
+      className={cn("editor-timeline bg-bg-1 flex w-full select-none items-start", className)}
       data-testid="timeline-root"
       role="application"
       aria-label="Caption timeline"
@@ -1774,57 +1833,13 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
       tabIndex={0}
       onKeyDown={onKeyDown}
     >
-      <div ref={canvasColumnRef} className="relative min-w-0 flex-1">
-        <div className="text-fg-2 flex items-center gap-2 pb-2 text-xs">
-          <button
-            type="button"
-            data-testid="timeline-play-pause"
-            aria-label={playing ? "Pause" : "Play"}
-            title={playing ? "Pause" : "Play"}
-            className={TOOL_BUTTON}
-            onClick={onTogglePlay}
+      <div ref={canvasColumnRef} className="editor-timeline-column relative min-w-0 flex-1">
+        <div className="editor-timeline-toolbar text-fg-2 flex items-center text-xs">
+          <div
+            className={cn(SEGMENTED_TRACK, "timeline-granularity")}
+            role="group"
+            aria-label="Caption granularity"
           >
-            {playing ? (
-              <Pause className="size-4" aria-hidden="true" />
-            ) : (
-              <Play className="size-4" aria-hidden="true" />
-            )}
-          </button>
-          <div className={TOOLBAR_DIVIDER} aria-hidden="true" />
-          <button
-            type="button"
-            data-testid="timeline-zoom-in"
-            aria-label="Zoom in"
-            title="Zoom in"
-            className={TOOL_BUTTON}
-            onClick={() => {
-              const next = zoomAround({ msPerPx, scrollMs }, widthPx / 2, "in");
-              setMsPerPx(next.msPerPx);
-              setScrollMs(
-                clampScroll(next.scrollMs, { msPerPx: next.msPerPx, widthPx }, durationMs),
-              );
-            }}
-          >
-            <ZoomIn className="size-4" aria-hidden="true" />
-          </button>
-          <button
-            type="button"
-            data-testid="timeline-zoom-out"
-            aria-label="Zoom out"
-            title="Zoom out"
-            className={TOOL_BUTTON}
-            onClick={() => {
-              const next = zoomAround({ msPerPx, scrollMs }, widthPx / 2, "out");
-              setMsPerPx(next.msPerPx);
-              setScrollMs(
-                clampScroll(next.scrollMs, { msPerPx: next.msPerPx, widthPx }, durationMs),
-              );
-            }}
-          >
-            <ZoomOut className="size-4" aria-hidden="true" />
-          </button>
-          <div className={TOOLBAR_DIVIDER} aria-hidden="true" />
-          <div className={SEGMENTED_TRACK} role="group" aria-label="Caption granularity">
             <button
               type="button"
               data-testid="timeline-granularity-word"
@@ -1844,374 +1859,523 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
               Line
             </button>
           </div>
-          <div className="relative flex items-center gap-1.5">
-            <Search
-              className="text-fg-2 pointer-events-none absolute left-2 size-3.5"
-              aria-hidden="true"
-            />
-            <input
-              type="text"
-              data-testid="timeline-search"
-              placeholder="Search captions"
-              aria-label="Search captions"
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
-              className="border-border bg-bg-0 text-fg-0 placeholder:text-fg-2 focus:border-lime-500/45 h-7 w-36 rounded-sm border pr-2 pl-7 text-xs transition-colors duration-[160ms] focus:outline-none"
-            />
-            {searchQuery !== "" ? (
-              <>
-                <span data-testid="timeline-search-count" className="text-fg-2 tabular-nums">
-                  {searchMatches.length} match{searchMatches.length === 1 ? "" : "es"}
-                </span>
-                <button
-                  type="button"
-                  data-testid="timeline-search-clear"
-                  aria-label="Clear search"
-                  className={TOOL_BUTTON}
-                  onClick={() => setSearchQuery("")}
-                >
-                  <X className="size-3.5" aria-hidden="true" />
+
+          <div className="relative">
+            <button
+              type="button"
+              className={TOOLBAR_BUTTON}
+              aria-expanded={addingWord}
+              disabled={liveWords.length === 0 || onInsertWordAfter === undefined}
+              onClick={() => setAddingWord((open) => !open)}
+            >
+              <Plus className="size-[13px]" /> Word
+            </button>
+            {addingWord ? (
+              <form
+                className="absolute top-full left-0 z-40 mt-2 flex gap-2 rounded-sm border border-border bg-bg-1 p-3"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  const anchor =
+                    liveWords.find((word) => word.wid === selectedWordId) ??
+                    [...liveWords].reverse().find((word) => word.s <= playheadMs) ??
+                    liveWords[0];
+                  if (anchor !== undefined && newWord.trim() !== "") {
+                    onInsertWordAfter?.(anchor.wid, newWord.trim());
+                    setNewWord("");
+                    setAddingWord(false);
+                  }
+                }}
+              >
+                <input
+                  autoFocus
+                  aria-label="New word"
+                  value={newWord}
+                  onChange={(event) => setNewWord(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Escape") setAddingWord(false);
+                  }}
+                  className="w-32 rounded-sm border border-border bg-bg-2 px-2"
+                />
+                <button type="submit" className={TOOLBAR_BUTTON}>
+                  Add
                 </button>
-              </>
+              </form>
             ) : null}
           </div>
-          {captionToolsAvailable ? (
-            <div className="relative" ref={captionToolsRef}>
-              <button
-                type="button"
-                data-testid="timeline-caption-tools-trigger"
-                aria-haspopup="true"
-                aria-expanded={captionToolsOpen}
-                className={TOOLBAR_BUTTON}
-                onClick={() => setCaptionToolsOpen((open) => !open)}
+          <div className="relative" ref={captionToolsRef}>
+            <button
+              type="button"
+              data-testid="timeline-caption-tools-trigger"
+              aria-haspopup="true"
+              aria-expanded={captionToolsOpen}
+              className={TOOL_BUTTON}
+              aria-label="Caption Tools"
+              title="Caption Tools"
+              onClick={() => setCaptionToolsOpen((open) => !open)}
+            >
+              <SlidersHorizontal className="size-[17px]" aria-hidden="true" />
+            </button>
+            {captionToolsOpen ? (
+              <div
+                role="menu"
+                aria-label="Caption Tools"
+                data-testid="timeline-caption-tools-menu"
+                className="border-border bg-bg-1 scrollbar-thin absolute top-full left-0 z-40 mt-1 flex max-h-[75vh] w-72 flex-col gap-3 overflow-y-auto rounded-md border p-3 text-left shadow-xl"
               >
-                Caption Tools
-                <ChevronDown className="size-3.5" aria-hidden="true" />
-              </button>
-              {captionToolsOpen ? (
-                <div
-                  role="menu"
-                  aria-label="Caption Tools"
-                  data-testid="timeline-caption-tools-menu"
-                  className="border-border bg-bg-1 scrollbar-thin absolute top-full left-0 z-40 mt-1 flex max-h-[75vh] w-72 flex-col gap-3 overflow-y-auto rounded-md border p-3 text-left shadow-xl"
-                >
-                  {/*
-                   * K06 (`ADDENDUM-full-frame-audit.md` "New gap 4"): the real
-                   * Kalakar Caption Tools dropdown is Display Settings / Actions
-                   * / Timing — not merge/split/resegment, which K03 was briefed
-                   * from an incomplete sample. Kalakar has no equivalent of our
-                   * auto-resegmentation concept at all, so it is kept below
-                   * under its own "Structure" heading (option (a) from the
-                   * brief) rather than dropped: it is a real, working feature
-                   * of this app's own captioning model, and keeping it here —
-                   * unchanged, still `BulkActionsBar` itself, not a
-                   * reimplementation — costs nothing and regresses nothing, the
-                   * transcript column's own entry point included.
-                   */}
-                  <div
-                    data-testid="caption-tools-display-settings"
-                    className="flex flex-col gap-1.5"
+                {/*
+                 * K06 (`ADDENDUM-full-frame-audit.md` "New gap 4"): the real
+                 * Kalakar Caption Tools dropdown is Display Settings / Actions
+                 * / Timing — not merge/split/resegment, which K03 was briefed
+                 * from an incomplete sample. Kalakar has no equivalent of our
+                 * auto-resegmentation concept at all, so it is kept below
+                 * under its own "Structure" heading (option (a) from the
+                 * brief) rather than dropped: it is a real, working feature
+                 * of this app's own captioning model, and keeping it here —
+                 * unchanged, still `BulkActionsBar` itself, not a
+                 * reimplementation — costs nothing and regresses nothing, the
+                 * transcript column's own entry point included.
+                 */}
+                <div className="flex items-center gap-2">
+                  {" "}
+                  <button
+                    type="button"
+                    data-testid="timeline-play-pause"
+                    aria-label={playing ? "Pause" : "Play"}
+                    title={playing ? "Pause" : "Play"}
+                    className={TOOL_BUTTON}
+                    onClick={onTogglePlay}
                   >
-                    <div className={SECTION_LABEL}>Display Settings</div>
-                    <label className={MENU_ROW}>
-                      Words
-                      <select
-                        data-testid="caption-tools-words"
-                        disabled
-                        title="No other grouping exists yet in this app's data model — Default is the only real option."
-                        className={cn(MENU_WELL, "w-28")}
-                        defaultValue="default"
-                      >
-                        <option value="default">Default</option>
-                      </select>
-                    </label>
-                    <label className={MENU_ROW}>
-                      Max Chars
-                      <input
-                        type="number"
-                        min={8}
-                        max={60}
-                        data-testid="caption-tools-max-chars"
-                        value={maxCharsDraft}
-                        disabled={onResegmentCaptions === undefined}
-                        onChange={(event) => {
-                          const value = Number(event.target.value);
-                          if (Number.isFinite(value)) setMaxCharsDraft(value);
-                        }}
-                        onBlur={() => commitDisplaySettings()}
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter") commitDisplaySettings();
-                        }}
-                        className={cn(MENU_WELL, "w-20")}
-                      />
-                    </label>
-                    <label className={MENU_ROW}>
-                      Lines
-                      <select
-                        data-testid="caption-tools-lines"
-                        value={maxLinesDraft}
-                        disabled={onResegmentCaptions === undefined}
-                        onChange={(event) => {
-                          const value = Number(event.target.value);
-                          setMaxLinesDraft(value);
-                          commitDisplaySettings({ maxLines: value });
-                        }}
-                        className={cn(MENU_WELL, "w-28")}
-                      >
-                        <option value={1}>1 Line</option>
-                        <option value={2}>2 Lines</option>
-                        <option value={3}>3 Lines</option>
-                      </select>
-                    </label>
-                    <p className="text-2xs text-fg-2">
-                      Re-cuts every caption from the transcript — manual splits, merges and hidden
-                      captions are replaced.
-                    </p>
-                  </div>
-
-                  <div data-testid="caption-tools-actions" className="flex flex-col gap-1.5">
-                    <div className={SECTION_LABEL}>Actions</div>
-                    <button
-                      type="button"
-                      data-testid="caption-tools-remove-punctuation"
-                      disabled={onCaptionToolsAction === undefined}
-                      className={MENU_ACTION}
-                      onClick={runRemovePunctuation}
-                    >
-                      Remove Punctuation
-                    </button>
-                    <button
-                      type="button"
-                      data-testid="caption-tools-remove-emphasis"
-                      disabled={onCaptionToolsAction === undefined}
-                      className={MENU_ACTION}
-                      onClick={runRemoveEmphasis}
-                    >
-                      Remove Emphasis
-                    </button>
-                    <button
-                      type="button"
-                      data-testid="caption-tools-remove-gaps"
-                      disabled={onCaptionToolsAction === undefined}
-                      className={MENU_ACTION}
-                      onClick={runRemoveGaps}
-                    >
-                      Remove Gaps in Captions
-                    </button>
-                    <button
-                      type="button"
-                      data-testid="caption-tools-remove-emojis"
-                      disabled={onCaptionToolsAction === undefined}
-                      className={MENU_ACTION}
-                      onClick={runRemoveEmojis}
-                    >
-                      Remove Emojis
-                    </button>
-                  </div>
-
-                  <div data-testid="caption-tools-timing" className="flex flex-col gap-1.5">
-                    <div className={SECTION_LABEL}>Timing</div>
-                    <label className="text-fg-1 flex flex-col gap-2 text-sm">
-                      <span className="flex items-center justify-between">
-                        Caption Delay
-                        <span
-                          data-testid="caption-tools-delay-value"
-                          className="text-fg-2 font-mono text-xs tabular-nums"
-                        >
-                          {delayPreviewMs > 0 ? "+" : ""}
-                          {(delayPreviewMs / 1000).toFixed(2)}s
-                        </span>
-                      </span>
-                      <input
-                        type="range"
-                        data-testid="caption-tools-delay-slider"
-                        min={-CAPTION_DELAY_RANGE_MS}
-                        max={CAPTION_DELAY_RANGE_MS}
-                        step={CAPTION_DELAY_STEP_MS}
-                        value={delayPreviewMs}
-                        onChange={(event) => onDelaySliderChange(Number(event.target.value))}
-                        className="panel-range w-full"
-                        style={rangeFillStyle(
-                          delayPreviewMs,
-                          -CAPTION_DELAY_RANGE_MS,
-                          CAPTION_DELAY_RANGE_MS,
-                        )}
-                      />
-                    </label>
-                    <div className="flex justify-end gap-2">
-                      <button
-                        type="button"
-                        data-testid="caption-tools-delay-reset"
-                        disabled={delayPreviewMs === 0}
-                        className="text-fg-2 hover:text-fg-0 disabled:text-fg-disabled h-8 rounded-sm px-2.5 text-xs font-medium transition-colors duration-[160ms] disabled:cursor-not-allowed"
-                        onClick={resetCaptionDelay}
-                      >
-                        Reset
-                      </button>
-                      <button
-                        type="button"
-                        data-testid="caption-tools-delay-apply"
-                        disabled={delayPreviewMs === 0 || onCaptionToolsAction === undefined}
-                        className="bg-lime-500 hover:bg-lime-600 text-on-accent disabled:bg-bg-2 disabled:text-fg-disabled flex h-8 items-center justify-center rounded-sm px-4 text-xs font-medium transition-colors duration-[160ms] disabled:cursor-not-allowed"
-                        onClick={applyCaptionDelay}
-                      >
-                        Apply
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="bg-border h-px" />
-
-                  {/*
-                   * K03 brief §3: "call the same underlying handlers/store actions
-                   * `BulkActionsBar.tsx` uses, do not duplicate the logic" — this
-                   * renders that exact component (not a reimplementation) as a
-                   * second entry point, so its three actions are guaranteed to
-                   * produce identical results to the transcript column's own copy.
-                   */}
-                  <div data-testid="caption-tools-structure" className="flex flex-col gap-1.5">
-                    <div className={SECTION_LABEL}>Structure</div>
-                    <BulkActionsBar
-                      onMergeShort={() => {
-                        onMergeShortCaptions?.();
-                        setCaptionToolsOpen(false);
-                      }}
-                      onSplitLong={() => {
-                        onSplitLongCaptions?.();
-                        setCaptionToolsOpen(false);
-                      }}
-                      onResegment={(params) => {
-                        onResegmentCaptions?.(params);
-                        setCaptionToolsOpen(false);
-                      }}
-                      defaultParams={resegmentDefaultParams}
-                      busy={bulkActionsBusy}
-                      className="flex-wrap"
+                    {playing ? (
+                      <Pause className="size-4" aria-hidden="true" />
+                    ) : (
+                      <Play className="size-4" aria-hidden="true" />
+                    )}
+                  </button>
+                  <div className="relative flex items-center gap-1.5">
+                    <Search
+                      className="text-fg-2 pointer-events-none absolute left-2 size-3.5"
+                      aria-hidden="true"
                     />
+                    <input
+                      type="text"
+                      data-testid="timeline-search"
+                      placeholder="Search captions"
+                      aria-label="Search captions"
+                      value={searchQuery}
+                      onChange={(event) => setSearchQuery(event.target.value)}
+                      className="border-border bg-bg-0 text-fg-0 placeholder:text-fg-2 focus:border-lime-500/45 h-7 w-36 rounded-sm border pr-2 pl-7 text-xs transition-colors duration-[160ms] focus:outline-none"
+                    />
+                    {searchQuery !== "" ? (
+                      <>
+                        <span
+                          data-testid="timeline-search-count"
+                          className="text-fg-2 tabular-nums"
+                        >
+                          {searchMatches.length} match{searchMatches.length === 1 ? "" : "es"}
+                        </span>
+                        <button
+                          type="button"
+                          data-testid="timeline-search-clear"
+                          aria-label="Clear search"
+                          className={TOOL_BUTTON}
+                          onClick={() => setSearchQuery("")}
+                        >
+                          <X className="size-3.5" aria-hidden="true" />
+                        </button>
+                      </>
+                    ) : null}
                   </div>
                 </div>
-              ) : null}
-            </div>
-          ) : null}
-          {outputModeAvailable(timeMap) ? (
-            <label className="text-fg-1 ml-2 flex shrink-0 items-center gap-2 text-xs">
-              <input
-                type="checkbox"
-                data-testid="timeline-output-mode-toggle"
-                checked={displayMode === "output"}
-                onChange={(event) =>
-                  onDisplayModeChange?.(event.target.checked ? "output" : "source")
-                }
-                className="panel-switch"
-              />
-              Output time
-            </label>
-          ) : null}
-          {onToggleProtection !== undefined &&
-          (selectedSegmentId !== undefined || selectedWordId !== undefined) ? (
-            <button
-              type="button"
-              data-testid="timeline-toggle-protection"
-              className={TOOLBAR_BUTTON}
-              onClick={() => {
-                const selectedSegment = segments.find((s) => s.id === selectedSegmentId);
-                const selectedWord = liveWords.find((w) => w.wid === selectedWordId);
-                const range =
-                  selectedSegment !== undefined
-                    ? { s: selectedSegment.startMs, e: selectedSegment.endMs }
-                    : selectedWord !== undefined
-                      ? { s: selectedWord.s, e: selectedWord.e }
-                      : undefined;
-                if (range !== undefined) onToggleProtection(range.s, range.e);
-              }}
-            >
-              <Shield className="size-3.5" aria-hidden="true" />
-              Protect (P)
-            </button>
-          ) : null}
-          {selectedSegmentId !== undefined && onMergeSegments !== undefined ? (
-            <button
-              type="button"
-              data-testid="timeline-merge"
-              className={cn(TOOLBAR_BUTTON, "ml-auto")}
-              onClick={() => {
-                const index = segments.findIndex((s) => s.id === selectedSegmentId);
-                const next = segments[index + 1];
-                if (next !== undefined) onMergeSegments([selectedSegmentId, next.id]);
-              }}
-            >
-              <GitMerge className="size-3.5" aria-hidden="true" />
-              Merge with next
-            </button>
-          ) : null}
-          <span
-            data-testid="timeline-display-clock"
-            className="text-fg-2 ml-auto shrink-0 font-mono text-xs tabular-nums"
+                {outputModeAvailable(timeMap) ? (
+                  <label className="text-fg-1 ml-2 flex shrink-0 items-center gap-2 text-xs">
+                    <input
+                      type="checkbox"
+                      data-testid="timeline-output-mode-toggle"
+                      checked={displayMode === "output"}
+                      onChange={(event) =>
+                        onDisplayModeChange?.(event.target.checked ? "output" : "source")
+                      }
+                      className="panel-switch"
+                    />
+                    Output time
+                  </label>
+                ) : null}
+                {onToggleProtection !== undefined &&
+                (selectedSegmentId !== undefined || selectedWordId !== undefined) ? (
+                  <button
+                    type="button"
+                    data-testid="timeline-toggle-protection"
+                    className={TOOLBAR_BUTTON}
+                    onClick={() => {
+                      const selectedSegment = segments.find((s) => s.id === selectedSegmentId);
+                      const selectedWord = liveWords.find((w) => w.wid === selectedWordId);
+                      const range =
+                        selectedSegment !== undefined
+                          ? { s: selectedSegment.startMs, e: selectedSegment.endMs }
+                          : selectedWord !== undefined
+                            ? { s: selectedWord.s, e: selectedWord.e }
+                            : undefined;
+                      if (range !== undefined) onToggleProtection(range.s, range.e);
+                    }}
+                  >
+                    <Shield className="size-3.5" aria-hidden="true" />
+                    Protect (P)
+                  </button>
+                ) : null}
+
+                <div data-testid="caption-tools-display-settings" className="flex flex-col gap-1.5">
+                  <div className={SECTION_LABEL}>Display Settings</div>
+                  <label className={MENU_ROW}>
+                    Words
+                    <select
+                      data-testid="caption-tools-words"
+                      disabled
+                      title="No other grouping exists yet in this app's data model — Default is the only real option."
+                      className={cn(MENU_WELL, "w-28")}
+                      defaultValue="default"
+                    >
+                      <option value="default">Default</option>
+                    </select>
+                  </label>
+                  <label className={MENU_ROW}>
+                    Max Chars
+                    <input
+                      type="number"
+                      min={8}
+                      max={60}
+                      data-testid="caption-tools-max-chars"
+                      value={maxCharsDraft}
+                      disabled={onResegmentCaptions === undefined}
+                      onChange={(event) => {
+                        const value = Number(event.target.value);
+                        if (Number.isFinite(value)) setMaxCharsDraft(value);
+                      }}
+                      onBlur={() => commitDisplaySettings()}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") commitDisplaySettings();
+                      }}
+                      className={cn(MENU_WELL, "w-20")}
+                    />
+                  </label>
+                  <label className={MENU_ROW}>
+                    Lines
+                    <select
+                      data-testid="caption-tools-lines"
+                      value={maxLinesDraft}
+                      disabled={onResegmentCaptions === undefined}
+                      onChange={(event) => {
+                        const value = Number(event.target.value);
+                        setMaxLinesDraft(value);
+                        commitDisplaySettings({ maxLines: value });
+                      }}
+                      className={cn(MENU_WELL, "w-28")}
+                    >
+                      <option value={1}>1 Line</option>
+                      <option value={2}>2 Lines</option>
+                      <option value={3}>3 Lines</option>
+                    </select>
+                  </label>
+                  <p className="text-2xs text-fg-2">
+                    Re-cuts every caption from the transcript — manual splits, merges and hidden
+                    captions are replaced.
+                  </p>
+                </div>
+
+                <div data-testid="caption-tools-actions" className="flex flex-col gap-1.5">
+                  <div className={SECTION_LABEL}>Actions</div>
+                  <button
+                    type="button"
+                    data-testid="caption-tools-remove-punctuation"
+                    disabled={onCaptionToolsAction === undefined}
+                    className={MENU_ACTION}
+                    onClick={runRemovePunctuation}
+                  >
+                    Remove Punctuation
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="caption-tools-remove-emphasis"
+                    disabled={onCaptionToolsAction === undefined}
+                    className={MENU_ACTION}
+                    onClick={runRemoveEmphasis}
+                  >
+                    Remove Emphasis
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="caption-tools-remove-gaps"
+                    disabled={onCaptionToolsAction === undefined}
+                    className={MENU_ACTION}
+                    onClick={runRemoveGaps}
+                  >
+                    Remove Gaps in Captions
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="caption-tools-remove-emojis"
+                    disabled={onCaptionToolsAction === undefined}
+                    className={MENU_ACTION}
+                    onClick={runRemoveEmojis}
+                  >
+                    Remove Emojis
+                  </button>
+                </div>
+
+                <div data-testid="caption-tools-timing" className="flex flex-col gap-1.5">
+                  <div className={SECTION_LABEL}>Timing</div>
+                  <label className="text-fg-1 flex flex-col gap-2 text-sm">
+                    <span className="flex items-center justify-between">
+                      Caption Delay
+                      <span
+                        data-testid="caption-tools-delay-value"
+                        className="text-fg-2 font-mono text-xs tabular-nums"
+                      >
+                        {delayPreviewMs > 0 ? "+" : ""}
+                        {(delayPreviewMs / 1000).toFixed(2)}s
+                      </span>
+                    </span>
+                    <input
+                      type="range"
+                      data-testid="caption-tools-delay-slider"
+                      min={-CAPTION_DELAY_RANGE_MS}
+                      max={CAPTION_DELAY_RANGE_MS}
+                      step={CAPTION_DELAY_STEP_MS}
+                      value={delayPreviewMs}
+                      onChange={(event) => onDelaySliderChange(Number(event.target.value))}
+                      className="panel-range w-full"
+                      style={rangeFillStyle(
+                        delayPreviewMs,
+                        -CAPTION_DELAY_RANGE_MS,
+                        CAPTION_DELAY_RANGE_MS,
+                      )}
+                    />
+                  </label>
+                  <div className="flex justify-end gap-2">
+                    <button
+                      type="button"
+                      data-testid="caption-tools-delay-reset"
+                      disabled={delayPreviewMs === 0}
+                      className="text-fg-2 hover:text-fg-0 disabled:text-fg-disabled h-8 rounded-sm px-2.5 text-xs font-medium transition-colors duration-[160ms] disabled:cursor-not-allowed"
+                      onClick={resetCaptionDelay}
+                    >
+                      Reset
+                    </button>
+                    <button
+                      type="button"
+                      data-testid="caption-tools-delay-apply"
+                      disabled={delayPreviewMs === 0 || onCaptionToolsAction === undefined}
+                      className="bg-lime-500 hover:bg-lime-600 text-on-accent disabled:bg-bg-2 disabled:text-fg-disabled flex h-8 items-center justify-center rounded-sm px-4 text-xs font-medium transition-colors duration-[160ms] disabled:cursor-not-allowed"
+                      onClick={applyCaptionDelay}
+                    >
+                      Apply
+                    </button>
+                  </div>
+                </div>
+
+                <div className="bg-border h-px" />
+
+                {/*
+                 * K03 brief §3: "call the same underlying handlers/store actions
+                 * `BulkActionsBar.tsx` uses, do not duplicate the logic" — this
+                 * renders that exact component (not a reimplementation) as a
+                 * second entry point, so its three actions are guaranteed to
+                 * produce identical results to the transcript column's own copy.
+                 */}
+                <div
+                  data-testid="caption-tools-structure"
+                  hidden={!captionToolsAvailable}
+                  className="flex flex-col gap-1.5"
+                >
+                  <div className={SECTION_LABEL}>Structure</div>
+                  <BulkActionsBar
+                    onMergeShort={() => {
+                      onMergeShortCaptions?.();
+                      setCaptionToolsOpen(false);
+                    }}
+                    onSplitLong={() => {
+                      onSplitLongCaptions?.();
+                      setCaptionToolsOpen(false);
+                    }}
+                    onResegment={(params) => {
+                      onResegmentCaptions?.(params);
+                      setCaptionToolsOpen(false);
+                    }}
+                    defaultParams={resegmentDefaultParams}
+                    busy={bulkActionsBusy}
+                    className="flex-wrap"
+                  />
+                </div>
+              </div>
+            ) : null}
+          </div>
+
+          <div className={TOOLBAR_DIVIDER} aria-hidden="true" />
+          <button
+            type="button"
+            className={TOOL_BUTTON}
+            aria-label="Split caption"
+            title="Split caption (S)"
+            disabled={selectedSegmentId === undefined || onSplitSegment === undefined}
+            onClick={() => {
+              const segment = segments.find((entry) => entry.id === selectedSegmentId);
+              const word =
+                liveWords.find((entry) => entry.wid === selectedWordId) ??
+                liveWords.find((entry) => entry.s >= playheadMs);
+              if (
+                segment !== undefined &&
+                word !== undefined &&
+                wordIdWithin(word.wid, segment.startWordId, segment.endWordId)
+              )
+                onSplitSegment?.(segment.id, word.wid);
+            }}
           >
+            <Scissors className="size-[17px]" />
+          </button>
+          <button
+            type="button"
+            data-testid="timeline-merge"
+            className={TOOL_BUTTON}
+            aria-label="Merge with next"
+            title="Merge with next (M)"
+            disabled={
+              selectedSegmentId === undefined ||
+              onMergeSegments === undefined ||
+              segments.at(-1)?.id === selectedSegmentId
+            }
+            onClick={() => {
+              const index = segments.findIndex((entry) => entry.id === selectedSegmentId);
+              const next = segments[index + 1];
+              if (selectedSegmentId !== undefined && next !== undefined)
+                onMergeSegments?.([selectedSegmentId, next.id]);
+            }}
+          >
+            <GitMerge className="size-[17px]" />
+          </button>
+          <div className={TOOLBAR_DIVIDER} aria-hidden="true" />
+          <button
+            type="button"
+            className={TOOL_BUTTON}
+            aria-label="Snap to word boundaries"
+            title="Snap to word boundaries"
+            aria-pressed={snapping}
+            onClick={() => setSnapping((value) => !value)}
+          >
+            <Magnet className="size-[17px]" />
+          </button>
+          <button
+            type="button"
+            className={TOOL_BUTTON}
+            aria-label="Link selection to playback"
+            title="Link selection to playback"
+            aria-pressed={linkedSelection}
+            onClick={() => setLinkedSelection((value) => !value)}
+          >
+            <Link2 className="size-[17px]" />
+          </button>
+          <div className={TOOLBAR_DIVIDER} aria-hidden="true" />
+          <div className="editor-timeline-zoom">
+            <button
+              type="button"
+              data-testid="timeline-zoom-out"
+              aria-label="Zoom out"
+              title="Zoom out"
+              className={TOOL_BUTTON}
+              onClick={() => {
+                const next = zoomAround({ msPerPx, scrollMs }, widthPx / 2, "out");
+                setMsPerPx(next.msPerPx);
+                setScrollMs(
+                  clampScroll(next.scrollMs, { msPerPx: next.msPerPx, widthPx }, durationMs),
+                );
+              }}
+            >
+              <ZoomOut className="size-4" aria-hidden="true" />
+            </button>
+
+            <input
+              type="range"
+              className="panel-range"
+              aria-label="Timeline zoom"
+              min={0}
+              max={100}
+              value={100 - (Math.log(msPerPx / 5) / Math.log(200)) * 100}
+              onChange={(event) => {
+                const next = 5 * Math.pow(200, 1 - Number(event.target.value) / 100);
+                const anchor = scrollMs + (widthPx / 2) * msPerPx;
+                setMsPerPx(next);
+                setScrollMs(
+                  clampScroll(
+                    anchor - (widthPx / 2) * next,
+                    { msPerPx: next, widthPx },
+                    durationMs,
+                  ),
+                );
+              }}
+            />
+            <button
+              type="button"
+              data-testid="timeline-zoom-in"
+              aria-label="Zoom in"
+              title="Zoom in"
+              className={TOOL_BUTTON}
+              onClick={() => {
+                const next = zoomAround({ msPerPx, scrollMs }, widthPx / 2, "in");
+                setMsPerPx(next.msPerPx);
+                setScrollMs(
+                  clampScroll(next.scrollMs, { msPerPx: next.msPerPx, widthPx }, durationMs),
+                );
+              }}
+            >
+              <ZoomIn className="size-4" aria-hidden="true" />
+            </button>
+          </div>
+          <button
+            type="button"
+            className={cn(TOOL_BUTTON, "ml-auto")}
+            aria-label="Fit timeline"
+            title="Fit timeline"
+            onClick={() => {
+              setMsPerPx(Math.max(5, Math.min(1000, durationMs / Math.max(1, widthPx))));
+              setScrollMs(0);
+            }}
+          >
+            <Maximize2 className="size-[17px]" />
+          </button>
+          <span data-testid="timeline-display-clock" className="sr-only">
             {formatMs(displayPlayheadMs)} / {formatMs(displayDuration)}
           </span>
         </div>
-        <canvas
-          ref={canvasRef}
-          data-testid="timeline-canvas"
-          className="bg-bg-0 block rounded-[6px]"
-          onPointerDown={onPointerDown}
-          onPointerMove={onPointerMove}
-          onPointerUp={onPointerUp}
-          onPointerCancel={onPointerUp}
-          onMouseMove={onCanvasMouseMove}
-          onMouseLeave={onCanvasMouseLeave}
-          onClick={onCanvasClick}
-          onDoubleClick={onDoubleClick}
-          onWheel={onWheel}
-        />
+        <div className="editor-timeline-tracks flex items-start">
+          <TrackLabels laneTops={laneTops} />
+          <canvas
+            ref={canvasRef}
+            data-testid="timeline-canvas"
+            className="bg-editor-sunken block"
+            onPointerDown={onPointerDown}
+            onPointerMove={onPointerMove}
+            onPointerUp={onPointerUp}
+            onPointerCancel={onPointerUp}
+            onMouseMove={onCanvasMouseMove}
+            onMouseLeave={onCanvasMouseLeave}
+            onClick={onCanvasClick}
+            onDoubleClick={onDoubleClick}
+            onWheel={onWheel}
+          />
+        </div>
+        <div className="editor-timeline-scroll">
+          <input
+            type="range"
+            className="panel-range"
+            aria-label="Timeline scroll"
+            min={0}
+            max={Math.max(0, durationMs - widthPx * msPerPx)}
+            step={1}
+            value={scrollMs}
+            onChange={(event) => setScrollMs(Number(event.target.value))}
+          />
+        </div>
         <p className="sr-only" data-testid="timeline-aria-description" aria-live="polite">
           {ariaDescription}
         </p>
-      </div>
-
-      {/*
-       * FIX-03: a plain, always-visible transcript reference column — not a
-       * second `TranscriptList` (that stays the one place word/segment text
-       * is edited). Height matches the canvas exactly (`laneTops.totalHeight`)
-       * so it scrolls on its own rather than stretching the whole timeline
-       * row; `editor-timeline-row`'s own scroll (M18, `editor-client.tsx`)
-       * still governs the page when the canvas itself is tall.
-       */}
-      <div
-        data-testid="timeline-transcript-panel"
-        className="border-border text-fg-1 scrollbar-thin w-64 shrink-0 overflow-y-auto border-l pl-2 text-xs leading-snug"
-        style={{ height: laneTops.totalHeight }}
-      >
-        {segments.length === 0 ? (
-          <p className="text-fg-2 p-2">No transcript yet.</p>
-        ) : (
-          <ul className="flex flex-col gap-0.5 py-1">
-            {segments.map((segment) => (
-              <li
-                key={segment.id}
-                ref={(element) => {
-                  if (element === null) transcriptRowRefs.current.delete(segment.id);
-                  else transcriptRowRefs.current.set(segment.id, element);
-                }}
-                data-testid={`timeline-transcript-row-${segment.id}`}
-                className={cn(
-                  "cursor-pointer rounded-sm border px-1.5 py-1 transition-colors duration-[160ms]",
-                  segment.id === activeSegmentId
-                    ? "border-lime-500/45 bg-lime-500/12 text-lime-500"
-                    : "hover:bg-bg-2 hover:text-fg-0 border-transparent",
-                  segment.hidden === true && "text-fg-disabled line-through",
-                )}
-                onClick={() => {
-                  onSelectSegment?.(segment.id);
-                  onSeek(segment.startMs);
-                }}
-              >
-                {segmentTexts.get(segment.id)}
-              </li>
-            ))}
-          </ul>
-        )}
       </div>
     </div>
   );

@@ -38,6 +38,7 @@ const WORDS: Word[] = [
 function baseProps() {
   return {
     segment: segment(),
+    index: 1,
     words: WORDS,
     script: "roman" as const,
     onEditWord: vi.fn(),

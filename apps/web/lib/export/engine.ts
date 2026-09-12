@@ -80,6 +80,7 @@ import {
   renderTitleFrame,
   sampleCropWindow,
   type CropKeyframe,
+  type DisplayScript,
   type EdgProjection,
   type FontRegistry,
   type FontResource,
@@ -161,6 +162,10 @@ export interface RunExportOptions {
    * `BrowserRenderOptions` doc comment.
    */
   readonly captionOpacity?: number;
+  /** Which of a word's scripts to lay out (e.g. "roman", "native", "en"); defaults to "roman". */
+  readonly script?: DisplayScript;
+  /** Whether to drop filler words from the captions; defaults to false. */
+  readonly dropFillers?: boolean;
   /** AAC availability, decided by the probe; threaded through so the audio tree does not re-probe. */
   readonly aacEncodable: boolean;
   readonly aacPolyfillAvailable: boolean;
@@ -481,6 +486,13 @@ export async function runExport(options: RunExportOptions): Promise<EngineResult
   const projection = applyManifestWatermark(options.projection, manifest);
 
   const { backend } = await (options.loadRenderer ?? defaultLoadRenderer)();
+  if (typeof options.registry?.list === "function") {
+    for (const font of options.registry.list()) {
+      if (!backend.registeredFontIds?.includes(font.id)) {
+        backend.registerFont(font);
+      }
+    }
+  }
   if (manifest.watermark !== null && fetchWatermarkAsset !== undefined) {
     const bytes = await fetchWatermarkAsset(manifest.watermark.assetId);
     backend.registerImage(manifest.watermark.assetId, bytes);
@@ -491,6 +503,9 @@ export async function runExport(options: RunExportOptions): Promise<EngineResult
     catalogue: options.catalogue,
     registry: options.registry,
     shaper: options.shaper,
+    canvas: manifest.output,
+    ...(options.script === undefined ? {} : { script: options.script }),
+    ...(options.dropFillers === undefined ? {} : { dropFillers: options.dropFillers }),
   });
 
   // D06b: accepted text-fx title items (`manifest.timemap.titles`), drawn
@@ -551,10 +566,10 @@ export async function runExport(options: RunExportOptions): Promise<EngineResult
     height: manifest.output.height,
     fit: "fill",
     crop: {
-      left: fit.cropX / scale,
-      top: fit.cropY / scale,
-      width: fit.cropWidth / scale,
-      height: fit.cropHeight / scale,
+      left: Math.max(0, Math.round(fit.cropX / scale)),
+      top: Math.max(0, Math.round(fit.cropY / scale)),
+      width: Math.max(1, Math.round(fit.cropWidth / scale)),
+      height: Math.max(1, Math.round(fit.cropHeight / scale)),
     },
   });
 
@@ -774,8 +789,11 @@ export async function runExport(options: RunExportOptions): Promise<EngineResult
       catalogue: options.catalogue,
       registry: options.registry,
       shaper: options.shaper,
+      canvas: manifest.output,
       outputMs,
       trackShrink,
+      ...(options.script === undefined ? {} : { script: options.script }),
+      ...(options.dropFillers === undefined ? {} : { dropFillers: options.dropFillers }),
       ...(options.captionOpacity === undefined ? {} : { captionOpacity: options.captionOpacity }),
     });
 
@@ -791,8 +809,11 @@ export async function runExport(options: RunExportOptions): Promise<EngineResult
           catalogue: options.catalogue,
           registry: options.registry,
           shaper: options.shaper,
+          canvas: manifest.output,
           outputMs,
           trackShrink,
+          ...(options.script === undefined ? {} : { script: options.script }),
+          ...(options.dropFillers === undefined ? {} : { dropFillers: options.dropFillers }),
         }),
       );
       commands.push(
@@ -800,7 +821,7 @@ export async function runExport(options: RunExportOptions): Promise<EngineResult
           titles,
           timemap,
           outputMs,
-          canvas: projection.canvas,
+          canvas: manifest.output,
           registry: options.registry,
           shaper: options.shaper,
           style: titleStyle,

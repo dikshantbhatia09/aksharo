@@ -4,8 +4,9 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
+import { BRAND } from "@montaj/config";
+
 import { CHANGELOG_ENTRIES } from "@/content/site/changelog";
-import { COMPARISON_PAGES, comparisonBySlug } from "@/content/site/comparisons";
 import { DEMO_DURATION_MS, DEMO_STYLE_IDS, DEMO_WORDS } from "@/content/site/demo-transcript";
 import { detectPlatform, PLATFORM_BUILDS } from "@/content/site/download-data";
 import { formatIcuLite, heroCopy } from "@/content/site/hero-copy";
@@ -42,7 +43,6 @@ function collectStrings(value: unknown): void {
 }
 [
   CHANGELOG_ENTRIES,
-  COMPARISON_PAGES,
   DEMO_WORDS,
   DEMO_STYLE_IDS,
   PLATFORM_BUILDS,
@@ -149,30 +149,6 @@ describe("pricing-live: mergeLivePlans", () => {
   });
 });
 
-describe("comparisons", () => {
-  it("gives every comparison page a dated, attributable source for every fact", () => {
-    for (const page of COMPARISON_PAGES) {
-      expect(page.sourceLabel.length).toBeGreaterThan(0);
-      expect(page.verifiedOn).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-      expect(page.facts.length).toBeGreaterThan(0);
-      for (const fact of page.facts) {
-        expect(fact.label.length).toBeGreaterThan(0);
-        expect(fact.them.length).toBeGreaterThan(0);
-        expect(fact.us.length).toBeGreaterThan(0);
-      }
-    }
-  });
-
-  it("covers exactly the four competitors the brief names", () => {
-    const slugs = COMPARISON_PAGES.map((page) => page.slug).sort();
-    expect(slugs).toEqual(["autocut", "captik", "kalakar", "submagic"]);
-  });
-
-  it("resolves a known slug and returns undefined for an unknown one", () => {
-    expect(comparisonBySlug("kalakar")?.competitorName).toBe("Kalakar");
-    expect(comparisonBySlug("not-a-competitor")).toBeUndefined();
-  });
-});
 
 describe("hero-copy", () => {
   it("substitutes a simple ICU argument", () => {
@@ -185,7 +161,7 @@ describe("hero-copy", () => {
   });
 
   it("interpolates the brand name into the kicker", () => {
-    expect(heroCopy("en").kicker).toContain("Aksharo");
+    expect(heroCopy("en").kicker).toContain(BRAND.name);
   });
 });
 

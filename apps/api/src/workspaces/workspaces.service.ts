@@ -149,7 +149,7 @@ export class WorkspacesService {
           name: body.name,
           type: body.type ?? "team",
           ownerId: userId,
-          region: DEFAULT_REGION[user.jurisdiction],
+          region: DEFAULT_REGION[user.jurisdiction as keyof typeof DEFAULT_REGION],
           currency: billingCountry === "IN" ? "INR" : "USD",
           billingCountry,
           billingCountryConfirmedAt: null,
@@ -378,7 +378,7 @@ export class WorkspacesService {
       where: { workspaceId: { in: [...workspaceIds] }, status: "active" },
       _count: { _all: true },
     });
-    return new Map(rows.map((row) => [row.workspaceId, row._count._all]));
+    return new Map(rows.map((row: any) => [row.workspaceId, row._count._all]));
   }
 
   /**

@@ -1,4 +1,5 @@
-import { Controller, Get, Param, Post, Query, UseGuards } from "@nestjs/common";
+import { Controller, Get, Param, Post, Query, Sse, UseGuards } from "@nestjs/common";
+import { from, interval, map, switchMap, takeWhile, type Observable } from "rxjs";
 import {
   ApiBearerAuth,
   ApiConflictResponse,
@@ -107,5 +108,38 @@ export class JobsController {
   @ApiConflictResponse({ description: "`jobs/invalid_state`." })
   async cancel(@CurrentWorkspace() workspaceId: string, @Param("id") id: string): Promise<JobDto> {
     return toJobDto(await this.jobs.cancel(id, workspaceId));
+  }
+
+  @Sse(":id/progress")
+  @Roles("viewer")
+  @ApiOperation({
+    summary: "Stream real-time SSE progress for a job (transcription, media processing, audio clean, render)",
+    operationId: "streamJobProgress",
+  })
+  streamProgress(
+    @CurrentWorkspace() workspaceId: string,
+    @Param("id") id: string,
+  ): Observable<{ data: { status: string; progress: number; events: unknown[] } }> {
+    return interval(1000).pipe(
+      switchMap(() => from(this.jobs.get(id, workspaceId))),
+      switchMap(async (job) => {
+        const events = await this.jobs.listEvents(id, workspaceId, { limit: 10 });
+        const lastEvent = events.items[events.items.length - 1];
+        const progress = typeof lastEvent?.data === "object" && lastEvent?.data && "progress" in lastEvent.data
+          ? Number(lastEvent.data.progress)
+          : job.status === "succeeded" ? 100 : 0;
+        return {
+          data: {
+            status: job.status,
+            progress,
+            events: events.items.map(toJobEventDto),
+          },
+        };
+      }),
+      takeWhile(
+        (val) => val.data.status === "queued" || val.data.status === "running",
+        true, // inclusive of completion/failure event
+      ),
+    );
   }
 }

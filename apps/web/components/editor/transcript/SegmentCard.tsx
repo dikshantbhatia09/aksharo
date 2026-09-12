@@ -17,7 +17,7 @@
  * too — it calls the very callbacks the buttons and the keyboard map call, so
  * click, shortcut and right-click can never drift apart.
  */
-import { ArrowDown } from "lucide-react";
+import { ArrowDown, Eye, EyeOff, Grid2X2 } from "lucide-react";
 import { memo, useCallback, useState } from "react";
 
 import type { Segment, Word } from "@montaj/edg";
@@ -36,10 +36,12 @@ import { WordChip, isWordDisplayScript } from "./WordChip";
 import { cn } from "@/lib/utils";
 
 /** What the card asks the editor to do on its behalf — see `onRequestAction`. */
-export type SegmentCardAction = "split" | "emphasize" | "deleteWord";
+export type SegmentCardAction = "split" | "emphasize" | "deleteWord" | "style";
 
 export interface SegmentCardProps {
   readonly segment: Segment;
+  /** design/06 §3.1's row index (`1`, `2`, `3`...) — display only, one-based. */
+  readonly index: number;
   readonly words: readonly Word[];
   /**
    * A22's `ScriptTabs` offers `"translated"` alongside the three word-level
@@ -115,6 +117,7 @@ export const SegmentCard = memo(SegmentCardImpl);
 
 function SegmentCardImpl({
   segment,
+  index,
   words,
   script,
   speakerName,
@@ -176,66 +179,36 @@ function SegmentCardImpl({
           role="group"
           aria-label={`Caption starting at ${formatTimestamp(segment.startMs)}`}
           className={cn(
-            "bg-bg-0 flex flex-col gap-1.5 rounded-sm border p-2.5 transition-colors duration-[160ms]",
-            selected ? "border-lime-500" : "border-border hover:border-fg-2/40",
+            "editor-caption-row group relative flex min-h-[58px] items-center gap-3.5 border-b py-2 transition-colors duration-[160ms]",
+            selected ? "is-selected" : "",
             segment.hidden === true && "opacity-40",
           )}
           onClick={() => onSelect?.(segment.id)}
         >
-          <div className="flex items-center gap-2">
-            <SpeakerChip
-              speakerId={speakerId}
-              name={speakerName}
-              color={speakerColor}
-              {...(onRenameSpeakerRequested === undefined
-                ? {}
-                : { onRenameRequested: onRenameSpeakerRequested })}
-            />
-            <button
-              type="button"
-              data-testid={`segment-timestamp-${segment.id}`}
-              className="text-fg-2 hover:text-fg-0 shrink-0 font-mono text-2xs tabular-nums transition-colors duration-[160ms]"
-              onClick={(event) => {
-                event.stopPropagation();
-                onSeek?.(segment.startMs);
-              }}
-            >
-              {formatTimestamp(segment.startMs)}
-            </button>
-            <div className="ml-auto flex gap-1">
-              <button
-                type="button"
-                data-testid={`segment-hide-${segment.id}`}
-                title={segment.hidden === true ? "Show caption" : "Hide caption"}
-                className="text-fg-2 hover:text-fg-0 hover:bg-bg-2 rounded-sm px-1.5 py-0.5 text-2xs font-medium transition-colors duration-[160ms]"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onHideToggle?.(segment.id, segment.hidden !== true);
-                }}
-              >
-                {segment.hidden === true ? "Show" : "Hide"}
-              </button>
-              {isLast ? null : (
-                <button
-                  type="button"
-                  data-testid={`segment-merge-next-${segment.id}`}
-                  title="Merge with next (M)"
-                  className="text-fg-2 hover:text-fg-0 hover:bg-bg-2 flex items-center gap-1 rounded-sm px-1.5 py-0.5 text-2xs font-medium transition-colors duration-[160ms]"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onMergeWithNext?.(segment.id);
-                  }}
-                >
-                  Merge
-                  <ArrowDown className="size-3.5" aria-hidden="true" />
-                </button>
-              )}
-            </div>
-          </div>
+          {/* design/06 §3.1 item 1: the row's line index, muted gray. */}
+          <span
+            aria-hidden="true"
+            className="text-fg-disabled w-[22px] shrink-0 text-[12.5px] tabular-nums"
+          >
+            {index}
+          </span>
+
+          <button
+            type="button"
+            data-testid={`segment-timestamp-${segment.id}`}
+            title="Seek to this caption"
+            className="editor-caption-timestamp text-fg-2 hover:text-fg-0 font-mono text-2xs tabular-nums"
+            onClick={(event) => {
+              event.stopPropagation();
+              onSeek?.(segment.startMs);
+            }}
+          >
+            {formatTimestamp(segment.startMs)}
+          </button>
 
           {isWordDisplayScript(script) ? (
             <div
-              className="flex flex-wrap gap-1 text-sm leading-relaxed"
+              className="editor-caption-words flex min-w-0 flex-1 flex-wrap items-center gap-x-1 gap-y-1 text-[15px] leading-6"
               data-testid={`segment-words-${segment.id}`}
             >
               {words.map((word) => (
@@ -250,6 +223,10 @@ function SegmentCardImpl({
                     script={script}
                     active={word.wid === activeWordId}
                     selected={word.wid === selectedWordId}
+                    emphasized={
+                      word.isEmphasized === true ||
+                      segment.emphasis?.some((entry) => entry.wordId === word.wid) === true
+                    }
                     hideFillers={hideFillers}
                     onCommit={onEditWord}
                     {...(onSeek === undefined ? {} : { onSeek })}
@@ -261,13 +238,82 @@ function SegmentCardImpl({
             </div>
           ) : (
             <p
-              className="text-fg-2 text-xs italic"
+              className="text-fg-2 min-w-0 flex-1 pt-1 text-xs italic"
               data-testid={`segment-translated-${segment.id}`}
             >
               {segment.textOverrides?.["translated"] ??
                 "(no translation yet — use +Add translation above)"}
             </p>
           )}
+
+          {/* design/06 §3.1 item 3: the row's two action icons. */}
+          <div className="editor-caption-actions ml-auto flex shrink-0 items-center gap-2 pr-4">
+            <SpeakerChip
+              speakerId={speakerId}
+              name={speakerName}
+              color={speakerColor}
+              {...(onRenameSpeakerRequested === undefined
+                ? {}
+                : { onRenameRequested: onRenameSpeakerRequested })}
+            />
+            <button
+              type="button"
+              className="text-fg-2 hover:text-fg-0 flex size-6 items-center justify-center rounded-sm"
+              aria-label="Caption style"
+              title="Caption style"
+              onClick={(event) => {
+                event.stopPropagation();
+                onSelect?.(segment.id);
+                onRequestAction?.("style", segment.id);
+              }}
+            >
+              <Grid2X2 className="size-4" aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              data-testid={`segment-hide-${segment.id}`}
+              aria-label={segment.hidden === true ? "Show caption" : "Hide caption"}
+              title={segment.hidden === true ? "Show caption" : "Hide caption"}
+              className={cn(
+                "editor-caption-hide text-fg-2 hover:text-fg-0 hover:bg-bg-2 flex size-6 items-center justify-center rounded-sm transition-[color,background-color,opacity] duration-[160ms]",
+                // Kalakar's own row (pixel-sampled 2026-09-12) shows two
+                // persistent icons, not three — this one is also on the
+                // right-click menu (`segment-menu-hide`), so a hover reveal
+                // loses no functionality, only default visual weight.
+                // "Show" stays persistent: a segment already in the less-
+                // common hidden state (the row itself dims) needs an
+                // obvious way back, not one more thing to discover on hover.
+                segment.hidden === true
+                  ? "opacity-100"
+                  : "opacity-0 focus-visible:opacity-100 group-hover:opacity-100",
+              )}
+              onClick={(event) => {
+                event.stopPropagation();
+                onHideToggle?.(segment.id, segment.hidden !== true);
+              }}
+            >
+              {segment.hidden === true ? (
+                <EyeOff className="size-3.5" aria-hidden="true" />
+              ) : (
+                <Eye className="size-3.5" aria-hidden="true" />
+              )}
+            </button>
+            {isLast ? null : (
+              <button
+                type="button"
+                data-testid={`segment-merge-next-${segment.id}`}
+                aria-label="Merge with next"
+                title="Merge with next (M)"
+                className="editor-caption-merge text-fg-2 hover:text-fg-0 hover:bg-bg-2 flex size-6 items-center justify-center rounded-sm transition-colors duration-[160ms]"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onMergeWithNext?.(segment.id);
+                }}
+              >
+                <ArrowDown className="size-3.5" aria-hidden="true" />
+              </button>
+            )}
+          </div>
         </div>
       </ContextMenuTrigger>
 

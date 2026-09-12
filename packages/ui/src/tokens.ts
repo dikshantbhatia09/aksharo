@@ -8,42 +8,44 @@
  * `tokens.test.ts` asserts the two stay in step.
  */
 
-/** Near-black surfaces. The studio is dark-only in v1 (08 §1). */
+/** Near-black surfaces — Kalakar's own zinc ramp (pixel-sampled 2026-09-12), not a blue-tinted navy one. */
 export const SURFACE = {
-  bg0: "#0B0B0E",
-  bg1: "#131318",
-  bg2: "#1B1B22",
-  border: "#2A2A33",
-  overlay: "rgba(0, 0, 0, 0.6)",
+  bg0: "#0d0d0d",
+  bg1: "#18181b",
+  bg2: "#27272a",
+  bg3: "#3f3f46",
+  border: "#303034",
+  borderHover: "#45454d",
+  overlay: "rgb(0 0 0 / 0.7)",
 } as const;
 
 export const TEXT = {
-  fg0: "#F5F5F7",
-  fg1: "#C9C9D1",
-  fg2: "#8B8B96",
-  disabled: "#5C5C66",
+  fg0: "#e9e9ed",
+  fg1: "#d4d4d8",
+  fg2: "#a1a1aa",
+  disabled: "#71717a",
 } as const;
 
-/** Lime, so a screenshot is never mistaken for a competitor's (08 §1). */
+/** Brand Accents: Mint & Gold (08 §1). */
 export const ACCENT = {
-  lime500: "#D8FF3D",
-  lime600: "#B9E020",
-  onAccent: "#0B0B0E",
+  lime500: "#49a781",
+  lime600: "#57b88f",
+  onAccent: "#08120e",
 } as const;
 
 /** Proposal and job states. Also the palette `StatusChip` maps onto. */
 export const SIGNAL = {
-  proposed: "#FFB020",
-  accepted: "#38D39F",
-  rejected: "#FF5C5C",
-  info: "#4EA1FF",
-  warning: "#FF8A3D",
+  proposed: "#f59e0b",
+  accepted: "#22c55e",
+  rejected: "#ef4444",
+  info: "#3b82f6",
+  warning: "#f59e0b",
 } as const;
 
 /** Caption defaults; the editor's canvas and the style previews start here. */
 export const CAPTION = {
-  fill: "#FFFFFF",
-  highlight: "#FFD400",
+  fill: "#ffffff",
+  highlight: "#f59e0b",
   stroke: "#000000",
 } as const;
 

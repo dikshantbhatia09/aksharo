@@ -12,7 +12,8 @@ export function generateStaticParams(): { version: string }[] {
   return API_VERSIONS.map((version) => ({ version }));
 }
 
-export function generateMetadata({ params }: { params: { version: string } }): Metadata {
+export async function generateMetadata({ params: pendingParams }: { params: Promise<{ version: string }> }): Promise<Metadata> {
+  const params = await pendingParams;
   if (!isApiVersion(params.version)) return {};
   return {
     title: `API reference — ${params.version}`,
@@ -27,11 +28,8 @@ function isApiVersion(value: string): value is ApiVersion {
 
 /** `/docs/developers/v1`: the version index — one card per resource group,
  * generated straight off `openapi.json` (brief §2). */
-export default function DocsApiVersionPage({
-  params,
-}: {
-  params: { version: string };
-}): React.JSX.Element {
+export default async function DocsApiVersionPage({ params: pendingParams }: { params: Promise<{ version: string }> }): Promise<React.JSX.Element> {
+  const params = await pendingParams;
   if (!isApiVersion(params.version)) notFound();
   const groups = loadApiGroups();
 

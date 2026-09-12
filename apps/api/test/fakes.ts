@@ -157,14 +157,14 @@ export interface FakeCreditHold {
 
 /** The mutable world the fake Prisma reads and writes. */
 export class FakeDb {
-  readonly jobs = new Map<string, Job>();
+  readonly jobs: Map<string, any> = new Map<string, Job>();
   readonly events: JobEvent[] = [];
   readonly projects: FakeProject[] = [];
   readonly memberships: FakeMembership[] = [];
   /** `workspaceId -> plan`; absent means no live subscription (i.e. free). */
   readonly plans = new Map<string, PlanKey>();
   /** A08b: dead-letter entries, the admin users who may act on them, and the trail. */
-  readonly dlq = new Map<string, DlqEntry>();
+  readonly dlq: Map<string, any> = new Map<string, DlqEntry>();
   readonly users = new Map<string, FakeUser>();
   readonly workspaces = new Map<string, FakeWorkspace>();
   /** Keyed by `workspaceId`, like the real table's unique index. */
@@ -174,7 +174,7 @@ export class FakeDb {
   /** B13: platform-staff role grants (`admin_roles`), keyed by row id. */
   readonly adminRoles = new Map<string, FakeAdminRole>();
   /** A25: in-app notifications. */
-  readonly notifications = new Map<string, Notification>();
+  readonly notifications: Map<string, any> = new Map<string, Notification>();
 
   notification(overrides: Partial<Notification> = {}): Notification {
     const row: Notification = {

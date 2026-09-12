@@ -33,6 +33,7 @@ export interface WordChipProps {
   /** Under the playhead right now. */
   readonly active?: boolean;
   readonly selected?: boolean;
+  readonly emphasized?: boolean;
   /** Fillers hidden entirely rather than dimmed, per the toggle. */
   readonly hideFillers?: boolean;
   /** Below this the word is underlined amber (low ASR confidence). */
@@ -62,6 +63,7 @@ function WordChipImpl({
   script,
   active = false,
   selected = false,
+  emphasized = word.isEmphasized === true,
   hideFillers = false,
   confidenceThreshold = DEFAULT_CONFIDENCE_THRESHOLD,
   onCommit,
@@ -115,11 +117,13 @@ function WordChipImpl({
       data-filler={word.filler === true ? "true" : undefined}
       data-active={active ? "true" : undefined}
       className={cn(
-        "bg-bg-2 text-fg-1 inline-block cursor-text rounded-[6px] px-1.5 py-0.5 text-xs outline-none transition-colors duration-[160ms]",
+        "editor-word-chip text-fg-0 inline-block cursor-text rounded-[6px] px-0.5 py-0.5 text-[15px] outline-none transition-colors duration-[160ms]",
         "hover:bg-bg-2 hover:text-fg-0",
         "focus-visible:ring-2 focus-visible:ring-lime-500",
-        active && "bg-lime-500/12 text-lime-500 hover:bg-lime-500/12 hover:text-lime-500",
+        active &&
+          "bg-lime-500/20 text-lime-500 hover:bg-lime-500/20 hover:text-lime-500 ring-1 ring-lime-500",
         selected && !active && "ring-1 ring-lime-500",
+        emphasized && "editor-word-emphasis",
         word.filler === true && "text-fg-disabled",
         lowConfidence &&
           "text-proposed underline decoration-proposed decoration-dotted underline-offset-2",

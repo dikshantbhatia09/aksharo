@@ -1,0 +1,58 @@
+{
+  ".editor-top-bar": {
+    "x": 0,
+    "y": 0,
+    "width": 1919,
+    "height": 42,
+    "background": "rgb(13, 13, 13)",
+    "radius": "0px"
+  },
+  ".editor-transcript-panel": {
+    "x": 10,
+    "y": 50,
+    "width": 1047,
+    "height": 452,
+    "background": "rgb(24, 24, 27)",
+    "radius": "10px"
+  },
+  ".editor-timeline-panel": {
+    "x": 10,
+    "y": 510,
+    "width": 1047,
+    "height": 382,
+    "background": "rgb(24, 24, 27)",
+    "radius": "10px"
+  },
+  ".editor-player-column": {
+    "x": 1073,
+    "y": 50,
+    "width": 435,
+    "height": 842,
+    "background": "rgb(13, 13, 13)",
+    "radius": "0px"
+  },
+  ".editor-player-viewport": {
+    "x": 1073,
+    "y": 50,
+    "width": 435,
+    "height": 784,
+    "background": "rgb(20, 20, 22)",
+    "radius": "10px"
+  },
+  ".editor-inspector": {
+    "x": 1524,
+    "y": 50,
+    "width": 385,
+    "height": 842,
+    "background": "rgb(28, 28, 31)",
+    "radius": "10px"
+  },
+  ".editor-captions-header": {
+    "x": 98,
+    "y": 50,
+    "width": 949,
+    "height": 56,
+    "background": "rgba(0, 0, 0, 0)",
+    "radius": "0px"
+  }
+}

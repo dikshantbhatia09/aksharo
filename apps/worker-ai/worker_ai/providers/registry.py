@@ -223,7 +223,12 @@ def build_registry(settings: Settings) -> ProviderRegistry:
         ),
         _Registration(
             name="local-whisper",
-            factory=lambda: LocalWhisperProvider(model_name=settings.whisper_model),
+            factory=lambda: LocalWhisperProvider(
+                model_name=settings.whisper_model,
+                engine=settings.whisper_engine,
+                device=settings.whisper_device,
+                compute_type=settings.whisper_compute_type,
+            ),
             template=LocalWhisperProvider(),
             implemented=True,
             unmet=_faster_whisper_missing,
@@ -274,6 +279,6 @@ def _faster_whisper_missing() -> str | None:
     """``local-whisper`` needs an optional dependency that may not be installed."""
     from importlib.util import find_spec
 
-    if find_spec("faster_whisper") is None:
-        return 'faster-whisper is not installed (pip install -e ".[local-asr]")'
+    if find_spec("whisper") is None and find_spec("faster_whisper") is None:
+        return 'neither openai-whisper nor faster-whisper is installed'
     return None

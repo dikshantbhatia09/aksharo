@@ -131,6 +131,258 @@
    "hash": "e749054e0367e0ef7080e3e59b462f117a4ed90749e00b4cdbae14b1e4d0e7ae"
   },
   {
+   "style": "estate-bounce",
+   "fixture": "hinglish",
+   "tMs": 80,
+   "commands": 6,
+   "hash": "71c03d170c50b35d71619b7167f3f87943d9d0062d1d5c7e5537946b31e55fa9"
+  },
+  {
+   "style": "estate-bounce",
+   "fixture": "hinglish",
+   "tMs": 1500,
+   "commands": 6,
+   "hash": "e2b8f86a4bdb31955a85644d310f386fc9d52e76c7fcc1768c4f1ccd467d9cb4"
+  },
+  {
+   "style": "estate-bounce",
+   "fixture": "hinglish",
+   "tMs": 2940,
+   "commands": 5,
+   "hash": "ae6fc6ff76e42eabcf0608247f3048e0e293ad916e2593d3781318dc62fa3bc5"
+  },
+  {
+   "style": "estate-char-typewriter",
+   "fixture": "hinglish",
+   "tMs": 80,
+   "commands": 9,
+   "hash": "63f308c2cc1173dc7ad98a0bd4629997ceb62a903b45b784e1efa338fb47cc9a"
+  },
+  {
+   "style": "estate-char-typewriter",
+   "fixture": "hinglish",
+   "tMs": 1500,
+   "commands": 20,
+   "hash": "0d94e986c9ba2cd6d16da23e53d421da52ca9634bc23ba0d427316f550f285ff"
+  },
+  {
+   "style": "estate-char-typewriter",
+   "fixture": "hinglish",
+   "tMs": 2940,
+   "commands": 20,
+   "hash": "3e54aece1770a959b8f79754d3d9a4ca3ad346b6a5cb548785d05ce1e8f60d1a"
+  },
+  {
+   "style": "estate-contemporary",
+   "fixture": "hinglish",
+   "tMs": 80,
+   "commands": 21,
+   "hash": "4dc11c1f1c54383648f65f60f85a4d7cda148d869f4b4bb02f590929ad2a6791"
+  },
+  {
+   "style": "estate-contemporary",
+   "fixture": "hinglish",
+   "tMs": 1500,
+   "commands": 20,
+   "hash": "8731b4ad1d87cf73763c46bef93bbdd430c140db274fea46b99f3a2d98df8e24"
+  },
+  {
+   "style": "estate-contemporary",
+   "fixture": "hinglish",
+   "tMs": 2940,
+   "commands": 20,
+   "hash": "40906f03286198df95cda42b83d376b861b808b8142b76198008c3fc52936f68"
+  },
+  {
+   "style": "estate-editorial-luxury",
+   "fixture": "hinglish",
+   "tMs": 80,
+   "commands": 20,
+   "hash": "25c84dda7b0b55d418c0789d3c49fe17bedf7b77a111dc6f8cc433ab00e705f7"
+  },
+  {
+   "style": "estate-editorial-luxury",
+   "fixture": "hinglish",
+   "tMs": 1500,
+   "commands": 20,
+   "hash": "1fad167b13e9d8b7cbab561486597ee02b0904d8ad97d25dc5d55d07fe47f214"
+  },
+  {
+   "style": "estate-editorial-luxury",
+   "fixture": "hinglish",
+   "tMs": 2940,
+   "commands": 20,
+   "hash": "a76d48904d46fdf3d64faf8a9a4ee451561669250f1d2af556e4b25902e340c9"
+  },
+  {
+   "style": "estate-flicker",
+   "fixture": "hinglish",
+   "tMs": 80,
+   "commands": 7,
+   "hash": "c51d8cf5f20f7b8fc8e6c8618257a3687956c598b095b0bfe103076731113062"
+  },
+  {
+   "style": "estate-flicker",
+   "fixture": "hinglish",
+   "tMs": 1500,
+   "commands": 6,
+   "hash": "1917eaec61cf470463e07b8bb961a86f315d2498e2244f057ff47c4f338fdea4"
+  },
+  {
+   "style": "estate-flicker",
+   "fixture": "hinglish",
+   "tMs": 2940,
+   "commands": 6,
+   "hash": "94075de1a52533151d2d4adf127d2ca959d616008c158b42746655e64c2e0c45"
+  },
+  {
+   "style": "estate-grand-reveal",
+   "fixture": "hinglish",
+   "tMs": 80,
+   "commands": 21,
+   "hash": "0f6b21f7ca97de09be54c3f5db460c52cabadfc8f7605ec368dbbc3740d2a543"
+  },
+  {
+   "style": "estate-grand-reveal",
+   "fixture": "hinglish",
+   "tMs": 1500,
+   "commands": 20,
+   "hash": "b2af226cf76ea10ba4a500ba32f01a319750fd1feec54f19484993c7bf2a4c32"
+  },
+  {
+   "style": "estate-grand-reveal",
+   "fixture": "hinglish",
+   "tMs": 2940,
+   "commands": 20,
+   "hash": "5c90bd9c522d9d433416842f2081ed1947459ac21aa69c71a7e301987da46d88"
+  },
+  {
+   "style": "estate-modern-rise",
+   "fixture": "hinglish",
+   "tMs": 80,
+   "commands": 21,
+   "hash": "5cbcc51c81dfa99b705f3d9498529ea9b25c24bdc5edf192d6df92e76f8c8fa0"
+  },
+  {
+   "style": "estate-modern-rise",
+   "fixture": "hinglish",
+   "tMs": 1500,
+   "commands": 20,
+   "hash": "582ad915793b38c69fe5fa97cf85903d9ea619e68cbadfda1f8bdffe8e236dee"
+  },
+  {
+   "style": "estate-modern-rise",
+   "fixture": "hinglish",
+   "tMs": 2940,
+   "commands": 21,
+   "hash": "9ea1b654df8a77121902ef1f19fd39af53a498b5b0ad4f599943df4aca50b849"
+  },
+  {
+   "style": "estate-slide-ltr",
+   "fixture": "hinglish",
+   "tMs": 80,
+   "commands": 6,
+   "hash": "dc4de4b3681da9e3a76c3cd7def3f669e6055306de995c46faca876eab9100ee"
+  },
+  {
+   "style": "estate-slide-ltr",
+   "fixture": "hinglish",
+   "tMs": 1500,
+   "commands": 18,
+   "hash": "751a4ab32e2a78a4cf7530a55a563f24fa37c3aec12ed825ac07f9617f8d7ee6"
+  },
+  {
+   "style": "estate-slide-ltr",
+   "fixture": "hinglish",
+   "tMs": 2940,
+   "commands": 38,
+   "hash": "420b7a86c6f3cbbc082f0089c7591c58bea3d44ddb4cb357aadf6eb75010cb6f"
+  },
+  {
+   "style": "estate-slide-rtl",
+   "fixture": "hinglish",
+   "tMs": 80,
+   "commands": 6,
+   "hash": "76119e7c84facf44a8632b5e51f5ecea37cc783d70c064655b61b33e1a67b3b4"
+  },
+  {
+   "style": "estate-slide-rtl",
+   "fixture": "hinglish",
+   "tMs": 1500,
+   "commands": 18,
+   "hash": "d51113ddfd678970721b3754e7747821d6ff57e335194c50bfe43a0772aae5c2"
+  },
+  {
+   "style": "estate-slide-rtl",
+   "fixture": "hinglish",
+   "tMs": 2940,
+   "commands": 38,
+   "hash": "9f01722dec5752793a7ec833056529e6ede7a0845672a03dee1103e80f4942db"
+  },
+  {
+   "style": "estate-tracking-slide",
+   "fixture": "hinglish",
+   "tMs": 80,
+   "commands": 21,
+   "hash": "8829f5f5f7091890ff873ad591a321d4910a2767c44e485951caf72426734a44"
+  },
+  {
+   "style": "estate-tracking-slide",
+   "fixture": "hinglish",
+   "tMs": 1500,
+   "commands": 20,
+   "hash": "52bd112bcb316cdf11f9fa5d1e99d69eb8d934a58cc9261acfc27ddf167c34f9"
+  },
+  {
+   "style": "estate-tracking-slide",
+   "fixture": "hinglish",
+   "tMs": 2940,
+   "commands": 21,
+   "hash": "2cc38d2894705e174deae844cd0742bd0477e5b74e2a5ccf87bad4c1fd1a76d8"
+  },
+  {
+   "style": "estate-word-fade",
+   "fixture": "hinglish",
+   "tMs": 80,
+   "commands": 5,
+   "hash": "db04d738e3b5ac83394b53c42316a262aa202a55c1928907a1c5a10bf06c564a"
+  },
+  {
+   "style": "estate-word-fade",
+   "fixture": "hinglish",
+   "tMs": 1500,
+   "commands": 17,
+   "hash": "d81d081825e1ce7ac62c04015d5f43ad3ae38bf3a8244e43e4c7b5994de2359c"
+  },
+  {
+   "style": "estate-word-fade",
+   "fixture": "hinglish",
+   "tMs": 2940,
+   "commands": 29,
+   "hash": "40f1fd58e4ab8ae0630578e2dbb77bae48b30cfc4303734f9ad4d5711fe632ee"
+  },
+  {
+   "style": "estate-word-pop",
+   "fixture": "hinglish",
+   "tMs": 80,
+   "commands": 7,
+   "hash": "6861f74f247d2a1ad2353893fea4946367a1c543bed1ea0bea8f1189d047123d"
+  },
+  {
+   "style": "estate-word-pop",
+   "fixture": "hinglish",
+   "tMs": 1500,
+   "commands": 6,
+   "hash": "891e4aeac9c0110be19ab59e4e3239bbd69fb53096fe55791c8361bcc534fd94"
+  },
+  {
+   "style": "estate-word-pop",
+   "fixture": "hinglish",
+   "tMs": 2940,
+   "commands": 6,
+   "hash": "079c2e6a5fd910dc79e9550d7c99fa679b2a39aa8666b44e1bbb83714803d986"
+  },
+  {
    "style": "glitch-shift",
    "fixture": "hinglish",
    "tMs": 80,
@@ -257,6 +509,195 @@
    "hash": "56f4717d096e2e3ea37da9d1ca2dcb8a297733f7d206c61a112213224c15bd59"
   },
   {
+   "style": "kinetic-burst-shrink",
+   "fixture": "hinglish",
+   "tMs": 80,
+   "commands": 12,
+   "hash": "41fbb6bb42cff203607f9aae2f81a1967dc3271c374c0f1de10fbddb0edae219"
+  },
+  {
+   "style": "kinetic-burst-shrink",
+   "fixture": "hinglish",
+   "tMs": 1500,
+   "commands": 11,
+   "hash": "d954ee66d4237638b0ba8472ed00c9e18d29f03ab6c946f6f1cb60b29beef3f0"
+  },
+  {
+   "style": "kinetic-burst-shrink",
+   "fixture": "hinglish",
+   "tMs": 2940,
+   "commands": 11,
+   "hash": "3f717cf0d0d564dd6d826bd9993515059d369a0c0c96d0f38601ff5638db0c7f"
+  },
+  {
+   "style": "kinetic-circle-wipe",
+   "fixture": "hinglish",
+   "tMs": 80,
+   "commands": 12,
+   "hash": "c879ecb699dfbe0418e261e7cde2967d54fa855b5dbc14243599f8e2cd3014aa"
+  },
+  {
+   "style": "kinetic-circle-wipe",
+   "fixture": "hinglish",
+   "tMs": 1500,
+   "commands": 11,
+   "hash": "51f84723b55a3ee87b180c6bbba706a5c6d3fdeb3872b5c46ca0e5f44cb60e8a"
+  },
+  {
+   "style": "kinetic-circle-wipe",
+   "fixture": "hinglish",
+   "tMs": 2940,
+   "commands": 11,
+   "hash": "fd32ea20554f41277070444942f6c17a0bdaceec69b642bcb037dcd8172b7e14"
+  },
+  {
+   "style": "kinetic-cross-orbit",
+   "fixture": "hinglish",
+   "tMs": 80,
+   "commands": 12,
+   "hash": "3c5cf9ee55fa02eee1d15b226506738d17a23bb0862abd37a2b7d5a2902cb9f3"
+  },
+  {
+   "style": "kinetic-cross-orbit",
+   "fixture": "hinglish",
+   "tMs": 1500,
+   "commands": 11,
+   "hash": "fab275f962997d64cde4aa744db7d2b8642547330bbcbbd7d7ceedaacc0241d9"
+  },
+  {
+   "style": "kinetic-cross-orbit",
+   "fixture": "hinglish",
+   "tMs": 2940,
+   "commands": 11,
+   "hash": "4f25f30ec86a4bc718a13279fa0ba90f4bd1adf44a462b2115798d743cdd5c7e"
+  },
+  {
+   "style": "kinetic-flow",
+   "fixture": "hinglish",
+   "tMs": 80,
+   "commands": 12,
+   "hash": "493f318b28a2bd6e8a522824f9bd47fc02ee9fe4f7e787f8fdb18dafc69ee5cf"
+  },
+  {
+   "style": "kinetic-flow",
+   "fixture": "hinglish",
+   "tMs": 1500,
+   "commands": 11,
+   "hash": "3788c3eec902586035b1982235d76863f5ac5d7ba00b69a17f390165237fa478"
+  },
+  {
+   "style": "kinetic-flow",
+   "fixture": "hinglish",
+   "tMs": 2940,
+   "commands": 12,
+   "hash": "60a33f0e53b0fa65347f6b7d3cdaa03a26385d6625b4b6aa313fbf300f230280"
+  },
+  {
+   "style": "kinetic-lockup-cyan",
+   "fixture": "hinglish",
+   "tMs": 80,
+   "commands": 12,
+   "hash": "05bb6ab87d5689d166fe95a16a7ea48e90ed83993b912e55033781a3f761e6c7"
+  },
+  {
+   "style": "kinetic-lockup-cyan",
+   "fixture": "hinglish",
+   "tMs": 1500,
+   "commands": 11,
+   "hash": "c7d5a4e7bd92ee5d61713c728891dd7776715092884ea8509adf7a5b443875e4"
+  },
+  {
+   "style": "kinetic-lockup-cyan",
+   "fixture": "hinglish",
+   "tMs": 2940,
+   "commands": 11,
+   "hash": "809d001943ae3a569fdbdfd52bc3ce187f9c91930f347bddc5c5cb03df7fa8b3"
+  },
+  {
+   "style": "kinetic-sidebar-shift",
+   "fixture": "hinglish",
+   "tMs": 80,
+   "commands": 12,
+   "hash": "412981f41110f9b2b60a37451da119c0b3b83d2ed3f682cf6c80bbda7a0f3970"
+  },
+  {
+   "style": "kinetic-sidebar-shift",
+   "fixture": "hinglish",
+   "tMs": 1500,
+   "commands": 11,
+   "hash": "313ad8eaae6f1f23fde24fc257e03f9a1159a4b513210d4026e6eb6f4f1042e1"
+  },
+  {
+   "style": "kinetic-sidebar-shift",
+   "fixture": "hinglish",
+   "tMs": 2940,
+   "commands": 11,
+   "hash": "9787a441560f69eb7757d253966159a3582fa3bf26dda7196a49b8b146fdc53d"
+  },
+  {
+   "style": "kinetic-slab-punch",
+   "fixture": "hinglish",
+   "tMs": 80,
+   "commands": 12,
+   "hash": "fb7d502a2212a111c436b5150299b10ffdf344d5ee83c0ab3121d5cdd5fb781c"
+  },
+  {
+   "style": "kinetic-slab-punch",
+   "fixture": "hinglish",
+   "tMs": 1500,
+   "commands": 11,
+   "hash": "28965f26489973892950cb466c9ae1bd21c92204cbc51a9d2d9b16847adb2292"
+  },
+  {
+   "style": "kinetic-slab-punch",
+   "fixture": "hinglish",
+   "tMs": 2940,
+   "commands": 11,
+   "hash": "a397dc26f9871cb1df50ca1e0edf383e241a6fae19637d2deb099d2a2bc96b1b"
+  },
+  {
+   "style": "kinetic-tracking-contrast",
+   "fixture": "hinglish",
+   "tMs": 80,
+   "commands": 11,
+   "hash": "2bc35c6df6b67bd276a43d700e504f350ad49e9d748c4f0c107b4f636b3cccfb"
+  },
+  {
+   "style": "kinetic-tracking-contrast",
+   "fixture": "hinglish",
+   "tMs": 1500,
+   "commands": 11,
+   "hash": "8a9ef046281e1b60992f36e9e3f390b2cb3c6c07fb0d6662483d9ae7b79dc3f0"
+  },
+  {
+   "style": "kinetic-tracking-contrast",
+   "fixture": "hinglish",
+   "tMs": 2940,
+   "commands": 11,
+   "hash": "c1645f86d7d6139917fc0c93da647c708f1152f27d2f822f4d8b55722aa52a10"
+  },
+  {
+   "style": "kinetic-whip-script",
+   "fixture": "hinglish",
+   "tMs": 80,
+   "commands": 12,
+   "hash": "044a4f9c6dcb70d1d4d5322688b91b1a85e7b311dc7631e1fb969426aeb6c184"
+  },
+  {
+   "style": "kinetic-whip-script",
+   "fixture": "hinglish",
+   "tMs": 1500,
+   "commands": 11,
+   "hash": "f60ab1e7a7fc8e8075f9fea572bfade873234950dcdf74b8bfc1c18c19af1524"
+  },
+  {
+   "style": "kinetic-whip-script",
+   "fixture": "hinglish",
+   "tMs": 2940,
+   "commands": 11,
+   "hash": "1cb0711cdc2f11329005756fc20629e5f37ab50a2c7bd0adc2a5ecc32e542d06"
+  },
+  {
    "style": "liquid-glass",
    "fixture": "hinglish",
    "tMs": 80,
@@ -360,6 +801,27 @@
    "tMs": 2940,
    "commands": 20,
    "hash": "8fa7fe0edafe682a3c36b1e266e5e3f16192326d5e60d527af8e849ec8fd80ef"
+  },
+  {
+   "style": "plain-white",
+   "fixture": "hinglish",
+   "tMs": 80,
+   "commands": 20,
+   "hash": "af57c88b093ee9639a1fefe35bf5f2c2f911535a7953fce161e714ac050c7247"
+  },
+  {
+   "style": "plain-white",
+   "fixture": "hinglish",
+   "tMs": 1500,
+   "commands": 20,
+   "hash": "af57c88b093ee9639a1fefe35bf5f2c2f911535a7953fce161e714ac050c7247"
+  },
+  {
+   "style": "plain-white",
+   "fixture": "hinglish",
+   "tMs": 2940,
+   "commands": 20,
+   "hash": "af57c88b093ee9639a1fefe35bf5f2c2f911535a7953fce161e714ac050c7247"
   },
   {
    "style": "podcast-duo",
@@ -761,6 +1223,258 @@
    "hash": "cf33d2554018237f1e51a76a319e6b3c98dcb0a046859a0db5433528052ee872"
   },
   {
+   "style": "estate-bounce",
+   "fixture": "hindi",
+   "tMs": 80,
+   "commands": 6,
+   "hash": "5da38e332ef62b3825467ba4f609f656869690b807bb35a252b36a78ba7c7c87"
+  },
+  {
+   "style": "estate-bounce",
+   "fixture": "hindi",
+   "tMs": 1500,
+   "commands": 0,
+   "hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+  },
+  {
+   "style": "estate-bounce",
+   "fixture": "hindi",
+   "tMs": 2940,
+   "commands": 5,
+   "hash": "5653c2a4f4f6a42168367331dde9f171e32279a25ecf055b8d9e1419d30a8293"
+  },
+  {
+   "style": "estate-char-typewriter",
+   "fixture": "hindi",
+   "tMs": 80,
+   "commands": 13,
+   "hash": "d7647b8c1fafcb88467277e566af065be5d2f4bab13cb622fd070a617d19633e"
+  },
+  {
+   "style": "estate-char-typewriter",
+   "fixture": "hindi",
+   "tMs": 1500,
+   "commands": 18,
+   "hash": "286b4643afbac76f312cd4b68d12d5346afe603f7903ed083ff52670ce31499e"
+  },
+  {
+   "style": "estate-char-typewriter",
+   "fixture": "hindi",
+   "tMs": 2940,
+   "commands": 18,
+   "hash": "f39e46532f72ef15a00fd738f4f20c88c0f04e55941ede798b91d0d5b905afa9"
+  },
+  {
+   "style": "estate-contemporary",
+   "fixture": "hindi",
+   "tMs": 80,
+   "commands": 19,
+   "hash": "72bc4e323e5c01408a5736bddcb0b3e09c9b3aaa4f40a1b1ffe0cdb772015523"
+  },
+  {
+   "style": "estate-contemporary",
+   "fixture": "hindi",
+   "tMs": 1500,
+   "commands": 18,
+   "hash": "1094145206bf45eae8896016091976e59c0730fcc8d8dc13c640de559cc72f7b"
+  },
+  {
+   "style": "estate-contemporary",
+   "fixture": "hindi",
+   "tMs": 2940,
+   "commands": 18,
+   "hash": "8d6991fac63a980ef0399fe7f993f57d6b5c6bc48b7b8fa0c644d066f656337b"
+  },
+  {
+   "style": "estate-editorial-luxury",
+   "fixture": "hindi",
+   "tMs": 80,
+   "commands": 18,
+   "hash": "5b3a35941dfdd27c6796ffb2500fab0babd79882781245996f9ba69ddaef494b"
+  },
+  {
+   "style": "estate-editorial-luxury",
+   "fixture": "hindi",
+   "tMs": 1500,
+   "commands": 18,
+   "hash": "50d3bb2e191d74c542a584fe0c1b00d4f9ad23d3ea14414c732db3ccf9a7b485"
+  },
+  {
+   "style": "estate-editorial-luxury",
+   "fixture": "hindi",
+   "tMs": 2940,
+   "commands": 18,
+   "hash": "e99a2a19e62ceb3b5413a2e75b17de995696c93df7a83a6e9a7372180136c0af"
+  },
+  {
+   "style": "estate-flicker",
+   "fixture": "hindi",
+   "tMs": 80,
+   "commands": 7,
+   "hash": "ac20e3c9e6685f41ef78c2a404dd40e0d5ef05122baff99a9a208c86abe026fa"
+  },
+  {
+   "style": "estate-flicker",
+   "fixture": "hindi",
+   "tMs": 1500,
+   "commands": 0,
+   "hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+  },
+  {
+   "style": "estate-flicker",
+   "fixture": "hindi",
+   "tMs": 2940,
+   "commands": 6,
+   "hash": "9caab10e22a828463984c6cb604650ee29f7ff9ab453dd5249c6d1d3a00e9c50"
+  },
+  {
+   "style": "estate-grand-reveal",
+   "fixture": "hindi",
+   "tMs": 80,
+   "commands": 19,
+   "hash": "3a8b9e6c72634e29d762affcfcd684f1b6f6b32cdfa825306fa31ba57fdb0dbd"
+  },
+  {
+   "style": "estate-grand-reveal",
+   "fixture": "hindi",
+   "tMs": 1500,
+   "commands": 18,
+   "hash": "fc668ecebd6d32082a53dd90dee4f5e040ebc05d90cd01e657c824ecdb3162e8"
+  },
+  {
+   "style": "estate-grand-reveal",
+   "fixture": "hindi",
+   "tMs": 2940,
+   "commands": 18,
+   "hash": "4c6cc72277484f21687f64bd8239e0104ce47a54effc61b0c0717a3845654408"
+  },
+  {
+   "style": "estate-modern-rise",
+   "fixture": "hindi",
+   "tMs": 80,
+   "commands": 19,
+   "hash": "e8134484c3b149a7037a0a6dbe88c54040b6b4a39770122dc2f065a7055f5d52"
+  },
+  {
+   "style": "estate-modern-rise",
+   "fixture": "hindi",
+   "tMs": 1500,
+   "commands": 18,
+   "hash": "2f958e6d80e2bb8b182870170e853fb5ea6232531e00b351cd204aa01f443c23"
+  },
+  {
+   "style": "estate-modern-rise",
+   "fixture": "hindi",
+   "tMs": 2940,
+   "commands": 19,
+   "hash": "00d80a5eb819409960ba18bfd5eedc06cd02eb3abb31d34d20b30abc895418e1"
+  },
+  {
+   "style": "estate-slide-ltr",
+   "fixture": "hindi",
+   "tMs": 80,
+   "commands": 6,
+   "hash": "5f7d873231a944d49454b0d348043e9899f43a62ebf63ec6c41d2459e2e69593"
+  },
+  {
+   "style": "estate-slide-ltr",
+   "fixture": "hindi",
+   "tMs": 1500,
+   "commands": 14,
+   "hash": "823311189d320b8b4c2c14091f8d6392025f085ab118f765d3515ab24d58aee5"
+  },
+  {
+   "style": "estate-slide-ltr",
+   "fixture": "hindi",
+   "tMs": 2940,
+   "commands": 34,
+   "hash": "13bdcf132a505fcca5581a867321fef168aa242132318b92971edfcf924ce6e3"
+  },
+  {
+   "style": "estate-slide-rtl",
+   "fixture": "hindi",
+   "tMs": 80,
+   "commands": 6,
+   "hash": "6958b08cc87068c03d4ac75137a154dcb21d9393bd9571360744ded45a6a86ba"
+  },
+  {
+   "style": "estate-slide-rtl",
+   "fixture": "hindi",
+   "tMs": 1500,
+   "commands": 14,
+   "hash": "823311189d320b8b4c2c14091f8d6392025f085ab118f765d3515ab24d58aee5"
+  },
+  {
+   "style": "estate-slide-rtl",
+   "fixture": "hindi",
+   "tMs": 2940,
+   "commands": 34,
+   "hash": "17c6478dc7983d78fe3d59e9915469c25a93ff9a6e9a8a28c8ea18bf6ccd582a"
+  },
+  {
+   "style": "estate-tracking-slide",
+   "fixture": "hindi",
+   "tMs": 80,
+   "commands": 19,
+   "hash": "cd5e8bd45d6e225516b8887efc18ecceca65cdf25c09190e0136eb39e3736ac6"
+  },
+  {
+   "style": "estate-tracking-slide",
+   "fixture": "hindi",
+   "tMs": 1500,
+   "commands": 18,
+   "hash": "6d86f434c014fe70148087b19bec68e17995d4747d6d0637e49a702c10a933ef"
+  },
+  {
+   "style": "estate-tracking-slide",
+   "fixture": "hindi",
+   "tMs": 2940,
+   "commands": 19,
+   "hash": "c0aa443dd81560b2015e7a84a75bfe8ea61049ff392cd43bc5d87e05b3a7cae6"
+  },
+  {
+   "style": "estate-word-fade",
+   "fixture": "hindi",
+   "tMs": 80,
+   "commands": 5,
+   "hash": "252b82ff7e885cdb8b0a50c8741aca0716ddfd094b0acd2477d1f74a89d9c966"
+  },
+  {
+   "style": "estate-word-fade",
+   "fixture": "hindi",
+   "tMs": 1500,
+   "commands": 14,
+   "hash": "2582dd5f688bfbd08d24d2a5ca4bb8ec016e8b8f1aa74703c82739570c78bf29"
+  },
+  {
+   "style": "estate-word-fade",
+   "fixture": "hindi",
+   "tMs": 2940,
+   "commands": 26,
+   "hash": "ffc7b88d6d93d11a2302be7bcb5461eadc17fdbdb4484b3a6f617730cde9a0b9"
+  },
+  {
+   "style": "estate-word-pop",
+   "fixture": "hindi",
+   "tMs": 80,
+   "commands": 7,
+   "hash": "e42416eb578291fa2c9e49c9f8eaa393b96ac446d65c1ad0f259bbfc15f12ba7"
+  },
+  {
+   "style": "estate-word-pop",
+   "fixture": "hindi",
+   "tMs": 1500,
+   "commands": 0,
+   "hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+  },
+  {
+   "style": "estate-word-pop",
+   "fixture": "hindi",
+   "tMs": 2940,
+   "commands": 6,
+   "hash": "8f87dd12078030e2ce4140a7f28b7e69d896cba756910aae28e08dbdbc96be30"
+  },
+  {
    "style": "glitch-shift",
    "fixture": "hindi",
    "tMs": 80,
@@ -887,6 +1601,195 @@
    "hash": "1fe35064c33b3487d4510149f1700f131c050ec9cc8d6ac8dfca39f634931cd0"
   },
   {
+   "style": "kinetic-burst-shrink",
+   "fixture": "hindi",
+   "tMs": 80,
+   "commands": 11,
+   "hash": "d2d512af93e3fb32f7b82e4ad64faa146e97dc9cff9ba20a0154422285d22aa0"
+  },
+  {
+   "style": "kinetic-burst-shrink",
+   "fixture": "hindi",
+   "tMs": 1500,
+   "commands": 10,
+   "hash": "76552004c50a4097908293e7a8d4548618c75dfca1f120332a7efe23ca8fdef5"
+  },
+  {
+   "style": "kinetic-burst-shrink",
+   "fixture": "hindi",
+   "tMs": 2940,
+   "commands": 10,
+   "hash": "0afb5c4cafc96c8ba2fecb499510102e6b2ed326295a49dc20cbc0614398749a"
+  },
+  {
+   "style": "kinetic-circle-wipe",
+   "fixture": "hindi",
+   "tMs": 80,
+   "commands": 11,
+   "hash": "2ddf6e50c927c118a9ed6838d9ee8228d48e2d91e106fc0c17aa33e0e6886ed1"
+  },
+  {
+   "style": "kinetic-circle-wipe",
+   "fixture": "hindi",
+   "tMs": 1500,
+   "commands": 10,
+   "hash": "a34eede28e771a8f664bad159e0041aebefdd68325eed2ec42dbbfde5baab385"
+  },
+  {
+   "style": "kinetic-circle-wipe",
+   "fixture": "hindi",
+   "tMs": 2940,
+   "commands": 10,
+   "hash": "e00e106a44f4396e1925042b1c328235c8bb9b24a5c25ec5cfc9019ae85b76bc"
+  },
+  {
+   "style": "kinetic-cross-orbit",
+   "fixture": "hindi",
+   "tMs": 80,
+   "commands": 11,
+   "hash": "e3c85e451d5ded77e64616e6f8f1df9590b7627fa5695bc34e37fda752ff75a2"
+  },
+  {
+   "style": "kinetic-cross-orbit",
+   "fixture": "hindi",
+   "tMs": 1500,
+   "commands": 10,
+   "hash": "45300873a55e4842ae053f4a4acc28affd34dda67da8c06c480032df45ab2995"
+  },
+  {
+   "style": "kinetic-cross-orbit",
+   "fixture": "hindi",
+   "tMs": 2940,
+   "commands": 10,
+   "hash": "6a088d57d82e3cb120eb74d69331d199cb068581cbd0c508df526ec6da71e361"
+  },
+  {
+   "style": "kinetic-flow",
+   "fixture": "hindi",
+   "tMs": 80,
+   "commands": 11,
+   "hash": "caca34661b65d89e830051ca101d76b58cbfe730cbb646030ac461df5b6c1378"
+  },
+  {
+   "style": "kinetic-flow",
+   "fixture": "hindi",
+   "tMs": 1500,
+   "commands": 10,
+   "hash": "e786fd03f082e2900840541f5af13d68b1c252f90e2517eecf5afc7fe86cf8e4"
+  },
+  {
+   "style": "kinetic-flow",
+   "fixture": "hindi",
+   "tMs": 2940,
+   "commands": 11,
+   "hash": "b2b13843ba752c9521295e989fbebd5f8c4f1821067aa96717595e5e71c653f1"
+  },
+  {
+   "style": "kinetic-lockup-cyan",
+   "fixture": "hindi",
+   "tMs": 80,
+   "commands": 11,
+   "hash": "86780559adcd9ceba2c799e085a246df3940a775a207c7cc44fa89a2b7ea427f"
+  },
+  {
+   "style": "kinetic-lockup-cyan",
+   "fixture": "hindi",
+   "tMs": 1500,
+   "commands": 10,
+   "hash": "b795d421a92f18e15c427456eab79b70040441736400f83b733750511eedea1d"
+  },
+  {
+   "style": "kinetic-lockup-cyan",
+   "fixture": "hindi",
+   "tMs": 2940,
+   "commands": 10,
+   "hash": "746e731da8d3620bff3b6b8de85ccc0e1d3b7af12b67b956c5b0e05cc972891c"
+  },
+  {
+   "style": "kinetic-sidebar-shift",
+   "fixture": "hindi",
+   "tMs": 80,
+   "commands": 11,
+   "hash": "470c79aca3bc848d265c89eb7b6252e2eab72e01738c81a46a45008fc89f72b6"
+  },
+  {
+   "style": "kinetic-sidebar-shift",
+   "fixture": "hindi",
+   "tMs": 1500,
+   "commands": 10,
+   "hash": "165e997e0afd336c1834252241a1745765e144e99ee79fee0884458c3a679fc4"
+  },
+  {
+   "style": "kinetic-sidebar-shift",
+   "fixture": "hindi",
+   "tMs": 2940,
+   "commands": 10,
+   "hash": "4bf2f9eb41c7fe756b831ea72ddd5807f45a2f2d929a7649387424a88637435a"
+  },
+  {
+   "style": "kinetic-slab-punch",
+   "fixture": "hindi",
+   "tMs": 80,
+   "commands": 11,
+   "hash": "a42ac1973cca6e50d0127e8b972dc40768451372ac0ffa9a9be938488cddede8"
+  },
+  {
+   "style": "kinetic-slab-punch",
+   "fixture": "hindi",
+   "tMs": 1500,
+   "commands": 10,
+   "hash": "b4a6a14057e00553af6d5f68674f55f7c265b1bff8818ac9cbbb029ef90dc2f8"
+  },
+  {
+   "style": "kinetic-slab-punch",
+   "fixture": "hindi",
+   "tMs": 2940,
+   "commands": 10,
+   "hash": "edcb1a8a2c573c1623855e130008bae428baacb9bc284e9505853e5fbf11060e"
+  },
+  {
+   "style": "kinetic-tracking-contrast",
+   "fixture": "hindi",
+   "tMs": 80,
+   "commands": 10,
+   "hash": "47f3888b2e7a2064e37fe7663b1708eae68310fd4e4982b991c4dfdbf754d8ec"
+  },
+  {
+   "style": "kinetic-tracking-contrast",
+   "fixture": "hindi",
+   "tMs": 1500,
+   "commands": 10,
+   "hash": "e060b4bfa98716bd060750ce27e748df31341d0a9e046cf317373aba8e671477"
+  },
+  {
+   "style": "kinetic-tracking-contrast",
+   "fixture": "hindi",
+   "tMs": 2940,
+   "commands": 10,
+   "hash": "9bbd7362279dd7db39cc0159ec82b05e8a6d0105f3766028c486799085b5677f"
+  },
+  {
+   "style": "kinetic-whip-script",
+   "fixture": "hindi",
+   "tMs": 80,
+   "commands": 11,
+   "hash": "82f3a3cfbc61fa2f50f2f013f2e4f61feac675226c88160da96d9dcc5d5c4b25"
+  },
+  {
+   "style": "kinetic-whip-script",
+   "fixture": "hindi",
+   "tMs": 1500,
+   "commands": 10,
+   "hash": "0428b48e1d2fdae902c04bfac99ba915d583bcaa2792f65000d7c3c6a499909a"
+  },
+  {
+   "style": "kinetic-whip-script",
+   "fixture": "hindi",
+   "tMs": 2940,
+   "commands": 10,
+   "hash": "f38b6e4658bb9481ccd304b481a3d2f1b33399bb5937f854fb01802902dfb6b5"
+  },
+  {
    "style": "liquid-glass",
    "fixture": "hindi",
    "tMs": 80,
@@ -990,6 +1893,27 @@
    "tMs": 2940,
    "commands": 18,
    "hash": "614b035c68546138a1f1a64556f6baa3fb6e008211f036ebfa2c6474ba856513"
+  },
+  {
+   "style": "plain-white",
+   "fixture": "hindi",
+   "tMs": 80,
+   "commands": 18,
+   "hash": "815b1ee8a21dfefad235f27dc021fce819e14f67f5d0032f6c84bb28b026885f"
+  },
+  {
+   "style": "plain-white",
+   "fixture": "hindi",
+   "tMs": 1500,
+   "commands": 18,
+   "hash": "815b1ee8a21dfefad235f27dc021fce819e14f67f5d0032f6c84bb28b026885f"
+  },
+  {
+   "style": "plain-white",
+   "fixture": "hindi",
+   "tMs": 2940,
+   "commands": 18,
+   "hash": "815b1ee8a21dfefad235f27dc021fce819e14f67f5d0032f6c84bb28b026885f"
   },
   {
    "style": "podcast-duo",
@@ -1391,6 +2315,258 @@
    "hash": "3a96b91bc7ef7d2e190734e8af11f39f1104d7c51b8f4ff37a4d9c5da3996634"
   },
   {
+   "style": "estate-bounce",
+   "fixture": "tamil",
+   "tMs": 80,
+   "commands": 6,
+   "hash": "ed1e7ef6330c88261002f49744115d78bf615987c20d03708d7b2fc8076e344f"
+  },
+  {
+   "style": "estate-bounce",
+   "fixture": "tamil",
+   "tMs": 1500,
+   "commands": 0,
+   "hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+  },
+  {
+   "style": "estate-bounce",
+   "fixture": "tamil",
+   "tMs": 2940,
+   "commands": 5,
+   "hash": "b4a384a0d29788b5ab6bfc76d52823e6f71ccfda4c31217cbddf5a07d68c6fde"
+  },
+  {
+   "style": "estate-char-typewriter",
+   "fixture": "tamil",
+   "tMs": 80,
+   "commands": 9,
+   "hash": "80b7f9f2e1acad73bef3a0c58bff6baf3eb3ce9aa4581fde370b395df2bec682"
+  },
+  {
+   "style": "estate-char-typewriter",
+   "fixture": "tamil",
+   "tMs": 1500,
+   "commands": 14,
+   "hash": "0af0e6335954e060337336bed594ef53b2efd67a0f304109e1fd8a8612fcb82f"
+  },
+  {
+   "style": "estate-char-typewriter",
+   "fixture": "tamil",
+   "tMs": 2940,
+   "commands": 14,
+   "hash": "8eef36704edcbd93fc65755a26bdf4c35955eb09853fe9c05f76fd01ce138212"
+  },
+  {
+   "style": "estate-contemporary",
+   "fixture": "tamil",
+   "tMs": 80,
+   "commands": 15,
+   "hash": "fa9769474d77fbc76a4c2578736abd92abd21954f6e683b6f8eb5fc07c6c041c"
+  },
+  {
+   "style": "estate-contemporary",
+   "fixture": "tamil",
+   "tMs": 1500,
+   "commands": 14,
+   "hash": "d815bac0e3039720d1022d77802b8a1aa2245e5fa0608eff4050ff2c6f532615"
+  },
+  {
+   "style": "estate-contemporary",
+   "fixture": "tamil",
+   "tMs": 2940,
+   "commands": 14,
+   "hash": "3f7bb85631e09f38d3e8d2c111ab8e063e731dd6749ee4e12f8b38029183e657"
+  },
+  {
+   "style": "estate-editorial-luxury",
+   "fixture": "tamil",
+   "tMs": 80,
+   "commands": 14,
+   "hash": "be8e78b2bc15d607bc82dbaf130cedb09c2caaf068cfa639a3782ccf8639fa63"
+  },
+  {
+   "style": "estate-editorial-luxury",
+   "fixture": "tamil",
+   "tMs": 1500,
+   "commands": 14,
+   "hash": "321e86edc08e606bd71805b81d02e51b38f4d843fa736c7aec48e233d3a6244d"
+  },
+  {
+   "style": "estate-editorial-luxury",
+   "fixture": "tamil",
+   "tMs": 2940,
+   "commands": 14,
+   "hash": "c8716b663c9a62049f77c2c1437db8bfca3b0c879d1e31f82e3bb5f7341372ca"
+  },
+  {
+   "style": "estate-flicker",
+   "fixture": "tamil",
+   "tMs": 80,
+   "commands": 7,
+   "hash": "b37acab10ce7b0f9ac6c01d35769a580f7cc143901ec6245e854fc8c3d158242"
+  },
+  {
+   "style": "estate-flicker",
+   "fixture": "tamil",
+   "tMs": 1500,
+   "commands": 0,
+   "hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+  },
+  {
+   "style": "estate-flicker",
+   "fixture": "tamil",
+   "tMs": 2940,
+   "commands": 6,
+   "hash": "d60e3fe5d34c41cfef9a1addda86b036a906091bdcf942045bbe3d70a6ec30a3"
+  },
+  {
+   "style": "estate-grand-reveal",
+   "fixture": "tamil",
+   "tMs": 80,
+   "commands": 15,
+   "hash": "a833ccb2cd8a9cf613e0aa89cd75eaf0c12375cd8d3b9c65880b4100f21dd11a"
+  },
+  {
+   "style": "estate-grand-reveal",
+   "fixture": "tamil",
+   "tMs": 1500,
+   "commands": 14,
+   "hash": "e5aa137b1cf3bf1096871186b5c4f88a7a82f3b0c62d33f8d522269b5fdd195e"
+  },
+  {
+   "style": "estate-grand-reveal",
+   "fixture": "tamil",
+   "tMs": 2940,
+   "commands": 14,
+   "hash": "fffc5ba4a65196acc7b00496a3b5428d6a22ebae004fc4aee10f25de102438b8"
+  },
+  {
+   "style": "estate-modern-rise",
+   "fixture": "tamil",
+   "tMs": 80,
+   "commands": 15,
+   "hash": "64a9f7b6dd97c26e06f81c2c2ca1afbdbb0fd629293006f8cf3c7229896ef6db"
+  },
+  {
+   "style": "estate-modern-rise",
+   "fixture": "tamil",
+   "tMs": 1500,
+   "commands": 14,
+   "hash": "ed96b630a1cc0c254063b6344dada522a78c848ca84d4d8e9d8f816c7673b0f1"
+  },
+  {
+   "style": "estate-modern-rise",
+   "fixture": "tamil",
+   "tMs": 2940,
+   "commands": 15,
+   "hash": "11e452fae46a6aa2f62c07c1d3b6e662b9e1567dc58d79553928f1034031c9ff"
+  },
+  {
+   "style": "estate-slide-ltr",
+   "fixture": "tamil",
+   "tMs": 80,
+   "commands": 6,
+   "hash": "223666f064ba5fdba969d88df9970f0e6fed669a532ae40c8fa8e0006b5143d3"
+  },
+  {
+   "style": "estate-slide-ltr",
+   "fixture": "tamil",
+   "tMs": 1500,
+   "commands": 11,
+   "hash": "cb192852d79e1ee30ef7d9b77588a9ea8cc705a720dbb4adee54a6b34bdb1c7d"
+  },
+  {
+   "style": "estate-slide-ltr",
+   "fixture": "tamil",
+   "tMs": 2940,
+   "commands": 26,
+   "hash": "a0b458f55d42970046d7d2d09f1212eabf2a34d1b2d62558acdc2dc477f072b0"
+  },
+  {
+   "style": "estate-slide-rtl",
+   "fixture": "tamil",
+   "tMs": 80,
+   "commands": 6,
+   "hash": "95319ad38feac7f1dfae8f36528a5121ff24dd2b8cca7cb0b80ae3b189852b0b"
+  },
+  {
+   "style": "estate-slide-rtl",
+   "fixture": "tamil",
+   "tMs": 1500,
+   "commands": 11,
+   "hash": "cb192852d79e1ee30ef7d9b77588a9ea8cc705a720dbb4adee54a6b34bdb1c7d"
+  },
+  {
+   "style": "estate-slide-rtl",
+   "fixture": "tamil",
+   "tMs": 2940,
+   "commands": 26,
+   "hash": "fdb497777d7b5dc814518b547c591d20ea40748c0076cf60742300f8089c4a31"
+  },
+  {
+   "style": "estate-tracking-slide",
+   "fixture": "tamil",
+   "tMs": 80,
+   "commands": 15,
+   "hash": "074cdcb480611b3f79dd471d176f7d0b43a8f1a649776d4eb451ab7ee3f4c59e"
+  },
+  {
+   "style": "estate-tracking-slide",
+   "fixture": "tamil",
+   "tMs": 1500,
+   "commands": 14,
+   "hash": "45a1d71132380d11366f989e83f07e1c1d898f6774ec7ac64b1796477f13a763"
+  },
+  {
+   "style": "estate-tracking-slide",
+   "fixture": "tamil",
+   "tMs": 2940,
+   "commands": 15,
+   "hash": "96217deac98fba0dcd2026f32a9507f540d2dec06cd24181cfab474a6977befb"
+  },
+  {
+   "style": "estate-word-fade",
+   "fixture": "tamil",
+   "tMs": 80,
+   "commands": 5,
+   "hash": "d6291451be3bc3588ce38841c45174ef82b7609823ce4204ef6de7f3bfb12e82"
+  },
+  {
+   "style": "estate-word-fade",
+   "fixture": "tamil",
+   "tMs": 1500,
+   "commands": 11,
+   "hash": "2b9b9b8bba524b65685a9e4449e12205194cd69906645ad2c6de96dfe8a8d7dc"
+  },
+  {
+   "style": "estate-word-fade",
+   "fixture": "tamil",
+   "tMs": 2940,
+   "commands": 20,
+   "hash": "4e00554931778ad64b3bba303deb65d43a50c608aa83592495ad9bcdfe92894d"
+  },
+  {
+   "style": "estate-word-pop",
+   "fixture": "tamil",
+   "tMs": 80,
+   "commands": 7,
+   "hash": "161ed93c9b2b0bcde735da667586e53506d6698bc9d433cdf550d40ee8c97793"
+  },
+  {
+   "style": "estate-word-pop",
+   "fixture": "tamil",
+   "tMs": 1500,
+   "commands": 0,
+   "hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+  },
+  {
+   "style": "estate-word-pop",
+   "fixture": "tamil",
+   "tMs": 2940,
+   "commands": 6,
+   "hash": "dac1bc8cec38a560c2fdca8e7c191fb01bc7dda01e147bbc642d99fb16c5f87a"
+  },
+  {
    "style": "glitch-shift",
    "fixture": "tamil",
    "tMs": 80,
@@ -1517,6 +2693,195 @@
    "hash": "cc2ddf0f0ea5c7f05de47593d96ba431ee5976876de1a486f70a9d2201587767"
   },
   {
+   "style": "kinetic-burst-shrink",
+   "fixture": "tamil",
+   "tMs": 80,
+   "commands": 9,
+   "hash": "ca258b30fd82c6cf882e2db63e6f71434d97d2e710aa4ec3d5aa97a3b1a67ef9"
+  },
+  {
+   "style": "kinetic-burst-shrink",
+   "fixture": "tamil",
+   "tMs": 1500,
+   "commands": 8,
+   "hash": "c46308e62ed7cbd9fb4c46e1e6ced13ff5b5c405355c98d5bdf91a69503e3902"
+  },
+  {
+   "style": "kinetic-burst-shrink",
+   "fixture": "tamil",
+   "tMs": 2940,
+   "commands": 8,
+   "hash": "ac11cca7622d91b82b6bbd08bc9bf1e645d90ec6049d4a3c6cf3d3b9b6b947fd"
+  },
+  {
+   "style": "kinetic-circle-wipe",
+   "fixture": "tamil",
+   "tMs": 80,
+   "commands": 9,
+   "hash": "2d622af3054039a387fdc264c90eb169cb19b84c77df7e15bec56c4ac4162629"
+  },
+  {
+   "style": "kinetic-circle-wipe",
+   "fixture": "tamil",
+   "tMs": 1500,
+   "commands": 8,
+   "hash": "ace396c36d3e81e8e8d5835d6ebfab2f40b1c76ee7ebd4fe6979deb2ec6eddad"
+  },
+  {
+   "style": "kinetic-circle-wipe",
+   "fixture": "tamil",
+   "tMs": 2940,
+   "commands": 8,
+   "hash": "4511ec91529addb07dc181b1f2174b429b9815a902d65ea273266177ceba7f17"
+  },
+  {
+   "style": "kinetic-cross-orbit",
+   "fixture": "tamil",
+   "tMs": 80,
+   "commands": 9,
+   "hash": "6f26764eb57259e48ed30f71d9d8cb6df5d37ec93f0fd09a03b93d81962f0ed4"
+  },
+  {
+   "style": "kinetic-cross-orbit",
+   "fixture": "tamil",
+   "tMs": 1500,
+   "commands": 8,
+   "hash": "6486e978d64b84ba70a051ffc61e64b62f06766f865dc73f4c36f53e1bacaf74"
+  },
+  {
+   "style": "kinetic-cross-orbit",
+   "fixture": "tamil",
+   "tMs": 2940,
+   "commands": 8,
+   "hash": "ad27b12ded3640127c0364410ac117b225025d2f5d711765e7dfa7d070e68c4e"
+  },
+  {
+   "style": "kinetic-flow",
+   "fixture": "tamil",
+   "tMs": 80,
+   "commands": 9,
+   "hash": "1b40582f9a3451f4cffb5aab8215df163c15d165280f281ee42ab4b283e167d2"
+  },
+  {
+   "style": "kinetic-flow",
+   "fixture": "tamil",
+   "tMs": 1500,
+   "commands": 8,
+   "hash": "3af139d2dba106dae85e3139d7ad08e0685e8db7a2021625d5cd19f685c77d34"
+  },
+  {
+   "style": "kinetic-flow",
+   "fixture": "tamil",
+   "tMs": 2940,
+   "commands": 9,
+   "hash": "d8522321804a64b980477ddd71e48b5dcda2f089ff9dfdabe2fd809c2c8a9a43"
+  },
+  {
+   "style": "kinetic-lockup-cyan",
+   "fixture": "tamil",
+   "tMs": 80,
+   "commands": 9,
+   "hash": "073f6c3cc636dda1bf3312c1aca137fc1d604ce2be9fa65f3fa5308a31ada62e"
+  },
+  {
+   "style": "kinetic-lockup-cyan",
+   "fixture": "tamil",
+   "tMs": 1500,
+   "commands": 8,
+   "hash": "dc9fdc6694af4ee629c93f139059cbef6af7a3e26dd8cb1e2aeb41dd3e9a4bef"
+  },
+  {
+   "style": "kinetic-lockup-cyan",
+   "fixture": "tamil",
+   "tMs": 2940,
+   "commands": 8,
+   "hash": "47e518cff2d35111a0259bcf4cd0875765a20e5822e34d030a686bb41d9d19aa"
+  },
+  {
+   "style": "kinetic-sidebar-shift",
+   "fixture": "tamil",
+   "tMs": 80,
+   "commands": 9,
+   "hash": "93831a4b29e88f4c20b3f1de22be1ee38b97ea145bbe6e96a4a6337c061af268"
+  },
+  {
+   "style": "kinetic-sidebar-shift",
+   "fixture": "tamil",
+   "tMs": 1500,
+   "commands": 8,
+   "hash": "fb450fa6f1bba4b1bb11e651fe5cecd840acc5e372dcefbb7557825914e63170"
+  },
+  {
+   "style": "kinetic-sidebar-shift",
+   "fixture": "tamil",
+   "tMs": 2940,
+   "commands": 8,
+   "hash": "747ef56163ead1a1a2284b94cde559699a53c9d2732abe1a1edb5aedb865e72d"
+  },
+  {
+   "style": "kinetic-slab-punch",
+   "fixture": "tamil",
+   "tMs": 80,
+   "commands": 9,
+   "hash": "157028422c116677c35738028b6aba36ffb7910dca79bd33887f0a3675a679f4"
+  },
+  {
+   "style": "kinetic-slab-punch",
+   "fixture": "tamil",
+   "tMs": 1500,
+   "commands": 8,
+   "hash": "0042be4c1bcccfd9b11d15230fe96dba84d214253495391d84ab7a46bd36da10"
+  },
+  {
+   "style": "kinetic-slab-punch",
+   "fixture": "tamil",
+   "tMs": 2940,
+   "commands": 8,
+   "hash": "070ef61737814f0e957012e1a885c3f5897d81b75804e78774aa18985b26bee9"
+  },
+  {
+   "style": "kinetic-tracking-contrast",
+   "fixture": "tamil",
+   "tMs": 80,
+   "commands": 8,
+   "hash": "ca893f11186010a6147debffc9752ab304c98e2a3b79a336f62447b049861250"
+  },
+  {
+   "style": "kinetic-tracking-contrast",
+   "fixture": "tamil",
+   "tMs": 1500,
+   "commands": 8,
+   "hash": "563a64ddf86d1991b78f8144834b1610e723fe3c893353826dd1ab163c8acb37"
+  },
+  {
+   "style": "kinetic-tracking-contrast",
+   "fixture": "tamil",
+   "tMs": 2940,
+   "commands": 8,
+   "hash": "832813faaac619faa7b4fb25ca6e669c489c86a46179b82d3b4e4ba5d5b868d7"
+  },
+  {
+   "style": "kinetic-whip-script",
+   "fixture": "tamil",
+   "tMs": 80,
+   "commands": 9,
+   "hash": "aa22d7c19551e26707b0b1cd1420e7d012b1715691750e032047621d174a223f"
+  },
+  {
+   "style": "kinetic-whip-script",
+   "fixture": "tamil",
+   "tMs": 1500,
+   "commands": 8,
+   "hash": "43a270d2911c7554397be6d73458fdda55d4bb1e0dedd63cd57bba2781b3a132"
+  },
+  {
+   "style": "kinetic-whip-script",
+   "fixture": "tamil",
+   "tMs": 2940,
+   "commands": 8,
+   "hash": "a61fa220cd6732b70d8ab8a9085b21225919188764ceae91cddb8ea0d4c0889e"
+  },
+  {
    "style": "liquid-glass",
    "fixture": "tamil",
    "tMs": 80,
@@ -1620,6 +2985,27 @@
    "tMs": 2940,
    "commands": 14,
    "hash": "ea72b20c03c40f4000f3088c8a089f5c24caa19d726ddbcc97e6ec3372ce1a0d"
+  },
+  {
+   "style": "plain-white",
+   "fixture": "tamil",
+   "tMs": 80,
+   "commands": 14,
+   "hash": "4650f3623421e1b3da477ac1152cb1487a85eac21e529c76efa97b7ba36064b5"
+  },
+  {
+   "style": "plain-white",
+   "fixture": "tamil",
+   "tMs": 1500,
+   "commands": 14,
+   "hash": "4650f3623421e1b3da477ac1152cb1487a85eac21e529c76efa97b7ba36064b5"
+  },
+  {
+   "style": "plain-white",
+   "fixture": "tamil",
+   "tMs": 2940,
+   "commands": 14,
+   "hash": "4650f3623421e1b3da477ac1152cb1487a85eac21e529c76efa97b7ba36064b5"
   },
   {
    "style": "podcast-duo",
@@ -2021,6 +3407,258 @@
    "hash": "9753fdb446034b0cbb6c24fd116d7d4ac343698a8385e3847158a3c5d6fa0e38"
   },
   {
+   "style": "estate-bounce",
+   "fixture": "english",
+   "tMs": 80,
+   "commands": 6,
+   "hash": "446c96eba11ce216cf8d7fd63e1719f4bbb40ade9470bd03c161c3d3a1aace89"
+  },
+  {
+   "style": "estate-bounce",
+   "fixture": "english",
+   "tMs": 1500,
+   "commands": 0,
+   "hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+  },
+  {
+   "style": "estate-bounce",
+   "fixture": "english",
+   "tMs": 2940,
+   "commands": 6,
+   "hash": "fc7f0586c37db1fba7305257a5cf37f5ed105681608c813fe6b8238ec8eaa11f"
+  },
+  {
+   "style": "estate-char-typewriter",
+   "fixture": "english",
+   "tMs": 80,
+   "commands": 11,
+   "hash": "aed9e79425cb3d198e756c2330c386e88b582d3ed61acaeb8a3f59b5e8b87405"
+  },
+  {
+   "style": "estate-char-typewriter",
+   "fixture": "english",
+   "tMs": 1500,
+   "commands": 22,
+   "hash": "a6464b49286f176f3964dd08130fbe15805cffa5991e315dd9a8dd9423cf96d8"
+  },
+  {
+   "style": "estate-char-typewriter",
+   "fixture": "english",
+   "tMs": 2940,
+   "commands": 22,
+   "hash": "ee73ccf67e966bf5362e201827c7522e7de82c7b96df3c372c1c0cb47ec7f328"
+  },
+  {
+   "style": "estate-contemporary",
+   "fixture": "english",
+   "tMs": 80,
+   "commands": 23,
+   "hash": "71cbb42a5e48bdb9fd53230cba0b96127889cb01b3869f2d7785065e12e586e8"
+  },
+  {
+   "style": "estate-contemporary",
+   "fixture": "english",
+   "tMs": 1500,
+   "commands": 22,
+   "hash": "97e628e493ba2fa8cfdfd372035e6c06b9f00dbff9d7431079a3e7da91cc388d"
+  },
+  {
+   "style": "estate-contemporary",
+   "fixture": "english",
+   "tMs": 2940,
+   "commands": 22,
+   "hash": "63139500cd7a9dc7a7caf30f8058e79a0a1de21c3d6c0f84e12190c99f794fb6"
+  },
+  {
+   "style": "estate-editorial-luxury",
+   "fixture": "english",
+   "tMs": 80,
+   "commands": 22,
+   "hash": "46edf175cc149b5aef97bb0c6ce1fce855aa30d8b2919a7eeedc9b647923793f"
+  },
+  {
+   "style": "estate-editorial-luxury",
+   "fixture": "english",
+   "tMs": 1500,
+   "commands": 22,
+   "hash": "04a8db5150b8db7594d10133f6261a69f1bcc6c515a7d5fad3c6f36edd08fdba"
+  },
+  {
+   "style": "estate-editorial-luxury",
+   "fixture": "english",
+   "tMs": 2940,
+   "commands": 22,
+   "hash": "88ee6e4ffc94d4ade4e81ed274538328e3dc90cf196503e2e463adc9e7d97404"
+  },
+  {
+   "style": "estate-flicker",
+   "fixture": "english",
+   "tMs": 80,
+   "commands": 7,
+   "hash": "36bfcf537116b2f6df3decedaa60112fbbd1fe7bb87e36bb4fbd302c53b3ea16"
+  },
+  {
+   "style": "estate-flicker",
+   "fixture": "english",
+   "tMs": 1500,
+   "commands": 0,
+   "hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+  },
+  {
+   "style": "estate-flicker",
+   "fixture": "english",
+   "tMs": 2940,
+   "commands": 6,
+   "hash": "dd7cab323d8e0125514ca8b3816db102b1e9c10417fb31f614a4d1957e7a5894"
+  },
+  {
+   "style": "estate-grand-reveal",
+   "fixture": "english",
+   "tMs": 80,
+   "commands": 23,
+   "hash": "4075fa8b8889564a378a6065d3c23aa21f96873b867a94811df261eaefca65ed"
+  },
+  {
+   "style": "estate-grand-reveal",
+   "fixture": "english",
+   "tMs": 1500,
+   "commands": 22,
+   "hash": "f054d77bd6e2e47c588ddf60b619e19483fa26042e20e8b7626a944408dc8f69"
+  },
+  {
+   "style": "estate-grand-reveal",
+   "fixture": "english",
+   "tMs": 2940,
+   "commands": 22,
+   "hash": "ba52b724d9a0923f8f9bc53d026746a7ce560873ad1c0995871bc6e7622ae621"
+  },
+  {
+   "style": "estate-modern-rise",
+   "fixture": "english",
+   "tMs": 80,
+   "commands": 23,
+   "hash": "9ef1d6ac7ac730d1b108ffdd56e2422b6efce64f0428d71d5cd0c45991ca6445"
+  },
+  {
+   "style": "estate-modern-rise",
+   "fixture": "english",
+   "tMs": 1500,
+   "commands": 22,
+   "hash": "5b04ddfb2717c3873c8119f7a97f2148bb062873ef4d7a25eae7ec426876ff06"
+  },
+  {
+   "style": "estate-modern-rise",
+   "fixture": "english",
+   "tMs": 2940,
+   "commands": 23,
+   "hash": "6d3bed99297a47f5a240de6d753d10d21cb75e383b978bde3d1e81223db31bf3"
+  },
+  {
+   "style": "estate-slide-ltr",
+   "fixture": "english",
+   "tMs": 80,
+   "commands": 6,
+   "hash": "711f0f06c27db52d409caddd717607e2927db62232cef760c54baea2de7692a3"
+  },
+  {
+   "style": "estate-slide-ltr",
+   "fixture": "english",
+   "tMs": 1500,
+   "commands": 17,
+   "hash": "b81a4760dbb9ba37d03fb14b57e2f86ca2ba6baf0b0eefb2546f0d437b19b9ab"
+  },
+  {
+   "style": "estate-slide-ltr",
+   "fixture": "english",
+   "tMs": 2940,
+   "commands": 42,
+   "hash": "96f5362ea0235869a8a6ce67acd8f9a74b68a3bc4439f2655b6526fae99de390"
+  },
+  {
+   "style": "estate-slide-rtl",
+   "fixture": "english",
+   "tMs": 80,
+   "commands": 6,
+   "hash": "f2d83592d209f3d92158439c35089c855311de30f92033c3adaacbbdbbf18883"
+  },
+  {
+   "style": "estate-slide-rtl",
+   "fixture": "english",
+   "tMs": 1500,
+   "commands": 17,
+   "hash": "b81a4760dbb9ba37d03fb14b57e2f86ca2ba6baf0b0eefb2546f0d437b19b9ab"
+  },
+  {
+   "style": "estate-slide-rtl",
+   "fixture": "english",
+   "tMs": 2940,
+   "commands": 42,
+   "hash": "8cd2f97eb93ec117439d63b9341dddf98b896d15b21ad7a9f6e5ca739ad07a4b"
+  },
+  {
+   "style": "estate-tracking-slide",
+   "fixture": "english",
+   "tMs": 80,
+   "commands": 23,
+   "hash": "2e1a33769e4764ba31945ed9e0141177267291620776d0fd1725f2818a57eee1"
+  },
+  {
+   "style": "estate-tracking-slide",
+   "fixture": "english",
+   "tMs": 1500,
+   "commands": 22,
+   "hash": "59c2327e56635cb3008c1d153f5e88536b965bae3bdfc007ba0413397c373c2f"
+  },
+  {
+   "style": "estate-tracking-slide",
+   "fixture": "english",
+   "tMs": 2940,
+   "commands": 23,
+   "hash": "8d6dee0aaa84652372b5e2a66efa7bf969e7208b921bd0bb17a56b483eeac6e2"
+  },
+  {
+   "style": "estate-word-fade",
+   "fixture": "english",
+   "tMs": 80,
+   "commands": 5,
+   "hash": "74f8b9a6751dd11a4db43f60bda893a47ba1a41d7f4ac706f70a84ab12ec19b9"
+  },
+  {
+   "style": "estate-word-fade",
+   "fixture": "english",
+   "tMs": 1500,
+   "commands": 17,
+   "hash": "ad681843883affaadf35af23263117363dc0f68b197195f8d20fd83a1b5f264d"
+  },
+  {
+   "style": "estate-word-fade",
+   "fixture": "english",
+   "tMs": 2940,
+   "commands": 32,
+   "hash": "7f61b0739916858ef36974a0507f0ac408e04f270e8ef40d7def42da4413a544"
+  },
+  {
+   "style": "estate-word-pop",
+   "fixture": "english",
+   "tMs": 80,
+   "commands": 7,
+   "hash": "271e41add4fe410204e6d0896e387c9edeb60183deed6b2f62891efda61c8b4d"
+  },
+  {
+   "style": "estate-word-pop",
+   "fixture": "english",
+   "tMs": 1500,
+   "commands": 0,
+   "hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+  },
+  {
+   "style": "estate-word-pop",
+   "fixture": "english",
+   "tMs": 2940,
+   "commands": 6,
+   "hash": "9f95970cf076067049c9d8a53840a538c3fae8eef37534a16169737efa693425"
+  },
+  {
    "style": "glitch-shift",
    "fixture": "english",
    "tMs": 80,
@@ -2147,6 +3785,195 @@
    "hash": "419842474b5334b2214099e9ac96eeedac1d1bdbebe2ac5ae9d47efb760046fa"
   },
   {
+   "style": "kinetic-burst-shrink",
+   "fixture": "english",
+   "tMs": 80,
+   "commands": 13,
+   "hash": "47df7c56656669b73320d08f48119f84977918ae40963962360c60b7a8af8332"
+  },
+  {
+   "style": "kinetic-burst-shrink",
+   "fixture": "english",
+   "tMs": 1500,
+   "commands": 12,
+   "hash": "09f16da4f92f10cdc6e97e68bf4289c4c8ccebe07ede2dc6634f86f528358c74"
+  },
+  {
+   "style": "kinetic-burst-shrink",
+   "fixture": "english",
+   "tMs": 2940,
+   "commands": 12,
+   "hash": "becaab51606b24022a7a8d422f87f913eff3cdd00cebd7b8d7d06929fdefd277"
+  },
+  {
+   "style": "kinetic-circle-wipe",
+   "fixture": "english",
+   "tMs": 80,
+   "commands": 13,
+   "hash": "d44afc212b8d778fe58d5bd9b3669793bb46877b111fbc0371a5bcd53d6b1014"
+  },
+  {
+   "style": "kinetic-circle-wipe",
+   "fixture": "english",
+   "tMs": 1500,
+   "commands": 12,
+   "hash": "e6a711d25e47ca852f391c430e70f83fc37a7dbfae02727a748e1b73e516499f"
+  },
+  {
+   "style": "kinetic-circle-wipe",
+   "fixture": "english",
+   "tMs": 2940,
+   "commands": 12,
+   "hash": "a805022b93c19d4223be85b36080184d8f2124aa7c1bbf45e36d56693c3910e7"
+  },
+  {
+   "style": "kinetic-cross-orbit",
+   "fixture": "english",
+   "tMs": 80,
+   "commands": 13,
+   "hash": "9abf05b3c8076f7c6be8000c3999a361a112536907296ea6e415ac81a92c864a"
+  },
+  {
+   "style": "kinetic-cross-orbit",
+   "fixture": "english",
+   "tMs": 1500,
+   "commands": 12,
+   "hash": "6b90a3b9a75d23446dbe0659cc8ed0e756837f1f9f94e2ddc64aab5b5458eff8"
+  },
+  {
+   "style": "kinetic-cross-orbit",
+   "fixture": "english",
+   "tMs": 2940,
+   "commands": 12,
+   "hash": "d1ce34529e67ddb14e2aeaf8b27058115d08e53280b9bf1f3011265dca082fd3"
+  },
+  {
+   "style": "kinetic-flow",
+   "fixture": "english",
+   "tMs": 80,
+   "commands": 13,
+   "hash": "6470487483dec8af45fbb3d9189e1aa3df26fff1b3ff12b8f7eef5368f2d8386"
+  },
+  {
+   "style": "kinetic-flow",
+   "fixture": "english",
+   "tMs": 1500,
+   "commands": 12,
+   "hash": "a722d8b60ad9e53b34c16cddc5e8980f7ff6e1169c57acdfd5147037d946e4b0"
+  },
+  {
+   "style": "kinetic-flow",
+   "fixture": "english",
+   "tMs": 2940,
+   "commands": 13,
+   "hash": "20d6c083fd3a75a84b2476fe30c3d3e56b4f5ebbb5a4bf73bceff874740460f5"
+  },
+  {
+   "style": "kinetic-lockup-cyan",
+   "fixture": "english",
+   "tMs": 80,
+   "commands": 13,
+   "hash": "b842790e3bbaec0aa4de4d4e24aa2b66b697c65d843d9627aa8ddea483ab7471"
+  },
+  {
+   "style": "kinetic-lockup-cyan",
+   "fixture": "english",
+   "tMs": 1500,
+   "commands": 12,
+   "hash": "f25dba5c669cb6b22ce0c79414fed7b2558195e831022f0304baac8ea40e8b1f"
+  },
+  {
+   "style": "kinetic-lockup-cyan",
+   "fixture": "english",
+   "tMs": 2940,
+   "commands": 12,
+   "hash": "4243f2195d76bce8bca93cbb5d3e85b5120220d3976dbe3dcc5e9f08d3d735fe"
+  },
+  {
+   "style": "kinetic-sidebar-shift",
+   "fixture": "english",
+   "tMs": 80,
+   "commands": 13,
+   "hash": "e32b5b294c6a94b216bdaac37aaef5d28441257c3f176ae589f41d1ca0a175b7"
+  },
+  {
+   "style": "kinetic-sidebar-shift",
+   "fixture": "english",
+   "tMs": 1500,
+   "commands": 12,
+   "hash": "990945f5fa768bb939fc89f088cf856c975de65b9316053f60acd80bf98e5608"
+  },
+  {
+   "style": "kinetic-sidebar-shift",
+   "fixture": "english",
+   "tMs": 2940,
+   "commands": 12,
+   "hash": "19154d35b8aeaa68c1dee2053c428241d0ba369b70943222953b0f3a0514c35d"
+  },
+  {
+   "style": "kinetic-slab-punch",
+   "fixture": "english",
+   "tMs": 80,
+   "commands": 13,
+   "hash": "3a8c7a3414962432b8ac462dd30ff24f1d0ba92b09f122bd69b82c4f39d44dd0"
+  },
+  {
+   "style": "kinetic-slab-punch",
+   "fixture": "english",
+   "tMs": 1500,
+   "commands": 12,
+   "hash": "be16d7ba69ab39633dc83eb583a9c0d9cca883e47a6acb7837d62bc434150197"
+  },
+  {
+   "style": "kinetic-slab-punch",
+   "fixture": "english",
+   "tMs": 2940,
+   "commands": 12,
+   "hash": "0d447740f20ce56e93b5e007580bfe107f9592ba1ca94f3b55c01d87ba188307"
+  },
+  {
+   "style": "kinetic-tracking-contrast",
+   "fixture": "english",
+   "tMs": 80,
+   "commands": 12,
+   "hash": "1eebc5b3bebf58c6d53bb273911a9cadacb67b50439d8ae4d23bead00edc7a53"
+  },
+  {
+   "style": "kinetic-tracking-contrast",
+   "fixture": "english",
+   "tMs": 1500,
+   "commands": 12,
+   "hash": "0d148b3e68939b2c6d0179a13966d128642ea6c595f5279116e123913aeab5c3"
+  },
+  {
+   "style": "kinetic-tracking-contrast",
+   "fixture": "english",
+   "tMs": 2940,
+   "commands": 12,
+   "hash": "15f5a76cbf543e98734e1c5a25e23f323109263bcbf79b2fa66b3f6d5d8a3c45"
+  },
+  {
+   "style": "kinetic-whip-script",
+   "fixture": "english",
+   "tMs": 80,
+   "commands": 13,
+   "hash": "ffb426ff906cdc0c3cdc7e80485c3dc8a4ceab5d62d099ed16396b58487c9948"
+  },
+  {
+   "style": "kinetic-whip-script",
+   "fixture": "english",
+   "tMs": 1500,
+   "commands": 12,
+   "hash": "f48494e135b89766503737119071fe21bf39c89727d10523cd0dff7c26ed2bb2"
+  },
+  {
+   "style": "kinetic-whip-script",
+   "fixture": "english",
+   "tMs": 2940,
+   "commands": 12,
+   "hash": "a351709df55f4e42e56a182ceb558caf37a4c47215e7efcc519dd0b48ef368d1"
+  },
+  {
    "style": "liquid-glass",
    "fixture": "english",
    "tMs": 80,
@@ -2250,6 +4077,27 @@
    "tMs": 2940,
    "commands": 22,
    "hash": "595cbf62589e66a2b791624dcf35f99bcc7643abb94ecf3c4859d2410c8df854"
+  },
+  {
+   "style": "plain-white",
+   "fixture": "english",
+   "tMs": 80,
+   "commands": 22,
+   "hash": "5186b1ab8b245629dcc8887d5cd0d8f566374a940a863e25ac17ffde20c11db0"
+  },
+  {
+   "style": "plain-white",
+   "fixture": "english",
+   "tMs": 1500,
+   "commands": 22,
+   "hash": "5186b1ab8b245629dcc8887d5cd0d8f566374a940a863e25ac17ffde20c11db0"
+  },
+  {
+   "style": "plain-white",
+   "fixture": "english",
+   "tMs": 2940,
+   "commands": 22,
+   "hash": "5186b1ab8b245629dcc8887d5cd0d8f566374a940a863e25ac17ffde20c11db0"
   },
   {
    "style": "podcast-duo",

@@ -137,6 +137,26 @@ def test_deployment_defaults_match_the_documented_ones() -> None:
     assert settings.control_port == DEFAULT_CONTROL_PORT
     assert settings.queues == ()
     assert settings.whisper_model == "small"
+    # faster-whisper is the tested, documented, pyproject.toml-declared local
+    # engine; openai-whisper is an undeclared dependency and stays opt-in only.
+    assert settings.whisper_engine == "faster-whisper"
+    assert settings.whisper_device == "auto"
+    assert settings.whisper_compute_type == ""
+
+
+def test_whisper_device_can_be_pinned_or_left_to_auto_probe() -> None:
+    assert load_settings({**VALID_ENV, "WORKER_AI_WHISPER_DEVICE": "cuda"}).whisper_device == "cuda"
+    assert load_settings({**VALID_ENV, "WORKER_AI_WHISPER_DEVICE": "CPU"}).whisper_device == "cpu"
+
+
+def test_rejects_an_unknown_whisper_device() -> None:
+    with pytest.raises(EnvValidationError, match="WORKER_AI_WHISPER_DEVICE"):
+        load_settings({**VALID_ENV, "WORKER_AI_WHISPER_DEVICE": "npu"})
+
+
+def test_whisper_compute_type_passes_through_verbatim() -> None:
+    settings = load_settings({**VALID_ENV, "WORKER_AI_WHISPER_COMPUTE_TYPE": "float16"})
+    assert settings.whisper_compute_type == "float16"
 
 
 def test_the_queue_prefix_can_be_isolated_for_a_parallel_run() -> None:

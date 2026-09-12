@@ -164,3 +164,22 @@ describe("useExportDialog — one click, one export (F06-1)", () => {
     expect(requestExportManifest).toHaveBeenCalledTimes(2);
   });
 });
+
+describe("useExportDialog — caption options forwarding", () => {
+  it("passes script and dropFillers through to runExport", async () => {
+    const { result } = renderHook(() => useExportDialog(deps()));
+    await act(async () => {
+      await result.current.startExport({
+        kind: "video",
+        preset: "reels",
+        script: "native",
+        dropFillers: true,
+      });
+    });
+    expect(runExport).toHaveBeenCalledTimes(1);
+    expect(runExport.mock.calls[0]?.[0]).toMatchObject({
+      script: "native",
+      dropFillers: true,
+    });
+  });
+});

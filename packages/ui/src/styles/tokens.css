@@ -16,34 +16,69 @@
  */
 
 @theme {
-  /* --- Surfaces ---------------------------------------------------------- */
-  --color-bg-0: #0b0b0e;
-  --color-bg-1: #131318;
-  --color-bg-2: #1b1b22;
-  --color-border: #2a2a33;
-  --color-overlay: rgb(0 0 0 / 0.6);
+  /* --- Surfaces -----------------------------------------------------------
+   * Kalakar's own chrome is Tailwind's stock zinc ramp, not a blue-tinted
+   * navy one — confirmed by pixel-sampling the reference screenshot
+   * (`Caption Editor.dc.html`'s companion export, 2026-09-12) at several
+   * flat-fill regions: page canvas #0d0d0d, panel surfaces #18181b
+   * (zinc-900), control wells #27272a (zinc-800), a raised "selected chip"
+   * fill #3f3f46 (zinc-700). bg-3 is new for that fourth, lightest step. */
+  --color-bg-0: #0d0d0d;
+  --color-bg-1: #18181b;
+  --color-bg-2: #27272a;
+  --color-bg-3: #3f3f46;
+  --color-border: #303034;
+  --color-border-hover: #45454d;
+  --color-overlay: rgb(0 0 0 / 0.7);
 
-  /* --- Text -------------------------------------------------------------- */
-  --color-fg-0: #f5f5f7;
-  --color-fg-1: #c9c9d1;
-  --color-fg-2: #8b8b96;
-  --color-fg-disabled: #5c5c66;
+  /* --- Text --------------------------------------------------------------
+   * Also zinc, sampled the same way: primary text #e9e9ed (not pure white),
+   * row labels #d4d4d8, secondary/inactive #a1a1aa, most-muted #71717a. */
+  --color-fg-0: #e9e9ed;
+  --color-fg-1: #d4d4d8;
+  --color-fg-2: #a1a1aa;
+  --color-fg-disabled: #71717a;
 
-  /* --- Accent ------------------------------------------------------------ */
-  --color-lime-500: #d8ff3d;
-  --color-lime-600: #b9e020;
-  --color-on-accent: #0b0b0e;
+  /* Caption editor reference: Caption Editor.dc.html (1919 × 900). */
+  --color-editor-inspector: #1c1c1f;
+  --color-editor-sunken: #141416;
+  --color-editor-raised: #2f2f34;
+  --color-editor-divider: #212124;
+  --color-editor-pill: #232326;
+  --color-editor-pill-border: #2e2e33;
+  --color-editor-emphasis: #6dc99e;
+  --color-editor-emphasis-bg: #1d2725;
+  --color-editor-emphasis-border: #2f4a3c;
+  --color-editor-selection: #b6aef5;
+  --color-editor-selection-bg: #1d2130;
+  --color-editor-selection-border: #6d63c4;
+  --color-editor-avatar: #6d5ad6;
+  --color-editor-avatar-text: #f2f0ff;
+  --color-editor-track: #b0a76f;
+  --color-editor-track-text: #17170f;
+  --color-editor-ruler: #212126;
+  --color-editor-muted: #8b8b93;
+
+  /* --- Brand Accents: Mint & Gold ---------------------------------------- */
+  --color-mint: #49a781;
+  --color-mint-hover: #57b88f;
+  --color-emerald: #10b981;
+  --color-mint-glow: rgba(73, 167, 129, 0.2);
+  --color-gold: #f59e0b;
+  --color-lime-500: #49a781;
+  --color-lime-600: #57b88f;
+  --color-on-accent: #08120e;
 
   /* --- Signals ----------------------------------------------------------- */
-  --color-proposed: #ffb020;
-  --color-accepted: #38d39f;
-  --color-rejected: #ff5c5c;
-  --color-info: #4ea1ff;
-  --color-warning: #ff8a3d;
+  --color-proposed: #f59e0b;
+  --color-accepted: #22c55e;
+  --color-rejected: #ef4444;
+  --color-info: #3b82f6;
+  --color-warning: #f59e0b;
 
   /* --- Caption defaults (rendered content, not chrome) ------------------- */
   --color-caption-fill: #ffffff;
-  --color-caption-highlight: #ffd400;
+  --color-caption-highlight: #f59e0b;
   --color-caption-stroke: #000000;
 
   /* --- Radii: 8 / 12 / 16 ------------------------------------------------ */
@@ -85,7 +120,7 @@
   :root {
     /* Elevation is a 1 px border plus a soft shadow, never a heavy blur (08 §1). */
     --shadow-panel: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px rgb(0 0 0 / 0.32);
-    --focus-ring: 0 0 0 2px var(--color-bg-0), 0 0 0 4px var(--color-lime-500);
+    --focus-ring: 0 0 0 2px var(--color-bg-0), 0 0 0 4px var(--color-mint);
     color-scheme: dark;
   }
 }

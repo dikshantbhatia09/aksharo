@@ -21,12 +21,15 @@ import { ProgressBar } from "@montaj/ui";
 import { cn } from "@/lib/utils";
 
 export const PROCESSING_TIPS: readonly string[] = [
+  "Sabr karo, sabr ka phal meetha hota hai.",
+  "Good things take time, great captions take seconds.",
+  "Polishing every word for maximum engagement.",
+  "Kalakar is the most accurate captioning tool for South Asian languages.",
   "Hinglish and other code-mixed speech get their own transcription lane for better accuracy.",
   "Word-level timing means you can nudge a single word without retiming the rest of the line.",
   "Switch between Roman, Native and English captions any time from the editor's script tabs.",
   "Emphasis, glow, shadows and 3D depth are one click away in the Style panel once captions land.",
-  "Low-confidence words are flagged automatically, so proof-reading starts where it matters.",
-  "You can import an SRT or VTT you already have instead of spending a transcription credit.",
+  "Tip: You can customize fonts and colors once your transcript is ready.",
 ];
 
 /** Cycles through `tips` every `intervalMs`; a single tip never rotates. */

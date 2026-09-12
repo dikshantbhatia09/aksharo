@@ -6,6 +6,9 @@ import { identifyLanguage } from "./lid.js";
 import { defaultNumeralParams, normaliseNumerals } from "./numerals.js";
 import { defaultPunctuationParams, punctuate } from "./punctuation.js";
 import { normaliseSpeakers } from "./speakers.js";
+import { devanagariToHinglish } from "./transliterate.js";
+import { repairTranscriptWords } from "./repair.js";
+
 
 import type { Correction, PostProcessStep } from "./corrections.js";
 import type { GlossarySource, GlossaryTerm } from "./glossary.js";
@@ -99,6 +102,31 @@ export function normaliseTimings(chunk: TranscriptChunk): TranscriptChunk {
   };
 }
 
+function mergeSplitTokens(words: readonly Word[]): Word[] {
+  const merged: Word[] = [];
+  for (let i = 0; i < words.length; i += 1) {
+    const curr = words[i]!;
+    const next = words[i + 1];
+    // Merge split numerals like ["3", ",000"] -> "3,000" or ["2", ".5"] -> "2.5"
+    if (next && /^\d+$/.test(curr.t) && /^[,.]\d+/.test(next.t)) {
+      const combined = curr.t + next.t;
+      merged.push({
+        ...curr,
+        t: combined,
+        e: Math.max(curr.e, next.e),
+        scripts: {
+          roman: combined,
+          native: combined,
+        },
+      });
+      i += 1;
+      continue;
+    }
+    merged.push(curr);
+  }
+  return merged;
+}
+
 export async function postProcess(
   input: readonly TranscriptChunk[],
   options: PostProcessOptions,
@@ -138,7 +166,7 @@ export async function postProcess(
   const out: TranscriptChunk[] = [];
 
   for (const chunk of relabelled) {
-    let words: readonly Word[] = chunk.words;
+    let words: readonly Word[] = mergeSplitTokens(chunk.words);
 
     const punctuated = await punctuate(
       words,
@@ -161,15 +189,53 @@ export async function postProcess(
     corrections.push(...fillers.corrections);
     words = fillers.words;
 
+    const isHinglish =
+      verdict.language.toLowerCase() === "hi-latn" ||
+      options.hint?.toLowerCase() === "hi-latn" ||
+      options.providerLanguage?.toLowerCase() === "hi-latn";
+
+    if (isHinglish) {
+      words = words.map((w) => {
+        const rawSource =
+          w.scripts?.native && /[\u0900-\u097F]/u.test(w.scripts.native)
+            ? w.scripts.native
+            : (w.scripts?.roman ?? w.t);
+        const roman = devanagariToHinglish(rawSource);
+        const native = w.scripts?.native ?? w.t;
+        return {
+          ...w,
+          t: roman,
+          scripts: {
+            ...w.scripts,
+            roman,
+            native,
+          },
+        };
+      });
+
+      const repaired = repairTranscriptWords(words);
+      corrections.push(...repaired.corrections);
+      words = repaired.words;
+    }
+
     out.push({ ...chunk, words: [...words] });
   }
+
+  const isHinglish =
+    verdict.language.toLowerCase() === "hi-latn" ||
+    options.hint?.toLowerCase() === "hi-latn" ||
+    options.providerLanguage?.toLowerCase() === "hi-latn";
+
+  const scripts = isHinglish
+    ? (["roman", "native"] as const)
+    : verdict.scripts;
 
   const steps = [...new Set(corrections.map((correction) => correction.step))];
   return {
     chunks: out,
     language: verdict.language,
     detectedLanguages: verdict.detected,
-    scripts: verdict.scripts,
+    scripts,
     speakers: speakers.speakers,
     corrections,
     steps,

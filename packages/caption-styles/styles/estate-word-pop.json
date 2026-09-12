@@ -1,0 +1,87 @@
+{
+  "id": "estate-word-pop",
+  "name": "Real Estate: Word Pop",
+  "version": 2,
+  "category": "bold",
+  "minPlan": "free",
+  "typography": {
+    "fontFamily": "Inter",
+    "fallbacks": [
+      "Noto Sans Devanagari",
+      "Noto Sans Tamil",
+      "Noto Sans"
+    ],
+    "weight": 500,
+    "italic": true,
+    "sizePct": 4.6,
+    "lineHeight": 1.25,
+    "letterSpacingEm": -0.02,
+    "textTransform": "none",
+    "scriptScale": {
+      "taml": 0.68,
+      "deva": 0.85
+    }
+  },
+  "colors": {
+    "text": "#ffffff",
+    "activeText": "#ffd400"
+  },
+  "box": {
+    "enabled": false,
+    "mode": "word",
+    "paddingPct": 16,
+    "radiusPct": 20,
+    "opacity": 0.7
+  },
+  "stroke": {
+    "enabled": true,
+    "color": "#000000",
+    "widthPct": 6
+  },
+  "shadow": {
+    "enabled": true,
+    "color": "#000000",
+    "offsetXPct": 0,
+    "offsetYPct": 3,
+    "blurPct": 8,
+    "opacity": 0.7
+  },
+  "layout": {
+    "anchor": "center",
+    "x": 0.5,
+    "y": 0.75,
+    "align": "center",
+    "maxWidthPct": 85,
+    "maxLines": 2,
+    "safeAreaPct": 8
+  },
+  "animation": {
+    "in": {
+      "type": "pop",
+      "durationMs": 150
+    },
+    "out": {
+      "type": "fade",
+      "durationMs": 150
+    },
+    "wordHighlight": {
+      "type": "scale",
+      "durationMs": 120,
+      "scale": 1.15
+    },
+    "perWord": true,
+    "cueScope": "word"
+  },
+  "emphasisPresets": [
+    {
+      "id": "accent",
+      "label": "Accent",
+      "color": "#ffd400",
+      "effect": "none"
+    }
+  ],
+  "assRenderable": true,
+  "assExportable": true,
+  "requiresLayoutMetrics": false,
+  "parityScore": 0.96
+}

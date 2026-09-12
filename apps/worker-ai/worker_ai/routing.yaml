@@ -9,6 +9,13 @@
 # lanes are matched in order; the first whose `languages` contains the detected
 # tag (or its base subtag) wins, and `default` catches everything else.
 #
+# `local-whisper`'s `model` field here is DOCUMENTATION, not a per-lane
+# selector: the adapter has one configured weight for the whole deployment
+# (`WORKER_AI_WHISPER_MODEL`/`Settings.whisper_model`), the same way every
+# lane below already shared one `small`-on-CPU instance before this weight
+# existed. Keep this field naming whatever that setting actually points at —
+# see `docs/models/LOCAL-MODELS.md` for the deployed weight and why.
+#
 # candidate fields
 #   provider   registry name (worker_ai/providers/registry.py)
 #   model      vendor model id, echoed into `usage.model`
@@ -45,7 +52,7 @@ lanes:
         weight: 0
         costPerMinuteInr: 0.11
       - provider: local-whisper
-        model: small
+        model: whisper-hindi2hinglish-apex
         alignment: optional
         weight: 0
         costPerMinuteInr: 0.0
@@ -71,7 +78,7 @@ lanes:
         weight: 0
         costPerMinuteInr: 0.11
       - provider: local-whisper
-        model: small
+        model: whisper-hindi2hinglish-apex
         alignment: optional
         weight: 0
         costPerMinuteInr: 0.0
@@ -95,8 +102,14 @@ lanes:
         alignment: optional
         weight: 0
         costPerMinuteInr: 0.11
+      # Same deployed weight as the hinglish/hindi lanes above (one setting,
+      # not a per-lane choice — see the note at the top of this file). It is
+      # a Hindi/Hinglish fine-tune of large-v3; its accuracy on pure English
+      # audio is unmeasured here. Unconfigured vendors above are the reason
+      # this lane reaches local-whisper at all today (`09 §1`) — the moment
+      # any one of them gets a key, English traffic stops depending on this.
       - provider: local-whisper
-        model: small
+        model: whisper-hindi2hinglish-apex
         alignment: optional
         weight: 0
         costPerMinuteInr: 0.0
@@ -147,8 +160,10 @@ lanes:
         alignment: optional
         weight: 0
         costPerMinuteInr: 0.24
+      # Same tradeoff noted on the indian-english lane above: a Hindi/Hinglish
+      # fine-tune, not stock large-v3, serving as the global fallback too.
       - provider: local-whisper
-        model: small
+        model: whisper-hindi2hinglish-apex
         alignment: optional
         weight: 0
         costPerMinuteInr: 0.0

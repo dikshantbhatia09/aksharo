@@ -24,22 +24,37 @@
  * `REPORT.md` for the investigation that established that and exactly how
  * far the wiring reaches today.
  */
-import { AlertTriangle, Captions, CheckCircle2, Copy, ScanSearch, UploadCloud } from "lucide-react";
+import {
+  AlertTriangle,
+  Captions,
+  CheckCircle2,
+  Copy,
+  Lock,
+  Play,
+  ScanSearch,
+  Smile,
+  Sparkles,
+  UploadCloud,
+  Volume2,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import * as React from "react";
 
 import {
+  Badge,
   Button,
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  Switch,
 } from "@montaj/ui";
 
 import { LanguagePicker } from "./language-picker";
 import { PROCESSING_TIPS, ProcessingScreen, useRotatingTip } from "./processing-tips";
 import { WritingScriptPicker } from "./writing-script-picker";
+import { cn } from "@/lib/utils";
 
 import type { UploadItemState } from "@/lib/upload/types";
 
@@ -74,6 +89,8 @@ export function PrepareMediaModal({
 }: PrepareMediaModalProps): React.JSX.Element {
   const [language, setLanguage] = React.useState<string | undefined>(initialLanguage);
   const [script, setScript] = React.useState<string | undefined>(initialScript);
+  const [audioEnhancement, setAudioEnhancement] = React.useState(false);
+  const [autoEmojis, setAutoEmojis] = React.useState(false);
   const tip = useRotatingTip(PROCESSING_TIPS);
 
   // A freshly opened dialog starts from whatever the caller remembers — never
@@ -86,6 +103,8 @@ export function PrepareMediaModal({
     // on every keystroke in the caller's remembered values.
   }, [open]);
 
+  const isHinglish = language === "hi-Latn" || language === "hinglish";
+
   // K02's cost-control invariant carries over from FIX-04: no transcription
   // credits spend without an explicit spoken-language choice. The writing
   // script is not a cost decision (it never reaches the transcribe request —
@@ -95,7 +114,7 @@ export function PrepareMediaModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md" data-testid="prepare-media-modal">
+      <DialogContent className="max-w-lg" data-testid="prepare-media-modal">
         {item === undefined ? (
           <>
             <DialogHeader>
@@ -104,24 +123,30 @@ export function PrepareMediaModal({
             </DialogHeader>
 
             {file === undefined ? null : (
-              <div className="border-border bg-bg-2 mb-4 flex items-center gap-3 rounded-md border p-3">
-                <div className="bg-bg-1 text-fg-2 flex size-10 shrink-0 items-center justify-center rounded-sm">
-                  <UploadCloud className="size-5" aria-hidden="true" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-fg-0 truncate text-sm font-medium">{file.name}</p>
-                  <p className="text-fg-2 text-xs">
-                    {formatFileSize(file.size)} · Ready for processing
-                  </p>
+              <div className="mb-4 flex flex-col gap-2">
+                <div className="bg-bg-2 border-border relative flex h-36 w-full items-center justify-center overflow-hidden rounded-lg border">
+                  <div className="flex size-11 items-center justify-center rounded-full bg-[#10B981] text-black shadow-lg">
+                    <Play className="ml-0.5 size-5 fill-current" />
+                  </div>
+                  <span className="bg-black/75 absolute top-2 right-2 rounded-full px-2 py-0.5 text-[11px] font-medium text-[#10B981] backdrop-blur-sm">
+                    ● Ready for processing
+                  </span>
+                  <span className="bg-black/75 absolute bottom-2 left-2 flex items-center gap-1 rounded px-2 py-0.5 text-xs text-white backdrop-blur-sm">
+                    <span>{file.name}</span>
+                    <span className="text-white/70">·</span>
+                    <span className="text-white/70">{formatFileSize(file.size)}</span>
+                  </span>
                 </div>
               </div>
             )}
 
-            <div className="mb-6 flex flex-col gap-3">
-              <p className="text-fg-0 text-sm font-medium">Language settings</p>
-              <p className="text-fg-2 -mt-2 text-xs">
-                Configure the source language and writing script.
-              </p>
+            <div className="mb-4 flex flex-col gap-3">
+              <div>
+                <p className="text-fg-0 text-sm font-medium">Language settings</p>
+                <p className="text-fg-2 text-xs">
+                  Configure the source language and writing system.
+                </p>
+              </div>
               <div className="flex flex-col gap-3 sm:flex-row">
                 <div className="flex flex-1 flex-col gap-1.5">
                   <label className="text-fg-2 text-xs" id="prepare-media-language-label">
@@ -129,7 +154,12 @@ export function PrepareMediaModal({
                   </label>
                   <LanguagePicker value={language} onChange={setLanguage} fullWidth />
                 </div>
-                <div className="flex flex-1 flex-col gap-1.5">
+                <div
+                  className={cn(
+                    "flex flex-1 flex-col gap-1.5 transition-all duration-200",
+                    isHinglish && "hidden",
+                  )}
+                >
                   <label className="text-fg-2 text-xs" id="prepare-media-script-label">
                     Writing system used?
                   </label>
@@ -138,18 +168,79 @@ export function PrepareMediaModal({
               </div>
             </div>
 
+            {/* Kalakar Additional Options: Translation, Audio Enhancement, Emojis */}
+            <div className="border-border bg-bg-2/50 mb-5 flex flex-col divide-y divide-border/60 rounded-lg border">
+              {/* Translation */}
+              <div className="flex items-center justify-between p-3">
+                <div className="flex items-start gap-2.5">
+                  <Sparkles className="text-fg-2 mt-0.5 size-4" />
+                  <div>
+                    <p className="text-fg-0 text-xs font-medium">Translation</p>
+                    <p className="text-fg-2 text-[11px]">
+                      Automatically translate your captions
+                    </p>
+                  </div>
+                </div>
+                <Badge tone="neutral" className="border-border bg-bg-1 gap-1 text-[11px] text-fg-2">
+                  <Lock className="size-3" />
+                  Creator Plan
+                </Badge>
+              </div>
+
+              {/* Audio Enhancement */}
+              <div className="flex items-center justify-between p-3">
+                <div className="flex items-start gap-2.5">
+                  <Volume2 className="text-fg-2 mt-0.5 size-4" />
+                  <div>
+                    <div className="flex items-center gap-1.5">
+                      <p className="text-fg-0 text-xs font-medium">Audio Enhancement</p>
+                      <span className="text-[#10B981] text-[10px] font-semibold">✦ AI-Powered</span>
+                    </div>
+                    <p className="text-fg-2 text-[11px]">
+                      Clean background noise and enhance speech clarity
+                    </p>
+                  </div>
+                </div>
+                <Switch
+                  checked={audioEnhancement}
+                  onCheckedChange={setAudioEnhancement}
+                  aria-label="Audio Enhancement"
+                  data-testid="toggle-audio-enhancement"
+                />
+              </div>
+
+              {/* Emojis */}
+              <div className="flex items-center justify-between p-3">
+                <div className="flex items-start gap-2.5">
+                  <Smile className="text-fg-2 mt-0.5 size-4" />
+                  <div>
+                    <p className="text-fg-0 text-xs font-medium">Emojis</p>
+                    <p className="text-fg-2 text-[11px]">
+                      Automatically insert context-aware emojis into captions
+                    </p>
+                  </div>
+                </div>
+                <Switch
+                  checked={autoEmojis}
+                  onCheckedChange={setAutoEmojis}
+                  aria-label="Emojis"
+                  data-testid="toggle-emojis"
+                />
+              </div>
+            </div>
+
             <Button
               type="button"
               variant="primary"
-              className="w-full"
+              className="bg-[#10B981] hover:bg-[#059669] text-black font-semibold w-full h-11 rounded-lg"
               disabled={!canGenerate}
               data-testid="prepare-media-generate"
               onClick={() => {
                 if (language === undefined) return;
-                onGenerate(language, script ?? "roman");
+                onGenerate(language, isHinglish ? "roman" : (script ?? "roman"));
               }}
             >
-              Generate Transcription
+              Generate Transcription →
             </Button>
           </>
         ) : (

@@ -13,8 +13,16 @@
  * The one presentational rule that is genuinely the menubar's own: a menu's
  * destructive rows sit in a tail below a separator, so "Delete word" is never
  * the neighbour of the row above it by accident.
+ *
+ * Kalakar's reference has no visible File/Edit/View/… bar at all, so every
+ * `EDITOR_MENUS` entry (2026-09-12) is a submenu of one overflow trigger
+ * instead of its own top-level one — same actions, same
+ * `menu-item-${action.id}` testids on every row, just one fewer click away.
+ * Nothing here reads `EDITOR_ACTIONS` any differently for it; this is a pure
+ * "wrap each menu in `MenubarSub` instead of rendering it standalone" change.
  */
 
+import { MoreHorizontal } from "lucide-react";
 import * as React from "react";
 
 import {
@@ -25,6 +33,9 @@ import {
   MenubarMenu,
   MenubarSeparator,
   MenubarShortcut,
+  MenubarSub,
+  MenubarSubContent,
+  MenubarSubTrigger,
   MenubarTrigger,
 } from "@montaj/ui";
 
@@ -86,37 +97,40 @@ function Row({
 
 export function EditorMenubar({ ctx }: EditorMenubarProps): React.JSX.Element {
   return (
-    <Menubar
-      data-testid="editor-menubar"
-      aria-label="Editor menu"
-      className="border-border bg-bg-0"
-    >
-      {EDITOR_MENUS.map((menu) => {
-        const actions = EDITOR_ACTIONS.filter((action) => action.menu === menu.id);
-        if (actions.length === 0) return null;
-        const safe = actions.filter((action) => action.destructive !== true);
-        const destructive = actions.filter((action) => action.destructive === true);
+    <Menubar data-testid="editor-menubar" aria-label="Editor menu" className="border-border bg-bg-0">
+      <MenubarMenu>
+        <MenubarTrigger
+          data-testid="menu-more"
+          aria-label="Editor menu"
+          title="Editor menu"
+          className="hover:bg-bg-2 data-[state=open]:bg-bg-2 flex size-7 items-center justify-center rounded-sm p-0 transition-colors duration-[160ms]"
+        >
+          <MoreHorizontal className="size-4" aria-hidden="true" />
+        </MenubarTrigger>
+        <MenubarContent>
+          {EDITOR_MENUS.map((menu) => {
+            const actions = EDITOR_ACTIONS.filter((action) => action.menu === menu.id);
+            if (actions.length === 0) return null;
+            const safe = actions.filter((action) => action.destructive !== true);
+            const destructive = actions.filter((action) => action.destructive === true);
 
-        return (
-          <MenubarMenu key={menu.id} value={menu.id}>
-            <MenubarTrigger
-              data-testid={`menu-${menu.id}`}
-              className="hover:bg-bg-2 data-[state=open]:bg-bg-2 rounded-sm transition-colors duration-[160ms]"
-            >
-              {menu.label}
-            </MenubarTrigger>
-            <MenubarContent>
-              {safe.map((action) => (
-                <Row key={action.id} action={action} ctx={ctx} />
-              ))}
-              {destructive.length === 0 || safe.length === 0 ? null : <MenubarSeparator />}
-              {destructive.map((action) => (
-                <Row key={action.id} action={action} ctx={ctx} />
-              ))}
-            </MenubarContent>
-          </MenubarMenu>
-        );
-      })}
+            return (
+              <MenubarSub key={menu.id}>
+                <MenubarSubTrigger data-testid={`menu-${menu.id}`}>{menu.label}</MenubarSubTrigger>
+                <MenubarSubContent>
+                  {safe.map((action) => (
+                    <Row key={action.id} action={action} ctx={ctx} />
+                  ))}
+                  {destructive.length === 0 || safe.length === 0 ? null : <MenubarSeparator />}
+                  {destructive.map((action) => (
+                    <Row key={action.id} action={action} ctx={ctx} />
+                  ))}
+                </MenubarSubContent>
+              </MenubarSub>
+            );
+          })}
+        </MenubarContent>
+      </MenubarMenu>
     </Menubar>
   );
 }

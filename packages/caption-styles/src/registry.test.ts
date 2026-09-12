@@ -39,24 +39,22 @@ describe("loadSystemStyles", () => {
   const styles = loadSystemStyles();
 
   it("returns every shipped style, validated and ordered", () => {
-    // A16 drew the rest of the catalogue: the registry and the documents are
-    // now the same 30 styles, in id order.
-    expect(styles).toHaveLength(30);
+    expect(styles).toHaveLength(52);
     expect(styles.map((style) => style.id)).toEqual(
       [...loadStyleRegistry().styles.map((entry) => entry.id)].sort(),
     );
   });
 
-  it("ships the keys A03's database seed expects", () => {
+  it("ships the plain-white and real estate style keys", () => {
     const ids = new Set(styles.map((style) => style.id));
     for (const required of [
-      "punch-pop",
-      "hype-bold",
-      "karaoke-fill",
-      "word-pop",
-      "minimal-lower-third",
+      "plain-white",
+      "estate-word-pop",
+      "estate-word-fade",
+      "estate-slide-ltr",
+      "estate-editorial-luxury",
     ]) {
-      expect(ids, `seed key ${required} is missing`).toContain(required);
+      expect(ids, `style key ${required} is missing`).toContain(required);
     }
   });
 
@@ -95,7 +93,7 @@ describe("loadSystemStyles", () => {
   it("rejects a style whose file name does not match its id", () => {
     const dir = scratch({
       // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
-      "wrong-name.json": readFileSync(join(STYLES_DIR, "punch-pop.json"), "utf8"),
+      "wrong-name.json": readFileSync(join(STYLES_DIR, "plain-white.json"), "utf8"),
     });
     expect(() => loadSystemStyles(dir)).toThrow(/file must be <id>\.json/);
   });
@@ -106,7 +104,7 @@ describe("loadSystemStyles", () => {
   });
 
   it("rejects unreadable JSON", () => {
-    const dir = scratch({ "punch-pop.json": "{ not json" });
+    const dir = scratch({ "plain-white.json": "{ not json" });
     expect(() => loadSystemStyles(dir)).toThrow(/cannot read/);
   });
 });
@@ -114,9 +112,9 @@ describe("loadSystemStyles", () => {
 describe("styles/registry.json", () => {
   const registry = loadStyleRegistry();
 
-  it("lists the 30 planned styles", () => {
-    expect(registry.styles).toHaveLength(30);
-    expect(new Set(registry.styles.map((entry) => entry.id)).size).toBe(30);
+  it("lists the 52 planned styles", () => {
+    expect(registry.styles).toHaveLength(52);
+    expect(new Set(registry.styles.map((entry) => entry.id)).size).toBe(52);
   });
 
   it("marks exactly the styles with a document as shipped", () => {
@@ -148,9 +146,9 @@ describe("styles/registry.json", () => {
 
   it("filters by category", () => {
     const bold = stylesInCategory("bold");
-    expect(bold.map((entry) => entry.id)).toContain("punch-pop");
+    expect(bold.map((entry) => entry.id)).toContain("estate-word-pop");
     expect(bold.every((entry) => entry.category === "bold")).toBe(true);
-    expect(stylesInCategory("gaming").length).toBeGreaterThan(0);
+    expect(stylesInCategory("clean").length).toBeGreaterThan(0);
   });
 
   it("rejects a malformed registry", () => {

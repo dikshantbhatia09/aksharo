@@ -31,7 +31,7 @@ export class InvoicesController {
   @ApiBearerAuth("access-token")
   @ApiOperation({ summary: "List the caller's workspace's invoices, most recent first." })
   @ApiOkResponse()
-  async list(@CurrentUser() principal: AuthPrincipal) {
+  async list(@CurrentUser() principal: AuthPrincipal): Promise<any> {
     return this.prisma.invoice.findMany({
       where: { workspaceId: principal.workspaceId },
       orderBy: { issuedAt: "desc" },

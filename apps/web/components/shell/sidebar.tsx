@@ -1,7 +1,7 @@
 "use client";
 
 import { useQueries } from "@tanstack/react-query";
-import { AudioLines, HardDrive, Monitor } from "lucide-react";
+import { ArrowUpRight, AudioLines, HardDrive, Monitor } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import * as React from "react";
@@ -321,7 +321,9 @@ function isBrandOrigin(origin: string): boolean {
 }
 
 /** The "Upgrade" call to action, hidden on the top plan (08 §3). */
-export function UpgradeButton(): React.JSX.Element | null {
+export function UpgradeButton({
+  editor = false,
+}: { editor?: boolean } = {}): React.JSX.Element | null {
   const { razorpayEnabled } = useRuntimeConfig();
   const entitlement = useEntitlement();
   const plan = entitlement.data?.planKey;
@@ -331,7 +333,9 @@ export function UpgradeButton(): React.JSX.Element | null {
   if (plan === undefined || plan === "studio" || plan === "agency") return null;
   return (
     <Button variant="primary" size="sm" asChild data-testid="upgrade-cta">
-      <Link href="/billing">Upgrade</Link>
+      <Link href="/billing" className={editor ? "editor-upgrade" : undefined}>
+        Upgrade{editor ? <ArrowUpRight className="size-[13px]" aria-hidden="true" /> : null}
+      </Link>
     </Button>
   );
 }

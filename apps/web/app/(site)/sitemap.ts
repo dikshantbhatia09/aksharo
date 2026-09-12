@@ -2,7 +2,6 @@ import { BRAND } from "@montaj/config";
 
 import type { MetadataRoute } from "next";
 
-import { COMPARISON_PAGES } from "@/content/site/comparisons";
 import { LEGAL_DOCS } from "@/content/site/legal";
 import { loadHelpArticles } from "@/lib/content/loader";
 import { loadApiGroups } from "@/lib/docs/openapi";
@@ -54,12 +53,6 @@ export default function sitemap(): MetadataRoute.Sitemap {
       lastModified: now,
       changeFrequency: "monthly" as const,
       priority: 0.6,
-    })),
-    ...COMPARISON_PAGES.map((entry) => ({
-      url: `${base}/vs/${entry.slug}`,
-      lastModified: new Date(entry.verifiedOn),
-      changeFrequency: "monthly" as const,
-      priority: 0.5,
     })),
     // Legal docs are `noindex` (drafts pending counsel) but still worth listing
     // for a crawler that already found them via the footer.

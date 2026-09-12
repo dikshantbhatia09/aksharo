@@ -45,6 +45,7 @@ describe("<PlayerToolbar />", () => {
         mediaId="01JMEDIA"
       />,
     );
+    await user.click(screen.getByTestId("safe-zone-toggle"));
     const toggle = screen.getByTestId("safe-zone-switch");
     expect(toggle).toHaveAttribute("aria-checked", "true");
     await user.click(toggle);

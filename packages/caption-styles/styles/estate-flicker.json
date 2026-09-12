@@ -1,0 +1,85 @@
+{
+  "id": "estate-flicker",
+  "name": "Real Estate: Flicker",
+  "version": 2,
+  "category": "bold",
+  "minPlan": "free",
+  "typography": {
+    "fontFamily": "Inter",
+    "fallbacks": [
+      "Noto Sans Devanagari",
+      "Noto Sans Tamil",
+      "Noto Sans"
+    ],
+    "weight": 900,
+    "italic": false,
+    "sizePct": 5,
+    "lineHeight": 1.15,
+    "letterSpacingEm": -0.02,
+    "textTransform": "uppercase",
+    "scriptScale": {
+      "taml": 0.68,
+      "deva": 0.85
+    }
+  },
+  "colors": {
+    "text": "#ffffff",
+    "activeText": "#ffffff"
+  },
+  "box": {
+    "enabled": false,
+    "mode": "line",
+    "paddingPct": 16,
+    "radiusPct": 20,
+    "opacity": 0.7
+  },
+  "stroke": {
+    "enabled": true,
+    "color": "#000000",
+    "widthPct": 8
+  },
+  "shadow": {
+    "enabled": true,
+    "color": "#ffffff",
+    "offsetXPct": 0,
+    "offsetYPct": 0,
+    "blurPct": 12,
+    "opacity": 0.8
+  },
+  "layout": {
+    "anchor": "center",
+    "x": 0.5,
+    "y": 0.78,
+    "align": "center",
+    "maxWidthPct": 88,
+    "maxLines": 2,
+    "safeAreaPct": 8
+  },
+  "animation": {
+    "in": {
+      "type": "pop",
+      "durationMs": 150
+    },
+    "out": {
+      "type": "fade",
+      "durationMs": 150
+    },
+    "wordHighlight": {
+      "type": "glow",
+      "durationMs": 120
+    },
+    "perWord": true
+  },
+  "emphasisPresets": [
+    {
+      "id": "accent",
+      "label": "Accent",
+      "color": "#ffd400",
+      "effect": "none"
+    }
+  ],
+  "assRenderable": true,
+  "assExportable": true,
+  "requiresLayoutMetrics": false,
+  "parityScore": 0.96
+}

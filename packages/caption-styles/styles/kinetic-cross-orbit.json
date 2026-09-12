@@ -1,0 +1,89 @@
+{
+  "id": "kinetic-cross-orbit",
+  "name": "Kinetic Cross Orbit",
+  "version": 2,
+  "category": "kinetic",
+  "minPlan": "free",
+  "typography": {
+    "fontFamily": "Inter",
+    "fallbacks": [
+      "Noto Sans Devanagari",
+      "Noto Sans Tamil",
+      "Noto Sans"
+    ],
+    "weight": 800,
+    "italic": false,
+    "sizePct": 7.5,
+    "lineHeight": 0.95,
+    "letterSpacingEm": 0,
+    "textTransform": "uppercase",
+    "scriptScale": {
+      "taml": 0.58,
+      "deva": 0.85
+    }
+  },
+  "colors": {
+    "text": "#ffffff",
+    "activeText": "#51c6cc",
+    "accent": "#f5a623"
+  },
+  "box": {
+    "enabled": false,
+    "mode": "line",
+    "paddingPct": 16,
+    "radiusPct": 20,
+    "opacity": 0.7
+  },
+  "stroke": {
+    "enabled": false,
+    "color": "#000000",
+    "widthPct": 4
+  },
+  "shadow": {
+    "enabled": true,
+    "color": "#000000",
+    "offsetXPct": 0,
+    "offsetYPct": 2,
+    "blurPct": 6,
+    "opacity": 0.4
+  },
+  "layout": {
+    "anchor": "center",
+    "x": 0.5,
+    "y": 0.5,
+    "align": "center",
+    "maxWidthPct": 85,
+    "maxLines": 3,
+    "safeAreaPct": 8
+  },
+  "animation": {
+    "in": {
+      "type": "bounce",
+      "durationMs": 200
+    },
+    "out": {
+      "type": "fade",
+      "durationMs": 150
+    },
+    "wordHighlight": {
+      "type": "color",
+      "durationMs": 100
+    },
+    "perWord": false,
+    "lockupMode": "cross-axis",
+    "cameraRotationDeg": 90,
+    "secondaryGraphic": "sunburst"
+  },
+  "emphasisPresets": [
+    {
+      "id": "accent",
+      "label": "Gold Sunburst Accent",
+      "color": "#f5a623",
+      "effect": "none"
+    }
+  ],
+  "assRenderable": true,
+  "assExportable": true,
+  "requiresLayoutMetrics": false,
+  "parityScore": 0.95
+}

@@ -26,6 +26,7 @@ const WORDS: Word[] = [
 function baseProps() {
   return {
     segment: segment(),
+    index: 1,
     words: WORDS,
     script: "roman" as const,
     onEditWord: vi.fn(),
@@ -59,7 +60,7 @@ describe("SegmentCard", () => {
   it("the hide button toggles based on the current hidden state", async () => {
     const onHideToggle = vi.fn();
     const { rerender } = render(<SegmentCard {...baseProps()} onHideToggle={onHideToggle} />);
-    expect(screen.getByTestId("segment-hide-s1")).toHaveTextContent("Hide");
+    expect(screen.getByTestId("segment-hide-s1")).toHaveAttribute("aria-label", "Hide caption");
     await userEvent.click(screen.getByTestId("segment-hide-s1"));
     expect(onHideToggle).toHaveBeenCalledWith("s1", true);
 
@@ -70,7 +71,7 @@ describe("SegmentCard", () => {
         onHideToggle={onHideToggle}
       />,
     );
-    expect(screen.getByTestId("segment-hide-s1")).toHaveTextContent("Show");
+    expect(screen.getByTestId("segment-hide-s1")).toHaveAttribute("aria-label", "Show caption");
   });
 
   it("the merge-with-next button is absent on the last segment", () => {

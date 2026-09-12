@@ -27,6 +27,7 @@ export interface RenderWord {
 /** The part of an EDG `Segment` the renderer reads (CONTRACTS §2). */
 export interface RenderSegment {
   readonly id: string;
+  readonly seq?: string | number;
   readonly startMs: number;
   readonly endMs: number;
   readonly position?: { readonly x: number; readonly y: number; readonly anchor: string };
@@ -83,6 +84,7 @@ export interface LayoutLine {
 
 export interface Layout {
   readonly segmentId: string;
+  readonly segmentSeq?: string | number;
   readonly canvas: CanvasSize;
   readonly script: WordScript;
   /** Type size actually used, i.e. after shrink-to-fit. */

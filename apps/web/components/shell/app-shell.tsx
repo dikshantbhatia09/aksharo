@@ -1,7 +1,7 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import * as React from "react";
 
 import {
@@ -39,6 +39,12 @@ export function AppShell({ children }: { children: React.ReactNode }): React.JSX
   const config = useRuntimeConfig();
   const session = useSession();
   const router = useRouter();
+  const pathname = usePathname();
+  // The studio editor (`/p/[id]`) is its own full-bleed 4-zone layout
+  // (design/00 §2) with no room for the 16rem dashboard sidebar or the
+  // dashboard's search/New-project/Aura top bar — it renders its own slim
+  // top bar (`EditorTopBar`) instead. Every other route keeps the shell.
+  const isEditorRoute = pathname?.startsWith("/p/") === true;
   const queryClient = useQueryClient();
   const { open, setOpen } = useCommandPalette();
   const [bootstrapped, setBootstrapped] = React.useState(false);
@@ -269,25 +275,31 @@ export function AppShell({ children }: { children: React.ReactNode }): React.JSX
         Skip to content
       </a>
 
-      <div className="lg:grid lg:grid-cols-[16rem_1fr]">
-        <aside
-          className="border-border bg-bg-1 sticky top-0 hidden h-dvh border-r lg:block"
-          data-testid="sidebar"
-        >
-          <Sidebar />
-        </aside>
+      {isEditorRoute ? (
+        <main id="main" tabIndex={-1} className="h-dvh focus:outline-none">
+          {children}
+        </main>
+      ) : (
+        <div className="lg:grid lg:grid-cols-[16rem_1fr]">
+          <aside
+            className="border-border bg-bg-1 sticky top-0 hidden h-dvh border-r lg:block"
+            data-testid="sidebar"
+          >
+            <Sidebar />
+          </aside>
 
-        <div className="flex min-h-dvh min-w-0 flex-col">
-          <TopBar
-            onOpenPalette={() => {
-              setOpen(true);
-            }}
-          />
-          <main id="main" tabIndex={-1} className="flex-1 px-4 py-6 focus:outline-none sm:px-6">
-            {children}
-          </main>
+          <div className="flex min-h-dvh min-w-0 flex-col">
+            <TopBar
+              onOpenPalette={() => {
+                setOpen(true);
+              }}
+            />
+            <main id="main" tabIndex={-1} className="flex-1 px-4 py-6 focus:outline-none sm:px-6">
+              {children}
+            </main>
+          </div>
         </div>
-      </div>
+      )}
 
       <CommandPalette open={open} onOpenChange={setOpen} recentProjects={recentProjects} />
 

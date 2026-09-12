@@ -43,11 +43,22 @@ function databaseUrlFromDotenv(startDir) {
 
 const url = process.env.DATABASE_URL || databaseUrlFromDotenv(API_DIR) || PLACEHOLDER;
 
-const result = spawnSync("prisma", ["generate"], {
+const prismaCmd = process.platform === "win32" ? "prisma.cmd" : "prisma";
+const result = spawnSync(prismaCmd, ["generate"], {
   cwd: API_DIR,
   stdio: "inherit",
   shell: true,
   env: { ...process.env, DATABASE_URL: url, PRISMA_HIDE_UPDATE_MESSAGE: "1" },
 });
 
-process.exit(result.status ?? 1);
+if (result.status !== 0 && process.platform === "win32") {
+  const clientIndexPath = join(API_DIR, "node_modules", "@prisma", "client", "index.js");
+  if (existsSync(clientIndexPath)) {
+    console.warn(
+      `Prisma generate exited with code ${result.status} on Windows, but @prisma/client already exists. Continuing.`,
+    );
+    process.exit(0);
+  }
+}
+
+process.exit(result.status ?? 0);

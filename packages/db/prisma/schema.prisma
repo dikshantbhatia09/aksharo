@@ -1,0 +1,207 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/client"
+}
+
+// -----------------------------------------------------------------------------
+// Users, Workspaces & Quota Accounts
+// -----------------------------------------------------------------------------
+
+model User {
+  id            String            @id @default(uuid())
+  email         String            @unique
+  fullName      String
+  avatarUrl     String?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  workspaces    WorkspaceMember[]
+  subscriptions Subscription[]
+}
+
+model Workspace {
+  id            String            @id @default(uuid())
+  name          String
+  slug          String            @unique
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  members       WorkspaceMember[]
+  projects      Project[]
+  presets       Preset[]
+  customFonts   CustomFont[]
+  brandAssets   BrandAsset[]
+  quota         WorkspaceQuota?
+}
+
+model WorkspaceMember {
+  id          String    @id @default(uuid())
+  workspaceId String
+  userId      String
+  role        String    @default("owner") // owner, editor, viewer
+
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+}
+
+// Direct parity with Kalakar sidebar meters:
+// Storage: 0 GB / 5.0 GB, Transcription: 5.0 mins left, Audio Clean: 0 / 3
+model WorkspaceQuota {
+  id                      String    @id @default(uuid())
+  workspaceId             String    @unique
+  planTier                String    @default("FREE") // FREE, CREATOR, STUDIO
+  billingPeriod           String    @default("MONTHLY") // MONTHLY, ANNUAL
+
+  // Storage Quota (bytes)
+  storageLimitBytes       BigInt    @default(5368709120) // 5.0 GB
+  storageUsedBytes        BigInt    @default(0)
+
+  // Transcription Quota (seconds)
+  transcriptionLimitSec   Int       @default(300) // 5.0 minutes (300 seconds)
+  transcriptionSecondsRemaining Int @default(300)
+
+  // Audio Clean Credits (units)
+  audioCleanCreditsLimit  Int       @default(3) // 3 credits
+  audioCleanCreditsRemaining Int    @default(3)
+
+  workspace               Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+// -----------------------------------------------------------------------------
+// Projects, Media & Captions
+// -----------------------------------------------------------------------------
+
+model Project {
+  id                  String         @id @default(uuid())
+  workspaceId         String
+  title               String         @default("Untitled Video")
+  durationSec         Float?         @default(0.0)
+  aspectRatio         String         @default("9:16")
+  fps                 Float          @default(30.0)
+  status              String         @default("READY") // UPLOADING, PROCESSING, READY, FAILED
+  sourceMediaUrl      String?
+  filmstripSpriteUrl  String?
+  waveformJsonUrl     String?
+
+  detectedLanguage    String         @default("hi")
+  script              String         @default("latin") // latin (Hinglish), native (Devanagari)
+
+  transcript          Transcript?
+  styleDocument       Json?          // Full StyleDocSchema JSON
+  captionSettings     Json?          // DisplaySettings, Actions, Timing Delay
+
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+
+  workspace           Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  exports             ExportJob[]
+}
+
+model MediaAsset {
+  id               String    @id @default(uuid())
+  originalFileName String
+  fileSizeBytes    BigInt
+  mimeType         String
+  durationMs       Int
+  width            Int
+  height           Int
+  fps              Float     @default(30.0)
+
+  sourceVideoUri   String
+  proxyVideoUri    String?   // 720p fast-start H.264
+  audioWavUri      String?   // 16kHz mono WAV
+  audioCleanUri    String?   // DeepFilterNet enhanced WAV
+  waveformUri      String?   // JSON amplitude peaks
+  filmstripUri     String?   // WebP sprite sheet of video frames
+
+  createdAt        DateTime  @default(now())
+}
+
+model Transcript {
+  id               String    @id @default(uuid())
+  projectId        String    @unique
+  detectedLanguage String    @default("hi")
+  script           String    @default("latin")
+  words            Json      @default("[]") // [{ id, text, start, end, confidence, isEmphasized, emoji }]
+  lines            Json      @default("[]") // Array of CaptionLine objects with word timings
+
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  project          Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+// -----------------------------------------------------------------------------
+// Presets, Custom Fonts & Brand Library
+// -----------------------------------------------------------------------------
+
+model Preset {
+  id            String    @id @default(uuid())
+  workspaceId   String
+  userId        String?
+  name          String    // e.g. "Ali Abdaal", "Mr Beast 1", "My Viral Glow"
+  isBuiltin     Boolean   @default(false)
+  styleDoc      Json      // StyleDocSchema
+  previewTags   String[]  @default([])
+
+  createdAt     DateTime  @default(now())
+  workspace     Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+model CustomFont {
+  id          String    @id @default(uuid())
+  workspaceId String
+  userId      String?
+  family      String
+  format      String    @default("truetype") // truetype / opentype / woff2
+  fontUrl     String    // font file URL
+  fontFace    String    @default("Regular")
+
+  createdAt   DateTime  @default(now())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+model BrandAsset {
+  id          String    @id @default(uuid())
+  workspaceId String
+  name        String
+  fileUri     String
+  assetType   String    // IMAGE, AUDIO, OVERLAY
+
+  createdAt   DateTime  @default(now())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+model ExportJob {
+  id             String    @id @default(uuid())
+  projectId      String
+  presetPlatform String    @default("reels") // reels, story, feed, tiktok, shorts
+  resolution     String    @default("1080p") // 720p, 1080p, 4k
+  fps            Int       @default(30)
+  overlayOpacity Float     @default(1.0)
+  status         String    @default("QUEUED") // QUEUED, RENDERING, COMPLETED, FAILED
+  outputVideoUri String?
+  errorMessage   String?
+
+  createdAt      DateTime  @default(now())
+  completedAt    DateTime?
+
+  project        Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model Subscription {
+  id             String    @id @default(uuid())
+  userId         String
+  planTier       String    @default("FREE")
+  status         String    @default("active")
+  createdAt      DateTime  @default(now())
+
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}

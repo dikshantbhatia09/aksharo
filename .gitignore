@@ -10,6 +10,7 @@ coverage/
 # `pnpm gen:client` compiles the API here before running the generator.
 apps/api/.openapi/
 *.log
+*.log.*
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
@@ -17,6 +18,7 @@ pnpm-debug.log*
 
 # ---- Next.js ----
 .next/
+.next-*/
 .vercel/
 # apps/web/next-env.d.ts is committed so `tsc --noEmit` works before a build.
 
@@ -33,6 +35,7 @@ apps/api/prisma/migrations/**/*.sql.bak
 apps/api/prisma/.env
 apps/api/generated/
 **/generated/prisma/
+packages/db/generated/
 
 # ---- Python ----
 __pycache__/
@@ -74,6 +77,11 @@ Thumbs.db
 
 # ---- Media fixtures too large for git ----
 fixtures/large/
+
+# Reproducible local video/font extraction output.
+scratch/all_frames/
+scratch/video_frames/
+scratch/extracted_fonts/
 
 # ---- Fonts pack build cache (A18b) ----
 packages/fonts/.cache/

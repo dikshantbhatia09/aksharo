@@ -64,6 +64,11 @@ import type { NextConfig } from "next";
  */
 const API_ORIGIN = process.env["API_ORIGIN"]?.trim() ?? "";
 const API_WS_ORIGIN = API_ORIGIN.replace(/^http/, "ws");
+// Browser-facing API origin: may differ from the server-side API_ORIGIN when
+// the web container runs inside a Docker network (Docker-internal hostname for
+// SSR, localhost for the browser). Falls back to API_ORIGIN when unset.
+const BROWSER_API_ORIGIN = process.env["BROWSER_API_ORIGIN"]?.trim() ?? "";
+const BROWSER_API_WS_ORIGIN = BROWSER_API_ORIGIN.replace(/^http/, "ws");
 // Browser-facing raw-store origin: the multipart PUT the upload flow issues
 // straight to the store. Falls back to S3_ENDPOINT so an all-http local dev
 // setup keeps working; the config package refuses the truly broken
@@ -76,6 +81,8 @@ const S3_PUBLIC_ENDPOINT =
 const R2_PUBLIC_ENDPOINT =
   process.env["R2_PUBLIC_ENDPOINT"]?.trim() || (process.env["R2_ENDPOINT"]?.trim() ?? "");
 
+const IS_PRODUCTION = process.env["NODE_ENV"] === "production";
+
 const SECURITY_HEADERS = [
   {
     key: "Content-Security-Policy",
@@ -83,13 +90,27 @@ const SECURITY_HEADERS = [
       "default-src 'self'",
       "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'",
       "style-src 'self' 'unsafe-inline'",
-      ["img-src 'self' data: blob: https:", R2_PUBLIC_ENDPOINT].filter(Boolean).join(" "),
-      ["media-src 'self' blob: https:", R2_PUBLIC_ENDPOINT].filter(Boolean).join(" "),
+      [
+        "img-src 'self' data: blob: https: http://localhost:9000 http://localhost:3001",
+        R2_PUBLIC_ENDPOINT,
+        S3_PUBLIC_ENDPOINT,
+      ]
+        .filter(Boolean)
+        .join(" "),
+      [
+        "media-src 'self' blob: https: http://localhost:9000",
+        R2_PUBLIC_ENDPOINT,
+        S3_PUBLIC_ENDPOINT,
+      ]
+        .filter(Boolean)
+        .join(" "),
       "font-src 'self' data:",
       [
-        "connect-src 'self' https: wss:",
+        "connect-src 'self' https: wss: http://localhost:3001 ws://localhost:3001 http://localhost:9000 ws://localhost:9000",
         API_ORIGIN,
         API_WS_ORIGIN,
+        BROWSER_API_ORIGIN,
+        BROWSER_API_WS_ORIGIN,
         S3_PUBLIC_ENDPOINT,
         R2_PUBLIC_ENDPOINT,
       ]
@@ -99,7 +120,9 @@ const SECURITY_HEADERS = [
       "base-uri 'self'",
       "object-src 'none'",
       "form-action 'self'",
-      "upgrade-insecure-requests",
+      // In local / e2e the stack runs on plain http; upgrading would break every
+      // API and S3 call. Only enable in production where TLS is guaranteed.
+      ...(IS_PRODUCTION ? ["upgrade-insecure-requests"] : []),
     ].join("; "),
   },
   { key: "Strict-Transport-Security", value: "max-age=15552000; includeSubDomains" },
@@ -110,6 +133,8 @@ const SECURITY_HEADERS = [
 ];
 
 const nextConfig: NextConfig = {
+  // A preview build must not overwrite the bundle served by the local live site.
+  distDir: process.env["NEXT_DIST_DIR"] || ".next",
   async headers() {
     return [{ source: "/:path*", headers: SECURITY_HEADERS }];
   },

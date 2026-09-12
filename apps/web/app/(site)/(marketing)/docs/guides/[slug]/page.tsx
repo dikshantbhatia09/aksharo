@@ -11,7 +11,8 @@ export function generateStaticParams(): { slug: string }[] {
   return loadHelpArticles().map((article) => ({ slug: article.slug }));
 }
 
-export function generateMetadata({ params }: { params: { slug: string } }): Metadata {
+export async function generateMetadata({ params: pendingParams }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const params = await pendingParams;
   const article = getHelpArticle(params.slug);
   if (!article) return {};
   return {
@@ -21,11 +22,8 @@ export function generateMetadata({ params }: { params: { slug: string } }): Meta
   };
 }
 
-export default function DocsGuideArticlePage({
-  params,
-}: {
-  params: { slug: string };
-}): React.JSX.Element {
+export default async function DocsGuideArticlePage({ params: pendingParams }: { params: Promise<{ slug: string }> }): Promise<React.JSX.Element> {
+  const params = await pendingParams;
   const article = getHelpArticle(params.slug);
   if (!article) notFound();
 

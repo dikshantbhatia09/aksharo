@@ -27,6 +27,10 @@ const DOC = { kind: "doc" } as const;
 
 function renderColorsPanel(style: StyleDoc, onOp = vi.fn()): { onOp: typeof onOp } {
   render(<ColorsPanel style={style} scope={DOC} onOp={onOp} />);
+  // Emphasis now starts collapsed (design/09's own screenshot opens on
+  // Color, not Emphasis) — expand it so this file's Emphasis-field
+  // assertions still see their controls.
+  fireEvent.click(screen.getByRole("button", { name: "Emphasis" }));
   return { onOp };
 }
 

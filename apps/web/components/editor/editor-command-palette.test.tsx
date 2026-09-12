@@ -44,6 +44,8 @@ function spyContext(overrides: Partial<EditorActionContext> = {}): {
     ctx: {
       canSplit: true,
       canWordEdit: true,
+      canUndo: true,
+      canRedo: true,
       hideFillers: false,
       follow: false,
       playing: false,

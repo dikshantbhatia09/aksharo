@@ -35,7 +35,7 @@ describe("@montaj/ui", () => {
   });
 
   it("exports the tokens as data as well as CSS", () => {
-    expect(ui.TOKENS.accent.lime500).toBe("#D8FF3D");
+    expect(ui.TOKENS.accent.lime500).toBe(ui.ACCENT.lime500);
     expect(ui.cn("p-2", "p-4")).toBe("p-4");
   });
 });

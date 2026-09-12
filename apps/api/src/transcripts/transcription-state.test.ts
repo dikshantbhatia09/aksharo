@@ -18,7 +18,12 @@ const PROJECT: { id: string; workspaceId: string; sourceLanguage: string | null 
   sourceLanguage: "hi-Latn",
 };
 
-const READY_MEDIA: { status: string; durationMs: number | null } = {
+const READY_MEDIA: {
+  status: string;
+  durationMs: number | null;
+  failureReason?: string | null;
+  createdAt?: Date;
+} = {
   status: "ready",
   durationMs: 20_200,
 };
@@ -120,6 +125,40 @@ describe("TranscriptsService.transcriptionState", () => {
     });
     await expect(state({ media: { durationMs: 0 } })).resolves.toEqual({
       status: "processing_media",
+    });
+  });
+
+  it("reports failed when media processing failed", async () => {
+    await expect(
+      state({
+        media: {
+          status: "failed",
+          failureReason: "Unsupported video codec.",
+        },
+      }),
+    ).resolves.toEqual({
+      status: "failed",
+      error: "Unsupported video codec.",
+    });
+
+    await expect(state({ media: { status: "failed", failureReason: null } })).resolves.toEqual({
+      status: "failed",
+      error: "Media processing failed. Please try re-uploading the file.",
+    });
+  });
+
+  it("reports failed when media upload or probing timed out", async () => {
+    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+    await expect(
+      state({
+        media: {
+          status: "uploading",
+          createdAt: tenMinutesAgo,
+        },
+      }),
+    ).resolves.toEqual({
+      status: "failed",
+      error: "Media upload or processing timed out. Please try re-uploading the file.",
     });
   });
 

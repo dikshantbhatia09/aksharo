@@ -79,7 +79,7 @@ describe("golden hashes", () => {
     expect(golden.entries).toHaveLength(
       styles.length * CAPTION_FIXTURES.length * GOLDEN_TIMESTAMPS_MS.length,
     );
-    expect(styles).toHaveLength(30);
+    expect(styles).toHaveLength(52);
   });
 
   it("reproduces every committed hash", () => {

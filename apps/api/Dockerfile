@@ -34,6 +34,7 @@ RUN npx --yes turbo@2.10.12 prune @montaj/api --docker
 # ---------------------------------------------------------------------------
 FROM node:22-bookworm-slim AS build
 WORKDIR /repo
+RUN apt-get update -y && apt-get install -y --no-install-recommends openssl ca-certificates && rm -rf /var/lib/apt/lists/*
 RUN corepack enable
 COPY --from=pruner /repo/out/json/ .
 # `turbo prune --docker`'s `out/json` layer is package.json files only (by
@@ -107,6 +108,7 @@ RUN mkdir /tmp/tsx-install \
 # Stage 3c — runtime (only the deployed tree, not the whole monorepo)
 # ---------------------------------------------------------------------------
 FROM node:22-bookworm-slim AS runtime
+RUN apt-get update -y && apt-get install -y --no-install-recommends openssl ca-certificates && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=deploy /app ./
 

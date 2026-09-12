@@ -4,6 +4,8 @@ import { creditCostTenths, formatCredits } from "@montaj/config";
 import type { Segment, TranscriptChunk } from "@montaj/edg/schemas";
 
 import { MAX_TRANSLATE_TARGETS, SCRIPTS_ERROR_CODES } from "./scripts.errors.js";
+import { dominantScript } from "@montaj/edg/segmenter";
+
 import { ScriptsRepository, TranscriptNotFoundError } from "./scripts.repository.js";
 import { AppException, ERROR_CODES } from "../../common/errors/error-codes.js";
 import { PrismaService } from "../../common/prisma/prisma.service.js";
@@ -328,13 +330,20 @@ export class ScriptsService {
     const transcript = await this.transcriptOf(projectId, workspaceId);
     const rows = await this.repository.allChunks(transcript.id, transcript.currentRevision);
     const words = rows.flatMap(
-      (row) => row.words as unknown as { scripts?: Record<string, string> }[],
+      (row) => row.words as unknown as { t: string; scripts?: Record<string, string> }[],
     );
-    const has = (script: "roman" | "native" | "en"): boolean =>
-      words.some(
+    const has = (script: "roman" | "native" | "en"): boolean => {
+      const explicit = words.some(
         // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
         (word) => typeof word.scripts?.[script] === "string" && word.scripts[script] !== "",
       );
+      if (explicit) return true;
+      if (words.length === 0) return false;
+      const dominant = dominantScript(words.map((w) => w.t));
+      if (script === "roman") return dominant === "latin";
+      if (script === "native") return dominant !== "latin";
+      return false;
+    };
 
     const segments = await this.allSegments(projectId, workspaceId);
     const translatedAvailable = segments.some(

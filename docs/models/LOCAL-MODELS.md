@@ -8,7 +8,52 @@ commands to reproduce it on another Windows dev box.
 
 Weights live in `05-build/_models/` (sibling to `05-build/montaj`, outside
 every worktree, so every WP shares one copy instead of downloading its own).
-Total on-disk size: **~2.3 GB** (well under the 6 GB budget).
+Total on-disk size: **~3.1 GB** (well under the 6 GB budget).
+
+## 0. Whisper-Hindi2Hinglish-Apex (faster-whisper / CTranslate2, GPU)
+
+- **Purpose**: the `local-whisper` provider's default weight
+  (`apps/worker-ai/worker_ai/providers/local_whisper.py`) on this deployment,
+  replacing stock Whisper `small` on CPU. Generic Whisper — any size — is
+  well-documented to struggle on Hindi-English code-switched speech
+  specifically (loanwords mis-spelled in Devanagari, no romanised-output
+  option, degraded accuracy at language boundaries); this fine-tune outputs
+  Hinglish (Latin script) directly and was trained on noisy, Indian-accented
+  audio, which is what this product's real traffic actually is (see the
+  domain vocabulary this replaced, `git log -p` on this file's history).
+  Chosen after comparing published benchmarks against stock `large-v3` and
+  against AI4Bharat/vasista22's pure-Hindi (Devanagari-output, not
+  code-switch-trained) fine-tunes — see the session's memory note on the
+  Hinglish transcription investigation for the comparison.
+- **Source**: `https://huggingface.co/Oriserve/Whisper-Hindi2Hinglish-Apex`
+  (a fine-tune of `openai/whisper-large-v3`), converted to CTranslate2 with
+  `python -m ctranslate2.converters.transformers --model
+  Oriserve/Whisper-Hindi2Hinglish-Apex --quantization int8_float16
+  --copy_files preprocessor_config.json tokenizer_config.json` plus a
+  hand-copied `tokenizer.json` (see "Local path" below) so the local
+  directory needs no network access at load time — CTranslate2's converter
+  does not fetch it, and without it `faster-whisper` silently falls back to
+  downloading `openai/whisper-tiny`'s tokenizer (byte-identical vocabulary
+  across every Whisper size, so this is harmless *except* for the added
+  network dependency and ~30 s latency it costs the first load).
+- **Version**: HF revision `f3214eed20b4e4d4144e739982d911f87b9cb223`.
+- **Licence**: Apache-2.0 (Oriserve).
+- **Local path**: `_models/whisper-hindi2hinglish-apex-ct2-int8/` (`config.json`,
+  `model.bin`, `vocabulary.json`, `tokenizer.json`, `tokenizer_config.json`,
+  `preprocessor_config.json`).
+- **Size**: 782 MB (`model.bin` is 814,054,531 bytes, int8_float16).
+- **SHA-256** (`model.bin`):
+  `834c6a9417cfab2417752dfc160998e3c77dad7f1f77f65f4a31ec8f3c13c472`
+- **Runs on GPU here**: this host has an NVIDIA GeForce RTX 2060 (6 GB VRAM),
+  previously unused by `local-whisper` — the adapter defaulted to
+  `device="cpu"` unconditionally with no setting to override it. CTranslate2's
+  Windows wheel needs `nvidia-cublas-cu12`/`nvidia-cudnn-cu12` (`pip install`,
+  no CUDA Toolkit installer needed) on `PATH` — not merely registered via
+  `os.add_dll_directory`, which does not reach a `LoadLibrary` call a compiled
+  extension issues internally; `local_whisper.py`'s
+  `_ensure_cuda_libraries_on_path()` does this automatically and is a no-op
+  where the packages are absent. `WORKER_AI_WHISPER_DEVICE=auto` (the default)
+  probes for a working GPU and falls back to CPU rather than failing a job.
 
 ## 1. Whisper `small` (faster-whisper / CTranslate2)
 
@@ -120,8 +165,16 @@ local filesystem paths):
 CLAP_MODEL_PATH=C:\Dikshant\Crest Mond\Product 2\05-build\_models\clap\630k-audioset-best.pt
 YUNET_MODEL_PATH=C:\Dikshant\Crest Mond\Product 2\05-build\_models\yunet\face_detection_yunet_2023mar.onnx
 DEEPFILTERNET_MODEL_DIR=C:\Dikshant\Crest Mond\Product 2\05-build\_models\deepfilternet3
-WORKER_AI_WHISPER_MODEL=small
+WORKER_AI_WHISPER_MODEL=C:\Dikshant\Crest Mond\Product 2\05-build\_models\whisper-hindi2hinglish-apex-ct2-int8
+WORKER_AI_WHISPER_ENGINE=faster-whisper
 ```
+
+`WORKER_AI_WHISPER_MODEL` also accepts a plain size name (`small`, `large-v3`,
+…) instead of a local directory — `faster-whisper`/`openai-whisper` then
+resolve it through the Hugging Face cache as before. `WORKER_AI_WHISPER_DEVICE`
+(default `auto`) and `WORKER_AI_WHISPER_COMPUTE_TYPE` (default: an
+device-appropriate pick) are documented in `apps/worker-ai/README.md`'s
+configuration table.
 
 `local-whisper` needs no path variable: `faster-whisper` resolves `small` by
 name through its own (Hugging Face) cache once the `local-asr` extra is
@@ -145,6 +198,30 @@ pnpm setup                                  # creates .venv, installs the pinned
 .\.venv\Scripts\python.exe -m pip install --no-deps "laion-clap==1.1.6"
 .\.venv\Scripts\python.exe -m pip install torch torchaudio torchvision --index-url https://download.pytorch.org/whl/cpu
 .\.venv\Scripts\python.exe -m pip install librosa transformers torchlibrosa ftfy braceexpand webdataset wget h5py pandas progressbar
+```
+
+GPU execution for `faster-whisper` (needs no CUDA Toolkit installer — the pip
+packages carry the runtime DLLs; `local_whisper.py` puts them on `PATH` at
+load time):
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install nvidia-cublas-cu12 nvidia-cudnn-cu12
+```
+
+Converting a Hugging Face checkpoint (any Whisper-architecture fine-tune,
+official or community) to a local CTranslate2 directory — a one-time step;
+`transformers` is needed only for the conversion, never at runtime:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install transformers safetensors accelerate
+.\.venv\Scripts\python.exe -m ctranslate2.converters.transformers `
+  --model <hf-repo-id> --output_dir <local-dir> --quantization int8_float16 `
+  --copy_files preprocessor_config.json tokenizer_config.json
+# tokenizer.json is not fetched by the converter; copy it by hand or the
+# first load fetches openai/whisper-tiny's (byte-identical, ~30 s, one-time
+# network dependency this deployment avoids by shipping it locally):
+.\.venv\Scripts\python.exe -c "from huggingface_hub import hf_hub_download; print(hf_hub_download('<hf-repo-id>', 'tokenizer.json'))"
+# then copy the printed path's file into <local-dir>/tokenizer.json
 ```
 
 `laion-clap`'s declared dependency `numpy==1.23.5` has no Python 3.12 wheel

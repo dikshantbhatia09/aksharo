@@ -46,3 +46,9 @@ export {
 export type { PunctuationModel, PunctuationParams } from "./punctuation.js";
 export { normaliseSpeakers } from "./speakers.js";
 export type { SpeakerNormalisation } from "./speakers.js";
+export { devanagariToHinglish } from "./transliterate.js";
+export {
+  CANONICAL_HINGLISH_VOCABULARY,
+  repairHinglishWord,
+  repairTranscriptWords,
+} from "./repair.js";

@@ -1,6 +1,6 @@
 "use client";
 
-import { Globe, LogOut, Settings, ShieldCheck, User } from "lucide-react";
+import { ChevronDown, Globe, LogOut, Settings, ShieldCheck, User } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import * as React from "react";
@@ -27,7 +27,13 @@ import { useLocale, useT } from "@/lib/i18n/locale-provider";
 import { clearSession } from "@/lib/session/client";
 
 /** The profile block at the bottom of the sidebar (08 §3). */
-export function ProfileMenu({ onNavigate }: { onNavigate?: () => void }): React.JSX.Element {
+export function ProfileMenu({
+  onNavigate,
+  editor = false,
+}: {
+  onNavigate?: () => void;
+  editor?: boolean;
+}): React.JSX.Element {
   const session = useSession();
   const me = useCurrentUser();
   const client = useApiClient();
@@ -53,17 +59,26 @@ export function ProfileMenu({ onNavigate }: { onNavigate?: () => void }): React.
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="mx-1 justify-start gap-2.5" data-testid="profile-menu">
+        <Button
+          variant="ghost"
+          className={editor ? "editor-profile justify-start gap-2" : "mx-1 justify-start gap-2.5"}
+          data-testid="profile-menu"
+        >
           <span
             aria-hidden="true"
             className="bg-bg-2 text-fg-1 flex size-6 shrink-0 items-center justify-center rounded-full text-2xs font-semibold"
           >
-            {initials(name)}
+            {editor ? initials(name).slice(0, 1) : initials(name)}
           </span>
           <span className="truncate text-sm">{name}</span>
+          {editor ? <ChevronDown className="size-3 text-fg-2" aria-hidden="true" /> : null}
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" side="top" className="w-64">
+      <DropdownMenuContent
+        align={editor ? "end" : "start"}
+        side={editor ? "bottom" : "top"}
+        className="w-64"
+      >
         <DropdownMenuLabel>{session?.role ?? "Account"}</DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>

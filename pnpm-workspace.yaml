@@ -1,7 +1,3 @@
 packages:
   - "apps/*"
   - "packages/*"
-  - "plugins/*"
-  - "engine/*"
-  - "tools/*"
-  - "load"

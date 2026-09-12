@@ -139,6 +139,10 @@ module = [
   "onnxruntime.*",
   "jiwer.*",
   "faster_whisper.*",
+  "ctranslate2.*",
+  "whisper.*",
+  "torch.*",
+  "cv2.*",
 ]
 ignore_missing_imports = true
 

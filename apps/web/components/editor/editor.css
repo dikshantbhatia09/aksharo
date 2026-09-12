@@ -1,0 +1,599 @@
+/* Geometry and component styling from the supplied Caption Editor.dc.html.
+   Scoped to the project editor so the dashboard and marketing pages retain
+   their own layout. Colors live in the shared token registry. */
+.caption-editor {
+  background: var(--color-bg-0);
+  color: var(--color-fg-0);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+.caption-editor [hidden] {
+  display: none !important;
+}
+.caption-editor button {
+  cursor: pointer;
+}
+.caption-editor button:disabled {
+  cursor: default;
+}
+.caption-editor [data-slot="resizable-panel-group"],
+.caption-editor [data-slot="resizable-panel"],
+.caption-editor [data-slot="resizable-panel"] > div {
+  background: transparent;
+}
+.caption-editor [data-slot="resizable-panel-group"] {
+  height: 100%;
+}
+.caption-editor .editor-workspace {
+  height: auto;
+  width: calc(100% - 20px) !important;
+  margin: 8px 10px;
+}
+.caption-editor [data-slot="resizable-handle"] {
+  width: 16px;
+  flex: 0 0 16px;
+  background: transparent;
+}
+.caption-editor [data-slot="resizable-handle"][aria-orientation="horizontal"] {
+  height: 8px;
+  width: 100%;
+  flex-basis: 8px;
+}
+.caption-editor [data-slot="resizable-handle"]:hover::before {
+  content: "";
+  position: absolute;
+  width: 2px;
+  height: 32px;
+  border-radius: 2px;
+  background: var(--color-fg-disabled);
+}
+.caption-editor [data-slot="resizable-handle"][aria-orientation="horizontal"]:hover::before {
+  width: 46px;
+  height: 2px;
+}
+.caption-editor .editor-profile {
+  height: 34px;
+  max-width: 250px;
+  padding: 0 10px 0 4px;
+  border-radius: 18px;
+  border: 1px solid var(--color-bg-2);
+  background: var(--color-bg-1);
+}
+.caption-editor .editor-profile > span:first-child {
+  width: 26px;
+  height: 26px;
+  background: var(--color-editor-avatar);
+  color: var(--color-editor-avatar-text);
+  font-size: 12px;
+}
+.caption-editor .editor-profile > span:nth-child(2) {
+  font-size: 13px;
+}
+.caption-editor .editor-upgrade {
+  height: 30px;
+  padding: 0 14px;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.caption-editor .editor-pill {
+  background: var(--color-editor-pill);
+  border-color: var(--color-editor-pill-border);
+}
+.caption-editor .editor-pill:hover {
+  background: var(--color-bg-2);
+}
+.caption-editor .editor-transcript-panel {
+  overflow: hidden;
+}
+.caption-editor .editor-caption-row {
+  border-color: var(--color-editor-divider);
+}
+.caption-editor .editor-caption-row.is-selected {
+  background: color-mix(in srgb, var(--color-editor-emphasis-bg) 35%, transparent);
+}
+.caption-editor .editor-caption-timestamp {
+  position: absolute;
+  left: 0;
+  bottom: 1px;
+  font-size: 9px;
+  opacity: 0;
+}
+.caption-editor .editor-caption-row:hover .editor-caption-timestamp,
+.caption-editor .editor-caption-timestamp:focus-visible {
+  opacity: 1;
+}
+.caption-editor .editor-caption-hide {
+  position: absolute;
+  right: 78px;
+  top: 16px;
+}
+.caption-editor .editor-caption-merge {
+  position: absolute;
+  right: 102px;
+  top: 16px;
+  opacity: 0;
+}
+.caption-editor .editor-caption-row:hover .editor-caption-merge,
+.caption-editor .editor-caption-merge:focus-visible {
+  opacity: 1;
+}
+.caption-editor .editor-caption-words {
+  padding-right: 24px;
+  line-height: 18px;
+}
+.caption-editor .editor-word-emphasis {
+  padding: 3px 8px;
+  background: var(--color-editor-emphasis-bg);
+  color: var(--color-editor-emphasis);
+}
+.caption-editor .editor-word-emphasis:hover {
+  background: var(--color-editor-emphasis-border);
+  color: var(--color-editor-emphasis);
+}
+.caption-editor .editor-player-viewport {
+  background: var(--color-editor-sunken);
+}
+.caption-editor .editor-stage-box:fullscreen {
+  width: 100vw !important;
+  height: 100vh;
+  border-radius: 0;
+}
+.caption-editor .editor-player-bottom {
+  height: 50px;
+  padding: 0;
+  gap: 8px;
+  background: transparent;
+  border: 0;
+}
+.caption-editor .editor-player-controls {
+  gap: 14px;
+}
+.caption-editor .editor-player-controls button {
+  width: 18px;
+  height: 26px;
+  color: var(--color-fg-0);
+}
+.caption-editor .editor-player-controls svg {
+  width: 18px;
+  height: 18px;
+}
+.caption-editor .editor-player-controls > span {
+  font-family: inherit;
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+.caption-editor .editor-player-scrubber {
+  width: 100%;
+  height: 3px;
+}
+
+.caption-editor .editor-inspector {
+  background: var(--color-editor-inspector);
+}
+.caption-editor .editor-inspector-toggle {
+  position: absolute;
+  top: calc(50% - 17px);
+  left: 8px;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 34px;
+  border: 0;
+  border-radius: 4px;
+  background: var(--color-editor-inspector);
+  color: var(--color-fg-2);
+}
+.caption-editor .editor-inspector-toggle svg {
+  width: 11px;
+  height: 11px;
+}
+.caption-editor .editor-inspector-mode {
+  display: flex;
+  flex-shrink: 0;
+  gap: 3px;
+  margin: 8px 10px 0;
+  padding: 3px;
+  border-radius: 8px;
+  background: var(--color-editor-sunken);
+}
+.caption-editor .editor-inspector-mode button {
+  flex: 1;
+  padding: 7px 0;
+  border-radius: 6px;
+  font-size: 13px;
+  line-height: 16px;
+  color: var(--color-fg-2);
+}
+.caption-editor .editor-inspector-mode button[aria-checked="true"] {
+  background: var(--color-editor-raised);
+  color: var(--color-fg-0);
+  font-weight: 500;
+}
+.caption-editor .editor-inspector-tabs {
+  display: flex;
+  flex-shrink: 0;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--color-bg-2);
+}
+.caption-editor .editor-inspector-tabs > a {
+  display: none;
+}
+.caption-editor .editor-inspector-tabs button {
+  line-height: 16px;
+}
+.caption-editor .editor-inspector-body {
+  padding: 0 16px;
+}
+.caption-editor .editor-inspector-body > * {
+  flex-shrink: 0;
+}
+.caption-editor
+  .editor-inspector-body
+  > div:first-child
+  > .editor-inspector-section:first-child
+  > .editor-section-heading {
+  height: 44px;
+}
+.caption-editor .editor-section-heading svg {
+  width: 11px;
+  height: 11px;
+}
+.caption-editor .editor-section-fields > div,
+.caption-editor .editor-section-fields > label {
+  min-height: 44px;
+}
+.caption-editor .editor-section-fields > div > span:first-child,
+.caption-editor .editor-section-fields > label > span:first-child,
+.caption-editor .editor-field-label {
+  font-size: 13.5px;
+}
+.caption-editor .editor-field-row {
+  min-width: 0;
+  gap: 10px;
+}
+.caption-editor .editor-field-cluster {
+  gap: 10px;
+  min-width: 0;
+}
+.caption-editor .editor-reset {
+  width: 15px;
+}
+.caption-editor .editor-field-well {
+  height: 32px;
+  border-radius: 6px;
+  background: var(--color-bg-2);
+  font-size: 13px;
+}
+.caption-editor .editor-field-row input[list] {
+  width: 194px;
+}
+.caption-editor .editor-field-row .panel-range {
+  width: 112px;
+}
+.caption-editor .editor-field-value {
+  width: 88px;
+  gap: 6px;
+}
+.caption-editor .editor-field-value input {
+  width: 100%;
+  min-width: 0;
+  background: transparent;
+  text-align: left;
+  outline: none;
+}
+.caption-editor .editor-field-value input::-webkit-inner-spin-button {
+  appearance: none;
+}
+.caption-editor .editor-field-value input {
+  appearance: textfield;
+}
+.caption-editor .editor-stepper {
+  display: flex;
+  width: 10px;
+  flex-direction: column;
+}
+.caption-editor .editor-stepper button {
+  height: 11px;
+  color: var(--color-editor-muted);
+}
+.caption-editor .editor-stepper svg {
+  width: 10px;
+  height: 10px;
+}
+.caption-editor .editor-weight-well {
+  width: 138px;
+  height: 32px;
+  background: var(--color-bg-2);
+  border-radius: 6px;
+  font-size: 13px;
+}
+.caption-editor .editor-format-buttons {
+  gap: 8px;
+}
+.caption-editor .editor-format-buttons button {
+  width: 36px;
+  height: 32px;
+  background: var(--color-bg-2);
+  border-color: var(--color-border);
+  border-radius: 6px;
+  color: var(--color-fg-0);
+  font-size: 13px;
+  font-weight: 400;
+}
+.caption-editor .editor-format-buttons button[aria-checked="true"],
+.caption-editor .editor-format-buttons button[aria-pressed="true"] {
+  background: var(--color-editor-selection-bg);
+  border-color: var(--color-editor-selection-border);
+  color: var(--color-editor-selection);
+}
+.caption-editor .editor-position-row {
+  height: 44px;
+}
+.caption-editor .editor-position-row input {
+  text-align: left;
+}
+.caption-editor .editor-color-field {
+  gap: 0;
+}
+.caption-editor .editor-color-mode {
+  display: flex;
+  padding: 3px;
+  gap: 3px;
+  border-radius: 8px;
+  background: var(--color-editor-sunken);
+  border: 0;
+}
+.caption-editor .editor-color-mode button {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  height: 30px;
+  border: 0;
+  border-radius: 6px;
+  font-size: 13px;
+}
+.caption-editor .editor-color-mode button[aria-checked="true"] {
+  background: var(--color-editor-raised);
+}
+.caption-editor .editor-color-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 52px;
+}
+.caption-editor .editor-color-row > label {
+  flex: 1;
+  font-size: 13.5px;
+}
+.caption-editor .editor-color-well {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 218px;
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-bg-2);
+}
+.caption-editor .editor-color-well .panel-swatch {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  border-radius: 4px;
+}
+.caption-editor .editor-color-well .panel-swatch::-webkit-color-swatch {
+  border-radius: 3px;
+}
+.caption-editor .editor-color-hex {
+  width: 100%;
+  min-width: 0;
+  background: transparent;
+  font-size: 13px;
+  outline: none;
+  text-transform: uppercase;
+}
+.caption-editor .editor-inspector-footer {
+  margin-top: auto;
+  padding: 10px 16px 14px;
+}
+.caption-editor .editor-inspector-footer button {
+  height: 34px;
+  padding: 0 26px;
+  font-size: 14px;
+  font-weight: 600;
+  background: var(--color-mint);
+  color: var(--color-on-accent);
+  border: 0;
+}
+.caption-editor .editor-inspector-footer button:hover {
+  background: var(--color-mint-hover);
+}
+.caption-editor .editor-inspector-footer button > svg {
+  display: none;
+}
+.caption-editor .panel-range {
+  background: linear-gradient(
+    to right,
+    var(--color-fg-disabled) 0%,
+    var(--color-fg-disabled) var(--fill, 0%),
+    var(--color-bg-3) var(--fill, 0%),
+    var(--color-bg-3) 100%
+  );
+}
+.caption-editor .panel-range::-webkit-slider-thumb {
+  width: 7px;
+  height: 12px;
+  border: 0;
+  border-radius: 2px;
+  background: var(--color-fg-1);
+  box-shadow: none;
+}
+.caption-editor .panel-range::-moz-range-thumb {
+  width: 7px;
+  height: 12px;
+  border: 0;
+  border-radius: 2px;
+  background: var(--color-fg-1);
+}
+.caption-editor .editor-timeline-panel {
+  position: relative;
+  padding-top: 14px;
+}
+.caption-editor .editor-timeline-panel::before {
+  content: "";
+  position: absolute;
+  top: 5px;
+  left: calc(50% - 23px);
+  width: 46px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--color-bg-3);
+}
+.caption-editor .editor-timeline {
+  height: 100%;
+  min-height: 280px;
+  padding: 0;
+  border: 0;
+  gap: 0;
+}
+.caption-editor .editor-timeline-column {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.caption-editor .editor-timeline-toolbar {
+  height: 50px;
+  flex-shrink: 0;
+  gap: 12px;
+  padding: 0 14px 0 90px;
+}
+.caption-editor .editor-timeline-toolbar > * {
+  flex-shrink: 0;
+}
+.caption-editor .editor-timeline-toolbar .timeline-granularity {
+  order: 0;
+  padding: 3px;
+  gap: 2px;
+  border: 0;
+  background: var(--color-editor-pill);
+}
+.caption-editor .timeline-granularity button {
+  height: 26px;
+  padding: 0 13px;
+  text-transform: uppercase;
+  font-size: 11.5px;
+  letter-spacing: 0.06em;
+}
+.caption-editor .timeline-granularity button[aria-pressed="true"] {
+  background: var(--color-fg-1);
+  color: var(--color-bg-1);
+}
+.caption-editor .editor-timeline-zoom {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.caption-editor .editor-timeline-zoom input {
+  width: 104px;
+}
+.caption-editor .editor-timeline-toolbar > button,
+.caption-editor .editor-timeline-zoom > button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 30px;
+  border-radius: 8px;
+}
+.caption-editor .editor-timeline-toolbar > button {
+  min-width: 32px;
+}
+.caption-editor .editor-timeline-toolbar > [aria-hidden="true"] {
+  height: 22px;
+  margin: 0 8px;
+}
+.caption-editor
+  .editor-timeline-toolbar
+  button[aria-pressed="true"]:not(.timeline-granularity button) {
+  border: 1px solid var(--color-editor-emphasis-border);
+  background: var(--color-editor-emphasis-bg);
+  color: var(--color-editor-emphasis);
+}
+.caption-editor .editor-timeline-tracks {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  background: var(--color-editor-sunken);
+}
+.caption-editor .editor-timeline-labels {
+  border-top: 1px solid var(--color-editor-divider);
+}
+.caption-editor .editor-timeline-labels > div:not(:first-child) {
+  padding-left: 12px;
+  font-size: 11.5px;
+  border-top: 1px solid var(--color-editor-divider);
+}
+.caption-editor .editor-timeline-scroll {
+  height: 14px;
+  padding: 4px;
+}
+.caption-editor .editor-timeline-scroll input {
+  display: block;
+  width: 100%;
+  height: 5px;
+}
+.caption-editor .editor-timeline-scroll input::-webkit-slider-thumb {
+  width: 26%;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--color-bg-3);
+}
+
+@media (max-width: 1500px) {
+  .caption-editor .editor-timeline-toolbar {
+    padding-left: 14px;
+    gap: 8px;
+  }
+  .caption-editor .editor-inspector-tabs > div {
+    gap: 20px;
+  }
+  .caption-editor .editor-field-row .panel-range {
+    width: 76px;
+  }
+  .caption-editor .editor-color-well {
+    width: 172px;
+  }
+  .caption-editor .editor-field-row input[list] {
+    width: 148px;
+  }
+  .caption-editor .editor-field-cluster {
+    gap: 8px;
+  }
+  .caption-editor .editor-field-value {
+    width: 68px;
+  }
+  .caption-editor .editor-timeline-toolbar > [aria-hidden="true"] {
+    margin: 0;
+  }
+  .caption-editor .editor-timeline-zoom input {
+    width: 70px;
+  }
+}
+@media (max-width: 1100px) {
+  .caption-editor .editor-workspace {
+    overflow-x: auto;
+    min-width: 1000px;
+  }
+  .caption-editor {
+    overflow-x: auto;
+  }
+  .caption-editor .editor-profile > span:nth-child(2) {
+    display: none;
+  }
+}

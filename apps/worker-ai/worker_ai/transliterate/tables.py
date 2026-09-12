@@ -18,6 +18,9 @@ language, in :func:`normalise_numerals` and :func:`native_punctuation`.
 
 from __future__ import annotations
 
+import re
+import unicodedata
+
 __all__ = [
     "DEVANAGARI_DANDA",
     "HINDI_ROMAN_TO_DEVANAGARI",
@@ -331,6 +334,216 @@ def transliterate_word(token: str, *, language: str) -> str:
     return _syllable_split(token.lower(), table) or token
 
 
+_DEVA_VOWELS: dict[str, str] = {
+    "अ": "a",
+    "आ": "aa",
+    "इ": "i",
+    "ई": "ee",
+    "उ": "u",
+    "ऊ": "oo",
+    "ऋ": "ri",
+    "ए": "e",
+    "ऐ": "ai",
+    "ओ": "o",
+    "औ": "au",
+}
+
+_DEVA_MATRAS: dict[str, str] = {
+    "ा": "a",
+    "ि": "i",
+    "ी": "ee",
+    "ु": "u",
+    "ू": "oo",
+    "ृ": "ri",
+    "े": "e",
+    "ै": "ai",
+    "ो": "o",
+    "ौ": "au",
+}
+
+_DEVA_CONSONANTS: dict[str, str] = {
+    "क": "k",
+    "ख": "kh",
+    "ग": "g",
+    "घ": "gh",
+    "ङ": "ng",
+    "च": "ch",
+    "छ": "chh",
+    "ज": "j",
+    "झ": "jh",
+    "ञ": "ny",
+    "ट": "t",
+    "ठ": "th",
+    "ड": "d",
+    "ढ": "dh",
+    "ण": "n",
+    "त": "t",
+    "थ": "th",
+    "द": "d",
+    "ध": "dh",
+    "न": "n",
+    "प": "p",
+    "फ": "ph",
+    "ब": "b",
+    "भ": "bh",
+    "म": "m",
+    "य": "y",
+    "र": "r",
+    "ल": "l",
+    "व": "v",
+    "श": "sh",
+    "ष": "sh",
+    "स": "s",
+    "ह": "h",
+    "क़": "q",
+    "ख़": "kh",
+    "ग़": "gh",
+    "ज़": "z",
+    "ड़": "r",
+    "ढ़": "dh",
+    "फ़": "f",
+}
+
+_DEVA_SPECIAL_WORDS: dict[str, str] = {
+    "में": "mein",
+    "हैं": "hain",
+    "है": "hai",
+    "हो": "ho",
+    "का": "ka",
+    "की": "ki",
+    "के": "ke",
+    "को": "ko",
+    "से": "se",
+    "ने": "ne",
+    "तो": "toh",
+    "भी": "bhi",
+    "ये": "ye",
+    "वह": "woh",
+    "वो": "wo",
+    "था": "tha",
+    "थी": "thi",
+    "थे": "the",
+    "और": "aur",
+    "या": "ya",
+    "एक": "ek",
+    "दो": "do",
+    "तीन": "teen",
+    "चार": "chaar",
+    "पांच": "paanch",
+    "बारेश": "baarish",
+    "बारिश": "baarish",
+    "भीग": "bheeg",
+    "बढ़िया": "badhiya",
+    "लोनावाला": "lonavala",
+    "विला": "villa",
+    "कमरे": "kamre",
+    "होटल": "hotel",
+    "नहीं": "nahi",
+    "रही": "rahi",
+    "रहे": "rahe",
+    "रहा": "raha",
+    "आपकी": "aapki",
+    "आपका": "aapka",
+    "आपके": "aapke",
+    "कर": "kar",
+    "करना": "karna",
+    "बहुत": "bahut",
+    "सब": "sab",
+    "कुछ": "kuch",
+    "घर": "ghar",
+    "लेकिन": "lekin",
+    "मकान": "makan",
+    "अच्छा": "accha",
+    "ठीक": "theek",
+}
+
+
+def _romanise_devanagari(word: str) -> str:
+    m = re.match(r"^([^\w\u0900-\u097F]*)([\u0900-\u097F\w]+)([^\w\u0900-\u097F]*)$", word)
+    if not m:
+        return word
+    prefix, core, suffix = m.groups()
+
+    if not re.search(r"[\u0900-\u097F]", core):
+        return word
+
+    if core in _DEVA_SPECIAL_WORDS:
+        return prefix + _DEVA_SPECIAL_WORDS[core] + suffix
+
+    core = unicodedata.normalize("NFC", core)
+    core = core.replace("\u093c", "")
+
+    chars = list(core)
+    n = len(chars)
+    tokens: list[tuple[str, bool]] = []
+    i = 0
+    while i < n:
+        c = chars[i]
+        if c in _DEVA_CONSONANTS:
+            base = _DEVA_CONSONANTS[c]
+            if i + 1 < n:
+                nxt = chars[i + 1]
+                if nxt == "्":
+                    tokens.append((base, False))
+                    i += 2
+                    continue
+                elif nxt in _DEVA_MATRAS:
+                    tokens.append((base + _DEVA_MATRAS[nxt], False))
+                    i += 2
+                    continue
+                elif nxt in ("ं", "ँ"):
+                    tokens.append((base + "an", False))
+                    i += 2
+                    continue
+                else:
+                    tokens.append((base, True))
+                    i += 1
+                    continue
+            else:
+                tokens.append((base, False))
+                i += 1
+                continue
+        elif c in _DEVA_VOWELS:
+            v = _DEVA_VOWELS[c]
+            if i + 1 < n and chars[i + 1] in ("ं", "ँ"):
+                v += "n"
+                i += 2
+            else:
+                i += 1
+            tokens.append((v, False))
+        elif c in _DEVA_MATRAS:
+            tokens.append((_DEVA_MATRAS[c], False))
+            i += 1
+        elif c in ("ं", "ँ"):
+            if tokens:
+                last_tok, _ = tokens[-1]
+                if last_tok.endswith("e"):
+                    tokens[-1] = (last_tok[:-1] + "ein", False)
+                else:
+                    tokens[-1] = (last_tok + "n", False)
+            i += 1
+        else:
+            tokens.append((c, False))
+            i += 1
+
+    out: list[str] = []
+    num_tok = len(tokens)
+    for idx, (t, has_schwa) in enumerate(tokens):
+        if not has_schwa:
+            out.append(t)
+        else:
+            if idx == num_tok - 1:
+                out.append(t)
+            elif idx == 0:
+                out.append(t + "a")
+            elif idx + 1 < num_tok and not tokens[idx + 1][1]:
+                out.append(t)
+            else:
+                out.append(t + "a")
+
+    return prefix + "".join(out) + suffix
+
+
 def romanise_word(token: str, *, language: str) -> str:
     """Native script -> Roman, the reverse of :func:`transliterate_word`."""
     reverse = _REVERSE_DICTIONARIES.get(language)
@@ -338,9 +551,10 @@ def romanise_word(token: str, *, language: str) -> str:
         hit = reverse.get(token)
         if hit is not None:
             return hit
-    # No native->Roman syllable splitter is implemented (the dictionary covers
-    # the golden set); an unmapped native token passes through unchanged.
+    if language in ("hi", "hi-latn", "hi-Latn") or language.startswith("hi"):
+        return _romanise_devanagari(token)
     return token
+
 
 
 def _syllable_split(word: str, table: dict[str, str]) -> str | None:

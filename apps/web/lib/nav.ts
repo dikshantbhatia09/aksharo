@@ -12,6 +12,8 @@ import {
 
 import type { LucideIcon } from "lucide-react";
 
+import { BRAND } from "@montaj/config";
+
 /**
  * The sidebar of 08 §3, in order.
  *
@@ -102,7 +104,7 @@ export const SETTINGS_NAV: readonly SettingsSection[] = [
   },
   {
     key: "memory",
-    label: "What Aksharo learned",
+    label: `What ${BRAND.name} learned`,
     href: "/settings/memory",
     description: "Spellings, glossary and style preferences we remember for you.",
   },

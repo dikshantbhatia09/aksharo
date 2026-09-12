@@ -1,0 +1,14 @@
+{
+  "release": ".next-caption-live-20260912",
+  "buildId": "fzstBbkQAwLxfxTeVNKtz",
+  "verifiedAt": "2026-09-12T18:12:02.721Z",
+  "assets": [
+    {
+      "url": "https://aksharo.crestmondtechnologies.com/_next/static/css/04505ddad56edb12.css",
+      "status": 200,
+      "localSha": "9171a29ad1233d43a5774550e725e098e06e4ffbb784437094ef01e4ffe7f690",
+      "publicSha": "9171a29ad1233d43a5774550e725e098e06e4ffbb784437094ef01e4ffe7f690",
+      "matches": true
+    }
+  ]
+}

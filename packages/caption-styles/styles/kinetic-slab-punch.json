@@ -1,0 +1,89 @@
+{
+  "id": "kinetic-slab-punch",
+  "name": "Kinetic Slab Punch",
+  "version": 2,
+  "category": "kinetic",
+  "minPlan": "free",
+  "typography": {
+    "fontFamily": "Inter",
+    "fallbacks": [
+      "Noto Sans Devanagari",
+      "Noto Sans Tamil",
+      "Noto Sans"
+    ],
+    "weight": 900,
+    "italic": false,
+    "sizePct": 8.5,
+    "lineHeight": 1,
+    "letterSpacingEm": 0.01,
+    "textTransform": "uppercase",
+    "scriptScale": {
+      "taml": 0.68,
+      "deva": 0.85
+    }
+  },
+  "colors": {
+    "text": "#ffffff",
+    "activeText": "#51c6cc",
+    "accent": "#51c6cc"
+  },
+  "box": {
+    "enabled": false,
+    "mode": "line",
+    "paddingPct": 16,
+    "radiusPct": 20,
+    "opacity": 0.7
+  },
+  "stroke": {
+    "enabled": false,
+    "color": "#000000",
+    "widthPct": 4
+  },
+  "shadow": {
+    "enabled": true,
+    "color": "#000000",
+    "offsetXPct": 0,
+    "offsetYPct": 4,
+    "blurPct": 10,
+    "opacity": 0.6
+  },
+  "layout": {
+    "anchor": "center",
+    "x": 0.5,
+    "y": 0.5,
+    "align": "center",
+    "maxWidthPct": 85,
+    "maxLines": 2,
+    "safeAreaPct": 8
+  },
+  "animation": {
+    "in": {
+      "type": "bounce",
+      "durationMs": 250
+    },
+    "out": {
+      "type": "fade",
+      "durationMs": 150
+    },
+    "wordHighlight": {
+      "type": "color",
+      "durationMs": 100
+    },
+    "perWord": false,
+    "lockupMode": "stacked-fit",
+    "cameraRotationDeg": 0,
+    "secondaryGraphic": "speed-lines"
+  },
+  "emphasisPresets": [
+    {
+      "id": "accent",
+      "label": "Cyan Accent",
+      "color": "#51c6cc",
+      "effect": "none"
+    }
+  ],
+  "assRenderable": true,
+  "assExportable": true,
+  "requiresLayoutMetrics": false,
+  "parityScore": 0.95
+}

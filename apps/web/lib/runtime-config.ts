@@ -56,7 +56,10 @@ export function readRuntimeConfig(): RuntimeConfig {
   // account that the API never granted.
   const mailProvider = optional("MAIL_PROVIDER");
   return {
-    apiOrigin: optional("API_ORIGIN") ?? "http://localhost:3001",
+    apiOrigin:
+      optional("BROWSER_API_ORIGIN") ??
+      optional("API_ORIGIN") ??
+      "http://localhost:3001",
     posthogKey: optional("POSTHOG_KEY"),
     posthogHost: optional("POSTHOG_HOST") ?? DEFAULT_POSTHOG_HOST,
     sentryDsn: optional("SENTRY_DSN"),

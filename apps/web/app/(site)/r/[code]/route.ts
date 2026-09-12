@@ -18,8 +18,8 @@ import { readRuntimeConfig } from "@/lib/runtime-config";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export const AFFILIATE_COOKIE_NAME = "aksh_aff";
-export const AFFILIATE_COOKIE_DAYS = 60;
+const AFFILIATE_COOKIE_NAME = "aksh_aff";
+const AFFILIATE_COOKIE_DAYS = 60;
 
 function hashOf(value: string): string {
   return createHash("sha256").update(value).digest("hex");

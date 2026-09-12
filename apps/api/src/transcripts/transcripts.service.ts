@@ -55,6 +55,23 @@ import type { MediaAsset, Project, Transcript } from "@prisma/client";
 /** Cap on merged transcribe hints (request-time + memory glossary), brief §2. */
 export const MAX_TRANSCRIBE_HINTS = 200;
 
+/** Domain vocabulary and Hinglish terms to guide Whisper away from phonetic English mangling. */
+export const DEFAULT_HINGLISH_HINTS: readonly string[] = [
+  "bedroom",
+  "bathroom",
+  "villa",
+  "bungalow",
+  "private pool",
+  "Western Ghats",
+  "luxury property",
+  "garden area",
+  "square feet",
+  "crore",
+  "Lonavala",
+  "bheeg",
+  "baarish",
+];
+
 export interface TranscribeRequest {
   readonly projectId: string;
   readonly workspaceId: string;
@@ -150,9 +167,29 @@ export class TranscriptsService {
     const media = await this.prisma.mediaAsset.findFirst({
       where: { projectId: project.id, role: "primary" },
       orderBy: { createdAt: "desc" },
-      select: { status: true, durationMs: true },
+      select: { status: true, durationMs: true, failureReason: true, createdAt: true },
     });
     if (media === null) return { status: "no_media" };
+
+    if (media.status === "failed") {
+      return {
+        status: "failed",
+        error: media.failureReason ?? "Media processing failed. Please try re-uploading the file.",
+      };
+    }
+
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+    if (
+      (media.status === "pending" || media.status === "uploading" || media.status === "probing") &&
+      media.createdAt &&
+      media.createdAt < fiveMinutesAgo
+    ) {
+      return {
+        status: "failed",
+        error: "Media upload or processing timed out. Please try re-uploading the file.",
+      };
+    }
+
     if (media.status !== "ready" || media.durationMs === null || media.durationMs <= 0) {
       return { status: "processing_media" };
     }
@@ -205,15 +242,24 @@ export class TranscriptsService {
    * (brief §2). Consent-gated inside `MemoryService` — no consent means no
    * memory terms are appended, never a thrown error.
    */
-  private async buildHints(request: TranscribeRequest): Promise<readonly string[]> {
+  private async buildHints(
+    request: TranscribeRequest,
+    sourceLanguage?: string | null,
+  ): Promise<readonly string[]> {
     const requested = (request.hints ?? [])
       .map((hint) => hint.trim())
       .filter((hint) => hint !== "");
     const memoryTerms = await this.memory.glossaryTermsFor(request.workspaceId, request.userId);
 
+    const isHinglish =
+      Boolean(request.languages?.some((lang) => /hi-latn/i.test(lang))) ||
+      Boolean(sourceLanguage && /hi-latn/i.test(sourceLanguage));
+
+    const defaultHints = isHinglish ? DEFAULT_HINGLISH_HINTS : [];
+
     const seen = new Set<string>();
     const merged: string[] = [];
-    for (const hint of [...requested, ...memoryTerms]) {
+    for (const hint of [...requested, ...memoryTerms, ...defaultHints]) {
       const key = hint.toLowerCase();
       if (seen.has(key)) continue;
       seen.add(key);
@@ -235,7 +281,7 @@ export class TranscriptsService {
     const quote = quoteTranscription(media.durationMs ?? 0);
     const transcriptId = newId();
     const languages = (request.languages ?? []).filter((tag) => tag.trim() !== "");
-    const hints = await this.buildHints(request);
+    const hints = await this.buildHints(request, project.sourceLanguage);
 
     // A distinct job key per transcript id: dedupe must stop a double-click on the
     // same request, and must not stop a deliberate re-transcription.

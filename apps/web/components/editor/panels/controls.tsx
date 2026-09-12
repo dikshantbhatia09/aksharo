@@ -16,7 +16,7 @@
  * actually *on*).
  */
 
-import { ChevronDown, RotateCcw } from "lucide-react";
+import { ChevronDown, ChevronUp, CircleDivide, Droplet, RotateCcw } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import type { Gradient, GradientStop, StyleDoc } from "@montaj/caption-styles";
@@ -26,10 +26,10 @@ import { type PanelScope, setStyleField, type SetStyleOp } from "./ops";
 import { cn } from "@/lib/utils";
 
 /** Shared row geometry, so a new field cannot drift from the others. */
-const ROW = "flex min-h-8 items-center justify-between gap-3";
-const LABEL = "text-sm text-fg-1";
-const CLUSTER = "flex items-center gap-1.5";
-const WELL = "h-8 rounded-sm border border-border bg-bg-0 text-xs text-fg-0";
+const ROW = "editor-field-row flex min-h-8 items-center justify-between gap-3";
+const LABEL = "editor-field-label text-sm text-fg-1";
+const CLUSTER = "editor-field-cluster flex items-center gap-1.5";
+const WELL = "editor-field-well h-8 rounded-sm border border-border bg-bg-2 text-xs text-fg-0";
 
 /**
  * The catalogue value behind a dotted `path`, used to decide whether a field is
@@ -63,22 +63,25 @@ export interface FieldProps<T> {
  * Per-row reset, the reference product's circular arrow: present only when
  * there is something to go back to, so a row at its default carries no noise.
  */
-function ResetButton({
+export function ResetButton({
   id,
   label,
   onReset,
+  disabled = false,
 }: {
   readonly id: string;
   readonly label: string;
   readonly onReset: () => void;
+  readonly disabled?: boolean;
 }): React.JSX.Element {
   return (
     <button
       type="button"
       onClick={onReset}
+      disabled={disabled}
       aria-label={`Reset ${label}`}
       title={`Reset ${label}`}
-      className="text-fg-2 hover:text-fg-0 flex size-[22px] shrink-0 items-center justify-center rounded-[6px] transition-colors duration-[160ms]"
+      className="editor-reset text-fg-2 hover:text-fg-0 flex size-[22px] shrink-0 items-center justify-center rounded-[6px] transition-colors duration-[160ms]"
       data-testid={`${id}-reset`}
     >
       <RotateCcw className="size-3.5" aria-hidden="true" />
@@ -94,11 +97,12 @@ function useReset<T>(
   const { path, value, scope, onOp, base, label } = props;
   if (base === undefined) return null;
   const fallback = valueAtPath(base, path);
-  if (fallback === undefined || fallback === value) return null;
+  if (fallback === undefined) return null;
   return (
     <ResetButton
       id={id}
       label={label}
+      disabled={fallback === value}
       onReset={() => {
         onOp(setStyleField(scope, path, fallback));
       }}
@@ -190,12 +194,18 @@ function fillStyle(value: number, min: number, max: number): React.CSSProperties
   return { "--fill": `${String(pct)}%` } as React.CSSProperties;
 }
 
-/** A segmented pair/triple: the panel's one-of-N control. */
+/**
+ * A segmented pair/triple: the panel's one-of-N control. Kalakar's own
+ * Solid/Gradient and Captions/Edit switches (pixel-sampled from the
+ * reference, 2026-09-12) fill the picked option with a plain raised
+ * neutral, not the accent — the accent there is reserved for underline
+ * tabs and true on/off toggles, confirmed separately.
+ */
 function segmentedItem(active: boolean): string {
   return cn(
     "h-[26px] rounded-[6px] border px-2.5 text-xs font-medium transition-colors duration-[160ms]",
     active
-      ? "border-lime-500/45 bg-lime-500/12 text-lime-500"
+      ? "border-transparent bg-bg-3 text-fg-0"
       : "text-fg-2 hover:text-fg-0 border-transparent bg-transparent",
   );
 }
@@ -209,6 +219,7 @@ export interface ColorOrGradientFieldProps {
   /** Stable prefix for element ids / `data-testid`s, e.g. `"field-colors-text"`. */
   readonly idPrefix: string;
   readonly className?: string;
+  readonly resetValue?: string | Gradient;
 }
 
 /**
@@ -242,9 +253,14 @@ export function ColorOrGradientField({
   onChange,
   idPrefix,
   className,
+  resetValue,
 }: ColorOrGradientFieldProps): React.JSX.Element {
   const isGradient = typeof value !== "string";
   const solidValue = isGradient ? (value.stops[0]?.color ?? "#ffffffff") : value;
+  const [hex, setHex] = useState(solidValue.slice(1, 7));
+  useEffect(() => {
+    setHex(solidValue.slice(1, 7));
+  }, [solidValue]);
 
   function setStop(index: number, patch: Partial<GradientStop>): void {
     if (!isGradient) return;
@@ -272,51 +288,76 @@ export function ColorOrGradientField({
   }
 
   return (
-    <div className={cn("flex flex-col gap-2", className)} data-testid={`${idPrefix}-field`}>
-      <div className={ROW}>
-        <span className={LABEL}>{label}</span>
-        <div className={SEGMENTED_TRACK} role="radiogroup" aria-label={`${label} fill type`}>
-          <button
-            type="button"
-            role="radio"
-            aria-checked={!isGradient}
-            onClick={() => {
-              if (isGradient) onChange(solidValue);
-            }}
-            className={segmentedItem(!isGradient)}
-            data-testid={`${idPrefix}-mode-solid`}
-          >
-            Solid
-          </button>
-          <button
-            type="button"
-            role="radio"
-            aria-checked={isGradient}
-            onClick={() => {
-              if (!isGradient) onChange(defaultGradient(solidValue));
-            }}
-            className={segmentedItem(isGradient)}
-            data-testid={`${idPrefix}-mode-gradient`}
-          >
-            Gradient
-          </button>
-        </div>
+    <div
+      className={cn("editor-color-field flex flex-col gap-2", className)}
+      data-testid={`${idPrefix}-field`}
+    >
+      <div
+        className={cn(SEGMENTED_TRACK, "editor-color-mode")}
+        role="radiogroup"
+        aria-label={`${label} fill type`}
+      >
+        <button
+          type="button"
+          role="radio"
+          aria-checked={!isGradient}
+          onClick={() => {
+            if (isGradient) onChange(solidValue);
+          }}
+          className={segmentedItem(!isGradient)}
+          data-testid={`${idPrefix}-mode-solid`}
+        >
+          <Droplet className="size-3.5" aria-hidden="true" /> Solid
+        </button>
+        <button
+          type="button"
+          role="radio"
+          aria-checked={isGradient}
+          onClick={() => {
+            if (!isGradient) onChange(defaultGradient(solidValue));
+          }}
+          className={segmentedItem(isGradient)}
+          data-testid={`${idPrefix}-mode-gradient`}
+        >
+          <CircleDivide className="size-3.5" aria-hidden="true" /> Gradient
+        </button>
       </div>
 
       {!isGradient ? (
-        <div className="flex items-center justify-end gap-1.5">
-          <span className="text-2xs text-fg-2 tabular-nums uppercase">
-            {solidValue.slice(0, 7)}
-          </span>
-          <input
-            type="color"
-            value={solidValue.slice(0, 7)}
-            onChange={(event) => {
-              onChange(event.target.value);
-            }}
-            className="panel-swatch"
-            aria-label={`${label} colour`}
-            data-testid={`${idPrefix}-solid`}
+        <div className="editor-color-row flex items-center justify-end gap-1.5">
+          <label htmlFor={`${idPrefix}-hex`}>{label}</label>
+          <div className="editor-color-well">
+            <input
+              type="color"
+              value={solidValue.slice(0, 7)}
+              onChange={(event) => {
+                onChange(event.target.value);
+              }}
+              className="panel-swatch"
+              aria-label={`${label} colour`}
+              data-testid={`${idPrefix}-solid`}
+            />
+            <span className="text-editor-muted">#</span>
+            <input
+              id={`${idPrefix}-hex`}
+              aria-label={`${label} hex`}
+              value={hex}
+              maxLength={6}
+              className="editor-color-hex"
+              onChange={(event) => setHex(event.target.value)}
+              onBlur={() => {
+                if (/^[0-9a-f]{6}$/i.test(hex)) onChange(`#${hex}`);
+                else setHex(solidValue.slice(1, 7));
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") event.currentTarget.blur();
+              }}
+            />
+          </div>
+          <ResetButton
+            id={idPrefix}
+            label={label}
+            onReset={() => onChange(resetValue ?? "#ffffff")}
           />
         </div>
       ) : (
@@ -438,11 +479,110 @@ export function ColorOrGradientField({
   );
 }
 
+export interface NumberWellProps {
+  readonly label: string;
+  readonly path: string;
+  readonly value: number;
+  readonly scope: PanelScope;
+  readonly onOp: (op: SetStyleOp) => void;
+  readonly base?: StyleDoc;
+  readonly unit?: string;
+  readonly min?: number;
+  readonly max?: number;
+  /** Same convention as `SliderField`'s own `displayScale`/`displayDecimals`. */
+  readonly displayScale?: number;
+  readonly displayDecimals?: number;
+  readonly className?: string;
+}
+
+/**
+ * A plain, directly-editable value well with a reset — no slider. Kalakar's
+ * own Position X/Y (pixel-sampled from the reference, 2026-09-12) is the one
+ * numeric field on the Text tab with no visible track at all, unlike Font
+ * Size/Shadow/every other slider on the same tab — positioning happens by
+ * dragging the caption on the canvas, and this is the typed/numeric escape
+ * hatch, not a second way to drag. Typing commits on blur or Enter; a
+ * non-numeric or out-of-range entry reverts to the last committed value
+ * rather than writing garbage.
+ */
+export function NumberWell({
+  label,
+  path,
+  value,
+  scope,
+  onOp,
+  base,
+  unit,
+  min = -Infinity,
+  max = Infinity,
+  displayScale = 1,
+  displayDecimals = 0,
+  className,
+}: NumberWellProps): React.JSX.Element {
+  const id = fieldId(path);
+  const reset = useReset({ label, path, value, scope, onOp, base }, id);
+  const shown = (value * displayScale).toFixed(displayDecimals);
+  const [text, setText] = useState(shown);
+
+  useEffect(() => {
+    setText(shown);
+  }, [shown]);
+
+  function commit(): void {
+    const parsed = Number.parseFloat(text);
+    if (!Number.isFinite(parsed)) {
+      setText(shown);
+      return;
+    }
+    const clamped = Math.min(max, Math.max(min, parsed / displayScale));
+    if (clamped !== value) onOp(setStyleField(scope, path, clamped));
+    else setText(shown);
+  }
+
+  return (
+    <div className={cn(CLUSTER, "flex-1", className)}>
+      <span className={cn(WELL, "flex flex-1 items-center gap-1 px-2.5")}>
+        <input
+          id={id}
+          type="text"
+          inputMode="decimal"
+          aria-label={label}
+          value={text}
+          onChange={(event) => {
+            setText(event.target.value);
+          }}
+          onBlur={commit}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") event.currentTarget.blur();
+          }}
+          className="text-fg-0 w-full min-w-0 bg-transparent text-right tabular-nums outline-none"
+          data-testid={id}
+        />
+        {unit === undefined ? null : <span className="text-2xs text-fg-2 shrink-0">{unit}</span>}
+      </span>
+      {reset}
+    </div>
+  );
+}
+
 export interface SliderFieldProps extends FieldProps<number> {
   readonly min: number;
   readonly max: number;
   readonly step?: number;
   readonly unit?: string;
+  /**
+   * Multiplies the stored value for the slider track and value well only
+   * (e.g. `100` to show a 0–1 fraction like `layout.x` as `50.0 %`, matching
+   * design/09's Position/Effects sliders). `min`/`max`/`step` stay in the
+   * *stored* unit — the same 0–1 range every other caller of this field
+   * already passes — and the reset button still compares the raw, unscaled
+   * value against the catalogue style, so a field opting into this has no
+   * other change in behaviour. Omitted (the default), rendering is
+   * byte-identical to before this prop existed.
+   */
+  readonly displayScale?: number;
+  /** Decimal places for the scaled display text; ignored unless `displayScale` is set. */
+  readonly displayDecimals?: number;
 }
 
 export function SliderField({
@@ -456,10 +596,17 @@ export function SliderField({
   max,
   step = 1,
   unit,
+  displayScale = 1,
+  displayDecimals = 0,
   className,
 }: SliderFieldProps): React.JSX.Element {
   const id = fieldId(path);
   const reset = useReset({ label, path, value, scope, onOp, base }, id);
+  const scaled = displayScale !== 1;
+  const shownValue = value * displayScale;
+  const shownMin = min * displayScale;
+  const shownMax = max * displayScale;
+  const shownStep = step * displayScale;
   return (
     <div className={cn(ROW, className)}>
       <label className={LABEL} htmlFor={id}>
@@ -469,22 +616,43 @@ export function SliderField({
         <input
           id={id}
           type="range"
-          min={min}
-          max={max}
-          step={step}
-          value={value}
+          min={shownMin}
+          max={shownMax}
+          step={shownStep}
+          value={shownValue}
           onChange={(event) => {
-            onOp(setStyleField(scope, path, Number(event.target.value)));
+            onOp(setStyleField(scope, path, Number(event.target.value) / displayScale));
           }}
           className="panel-range w-[92px]"
-          style={fillStyle(value, min, max)}
+          style={fillStyle(shownValue, shownMin, shownMax)}
           data-testid={id}
         />
         <span
-          className={cn(WELL, "flex w-[62px] items-center justify-center gap-0.5")}
-          aria-hidden="true"
+          className={cn(
+            WELL,
+            "editor-field-value flex w-[62px] items-center justify-center gap-0.5 px-2",
+          )}
         >
-          <span className="tabular-nums">{value}</span>
+          <input
+            type="number"
+            aria-label={`${label} value`}
+            min={shownMin}
+            max={shownMax}
+            step={shownStep}
+            key={shownValue}
+            defaultValue={scaled ? shownValue.toFixed(displayDecimals) : value}
+            onBlur={(event) => {
+              const parsed = event.currentTarget.valueAsNumber;
+              if (Number.isFinite(parsed))
+                onOp(
+                  setStyleField(scope, path, Math.min(max, Math.max(min, parsed / displayScale))),
+                );
+              else event.currentTarget.value = String(shownValue);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") event.currentTarget.blur();
+            }}
+          />
           {unit === undefined ? null : <span className="text-2xs text-fg-2">{unit}</span>}
         </span>
         {reset}
@@ -550,6 +718,27 @@ export interface SearchSelectFieldProps extends FieldProps<string> {
   readonly placeholder?: string;
 }
 
+export function FieldStepper({
+  label,
+  onPrevious,
+  onNext,
+}: {
+  readonly label: string;
+  readonly onPrevious: () => void;
+  readonly onNext: () => void;
+}): React.JSX.Element {
+  return (
+    <div className="editor-stepper">
+      <button type="button" aria-label={`Previous ${label}`} onClick={onPrevious}>
+        <ChevronUp aria-hidden="true" />
+      </button>
+      <button type="button" aria-label={`Next ${label}`} onClick={onNext}>
+        <ChevronDown aria-hidden="true" />
+      </button>
+    </div>
+  );
+}
+
 /**
  * A searchable dropdown: a text input with a native `<datalist>`, so typing
  * filters the option list (browser-built autocomplete, no extra JS state
@@ -589,6 +778,15 @@ export function SearchSelectField({
     if (match !== undefined) onOp(setStyleField(scope, path, match.value));
   }
 
+  function stepOption(delta: number): void {
+    const index = options.findIndex((option) => option.value === value);
+    const next = options[(index + delta + options.length) % options.length];
+    if (next !== undefined) {
+      setText(next.value);
+      onOp(setStyleField(scope, path, next.value));
+    }
+  }
+
   return (
     <div className={cn(ROW, className)}>
       <label className={LABEL} htmlFor={id}>
@@ -615,10 +813,6 @@ export function SearchSelectField({
             )}
             data-testid={id}
           />
-          <ChevronDown
-            className="text-fg-2 pointer-events-none absolute top-1/2 right-2 size-3.5 -translate-y-1/2"
-            aria-hidden="true"
-          />
           <datalist id={listId}>
             {options.map((option) => (
               <option key={option.value} value={option.value}>
@@ -627,6 +821,11 @@ export function SearchSelectField({
             ))}
           </datalist>
         </div>
+        <FieldStepper
+          label={label}
+          onPrevious={() => stepOption(-1)}
+          onNext={() => stepOption(1)}
+        />
         {reset}
       </div>
     </div>

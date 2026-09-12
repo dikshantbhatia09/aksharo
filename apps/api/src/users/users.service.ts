@@ -91,7 +91,7 @@ export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
 
   /** Case-insensitive: addresses are stored lowercased, so this is exact. */
-  findByEmail(email: string) {
+  findByEmail(email: string): Promise<any> {
     return this.prisma.user.findUnique({
       where: { email: normaliseEmail(email) },
       select: {
@@ -180,7 +180,7 @@ export class UsersService {
   }
 
   /** The caller's active membership in a workspace, or `null`. */
-  membership(userId: string, workspaceId: string) {
+  membership(userId: string, workspaceId: string): Promise<any> {
     return this.prisma.membership.findUnique({
       where: { workspaceId_userId: { workspaceId, userId } },
       select: { role: true, status: true, workspaceId: true },
@@ -201,7 +201,7 @@ export class UsersService {
     return chosen === undefined ? null : { workspaceId: chosen.workspaceId, role: chosen.role };
   }
 
-  markEmailVerified(userId: string) {
+  markEmailVerified(userId: string): Promise<any> {
     return this.prisma.user.update({
       where: { id: userId },
       data: { emailVerifiedAt: new Date() },
@@ -209,7 +209,7 @@ export class UsersService {
     });
   }
 
-  setPasswordHash(userId: string, passwordHash: string) {
+  setPasswordHash(userId: string, passwordHash: string): Promise<any> {
     return this.prisma.user.update({
       where: { id: userId },
       data: { passwordHash },
@@ -217,7 +217,7 @@ export class UsersService {
     });
   }
 
-  touchLastSeen(userId: string) {
+  touchLastSeen(userId: string): Promise<any> {
     return this.prisma.user.update({
       where: { id: userId },
       data: { lastSeenAt: new Date() },

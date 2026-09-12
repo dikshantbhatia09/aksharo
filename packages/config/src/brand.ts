@@ -8,11 +8,11 @@
  */
 
 export const BRAND = {
-  name: "Aksharo",
-  domain: "aksharo.ai",
-  altDomain: "aksharo.in",
-  deepLinkScheme: "aksharo",
-  supportEmail: "support@aksharo.ai",
+  name: "Kalakar",
+  domain: "kalakar.io",
+  altDomain: "app.kalakar.io",
+  deepLinkScheme: "kalakar",
+  supportEmail: "support@kalakar.io",
 } as const;
 
 export type Brand = typeof BRAND;

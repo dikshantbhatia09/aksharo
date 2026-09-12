@@ -46,6 +46,8 @@ function spyContext(overrides: Partial<EditorActionContext> = {}): {
     ctx: {
       canSplit: false,
       canWordEdit: false,
+      canUndo: false,
+      canRedo: false,
       hideFillers: false,
       follow: false,
       playing: false,
@@ -154,8 +156,24 @@ describe("EDITOR_ACTIONS", () => {
     }
   });
 
+  it("gates undo/redo on there being history to undo/redo", () => {
+    const none = spyContext({ canUndo: false, canRedo: false }).ctx;
+    const both = spyContext({ canUndo: true, canRedo: true }).ctx;
+    expect(actionById("edit.undo").enabled(none), "undo with empty history").toBe(false);
+    expect(actionById("edit.undo").enabled(both), "undo with history").toBe(true);
+    expect(actionById("edit.redo").enabled(none), "redo with nothing to redo").toBe(false);
+    expect(actionById("edit.redo").enabled(both), "redo with something to redo").toBe(true);
+  });
+
   it("leaves every other action always enabled", () => {
-    const gated = new Set(["edit.split", "edit.merge", "edit.emphasize", "edit.deleteWord"]);
+    const gated = new Set([
+      "edit.split",
+      "edit.merge",
+      "edit.emphasize",
+      "edit.deleteWord",
+      "edit.undo",
+      "edit.redo",
+    ]);
     const ctx = spyContext().ctx;
     for (const action of EDITOR_ACTIONS) {
       if (gated.has(action.id)) continue;

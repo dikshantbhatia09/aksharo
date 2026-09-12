@@ -66,7 +66,7 @@ describe("design tokens", () => {
   });
 
   it("exposes one aggregate for consumers that need the whole palette", () => {
-    expect(TOKENS.accent.lime500).toBe("#D8FF3D");
+    expect(TOKENS.accent.lime500).toBe(ACCENT.lime500);
     expect(Object.keys(TOKENS.signal)).toHaveLength(5);
   });
 });

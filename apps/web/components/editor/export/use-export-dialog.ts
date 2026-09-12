@@ -34,6 +34,7 @@ import {
   type ExportCapabilityProbe,
 } from "@/lib/export";
 import { runExport } from "@/lib/export/engine";
+import { loadLayoutEngine, loadRenderer } from "@/components/editor/canvas/use-canvaskit";
 
 export interface ExportDialogDeps {
   readonly projectId: string;
@@ -465,14 +466,25 @@ export function useExportDialog(deps: ExportDialogDeps): {
           const preferFileSystemAccess = e2eNoFilePicker()
             ? false
             : (deps.preferFileSystemAccess ?? true);
+          let registry = deps.registry;
+          let shaper = deps.shaper;
+          if (registry === undefined || shaper === undefined) {
+            const engine = await loadLayoutEngine();
+            registry = engine.registry;
+            shaper = engine.shaper;
+          }
+
           const result = await runExport({
             manifest,
             source: sourceUrl,
             ...(cleanAudioSource === undefined ? {} : { cleanAudioSource }),
             projection: deps.projection,
             catalogue: deps.catalogue,
-            registry: deps.registry,
-            shaper: deps.shaper,
+            registry,
+            shaper,
+            ...(request.script === undefined ? {} : { script: request.script }),
+            ...(request.dropFillers === undefined ? {} : { dropFillers: request.dropFillers }),
+            loadRenderer: async () => ({ backend: await loadRenderer() }),
             signal: controller.signal,
             preferFileSystemAccess,
             aacEncodable: probe.audio.aac,

@@ -621,8 +621,9 @@ def _cache_key(
     run: _Run,
     decision: RoutingDecision,
 ) -> str | None:
-    """The `09 §1` cache key for this chunk, or ``None`` when caching is off."""
     if context.services.cache.name == "none":
+        return None
+    if bool(context.envelope.payload.get("retranscribe")) or bool(context.envelope.payload.get("force")):
         return None
     digest = context.payload_str("contentHash")
     if not digest:

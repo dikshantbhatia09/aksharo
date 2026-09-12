@@ -76,7 +76,17 @@ export interface DeriveContext {
  * track would otherwise get whichever stream ffmpeg thought was "best", and the
  * transcript would be of the wrong one.
  */
-export function audioArgs(sampleRate: number, source: string, out: string): string[] {
+/** Speech enhancement filter applied to ASR audio (`audio16k.wav`) for noise suppression and voice clarity. */
+export const ASR_AUDIO_FILTER =
+  "highpass=f=80,lowpass=f=8500,afftdn=nf=-25:tn=1,loudnorm=I=-16:TP=-1.5:LRA=11";
+
+export function audioArgs(
+  sampleRate: number,
+  source: string,
+  out: string,
+  options?: { clean?: boolean },
+): string[] {
+  const filterArgs = options?.clean ? ["-af", ASR_AUDIO_FILTER] : [];
   return [
     ...FFMPEG_BASE_ARGS,
     "-loglevel",
@@ -87,6 +97,7 @@ export function audioArgs(sampleRate: number, source: string, out: string): stri
     "-vn",
     "-sn",
     "-dn",
+    ...filterArgs,
     "-ac",
     String(AUDIO_CHANNELS),
     "-ar",
@@ -103,8 +114,9 @@ export async function extractAudio(
   context: DeriveContext,
   sampleRate: number,
   out: string,
+  options?: { clean?: boolean },
 ): Promise<void> {
-  await runGraph(context, audioArgs(sampleRate, context.source, out), "audio extraction");
+  await runGraph(context, audioArgs(sampleRate, context.source, out, options), "audio extraction");
 }
 
 // ---------------------------------------------------------------------------

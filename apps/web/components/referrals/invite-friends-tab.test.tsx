@@ -29,7 +29,7 @@ describe("<InviteFriendsTab />", () => {
     await waitFor(() => {
       expect(screen.getByDisplayValue("AK-4H7K2M")).toBeInTheDocument();
     });
-    expect(screen.getByDisplayValue("https://aksharo.ai/signup?ref=AK-4H7K2M")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("https://kalakar.io/signup?ref=AK-4H7K2M")).toBeInTheDocument();
     expect(screen.getByTestId("referral-stat-pending")).toHaveTextContent("2");
     expect(screen.getByTestId("referral-stat-granted")).toHaveTextContent("1");
     expect(screen.queryByTestId("referral-bonus-earned")).toBeNull();

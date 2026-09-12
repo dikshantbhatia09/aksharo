@@ -390,7 +390,7 @@ export class EdgService {
       select: {
         id: true,
         aspect: true,
-        edgDocument: { select: { id: true, revision: true } },
+        edgDocument: { select: { id: true, revision: true, doc: true } },
         mediaAssets: {
           where: { role: { in: ["primary", "broll", "audio"] } },
           select: { id: true, role: true, durationMs: true, fps: true, width: true, height: true },
@@ -402,19 +402,37 @@ export class EdgService {
       throw new AppException(ERROR_CODES.notFound, "No such project.", HttpStatus.NOT_FOUND);
     }
 
-    if (project.edgDocument !== null) {
-      const segments = await this.prisma.edgSegment.count({
-        where: { edgId: project.edgDocument.id, deletedAtRev: null },
-      });
-      return {
-        edgId: project.edgDocument.id,
-        revision: project.edgDocument.revision,
-        segments,
-        created: false,
-      };
+    const existingDoc = project.edgDocument;
+    if (existingDoc !== null) {
+      const existingTranscriptId =
+        existingDoc.doc && typeof existingDoc.doc === "object"
+          ? (existingDoc.doc as Record<string, unknown>)["transcript"] &&
+            typeof (existingDoc.doc as Record<string, unknown>)["transcript"] === "object"
+            ? ((existingDoc.doc as Record<string, unknown>)["transcript"] as Record<string, unknown>)["transcriptId"]
+            : undefined
+          : undefined;
+
+      const isNewTranscript = Boolean(
+        transcript.transcriptId &&
+        existingTranscriptId &&
+        transcript.transcriptId !== existingTranscriptId,
+      );
+
+      if (!isNewTranscript) {
+        const segments = await this.prisma.edgSegment.count({
+          where: { edgId: existingDoc.id, deletedAtRev: null },
+        });
+        return {
+          edgId: existingDoc.id,
+          revision: existingDoc.revision,
+          segments,
+          created: false,
+        };
+      }
     }
 
-    const edgId = newId();
+    const isRetranscribe = existingDoc !== null;
+    const edgId = isRetranscribe ? existingDoc.id : newId();
     const words: Word[] = transcript.chunks.flatMap((chunk) => chunk.words);
     // Deliberately NOT stamping `styleRef` on each segment: the chosen style is
     // the document default below, and `resolveStyle` reads
@@ -476,18 +494,30 @@ export class EdgService {
       styles: { defaultStyleId: transcript.styleRef ?? DEFAULT_STYLE_REF },
     };
 
-    const created = await this.repository.createDocument({
-      edgId,
-      projectId,
-      hot,
-      segments,
-      author: transcript.author ?? null,
-      source: transcript.source ?? "worker",
-    });
+    const created = isRetranscribe
+      ? await this.repository.reinitialiseDocument({
+          edgId,
+          projectId,
+          hot,
+          segments,
+          revision: existingDoc.revision,
+          author: transcript.author ?? null,
+          source: transcript.source ?? "worker",
+        })
+      : await this.repository.createDocument({
+          edgId,
+          projectId,
+          hot,
+          segments,
+          author: transcript.author ?? null,
+          source: transcript.source ?? "worker",
+        });
 
     this.logger.log(
-      { projectId, edgId, segments: created.segments },
-      "edg document created from segmenter output",
+      { projectId, edgId, segments: created.segments, isRetranscribe },
+      isRetranscribe
+        ? "edg document reinitialised from new transcript"
+        : "edg document created from segmenter output",
     );
     return { ...created, created: true };
   }

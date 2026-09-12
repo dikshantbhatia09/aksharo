@@ -13,9 +13,10 @@
 import { useSearchParams } from "next/navigation";
 import * as React from "react";
 
-import { createApiClient, useApiClient } from "@montaj/api-client";
+import { useApiClient } from "@montaj/api-client";
 import type { ApiClient } from "@montaj/api-client";
 import type { StyleDoc } from "@montaj/caption-styles";
+import type { CanvasKitBackend } from "@montaj/render-canvaskit";
 import type { EdgProjection, FontRegistry, Shaper } from "@montaj/render-core";
 
 import { useRenderer } from "@/components/editor/canvas/use-canvaskit";
@@ -35,6 +36,8 @@ declare global {
       readonly projection: EdgProjection;
       readonly registry: FontRegistry;
       readonly shaper: Shaper;
+      readonly backend?: CanvasKitBackend;
+      readonly loadRenderer?: () => Promise<{ backend: CanvasKitBackend }>;
       ready: boolean;
     };
   }
@@ -47,7 +50,7 @@ function Harness({ projectId }: { readonly projectId: string }): React.JSX.Eleme
 
   React.useEffect(() => {
     if (load.status !== "ready" || load.store === undefined) return;
-    if (renderer.engine === undefined) return;
+    if (renderer.engine === undefined || renderer.backend === undefined) return;
     const snapshot = load.snapshot ?? load.store.getSnapshot();
     window.__exportHarness = {
       lib: ExportLib,
@@ -57,9 +60,11 @@ function Harness({ projectId }: { readonly projectId: string }): React.JSX.Eleme
       projection: toRenderProjection(snapshot.state),
       registry: renderer.engine.registry,
       shaper: renderer.engine.shaper,
+      backend: renderer.backend,
+      loadRenderer: async () => ({ backend: renderer.backend! }),
       ready: true,
     };
-  }, [client, load.status, load.store, load.snapshot, renderer.engine]);
+  }, [client, load.status, load.store, load.snapshot, renderer.engine, renderer.backend]);
 
   return (
     <div
@@ -89,4 +94,3 @@ export default function ExportHarnessPage(): React.JSX.Element {
 
 // Re-exported so the test can also construct a standalone client when needed
 // (e.g. before the harness component has mounted).
-export { createApiClient };

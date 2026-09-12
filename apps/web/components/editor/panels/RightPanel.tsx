@@ -1,16 +1,45 @@
 "use client";
 
 /**
- * The editor's right-hand panel: Style, Colors, Look, Effects and Anim.
+ * The editor's right-hand panel: Text, Templates, Transitions and AI Audio
+ * (design/09-12) — the "Text" tab (id `"look"`, kept for `e2e/style-preview
+ * .spec.ts`) composes the four sub-panels below (`LookPanel`'s Fonts/Format/
+ * Position, `ColorsPanel`'s Color/Emphasis, `SpacingSection`, `EffectsPanel`'s
+ * five effect modules) into the reference product's one combined tab.
  *
- * Every tab is a thin wrapper over `controls.tsx`, and every control emits one
- * `SetStyle` op at the panel's current scope. The scope is the whole point of
- * the design: the same slider writes `styles.inline.doc` when the document is
- * selected and the segment's own `overrides` when a caption is.
+ * Every field is a thin wrapper over `controls.tsx`, and every control emits
+ * one `SetStyle` op at the panel's current scope. The scope is the whole
+ * point of the design: the same slider writes `styles.inline.doc` when the
+ * document is selected and the segment's own `overrides` when a caption is.
  */
 
-import { Bold, ChevronDown, HelpCircle, Italic, Strikethrough, Underline } from "lucide-react";
-import { useState } from "react";
+import {
+  Activity,
+  AlignCenter,
+  AlignLeft,
+  AlignRight,
+  ArrowDown,
+  ArrowLeft,
+  ArrowRight,
+  ArrowUp,
+  Ban,
+  Bold,
+  ChevronDown,
+  CircleDot,
+  Droplets,
+  EyeOff,
+  HelpCircle,
+  Italic,
+  Keyboard,
+  Maximize2,
+  SquareDashed,
+  Strikethrough,
+  TrendingUp,
+  Underline,
+  Wind,
+  ZoomIn,
+} from "lucide-react";
+import { useEffect, useState } from "react";
 
 import type { Depth3d, EmphasisPreset, StyleDoc } from "@montaj/caption-styles";
 // The `/browser` subpath, not the barrel, for the *runtime* import: the barrel
@@ -24,6 +53,9 @@ import { CATALOGUE } from "@montaj/fonts";
 import {
   ColorOrGradientField,
   ColourField,
+  FieldStepper,
+  NumberWell,
+  ResetButton,
   SearchSelectField,
   SelectField,
   SliderField,
@@ -45,15 +77,24 @@ import { StylePreviewCanvas } from "../canvas/StylePreviewCanvas";
 import { helpUrlFor, type HelpSlug } from "@/components/help/help-slug-map";
 import { cn } from "@/lib/utils";
 
-export type PanelTab = "style" | "colors" | "look" | "effects" | "anim" | "audio";
+/**
+ * design/09-12: the reference product's four sub-tabs are Text, Templates,
+ * Transitions and AI Audio — one fewer than this panel's original six
+ * (Style/Colors/Look/Effects/Anim/Audio). Colors and Effects are not
+ * separate tabs there; their fields live inside one combined Text tab
+ * alongside Look's own Fonts/Format/Position/Spacing (see the `tab ===
+ * "look"` branch below). The ids keep their original names on purpose —
+ * `right-panel-tab-style` and `right-panel-tab-look` are asserted by
+ * `e2e/gate-a.spec.ts`, `e2e/editor.spec.ts` and `e2e/style-preview.spec.ts`
+ * — only the *labels* change to match the reference naming.
+ */
+export type PanelTab = "look" | "style" | "anim" | "audio";
 
 export const PANEL_TABS: readonly { readonly id: PanelTab; readonly label: string }[] = [
-  { id: "style", label: "Style" },
-  { id: "colors", label: "Colors" },
-  { id: "look", label: "Look" },
-  { id: "effects", label: "Effects" },
-  { id: "anim", label: "Anim" },
-  { id: "audio", label: "Audio" },
+  { id: "look", label: "Text" },
+  { id: "style", label: "Templates" },
+  { id: "anim", label: "Transitions" },
+  { id: "audio", label: "AI Audio" },
 ];
 
 /**
@@ -68,9 +109,7 @@ export const PANEL_TABS: readonly { readonly id: PanelTab; readonly label: strin
  */
 export const PANEL_HELP_SLUGS: Record<PanelTab, HelpSlug> = {
   style: "caption-styles",
-  colors: "caption-styles",
   look: "caption-styles",
-  effects: "caption-styles",
   anim: "emphasis-timing",
   audio: "caption-styles",
 };
@@ -124,6 +163,7 @@ function HelpLink({ slug, testId }: { readonly slug: HelpSlug; readonly testId: 
 }
 
 export interface RightPanelProps {
+  readonly tabRequest?: { readonly tab: PanelTab };
   readonly styles: readonly StyleDoc[];
   /** The effective style: catalogue document with doc and segment overrides applied. */
   readonly style: StyleDoc;
@@ -139,10 +179,20 @@ export interface RightPanelProps {
   readonly audio?: AudioPanelProps;
   /** The document's canvas, so every preview in the panel uses the project's aspect. */
   readonly canvas?: CanvasSize;
+  /**
+   * design/09: Kalakar pins Export to the bottom-right of this exact panel,
+   * below every sub-tab's own content rather than in a page-level toolbar
+   * (pixel-sampled from the reference, 2026-09-12). A slot, not a bespoke
+   * export prop, so this component stays ignorant of `ExportButton`'s own
+   * (rather large) prop surface — the caller renders whatever it already
+   * renders today, just in this position.
+   */
+  readonly footer?: React.ReactNode;
   readonly className?: string;
 }
 
 export function RightPanel({
+  tabRequest,
   styles,
   style,
   scope,
@@ -153,23 +203,48 @@ export function RightPanel({
   onUploadFont,
   audio,
   canvas = DEFAULT_PREVIEW_CANVAS,
+  footer,
   className,
 }: RightPanelProps): React.JSX.Element {
-  const [tab, setTab] = useState<PanelTab>("style");
+  // design/09: the reference product opens the inspector on Text, not
+  // Templates — `right-panel-tab-look` is still this tab's testid (kept for
+  // `e2e/style-preview.spec.ts`), only the default selection changes.
+  const [mode, setMode] = useState<"captions" | "edit">("captions");
+  const [tab, setTab] = useState<PanelTab>("look");
+  useEffect(() => {
+    if (tabRequest !== undefined) {
+      setMode("captions");
+      setTab(tabRequest.tab);
+    }
+  }, [tabRequest]);
   /** The catalogue style this document started from, so each field can offer a reset. */
   const base = styles.find((entry) => entry.id === style.id);
 
   return (
     <aside
-      className={cn("flex h-full min-h-0 w-full flex-col gap-4", className)}
+      className={cn("editor-right-panel flex h-full min-h-0 w-full flex-col", className)}
       data-testid="right-panel"
     >
-      <div className="flex items-center gap-1">
+      <div className="editor-inspector-mode" role="radiogroup" aria-label="Inspector mode">
+        {(["captions", "edit"] as const).map((value) => (
+          <button
+            key={value}
+            type="button"
+            role="radio"
+            aria-checked={mode === value}
+            onClick={() => setMode(value)}
+          >
+            {value === "captions" ? "Captions" : "Edit"}
+          </button>
+        ))}
+      </div>
+
+      <div className="editor-inspector-tabs" hidden={mode !== "captions"}>
         {/* `min-w-0 flex-1`: a flex item will not shrink below its content by
             default, so without them the six tabs would push the strip wider
             than the column instead of scrolling inside it. */}
         <div
-          className="border-border scrollbar-thin flex min-w-0 flex-1 items-center gap-1 overflow-x-auto border-b"
+          className="scrollbar-thin flex min-w-0 flex-1 items-center gap-[26px] overflow-x-auto"
           role="tablist"
           aria-label="Caption settings"
         >
@@ -183,8 +258,8 @@ export function RightPanel({
                 setTab(entry.id);
               }}
               className={cn(
-                "text-fg-2 hover:text-fg-0 -mb-px shrink-0 border-b-2 border-transparent px-2 py-2 text-sm font-medium transition-colors duration-[160ms]",
-                tab === entry.id ? "border-lime-500 text-fg-0" : "",
+                "text-fg-2 hover:text-fg-0 shrink-0 border-b-2 border-transparent pt-3 pb-[9px] text-[13.5px] transition-colors duration-[160ms]",
+                tab === entry.id ? "border-fg-0 text-fg-0" : "",
               )}
               data-testid={`right-panel-tab-${entry.id}`}
             >
@@ -196,7 +271,42 @@ export function RightPanel({
         <HelpLink slug={PANEL_HELP_SLUGS[tab]} testId={`right-panel-help-${tab}`} />
       </div>
 
-      {tab === "style" ? (
+      {mode === "edit" ? (
+        <div className="editor-inspector-body scrollbar-thin min-h-0 flex-1 overflow-y-auto">
+          <Section title="Typography">
+            <MoreStylesRow style={style} scope={scope} onOp={onOp} />
+          </Section>
+          <Section title="Layout">
+            <SliderField
+              label="Max width"
+              path="layout.maxWidthPct"
+              value={style.layout.maxWidthPct}
+              min={20}
+              max={100}
+              unit="%"
+              scope={scope}
+              onOp={onOp}
+              {...(base === undefined ? {} : { base })}
+            />
+            <SliderField
+              label="Max lines"
+              path="layout.maxLines"
+              value={style.layout.maxLines}
+              min={1}
+              max={4}
+              scope={scope}
+              onOp={onOp}
+              {...(base === undefined ? {} : { base })}
+            />
+          </Section>
+          <EffectsPanel
+            style={style}
+            scope={scope}
+            onOp={onOp}
+            {...(base === undefined ? {} : { base })}
+          />
+        </div>
+      ) : tab === "style" ? (
         <StylePicker
           styles={styles}
           selectedStyleId={style.id}
@@ -215,39 +325,47 @@ export function RightPanel({
           <AudioPanel {...audio} />
         )
       ) : (
-        <>
+        <div className="editor-inspector-body scrollbar-thin flex min-h-0 flex-1 flex-col overflow-y-auto">
           {/* shrink-0: a flex column item shrinks below its own height by default,
               which squeezed this preview to 62px and broke the aspect it was
               just given. The explicit size from `fitPreview` is the contract. */}
-          <StylePreviewCanvas
-            style={style}
-            {...fitPreview(canvas, 288, 220)}
-            className="shrink-0"
-          />
-          {tab === "colors" ? (
-            <ColorsPanel
+          {tab === "anim" ? (
+            <StylePreviewCanvas
               style={style}
-              scope={scope}
-              onOp={onOp}
-              {...(base === undefined ? {} : { base })}
+              {...fitPreview(canvas, 288, 220)}
+              className="shrink-0"
             />
           ) : null}
           {tab === "look" ? (
-            <LookPanel
-              style={style}
-              scope={scope}
-              onOp={onOp}
-              {...(base === undefined ? {} : { base })}
-              {...(onUploadFont === undefined ? {} : { onUploadFont })}
-            />
-          ) : null}
-          {tab === "effects" ? (
-            <EffectsPanel
-              style={style}
-              scope={scope}
-              onOp={onOp}
-              {...(base === undefined ? {} : { base })}
-            />
+            // design/09: Text is Look's Fonts/Format/Position, Colors' own
+            // Color/Emphasis, a standalone Spacing section (moved out of
+            // Look — the reference groups it after Color/Emphasis, not with
+            // Fonts) and Effects — one combined tab, four already-tested
+            // components composed in the reference's own section order
+            // rather than rebuilt. `right-panel-tab-look`'s testid is what
+            // `e2e/style-preview.spec.ts` still clicks for this tab.
+            <>
+              <LookPanel
+                style={style}
+                scope={scope}
+                onOp={onOp}
+                canvas={canvas}
+                {...(base === undefined ? {} : { base })}
+                {...(onUploadFont === undefined ? {} : { onUploadFont })}
+              />
+              <ColorsPanel
+                style={style}
+                scope={scope}
+                onOp={onOp}
+                {...(base === undefined ? {} : { base })}
+              />
+              <SpacingSection
+                style={style}
+                scope={scope}
+                onOp={onOp}
+                {...(base === undefined ? {} : { base })}
+              />
+            </>
           ) : null}
           {tab === "anim" ? (
             <AnimPanel
@@ -257,7 +375,10 @@ export function RightPanel({
               {...(base === undefined ? {} : { base })}
             />
           ) : null}
-        </>
+        </div>
+      )}
+      {footer === undefined ? null : (
+        <div className="editor-inspector-footer flex shrink-0 justify-end">{footer}</div>
       )}
     </aside>
   );
@@ -283,21 +404,24 @@ interface TabProps {
  */
 function Section({
   title,
+  defaultOpen = true,
   children,
 }: {
   readonly title: string;
+  /** design/09's own screenshot opens on Fonts/Format/Position/Color and starts Emphasis/Spacing collapsed. */
+  readonly defaultOpen?: boolean;
   readonly children: React.ReactNode;
 }): React.JSX.Element {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(defaultOpen);
   return (
-    <div className="border-border flex flex-col gap-2.5 border-t pt-3 first:border-t-0 first:pt-0">
+    <div className="editor-inspector-section flex shrink-0 flex-col">
       <button
         type="button"
         onClick={() => {
           setOpen((prior) => !prior);
         }}
         aria-expanded={open}
-        className="text-fg-2 hover:text-fg-1 flex items-center gap-1.5 text-left transition-colors duration-[160ms]"
+        className="editor-section-heading text-fg-2 hover:text-fg-1 flex h-12 shrink-0 items-center gap-2 text-left transition-colors duration-[160ms]"
       >
         <ChevronDown
           className={cn(
@@ -306,9 +430,9 @@ function Section({
           )}
           aria-hidden="true"
         />
-        <h3 className="text-2xs font-medium tracking-wide uppercase">{title}</h3>
+        <h3 className="text-[11px] font-semibold tracking-[0.11em] uppercase">{title}</h3>
       </button>
-      {open ? <div className="flex flex-col gap-2.5">{children}</div> : null}
+      {open ? <div className="editor-section-fields flex flex-col">{children}</div> : null}
     </div>
   );
 }
@@ -364,7 +488,7 @@ function EmphasisField({ style, scope, onOp }: TabProps): React.JSX.Element | nu
             className={cn(
               "h-[26px] flex-1 rounded-[6px] border px-2.5 text-xs font-medium transition-colors duration-[160ms]",
               current === option.value
-                ? "border-lime-500/45 bg-lime-500/12 text-lime-500"
+                ? "border-transparent bg-bg-3 text-fg-0"
                 : "text-fg-2 hover:text-fg-0 border-transparent bg-transparent",
             )}
             data-testid={`emphasis-field-${option.value}`}
@@ -482,7 +606,7 @@ function EmphasisTypographyFields({ style, scope, onOp }: TabProps): React.JSX.E
             className={cn(
               "flex size-8 items-center justify-center rounded-sm border transition-colors duration-[160ms]",
               effectiveItalic
-                ? "border-lime-500/45 bg-lime-500/12 text-lime-500"
+                ? "border-transparent bg-bg-3 text-fg-0"
                 : "border-border bg-bg-0 text-fg-2 hover:text-fg-0",
             )}
             data-testid="emphasis-italic-toggle"
@@ -499,7 +623,7 @@ function EmphasisTypographyFields({ style, scope, onOp }: TabProps): React.JSX.E
             className={cn(
               "flex size-8 items-center justify-center rounded-sm border transition-colors duration-[160ms]",
               effectiveUnderline
-                ? "border-lime-500/45 bg-lime-500/12 text-lime-500"
+                ? "border-transparent bg-bg-3 text-fg-0"
                 : "border-border bg-bg-0 text-fg-2 hover:text-fg-0",
             )}
             data-testid="emphasis-underline-toggle"
@@ -546,18 +670,84 @@ function EmphasisColourField({ style, scope, onOp }: TabProps): React.JSX.Elemen
   );
 }
 
+/**
+ * design/09 §3.5's Size multiplier and Glow colour — `EmphasisPreset.scale`
+ * and `.glowColor` (`packages/caption-styles/src/schema.ts`), both already
+ * real, rendered fields with no panel control before this pass (only
+ * `effect`/`color`/the K05 typography override were wired). Same
+ * `withDefaultEmphasisField` rebuild-the-array shape as every other Emphasis
+ * control on this tab.
+ */
+function EmphasisSizeField({ style, scope, onOp }: TabProps): React.JSX.Element | null {
+  const defaultPreset = style.emphasisPresets[0];
+  if (defaultPreset === undefined) return null;
+  return (
+    <SliderField
+      label="Size"
+      path="emphasisPresets.scale"
+      value={defaultPreset.scale ?? 1}
+      min={0.5}
+      max={2.5}
+      step={0.05}
+      scope={scope}
+      onOp={(op) => {
+        onOp(
+          setStyleField(
+            scope,
+            "emphasisPresets",
+            withDefaultEmphasisField(
+              style.emphasisPresets,
+              "scale",
+              emphasisPresetLeaf(op, "scale"),
+            ),
+          ),
+        );
+      }}
+    />
+  );
+}
+
+function EmphasisGlowField({ style, scope, onOp }: TabProps): React.JSX.Element | null {
+  const defaultPreset = style.emphasisPresets[0];
+  if (defaultPreset === undefined) return null;
+  return (
+    <ColourField
+      label="Glow"
+      path="emphasisPresets.glowColor"
+      value={defaultPreset.glowColor ?? "#ffffff"}
+      scope={scope}
+      onOp={(op) => {
+        onOp(
+          setStyleField(
+            scope,
+            "emphasisPresets",
+            withDefaultEmphasisField(
+              style.emphasisPresets,
+              "glowColor",
+              emphasisPresetLeaf(op, "glowColor"),
+            ),
+          ),
+        );
+      }}
+    />
+  );
+}
+
 export function ColorsPanel({ style, scope, onOp, base }: TabProps): React.JSX.Element {
   return (
-    <div className="flex flex-col gap-3" data-testid="colors-panel">
+    <div className="flex shrink-0 flex-col" data-testid="colors-panel">
       <Section title="Color">
         <ColorOrGradientField
-          label="Text"
+          label="Color"
           idPrefix="field-colors-text"
           value={style.colors.text}
+          resetValue={base?.colors.text ?? "#ffffff"}
           onChange={(next) => {
             onOp(setStyleField(scope, "colors.text", next));
           }}
         />
+      </Section>
+      <Section title="Emphasis" defaultOpen={false}>
         <ColourField
           label="Highlight"
           path="colors.activeText"
@@ -574,75 +764,42 @@ export function ColorsPanel({ style, scope, onOp, base }: TabProps): React.JSX.E
           onOp={onOp}
           {...(base === undefined ? {} : { base })}
         />
-      </Section>
-      <Section title="Emphasis">
         <EmphasisField style={style} scope={scope} onOp={onOp} />
         <EmphasisColourField style={style} scope={scope} onOp={onOp} />
+        <EmphasisSizeField style={style} scope={scope} onOp={onOp} />
+        <EmphasisGlowField style={style} scope={scope} onOp={onOp} />
         <EmphasisTypographyFields style={style} scope={scope} onOp={onOp} />
-      </Section>
-      <Section title="Stroke & background">
-        <ToggleField
-          label="Stroke"
-          path="stroke.enabled"
-          value={style.stroke.enabled}
-          scope={scope}
-          onOp={onOp}
-          {...(base === undefined ? {} : { base })}
-        />
-        <ColourField
-          label="Stroke colour"
-          path="stroke.color"
-          value={style.stroke.color ?? "#000000"}
-          scope={scope}
-          onOp={onOp}
-          {...(base === undefined ? {} : { base })}
-        />
-        <ToggleField
-          label="Box"
-          path="box.enabled"
-          value={style.box.enabled}
-          scope={scope}
-          onOp={onOp}
-          {...(base === undefined ? {} : { base })}
-        />
-        <ColourField
-          label="Box fill"
-          path="box.fill"
-          value={style.box.fill ?? "#000000"}
-          scope={scope}
-          onOp={onOp}
-          {...(base === undefined ? {} : { base })}
-        />
-        <SliderField
-          label="Box opacity"
-          path="box.opacity"
-          value={style.box.opacity}
-          min={0}
-          max={1}
-          step={0.05}
-          scope={scope}
-          onOp={onOp}
-          {...(base === undefined ? {} : { base })}
-        />
       </Section>
     </div>
   );
 }
 
 /** Font Face's weight half (K01 item 2) — a plain `<select>`, not `controls.tsx`'s `SelectField`, because `typography.weight` is a number and every `SelectField` option value (an HTML `<select>`'s own value) is always a string. */
-function WeightField({ style, scope, onOp }: TabProps): React.JSX.Element {
+function WeightField({ style, scope, onOp, base }: TabProps): React.JSX.Element {
   const id = "field-typography-weight";
+  function stepWeight(delta: number): void {
+    const index = FONT_WEIGHT_OPTIONS.findIndex(
+      (option) => option.value === style.typography.weight,
+    );
+    const next =
+      FONT_WEIGHT_OPTIONS[
+        (index + delta + FONT_WEIGHT_OPTIONS.length) % FONT_WEIGHT_OPTIONS.length
+      ];
+    if (next !== undefined) onOp(setStyleField(scope, "typography.weight", next.value));
+  }
   return (
-    <label className="flex min-h-8 items-center justify-between gap-3" htmlFor={id}>
-      <span className="text-sm text-fg-1">Font Face</span>
-      <div className="relative">
+    <div className="editor-field-row flex min-h-8 items-center justify-between gap-3">
+      <label htmlFor={id} className="text-sm text-fg-1">
+        Font Face
+      </label>
+      <div className="editor-field-cluster flex items-center gap-2.5">
         <select
           id={id}
           value={String(style.typography.weight)}
           onChange={(event) => {
             onOp(setStyleField(scope, "typography.weight", Number(event.target.value)));
           }}
-          className="h-8 rounded-sm border border-border bg-bg-0 text-xs text-fg-0 w-[168px] appearance-none pr-7 pl-2.5 transition-colors hover:border-fg-2/60"
+          className="editor-weight-well h-8 rounded-sm border border-border bg-bg-2 text-xs text-fg-0 w-[116px] appearance-none px-2.5 transition-colors hover:border-fg-2/60"
           data-testid={id}
         >
           {FONT_WEIGHT_OPTIONS.map((option) => (
@@ -651,12 +808,21 @@ function WeightField({ style, scope, onOp }: TabProps): React.JSX.Element {
             </option>
           ))}
         </select>
-        <ChevronDown
-          className="text-fg-2 pointer-events-none absolute top-1/2 right-2 size-3.5 -translate-y-1/2"
-          aria-hidden="true"
+        <FieldStepper
+          label="Font Face"
+          onPrevious={() => stepWeight(-1)}
+          onNext={() => stepWeight(1)}
+        />
+        <ResetButton
+          id={id}
+          label="Font Face"
+          disabled={style.typography.weight === (base?.typography.weight ?? 500)}
+          onReset={() =>
+            onOp(setStyleField(scope, "typography.weight", base?.typography.weight ?? 500))
+          }
         />
       </div>
-    </label>
+    </div>
   );
 }
 
@@ -674,14 +840,139 @@ function WeightField({ style, scope, onOp }: TabProps): React.JSX.Element {
  * group), the same quick-toggle shape as the other three, writing
  * `typography.strikethrough`.
  */
-function FormatToggleRow({ style, scope, onOp }: TabProps): React.JSX.Element {
-  const bold = style.typography.weight >= BOLD_WEIGHT;
+/** design/09 §3.2: "Text Alignment [ Left ] [ Center ] [ Right ]" as icon tiles, not a dropdown. */
+const ALIGN_OPTIONS = [
+  { value: "left", label: "Left", icon: AlignLeft },
+  { value: "center", label: "Centre", icon: AlignCenter },
+  { value: "right", label: "Right", icon: AlignRight },
+] as const;
+
+function TextAlignRow({ style, scope, onOp }: TabProps): React.JSX.Element {
+  return (
+    <div className="flex min-h-8 items-center justify-between gap-3">
+      <span className="text-fg-1 text-sm">Text Alignment</span>
+      <div
+        className="editor-format-buttons flex items-center gap-1"
+        role="radiogroup"
+        aria-label="Text alignment"
+      >
+        {ALIGN_OPTIONS.map((option) => {
+          const Icon = option.icon;
+          const active = style.layout.align === option.value;
+          return (
+            <button
+              key={option.value}
+              type="button"
+              role="radio"
+              aria-checked={active}
+              aria-label={option.label}
+              title={option.label}
+              onClick={() => {
+                onOp(setStyleField(scope, "layout.align", option.value));
+              }}
+              className={cn(
+                "flex size-8 items-center justify-center rounded-sm border transition-colors duration-[160ms]",
+                active
+                  ? "border-transparent bg-bg-3 text-fg-0"
+                  : "border-border bg-bg-0 text-fg-2 hover:text-fg-0",
+              )}
+              data-testid={`field-layout-align-${option.value}`}
+            >
+              <Icon className="size-4" aria-hidden="true" />
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * design/09 §3.2's "Styles" row: `Tt` (Capitalise) / `T` (UPPERCASE) /
+ * `t` (lowercase), one-of-three like the reference, plus `U` (Underline).
+ * "As spoken" (`textTransform: "none"`) — a real, valuable option the
+ * reference's own three glyphs have no room for — is the state where none
+ * of the three is pressed, and clicking the already-active one returns to
+ * it, so every value the old "Case" dropdown offered is still reachable.
+ */
+const CASE_OPTIONS = [
+  { value: "capitalize", label: "Capitalise", glyph: "Tt" },
+  { value: "uppercase", label: "UPPERCASE", glyph: "T" },
+  { value: "lowercase", label: "lowercase", glyph: "t" },
+] as const;
+
+function TextCaseRow({ style, scope, onOp }: TabProps): React.JSX.Element {
+  const current = style.typography.textTransform;
   const underline = style.typography.underline === true;
-  const strikethrough = style.typography.strikethrough === true;
   return (
     <div className="flex min-h-8 items-center justify-between gap-3">
       <span className="text-fg-1 text-sm">Styles</span>
-      <div className="flex items-center gap-1" role="group" aria-label="Quick format">
+      <div
+        className="editor-format-buttons flex items-center gap-1"
+        role="group"
+        aria-label="Case and underline"
+      >
+        {CASE_OPTIONS.map((option) => {
+          const active = current === option.value;
+          return (
+            <button
+              key={option.value}
+              type="button"
+              aria-pressed={active}
+              aria-label={option.label}
+              title={option.label}
+              onClick={() => {
+                onOp(
+                  setStyleField(scope, "typography.textTransform", active ? "none" : option.value),
+                );
+              }}
+              className={cn(
+                "flex size-8 items-center justify-center rounded-sm border text-xs font-semibold transition-colors duration-[160ms]",
+                active
+                  ? "border-transparent bg-bg-3 text-fg-0"
+                  : "border-border bg-bg-0 text-fg-2 hover:text-fg-0",
+              )}
+              data-testid={`format-case-${option.value}`}
+            >
+              {option.glyph}
+            </button>
+          );
+        })}
+        <button
+          type="button"
+          aria-pressed={underline}
+          aria-label="Underline"
+          title="Underline"
+          onClick={() => {
+            onOp(setStyleField(scope, "typography.underline", !underline));
+          }}
+          className={cn(
+            "flex size-8 items-center justify-center rounded-sm border transition-colors duration-[160ms]",
+            underline
+              ? "border-transparent bg-bg-3 text-fg-0"
+              : "border-border bg-bg-0 text-fg-2 hover:text-fg-0",
+          )}
+          data-testid="format-underline-toggle"
+        >
+          <Underline className="size-4" aria-hidden="true" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** Bold/Italic/Strikethrough — real fields with no other home on this tab, kept as their own row. See the call site's comment for why they're separate from `TextCaseRow`. */
+function MoreStylesRow({ style, scope, onOp }: TabProps): React.JSX.Element {
+  const bold = style.typography.weight >= BOLD_WEIGHT;
+  const strikethrough = style.typography.strikethrough === true;
+  return (
+    <div className="flex min-h-8 items-center justify-between gap-3">
+      <span className="text-fg-1 text-sm">More styles</span>
+      <div
+        className="flex items-center gap-1"
+        role="group"
+        aria-label="Bold, italic and strikethrough"
+      >
         <button
           type="button"
           aria-pressed={bold}
@@ -692,7 +983,7 @@ function FormatToggleRow({ style, scope, onOp }: TabProps): React.JSX.Element {
           className={cn(
             "flex size-8 items-center justify-center rounded-sm border transition-colors duration-[160ms]",
             bold
-              ? "border-lime-500/45 bg-lime-500/12 text-lime-500"
+              ? "border-transparent bg-bg-3 text-fg-0"
               : "border-border bg-bg-0 text-fg-2 hover:text-fg-0",
           )}
           data-testid="format-bold-toggle"
@@ -709,29 +1000,12 @@ function FormatToggleRow({ style, scope, onOp }: TabProps): React.JSX.Element {
           className={cn(
             "flex size-8 items-center justify-center rounded-sm border transition-colors duration-[160ms]",
             style.typography.italic
-              ? "border-lime-500/45 bg-lime-500/12 text-lime-500"
+              ? "border-transparent bg-bg-3 text-fg-0"
               : "border-border bg-bg-0 text-fg-2 hover:text-fg-0",
           )}
           data-testid="format-italic-toggle"
         >
           <Italic className="size-4" aria-hidden="true" />
-        </button>
-        <button
-          type="button"
-          aria-pressed={underline}
-          aria-label="Underline"
-          onClick={() => {
-            onOp(setStyleField(scope, "typography.underline", !underline));
-          }}
-          className={cn(
-            "flex size-8 items-center justify-center rounded-sm border transition-colors duration-[160ms]",
-            underline
-              ? "border-lime-500/45 bg-lime-500/12 text-lime-500"
-              : "border-border bg-bg-0 text-fg-2 hover:text-fg-0",
-          )}
-          data-testid="format-underline-toggle"
-        >
-          <Underline className="size-4" aria-hidden="true" />
         </button>
         <button
           type="button"
@@ -743,7 +1017,7 @@ function FormatToggleRow({ style, scope, onOp }: TabProps): React.JSX.Element {
           className={cn(
             "flex size-8 items-center justify-center rounded-sm border transition-colors duration-[160ms]",
             strikethrough
-              ? "border-lime-500/45 bg-lime-500/12 text-lime-500"
+              ? "border-transparent bg-bg-3 text-fg-0"
               : "border-border bg-bg-0 text-fg-2 hover:text-fg-0",
           )}
           data-testid="format-strikethrough-toggle"
@@ -755,15 +1029,61 @@ function FormatToggleRow({ style, scope, onOp }: TabProps): React.JSX.Element {
   );
 }
 
+/**
+ * design/09 §3.3's "Position [X] [Y]" row: two plain value wells side by
+ * side, not two stacked sliders — see `NumberWell`'s own doc comment for
+ * why Position specifically drops the slider every other numeric field on
+ * this tab keeps.
+ */
+function PositionRow({ style, scope, onOp, base }: TabProps): React.JSX.Element {
+  return (
+    <div className="editor-position-row flex items-center gap-2">
+      <span className="text-fg-1 w-4 text-sm">X</span>
+      <NumberWell
+        label="X position"
+        path="layout.x"
+        value={style.layout.x}
+        min={0}
+        max={1}
+        displayScale={100}
+        displayDecimals={1}
+        unit="%"
+        scope={scope}
+        onOp={onOp}
+        {...(base === undefined ? {} : { base })}
+      />
+      <span className="text-fg-1 w-4 text-right text-sm">Y</span>
+      <NumberWell
+        label="Y position"
+        path="layout.y"
+        value={style.layout.y}
+        min={0}
+        max={1}
+        displayScale={100}
+        displayDecimals={1}
+        unit="%"
+        scope={scope}
+        onOp={onOp}
+        {...(base === undefined ? {} : { base })}
+      />
+    </div>
+  );
+}
+
 export function LookPanel({
   style,
   scope,
   onOp,
   base,
   onUploadFont,
-}: TabProps & { readonly onUploadFont?: () => void }): React.JSX.Element {
+  canvas = DEFAULT_PREVIEW_CANVAS,
+}: TabProps & {
+  readonly onUploadFont?: () => void;
+  /** design/09's Font Size reads in real pixels; ours stores it canvas-height-relative (`ofCanvasHeight`, render-core/units.ts) so one style looks the same size across every aspect ratio. This converts for *display* only — the stored `sizePct` and what actually renders never change. */
+  readonly canvas?: CanvasSize;
+}): React.JSX.Element {
   return (
-    <div className="flex flex-col gap-3" data-testid="look-panel">
+    <div className="flex shrink-0 flex-col" data-testid="look-panel">
       <Section title="Fonts">
         <SearchSelectField
           label="Font Family"
@@ -775,115 +1095,33 @@ export function LookPanel({
           onOp={onOp}
           {...(base === undefined ? {} : { base })}
         />
-        <WeightField style={style} scope={scope} onOp={onOp} />
+        <WeightField
+          style={style}
+          scope={scope}
+          onOp={onOp}
+          {...(base === undefined ? {} : { base })}
+        />
         <SliderField
-          label="Size"
+          label="Font Size"
           path="typography.sizePct"
           value={style.typography.sizePct}
-          min={1}
-          max={20}
-          step={0.1}
-          unit="%"
+          min={800 / canvas.height}
+          max={12000 / canvas.height}
+          step={100 / canvas.height}
+          displayScale={canvas.height / 100}
+          unit="px"
           scope={scope}
           onOp={onOp}
           {...(base === undefined ? {} : { base })}
         />
       </Section>
       <Section title="Format">
-        <FormatToggleRow style={style} scope={scope} onOp={onOp} />
-        <SelectField
-          label="Case"
-          path="typography.textTransform"
-          value={style.typography.textTransform}
-          options={[
-            { value: "none", label: "As spoken" },
-            { value: "uppercase", label: "UPPERCASE" },
-            { value: "lowercase", label: "lowercase" },
-            { value: "capitalize", label: "Capitalise" },
-          ]}
-          scope={scope}
-          onOp={onOp}
-          {...(base === undefined ? {} : { base })}
-        />
-        <SelectField
-          label="Align"
-          path="layout.align"
-          value={style.layout.align}
-          options={[
-            { value: "left", label: "Left" },
-            { value: "center", label: "Centre" },
-            { value: "right", label: "Right" },
-          ]}
-          scope={scope}
-          onOp={onOp}
-          {...(base === undefined ? {} : { base })}
-        />
+        <TextCaseRow style={style} scope={scope} onOp={onOp} />
+        <TextAlignRow style={style} scope={scope} onOp={onOp} />
       </Section>
       <Section title="Position">
-        <SliderField
-          label="X"
-          path="layout.x"
-          value={style.layout.x}
-          min={0}
-          max={1}
-          step={0.01}
-          scope={scope}
-          onOp={onOp}
-          {...(base === undefined ? {} : { base })}
-        />
-        <SliderField
-          label="Y"
-          path="layout.y"
-          value={style.layout.y}
-          min={0}
-          max={1}
-          step={0.01}
-          scope={scope}
-          onOp={onOp}
-          {...(base === undefined ? {} : { base })}
-        />
-        <SliderField
-          label="Max width"
-          path="layout.maxWidthPct"
-          value={style.layout.maxWidthPct}
-          min={20}
-          max={100}
-          unit="%"
-          scope={scope}
-          onOp={onOp}
-          {...(base === undefined ? {} : { base })}
-        />
-        <SliderField
-          label="Max lines"
-          path="layout.maxLines"
-          value={style.layout.maxLines}
-          min={1}
-          max={4}
-          scope={scope}
-          onOp={onOp}
-          {...(base === undefined ? {} : { base })}
-        />
-      </Section>
-      <Section title="Spacing">
-        <SliderField
-          label="Letter spacing"
-          path="typography.letterSpacingEm"
-          value={style.typography.letterSpacingEm}
-          min={-0.2}
-          max={0.5}
-          step={0.01}
-          unit="em"
-          scope={scope}
-          onOp={onOp}
-          {...(base === undefined ? {} : { base })}
-        />
-        <SliderField
-          label="Line height"
-          path="typography.lineHeight"
-          value={style.typography.lineHeight}
-          min={0.8}
-          max={2}
-          step={0.02}
+        <PositionRow
+          style={style}
           scope={scope}
           onOp={onOp}
           {...(base === undefined ? {} : { base })}
@@ -938,12 +1176,50 @@ function depth3dLeaf<K extends keyof Depth3d>(op: SetStyleOp, key: K): Depth3d[K
  * Background are already toggle+colour controls on the Colors tab and are
  * out of this WP's scope to move).
  */
+/**
+ * design/09 §3.6: Spacing sits on its own, after Color/Emphasis and before
+ * Effects — moved out of `LookPanel` (which had it bundled with Fonts/
+ * Format/Position) so the Text tab's section order can match the reference
+ * without duplicating these two sliders. Same fields, same testids.
+ */
+export function SpacingSection({ style, scope, onOp, base }: TabProps): React.JSX.Element {
+  return (
+    <div className="flex shrink-0 flex-col" data-testid="spacing-panel">
+      <Section title="Spacing" defaultOpen={false}>
+        <SliderField
+          label="Letter spacing"
+          path="typography.letterSpacingEm"
+          value={style.typography.letterSpacingEm}
+          min={-0.2}
+          max={0.5}
+          step={0.01}
+          unit="em"
+          scope={scope}
+          onOp={onOp}
+          {...(base === undefined ? {} : { base })}
+        />
+        <SliderField
+          label="Line height"
+          path="typography.lineHeight"
+          value={style.typography.lineHeight}
+          min={0.8}
+          max={2}
+          step={0.02}
+          scope={scope}
+          onOp={onOp}
+          {...(base === undefined ? {} : { base })}
+        />
+      </Section>
+    </div>
+  );
+}
+
 export function EffectsPanel({ style, scope, onOp, base }: TabProps): React.JSX.Element {
   const depth = style.depth3d ?? DEFAULT_DEPTH3D;
   const glowOn = style.animation.wordHighlight.type === "glow";
 
   return (
-    <div className="flex flex-col gap-3" data-testid="effects-panel">
+    <div className="flex shrink-0 flex-col" data-testid="effects-panel">
       <Section title="Drop shadow">
         <ToggleField
           label="Enabled"
@@ -967,7 +1243,9 @@ export function EffectsPanel({ style, scope, onOp, base }: TabProps): React.JSX.
           value={style.shadow.opacity}
           min={0}
           max={1}
-          step={0.05}
+          step={0.01}
+          displayScale={100}
+          unit="%"
           scope={scope}
           onOp={onOp}
           {...(base === undefined ? {} : { base })}
@@ -1092,6 +1370,61 @@ export function EffectsPanel({ style, scope, onOp, base }: TabProps): React.JSX.
           {...(base === undefined ? {} : { base })}
         />
       </Section>
+
+      {/* design/09 §3.7 items 4-5: Text Stroke and Background — moved here
+          from the old Colors tab's combined "Stroke & background" section
+          (same fields, same testids, just filed under Effects' own five
+          modules instead) now that Colors and Effects share one Text tab. */}
+      <Section title="Text Stroke">
+        <ToggleField
+          label="Stroke"
+          path="stroke.enabled"
+          value={style.stroke.enabled}
+          scope={scope}
+          onOp={onOp}
+          {...(base === undefined ? {} : { base })}
+        />
+        <ColourField
+          label="Stroke colour"
+          path="stroke.color"
+          value={style.stroke.color ?? "#000000"}
+          scope={scope}
+          onOp={onOp}
+          {...(base === undefined ? {} : { base })}
+        />
+      </Section>
+
+      <Section title="Background">
+        <ToggleField
+          label="Box"
+          path="box.enabled"
+          value={style.box.enabled}
+          scope={scope}
+          onOp={onOp}
+          {...(base === undefined ? {} : { base })}
+        />
+        <ColourField
+          label="Box fill"
+          path="box.fill"
+          value={style.box.fill ?? "#000000"}
+          scope={scope}
+          onOp={onOp}
+          {...(base === undefined ? {} : { base })}
+        />
+        <SliderField
+          label="Box opacity"
+          path="box.opacity"
+          value={style.box.opacity}
+          min={0}
+          max={1}
+          step={0.01}
+          displayScale={100}
+          unit="%"
+          scope={scope}
+          onOp={onOp}
+          {...(base === undefined ? {} : { base })}
+        />
+      </Section>
     </div>
   );
 }
@@ -1103,36 +1436,124 @@ export function EffectsPanel({ style, scope, onOp, base }: TabProps): React.JSX.
  * so nothing already wired to an index or a fixture moves. `cuePhase` in
  * `packages/render-core/src/animate/animate.ts` documents each new type's
  * exact motion.
+ *
+ * design/11's own grid shows exactly nine tiles (None/Fade/Pop/Zoom/Scale/
+ * Slide L-R/Slide U-D/Rise/Hook) — the reference product's set, not this
+ * schema's. Our `AnimationSchema.in.type` has fifteen real values and no
+ * "Hook", so the grid below renders this list's actual fifteen rather than
+ * inventing a narrower one: the *control* (a tile grid instead of a select)
+ * is what design/11 is really specifying, and every value here is one this
+ * app can actually render.
  */
 const CUE_OPTIONS = [
-  { value: "none", label: "None" },
-  { value: "fade", label: "Fade" },
-  { value: "pop", label: "Pop" },
-  { value: "slide-up", label: "Slide up" },
-  { value: "slide-down", label: "Slide down" },
-  { value: "typewriter", label: "Typewriter" },
-  { value: "bounce", label: "Bounce" },
-  { value: "blur", label: "Blur" },
-  { value: "zoom", label: "Zoom" },
-  { value: "scale", label: "Scale" },
-  { value: "slide-left", label: "Slide left" },
-  { value: "slide-right", label: "Slide right" },
-  { value: "rise", label: "Rise" },
-  { value: "hide", label: "Hide" },
+  { value: "none", label: "None", icon: Ban },
+  { value: "fade", label: "Fade", icon: SquareDashed },
+  { value: "pop", label: "Pop", icon: CircleDot },
+  { value: "zoom", label: "Zoom", icon: ZoomIn },
+  { value: "scale", label: "Scale", icon: Maximize2 },
+  { value: "slide-left", label: "Slide left", icon: ArrowLeft },
+  { value: "slide-right", label: "Slide right", icon: ArrowRight },
+  { value: "slide-up", label: "Slide up", icon: ArrowUp },
+  { value: "slide-down", label: "Slide down", icon: ArrowDown },
+  { value: "rise", label: "Rise", icon: TrendingUp },
+  { value: "hide", label: "Hide", icon: EyeOff },
+  { value: "typewriter", label: "Typewriter", icon: Keyboard },
+  { value: "bounce", label: "Bounce", icon: Activity },
+  { value: "blur", label: "Blur", icon: Droplets },
+  { value: "kinetic-flow", label: "Kinetic Flow", icon: Wind },
 ] as const;
 
-export function AnimPanel({ style, scope, onOp, base }: TabProps): React.JSX.Element {
+/** design/11 §3: one 88×78px tile, mint-bordered when it is the active `In` transition. */
+function TransitionTile({
+  option,
+  active,
+  onSelect,
+}: {
+  readonly option: (typeof CUE_OPTIONS)[number];
+  readonly active: boolean;
+  readonly onSelect: () => void;
+}): React.JSX.Element {
+  const Icon = option.icon;
   return (
-    <div className="flex flex-col gap-3" data-testid="anim-panel">
-      <SelectField
-        label="In"
-        path="animation.in.type"
-        value={style.animation.in.type}
-        options={CUE_OPTIONS}
-        scope={scope}
-        onOp={onOp}
-        {...(base === undefined ? {} : { base })}
-      />
+    <button
+      type="button"
+      role="radio"
+      aria-checked={active}
+      onClick={onSelect}
+      data-testid={`transition-tile-${option.value}`}
+      className={cn(
+        "flex h-[78px] flex-col items-center justify-center gap-1.5 rounded-md border transition-colors duration-[160ms]",
+        active
+          ? "border-lime-500 bg-lime-500/10 text-lime-500"
+          : "border-border bg-bg-0 text-fg-1 hover:border-fg-2/60 hover:bg-bg-2",
+      )}
+    >
+      <Icon className="size-5" aria-hidden="true" />
+      <span className="text-2xs font-medium">{option.label}</span>
+    </button>
+  );
+}
+
+export function AnimPanel({ style, scope, onOp, base }: TabProps): React.JSX.Element {
+  const cueScope = style.animation.cueScope ?? "line";
+  return (
+    <div className="flex shrink-0 flex-col" data-testid="anim-panel">
+      {/*
+        K05 item 2: Kalakar's "Transitions will be Applied on Line"/"on
+        Word" toggle, restyled as design/11 §2's segmented switcher plus its
+        dynamic feedback string. Genuinely distinct from "One word at a
+        time" below — that flag (`perWord`) controls which words are
+        *visible* at all; this one (`cueScope`) controls whether the
+        already-visible word(s) animate in/out together as one block or
+        each on its own timing. See `AnimationSchema.cueScope`'s doc comment
+        for how the two compose.
+      */}
+      <div className="flex flex-col items-center gap-1.5">
+        <div
+          className="border-border bg-bg-0 flex w-full gap-0.5 rounded-sm border p-0.5"
+          role="radiogroup"
+          aria-label="Transition scope"
+        >
+          {(["line", "word"] as const).map((value) => (
+            <button
+              key={value}
+              type="button"
+              role="radio"
+              aria-checked={cueScope === value}
+              onClick={() => {
+                onOp(setStyleField(scope, "animation.cueScope", value));
+              }}
+              className={cn(
+                "h-[26px] flex-1 rounded-[6px] border px-2.5 text-xs font-medium capitalize transition-colors duration-[160ms]",
+                cueScope === value
+                  ? "border-transparent bg-bg-3 text-fg-0"
+                  : "text-fg-2 hover:text-fg-0 border-transparent bg-transparent",
+              )}
+              data-testid={`transition-scope-${value}`}
+            >
+              {value}
+            </button>
+          ))}
+        </div>
+        <p className="text-fg-2 text-2xs">
+          Transitions will be Applied on{" "}
+          <span className="text-lime-500 font-semibold capitalize">{cueScope}</span>
+        </p>
+      </div>
+
+      <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="In transition">
+        {CUE_OPTIONS.map((option) => (
+          <TransitionTile
+            key={option.value}
+            option={option}
+            active={style.animation.in.type === option.value}
+            onSelect={() => {
+              onOp(setStyleField(scope, "animation.in.type", option.value));
+            }}
+          />
+        ))}
+      </div>
+
       <SliderField
         label="In duration"
         path="animation.in.durationMs"
@@ -1150,26 +1571,6 @@ export function AnimPanel({ style, scope, onOp, base }: TabProps): React.JSX.Ele
         path="animation.out.type"
         value={style.animation.out.type}
         options={CUE_OPTIONS}
-        scope={scope}
-        onOp={onOp}
-        {...(base === undefined ? {} : { base })}
-      />
-      {/*
-        K05 item 2: Kalakar's "Transitions will be Applied on Line"/"on
-        Word" toggle. Genuinely distinct from "One word at a time" below —
-        that flag (`perWord`) controls which words are *visible* at all;
-        this one (`cueScope`) controls whether the already-visible word(s)
-        animate in/out together as one block or each on its own timing. See
-        `AnimationSchema.cueScope`'s doc comment for how the two compose.
-      */}
-      <SelectField
-        label="Applied on"
-        path="animation.cueScope"
-        value={style.animation.cueScope ?? "line"}
-        options={[
-          { value: "line", label: "Line" },
-          { value: "word", label: "Word" },
-        ]}
         scope={scope}
         onOp={onOp}
         {...(base === undefined ? {} : { base })}

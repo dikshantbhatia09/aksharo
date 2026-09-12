@@ -1,8 +1,0 @@
-{
-  "extends": "./tsconfig.json",
-  "compilerOptions": {
-    "rootDir": "./src",
-    "tsBuildInfoFile": "./dist/.tsbuildinfo.build"
-  },
-  "exclude": ["node_modules", "dist", ".turbo", "src/**/*.test.ts"]
-}

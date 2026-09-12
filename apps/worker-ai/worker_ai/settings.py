@@ -61,7 +61,10 @@ WORKER_ENV_VARS: tuple[str, ...] = (
     "WORKER_AI_QUEUES",
     "WORKER_AI_ROUTING_FILE",
     "WORKER_AI_VAD_MODEL",
+    "WORKER_AI_WHISPER_ENGINE",
     "WORKER_AI_WHISPER_MODEL",
+    "WORKER_AI_WHISPER_DEVICE",
+    "WORKER_AI_WHISPER_COMPUTE_TYPE",
     "WORKER_AI_ALLOW_MOCK",
     "WORKER_AI_ALIGN_MODEL_DIR",
     "WORKER_AI_INDICLID_DIR",
@@ -236,7 +239,13 @@ class Settings:
     queues: tuple[str, ...] = ()
     routing_file: str = ""
     vad_model_path: str = ""
+    whisper_engine: str = "faster-whisper"
     whisper_model: str = "small"
+    #: ``cpu``, ``cuda`` or ``auto`` (probe for a GPU, fall back to CPU).
+    whisper_device: str = "auto"
+    #: Empty means "the adapter picks one for the resolved device"
+    #: (`int8_float16` on a GPU, `int8` on CPU).
+    whisper_compute_type: str = ""
     gpu_provider_url: str = ""
     gpu_provider_token: str = ""
     allow_mock: bool | None = None
@@ -403,6 +412,10 @@ def load_settings(source: dict[str, str] | None = None) -> Settings:
     if cache_backend and cache_backend not in {"redis", "memory", "none"}:
         problems.append("WORKER_AI_CACHE: must be one of redis, memory, none")
 
+    whisper_device = env.get("WORKER_AI_WHISPER_DEVICE", "").strip().lower()
+    if whisper_device and whisper_device not in {"cpu", "cuda", "auto"}:
+        problems.append("WORKER_AI_WHISPER_DEVICE: must be one of cpu, cuda, auto")
+
     for variable in (
         "ELEVENLABS_BASE_URL",
         "SARVAM_BASE_URL",
@@ -455,7 +468,10 @@ def load_settings(source: dict[str, str] | None = None) -> Settings:
         ),
         routing_file=env.get("WORKER_AI_ROUTING_FILE", "").strip(),
         vad_model_path=env.get("WORKER_AI_VAD_MODEL", "").strip(),
+        whisper_engine=env.get("WORKER_AI_WHISPER_ENGINE", "").strip() or "faster-whisper",
         whisper_model=env.get("WORKER_AI_WHISPER_MODEL", "").strip() or "small",
+        whisper_device=whisper_device or "auto",
+        whisper_compute_type=env.get("WORKER_AI_WHISPER_COMPUTE_TYPE", "").strip(),
         gpu_provider_url=gpu_provider_url.rstrip("/"),
         gpu_provider_token=env.get("GPU_PROVIDER_TOKEN", "").strip(),
         allow_mock=_optional_bool(env.get("WORKER_AI_ALLOW_MOCK")),

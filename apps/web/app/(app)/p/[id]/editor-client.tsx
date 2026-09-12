@@ -9,6 +9,7 @@
  * components to real ops instead of the local-only op log their own harness
  * pages (`StyleGallery`, `/studio/styles`) use.
  */
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
@@ -36,6 +37,8 @@ import {
   toast,
 } from "@montaj/ui";
 
+import "@/components/editor/editor.css";
+
 import { NeedsTranscription } from "./needs-transcription";
 
 import type { SetAudioCleanOp } from "@/components/editor/audio/use-audio-clean";
@@ -49,6 +52,7 @@ import { useRenderer } from "@/components/editor/canvas/use-canvaskit";
 import { FirstRunCoachMarks } from "@/components/editor/coach-marks/FirstRunCoachMarks";
 import { EditorCommandPalette } from "@/components/editor/EditorCommandPalette";
 import { EditorMenubar } from "@/components/editor/EditorMenubar";
+import { EditorTopBar } from "@/components/editor/EditorTopBar";
 import { ExportButton } from "@/components/editor/export/ExportButton";
 import {
   buildPresetDoc,
@@ -57,7 +61,7 @@ import {
   saveMyPreset,
 } from "@/components/editor/panels/my-presets";
 import { type PanelOp, type PanelScope } from "@/components/editor/panels/ops";
-import { RightPanel } from "@/components/editor/panels/RightPanel";
+import { RightPanel, type PanelTab } from "@/components/editor/panels/RightPanel";
 import { SYSTEM_STYLE_MAP, SYSTEM_STYLES } from "@/components/editor/panels/system-styles";
 import { CustomFontsPanel } from "@/components/editor/rail/CustomFontsPanel";
 import { EditorRail, type EditorRailTab } from "@/components/editor/rail/EditorRail";
@@ -70,11 +74,13 @@ import {
   type SegmentBoundsOp,
   type WordTimingOp,
 } from "@/components/editor/timeline/Timeline";
+import { PlayerBottomBar } from "@/components/editor/toolbar/PlayerBottomBar";
 import { PlayerToolbar } from "@/components/editor/toolbar/PlayerToolbar";
 import {
   BulkActionsBar,
   type ResegmentParams,
 } from "@/components/editor/transcript/BulkActionsBar";
+import { CaptionsPanelHeader } from "@/components/editor/transcript/CaptionsPanelHeader";
 import { ConflictDialog } from "@/components/editor/transcript/ConflictDialog";
 import { FindReplaceDialog } from "@/components/editor/transcript/FindReplaceDialog";
 import { ReflowBanner } from "@/components/editor/transcript/ReflowBanner";
@@ -89,6 +95,7 @@ import {
   usePersistedLayout,
   type WorkspaceLayout,
   type WorkspaceLayoutHandle,
+  type WorkspacePanelHandle,
 } from "@/components/editor/workspace/resizable";
 import { planMergeShort, planSplitLong } from "@/lib/edg/bulk-actions";
 import { checkReflow, parseStoredCaptionBudgets, reflowParams } from "@/lib/edg/caption-budgets";
@@ -169,28 +176,50 @@ const DEFAULT_RESEGMENT_PARAMS: ResegmentParams = {
 // OC-01: the workspace's proportions. react-resizable-panels v4 addresses a
 // layout by panel id — `setLayout` takes a map and the persisted layout is keyed
 // by them — so every panel below carries one of these stable ids.
-const WORKSPACE_PANEL_MAIN = "editor-main-row";
+//
+// design/09 (2026-09-12): restructured to match Kalakar's own nesting — the
+// video preview is its own full-height column (`COLUMN_PANEL_STAGE`),
+// independent of the timeline's height. The transcript column
+// (`LEFTCOL_PANEL_TRANSCOL`) is the thing that splits vertically into the
+// captions list and the timeline; that split is nested *inside* the
+// transcript/stage horizontal split now, not the other way around like
+// before. `WORKSPACE_PANEL_MAIN` (the old combined transcript+stage row) no
+// longer exists as a concept. The `-v3` layout-persistence ids are
+// deliberately new, not reused: a `-v2` value persisted from the old
+// nesting is a percentage for a structurally different split and would
+// silently misapply here.
+const WORKSPACE_PANEL_LEFT = "editor-left-workspace";
+const LEFTCOL_PANEL_TRANSCOL = "editor-transcript-column";
 const WORKSPACE_PANEL_TIMELINE = "editor-timeline-panel";
 const COLUMN_PANEL_TRANSCRIPT = "editor-transcript-panel";
 const COLUMN_PANEL_STAGE = "editor-stage-panel";
 const COLUMN_PANEL_STYLE = "editor-style-panel";
 
-/** main row / timeline, % */
-const WORKSPACE_DEFAULT = { main: 62, timeline: 38 } as const;
+/** left workspace / style panel, % */
+const OUTER_DEFAULT = { left: 79.553903, style: 20.446097 } as const;
 
-/** transcript / stage / panel, % */
-const COLUMNS_DEFAULT = { transcript: 26, stage: 52, style: 22 } as const;
+/** transcript column / stage (video preview), % — pixel-sampled from the
+ * reference export, 2026-09-12 (1047:435 of the two columns' combined width). */
+const LEFTSPLIT_DEFAULT = { transcriptCol: 70.647773, stage: 29.352227 } as const;
+
+/** captions list / timeline, within the transcript column, % — pixel-sampled
+ * (452:390 of the column's combined height). */
+const TRANSCOL_DEFAULT = { main: 54.196643, timeline: 45.803357 } as const;
+
+const OUTER_DEFAULT_LAYOUT = {
+  [WORKSPACE_PANEL_LEFT]: OUTER_DEFAULT.left,
+  [COLUMN_PANEL_STYLE]: OUTER_DEFAULT.style,
+} satisfies WorkspaceLayout;
 
 /** The same numbers keyed the way v4's `setLayout` wants them (panel id → %). */
 const WORKSPACE_DEFAULT_LAYOUT = {
-  [WORKSPACE_PANEL_MAIN]: WORKSPACE_DEFAULT.main,
-  [WORKSPACE_PANEL_TIMELINE]: WORKSPACE_DEFAULT.timeline,
+  [LEFTCOL_PANEL_TRANSCOL]: LEFTSPLIT_DEFAULT.transcriptCol,
+  [COLUMN_PANEL_STAGE]: LEFTSPLIT_DEFAULT.stage,
 } satisfies WorkspaceLayout;
 
 const COLUMNS_DEFAULT_LAYOUT = {
-  [COLUMN_PANEL_TRANSCRIPT]: COLUMNS_DEFAULT.transcript,
-  [COLUMN_PANEL_STAGE]: COLUMNS_DEFAULT.stage,
-  [COLUMN_PANEL_STYLE]: COLUMNS_DEFAULT.style,
+  [COLUMN_PANEL_TRANSCRIPT]: TRANSCOL_DEFAULT.main,
+  [WORKSPACE_PANEL_TIMELINE]: TRANSCOL_DEFAULT.timeline,
 } satisfies WorkspaceLayout;
 
 export function EditorClient({
@@ -347,8 +376,11 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
   // the defaults above on a double-clicked handle (OpenCut desktop parity); the
   // `usePersistedLayout` ids are literals, because a group that saves under one
   // key and restores from another remembers nothing.
+  const outerRef = useRef<WorkspaceLayoutHandle>(null);
   const workspaceRef = useRef<WorkspaceLayoutHandle>(null);
   const columnsRef = useRef<WorkspaceLayoutHandle>(null);
+  const inspectorRef = useRef<WorkspacePanelHandle>(null);
+  const [inspectorCollapsed, setInspectorCollapsed] = useState(false);
 
   // OC-02: what the menubar opens. Each dialog was already controlled from
   // somewhere — the export dialog by its own button, the re-transcribe dialog
@@ -362,10 +394,20 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
   // `true` matches `CaptionStage`'s own previous hardcoded default, so a
   // freshly opened editor looks exactly as it did before this toggle existed.
   const [railTab, setRailTab] = useState<EditorRailTab>("captions");
+  const [inspectorTabRequest, setInspectorTabRequest] = useState<{ tab: PanelTab }>();
   const [safeZonesOn, setSafeZonesOn] = useState(true);
-  const workspaceLayout = usePersistedLayout("montaj-editor-workspace-v1");
-  const columnsLayout = usePersistedLayout("montaj-editor-columns-v1");
+  const [playerMuted, setPlayerMuted] = useState(false);
+  const stageBoxRef = useRef<HTMLDivElement | null>(null);
+  const outerLayout = usePersistedLayout("montaj-editor-outer-design-v4");
+  // design/09 (2026-09-12): `-v3`, not `-v2` — the workspace/columns split
+  // swapped which panels they hold and which orientation they use (see the
+  // constants above), so a `-v2` value persisted from the old nesting is a
+  // percentage for a structurally different split and would silently
+  // misapply if these keys were reused.
+  const workspaceLayout = usePersistedLayout("montaj-editor-leftsplit-design-v4");
+  const columnsLayout = usePersistedLayout("montaj-editor-transcriptcol-design-v4");
   const resetWorkspace = useCallback(() => {
+    outerRef.current?.setLayout({ ...OUTER_DEFAULT_LAYOUT });
     workspaceRef.current?.setLayout({ ...WORKSPACE_DEFAULT_LAYOUT });
     columnsRef.current?.setLayout({ ...COLUMNS_DEFAULT_LAYOUT });
   }, []);
@@ -650,6 +692,10 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
   ): void {
     setSelectedSegmentId(segmentId);
     if (wordId !== undefined) setSelectedWordId(wordId);
+    if (action === "style") {
+      setInspectorTabRequest({ tab: "style" });
+      return;
+    }
     if (action === "split") {
       if (wordId !== undefined) onSplitAt(segmentId, wordId);
       return;
@@ -784,6 +830,8 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
   const editorActionContext: EditorActionContext = {
     canSplit: selectedSegmentId !== undefined,
     canWordEdit: selectedWordId !== undefined,
+    canUndo: snapshot.canUndo,
+    canRedo: snapshot.canRedo,
     hideFillers,
     follow,
     playing: playheadSnapshot.playing,
@@ -845,97 +893,30 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
         )?.wid;
 
   return (
-    <div className="flex h-[calc(100dvh-3.5rem)] flex-col" data-testid="editor-root">
-      <header className="bg-bg-1 border-border flex h-[52px] shrink-0 items-center gap-3 border-b px-4">
-        {/* The header's own "← Projects" link is gone: File → Back to projects
-            is the same navigation, and two ways out of the editor side by side
-            is the duplicate chrome the menubar exists to replace. */}
-        <EditorMenubar ctx={editorActionContext} />
-        <EditorCommandPalette ctx={editorActionContext} />
-        <ScriptTabs
-          projectId={projectId}
-          activeScript={script}
-          onScriptChange={setScript}
-          onAvailable={onScriptsAvailable}
-        />
-        <RetranscribeDialog
-          projectId={projectId}
-          sourceLanguage={project?.sourceLanguage ?? null}
-          open={retranscribeOpen}
-          onOpenChange={setRetranscribeOpen}
-        />
-        <label className="text-fg-1 border-border bg-bg-0 ml-4 flex h-8 items-center gap-1.5 rounded-sm border px-2.5 text-xs">
-          <input
-            type="checkbox"
-            checked={hideFillers}
-            data-testid="hide-fillers-toggle"
-            onChange={(event) => setHideFillers(event.target.checked)}
-          />
-          Hide fillers
-        </label>
-        <label className="text-fg-1 border-border bg-bg-0 flex h-8 items-center gap-1.5 rounded-sm border px-2.5 text-xs">
-          <input
-            type="checkbox"
-            checked={follow}
-            data-testid="follow-toggle"
-            onChange={(event) => setFollow(event.target.checked)}
-          />
-          Follow playhead
-        </label>
-        <div className="ml-auto flex items-center gap-2">
-          <span data-coach-mark="export" className="inline-flex">
-            <ExportButton
-              open={exportOpen}
-              onOpenChange={setExportOpen}
-              projectId={projectId}
-              primaryMediaId={state.hot.media.find((media) => media.role === "primary")?.mediaId}
-              projection={toRenderProjection(state)}
-              catalogue={SYSTEM_STYLE_MAP}
-              registry={registry}
-              shaper={shaper}
-            />
-          </span>
-          <button
-            type="button"
-            data-testid="editor-undo"
-            disabled={!snapshot.canUndo}
-            title="Undo (Ctrl+Z)"
-            className="text-fg-2 hover:text-fg-0 disabled:text-fg-disabled flex h-8 items-center gap-1.5 rounded-sm px-2 text-xs transition-colors duration-[160ms] disabled:cursor-not-allowed"
-            onClick={() => store.undo()}
-          >
-            ⟲ Undo
-          </button>
-          <button
-            type="button"
-            data-testid="editor-redo"
-            disabled={!snapshot.canRedo}
-            title="Redo (Ctrl+Y)"
-            className="text-fg-2 hover:text-fg-0 disabled:text-fg-disabled flex h-8 items-center gap-1.5 rounded-sm px-2 text-xs transition-colors duration-[160ms] disabled:cursor-not-allowed"
-            onClick={() => store.redo()}
-          >
-            ⟳ Redo
-          </button>
-          {snapshot.offline ? (
-            <span
-              data-testid="editor-offline"
-              className="border-proposed/40 bg-proposed/10 text-proposed text-2xs inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 font-medium"
-            >
-              Offline — retrying…
-            </span>
-          ) : null}
-          {/* Not decorative: the queue.ts debounce (250 ms) makes "has the edit
-              reached the server yet" a real race for anything that follows an
-              edit immediately (a reload, most sharply) — this is what the e2e
-              suite polls instead of a fixed sleep. */}
-          <span
-            data-testid="editor-pending-count"
-            data-pending={String(snapshot.pendingCount)}
-            className="sr-only"
-          >
-            {snapshot.pendingCount}
-          </span>
+    <div
+      className="caption-editor flex h-dvh min-h-0 flex-col overflow-hidden"
+      data-testid="editor-root"
+    >
+      <EditorTopBar projectId={projectId} title={project?.title ?? "Untitled project"} />
+      <EditorCommandPalette ctx={editorActionContext} />
+      <RetranscribeDialog
+        projectId={projectId}
+        sourceLanguage={project?.sourceLanguage ?? null}
+        open={retranscribeOpen}
+        onOpenChange={setRetranscribeOpen}
+      />
+      <span
+        data-testid="editor-pending-count"
+        data-pending={String(snapshot.pendingCount)}
+        className="sr-only"
+      >
+        {snapshot.pendingCount}
+      </span>
+      {snapshot.offline ? (
+        <div data-testid="editor-offline" className="text-proposed px-3 text-xs">
+          Offline — retrying…
         </div>
-      </header>
+      ) : null}
 
       {snapshot.tooStale ? (
         <div
@@ -966,116 +947,318 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
       ) : null}
 
       <ResizablePanelGroup
-        groupRef={workspaceRef}
-        id="montaj-editor-workspace-v1"
-        orientation="vertical"
-        className="min-h-0 flex-1"
-        {...workspaceLayout}
+        groupRef={outerRef}
+        id="montaj-editor-outer-design-v4"
+        orientation="horizontal"
+        className="editor-workspace min-h-0 flex-1"
+        {...outerLayout}
       >
         <ResizablePanel
-          id={WORKSPACE_PANEL_MAIN}
-          defaultSize={percent(WORKSPACE_DEFAULT.main)}
-          minSize={percent(35)}
+          id={WORKSPACE_PANEL_LEFT}
+          defaultSize={percent(OUTER_DEFAULT.left)}
+          minSize={percent(50)}
         >
+          {/* design/09: Kalakar's video preview is its own full-height
+              column, independent of the timeline's height — the timeline
+              sits only under the captions list, confined to that column's
+              width, not spanning the preview too (pixel-sampled reference,
+              2026-09-12). This horizontal split (transcript column vs. the
+              stage/preview column) is the outer one now; the transcript
+              column's own vertical split (captions list vs. timeline) nests
+              inside it — the reverse of the previous main-row/timeline-row
+              nesting, where the timeline spanned the transcript+stage width
+              together and competed with the stage for height. */}
           <ResizablePanelGroup
-            groupRef={columnsRef}
-            id="montaj-editor-columns-v1"
+            groupRef={workspaceRef}
+            id="montaj-editor-leftsplit-design-v4"
             orientation="horizontal"
-            {...columnsLayout}
+            className="min-h-0 flex-1"
+            {...workspaceLayout}
           >
             <ResizablePanel
-              id={COLUMN_PANEL_TRANSCRIPT}
-              defaultSize={percent(COLUMNS_DEFAULT.transcript)}
-              minSize={percent(16)}
+              id={LEFTCOL_PANEL_TRANSCOL}
+              defaultSize={percent(LEFTSPLIT_DEFAULT.transcriptCol)}
+              minSize={percent(30)}
             >
-              <div
-                className="border-border bg-bg-1 h-full min-w-0 border-r"
-                data-coach-mark="transcript"
+              <ResizablePanelGroup
+                groupRef={columnsRef}
+                id="montaj-editor-transcriptcol-design-v4"
+                orientation="vertical"
+                className="min-h-0 flex-1"
+                {...columnsLayout}
               >
-                {/* K04: the left icon rail (Captions/Custom Fonts/Library) — the
+                <ResizablePanel
+                  id={COLUMN_PANEL_TRANSCRIPT}
+                  defaultSize={percent(TRANSCOL_DEFAULT.main)}
+                  minSize={percent(30)}
+                >
+                  <div
+                    className="editor-transcript-panel bg-bg-1 h-full min-w-0 overflow-hidden rounded-[10px]"
+                    data-coach-mark="transcript"
+                  >
+                    {/* K04: the left icon rail (Captions/Custom Fonts/Library) — the
                     Captions tab's content below is byte-for-byte what this column
                     rendered directly before the rail existed. */}
-                <EditorRail
-                  active={railTab}
-                  onActiveChange={setRailTab}
-                  captions={
-                    <div className="flex h-full min-w-0 flex-col gap-2 p-3">
-                      <BulkActionsBar
-                        onMergeShort={onMergeShort}
-                        onSplitLong={onSplitLong}
-                        onResegment={(params) => void onResegment(params)}
-                        defaultParams={DEFAULT_RESEGMENT_PARAMS}
-                      />
-                      <TranscriptList
-                        className="flex-1"
-                        segments={segments}
-                        wordsOf={wordsOf}
-                        script={script}
-                        hideFillers={hideFillers}
-                        follow={follow}
-                        {...(selectedSegmentId === undefined ? {} : { selectedSegmentId })}
-                        {...(selectedWordId === undefined ? {} : { selectedWordId })}
-                        {...(activeSegment === undefined
-                          ? {}
-                          : { activeSegmentId: activeSegment.id })}
-                        {...(activeWordId === undefined ? {} : { activeWordId })}
-                        onSelectSegment={setSelectedSegmentId}
-                        onSelectWord={(segmentId, wordId) => {
-                          setSelectedSegmentId(segmentId);
-                          setSelectedWordId(wordId);
+                    <EditorRail
+                      active={railTab}
+                      onActiveChange={setRailTab}
+                      captions={
+                        <div className="editor-transcript-content flex h-full min-w-0 flex-col pr-2.5 pl-3.5">
+                          <CaptionsPanelHeader
+                            onSearchClick={() => {
+                              setFindOpen(true);
+                            }}
+                          >
+                            <EditorMenubar ctx={editorActionContext} />
+                            <ScriptTabs
+                              projectId={projectId}
+                              activeScript={script}
+                              onScriptChange={setScript}
+                              onAvailable={onScriptsAvailable}
+                            />
+                            <label className="text-fg-1 flex items-center gap-2 text-xs">
+                              <input
+                                type="checkbox"
+                                checked={hideFillers}
+                                data-testid="hide-fillers-toggle"
+                                onChange={(event) => setHideFillers(event.target.checked)}
+                              />
+                              Hide fillers
+                            </label>
+                            <BulkActionsBar
+                              onMergeShort={onMergeShort}
+                              onSplitLong={onSplitLong}
+                              onResegment={(params) => void onResegment(params)}
+                              defaultParams={DEFAULT_RESEGMENT_PARAMS}
+                            />
+                          </CaptionsPanelHeader>
+                          <TranscriptList
+                            className="flex-1"
+                            segments={segments}
+                            wordsOf={wordsOf}
+                            script={script}
+                            hideFillers={hideFillers}
+                            follow={follow}
+                            {...(selectedSegmentId === undefined ? {} : { selectedSegmentId })}
+                            {...(selectedWordId === undefined ? {} : { selectedWordId })}
+                            {...(activeSegment === undefined
+                              ? {}
+                              : { activeSegmentId: activeSegment.id })}
+                            {...(activeWordId === undefined ? {} : { activeWordId })}
+                            onSelectSegment={setSelectedSegmentId}
+                            onSelectWord={(segmentId, wordId) => {
+                              setSelectedSegmentId(segmentId);
+                              setSelectedWordId(wordId);
+                            }}
+                            onSeek={(ms) => playhead.seek(ms)}
+                            onEditWord={onEditWord}
+                            onFixSpellingEverywhere={onFixSpellingEverywhere}
+                            onMergeWithNext={(segmentId) => onMergeWithNext(segmentId)}
+                            onHideToggle={onHideToggle}
+                            onInsertWordAfter={onInsertWordAfter}
+                            onRequestAction={onSegmentCardAction}
+                          />
+                        </div>
+                      }
+                      fonts={<CustomFontsPanel className="p-3" />}
+                      library={<LibraryPanel className="p-3" />}
+                    />
+                  </div>
+                </ResizablePanel>
+
+                <ResizableHandle onResetLayout={resetWorkspace} />
+
+                {/*
+                 * `max-h` + its own scroll (M18): the timeline's canvas height is data-
+                 * driven (`laneTops.totalHeight` — more lanes with more pass types or
+                 * protected ranges make it taller) and this row previously had no cap
+                 * at all, so on an ordinary laptop viewport a lane-heavy timeline (or
+                 * one showing alongside the reflow banner, B19b/B20b territory) could
+                 * eat most of `editor-root`'s fixed `100dvh-3.5rem` height, squeezing
+                 * the flex-1 row above — transcript, canvas preview and the style
+                 * picker — down to a few px. Below its own content's minimum, the
+                 * style grid's tiles (each with `overflow-hidden`, whose CSS Grid
+                 * automatic minimum size is then 0, not their content size) collapsed
+                 * to ~2px: still "visible, enabled and stable" by Playwright's own
+                 * actionability checks, but with nothing rendered and their real
+                 * screen position off in the timeline row, so a click on them hit
+                 * whatever now occupied that point instead (`gate-a.spec.ts`'s
+                 * `style-picker-tile-*` journey step — M18). Capping this row and
+                 * letting its own content scroll keeps that budget for the panels
+                 * that need it, for every viewport, not only test ones.
+                 *
+                 * OC-01: the 38dvh cap became the timeline panel's default/min/max
+                 * sizes. design/09: also now confined to the transcript column's own
+                 * width, not the full workspace — the video preview beside it keeps
+                 * its own full height regardless of how tall this row is.
+                 */}
+                <ResizablePanel
+                  id={WORKSPACE_PANEL_TIMELINE}
+                  defaultSize={percent(TRANSCOL_DEFAULT.timeline)}
+                  minSize={percent(18)}
+                  maxSize={percent(55)}
+                >
+                  <ContextMenu>
+                    <ContextMenuTrigger asChild>
+                      {/*
+                       * OC3: the timeline canvas treats *any* pointerdown as a
+                       * selection gesture (`Timeline.tsx`'s `onPointerDown` filters no
+                       * button), so a right-click on empty canvas ran
+                       * `onSelectSegment(undefined)` — clearing the very selection this
+                       * menu acts on, before it could open — and scrubbed the playhead
+                       * when the press landed on the ruler. Swallowing non-primary
+                       * buttons in the capture phase leaves that handler to real clicks
+                       * and drags; the `contextmenu` event radix listens for is a
+                       * different event and is untouched.
+                       */}
+                      <div
+                        className="editor-timeline-panel bg-bg-1 scrollbar-thin h-full overflow-y-auto rounded-[10px]"
+                        data-testid="editor-timeline-row"
+                        onPointerDownCapture={(event) => {
+                          if (event.button !== 0) event.stopPropagation();
                         }}
-                        onSeek={(ms) => playhead.seek(ms)}
-                        onEditWord={onEditWord}
-                        onFixSpellingEverywhere={onFixSpellingEverywhere}
-                        onMergeWithNext={(segmentId) => onMergeWithNext(segmentId)}
-                        onHideToggle={onHideToggle}
-                        onInsertWordAfter={onInsertWordAfter}
-                        onRequestAction={onSegmentCardAction}
-                      />
-                    </div>
-                  }
-                  fonts={<CustomFontsPanel className="p-3" />}
-                  library={<LibraryPanel className="p-3" />}
-                />
-              </div>
+                      >
+                        <Timeline
+                          words={allLiveWords}
+                          segments={segments}
+                          passItems={passItems}
+                          protectedRanges={state.hot.protected ?? []}
+                          onToggleProtection={onToggleProtection}
+                          {...(timelineMedia.waveform === undefined
+                            ? {}
+                            : { waveform: timelineMedia.waveform })}
+                          {...(timelineMedia.thumbs === undefined
+                            ? {}
+                            : { thumbnails: timelineMedia.thumbs })}
+                          wordScript={wordScript}
+                          durationMs={primaryMedia?.durationMs ?? 0}
+                          playheadMs={playheadSnapshot.ms}
+                          playing={playheadSnapshot.playing}
+                          onSeek={(ms) => playhead.seek(ms)}
+                          onTogglePlay={() => playhead.togglePlaying()}
+                          {...(selectedSegmentId === undefined ? {} : { selectedSegmentId })}
+                          {...(selectedWordId === undefined ? {} : { selectedWordId })}
+                          onSelectSegment={setSelectedSegmentId}
+                          onSelectWord={(segmentId, wordId) => {
+                            setSelectedSegmentId(segmentId);
+                            setSelectedWordId(wordId);
+                          }}
+                          onSetSegmentBounds={onTimelineSetSegmentBounds}
+                          onSetWordTiming={onTimelineSetWordTiming}
+                          onInsertWordAfter={onInsertWordAfter}
+                          onEditPassItem={onTimelineEditPassItem}
+                          onSplitSegment={onSplitAt}
+                          onMergeSegments={([a]) => onMergeWithNext(a)}
+                          {...(timeMap === undefined ? {} : { timeMap })}
+                          displayMode={timelineDisplayMode}
+                          onDisplayModeChange={setTimelineDisplayMode}
+                          nudgeSink={noopNudgeSink}
+                          onMergeShortCaptions={onMergeShort}
+                          onSplitLongCaptions={onSplitLong}
+                          onResegmentCaptions={(params) => void onResegment(params)}
+                          resegmentDefaultParams={DEFAULT_RESEGMENT_PARAMS}
+                          bulkActionsBusy={reflowBusy}
+                          onCaptionToolsAction={(ops, label) => store.submitOps(ops, { label })}
+                        />
+                      </div>
+                    </ContextMenuTrigger>
+
+                    {/*
+                     * OC3: the timeline canvas has no per-clip DOM to hang a menu on,
+                     * so the row offers the same operations for whatever segment is
+                     * selected. Every item calls a handler that already exists above —
+                     * nothing here is a second implementation.
+                     */}
+                    <ContextMenuContent data-testid="timeline-context-menu">
+                      <ContextMenuItem
+                        data-testid="timeline-menu-split"
+                        disabled={timelineMenu.disabled}
+                        onSelect={onSplit}
+                      >
+                        Split segment <ContextMenuShortcut>S</ContextMenuShortcut>
+                      </ContextMenuItem>
+                      <ContextMenuItem
+                        data-testid="timeline-menu-merge"
+                        disabled={timelineMenu.disabled}
+                        onSelect={() => onMergeWithNext(selectedSegmentId)}
+                      >
+                        Merge with next <ContextMenuShortcut>M</ContextMenuShortcut>
+                      </ContextMenuItem>
+
+                      <ContextMenuSeparator />
+
+                      <ContextMenuItem
+                        data-testid="timeline-menu-protect"
+                        disabled={timelineMenu.disabled}
+                        onSelect={() => {
+                          if (selectedSegment !== undefined)
+                            onToggleProtection(selectedSegment.startMs, selectedSegment.endMs);
+                        }}
+                      >
+                        Toggle protection <ContextMenuShortcut>P</ContextMenuShortcut>
+                      </ContextMenuItem>
+                      <ContextMenuItem
+                        data-testid="timeline-menu-hide"
+                        disabled={timelineMenu.disabled}
+                        onSelect={() => {
+                          if (selectedSegment !== undefined)
+                            onHideToggle(selectedSegment.id, selectedSegment.hidden !== true);
+                        }}
+                      >
+                        {selectedSegment?.hidden === true ? "Show segment" : "Hide segment"}
+                      </ContextMenuItem>
+
+                      {timelineMenu.hint === undefined ? null : (
+                        <ContextMenuLabel
+                          data-testid="timeline-menu-hint"
+                          className="text-fg-2 text-xs font-normal tracking-normal normal-case"
+                        >
+                          {timelineMenu.hint}
+                        </ContextMenuLabel>
+                      )}
+                    </ContextMenuContent>
+                  </ContextMenu>
+                </ResizablePanel>
+              </ResizablePanelGroup>
             </ResizablePanel>
 
             <ResizableHandle onResetLayout={resetWorkspace} />
 
             <ResizablePanel
               id={COLUMN_PANEL_STAGE}
-              defaultSize={percent(COLUMNS_DEFAULT.stage)}
-              minSize={percent(30)}
+              defaultSize={percent(LEFTSPLIT_DEFAULT.stage)}
+              minSize={percent(20)}
             >
-              <div
-                className="bg-bg-0 flex h-full min-w-0 flex-col p-4"
-                style={{ containerType: "size" }}
-              >
-                {/* K04: resolution indicator, Safe Zone toggle and Replace-media —
-                    all "near the player" rather than buried in a menu. */}
-                <PlayerToolbar
-                  canvas={state.hot.canvas}
-                  safeZonesOn={safeZonesOn}
-                  onSafeZonesChange={setSafeZonesOn}
-                  projectId={projectId}
-                  mediaId={primaryMedia?.mediaId}
-                />
-                <div className="min-h-0 flex-1 flex items-center justify-center">
+              <div className="editor-player-column bg-bg-0 flex h-full min-w-0 flex-col gap-2">
+                <div
+                  className="editor-player-viewport flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-[10px]"
+                  style={{ containerType: "size" }}
+                >
                   {/* FIX-05: the stage box takes the DOCUMENT's aspect, so a 9:16 project
                       is a tall frame in a centered column, not a strip lost in a
                       landscape void. CaptionStage still letterboxes internally, so a
                       mid-migration mismatch degrades gracefully instead of cropping. */}
                   <div
-                    className="relative max-h-full max-w-full"
+                    ref={stageBoxRef}
+                    className="editor-stage-box relative max-h-full max-w-full overflow-hidden rounded-[10px]"
                     style={{
                       aspectRatio: aspectRatioOf(projection.canvas),
                       width: containWidth(projection.canvas, "100cqw", "100cqh"),
+                      // A container of its own (distinct from the ancestor
+                      // `containerType:"size"` this box's own width/height
+                      // are computed against): `PlayerToolbar`'s `@min-[…]`
+                      // label-hiding queries need to measure *this* box's
+                      // actual width, not the wider column around it — a
+                      // 9:16 project's box commonly runs under 250px even
+                      // when its column has room to spare.
+                      containerType: "inline-size",
                     }}
                     data-testid="editor-stage-box"
                   >
                     <CaptionStage
                       src={timelineMedia.proxyUrl}
                       playing={playheadSnapshot.playing}
+                      muted={playerMuted}
                       seekMs={playheadSnapshot.ms}
                       seekSeq={playheadSnapshot.seekSeq}
                       onTimeUpdate={(ms) => playhead.syncFromMedia(ms)}
@@ -1108,204 +1291,114 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
                         <CropWindowOverlay cropRect={currentCrop} canvas={canvas} fit={fit} />
                       )}
                     </CaptionStage>
+                    {/* K04: resolution indicator, Safe Zone toggle and Replace-media,
+                        floating over the video itself (design/09, pixel-sampled
+                        2026-09-12) — `editor-stage-box` above is already the
+                        `position:relative` frame this overlay needs. */}
+                    <PlayerToolbar
+                      canvas={state.hot.canvas}
+                      safeZonesOn={safeZonesOn}
+                      onSafeZonesChange={setSafeZonesOn}
+                      projectId={projectId}
+                      mediaId={primaryMedia?.mediaId}
+                    />
                   </div>
                 </div>
-              </div>
-            </ResizablePanel>
-
-            <ResizableHandle onResetLayout={resetWorkspace} />
-
-            <ResizablePanel
-              id={COLUMN_PANEL_STYLE}
-              defaultSize={percent(COLUMNS_DEFAULT.style)}
-              minSize="20rem"
-              maxSize={percent(32)}
-            >
-              <div
-                className="bg-bg-1 border-border scrollbar-thin flex h-full min-h-0 flex-col gap-2 overflow-y-auto border-l p-3"
-                data-coach-mark="style"
-              >
-                {reflow?.current.belowComfortableMinimum === true ? (
-                  <p
-                    data-testid="below-comfortable-minimum-hint"
-                    className="border-proposed/40 bg-proposed/10 text-proposed rounded-sm border px-2 py-1.5 text-xs"
-                  >
-                    This style shows one short word per caption.
-                  </p>
-                ) : null}
-                <RightPanel
-                  styles={SYSTEM_STYLES}
-                  style={effectiveStyle}
-                  scope={scope}
-                  canvas={projection.canvas}
-                  onOp={submitPanelOp}
-                  onSaveTemplate={onSaveTemplate}
-                  myPresets={myPresets}
-                  onDeletePreset={onDeletePreset}
-                  audio={{
-                    projectId,
-                    ...(primaryMedia?.mediaId === undefined
-                      ? {}
-                      : { mediaId: primaryMedia.mediaId }),
-                    ...(appliedCleanId === undefined ? {} : { appliedCleanId }),
-                    onSetAudio,
-                    deepCleanEnabled,
-                  }}
+                <PlayerBottomBar
+                  playing={playheadSnapshot.playing}
+                  onTogglePlay={() => playhead.togglePlaying()}
+                  muted={playerMuted}
+                  onMutedChange={setPlayerMuted}
+                  positionMs={playheadSnapshot.ms}
+                  durationMs={primaryMedia?.durationMs ?? 0}
+                  fullscreenTarget={stageBoxRef}
+                  onSeek={(ms) => playhead.seek(ms)}
                 />
               </div>
             </ResizablePanel>
           </ResizablePanelGroup>
         </ResizablePanel>
 
-        <ResizableHandle onResetLayout={resetWorkspace} />
+        <ResizableHandle onResetLayout={resetWorkspace}>
+          <button
+            type="button"
+            className="editor-inspector-toggle"
+            aria-label={inspectorCollapsed ? "Expand inspector" : "Collapse inspector"}
+            aria-expanded={!inspectorCollapsed}
+            aria-controls={COLUMN_PANEL_STYLE}
+            onPointerDown={(event) => event.stopPropagation()}
+            onKeyDown={(event) => event.stopPropagation()}
+            onClick={(event) => {
+              event.stopPropagation();
+              if (inspectorRef.current?.isCollapsed()) inspectorRef.current.expand();
+              else inspectorRef.current?.collapse();
+            }}
+          >
+            {inspectorCollapsed ? (
+              <ChevronLeft aria-hidden="true" />
+            ) : (
+              <ChevronRight aria-hidden="true" />
+            )}
+          </button>
+        </ResizableHandle>
 
-        {/*
-         * `max-h` + its own scroll (M18): the timeline's canvas height is data-
-         * driven (`laneTops.totalHeight` — more lanes with more pass types or
-         * protected ranges make it taller) and this row previously had no cap
-         * at all, so on an ordinary laptop viewport a lane-heavy timeline (or
-         * one showing alongside the reflow banner, B19b/B20b territory) could
-         * eat most of `editor-root`'s fixed `100dvh-3.5rem` height, squeezing
-         * the flex-1 row above — transcript, canvas preview and the style
-         * picker — down to a few px. Below its own content's minimum, the
-         * style grid's tiles (each with `overflow-hidden`, whose CSS Grid
-         * automatic minimum size is then 0, not their content size) collapsed
-         * to ~2px: still "visible, enabled and stable" by Playwright's own
-         * actionability checks, but with nothing rendered and their real
-         * screen position off in the timeline row, so a click on them hit
-         * whatever now occupied that point instead (`gate-a.spec.ts`'s
-         * `style-picker-tile-*` journey step — M18). Capping this row and
-         * letting its own content scroll keeps that budget for the panels
-         * that need it, for every viewport, not only test ones.
-         *
-         * OC-01: the 38dvh cap became the timeline panel's default/min/max sizes.
-         */}
         <ResizablePanel
-          id={WORKSPACE_PANEL_TIMELINE}
-          defaultSize={percent(WORKSPACE_DEFAULT.timeline)}
-          minSize={percent(18)}
-          maxSize={percent(55)}
+          id={COLUMN_PANEL_STYLE}
+          panelRef={inspectorRef}
+          collapsible
+          collapsedSize="0%"
+          onResize={(size) => setInspectorCollapsed(size.inPixels === 0)}
+          defaultSize={percent(OUTER_DEFAULT.style)}
+          minSize="320px"
+          maxSize={percent(35)}
         >
-          <ContextMenu>
-            <ContextMenuTrigger asChild>
-              {/*
-               * OC3: the timeline canvas treats *any* pointerdown as a
-               * selection gesture (`Timeline.tsx`'s `onPointerDown` filters no
-               * button), so a right-click on empty canvas ran
-               * `onSelectSegment(undefined)` — clearing the very selection this
-               * menu acts on, before it could open — and scrubbed the playhead
-               * when the press landed on the ruler. Swallowing non-primary
-               * buttons in the capture phase leaves that handler to real clicks
-               * and drags; the `contextmenu` event radix listens for is a
-               * different event and is untouched.
-               */}
-              <div
-                className="border-border bg-bg-1 scrollbar-thin h-full overflow-y-auto border-t p-2"
-                data-testid="editor-timeline-row"
-                onPointerDownCapture={(event) => {
-                  if (event.button !== 0) event.stopPropagation();
-                }}
+          <div
+            className="editor-inspector flex h-full min-h-0 flex-col overflow-hidden rounded-[10px]"
+            data-coach-mark="style"
+          >
+            {reflow?.current.belowComfortableMinimum === true ? (
+              <p
+                data-testid="below-comfortable-minimum-hint"
+                className="border-proposed/40 bg-proposed/10 text-proposed rounded-sm border px-2 py-1.5 text-xs"
               >
-                <Timeline
-                  words={allLiveWords}
-                  segments={segments}
-                  passItems={passItems}
-                  protectedRanges={state.hot.protected ?? []}
-                  onToggleProtection={onToggleProtection}
-                  {...(timelineMedia.waveform === undefined
-                    ? {}
-                    : { waveform: timelineMedia.waveform })}
-                  {...(timelineMedia.thumbs === undefined
-                    ? {}
-                    : { thumbnails: timelineMedia.thumbs })}
-                  wordScript={wordScript}
-                  durationMs={primaryMedia?.durationMs ?? 0}
-                  playheadMs={playheadSnapshot.ms}
-                  playing={playheadSnapshot.playing}
-                  onSeek={(ms) => playhead.seek(ms)}
-                  onTogglePlay={() => playhead.togglePlaying()}
-                  {...(selectedSegmentId === undefined ? {} : { selectedSegmentId })}
-                  {...(selectedWordId === undefined ? {} : { selectedWordId })}
-                  onSelectSegment={setSelectedSegmentId}
-                  onSelectWord={(segmentId, wordId) => {
-                    setSelectedSegmentId(segmentId);
-                    setSelectedWordId(wordId);
-                  }}
-                  onSetSegmentBounds={onTimelineSetSegmentBounds}
-                  onSetWordTiming={onTimelineSetWordTiming}
-                  onEditPassItem={onTimelineEditPassItem}
-                  onSplitSegment={onSplitAt}
-                  onMergeSegments={([a]) => onMergeWithNext(a)}
-                  {...(timeMap === undefined ? {} : { timeMap })}
-                  displayMode={timelineDisplayMode}
-                  onDisplayModeChange={setTimelineDisplayMode}
-                  nudgeSink={noopNudgeSink}
-                  onMergeShortCaptions={onMergeShort}
-                  onSplitLongCaptions={onSplitLong}
-                  onResegmentCaptions={(params) => void onResegment(params)}
-                  resegmentDefaultParams={DEFAULT_RESEGMENT_PARAMS}
-                  bulkActionsBusy={reflowBusy}
-                  onCaptionToolsAction={(ops, label) => store.submitOps(ops, { label })}
-                  script={wordScript}
-                />
-              </div>
-            </ContextMenuTrigger>
-
-            {/*
-             * OC3: the timeline canvas has no per-clip DOM to hang a menu on,
-             * so the row offers the same operations for whatever segment is
-             * selected. Every item calls a handler that already exists above —
-             * nothing here is a second implementation.
-             */}
-            <ContextMenuContent data-testid="timeline-context-menu">
-              <ContextMenuItem
-                data-testid="timeline-menu-split"
-                disabled={timelineMenu.disabled}
-                onSelect={onSplit}
-              >
-                Split segment <ContextMenuShortcut>S</ContextMenuShortcut>
-              </ContextMenuItem>
-              <ContextMenuItem
-                data-testid="timeline-menu-merge"
-                disabled={timelineMenu.disabled}
-                onSelect={() => onMergeWithNext(selectedSegmentId)}
-              >
-                Merge with next <ContextMenuShortcut>M</ContextMenuShortcut>
-              </ContextMenuItem>
-
-              <ContextMenuSeparator />
-
-              <ContextMenuItem
-                data-testid="timeline-menu-protect"
-                disabled={timelineMenu.disabled}
-                onSelect={() => {
-                  if (selectedSegment !== undefined)
-                    onToggleProtection(selectedSegment.startMs, selectedSegment.endMs);
-                }}
-              >
-                Toggle protection <ContextMenuShortcut>P</ContextMenuShortcut>
-              </ContextMenuItem>
-              <ContextMenuItem
-                data-testid="timeline-menu-hide"
-                disabled={timelineMenu.disabled}
-                onSelect={() => {
-                  if (selectedSegment !== undefined)
-                    onHideToggle(selectedSegment.id, selectedSegment.hidden !== true);
-                }}
-              >
-                {selectedSegment?.hidden === true ? "Show segment" : "Hide segment"}
-              </ContextMenuItem>
-
-              {timelineMenu.hint === undefined ? null : (
-                <ContextMenuLabel
-                  data-testid="timeline-menu-hint"
-                  className="text-fg-2 text-xs font-normal tracking-normal normal-case"
-                >
-                  {timelineMenu.hint}
-                </ContextMenuLabel>
-              )}
-            </ContextMenuContent>
-          </ContextMenu>
+                This style shows one short word per caption.
+              </p>
+            ) : null}
+            <RightPanel
+              {...(inspectorTabRequest === undefined ? {} : { tabRequest: inspectorTabRequest })}
+              styles={SYSTEM_STYLES}
+              style={effectiveStyle}
+              scope={scope}
+              canvas={projection.canvas}
+              onOp={submitPanelOp}
+              onSaveTemplate={onSaveTemplate}
+              myPresets={myPresets}
+              onDeletePreset={onDeletePreset}
+              footer={
+                <span data-coach-mark="export" className="inline-flex">
+                  <ExportButton
+                    open={exportOpen}
+                    onOpenChange={setExportOpen}
+                    projectId={projectId}
+                    primaryMediaId={
+                      state.hot.media.find((media) => media.role === "primary")?.mediaId
+                    }
+                    projection={toRenderProjection(state)}
+                    catalogue={SYSTEM_STYLE_MAP}
+                    registry={registry}
+                    shaper={shaper}
+                  />
+                </span>
+              }
+              audio={{
+                projectId,
+                ...(primaryMedia?.mediaId === undefined ? {} : { mediaId: primaryMedia.mediaId }),
+                ...(appliedCleanId === undefined ? {} : { appliedCleanId }),
+                onSetAudio,
+                deepCleanEnabled,
+              }}
+            />
+          </div>
         </ResizablePanel>
       </ResizablePanelGroup>
 

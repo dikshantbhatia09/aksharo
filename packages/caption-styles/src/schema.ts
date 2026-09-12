@@ -56,6 +56,7 @@ export const GradientStopSchema = z.object({
 export const GradientSchema = z.object({
   stops: z.array(GradientStopSchema).min(2).max(6),
   angleDeg: z.number().min(0).max(360),
+  level: z.enum(["line", "word", "char"]).optional(),
 });
 
 /**
@@ -83,6 +84,7 @@ export const StyleCategorySchema = z.enum([
   "playful",
   "minimal",
   "retro",
+  "kinetic",
 ]);
 
 /** Lowest plan that may use the style (04 §Plans). */
@@ -114,6 +116,12 @@ export const CueAnimationTypeSchema = z.enum([
   "slide-right",
   "rise",
   "hide",
+  "hook",
+  "slide_lr",
+  "slide_ud",
+  "slide-left-right",
+  "slide-up-down",
+  "kinetic-flow",
 ]);
 
 /** How the word being spoken is marked. */
@@ -251,6 +259,8 @@ export const Depth3dSchema = z.object({
   offsetPct: z.number().min(0).max(30),
   /** Copies drawn behind the type; capped for perf (a frame draws this every time). */
   layers: z.number().int().min(1).max(8).optional(),
+  depth: z.number().min(0).max(100).optional(),
+  angle: z.number().min(0).max(360).optional(),
 });
 
 export const LayoutSchema = z.object({
@@ -327,6 +337,29 @@ export const AnimationSchema = z.object({
    * exactly as before.
    */
   dynamicSpeed: z.boolean().optional(),
+  /**
+   * Kinetic typography lockup mode: standard subtitle flow, auto-scaled stacked lockup,
+   * split perpendicular (sidebar + main), continuous cross-axis orbit, or isometric tilt.
+   */
+  lockupMode: z
+    .enum(["standard", "stacked-fit", "split-perpendicular", "cross-axis", "isometric-angle", "kinetic-flow"])
+    .optional(),
+  /** Virtual camera / canvas rotation in degrees (e.g. -90, 90, -25). */
+  cameraRotationDeg: z.number().min(-360).max(360).optional(),
+  /** Persistence behavior of the previous cue: whether it contracts into a corner or sidebar badge. */
+  persistence: z.enum(["none", "sidebar-left", "corner-tl"]).optional(),
+  /** Procedural secondary vector graphics attached to impact moments. */
+  secondaryGraphic: z
+    .enum([
+      "none",
+      "question-mark",
+      "radial-burst",
+      "circle-wipe",
+      "sunburst",
+      "chevrons",
+      "speed-lines",
+    ])
+    .optional(),
 });
 
 /**
@@ -374,6 +407,15 @@ export const EmphasisPresetSchema = z.object({
   fontFamily: z.string().min(1).max(120).optional(),
   italic: z.boolean().optional(),
   underline: z.boolean().optional(),
+  type: z.enum(["spotlight", "gradient", "color", "glow", "size", "emphasize"]).optional(),
+  gradient: GradientSchema.optional(),
+  glowColor: ColorSchema.optional(),
+  fontOverride: z
+    .object({
+      family: z.string().optional(),
+      weight: z.union([z.string(), z.number()]).optional(),
+    })
+    .optional(),
 });
 
 /** The StyleDoc schema generation, exactly as `EdgHot.meta.schemaVersion` gates the EDG. */

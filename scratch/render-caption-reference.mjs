@@ -1,0 +1,11 @@
+import { chromium } from '../apps/web/node_modules/@playwright/test/index.mjs';
+import { readFileSync } from 'node:fs';
+import { pathToFileURL } from 'node:url';
+import path from 'node:path';
+const browser = await chromium.launch();
+const page = await browser.newPage({viewport: {width:1919, height:900}});
+await page.goto(pathToFileURL(path.resolve('scratch/caption-design-reference/Caption Editor.dc.html')).href, {waitUntil:'load', timeout:30000});
+await page.evaluate(() => document.fonts.ready);
+await page.screenshot({path:'scratch/caption-design-qa/reference-1919.png'});
+console.log(await page.locator('body').innerText());
+await browser.close();

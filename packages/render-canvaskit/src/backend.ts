@@ -231,21 +231,17 @@ export function createBrowserSurface(ck: CanvasKit, element: HTMLCanvasElement):
  * there at all). Where `OffscreenCanvas` itself does not exist (older Safari,
  * `probe.ts`'s `offscreenCanvas` flag already gates the whole browser-export path on
  * it) or the GPU context cannot be created (an old device, a blocked context, a
- * software-rendering VM), this falls back to a plain CPU raster `MakeSurface` — the
- * same one `engine.ts` used exclusively before this pass. Both are Skia, so the pixel
- * output matches (proven by `engine-parity.test.ts`'s D33 check); only the speed
- * differs, which is why the fallback is silent-but-reported, not an error.
+ * CPU raster `MakeSurface`. A GPU surface (WebGL on OffscreenCanvas) cannot be
+ * read back losslessly/reliably into CPU memory via snapshot.readPixels() across
+ * browsers (returning blank/zero pixels and triggering GPU pipeline stalls).
+ * A CPU raster surface in CanvasKit allocates in WebAssembly linear memory and
+ * allows instant, bit-exact pixel readback for frame compositing onto the export video.
  */
 export function createExportSurface(ck: CanvasKit, width: number, height: number): BrowserSurface {
-  if (typeof OffscreenCanvas !== "undefined") {
-    const canvas = new OffscreenCanvas(width, height);
-    const gpu = ck.MakeWebGLCanvasSurface(canvas);
-    if (gpu !== null) return { surface: gpu, backend: "webgl" };
-  }
   const cpu = ck.MakeSurface(width, height);
   if (cpu !== null) return { surface: cpu, backend: "cpu" };
   throw new CanvasKitError(
     "canvaskit/no-surface",
-    `could not allocate a ${String(width)}×${String(height)} caption surface on either the WebGL or the CPU raster path`,
+    `could not allocate a ${String(width)}×${String(height)} caption surface on the CPU raster path`,
   );
 }

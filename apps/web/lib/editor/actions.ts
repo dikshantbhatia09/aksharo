@@ -3,6 +3,8 @@
 export interface EditorActionContext {
   readonly canSplit: boolean; // a segment is selected
   readonly canWordEdit: boolean; // a word is selected
+  readonly canUndo: boolean;
+  readonly canRedo: boolean;
   readonly hideFillers: boolean;
   readonly follow: boolean;
   readonly playing: boolean;
@@ -61,7 +63,7 @@ export const EDITOR_ACTIONS: readonly EditorAction[] = [
     label: "Undo",
     menu: "edit",
     shortcut: "Ctrl+Z",
-    enabled: always,
+    enabled: (c) => c.canUndo,
     run: (c) => c.undo(),
   },
   {
@@ -69,7 +71,7 @@ export const EDITOR_ACTIONS: readonly EditorAction[] = [
     label: "Redo",
     menu: "edit",
     shortcut: "Ctrl+Y",
-    enabled: always,
+    enabled: (c) => c.canRedo,
     run: (c) => c.redo(),
   },
   {

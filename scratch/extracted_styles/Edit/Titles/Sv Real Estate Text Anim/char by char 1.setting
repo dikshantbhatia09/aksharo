@@ -1,0 +1,325 @@
+{
+	Tools = ordered() {
+		charbychar11 = GroupOperator {
+			Inputs = ordered() {
+				Input1 = InstanceInput {
+					SourceOp = "Text1",
+					Source = "StyledText",
+				},
+				Input2 = InstanceInput {
+					SourceOp = "Text1",
+					Source = "Font",
+					ControlGroup = 2,
+				},
+				Input3 = InstanceInput {
+					SourceOp = "Text1",
+					Source = "Style",
+					ControlGroup = 2,
+				},
+				Input4 = InstanceInput {
+					SourceOp = "Text1",
+					Source = "Red1Clone",
+					Name = "Color",
+					ControlGroup = 3,
+					Default = 1,
+				},
+				Input5 = InstanceInput {
+					SourceOp = "Text1",
+					Source = "Green1Clone",
+					ControlGroup = 3,
+					Default = 1,
+				},
+				Input6 = InstanceInput {
+					SourceOp = "Text1",
+					Source = "Blue1Clone",
+					ControlGroup = 3,
+					Default = 1,
+				},
+				Input7 = InstanceInput {
+					SourceOp = "Text1",
+					Source = "Alpha1Clone",
+					ControlGroup = 3,
+					Default = 1,
+				},
+				Input8 = InstanceInput {
+					SourceOp = "Text1",
+					Source = "Size",
+					Default = 0.1496,
+				},
+				Input9 = InstanceInput {
+					SourceOp = "Text1",
+					Source = "CharacterSpacingClone",
+					Name = "Tracking",
+					Default = 0.96,
+				},
+				Input10 = InstanceInput {
+					SourceOp = "Text1",
+					Source = "LineSpacingClone",
+					Default = 1,
+				},
+				Input11 = InstanceInput {
+					SourceOp = "Text1",
+					Source = "Type1",
+					Name = "Type",
+					Default = 0,
+				},
+				Input12 = InstanceInput {
+					SourceOp = "Text1",
+					Source = "Red1",
+					Name = "Color",
+					ControlGroup = 8,
+					Default = 1,
+				},
+				Input13 = InstanceInput {
+					SourceOp = "Text1",
+					Source = "Green1",
+					ControlGroup = 8,
+					Default = 1,
+				},
+				Input14 = InstanceInput {
+					SourceOp = "Text1",
+					Source = "Blue1",
+					ControlGroup = 8,
+					Default = 1,
+				},
+				Input15 = InstanceInput {
+					SourceOp = "Text1",
+					Source = "Alpha1",
+					ControlGroup = 8,
+					Default = 1,
+				},
+				Input16 = InstanceInput {
+					SourceOp = "Text1",
+					Source = "ShadingGradient1",
+					Name = "Shading Gradient",
+				},
+				Input17 = InstanceInput {
+					SourceOp = "Text1",
+					Source = "ShadingMappingLevel1",
+					Name = "Mapping Level",
+					Default = 4,
+				},
+				Input18 = InstanceInput {
+					SourceOp = "Follower1",
+					Source = "Delay",
+					Name = "Anim. speed decreaser",
+					Default = 0.62,
+				},
+				Input19 = InstanceInput {
+					SourceOp = "Transform1",
+					Source = "Center",
+				},
+				Input20 = InstanceInput {
+					SourceOp = "Transform1",
+					Source = "Size",
+					Default = 1,
+				},
+				Input21 = InstanceInput {
+					SourceOp = "Transform1",
+					Source = "Angle",
+					Default = 0,
+				},
+				Input22 = InstanceInput {
+					SourceOp = "DropShadow1",
+					Source = "shadowStrength",
+					Default = 1,
+				},
+				Input23 = InstanceInput {
+					SourceOp = "DropShadow1",
+					Source = "shadowAngle",
+					Default = 38.5,
+				},
+				Input24 = InstanceInput {
+					SourceOp = "DropShadow1",
+					Source = "ShadowDistance",
+					MaxScale = 0.2000000029802,
+					Default = 0.0028,
+				},
+				Input25 = InstanceInput {
+					SourceOp = "DropShadow1",
+					Source = "shadowBlur",
+					Default = 0.204,
+				}
+			},
+			Outputs = {
+				Output1 = InstanceOutput {
+					SourceOp = "Path1",
+					Source = "Heading",
+				},
+				MainOutput1 = InstanceOutput {
+					SourceOp = "DropShadow1",
+					Source = "Output",
+				}
+			},
+			ViewInfo = GroupInfo { Pos = { 0, 0 } },
+			Tools = ordered() {
+				Text1 = TextPlus {
+					CtrlWZoom = false,
+					CtrlWShown = false,
+					Inputs = {
+						Softness3 = Input {
+							Value = Number {
+								Value = 1
+							},
+						},
+						MotionBlur = Input { Value = 1, },
+						Quality = Input { Value = 10, },
+						ShutterAngle = Input { Value = 360, },
+						Width = Input { Value = 1920, },
+						Height = Input { Value = 1080, },
+						UseFrameFormatSettings = Input { Value = 1, },
+						["Gamut.SLogVersion"] = Input { Value = FuID { "SLog2" }, },
+						Wrap = Input { Value = 1, },
+						LayoutRotation = Input { Value = 1, },
+						CharacterSpacing = Input { Value = 0.96, },
+						TransformRotation = Input { Value = 1, },
+						Softness1 = Input { Value = 1, },
+						StyledText = Input {
+							SourceOp = "Follower1",
+							Source = "StyledText",
+						},
+						Font = Input { Value = "Inter", },
+						Style = Input { Value = "Medium Italic", },
+						Size = Input { Value = 0.1496, },
+						VerticalJustificationNew = Input { Value = 3, },
+						HorizontalJustificationNew = Input { Value = 3, }
+					},
+					ViewInfo = OperatorInfo { Pos = { 165, 49.5 } },
+				},
+				Follower1 = StyledTextFollower {
+					CtrlWZoom = false,
+					Inputs = {
+						Order = Input { Value = 7, },
+						Delay = Input { Value = 0.62, },
+						Text = Input {
+							Value = StyledText {
+								Value = "char by char"
+							},
+						},
+						CharacterOffset = Input {
+							SourceOp = "KeyframeStretcher1",
+							Source = "Result",
+						},
+						TransformRotation = Input { Value = 1, },
+						Opacity1 = Input {
+							SourceOp = "KeyframeStretcher2",
+							Source = "Result",
+						},
+						Softness1 = Input { Value = 1, },
+						Softness2 = Input { Value = 1, },
+						Softness3 = Input { Value = 1, },
+						Softness4 = Input { Value = 1, },
+						Softness5 = Input { Value = 1, },
+						Softness6 = Input { Value = 1, },
+						Softness7 = Input { Value = 1, },
+						Softness8 = Input { Value = 1, }
+					},
+				},
+				KeyframeStretcher1 = KeyStretcherMod {
+					CtrlWZoom = false,
+					Inputs = {
+						Keyframes = Input {
+							SourceOp = "Path1",
+							Source = "Position",
+						},
+						StretchStart = Input { Value = 15, },
+						StretchEnd = Input { Value = 105, }
+					},
+				},
+				Path1 = PolyPath {
+					DrawMode = "InsertAndModify",
+					CtrlWZoom = false,
+					Inputs = {
+						Displacement = Input {
+							SourceOp = "Path1Displacement",
+							Source = "Value",
+						},
+						PolyLine = Input {
+							Value = Polyline {
+								Points = {
+									{ Linear = true, LockY = true, X = -0.5, Y = -0.79, RX = 0, RY = 0.0966666666666667 },
+									{ Linear = true, LockY = true, X = -0.5, Y = -0.5, LX = 0, LY = -0.0966666666666667, RX = 0, RY = 0 },
+									{ Linear = true, LockY = true, X = -0.5, Y = -0.5, LX = 0, LY = 0, RX = 0, RY = 0.0966666666666667 },
+									{ Linear = true, LockY = true, X = -0.5, Y = -0.21, LX = 0, LY = -0.0966666666666667 }
+								}
+							},
+						}
+					},
+				},
+				Path1Displacement = BezierSpline {
+					SplineColor = { Red = 255, Green = 0, Blue = 255 },
+					CtrlWZoom = false,
+					NameSet = true,
+					KeyFrames = {
+						[0] = { 0, RH = { 1.999998, 0.5 }, Flags = { LockedY = true } },
+						[6] = { 0.5, LH = { 4.000002, 0.5 }, RH = { 40, 0.5 }, Flags = { LockedY = true } },
+						[108] = { 0.5, LH = { 74, 0.5 }, RH = { 109.999998, 1 }, Flags = { Linear = true, LockedY = true } },
+						[114] = { 1, LH = { 112.000002, 1 }, Flags = { LockedY = true } }
+					}
+				},
+				KeyframeStretcher2 = KeyStretcherMod {
+					CtrlWZoom = false,
+					Inputs = {
+						Keyframes = Input {
+							SourceOp = "KeyStretcheronFollower1Keyframes",
+							Source = "Value",
+						},
+						StretchStart = Input { Value = 15, },
+						StretchEnd = Input { Value = 105, }
+					},
+				},
+				KeyStretcheronFollower1Keyframes = BezierSpline {
+					SplineColor = { Red = 179, Green = 28, Blue = 244 },
+					CtrlWZoom = false,
+					NameSet = true,
+					KeyFrames = {
+						[0] = { 0, RH = { 1, 0.333333333333333 }, Flags = { Linear = true } },
+						[3] = { 1, LH = { 2, 0.666666666666667 }, RH = { 38.3333333333333, 1 }, Flags = { Linear = true } },
+						[109] = { 1, LH = { 73.6666666666667, 1 }, RH = { 109.666666666667, 0.666666666666667 }, Flags = { Linear = true } },
+						[111] = { 0, LH = { 110.333333333333, 0.333333333333333 }, Flags = { Linear = true } }
+					}
+				},
+				Transform1 = Transform {
+					CtrlWShown = false,
+					Inputs = {
+						UseSizeAndAspect = Input { Value = 0, },
+						Input = Input {
+							SourceOp = "Text1",
+							Source = "Output",
+						}
+					},
+					ViewInfo = OperatorInfo { Pos = { 275, 49.5 } },
+				},
+				DropShadow1 = ofx.com.blackmagicdesign.resolvefx.DropShadow {
+					CtrlWShown = false,
+					Inputs = {
+						Source = Input {
+							SourceOp = "Transform1",
+							Source = "Output",
+						},
+						shadowStrength = Input { Value = 1, },
+						shadowAngle = Input { Value = 38.5, },
+						ShadowDistance = Input { Value = 0.0028, },
+						shadowBlur = Input { Value = 0.204, },
+						shadowColorRed = Input { Value = 0, },
+						shadowColorGreen = Input { Value = 0, },
+						shadowColorBlue = Input { Value = 0, },
+						isLegacyComp = Input { Value = 0, },
+						blendGroup = Input { Value = 0, },
+						blendIn = Input { Value = 1, },
+						blend = Input { Value = 0, },
+						ignoreContentShape = Input { Value = 0, },
+						legacyIsProcessRGBOnly = Input { Value = 0, },
+						IsNoTemporalFramesReqd = Input { Value = 0, },
+						refreshTrigger = Input { Value = 1, },
+						srcProcessingAlphaMode = Input { Value = 2, },
+						dstProcessingAlphaMode = Input { Value = 2, },
+						resolvefxVersion = Input { Value = "2.0", }
+					},
+					ViewInfo = OperatorInfo { Pos = { 385, 49.5 } },
+				}
+			},
+		}
+	},
+	ActiveTool = "charbychar11"
+}

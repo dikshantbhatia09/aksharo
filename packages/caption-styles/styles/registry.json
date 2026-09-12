@@ -2,69 +2,9 @@
   "version": 1,
   "styles": [
     {
-      "id": "punch-pop",
-      "name": "Punch Pop",
-      "category": "bold",
-      "status": "shipped"
-    },
-    {
-      "id": "hype-bold",
-      "name": "Hype Bold",
-      "category": "bold",
-      "status": "shipped"
-    },
-    {
-      "id": "vertical-clean",
-      "name": "Vertical Clean",
-      "category": "clean",
-      "status": "shipped"
-    },
-    {
-      "id": "karaoke-fill",
-      "name": "Karaoke Fill",
-      "category": "karaoke",
-      "status": "shipped"
-    },
-    {
-      "id": "podcast-duo",
-      "name": "Podcast Duo",
-      "category": "podcast",
-      "status": "shipped"
-    },
-    {
-      "id": "word-pop",
-      "name": "Word Pop",
-      "category": "playful",
-      "status": "shipped"
-    },
-    {
-      "id": "bubble-soft",
-      "name": "Bubble Soft",
-      "category": "playful",
-      "status": "shipped"
-    },
-    {
-      "id": "neon-glow",
-      "name": "Neon Glow",
-      "category": "bold",
-      "status": "shipped"
-    },
-    {
-      "id": "glitch-shift",
-      "name": "Glitch Shift",
+      "id": "arcade-pixel",
+      "name": "Arcade Pixel",
       "category": "gaming",
-      "status": "shipped"
-    },
-    {
-      "id": "prism-split",
-      "name": "Prism Split",
-      "category": "bold",
-      "status": "shipped"
-    },
-    {
-      "id": "minimal-lower-third",
-      "name": "Minimal Lower Third",
-      "category": "minimal",
       "status": "shipped"
     },
     {
@@ -74,33 +14,105 @@
       "status": "shipped"
     },
     {
-      "id": "liquid-glass",
-      "name": "Liquid Glass",
-      "category": "minimal",
-      "status": "shipped"
-    },
-    {
-      "id": "outline-only",
-      "name": "Outline Only",
-      "category": "clean",
-      "status": "shipped"
-    },
-    {
       "id": "box-block",
       "name": "Box Block",
       "category": "clean",
       "status": "shipped"
     },
     {
-      "id": "typewriter-mono",
-      "name": "Typewriter Mono",
-      "category": "retro",
+      "id": "bubble-soft",
+      "name": "Bubble Soft",
+      "category": "playful",
       "status": "shipped"
     },
     {
       "id": "caption-card",
       "name": "Caption Card",
       "category": "clean",
+      "status": "shipped"
+    },
+    {
+      "id": "duo-tone",
+      "name": "Duo Tone",
+      "category": "playful",
+      "status": "shipped"
+    },
+    {
+      "id": "estate-bounce",
+      "name": "Real Estate: Dynamic Bounce",
+      "category": "playful",
+      "status": "shipped"
+    },
+    {
+      "id": "estate-char-typewriter",
+      "name": "Real Estate: Typewriter",
+      "category": "clean",
+      "status": "shipped"
+    },
+    {
+      "id": "estate-contemporary",
+      "name": "Real Estate: Contemporary",
+      "category": "cinematic",
+      "status": "shipped"
+    },
+    {
+      "id": "estate-editorial-luxury",
+      "name": "Real Estate: Luxury Editorial",
+      "category": "cinematic",
+      "status": "shipped"
+    },
+    {
+      "id": "estate-flicker",
+      "name": "Real Estate: Flicker",
+      "category": "bold",
+      "status": "shipped"
+    },
+    {
+      "id": "estate-grand-reveal",
+      "name": "Real Estate: Grand Reveal",
+      "category": "cinematic",
+      "status": "shipped"
+    },
+    {
+      "id": "estate-modern-rise",
+      "name": "Real Estate: Modern Rise",
+      "category": "cinematic",
+      "status": "shipped"
+    },
+    {
+      "id": "estate-slide-ltr",
+      "name": "Real Estate: Slide LtR",
+      "category": "clean",
+      "status": "shipped"
+    },
+    {
+      "id": "estate-slide-rtl",
+      "name": "Real Estate: Slide RtL",
+      "category": "clean",
+      "status": "shipped"
+    },
+    {
+      "id": "estate-tracking-slide",
+      "name": "Real Estate: Tracking Slide",
+      "category": "clean",
+      "status": "shipped"
+    },
+    {
+      "id": "estate-word-fade",
+      "name": "Real Estate: Word Fade",
+      "category": "clean",
+      "status": "shipped"
+    },
+    {
+      "id": "estate-word-pop",
+      "name": "Real Estate: Word Pop",
+      "category": "bold",
+      "status": "shipped"
+    },
+    {
+      "id": "glitch-shift",
+      "name": "Glitch Shift",
+      "category": "gaming",
       "status": "shipped"
     },
     {
@@ -116,9 +128,9 @@
       "status": "shipped"
     },
     {
-      "id": "subtitle-classic",
-      "name": "Subtitle Classic",
-      "category": "minimal",
+      "id": "hype-bold",
+      "name": "Hype Bold",
+      "category": "bold",
       "status": "shipped"
     },
     {
@@ -128,9 +140,81 @@
       "status": "shipped"
     },
     {
-      "id": "soft-serif",
-      "name": "Soft Serif",
-      "category": "cinematic",
+      "id": "karaoke-fill",
+      "name": "Karaoke Fill",
+      "category": "karaoke",
+      "status": "shipped"
+    },
+    {
+      "id": "kinetic-burst-shrink",
+      "name": "Kinetic Burst and Shrink",
+      "category": "kinetic",
+      "status": "shipped"
+    },
+    {
+      "id": "kinetic-circle-wipe",
+      "name": "Kinetic Circle Wipe",
+      "category": "kinetic",
+      "status": "shipped"
+    },
+    {
+      "id": "kinetic-cross-orbit",
+      "name": "Kinetic Cross Orbit",
+      "category": "kinetic",
+      "status": "shipped"
+    },
+    {
+      "id": "kinetic-flow",
+      "name": "Kinetic Flow",
+      "category": "kinetic",
+      "status": "shipped"
+    },
+    {
+      "id": "kinetic-lockup-cyan",
+      "name": "Kinetic Lockup Cyan",
+      "category": "kinetic",
+      "status": "shipped"
+    },
+    {
+      "id": "kinetic-sidebar-shift",
+      "name": "Kinetic Sidebar Shift",
+      "category": "kinetic",
+      "status": "shipped"
+    },
+    {
+      "id": "kinetic-slab-punch",
+      "name": "Kinetic Slab Punch",
+      "category": "kinetic",
+      "status": "shipped"
+    },
+    {
+      "id": "kinetic-tracking-contrast",
+      "name": "Kinetic Tracking Contrast",
+      "category": "kinetic",
+      "status": "shipped"
+    },
+    {
+      "id": "kinetic-whip-script",
+      "name": "Kinetic Whip Script",
+      "category": "kinetic",
+      "status": "shipped"
+    },
+    {
+      "id": "liquid-glass",
+      "name": "Liquid Glass",
+      "category": "minimal",
+      "status": "shipped"
+    },
+    {
+      "id": "minimal-lower-third",
+      "name": "Minimal Lower Third",
+      "category": "minimal",
+      "status": "shipped"
+    },
+    {
+      "id": "neon-glow",
+      "name": "Neon Glow",
+      "category": "bold",
       "status": "shipped"
     },
     {
@@ -140,9 +224,51 @@
       "status": "shipped"
     },
     {
+      "id": "outline-only",
+      "name": "Outline Only",
+      "category": "clean",
+      "status": "shipped"
+    },
+    {
+      "id": "plain-white",
+      "name": "Plain White",
+      "category": "minimal",
+      "status": "shipped"
+    },
+    {
+      "id": "podcast-duo",
+      "name": "Podcast Duo",
+      "category": "podcast",
+      "status": "shipped"
+    },
+    {
+      "id": "prism-split",
+      "name": "Prism Split",
+      "category": "bold",
+      "status": "shipped"
+    },
+    {
+      "id": "punch-pop",
+      "name": "Punch Pop",
+      "category": "bold",
+      "status": "shipped"
+    },
+    {
       "id": "quote-frame",
       "name": "Quote Frame",
       "category": "cinematic",
+      "status": "shipped"
+    },
+    {
+      "id": "soft-serif",
+      "name": "Soft Serif",
+      "category": "cinematic",
+      "status": "shipped"
+    },
+    {
+      "id": "spotlight-word",
+      "name": "Spotlight Word",
+      "category": "karaoke",
       "status": "shipped"
     },
     {
@@ -152,9 +278,9 @@
       "status": "shipped"
     },
     {
-      "id": "duo-tone",
-      "name": "Duo Tone",
-      "category": "playful",
+      "id": "subtitle-classic",
+      "name": "Subtitle Classic",
+      "category": "minimal",
       "status": "shipped"
     },
     {
@@ -164,9 +290,15 @@
       "status": "shipped"
     },
     {
-      "id": "arcade-pixel",
-      "name": "Arcade Pixel",
-      "category": "gaming",
+      "id": "typewriter-mono",
+      "name": "Typewriter Mono",
+      "category": "retro",
+      "status": "shipped"
+    },
+    {
+      "id": "vertical-clean",
+      "name": "Vertical Clean",
+      "category": "clean",
       "status": "shipped"
     },
     {
@@ -176,9 +308,9 @@
       "status": "shipped"
     },
     {
-      "id": "spotlight-word",
-      "name": "Spotlight Word",
-      "category": "karaoke",
+      "id": "word-pop",
+      "name": "Word Pop",
+      "category": "playful",
       "status": "shipped"
     }
   ]

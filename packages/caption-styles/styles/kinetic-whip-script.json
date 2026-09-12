@@ -1,0 +1,89 @@
+{
+  "id": "kinetic-whip-script",
+  "name": "Kinetic Whip Script",
+  "version": 2,
+  "category": "kinetic",
+  "minPlan": "free",
+  "typography": {
+    "fontFamily": "Inter",
+    "fallbacks": [
+      "Noto Sans Devanagari",
+      "Noto Sans Tamil",
+      "Noto Sans"
+    ],
+    "weight": 900,
+    "italic": false,
+    "sizePct": 8.5,
+    "lineHeight": 0.9,
+    "letterSpacingEm": -0.01,
+    "textTransform": "uppercase",
+    "scriptScale": {
+      "taml": 0.68,
+      "deva": 0.85
+    }
+  },
+  "colors": {
+    "text": "#ffffff",
+    "activeText": "#51c6cc",
+    "accent": "#51c6cc"
+  },
+  "box": {
+    "enabled": false,
+    "mode": "line",
+    "paddingPct": 16,
+    "radiusPct": 20,
+    "opacity": 0.7
+  },
+  "stroke": {
+    "enabled": false,
+    "color": "#000000",
+    "widthPct": 4
+  },
+  "shadow": {
+    "enabled": true,
+    "color": "#000000",
+    "offsetXPct": 0,
+    "offsetYPct": 3,
+    "blurPct": 8,
+    "opacity": 0.5
+  },
+  "layout": {
+    "anchor": "center",
+    "x": 0.5,
+    "y": 0.5,
+    "align": "left",
+    "maxWidthPct": 85,
+    "maxLines": 3,
+    "safeAreaPct": 8
+  },
+  "animation": {
+    "in": {
+      "type": "slide-left",
+      "durationMs": 220
+    },
+    "out": {
+      "type": "fade",
+      "durationMs": 150
+    },
+    "wordHighlight": {
+      "type": "color",
+      "durationMs": 100
+    },
+    "perWord": false,
+    "lockupMode": "standard",
+    "secondaryGraphic": "speed-lines"
+  },
+  "emphasisPresets": [
+    {
+      "id": "accent",
+      "label": "Cursive Accent",
+      "color": "#51c6cc",
+      "italic": true,
+      "effect": "none"
+    }
+  ],
+  "assRenderable": true,
+  "assExportable": true,
+  "requiresLayoutMetrics": false,
+  "parityScore": 0.95
+}

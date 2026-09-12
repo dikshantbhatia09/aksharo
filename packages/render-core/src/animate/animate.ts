@@ -189,6 +189,8 @@ export function cuePhase(
       return { ...FULL, reveal: p };
     case "hide":
       return { ...FULL, opacity: p > 0 ? 1 : 0 };
+    case "kinetic-flow":
+      return { ...FULL, opacity: clamp01(p * 2), scale: lerp(0.72, 1, easeOutBack(p)) };
     default:
       return FULL;
   }
@@ -227,6 +229,63 @@ function cueDurationMs(configuredMs: number, spanMs: number, dynamic: boolean): 
 }
 
 /**
+ * Multi-directional kinetic choreography cycle.
+ * Alternates spatial camera motion (going left, going right, 90° turns, zoom, flat slam)
+ * across consecutive subtitle segments with a single click.
+ */
+const KINETIC_FLOW_CYCLE: readonly {
+  readonly in: StyleDoc["animation"]["in"]["type"];
+  readonly out: StyleDoc["animation"]["out"]["type"];
+}[] = [
+  { in: "pop", out: "slide-left" },       // Cue 0: Scale punch -> camera pans right (cue exits left)
+  { in: "slide-left", out: "slide-up" },   // Cue 1: Enters from right -> camera shifts down (cue exits up)
+  { in: "slide-up", out: "slide-right" },  // Cue 2: Enters from bottom -> camera pans left (cue exits right)
+  { in: "slide-right", out: "zoom" },      // Cue 3: Enters from left -> zoom dissolve
+  { in: "zoom", out: "slide-down" },       // Cue 4: Expanding center disc -> camera moves up
+  { in: "bounce", out: "slide-left" },     // Cue 5: Top impact slam -> camera pans right
+  { in: "slide-left", out: "pop" },        // Cue 6: Horizontal tracking sweep -> cyan pop
+  { in: "bounce", out: "fade" },           // Cue 7: Flat slab punch slam (0° tilt) -> fade
+];
+
+function parseSeq(seq: string | number | undefined): number | undefined {
+  if (typeof seq === "number") return Math.abs(Math.floor(seq));
+  if (typeof seq === "string") {
+    const num = parseInt(seq, 10);
+    if (!isNaN(num)) return Math.abs(num);
+    let hash = 0;
+    for (let i = 0; i < seq.length; i++) {
+      hash = (hash * 31 + seq.charCodeAt(i)) | 0;
+    }
+    return Math.abs(hash);
+  }
+  return undefined;
+}
+
+function resolveCueAnimationTypes(
+  style: StyleDoc,
+  layout?: Layout,
+): {
+  readonly inType: StyleDoc["animation"]["in"]["type"];
+  readonly outType: StyleDoc["animation"]["out"]["type"];
+} {
+  if (style.animation.in.type !== "kinetic-flow" && style.animation.out.type !== "kinetic-flow") {
+    return { inType: style.animation.in.type, outType: style.animation.out.type };
+  }
+  const parsed = parseSeq(layout?.segmentSeq);
+  const idx =
+    parsed !== undefined
+      ? parsed
+      : layout?.startMs !== undefined
+        ? Math.floor(layout.startMs / 2000)
+        : 0;
+  const cycle = KINETIC_FLOW_CYCLE[idx % KINETIC_FLOW_CYCLE.length] ?? KINETIC_FLOW_CYCLE[0]!;
+  return {
+    inType: style.animation.in.type === "kinetic-flow" ? cycle.in : style.animation.in.type,
+    outType: style.animation.out.type === "kinetic-flow" ? cycle.out : style.animation.out.type,
+  };
+}
+
+/**
  * The cue phase for one on-screen window `[startMs, endMs)` — the whole
  * caption's own span for the default "line" cue scope, or one word's own
  * span for K05's "word" cue scope (`animateWordScope`). Factored out of
@@ -239,16 +298,19 @@ function cuePhaseWindow(
   style: StyleDoc,
   tMs: number,
   lineHeightPx: number,
+  layout?: Layout,
 ): Phase {
   const dynamic = style.animation.dynamicSpeed === true;
   const spanMs = Math.max(0, endMs - startMs);
   const inDuration = cueDurationMs(style.animation.in.durationMs, spanMs, dynamic);
   const outDuration = cueDurationMs(style.animation.out.durationMs, spanMs, dynamic);
 
-  const enter = cuePhase(style.animation.in.type, progress(tMs, startMs, inDuration), lineHeightPx);
+  const { inType, outType } = resolveCueAnimationTypes(style, layout);
+
+  const enter = cuePhase(inType, progress(tMs, startMs, inDuration), lineHeightPx);
   const leaving =
     outDuration > 0 ? clamp01((tMs - (endMs - outDuration)) / outDuration) : tMs >= endMs ? 1 : 0;
-  const exit = cuePhase(style.animation.out.type, 1 - leaving, lineHeightPx);
+  const exit = cuePhase(outType, 1 - leaving, lineHeightPx);
   return combine(enter, exit);
 }
 
@@ -258,7 +320,7 @@ export function cueTiming(layout: Layout, style: StyleDoc, tMs: number): Phase {
   const first = layout.words[0];
   const startMs = perWord && first !== undefined ? first.startMs : layout.startMs;
   const endMs = perWord && first !== undefined ? first.endMs : layout.endMs;
-  return cuePhaseWindow(startMs, endMs, style, tMs, layout.lineHeightPx);
+  return cuePhaseWindow(startMs, endMs, style, tMs, layout.lineHeightPx, layout);
 }
 
 /**
@@ -280,7 +342,7 @@ export function cueTiming(layout: Layout, style: StyleDoc, tMs: number): Phase {
  * toggle but not this detail.
  */
 function wordCuePhase(word: LayoutWord, layout: Layout, style: StyleDoc, tMs: number): Phase {
-  return cuePhaseWindow(word.startMs, layout.endMs, style, tMs, layout.lineHeightPx);
+  return cuePhaseWindow(word.startMs, layout.endMs, style, tMs, layout.lineHeightPx, layout);
 }
 
 /** `sung | speaking | upcoming` for one word at `tMs`. */

@@ -73,9 +73,11 @@ services:
       MINIO_ROOT_USER: montaj-e2e
       MINIO_ROOT_PASSWORD: montaj-e2e-secret
       MINIO_REGION_NAME: ap-south-1
+      MINIO_API_CORS_ALLOW_ORIGIN: "*"
+      MINIO_BROWSER: "on"
     ports:
-      - "${E2E_MINIO_API_PORT:-59000}:9000"
-      - "${E2E_MINIO_CONSOLE_PORT:-59001}:9001"
+      - "${E2E_MINIO_API_PORT:-9000}:9000"
+      - "${E2E_MINIO_CONSOLE_PORT:-9001}:9001"
     volumes:
       - e2e-minio-data:/data
     healthcheck:
@@ -111,6 +113,7 @@ services:
       dockerfile: apps/api/Dockerfile
       target: runtime
     container_name: montaj-e2e-api
+    restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
@@ -126,6 +129,8 @@ services:
       REDIS_URL: redis://redis:6379
       S3_ENDPOINT: http://minio:9000
       R2_ENDPOINT: http://minio:9000
+      S3_PUBLIC_ENDPOINT: http://localhost:9000
+      R2_PUBLIC_ENDPOINT: http://localhost:9000
       S3_REGION: ap-south-1
       S3_BUCKET_RAW: montaj-raw
       R2_BUCKET_DERIVED: montaj-derived
@@ -139,12 +144,15 @@ services:
       LLM_PROVIDER: mock
       GPU_PROVIDER: none
       API_PORT: "3001"
-      WEB_ORIGIN: http://web:3000
+      WEB_PORT: "3000"
+      WEB_ORIGIN: http://localhost:3000
       API_ORIGIN: http://api:3001
       MONTAJ_QUEUE_PREFIX: e2e
       MONTAJ_REDIS_PREFIX: e2e
       MONTAJ_SCHEDULER_DISABLED: "1"
       FEATURE_FLAGS_JSON: "{}"
+      MAIL_PROVIDER: dev
+      AUTH_DEV_AUTO_VERIFY: "1"
     # `db:seed:sample` is deliberately NOT part of this chain: it drives the
     # real `POST /transcribe` HTTP path (`apps/api/prisma/seed-sample.ts`'s
     # header explains why), which means it needs the API already listening —
@@ -196,13 +204,17 @@ services:
       dockerfile: apps/web/Dockerfile
       target: runtime
     container_name: montaj-e2e-web
+    restart: unless-stopped
     depends_on:
       api:
         condition: service_healthy
     environment:
-      NODE_ENV: production
+      NODE_ENV: development
       API_ORIGIN: http://api:3001
-      WEB_ORIGIN: http://web:3000
+      BROWSER_API_ORIGIN: http://localhost:3001
+      WEB_ORIGIN: http://localhost:3000
+      S3_PUBLIC_ENDPOINT: http://localhost:9000
+      R2_PUBLIC_ENDPOINT: http://localhost:9000
       FEATURE_FLAGS_JSON: "{}"
     ports:
       - "${E2E_WEB_PORT:-59924}:3000"
@@ -240,9 +252,7 @@ services:
       api:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql://montaj:montaj@postgres:5432/montaj_e2e?schema=public
-      REDIS_URL: redis://redis:6379
-      INTERNAL_CALLBACK_SECRET: ${INTERNAL_CALLBACK_SECRET:-e2e-internal-callback-secret-0123456789}
+      <<: *api-env
       API_ORIGIN: http://api:3001
       LLM_PROVIDER: mock
       GPU_PROVIDER: none

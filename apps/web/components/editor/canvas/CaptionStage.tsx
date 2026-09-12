@@ -19,6 +19,7 @@
  * (CONTRACTS §2), never one per pointer move.
  */
 
+import { Lock, Unlock } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import type { Surface } from "canvaskit-wasm";
@@ -83,6 +84,8 @@ export interface CaptionStageProps {
   readonly selectedSegmentId?: string;
   /** Transport intent in (FIX-02): the store commands, this component executes. */
   readonly playing?: boolean;
+  /** Controlled mute, same shape as `playing` — design/08's bottom playback bar. */
+  readonly muted?: boolean;
   readonly seekMs?: number;
   readonly seekSeq?: number;
   /** The element's actual clock, out — mirror it with `PlayheadStore.syncFromMedia`. */
@@ -134,6 +137,7 @@ export function CaptionStage({
   onOp,
   selectedSegmentId,
   playing,
+  muted,
   seekMs,
   seekSeq,
   onTimeUpdate,
@@ -158,6 +162,7 @@ export function CaptionStage({
   const [outputMs, setOutputMs] = useState(0);
   const [dragPreview, setDragPreview] = useState<SegmentPosition | undefined>(undefined);
   const [captionBox, setCaptionBox] = useState<Box | undefined>(undefined);
+  const [isLocked, setIsLocked] = useState(true);
 
   // Fit the stage to whatever box the editor gives it.
   useLayoutEffect(() => {
@@ -228,6 +233,13 @@ export function CaptionStage({
       video.pause();
     }
   }, [playing, src, onPlayBlocked]);
+
+  // Mute intent, same controlled-prop shape as `playing` above.
+  useEffect(() => {
+    const video = videoRef.current;
+    if (video === null || muted === undefined) return;
+    video.muted = muted;
+  }, [muted]);
 
   // Execute exactly one seek per seekSeq bump. Mirrored time updates never
   // arrive here — that is the whole point of the sequence number.
@@ -327,6 +339,7 @@ export function CaptionStage({
 
   const onPointerDown = useCallback(
     (event: React.PointerEvent<HTMLDivElement>): void => {
+      if (isLocked) return;
       const container = containerRef.current;
       if (container === null || captionBox === undefined || selectedSegmentId === undefined) return;
       const rect = container.getBoundingClientRect();
@@ -447,10 +460,47 @@ export function CaptionStage({
       ) : null}
       {handle !== undefined && selectedSegmentId !== undefined ? (
         <div
-          className="border-lime-500/60 pointer-events-none absolute rounded-sm border bg-lime-500/8"
+          className={cn(
+            "pointer-events-none absolute rounded-sm border transition-colors",
+            isLocked ? "border-white/30 bg-transparent" : "border-[#10B981] bg-[#10B981]/10",
+          )}
           style={handle}
           data-testid="caption-stage-box"
-        />
+        >
+          {/* Lock / Unlock Drag Guard */}
+          <button
+            type="button"
+            className="pointer-events-auto absolute -top-8 left-1/2 -translate-x-1/2 flex items-center gap-1 rounded-full bg-[#181D21] border border-[#252D33] px-2.5 py-0.5 shadow-md cursor-pointer text-xs text-white hover:bg-[#252D33] transition-colors"
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsLocked((locked) => !locked);
+            }}
+            title="Unlock to move lines or words"
+            data-testid="caption-stage-lock-guard"
+          >
+            {isLocked ? (
+              <>
+                <Lock className="size-3 text-amber-400" />
+                <span className="text-[10px] font-medium text-fg-2">Locked</span>
+              </>
+            ) : (
+              <>
+                <Unlock className="size-3 text-[#10B981]" />
+                <span className="text-[10px] font-medium text-[#10B981]">Unlocked</span>
+              </>
+            )}
+          </button>
+
+          {/* 8-point handles */}
+          <div className="absolute -top-1 -left-1 size-2 rounded-full bg-white border border-black shadow" />
+          <div className="absolute -top-1 left-1/2 -translate-x-1/2 size-2 rounded-full bg-white border border-black shadow" />
+          <div className="absolute -top-1 -right-1 size-2 rounded-full bg-white border border-black shadow" />
+          <div className="absolute top-1/2 -left-1 -translate-y-1/2 size-2 rounded-full bg-white border border-black shadow" />
+          <div className="absolute top-1/2 -right-1 -translate-y-1/2 size-2 rounded-full bg-white border border-black shadow" />
+          <div className="absolute -bottom-1 -left-1 size-2 rounded-full bg-white border border-black shadow" />
+          <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 size-2 rounded-full bg-white border border-black shadow" />
+          <div className="absolute -bottom-1 -right-1 size-2 rounded-full bg-white border border-black shadow" />
+        </div>
       ) : null}
       {typeof children === "function" ? children({ fit, canvas: surfaceCanvas }) : children}
     </div>

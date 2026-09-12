@@ -1148,4 +1148,31 @@ describe("emphasisPresets[].underline override (K05)", () => {
     ).length;
     expect(after).toBe(before);
   });
+
+  describe("kinetic-flow multi-directional choreography", () => {
+    it("alternates entry and exit directions across sequential cues", () => {
+      const doc = style("kinetic-flow");
+      expect(doc).toBeDefined();
+
+      // Cue 0: pop in, slide-left out
+      const cue0Layout = { ...lay(doc, 0), segmentSeq: 0 };
+      const p0Enter = cueTiming(cue0Layout, doc, 60);
+      expect(p0Enter.scale).toBeDefined();
+
+      // Cue 1: slide-left in (enters from right -> dx > 0)
+      const cue1Layout = { ...lay(doc, 0), segmentSeq: 1 };
+      const p1Enter = cueTiming(cue1Layout, doc, 60);
+      expect(p1Enter.dx).toBeGreaterThan(0);
+
+      // Cue 2: slide-up in (enters from bottom -> dy > 0)
+      const cue2Layout = { ...lay(doc, 0), segmentSeq: 2 };
+      const p2Enter = cueTiming(cue2Layout, doc, 60);
+      expect(p2Enter.dy).toBeGreaterThan(0);
+
+      // Cue 3: slide-right in (enters from left -> dx < 0)
+      const cue3Layout = { ...lay(doc, 0), segmentSeq: 3 };
+      const p3Enter = cueTiming(cue3Layout, doc, 60);
+      expect(p3Enter.dx).toBeLessThan(0);
+    });
+  });
 });

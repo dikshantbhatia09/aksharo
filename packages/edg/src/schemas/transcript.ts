@@ -39,6 +39,8 @@ export const WordSchema = z
     filler: z.boolean().optional(),
     /** Tombstone: the id stays addressable, the word is not rendered. */
     deleted: z.boolean().optional(),
+    /** Kalakar Parity: whether word is emphasized (gold glow/highlight). */
+    isEmphasized: z.boolean().optional(),
   })
   .meta({
     id: "Word",

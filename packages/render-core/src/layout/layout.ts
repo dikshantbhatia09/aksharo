@@ -577,6 +577,7 @@ export function layoutSegment(options: LayoutOptions): Layout {
 
   return {
     segmentId: segment.id,
+    segmentSeq: segment.seq,
     canvas,
     script,
     fontSizePx: q(fontSizePx),

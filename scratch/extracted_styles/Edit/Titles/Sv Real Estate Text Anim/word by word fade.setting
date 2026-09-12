@@ -1,0 +1,360 @@
+{
+	Tools = ordered() {
+		wordbywordfade1 = GroupOperator {
+			Inputs = ordered() {
+				Input1 = InstanceInput {
+					SourceOp = "Follower1_1",
+					Source = "Delay",
+					Default = 1.13,
+				},
+				Input2 = InstanceInput {
+					SourceOp = "Text1_1",
+					Source = "StyledText",
+				},
+				Input3 = InstanceInput {
+					SourceOp = "Text1_1",
+					Source = "Font",
+					ControlGroup = 3,
+				},
+				Input4 = InstanceInput {
+					SourceOp = "Text1_1",
+					Source = "Style",
+					ControlGroup = 3,
+				},
+				Input5 = InstanceInput {
+					SourceOp = "Text1_1",
+					Source = "Red1Clone",
+					Name = "Color",
+					ControlGroup = 4,
+					Default = 1,
+				},
+				Input6 = InstanceInput {
+					SourceOp = "Text1_1",
+					Source = "Green1Clone",
+					ControlGroup = 4,
+					Default = 1,
+				},
+				Input7 = InstanceInput {
+					SourceOp = "Text1_1",
+					Source = "Blue1Clone",
+					ControlGroup = 4,
+					Default = 1,
+				},
+				Input8 = InstanceInput {
+					SourceOp = "Text1_1",
+					Source = "Alpha1Clone",
+					ControlGroup = 4,
+					Default = 1,
+				},
+				Input9 = InstanceInput {
+					SourceOp = "Text1_1",
+					Source = "Size",
+					Default = 0.1299,
+				},
+				Input10 = InstanceInput {
+					SourceOp = "Text1_1",
+					Source = "CharacterSpacingClone",
+					Name = "Tracking",
+					Default = 0.975,
+				},
+				Input11 = InstanceInput {
+					SourceOp = "Text1_1",
+					Source = "LineSpacingClone",
+					Default = 1,
+				},
+				Input12 = InstanceInput {
+					SourceOp = "Text1_1",
+					Source = "Type1",
+					Name = "Type",
+					Default = 0,
+				},
+				Input13 = InstanceInput {
+					SourceOp = "Text1_1",
+					Source = "Red1",
+					Name = "Color",
+					ControlGroup = 9,
+					Default = 1,
+				},
+				Input14 = InstanceInput {
+					SourceOp = "Text1_1",
+					Source = "Green1",
+					ControlGroup = 9,
+					Default = 1,
+				},
+				Input15 = InstanceInput {
+					SourceOp = "Text1_1",
+					Source = "Blue1",
+					ControlGroup = 9,
+					Default = 1,
+				},
+				Input16 = InstanceInput {
+					SourceOp = "Text1_1",
+					Source = "Alpha1",
+					ControlGroup = 9,
+					Default = 1,
+				},
+				Input17 = InstanceInput {
+					SourceOp = "Text1_1",
+					Source = "ShadingGradient1",
+					Name = "Shading Gradient",
+				},
+				Input18 = InstanceInput {
+					SourceOp = "Text1_1",
+					Source = "ShadingMappingLevel1",
+					Name = "Mapping Level",
+					Default = 4,
+				},
+				Input19 = InstanceInput {
+					SourceOp = "DropShadow1_1",
+					Source = "shadowStrength",
+					Default = 0.544,
+				},
+				Input20 = InstanceInput {
+					SourceOp = "DropShadow1_1",
+					Source = "shadowAngle",
+					Default = 37.5,
+				},
+				Input21 = InstanceInput {
+					SourceOp = "DropShadow1_1",
+					Source = "ShadowDistance",
+					MaxScale = 0.2000000029802,
+					Default = 0.0038,
+				},
+				Input22 = InstanceInput {
+					SourceOp = "DropShadow1_1",
+					Source = "shadowBlur",
+					Default = 0.215,
+				},
+				Input23 = InstanceInput {
+					SourceOp = "Transform1_1",
+					Source = "Center",
+				},
+				Input24 = InstanceInput {
+					SourceOp = "Transform1_1",
+					Source = "Size",
+					Default = 1,
+				},
+				Input25 = InstanceInput {
+					SourceOp = "Transform1_1",
+					Source = "Angle",
+					Default = 0,
+				}
+			},
+			Outputs = {
+				MainOutput1 = InstanceOutput {
+					SourceOp = "Transform1_1",
+					Source = "Output",
+				}
+			},
+			ViewInfo = GroupInfo { Pos = { 0, 0 } },
+			Tools = ordered() {
+				Instance_Text1_1 = TextPlus {
+					CtrlWShown = false,
+					SourceOp = "Text1_1",
+					Inputs = {
+						EffectMask = Input {
+						},
+						SettingsNest = Input {
+						},
+						LayersNest = Input {
+						},
+						ImageNest = Input {
+						},
+						["Gamut.ColorSpaceNest"] = Input {
+						},
+						["Gamut.GammaSpaceNest"] = Input {
+						},
+						Layout = Input {
+						},
+						LayoutRotation = Input {
+							Value = 1,
+						},
+						Background = Input {
+						},
+						TransformTransform = Input {
+						},
+						TransformRotation = Input {
+							Value = 1,
+						},
+						TransformPivot = Input {
+						},
+						TransformShear = Input {
+						},
+						TransformSize = Input {
+						},
+						Enabled1 = Input {
+							Value = 0,
+						},
+						Enabled5 = Input {
+							Value = 1,
+						},
+						Properties1 = Input {
+						},
+						Softness1 = Input {
+							Value = 1,
+						},
+						Position1 = Input {
+						},
+						Rotation1 = Input {
+						},
+						PivotNest1 = Input {
+						},
+						Shear1 = Input {
+						},
+						Size1 = Input {
+						},
+						TextText = Input {
+						},
+						TabSpacing = Input {
+						},
+						AdvancedFontControls = Input {
+						},
+						ClearSelectedKerning = Input {
+						},
+						ClearAllKerning = Input {
+						},
+						ClearSelectedPlacement = Input {
+						},
+						ClearAllPlacement = Input {
+						},
+						Internal = Input {
+						},
+						CommentsNest = Input {
+						},
+						FrameRenderScriptNest = Input {
+						},
+						StartRenderScripts = Input {
+						},
+						EndRenderScripts = Input {
+						},
+						Properties5 = Input {
+						},
+						Softness5 = Input {
+							Value = 1,
+						},
+						Position5 = Input {
+						},
+						Rotation5 = Input {
+						},
+						PivotNest5 = Input {
+						},
+						Shear5 = Input {
+						},
+						Size5 = Input {
+						}
+					},
+					ViewInfo = OperatorInfo { Pos = { -165, -82.5 } },
+				},
+				Follower1_1 = StyledTextFollower {
+					CtrlWZoom = false,
+					Inputs = {
+						Order = Input { Value = 7, },
+						Delay = Input { Value = 1.13, },
+						Text = Input {
+							Value = StyledText {
+								Value = "Word By Word Fade"
+							},
+						},
+						TransformRotation = Input { Value = 1, },
+						SelectElement = Input { Value = 4, },
+						Enabled5 = Input { Value = 1, },
+						Softness1 = Input { Value = 1, },
+						Softness2 = Input { Value = 1, },
+						Softness3 = Input { Value = 1, },
+						Softness4 = Input { Value = 1, },
+						Opacity5 = Input {
+							SourceOp = "Follower1_1Opacity5",
+							Source = "Value",
+						},
+						Softness5 = Input { Value = 1, },
+						Softness6 = Input { Value = 1, },
+						Softness7 = Input { Value = 1, },
+						Softness8 = Input { Value = 1, }
+					},
+				},
+				Follower1_1Opacity5 = BezierSpline {
+					SplineColor = { Red = 179, Green = 28, Blue = 244 },
+					CtrlWZoom = false,
+					NameSet = true,
+					KeyFrames = {
+						[0] = { 0, RH = { 1.66666666666667, 0.333333333333333 }, Flags = { Linear = true } },
+						[5] = { 1, LH = { 3.33333333333333, 0.666666666666667 }, Flags = { Linear = true } }
+					}
+				},
+				Text1_1 = TextPlus {
+					CtrlWZoom = false,
+					CtrlWShown = false,
+					Inputs = {
+						EffectMask = Input {
+							SourceOp = "Instance_Text1_1",
+							Source = "Output",
+						},
+						Width = Input { Value = 1920, },
+						Height = Input { Value = 1080, },
+						UseFrameFormatSettings = Input { Value = 1, },
+						["Gamut.SLogVersion"] = Input { Value = FuID { "SLog2" }, },
+						Wrap = Input { Value = 1, },
+						LayoutRotation = Input { Value = 1, },
+						CharacterSpacing = Input { Value = 0.975, },
+						TransformRotation = Input { Value = 1, },
+						Softness1 = Input { Value = 1, },
+						StyledText = Input {
+							SourceOp = "Follower1_1",
+							Source = "StyledText",
+						},
+						Font = Input { Value = "Inter", },
+						Style = Input { Value = "Medium Italic", },
+						Size = Input { Value = 0.1299, },
+						VerticalJustificationNew = Input { Value = 3, },
+						HorizontalJustificationNew = Input { Value = 3, },
+						ElementShape5 = Input { Value = 2, },
+						Level5 = Input { Value = 2, },
+						ExtendHorizontal5 = Input { Value = -0.145, },
+						ExtendVertical5 = Input { Value = -0.027, },
+						Softness5 = Input { Value = 1, }
+					},
+					ViewInfo = OperatorInfo { Pos = { 0, -82.5 } },
+				},
+				DropShadow1_1 = ofx.com.blackmagicdesign.resolvefx.DropShadow {
+					CtrlWShown = false,
+					Inputs = {
+						Source = Input {
+							SourceOp = "Text1_1",
+							Source = "Output",
+						},
+						shadowStrength = Input { Value = 0.544, },
+						shadowAngle = Input { Value = 37.5, },
+						ShadowDistance = Input { Value = 0.0038, },
+						shadowBlur = Input { Value = 0.215, },
+						shadowColorRed = Input { Value = 0, },
+						shadowColorGreen = Input { Value = 0, },
+						shadowColorBlue = Input { Value = 0, },
+						isLegacyComp = Input { Value = 0, },
+						blendGroup = Input { Value = 0, },
+						blendIn = Input { Value = 1, },
+						blend = Input { Value = 0, },
+						ignoreContentShape = Input { Value = 0, },
+						legacyIsProcessRGBOnly = Input { Value = 0, },
+						IsNoTemporalFramesReqd = Input { Value = 0, },
+						refreshTrigger = Input { Value = 1, },
+						srcProcessingAlphaMode = Input { Value = 2, },
+						dstProcessingAlphaMode = Input { Value = 2, },
+						resolvefxVersion = Input { Value = "2.0", }
+					},
+					ViewInfo = OperatorInfo { Pos = { 165, -82.5 } },
+				},
+				Transform1_1 = Transform {
+					CtrlWShown = false,
+					Inputs = {
+						Input = Input {
+							SourceOp = "DropShadow1_1",
+							Source = "Output",
+						}
+					},
+					ViewInfo = OperatorInfo { Pos = { 330, -82.5 } },
+				}
+			},
+		}
+	},
+	ActiveTool = "wordbywordfade1"
+}

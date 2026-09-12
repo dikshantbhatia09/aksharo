@@ -14,14 +14,14 @@ import {
   type StyleDocInput,
 } from "./schema.js";
 
-const punchPop = JSON.parse(
+const plainWhite = JSON.parse(
   // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
-  readFileSync(join(STYLES_DIR, "punch-pop.json"), "utf8"),
+  readFileSync(join(STYLES_DIR, "plain-white.json"), "utf8"),
 ) as StyleDocInput;
 
 /** A fresh, minimal-but-complete document for mutation tests. */
 function draft(overrides: Partial<StyleDocInput> = {}): Record<string, unknown> {
-  return { ...(JSON.parse(JSON.stringify(punchPop)) as StyleDocInput), ...overrides } as Record<
+  return { ...(JSON.parse(JSON.stringify(plainWhite)) as StyleDocInput), ...overrides } as Record<
     string,
     unknown
   >;
@@ -29,11 +29,11 @@ function draft(overrides: Partial<StyleDocInput> = {}): Record<string, unknown> 
 
 describe("StyleDoc v2", () => {
   it("parses a complete document", () => {
-    const style = StyleDocSchema.parse(punchPop);
-    expect(style.id).toBe("punch-pop");
+    const style = StyleDocSchema.parse(plainWhite);
+    expect(style.id).toBe("plain-white");
     expect(style.version).toBe(STYLE_DOC_VERSION);
     expect(style.typography.fontFamily).toBe("Inter");
-    expect(style.emphasisPresets.map((preset) => preset.id)).toContain("pop");
+    expect(style.emphasisPresets.map((preset) => preset.id)).toContain("accent");
   });
 
   it("defaults the parity flags to the pre-gate answer", () => {
@@ -444,7 +444,7 @@ describe("colors.text / emphasisPresets[].color: string | Gradient (K08)", () =>
 
   it("still accepts a plain hex string — every existing style JSON parses unchanged", () => {
     expect(StyleDocSchema.safeParse(base).success).toBe(true);
-    expect(StyleDocSchema.parse(base).colors.text).toBe(punchPop.colors.text);
+    expect(StyleDocSchema.parse(base).colors.text).toBe(plainWhite.colors.text);
   });
 
   it("accepts a Gradient in colors.text", () => {

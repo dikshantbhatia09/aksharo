@@ -34,6 +34,7 @@ import {
 } from "@montaj/ui";
 
 import { MultipartUpload } from "@/lib/upload/multipart-upload";
+import { cn } from "@/lib/utils";
 
 const ACCEPT = "video/mp4,video/quicktime,video/webm,video/x-matroska,audio/*";
 
@@ -46,9 +47,11 @@ type Stage =
 export function ReplaceMediaButton({
   projectId,
   mediaId,
+  className,
 }: {
   readonly projectId: string;
   readonly mediaId: string | undefined;
+  readonly className?: string;
 }): React.JSX.Element {
   const client = useApiClient();
   const completeUpload = useCompleteMediaUpload();
@@ -117,7 +120,10 @@ export function ReplaceMediaButton({
         size="sm"
         disabled={disabledReason !== undefined}
         title={disabledReason ?? "Swap this project's source video, keeping captions and edits"}
-        className="bg-bg-2 border-border text-fg-1 hover:text-fg-0 disabled:text-fg-disabled flex h-8 items-center gap-1.5 rounded-sm border px-3 text-xs font-medium transition-colors duration-[160ms] disabled:cursor-not-allowed"
+        className={cn(
+          "bg-bg-2 border-border text-fg-1 hover:text-fg-0 disabled:text-fg-disabled flex h-8 items-center gap-1.5 rounded-sm border px-3 text-xs font-medium transition-colors duration-[160ms] disabled:cursor-not-allowed",
+          className,
+        )}
         onClick={() => {
           setStage({ kind: "idle" });
           setOpen(true);
@@ -125,7 +131,12 @@ export function ReplaceMediaButton({
         data-testid="replace-media-button"
       >
         <Replace className="size-3.5" aria-hidden="true" />
-        Replace media
+        {/* A 9:16 project's preview column commonly runs under ~250px wide
+            (measured 2026-09-12) — too narrow for this pill and the Safe
+            zone/Res pills on the opposite corner to both carry full labels.
+            Icon-only below that; the button's own `title` already carries
+            the full description. */}
+        <span className="hidden @min-[340px]:inline">Replace</span>
       </Button>
 
       <Dialog open={open} onOpenChange={(next) => !busy && setOpen(next)}>

@@ -1,9 +1,0 @@
-{
-  "extends": "@montaj/config/tsconfig.react.json",
-  "compilerOptions": {
-    "jsx": "react-jsx",
-    "types": ["node"]
-  },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "vitest.setup.ts"],
-  "exclude": ["node_modules", "dist", ".turbo"]
-}

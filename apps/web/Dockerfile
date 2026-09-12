@@ -52,6 +52,7 @@ WORKDIR /repo
 # across from Stage 2's store instead, same approach as `apps/api/Dockerfile`
 # uses for the generated Prisma client.
 RUN pnpm --filter @montaj/web --prod deploy --ignore-scripts /app \
+    && cp -r /repo/apps/web/public/. /app/public/ \
     && SRC=$(find /repo/node_modules/.pnpm -maxdepth 1 -iname 'typescript@*' | head -n1) \
     && test -n "$SRC" \
     && mkdir -p /app/node_modules/.pnpm \

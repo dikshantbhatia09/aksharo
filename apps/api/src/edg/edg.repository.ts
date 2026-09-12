@@ -1518,6 +1518,81 @@ export class EdgRepository implements EdgRepositoryContract {
     );
   }
 
+  /**
+   * Reinitialises an existing EDG document with a fresh transcript (e.g. after retranscribe).
+   * Soft-deletes previous active segments at nextRev, inserts new segments,
+   * updates the document with the new transcript metadata, appends a revision row,
+   * and saves a new snapshot.
+   */
+  async reinitialiseDocument(input: {
+    edgId: string;
+    projectId: string;
+    hot: EdgHot;
+    segments: readonly Segment[];
+    revision: number;
+    author: string | null;
+    source: EdgSource;
+  }): Promise<{ edgId: string; revision: number; segments: number }> {
+    return this.prisma.withTransaction(
+      async (tx) => {
+        const nextRev = input.revision + 1;
+        const hot: EdgHot = { ...input.hot, meta: { ...input.hot.meta, revision: nextRev } };
+
+        await tx.edgSegment.updateMany({
+          where: { edgId: input.edgId, deletedAtRev: null },
+          data: { deletedAtRev: nextRev },
+        });
+
+        if (input.segments.length > 0) {
+          await tx.edgSegment.createMany({
+            data: input.segments.map((segment) => ({
+              edgId: input.edgId,
+              ...segmentColumns(segment, nextRev),
+            })),
+          });
+        }
+
+        await tx.edgDocument.update({
+          where: { id: input.edgId },
+          data: {
+            revision: nextRev,
+            doc: hot as unknown as Prisma.InputJsonValue,
+            updatedBy: input.author,
+          },
+        });
+
+        await tx.edgRevision.create({
+          data: {
+            id: newId(),
+            edgId: input.edgId,
+            revision: nextRev,
+            ops: [],
+            clientOpIds: [],
+            author: input.author,
+            source: input.source,
+          },
+        });
+
+        const projection = await this.readProjection(tx, input.edgId, hot);
+        await tx.edgSnapshot.create({
+          data: {
+            id: newId(),
+            edgId: input.edgId,
+            revision: nextRev,
+            schemaVersion: hot.meta.schemaVersion,
+            snapshot: EdgSnapshotSchema.parse({
+              schemaVersion: hot.meta.schemaVersion,
+              projection,
+            }) as unknown as Prisma.InputJsonValue,
+          },
+        });
+
+        return { edgId: input.edgId, revision: nextRev, segments: input.segments.length };
+      },
+      { timeoutMs: 120_000, maxWaitMs: 10_000 },
+    );
+  }
+
   /** The projection of the current state, used by the restore and export paths. */
   async projectionOf(edgId: string): Promise<EdgProjection> {
     const { hot } = await this.loadHot(edgId);

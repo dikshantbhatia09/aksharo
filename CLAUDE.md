@@ -49,8 +49,15 @@ cd apps/api && node --env-file=../../.env.local-run dist/main.js
 # if dist/ is missing: pnpm --filter @montaj/api exec nest build
 
 # Web on 3914 (production build; NODE_ENV must be production for `next start`)
-cd apps/web && NODE_ENV=production npx next start --port 3914
+cd apps/web && NEXT_DIST_DIR=.next-caption-live-20260912 NODE_ENV=production node --env-file=../../.env.local-run node_modules/next/dist/bin/next start --port 3914
 ```
+
+The caption-editor release published on 2026-09-12 runs from
+`apps/web/.next-caption-live-20260912` (build `fzstBbkQAwLxfxTeVNKtz`).
+Set `NEXT_DIST_DIR` as shown when restarting this release; `.next` contains
+the previous build retained for rollback. Deployment details are in
+`scratch/caption-live-deployment.json`. A future build should use a new output
+directory while the live process is running, then switch the web service to it.
 
 `.env.local-run` contains multi-line quoted PEM keys (`JWT_PRIVATE_KEY`).
 Shell `source` breaks on them — use Node's `--env-file` / `process.loadEnvFile()`.
@@ -85,7 +92,7 @@ Committing alone changes nothing that a user can see.
 
 ```bash
 # 1. the built bundle contains it
-grep -rl "<a class or string you added>" apps/web/.next/static/css/
+grep -rl "<a class or string you added>" apps/web/.next-caption-live-20260912/static/css/
 
 # 2. the public asset contains it (through Cloudflare)
 curl -s https://aksharo.crestmondtechnologies.com/_next/static/css/<hash>.css | grep "<string>"

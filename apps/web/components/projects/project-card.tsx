@@ -74,8 +74,7 @@ export function ProjectCard({
           data" finding. */}
       <div
         className={cn(
-          "bg-bg-2 relative flex items-center justify-center overflow-hidden",
-          project.aspect === "9:16" ? "aspect-[9/16] max-h-56 mx-auto" : "aspect-video",
+          "bg-bg-2 relative flex items-center justify-center overflow-hidden aspect-[9/16] w-full",
         )}
       >
         {selectable ? (
@@ -99,9 +98,35 @@ export function ProjectCard({
           // presigned URL on an external origin, which next/image cannot optimise.
           <img src={project.thumbnailUrl} alt="" className="h-full w-full object-cover" />
         )}
+
+        {/* Subtitle Bounding Box Overlay (Kalakar Parity: orange/gold box in lower third) */}
+        <div
+          className="pointer-events-none absolute bottom-9 left-1/2 -translate-x-1/2 w-4/5 h-8 rounded border border-dashed border-[#FFB800] bg-[#FFB800]/15 flex items-center justify-center gap-1.5 px-2"
+          aria-hidden="true"
+        >
+          <div className="h-1.5 w-1/3 rounded-full bg-[#FFB800]/70" />
+          <div className="h-1.5 w-1/2 rounded-full bg-[#FFB800]/90" />
+        </div>
+
+        {/* Play Button Overlay on Hover */}
+        <div
+          className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition-opacity duration-200 group-hover:opacity-100"
+          aria-hidden="true"
+        >
+          <div className="flex size-11 items-center justify-center rounded-full bg-[#10B981] text-black shadow-lg">
+            <svg
+              className="size-5 fill-current ml-0.5"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+            >
+              <polygon points="5 3 19 12 5 21 5 3" />
+            </svg>
+          </div>
+        </div>
+
         {duration === undefined ? null : (
           <span
-            className="bg-overlay absolute right-2 bottom-2 rounded-sm px-1.5 py-0.5 font-mono text-2xs text-white"
+            className="bg-black/75 absolute right-2 bottom-2 rounded px-1.5 py-0.5 font-mono text-[11px] text-white backdrop-blur-sm"
             data-testid="project-card-duration"
           >
             {duration}

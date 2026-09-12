@@ -30,7 +30,12 @@ from worker_ai.providers import (
     Word,
     build_registry,
 )
-from worker_ai.providers.local_whisper import words_from_segments
+from worker_ai.providers.local_whisper import (
+    _build_initial_prompt,
+    _resolve_compute_type,
+    _resolve_device,
+    words_from_segments,
+)
 from worker_ai.settings import load_settings
 
 from .conftest import VALID_ENV
@@ -505,6 +510,31 @@ async def test_local_whisper_does_not_claim_alignment_or_diarisation() -> None:
         await provider.align(AlignmentRequest(audio_uri="", words=(), language="en"))
     with pytest.raises(NotImplementedError):
         await provider.diarise(DiarisationRequest(audio_uri=""))
+
+
+def test_initial_prompt_carries_only_the_callers_hints() -> None:
+    """No hardcoded vocabulary: every term comes from the glossary/hints (B09)."""
+    assert _build_initial_prompt(()) is None
+    assert _build_initial_prompt(("Aksharo", "EDG")) == "Aksharo, EDG"
+    assert _build_initial_prompt(("  spaced  ", "", "term")) == "spaced, term"
+
+
+def test_resolve_device_honours_an_explicit_choice() -> None:
+    assert _resolve_device("cpu") == "cpu"
+    assert _resolve_device("CUDA") == "cuda"
+
+
+def test_resolve_device_auto_never_raises_even_without_the_extra() -> None:
+    # No claim about which device comes back on this machine — only that a
+    # missing/broken GPU stack degrades to an answer, never an exception.
+    assert _resolve_device("auto") in ("cpu", "cuda")
+    assert _resolve_device("") in ("cpu", "cuda")
+
+
+def test_resolve_compute_type_defaults_by_device_but_an_explicit_choice_wins() -> None:
+    assert _resolve_compute_type("", "cuda") == "int8_float16"
+    assert _resolve_compute_type("", "cpu") == "int8"
+    assert _resolve_compute_type("float16", "cpu") == "float16"
 
 
 # ---------------------------------------------------------------------------

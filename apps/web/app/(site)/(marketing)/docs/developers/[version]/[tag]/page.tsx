@@ -18,11 +18,8 @@ export function generateStaticParams(): { version: string; tag: string }[] {
   );
 }
 
-export function generateMetadata({
-  params,
-}: {
-  params: { version: string; tag: string };
-}): Metadata {
+export async function generateMetadata({ params: pendingParams }: { params: Promise<{ version: string; tag: string }> }): Promise<Metadata> {
+  const params = await pendingParams;
   const group = findApiGroup(params.tag);
   if (!group) return {};
   return {
@@ -99,11 +96,8 @@ function EndpointSection({ endpoint }: { readonly endpoint: ApiEndpoint }): Reac
  * generated from `openapi.json` at build time (brief §2) — parameters,
  * responses and curl/Node/Python examples included, so a new `/v1` route
  * appears here without a hand-edit. */
-export default function DocsApiGroupPage({
-  params,
-}: {
-  params: { version: string; tag: string };
-}): React.JSX.Element {
+export default async function DocsApiGroupPage({ params: pendingParams }: { params: Promise<{ version: string; tag: string }> }): Promise<React.JSX.Element> {
+  const params = await pendingParams;
   if (!isApiVersion(params.version)) notFound();
   const group = findApiGroup(params.tag);
   if (!group) notFound();

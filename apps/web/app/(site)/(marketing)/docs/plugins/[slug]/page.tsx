@@ -11,7 +11,8 @@ export function generateStaticParams(): { slug: string }[] {
   return loadPluginGuides().map((guide) => ({ slug: guide.slug }));
 }
 
-export function generateMetadata({ params }: { params: { slug: string } }): Metadata {
+export async function generateMetadata({ params: pendingParams }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const params = await pendingParams;
   const guide = getPluginGuide(params.slug);
   if (!guide) return {};
   return {
@@ -21,11 +22,8 @@ export function generateMetadata({ params }: { params: { slug: string } }): Meta
   };
 }
 
-export default function DocsPluginGuidePage({
-  params,
-}: {
-  params: { slug: string };
-}): React.JSX.Element {
+export default async function DocsPluginGuidePage({ params: pendingParams }: { params: Promise<{ slug: string }> }): Promise<React.JSX.Element> {
+  const params = await pendingParams;
   const guide = getPluginGuide(params.slug);
   if (!guide) notFound();
 

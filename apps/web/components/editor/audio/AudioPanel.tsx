@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, Wand2 } from "lucide-react";
+import { ChevronDown, Wand2, Zap } from "lucide-react";
 import * as React from "react";
 
 import { Button, ProgressBar, Switch } from "@montaj/ui";
@@ -108,6 +108,16 @@ export function AudioPanel(props: AudioPanelProps): React.JSX.Element {
 
   return (
     <section aria-label="Audio clean" className="flex flex-col gap-3 p-3">
+      {/* Kalakar Header & AI Badge */}
+      <div className="flex flex-col items-center gap-1.5 text-center pt-1 pb-1">
+        <span className="inline-flex items-center gap-1 rounded-full border border-[#10B981]/30 bg-[#10B981]/10 px-3 py-0.5 text-[11px] font-semibold text-[#10B981]">
+          ✦ AI-Powered
+        </span>
+        <h3 className="text-base font-bold text-white">Audio Enhancement</h3>
+        <p className="text-xs text-fg-2 max-w-[280px]">
+          Clean up your audio, Remove Background Noise & Enhance Overall Audio Quality.
+        </p>
+      </div>
       <div className={SEGMENTED_TRACK} role="radiogroup" aria-label="Clean tier">
         <button
           type="button"
@@ -261,6 +271,38 @@ export function AudioPanel(props: AudioPanelProps): React.JSX.Element {
       ) : (
         <p className="text-2xs text-fg-2">No clean run yet.</p>
       )}
+      {/* Feature Checklist */}
+      <div className="border-border bg-bg-2/40 grid grid-cols-2 gap-2 rounded-md border p-2.5 text-xs text-fg-1">
+        <div className="flex items-center gap-1.5">
+          <span className="size-1.5 rounded-full bg-[#10B981]" />
+          <span>Noise Reduction</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="size-1.5 rounded-full bg-[#10B981]" />
+          <span>Voice Enhancement</span>
+        </div>
+        <div className="col-span-2 flex items-center justify-center gap-1.5 pt-1">
+          <span className="size-1.5 rounded-full bg-[#10B981]" />
+          <span>Real-time Processing</span>
+        </div>
+      </div>
+
+      {/* Remaining Credits Card */}
+      <div className="border-border bg-bg-2/60 flex items-center justify-between rounded-lg border p-3">
+        <div className="flex items-center gap-2.5">
+          <Zap className="size-5 fill-[#FFB800] text-[#FFB800]" />
+          <div>
+            <p className="text-fg-2 text-[11px] font-medium">Remaining Credits</p>
+            <p className="text-fg-0 text-sm font-semibold">3 credits available</p>
+          </div>
+        </div>
+        <a
+          href="/billing"
+          className="text-[#10B981] text-xs font-medium hover:underline"
+        >
+          Get More ↗
+        </a>
+      </div>
     </section>
   );
 }

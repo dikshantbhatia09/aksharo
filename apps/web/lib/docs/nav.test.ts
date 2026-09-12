@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { buildDocsNav } from "./nav";
+import { loadPluginGuides } from "./plugin-guides";
 
 import type { HelpArticle } from "@/lib/content/schema";
 
@@ -33,7 +34,7 @@ describe("buildDocsNav", () => {
   it("lists every plugin guide and every API group under their sections", () => {
     const nav = buildDocsNav(HELP_ARTICLES);
     const plugins = nav.find((section) => section.id === "plugins")!;
-    expect(plugins.items.length).toBe(4);
+    expect(plugins.items.length).toBe(loadPluginGuides().length);
     const developers = nav.find((section) => section.id === "developers")!;
     expect(developers.items.some((item) => item.href === "/docs/developers/v1/projects")).toBe(
       true,

@@ -54,7 +54,7 @@ export interface TranscriptListProps {
   readonly className?: string;
 }
 
-const DEFAULT_ROW_HEIGHT = 64;
+const DEFAULT_ROW_HEIGHT = 58;
 // The brief caps overscan at 6 rows: each extra row is another subtree the
 // adversarial "jump the whole list every frame" perf test forces to
 // mount/unmount every frame (acceptance criterion 1).
@@ -192,6 +192,7 @@ export function TranscriptList({
               >
                 <SegmentCard
                   segment={segment}
+                  index={index + 1}
                   words={words}
                   script={script}
                   selected={segment.id === selectedSegmentId}
@@ -309,7 +310,7 @@ function MeasuredRow({
   }, []);
 
   return (
-    <div ref={ref} className="pb-1.5">
+    <div ref={ref} className="editor-transcript-measured-row">
       {children}
     </div>
   );

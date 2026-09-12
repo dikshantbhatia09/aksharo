@@ -7,6 +7,7 @@ import { formatStorageBytes, Sidebar, sumStorageBytes, UpgradeButton } from "./s
 import { TopBar } from "./top-bar";
 import { WorkspaceSwitcher } from "./workspace-switcher";
 
+import { BRAND } from "@montaj/config";
 import { PRIMARY_NAV } from "@/lib/nav";
 import { renderWithProviders, testAccessToken } from "@/test/harness";
 import { pathnameMock } from "@/test/next-router";
@@ -49,7 +50,7 @@ describe("<Sidebar />", () => {
   it("offers the desktop download from the brand domain, never the codename", () => {
     renderWithProviders(<Sidebar />);
     const download = screen.getByTestId("desktop-download");
-    expect(download).toHaveAttribute("href", "https://aksharo.ai/download");
+    expect(download).toHaveAttribute("href", `https://${BRAND.domain}/download`);
     expect(download.getAttribute("href")).not.toContain("montaj");
   });
 

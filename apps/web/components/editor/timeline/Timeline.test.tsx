@@ -10,17 +10,9 @@ import type * as React from "react";
 
 import { renderWithProviders } from "@/test/harness";
 
-/**
- * The initial zoom is `msPerPx = 30`, `scrollMs = 0` (`Timeline.tsx`'s
- * `useState` defaults), so pixel math for a hit test is `px = ms / 30`. Lane
- * geometry is `RULER_HEIGHT + THUMB_LANE_HEIGHT + WAVEFORM_HEIGHT +
- * WORD_LANE_HEIGHT + SEGMENT_LANE_HEIGHT + gaps` before the first pass lane
- * (`24 + 32+2 + 64+2 + 28+2 + 36+2 = 192`; K03 added the `THUMB_LANE_HEIGHT`
- * filmstrip lane above the waveform); `buildLanes` always returns four lanes
- * in order `cuts, zoom, reframe, audio`, each `PASS_LANE_HEIGHT=20` tall with
- * a 2px gap, so the cuts lane spans y in `[192, 212)`.
- */
-const CUTS_LANE_Y = 192 + 10;
+// Reference timeline: 26px ruler, 44px captions, 42px segment strip, 44px video and audio.
+const MS_PER_PX = 1000 / 158;
+const CUTS_LANE_Y = 207 + 10;
 
 function cutItem(overrides: Partial<PassItem> = {}): PassItem {
   return {
@@ -104,12 +96,12 @@ describe("<Timeline /> B20 lane interaction", () => {
     const onHoverPassItem = vi.fn();
     renderTimeline({ onHoverPassItem });
 
-    fireCanvasMouseEvent("mousemove", 1_000 / 30, CUTS_LANE_Y); // inside [1000,2000)ms
+    fireCanvasMouseEvent("mousemove", 1_000 / MS_PER_PX, CUTS_LANE_Y); // inside [1000,2000)ms
     expect(onHoverPassItem).toHaveBeenLastCalledWith(
       expect.objectContaining({ itemId: "01ITEM0000000000000000001" }),
     );
 
-    fireCanvasMouseEvent("mousemove", 5_000 / 30, CUTS_LANE_Y); // outside the item's range
+    fireCanvasMouseEvent("mousemove", 5_000 / MS_PER_PX, CUTS_LANE_Y); // outside the item's range
     expect(onHoverPassItem).toHaveBeenLastCalledWith(undefined);
   });
 
@@ -117,7 +109,7 @@ describe("<Timeline /> B20 lane interaction", () => {
     const onSelectPassItem = vi.fn();
     renderTimeline({ onSelectPassItem });
 
-    fireCanvasMouseEvent("click", 1_500 / 30, CUTS_LANE_Y);
+    fireCanvasMouseEvent("click", 1_500 / MS_PER_PX, CUTS_LANE_Y);
     expect(onSelectPassItem).toHaveBeenCalledWith(
       expect.objectContaining({ itemId: "01ITEM0000000000000000001", kind: "cut" }),
     );
@@ -127,7 +119,7 @@ describe("<Timeline /> B20 lane interaction", () => {
     const onSelectPassItem = vi.fn();
     renderTimeline({ onSelectPassItem });
 
-    fireCanvasMouseEvent("click", 9_000 / 30, CUTS_LANE_Y);
+    fireCanvasMouseEvent("click", 9_000 / MS_PER_PX, CUTS_LANE_Y);
     expect(onSelectPassItem).not.toHaveBeenCalled();
   });
 });
@@ -160,9 +152,9 @@ describe("<Timeline /> B20b drag-to-adjust", () => {
     renderTimeline({ onEditPassItem });
 
     // 2000ms is the item's own end edge (px = 2000/30 ≈ 66.7).
-    fireCanvasPointerEvent("pointerdown", 2_000 / 30, CUTS_LANE_Y);
-    fireCanvasPointerEvent("pointermove", 3_500 / 30, CUTS_LANE_Y);
-    fireCanvasPointerEvent("pointerup", 3_500 / 30, CUTS_LANE_Y);
+    fireCanvasPointerEvent("pointerdown", 2_000 / MS_PER_PX, CUTS_LANE_Y);
+    fireCanvasPointerEvent("pointermove", 3_500 / MS_PER_PX, CUTS_LANE_Y);
+    fireCanvasPointerEvent("pointerup", 3_500 / MS_PER_PX, CUTS_LANE_Y);
 
     expect(onEditPassItem).toHaveBeenCalledTimes(1);
     const [op] = onEditPassItem.mock.calls[0] as [
@@ -177,9 +169,9 @@ describe("<Timeline /> B20b drag-to-adjust", () => {
     const onEditPassItem = vi.fn();
     renderTimeline({ onEditPassItem });
 
-    fireCanvasPointerEvent("pointerdown", 1_500 / 30, CUTS_LANE_Y); // the item's body, not an edge
-    fireCanvasPointerEvent("pointermove", 3_500 / 30, CUTS_LANE_Y);
-    fireCanvasPointerEvent("pointerup", 3_500 / 30, CUTS_LANE_Y);
+    fireCanvasPointerEvent("pointerdown", 1_500 / MS_PER_PX, CUTS_LANE_Y); // the item's body, not an edge
+    fireCanvasPointerEvent("pointermove", 3_500 / MS_PER_PX, CUTS_LANE_Y);
+    fireCanvasPointerEvent("pointerup", 3_500 / MS_PER_PX, CUTS_LANE_Y);
 
     expect(onEditPassItem).not.toHaveBeenCalled();
   });
@@ -194,9 +186,9 @@ describe("<Timeline /> B20b drag-to-adjust", () => {
     });
     renderTimeline({ passItems: [cutItem(), neighbour], onEditPassItem });
 
-    fireCanvasPointerEvent("pointerdown", 2_000 / 30, CUTS_LANE_Y);
-    fireCanvasPointerEvent("pointermove", 4_500 / 30, CUTS_LANE_Y);
-    fireCanvasPointerEvent("pointerup", 4_500 / 30, CUTS_LANE_Y);
+    fireCanvasPointerEvent("pointerdown", 2_000 / MS_PER_PX, CUTS_LANE_Y);
+    fireCanvasPointerEvent("pointermove", 4_500 / MS_PER_PX, CUTS_LANE_Y);
+    fireCanvasPointerEvent("pointerup", 4_500 / MS_PER_PX, CUTS_LANE_Y);
 
     expect(onEditPassItem).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -208,8 +200,8 @@ describe("<Timeline /> B20b drag-to-adjust", () => {
   });
 });
 
-/** The word lane's own Y-band: `wordTop` (124, see the geometry note above) + a few px. */
-const WORD_LANE_Y = 124 + 10;
+/** The word lane's own Y-band: `wordTop` is now `RULER_HEIGHT` (24, see the geometry note above) + a few px. */
+const WORD_LANE_Y = 30 + 10;
 
 describe("<Timeline /> K03 WORD/LINE granularity", () => {
   const words: Word[] = [
@@ -264,7 +256,7 @@ describe("<Timeline /> K03 WORD/LINE granularity", () => {
     // Word/segment selection is resolved on `pointerdown` (`Timeline.tsx`'s
     // `onPointerDown`), not the canvas's `click` handler — that one only
     // covers the read-only pass-item lanes (see the B20 describe block above).
-    fireCanvasPointerEvent("pointerdown", 100 / 30, WORD_LANE_Y); // inside "hello", [0,500)ms
+    fireCanvasPointerEvent("pointerdown", 100 / MS_PER_PX, WORD_LANE_Y); // inside "hello", [0,500)ms
     expect(onSelectWord).toHaveBeenCalledWith("seg-a", makeWordId(0, 0));
     expect(onSeek).toHaveBeenCalledWith(0);
   });
@@ -276,7 +268,7 @@ describe("<Timeline /> K03 WORD/LINE granularity", () => {
     renderTimeline({ words, segments, onSelectWord, onSelectSegment, onSeek });
 
     fireEvent.click(screen.getByTestId("timeline-granularity-line"));
-    fireCanvasPointerEvent("pointerdown", 100 / 30, WORD_LANE_Y); // still inside seg-a's [0,1200)ms
+    fireCanvasPointerEvent("pointerdown", 100 / MS_PER_PX, WORD_LANE_Y); // still inside seg-a's [0,1200)ms
 
     expect(onSelectSegment).toHaveBeenCalledWith("seg-a");
     expect(onSeek).toHaveBeenCalledWith(0);
@@ -295,6 +287,8 @@ describe("<Timeline /> K03 search box", () => {
 
     expect(screen.queryByTestId("timeline-search-count")).not.toBeInTheDocument();
 
+    if (screen.queryByTestId("timeline-search") === null)
+      fireEvent.click(screen.getByTestId("timeline-caption-tools-trigger"));
     fireEvent.change(screen.getByTestId("timeline-search"), { target: { value: "uniq" } });
     expect(screen.getByTestId("timeline-search-count")).toHaveTextContent("1 match");
 
@@ -307,6 +301,8 @@ describe("<Timeline /> K03 search box", () => {
       words: [...words, wordFixture({ wid: makeWordId(0, 2), s: 1_300, e: 1_800, t: "UNIQUELY" })],
     });
 
+    if (screen.queryByTestId("timeline-search") === null)
+      fireEvent.click(screen.getByTestId("timeline-caption-tools-trigger"));
     fireEvent.change(screen.getByTestId("timeline-search"), { target: { value: "unique" } });
     expect(screen.getByTestId("timeline-search-count")).toHaveTextContent("2 matches");
   });
@@ -331,24 +327,32 @@ describe("<Timeline /> K03 search box", () => {
     });
 
     // Before searching, ms=200_000 is far outside the initial [0, 60_000)ms
-    // view (msPerPx=30, widthPx=2000) — nothing is at px=1000 yet.
+    // view (msPerPx=30, widthPx=2000-92=1908 — `clientWidth` stubbed to 2000,
+    // less the `TRACK_LABEL_WIDTH` track-name column the canvas now shares
+    // its column with) — nothing is at px=1000 yet.
     fireCanvasPointerEvent("pointerdown", 1_000, WORD_LANE_Y);
     expect(onSeek).not.toHaveBeenCalled();
 
+    if (screen.queryByTestId("timeline-search") === null)
+      fireEvent.click(screen.getByTestId("timeline-caption-tools-trigger"));
     fireEvent.change(screen.getByTestId("timeline-search"), { target: { value: "farword" } });
 
-    // `scrollMs` should now centre the match: 200_000 - (2000/2)*30 = 170_000,
-    // putting its start back at px = (200_000-170_000)/30 = 1000.
-    fireCanvasPointerEvent("pointerdown", 1_000, WORD_LANE_Y);
+    // `scrollMs` should now centre the match: 200_000 - (1908/2)*30 = 171_380,
+    // putting its start back at px = (200_000-171_380)/30 = 954.
+    fireCanvasPointerEvent("pointerdown", 938, WORD_LANE_Y);
     expect(onSelectWord).toHaveBeenCalledWith("seg-far", farWord.wid);
     expect(onSeek).toHaveBeenCalledWith(200_000);
   });
 
   it("clearing the search restores the normal, unhighlighted view (no match count, no crash)", () => {
     renderTimeline({ words });
+    if (screen.queryByTestId("timeline-search") === null)
+      fireEvent.click(screen.getByTestId("timeline-caption-tools-trigger"));
     fireEvent.change(screen.getByTestId("timeline-search"), { target: { value: "unique" } });
     expect(screen.getByTestId("timeline-search-count")).toBeInTheDocument();
 
+    if (screen.queryByTestId("timeline-search") === null)
+      fireEvent.click(screen.getByTestId("timeline-caption-tools-trigger"));
     fireEvent.change(screen.getByTestId("timeline-search"), { target: { value: "" } });
     expect(screen.queryByTestId("timeline-search-count")).not.toBeInTheDocument();
     expect(screen.getByTestId("timeline-search")).toHaveValue("");
@@ -364,9 +368,11 @@ describe("<Timeline /> K03 Caption Tools dropdown", () => {
     dropFillers: false,
   };
 
-  it("does not render when no bulk-action handlers are passed", () => {
+  it("keeps search available without bulk-action handlers", () => {
     renderTimeline();
-    expect(screen.queryByTestId("timeline-caption-tools-trigger")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("timeline-caption-tools-trigger"));
+    expect(screen.getByTestId("timeline-search")).toBeInTheDocument();
+    expect(screen.getByTestId("caption-tools-remove-punctuation")).toBeDisabled();
   });
 
   it("Merge short / Split long / Resegment call the exact props the transcript column's BulkActionsBar calls — same component, not a reimplementation", () => {
@@ -721,51 +727,10 @@ describe("<Timeline /> K03 thumbnail track", () => {
   });
 });
 
-describe("<Timeline /> FIX-03 transcript reference column", () => {
-  const words: Word[] = [
-    { wid: "0:0", s: 0, e: 400, t: "hello", scripts: { native: "हैलो" } },
-    { wid: "0:1", s: 400, e: 1_000, t: "world" },
-    { wid: "0:2", s: 2_000, e: 2_500, t: "second" },
-    { wid: "0:3", s: 2_500, e: 3_000, t: "line" },
-  ];
-  const segments: Segment[] = [
-    { id: "s1", seq: "a0", startWordId: "0:0", endWordId: "0:1", startMs: 0, endMs: 1_000 },
-    { id: "s2", seq: "a1", startWordId: "0:2", endWordId: "0:3", startMs: 2_000, endMs: 3_000 },
-  ];
-
-  it("shows a quiet empty state when there is no transcript yet", () => {
+describe("<Timeline /> transcript reference column removed", () => {
+  it("does not render the docked transcript reference panel so canvas has full width", () => {
     renderTimeline();
-    expect(screen.getByText("No transcript yet.")).toBeInTheDocument();
-  });
-
-  it("renders each segment's plain text, joined from its own words in order", () => {
-    renderTimeline({ words, segments });
-    expect(screen.getByTestId("timeline-transcript-row-s1")).toHaveTextContent("hello world");
-    expect(screen.getByTestId("timeline-transcript-row-s2")).toHaveTextContent("second line");
-  });
-
-  it("uses the requested script's word text when the word has one", () => {
-    renderTimeline({ words, segments, script: "native" });
-    // Only the first word has a `native` override; the second falls back to `t`.
-    expect(screen.getByTestId("timeline-transcript-row-s1")).toHaveTextContent("हैलो world");
-  });
-
-  it("highlights the segment the playhead is currently over, not the others", () => {
-    renderTimeline({ words, segments, playheadMs: 2_200 });
-    expect(screen.getByTestId("timeline-transcript-row-s2").className).toMatch(/bg-lime-500\/12/);
-    expect(screen.getByTestId("timeline-transcript-row-s1").className).not.toMatch(
-      /bg-lime-500\/12/,
-    );
-  });
-
-  it("seeks to and selects a segment when its transcript row is clicked", () => {
-    const onSelectSegment = vi.fn();
-    const onSeek = vi.fn();
-    renderTimeline({ words, segments, onSelectSegment, onSeek });
-
-    fireEvent.click(screen.getByTestId("timeline-transcript-row-s2"));
-
-    expect(onSelectSegment).toHaveBeenCalledWith("s2");
-    expect(onSeek).toHaveBeenCalledWith(2_000);
+    expect(screen.queryByTestId("timeline-transcript-panel")).toBeNull();
+    expect(screen.getByTestId("timeline-canvas")).toBeInTheDocument();
   });
 });

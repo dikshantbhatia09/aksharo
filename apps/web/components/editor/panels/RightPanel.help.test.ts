@@ -29,9 +29,8 @@ describe("RightPanel help wiring", () => {
     }
   });
 
-  it("sends Style, Colors and Look to the same caption-styles article", () => {
+  it("sends Templates (style) and Text (look, which now also carries Colors and Effects) to the same caption-styles article", () => {
     expect(PANEL_HELP_SLUGS.style).toBe("caption-styles");
-    expect(PANEL_HELP_SLUGS.colors).toBe("caption-styles");
     expect(PANEL_HELP_SLUGS.look).toBe("caption-styles");
   });
 

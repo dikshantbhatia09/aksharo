@@ -1,9 +1,0 @@
-{
-  "extends": "./tsconfig.build.json",
-  "compilerOptions": {
-    "module": "ES2022",
-    "moduleResolution": "Bundler",
-    "outDir": "./dist/esm",
-    "tsBuildInfoFile": "./dist/esm/.tsbuildinfo.build"
-  }
-}

@@ -31,6 +31,7 @@ import { cn } from "@montaj/ui";
  *   here as {@link usePersistedLayout}.
  */
 export type WorkspaceLayoutHandle = ResizablePrimitive.GroupImperativeHandle;
+export type WorkspacePanelHandle = ResizablePrimitive.PanelImperativeHandle;
 
 /** A group's sizes as the library states them: panel id → percentage (0..100). */
 export type WorkspaceLayout = ResizablePrimitive.Layout;

@@ -89,7 +89,7 @@ export async function processProxy(context: JobContext): Promise<ProcessorOutcom
     if (facts.hasAudio) {
       context.report(5, "extracting 16 kHz audio");
       const asr = workspace.path("audio16k.wav");
-      await extractAudio(derive, ASR_SAMPLE_RATE, asr);
+      await extractAudio(derive, ASR_SAMPLE_RATE, asr, { clean: true });
       keys.audio16kKey = derivedKey(derivedPrefix, "audio16k.wav");
       bytesWritten += await context.derived.putFile({
         key: keys.audio16kKey,

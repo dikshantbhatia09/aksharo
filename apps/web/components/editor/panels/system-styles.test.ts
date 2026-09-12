@@ -17,7 +17,7 @@ describe("the browser style catalogue", () => {
     expect(SYSTEM_STYLES.map((style) => style.id).sort()).toEqual(
       registry.styles.map((entry) => entry.id).sort(),
     );
-    expect(SYSTEM_STYLES).toHaveLength(30);
+    expect(SYSTEM_STYLES).toHaveLength(52);
   });
 
   it("validates every document against the StyleDoc schema", () => {
@@ -31,6 +31,10 @@ describe("the browser style catalogue", () => {
 
   it("keys the map by id", () => {
     expect(SYSTEM_STYLE_MAP.size).toBe(SYSTEM_STYLES.length);
+    expect(SYSTEM_STYLE_MAP.get("plain-white")?.name).toBe("Plain White");
+    expect(SYSTEM_STYLE_MAP.get("estate-word-pop")?.name).toBe("Real Estate: Word Pop");
+    expect(SYSTEM_STYLE_MAP.get("kinetic-flow")?.name).toBe("Kinetic Flow");
+    expect(SYSTEM_STYLE_MAP.get("kinetic-slab-punch")?.name).toBe("Kinetic Slab Punch");
     expect(SYSTEM_STYLE_MAP.get("punch-pop")?.name).toBe("Punch Pop");
   });
 });

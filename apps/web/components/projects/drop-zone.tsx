@@ -156,28 +156,32 @@ export function DropZone({
         disabled={disabled}
         onClick={openPicker}
         className={cn(
-          "border-border bg-bg-1 flex w-full flex-col items-center gap-3 rounded-md border-2 border-dashed",
-          "px-6 py-12 text-center transition-colors duration-[160ms]",
-          dragging && "border-lime-500 bg-lime-500/5",
+          "border-border bg-bg-1 flex w-full flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed",
+          "h-[240px] px-6 py-8 text-center transition-all duration-200",
+          dragging && "border-mint bg-mint/5 ring-4 ring-mint/10",
           disabled && "cursor-not-allowed opacity-60",
-          !disabled && "cursor-pointer hover:border-lime-500/60",
+          !disabled && "cursor-pointer hover:border-mint hover:bg-mint/[0.02]",
         )}
       >
-        <UploadCloud className="text-fg-2 size-8" aria-hidden="true" />
-        <p className="text-fg-0 text-base font-medium">Drop videos or audio here</p>
-        <p className="text-fg-2 text-sm" data-testid="drop-zone-limits">
-          {maxFileBytes === undefined || maxDurationMs === undefined
-            ? FORMAT_SUMMARY
-            : `Up to ${formatBytes(Number(maxFileBytes))} / ${formatDuration(Number(maxDurationMs))}${
-                planKey === undefined ? "" : ` on ${planKey}`
-              } · ${FORMAT_SUMMARY}`}
-        </p>
-        <span
-          className="border-lime-500/40 bg-lime-500/10 text-lime-500 inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium"
-          data-testid="drop-zone-eta-badge"
-        >
-          Transcription usually takes a few minutes
-        </span>
+        <div className="bg-bg-2 text-fg-2 flex size-12 items-center justify-center rounded-full">
+          <UploadCloud className="size-6 text-mint" aria-hidden="true" />
+        </div>
+        <div className="flex flex-col items-center gap-1">
+          <p className="text-fg-0 text-base font-medium">Drop videos or audio here or click to upload</p>
+          <p className="text-fg-2 text-xs" data-testid="drop-zone-limits">
+            {maxFileBytes === undefined || maxDurationMs === undefined
+              ? "Max: 2:00 minutes, 1GB · MP4 MOV"
+              : `Up to ${formatBytes(Number(maxFileBytes))} / ${formatDuration(Number(maxDurationMs))}${
+                  planKey === undefined ? "" : ` on ${planKey}`
+                } · ${FORMAT_SUMMARY}`}
+          </p>
+          <span
+            className="border-mint/40 bg-mint/10 text-mint inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium mt-1"
+            data-testid="drop-zone-eta-badge"
+          >
+            Transcription usually takes a few minutes
+          </span>
+        </div>
       </button>
 
       <input

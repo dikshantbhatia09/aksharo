@@ -53,7 +53,7 @@ export function EditorRail({
   return (
     <div className={cn("flex h-full min-w-0", className)} data-testid="editor-rail">
       <div
-        className="border-border flex w-11 shrink-0 flex-col items-center gap-1 border-r py-2"
+        className="editor-rail-tabs flex w-[74px] shrink-0 flex-col items-center gap-1 py-1.5"
         role="tablist"
         aria-label="Editor rail"
         data-testid="editor-rail-tabs"
@@ -72,12 +72,13 @@ export function EditorRail({
                   data-testid={`editor-rail-tab-${tab.id}`}
                   onClick={() => onActiveChange(tab.id)}
                   className={cn(
-                    "flex size-8 items-center justify-center rounded-md",
+                    "flex w-[62px] flex-col items-center justify-center gap-[5px] rounded-sm px-2 pt-2 pb-[7px]",
                     "transition-colors duration-[160ms] ease-[var(--ease-out-soft)]",
-                    isActive ? "bg-bg-2 text-lime-500" : "text-fg-2 hover:bg-bg-2 hover:text-fg-0",
+                    isActive ? "bg-bg-2 text-fg-0" : "text-fg-2 hover:bg-bg-2 hover:text-fg-0",
                   )}
                 >
-                  <Icon className="size-4" aria-hidden="true" />
+                  <Icon className="size-[19px]" aria-hidden="true" />
+                  <span className="text-[10.5px] leading-[1.25]">{tab.label}</span>
                 </button>
               </TooltipTrigger>
               <TooltipContent side="right">{tab.label}</TooltipContent>

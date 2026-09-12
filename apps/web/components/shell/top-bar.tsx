@@ -76,6 +76,19 @@ export function TopBar({
         </Button>
 
         <Button
+          variant="outline"
+          size="sm"
+          asChild
+          className="border-border bg-bg-1 text-fg-1 hover:bg-bg-2 hover:text-fg-0 h-8 gap-1.5 px-3 text-xs"
+          data-testid="aura-button"
+        >
+          <Link href="/billing">
+            <span className="text-[#F59E0B] font-bold">✦</span>
+            <span>Aura</span>
+          </Link>
+        </Button>
+
+        <Button
           variant="ghost"
           size="icon"
           asChild
