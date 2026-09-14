@@ -37,6 +37,7 @@ import { Client } from "pg";
 
 import { databasePrefix, databaseUrlFor, redisDbPool, runStartedAt } from "./test-run.js";
 import { applySql, listSqlFiles } from "../scripts/apply-sql.js";
+import { PLAN_SEEDS, seedUlid } from "../prisma/seed-data.js";
 
 import type { TestRunDatabase, TestRunInfo, TestRunRedis } from "./test-run.js";
 import type { TestProject } from "vitest/node";
@@ -196,7 +197,61 @@ function schemaFingerprint(apiDir: string): string {
     // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (workspace/fixture/temp dirs) -- reviewed for the same follow-up
     hash.update(readFileSync(join(sqlDir, file), "utf8"));
   }
+  // The plans are part of the template now (`seedPlans`), so a changed credit
+  // grant or entitlement has to rebuild it. Without this a suite would quietly
+  // clone a template carrying last week's numbers.
+  hash.update(JSON.stringify(PLAN_SEEDS));
   return hash.digest("hex");
+}
+
+/**
+ * Write the plan rows into the template.
+ *
+ * The template used to be migrations plus hand SQL and nothing else, which left
+ * every cloned test database with an empty `plans` table. That was survivable
+ * only while sign-up ignored entitlements: since `users.service.ts` provisions
+ * the Free subscription and credit grant inside the sign-up transaction, a
+ * database with no `free` plan makes `POST /auth/signup` fail closed with a 500
+ * — which is the designed behaviour for an unseeded *production* database, and
+ * simply wrong for a test fixture.
+ *
+ * Seeding here rather than in each harness mirrors what production actually
+ * does: the migration job runs `db:migrate` and then `db:seed:reference`, so a
+ * deployed database always has plans before it accepts a sign-up. A fixture
+ * that does not is testing a state that cannot occur.
+ *
+ * Plans only, deliberately — not the system styles or feature flags the full
+ * reference seed also writes. Those are slower to load and several suites
+ * assert on how many exist, so they stay each suite's own business.
+ *
+ * Included in {@link schemaFingerprint}, so changing a plan rebuilds the
+ * template rather than silently reusing one with the old numbers.
+ */
+async function seedPlans(url: string): Promise<void> {
+  const client = new Client({ connectionString: url });
+  await client.connect();
+  try {
+    for (const plan of PLAN_SEEDS) {
+      await client.query(
+        `INSERT INTO plans (id, key, name, prices, credits_per_month_tenths,
+                            seat_price, entitlements, active, version,
+                            created_at, updated_at)
+         VALUES ($1, $2::"PlanKey", $3, $4::jsonb, $5, $6::jsonb, $7::jsonb, true, 1, now(), now())
+         ON CONFLICT (key) DO NOTHING`,
+        [
+          seedUlid(`plan:${plan.key}`),
+          plan.key,
+          plan.name,
+          JSON.stringify(plan.prices),
+          plan.creditsPerMonthTenths,
+          plan.seatPrice === null ? null : JSON.stringify(plan.seatPrice),
+          JSON.stringify(plan.entitlements),
+        ],
+      );
+    }
+  } finally {
+    await client.end();
+  }
 }
 
 /** A 64-bit advisory-lock key from a name, as the string `pg` wants for a bigint. */
@@ -257,8 +312,9 @@ async function ensureTemplate(apiDir: string, adminUrl: string): Promise<string>
       await admin.query(`CREATE DATABASE "${template}"`);
       migrate(apiDir, templateUrl);
       await applySql(templateUrl, resolve(apiDir, "prisma", "sql"));
+      await seedPlans(templateUrl);
       await stampTemplate(templateUrl, fingerprint);
-      console.warn(`[test-run] built ${template} (migrations + prisma/sql)`);
+      console.warn(`[test-run] built ${template} (migrations + prisma/sql + plans)`);
     } finally {
       await admin.query("SELECT pg_advisory_unlock($1)", [advisoryKey(template)]);
     }

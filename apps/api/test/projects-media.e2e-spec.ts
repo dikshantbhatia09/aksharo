@@ -151,35 +151,48 @@ async function seed(): Promise<void> {
     });
   }
 
+  // Both plans this suite touches carry the same caps, so which one a case
+  // resolves through cannot change the answer. 500 MB is what the
+  // `media/too_large` case asserts on.
   // The entitlement stub reads the FREE plan's row for every workspace, so the
   // suite seeds it rather than depending on `db:seed` having been run: a suite
   // that only works on somebody's already-seeded database is a suite that fails
   // in CI.
   await prisma.plan.upsert({
     where: { key: "free" },
-    update: {},
+    update: { entitlements: SUITE_PLAN_CAPS },
     create: {
       id: id("PLNF"),
       key: "free",
       name: "Free",
       creditsPerMonthTenths: 300,
-      entitlements: {
-        maxFileBytes: 500 * 1024 * 1024,
-        maxDurationMs: 20 * 60 * 1000,
-        retentionDays: 7,
-      },
+      entitlements: SUITE_PLAN_CAPS,
     },
   });
 
-  // A creator subscription gives admission control the headroom the suite needs —
-  // it uploads many files without retiring their jobs between cases — without
-  // touching the entitlement the plan CAPS come from, which stays the Free stub
-  // until B02. Since A07 one upload enqueues one job rather than two, so the Free
-  // lane of two is no longer the binding constraint it was.
+  // A creator subscription gives admission control the headroom the suite needs:
+  // it uploads many files without retiring their jobs between cases. Since A07
+  // one upload enqueues one job rather than two, so the Free lane of two is no
+  // longer the binding constraint it was.
+  //
+  // `entitlements` is stated here rather than left empty. This fixture used to
+  // create the creator plan bare and rely on the caps falling back to the Free
+  // row — which worked only because nothing had seeded the real plans. The test
+  // database template now carries them (`test/global-setup.ts`), exactly as a
+  // deployed database does, and the real creator plan allows 4 GB. A fixture
+  // that depends on a row being ABSENT is a fixture that breaks the moment the
+  // row is correctly present; this one says what cap it wants and asserts
+  // against that.
   const plan = await prisma.plan.upsert({
     where: { key: "creator" },
-    update: {},
-    create: { id: id("PLAN"), key: "creator", name: "Creator", creditsPerMonthTenths: 3_000 },
+    update: { entitlements: SUITE_PLAN_CAPS },
+    create: {
+      id: id("PLAN"),
+      key: "creator",
+      name: "Creator",
+      creditsPerMonthTenths: 3_000,
+      entitlements: SUITE_PLAN_CAPS,
+    },
   });
   await prisma.subscription.create({
     data: {
@@ -191,6 +204,13 @@ async function seed(): Promise<void> {
     },
   });
 }
+
+/** Plan caps this suite asserts against, on every plan it seeds. */
+const SUITE_PLAN_CAPS = {
+  maxFileBytes: 500 * 1024 * 1024,
+  maxDurationMs: 20 * 60 * 1000,
+  retentionDays: 7,
+} as const;
 
 async function cleanup(): Promise<void> {
   if (prisma === undefined) return;
