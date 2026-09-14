@@ -301,6 +301,142 @@ export const envSchema = z.object({
 
 export type Env = z.infer<typeof envSchema>;
 
+/** Every variable is optional here; what a given service must have is below. */
+export type PartialEnv = Partial<Env>;
+
+export const SERVICE_NAMES = ["api", "web", "worker-media", "worker-ai", "render"] as const;
+export type ServiceName = (typeof SERVICE_NAMES)[number];
+
+/**
+ * What each service must have to start, as opposed to what the *product*
+ * contract lists.
+ *
+ * `loadEnv()` has one required set — {@link REQUIRED_ENV_VARS} — and every
+ * service used it, so `apps/render` and `apps/worker-media` refused to boot
+ * without `DATABASE_URL` and both JWT keys. Neither opens a database
+ * connection or mints a token; `grep -oh "env\.[A-Z_]*"` over either source
+ * tree lists only Redis, the two object stores, the callback secret and
+ * `API_ORIGIN`.
+ *
+ * That was not merely untidy. The Helm chart has to supply whatever a service
+ * validates, so the shared secret had to carry the database URL and the signing
+ * key to every worker pod — which is most of the blast radius the per-component
+ * secret split was meant to remove (launch-readiness P0-09). A narrower required
+ * set here is what lets `externalSecrets.shared` shrink.
+ *
+ * Adding a variable to a service's list is a deliberate widening of what that
+ * workload is trusted with. Do it in the same change as the chart entry.
+ */
+export const SERVICE_REQUIRED_ENV_VARS = {
+  /** The API is the only service that reaches every subsystem. */
+  api: REQUIRED_ENV_VARS,
+  /** The web server renders and proxies; it holds no credential of its own. */
+  web: ["WEB_ORIGIN", "API_ORIGIN"],
+  /** Queue in, object storage out, signed callback home. */
+  "worker-media": [
+    "REDIS_URL",
+    "S3_ENDPOINT",
+    "S3_REGION",
+    "S3_BUCKET_RAW",
+    "R2_ENDPOINT",
+    "R2_BUCKET_DERIVED",
+    "R2_ACCESS_KEY",
+    "R2_SECRET_KEY",
+    "INTERNAL_CALLBACK_SECRET",
+    "API_ORIGIN",
+  ],
+  /** Same as worker-media; its provider keys are optional and checked at use. */
+  "worker-ai": [
+    "REDIS_URL",
+    "S3_ENDPOINT",
+    "S3_REGION",
+    "S3_BUCKET_RAW",
+    "R2_ENDPOINT",
+    "R2_BUCKET_DERIVED",
+    "R2_ACCESS_KEY",
+    "R2_SECRET_KEY",
+    "INTERNAL_CALLBACK_SECRET",
+    "API_ORIGIN",
+  ],
+  /** Same shape again: read raw media, write derived, report back. */
+  render: [
+    "REDIS_URL",
+    "S3_ENDPOINT",
+    "S3_REGION",
+    "S3_BUCKET_RAW",
+    "R2_ENDPOINT",
+    "R2_BUCKET_DERIVED",
+    "R2_ACCESS_KEY",
+    "R2_SECRET_KEY",
+    "INTERNAL_CALLBACK_SECRET",
+    "API_ORIGIN",
+  ],
+} as const satisfies Readonly<Record<ServiceName, readonly ContractEnvVar[]>>;
+
+/** Variables `loadEnv` demands that this service does not. */
+type RelaxedFor<S extends ServiceName> = Exclude<
+  (typeof REQUIRED_ENV_VARS)[number],
+  (typeof SERVICE_REQUIRED_ENV_VARS)[S][number]
+>;
+
+/** {@link Env} with the variables this service does not need made optional. */
+export type ServiceEnv<S extends ServiceName> = Omit<Env, RelaxedFor<S>> &
+  Partial<Pick<Env, RelaxedFor<S>>>;
+
+/**
+ * The schema for one service: {@link envSchema} with the variables that service
+ * does not need relaxed to optional.
+ *
+ * `.extend()` overrides only the named keys, so every other field keeps its
+ * default, refinement and transform. Only members of {@link REQUIRED_ENV_VARS}
+ * are ever relaxed — everything else is already optional or defaulted, and
+ * making those optional would drop defaults the cross-field rules read.
+ */
+function serviceSchema(service: ServiceName) {
+  const needed = new Set<string>(SERVICE_REQUIRED_ENV_VARS[service]);
+  const relaxed: Record<string, z.ZodTypeAny> = {};
+  for (const name of REQUIRED_ENV_VARS) {
+    if (needed.has(name)) continue;
+    // eslint-disable-next-line security/detect-object-injection -- iterating a frozen internal list, not attacker input
+    relaxed[name] = envSchema.shape[name].optional();
+  }
+  return envSchema.extend(relaxed);
+}
+
+const SERVICE_SCHEMAS = new Map<ServiceName, ReturnType<typeof serviceSchema>>();
+
+/**
+ * Parse and validate only what `service` actually needs.
+ *
+ * Use this from a worker's entry point; the API keeps {@link loadEnv}, which
+ * demands the whole contract. A variable outside the service's required set is
+ * still parsed and still validated *if present* — this narrows what is
+ * mandatory, never what is checked.
+ */
+export function loadServiceEnv<S extends ServiceName>(
+  service: S,
+  options: LoadEnvOptions = {},
+): ServiceEnv<S> {
+  const source = options.source ?? (process.env as Record<string, string | undefined>);
+
+  let schema = SERVICE_SCHEMAS.get(service);
+  if (schema === undefined) {
+    schema = serviceSchema(service);
+    SERVICE_SCHEMAS.set(service, schema);
+  }
+
+  const result = schema.safeParse(source);
+  if (!result.success) {
+    throw new EnvValidationError(describeIssues(result.error.issues, source));
+  }
+
+  const problems = crossFieldProblems(result.data as PartialEnv, source);
+  if (problems.length > 0) throw new EnvValidationError(problems);
+
+  return result.data as ServiceEnv<S>;
+}
+
+
 /** Thrown by {@link loadEnv}; carries one line per offending variable. */
 export class EnvValidationError extends Error {
   public override readonly name = "EnvValidationError";
@@ -342,7 +478,7 @@ export interface LoadEnvOptions {
  * caller cannot skip a security rule by omitting it.
  */
 export function crossFieldProblems(
-  env: Env,
+  env: PartialEnv,
   source: Record<string, string | undefined> = process.env as Record<string, string | undefined>,
 ): string[] {
   const problems: string[] = [];
@@ -382,9 +518,11 @@ export function crossFieldProblems(
   // refuses plain-HTTP media/uploads before dispatch, and the only symptom is a
   // console CSP line. Refuse to boot instead — this exact drift shipped a build
   // where no video ever played (FIX-01, audit 2026-09-04).
-  if (env.WEB_ORIGIN.startsWith("https://")) {
+  // `WEB_ORIGIN` is absent for a service that does not need it
+  // (`loadServiceEnv`), so this rule is conditional on having one at all.
+  if (env.WEB_ORIGIN !== undefined && env.WEB_ORIGIN.startsWith("https://")) {
     const derivedPublic = env.R2_PUBLIC_ENDPOINT ?? env.R2_ENDPOINT;
-    if (derivedPublic.startsWith("http://")) {
+    if (derivedPublic !== undefined && derivedPublic.startsWith("http://")) {
       problems.push(
         "R2_PUBLIC_ENDPOINT (or R2_ENDPOINT as its fallback) is plain http " +
           `("${derivedPublic}") while WEB_ORIGIN is https — browsers will block ` +
@@ -392,7 +530,7 @@ export function crossFieldProblems(
       );
     }
     const rawPublic = env.S3_PUBLIC_ENDPOINT ?? env.S3_ENDPOINT;
-    if (rawPublic.startsWith("http://")) {
+    if (rawPublic !== undefined && rawPublic.startsWith("http://")) {
       problems.push(
         `S3_PUBLIC_ENDPOINT (or S3_ENDPOINT as its fallback) is plain http ` +
           `("${rawPublic}") while WEB_ORIGIN is https — browser uploads will be ` +
@@ -431,10 +569,13 @@ export const PRODUCTION_GATE_FLAGS = {
  * `source` rather than `env` wherever "unset" and "set to the default" must be
  * told apart, for the reason {@link crossFieldProblems} explains.
  */
-function productionProblems(env: Env, source: Record<string, string | undefined>): string[] {
+function productionProblems(
+  env: PartialEnv,
+  source: Record<string, string | undefined>,
+): string[] {
   if (source["NODE_ENV"] !== "production") return [];
   const problems: string[] = [];
-  const flags = env.FEATURE_FLAGS_JSON;
+  const flags = env.FEATURE_FLAGS_JSON ?? {};
 
   if (env.MAIL_PROVIDER === "dev") {
     problems.push(
@@ -504,7 +645,15 @@ export function loadEnv(options: LoadEnvOptions = {}): Env {
     return result.data;
   }
 
-  const problems = result.error.issues.map((issue) => {
+  throw new EnvValidationError(describeIssues(result.error.issues, source));
+}
+
+/** One readable line per offending variable. Values are never echoed. */
+function describeIssues(
+  issues: readonly z.core.$ZodIssue[],
+  source: Record<string, string | undefined>,
+): string[] {
+  const problems = issues.map((issue) => {
     const variable = issue.path.length > 0 ? String(issue.path[0]) : "(environment)";
     // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
     const raw = source[variable];
@@ -512,8 +661,7 @@ export function loadEnv(options: LoadEnvOptions = {}): Env {
     if (raw.trim() === "") return `${variable} is empty`;
     return `${variable}: ${issue.message}`;
   });
-
-  throw new EnvValidationError([...new Set(problems)].sort());
+  return [...new Set(problems)].sort();
 }
 
 /** Non-throwing variant for tooling that wants to report several problems at once. */

@@ -4,7 +4,7 @@ import { stat } from "node:fs/promises";
 import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
-import type { Env } from "@montaj/config";
+import type { ServiceEnv } from "@montaj/config";
 
 import { transientFailure } from "./errors.js";
 
@@ -165,8 +165,17 @@ export class S3Store implements ObjectStore {
   }
 }
 
-/** Build both stores from the validated environment (CONTRACTS §1). */
-export function storesFrom(env: Env): { raw: ObjectStore; derived: ObjectStore } {
+/**
+ * Build both stores from the validated environment (CONTRACTS §1).
+ *
+ * Takes this worker's own slice rather than the whole `Env`, so the signature
+ * states what it actually needs — and so a caller cannot satisfy it only by
+ * holding credentials this worker has no business having (P0-09).
+ */
+export function storesFrom(env: ServiceEnv<"worker-media">): {
+  raw: ObjectStore;
+  derived: ObjectStore;
+} {
   return {
     raw: new S3Store({
       kind: "s3",

@@ -63,7 +63,7 @@ staging evidence.
 | P0-03 (routing/probes/ports) | Ingress routed `/ws`, protocol is `/realtime`. Readiness probed `/health` (liveness), so a pod with a dead database took traffic. AI worker Service declared 8000; the image binds 8091. | All three corrected in `values.yaml`. |
 | P0-03 (migrations) | The runbook ran `node dist/scripts/migrate.js`, which is never emitted. The Docker `migrate` stage ran Prisma migrations + the **whole** seed, skipping `prisma/sql` and seeding a funded demo admin. | `migrate` stage runs `db:migrate` (schema **and** hand-SQL) then `db:seed:reference`. Seed split so `seedDemoWorkspace` refuses under `NODE_ENV=production`. Runbook corrected with why. |
 | P0-04 (autoscaling) | KEDA watched the Redis list `bull:<queue>:wait`. Every job carries a priority, so BullMQ stores it in the `prioritized` **sorted set** — the list was near-permanently empty while the real backlog grew. Workers would not have scaled at all. | New `montaj_queue_depth{queue,state}` gauge sampled every 15 s; ScaledObjects switched to a Prometheus scaler on `waiting + prioritized`. Also fixes two shipped alert rules that queried this series, which nothing emitted. 5 tests. |
-| P0-09 (secret blast radius) | One ExternalSecret carried the entire contract; every component mounted it. A compromised web pod held the DB URL, JWT signing key, Razorpay live keys, OAuth client secret, mail credentials and every provider key. | Per-component ExternalSecrets: a shared boot contract plus each component's own list. Web now holds no payment, identity, mail or provider credential. New `workload-irsa` Terraform module creates one IAM role per workload, trust-scoped to its exact service account. S3 clients omit `credentials` when static keys are blank so the default chain (IRSA) works. |
+| P0-09 (secret blast radius) | One ExternalSecret carried the entire contract; every component mounted it. A compromised web pod held the DB URL, JWT signing key, Razorpay live keys, OAuth client secret, mail credentials and every provider key. | Per-component ExternalSecrets: a shared boot contract plus each component's own list. Web now holds no payment, identity, mail or provider credential. New `workload-irsa` Terraform module creates one IAM role per workload, trust-scoped to its exact service account. S3 clients omit `credentials` when static keys are blank so the default chain (IRSA) works. `loadServiceEnv()` validates only what each service needs, which is what let `DATABASE_URL` and both JWT keys leave the shared secret entirely. |
 | P0-10 (inert policy) | The chart emits NetworkPolicy objects; the VPC CNI addon had no configuration, and it ignores NetworkPolicy unless told not to. Policies existed, were listed, and filtered nothing. | `enableNetworkPolicy: "true"` on the addon, on by default, with a variable to turn it off deliberately. Namespace template labels PSA `restricted` (enforce + audit + warn, version-pinned). |
 | P0-10 (storage readiness) | Readiness did an **unauthenticated** `HEAD` and counted 403 as "up" — it passed with no credentials, wrong credentials, a read-only role, or the derived store unreachable. | Boot-time canary writes, reads back, verifies and deletes an object on **both** stores; a failure keeps readiness down for the process's life. Per-probe check is now a signed `head`. 14 tests. |
 | P0-11 (connections) | No explicit pool budget; Prisma defaults to `numCpus * 2 + 1`, making fleet-wide connection use a property of node size and discoverable only by exhausting the database. | `DATABASE_POOL_SIZE` per process, applied in `PrismaService` and logged at boot. Worksheet in `docs/runbooks/db-connection-budget.md`. 7 tests. |
@@ -72,6 +72,22 @@ staging evidence.
 | P0-02 (CI) | `bridge-sea` built a workspace absent from this Git HEAD, failing before the gates that matter. Dependency audit was `|| true` on everything. | Stale job removed with the reasoning recorded. Audit split: **blocking** on `--prod`, reporting on the rest. |
 | P0-12 (dead surfaces) | Marketing nav offered Plugins and Download; the sidebar offered "Get the desktop app". None of those products are in this Git HEAD. | `content/site/launch-surfaces.ts` is one matrix, everything off by default; nav and sidebar filter through it. 12 tests. |
 | P0-05 (capacity) | The harness measured job admission only, and the report presented a bare PASS/FAIL that reads like a capacity result. | `LOAD_CONCURRENCY` added so a fixed per-request cost can be told from queueing; every report now prints what it did **not** measure. |
+
+### Secret scope, before and after
+
+Every component used to mount one Secret carrying all 43 contract variables.
+Reproduce with `python -c` over `infra/k8s/montaj/values.yaml`:
+
+| Component | Variables | High-value credentials it now holds |
+| --- | ---: | --- |
+| api | 36 | database, JWT keys, Razorpay, Google OAuth, provider keys |
+| worker-ai | 27 | its own ASR/LLM provider keys only |
+| render | 19 | **none** |
+| web | 18 | **none** |
+| worker-media | 18 | **none** |
+
+The three that hold nothing are the three that parse untrusted input hardest:
+the public web server, and the two workers that run ffmpeg over customer media.
 
 ### Dependency remediation
 
@@ -105,15 +121,6 @@ not a defect.
 
 Stating these plainly, because a list of changes without its exclusions reads as
 completeness.
-
-**Per-service environment validation (the residual half of P0-09).**
-`externalSecrets.shared` still gives `worker-media` and `render` the
-`DATABASE_URL` and both JWT keys, which neither uses. That is forced by
-`loadEnv()` having one required set for every service, not by the chart. The fix
-is to derive per-service schemas with `envSchema.pick()` and have
-`apps/worker-media/src/settings.ts` and `apps/render/src/config.ts` validate only
-their own subset. Until that lands, **do not describe the workers as least
-privilege.**
 
 **Real per-role process entry points.** The chart no longer claims an isolation
 that does not exist, and the binary refuses to pretend — but `realtime` and

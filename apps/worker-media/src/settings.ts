@@ -3,8 +3,8 @@ import { dirname, join, parse } from "node:path";
 
 import { config as loadDotenvFile } from "dotenv";
 
-import { loadEnv } from "@montaj/config";
-import type { Env } from "@montaj/config";
+import { loadServiceEnv } from "@montaj/config";
+import type { ServiceEnv } from "@montaj/config";
 
 import { MEDIA_QUEUES } from "./queues.js";
 
@@ -15,8 +15,10 @@ import type { MediaQueue } from "./queues.js";
  *
  * Two sources, kept apart on purpose:
  *
- * - **`Env`** is the frozen product configuration of CONTRACTS §1, validated by
- *   `loadEnv()` and fail-fast. Buckets, endpoints, the callback secret.
+ * - **`ServiceEnv<"worker-media">`** is the slice of the CONTRACTS §1 product
+ *   configuration THIS worker needs, validated fail-fast by `loadServiceEnv()`.
+ *   Buckets, endpoints, the callback secret — deliberately not the database URL
+ *   or the JWT keys, which it never reads and must therefore never be given.
  * - **`WORKER_MEDIA_*` and `MONTAJ_QUEUE_PREFIX`** are deployment tuning — how
  *   many jobs at once, which queues this pod takes, where ffmpeg lives. They are
  *   read straight from `process.env` for the same reason `queuePrefix()` in the
@@ -26,7 +28,7 @@ import type { MediaQueue } from "./queues.js";
  * No value from either is ever logged (THREAT-MODEL T21).
  */
 export interface Settings {
-  readonly env: Env;
+  readonly env: ServiceEnv<"worker-media">;
   /** Queues this process consumes; `WORKER_MEDIA_QUEUES` narrows it. */
   readonly queues: readonly MediaQueue[];
   readonly concurrency: number;
@@ -95,7 +97,11 @@ export function resolveSettings(source: NodeJS.ProcessEnv = process.env): Settin
   }
 
   return {
-    env: loadEnv({ source }),
+    // `loadServiceEnv` and not `loadEnv`: this worker needs Redis, the two
+    // object stores, the callback secret and API_ORIGIN. It opens no database
+    // connection and mints no token, so demanding DATABASE_URL and the JWT keys
+    // only forced the chart to hand them to every worker pod (P0-09).
+    env: loadServiceEnv("worker-media", { source }),
     queues: requested.length === 0 ? MEDIA_QUEUES : (requested as MediaQueue[]),
     concurrency: positiveInteger(source["WORKER_MEDIA_CONCURRENCY"], DEFAULT_CONCURRENCY),
     queuePrefix: queuePrefix(source),

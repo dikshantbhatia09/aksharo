@@ -5,7 +5,7 @@ import { Worker } from "bullmq";
 import { config as loadDotenvFile } from "dotenv";
 import IORedis from "ioredis";
 
-import { loadEnv } from "@montaj/config";
+import { loadServiceEnv } from "@montaj/config";
 
 import { CallbackClient } from "./callbacks.js";
 import { loadRenderSettings } from "./config.js";
@@ -37,7 +37,9 @@ function loadRepoDotenv(startDir: string = process.cwd()): void {
 
 async function main(): Promise<void> {
   loadRepoDotenv();
-  const env = loadEnv();
+  // Only what a render node actually reads: Redis, both object stores, the
+  // callback secret and API_ORIGIN. No database, no token signing (P0-09).
+  const env = loadServiceEnv("render");
   const settings = loadRenderSettings();
 
   // Fail on boot, not one job at a time: a render node with no ffmpeg cannot do

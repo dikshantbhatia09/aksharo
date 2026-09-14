@@ -9,6 +9,9 @@ import {
   MAIL_PROVIDERS,
   PRODUCTION_GATE_FLAGS,
   REQUIRED_ENV_VARS,
+  SERVICE_NAMES,
+  SERVICE_REQUIRED_ENV_VARS,
+  loadServiceEnv,
   crossFieldProblems,
   envSchema,
   loadEnv,
@@ -462,5 +465,92 @@ describe("production refuses development defaults", () => {
         source: validEnv({ MAIL_PROVIDER: "dev", LLM_PROVIDER: "mock", SENTRY_DSN: undefined }),
       }),
     ).not.toThrow();
+  });
+});
+
+/**
+ * `loadEnv()` had one required set for every service, so a render node refused
+ * to boot without a database URL and both JWT keys it never reads — and the
+ * chart therefore had to hand those secrets to every worker pod, which is most
+ * of the blast radius the per-component secret split exists to remove (P0-09).
+ */
+describe("loadServiceEnv", () => {
+  /** Exactly what a worker is given: no database, no JWT keys, no WEB_ORIGIN. */
+  function workerEnv(overrides: Record<string, string | undefined> = {}) {
+    return {
+      REDIS_URL: "redis://localhost:6379",
+      S3_ENDPOINT: "http://localhost:9000",
+      S3_REGION: "ap-south-1",
+      S3_BUCKET_RAW: "montaj-raw",
+      R2_ENDPOINT: "http://localhost:9000",
+      R2_BUCKET_DERIVED: "montaj-derived",
+      R2_ACCESS_KEY: "montaj-local",
+      R2_SECRET_KEY: "montaj-local-secret",
+      INTERNAL_CALLBACK_SECRET: "0".repeat(64),
+      API_ORIGIN: "http://localhost:3001",
+      ...overrides,
+    };
+  }
+
+  it.each(["worker-media", "worker-ai", "render"] as const)(
+    "boots %s with no database URL and no JWT keys",
+    (service) => {
+      const env = loadServiceEnv(service, { source: workerEnv() });
+      expect(env.REDIS_URL).toBe("redis://localhost:6379");
+      expect(env.DATABASE_URL).toBeUndefined();
+      expect(env.JWT_PRIVATE_KEY).toBeUndefined();
+    },
+  );
+
+  it("still demands what the service genuinely needs", () => {
+    expect(() =>
+      loadServiceEnv("render", { source: workerEnv({ INTERNAL_CALLBACK_SECRET: undefined }) }),
+    ).toThrow(/INTERNAL_CALLBACK_SECRET is missing/);
+
+    expect(() => loadServiceEnv("render", { source: workerEnv({ REDIS_URL: undefined }) })).toThrow(
+      /REDIS_URL is missing/,
+    );
+  });
+
+  /** Narrowing what is MANDATORY must not narrow what is CHECKED. */
+  it("still validates a relaxed variable when one is supplied", () => {
+    expect(() =>
+      loadServiceEnv("render", { source: workerEnv({ DATABASE_URL: "mysql://nope" }) }),
+    ).toThrow(/DATABASE_URL must be a postgres/);
+  });
+
+  it("keeps the API on the full contract", () => {
+    expect(() => loadServiceEnv("api", { source: workerEnv() })).toThrow(/DATABASE_URL is missing/);
+    expect(() => loadServiceEnv("api", { source: validEnv() })).not.toThrow();
+  });
+
+  it("asks the web server for almost nothing", () => {
+    const env = loadServiceEnv("web", {
+      source: { WEB_ORIGIN: "http://localhost:3000", API_ORIGIN: "http://localhost:3001" },
+    });
+    expect(env.WEB_ORIGIN).toBe("http://localhost:3000");
+    expect(env.S3_SECRET_KEY).toBeUndefined();
+    expect(env.DATABASE_URL).toBeUndefined();
+  });
+
+  it("gives every service a required set drawn from the frozen contract", () => {
+    for (const service of SERVICE_NAMES) {
+      const required = SERVICE_REQUIRED_ENV_VARS[service];
+      expect(required.length, service).toBeGreaterThan(0);
+      for (const name of required) {
+        expect(CONTRACT_ENV_VARS, `${service}/${name}`).toContain(name);
+      }
+    }
+  });
+
+  it("never lets a worker's set grow to include a credential it cannot use", () => {
+    // A guard on intent: if one of these ever appears in a worker's list, it is
+    // because something started reading it, and the chart must widen too.
+    const forbidden = ["DATABASE_URL", "JWT_PRIVATE_KEY", "JWT_PUBLIC_KEY"];
+    for (const service of ["worker-media", "worker-ai", "render"] as const) {
+      for (const name of forbidden) {
+        expect(SERVICE_REQUIRED_ENV_VARS[service], `${service}/${name}`).not.toContain(name);
+      }
+    }
   });
 });

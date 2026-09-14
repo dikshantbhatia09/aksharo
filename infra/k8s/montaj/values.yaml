@@ -75,23 +75,18 @@ externalSecrets:
   # start without these, so every Node service gets them. `components` adds only
   # what that component actually uses.
   #
-  # KNOWN RESIDUAL, and it is not small: `shared` still includes DATABASE_URL,
-  # JWT_PRIVATE_KEY and JWT_PUBLIC_KEY, so worker-media and render — which touch
-  # neither a database nor a token — still receive them. That is forced by
-  # `loadEnv()` having a single required set for every service, not by anything
-  # in this chart. Fixing it properly is a code change: derive a per-service
-  # schema with `envSchema.pick()` and have `apps/worker-media/src/settings.ts`
-  # and `apps/render/src/config.ts` validate only their own subset. Tracked as
-  # the P1 follow-up to P0-09; until it lands, do not describe the workers as
-  # least-privilege.
+  # The residual this used to carry is CLOSED. `shared` was forced to include
+  # DATABASE_URL and both JWT keys because `loadEnv()` had a single required set
+  # for every service, so worker-media and render refused to boot without
+  # credentials they never read. `loadServiceEnv()` now validates only what a
+  # given service needs (packages/config/src/env.ts), and those three moved out
+  # of `shared` into the api entry below. A render pod no longer holds the
+  # database URL or the token-signing key.
   #
-  # The infra-validate CI job diffs the union of these lists against CONTRACTS
-  # section 1, so a variable added to the contract without being placed here
-  # fails the build (X05 acceptance criterion 2).
-  # -------------------------------------------------------------------------
   shared:
-    # Refused at boot by loadEnv() if absent (REQUIRED_ENV_VARS).
-    - DATABASE_URL
+    # What EVERY service needs to boot: the queue, both object stores, the
+    # callback secret and the two origins. Nothing here is a credential that
+    # grants access to customer data on its own.
     - REDIS_URL
     - S3_ENDPOINT
     - S3_REGION
@@ -102,8 +97,6 @@ externalSecrets:
     - R2_BUCKET_DERIVED
     - R2_ACCESS_KEY
     - R2_SECRET_KEY
-    - JWT_PRIVATE_KEY
-    - JWT_PUBLIC_KEY
     - INTERNAL_CALLBACK_SECRET
     - WEB_ORIGIN
     - API_ORIGIN
@@ -116,6 +109,10 @@ externalSecrets:
     # identity provider and a mail provider, so it is the only one holding
     # those credentials.
     api:
+      # The database and the token-signing key reach the API and nothing else.
+      - DATABASE_URL
+      - JWT_PRIVATE_KEY
+      - JWT_PUBLIC_KEY
       - INTERNAL_CALLBACK_SECRET_NEXT
       - GOOGLE_OAUTH_CLIENT_ID
       - GOOGLE_OAUTH_CLIENT_SECRET
@@ -175,8 +172,15 @@ externalSecrets:
     # Disabled components, kept so re-enabling one does not also have to
     # rediscover its secret scope.
     realtime:
+      # Disabled, but it is the API image: re-enabling it means re-granting these.
+      - DATABASE_URL
+      - JWT_PRIVATE_KEY
+      - JWT_PUBLIC_KEY
       - POSTHOG_KEY
     scheduler:
+      - DATABASE_URL
+      - JWT_PRIVATE_KEY
+      - JWT_PUBLIC_KEY
       - MAIL_PROVIDER
       - MAIL_FROM
       - SMTP_URL
