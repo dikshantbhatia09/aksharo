@@ -194,6 +194,7 @@ rebuilt or restarted, so the live site is unchanged by this work.
 | Gate | Result |
 | --- | --- |
 | `apps/api` unit tests | 2049 passed / 198 files |
+| `apps/api` full suite incl. e2e | 2677 passed / 250 files, 3 failing (all pre-existing, see below) |
 | `apps/web` unit tests | 1321 passed / 177 files |
 | `apps/render` | 293 passed / 27 files (was 285 passed with 8 failing) |
 | `packages/render-core` | 820 passed |
@@ -209,6 +210,26 @@ rebuilt or restarted, so the live site is unchanged by this work.
 | `infra/scripts/check-contracts-parity.py` | exact match (was failing) |
 | `pnpm audit --prod --audit-level=high` | exit 0, 1 ignored with a registered exception |
 
-**Not run:** the e2e suite (it points at the production API), Helm and Terraform
-validation (neither binary is installed here), and the load harness (needs a
-running stack, and per the audit must run against staging at the release digest).
+**The e2e suite was run**, contrary to the earlier note in this file that it
+could not be. It does not point at the production API — `test/global-setup.ts`
+starts its own PostgreSQL and Redis through testcontainers. Running it caught a
+regression this work had introduced and would otherwise have shipped: sign-up
+fails closed without the `free` plan, and the test template seeded no plans, so
+41 e2e tests including the entire auth suite were failing. The template now
+seeds plans exactly as the production migration job does.
+
+Three failures remain, none of them from this work, both verified by origin:
+
+- `prisma/seed-data.test.ts` — parity flags for `editorial-ghost-type` and the
+  other new typography styles. Those `.json` files are still **untracked** and
+  have not been through the A18a parity gate.
+- `test/memory-transcribe-hints.e2e-spec.ts` (2) — `DEFAULT_HINGLISH_HINTS`,
+  added in `0be69d36`, appends 13 real-estate terms to every transcribe
+  request, **including when memory consent is withheld**. That is precisely what
+  those two tests exist to forbid. It is someone else's area and is left alone
+  here, but it is a consent guarantee failing, not a formatting difference, and
+  it should not reach a launch unexamined.
+
+**Still not run:** Helm and Terraform validation (neither binary is installed
+here), and the load harness (needs a running stack, and per the audit must run
+against staging at the release digest).
