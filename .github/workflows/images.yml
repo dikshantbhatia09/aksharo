@@ -1,0 +1,249 @@
+name: Runtime images
+
+# ---------------------------------------------------------------------------
+# Build, scan and (when a registry is configured) publish every image that runs
+# in production.
+#
+# The workflow inventory had no build/push path for web, api, worker-media,
+# worker-ai or render — CI built only the CPU model-server image. So nothing
+# proved those five Dockerfiles still built, nothing scanned what would run in
+# front of customers, and there was no digest to deploy or roll back to
+# (launch-readiness P0-02).
+#
+# TWO MODES, and the difference is one repository variable:
+#
+#   REGISTRY unset (today)  Build every image, generate an SBOM, scan it, and
+#                           throw the image away. This is a real gate: a
+#                           Dockerfile that stops building fails the branch,
+#                           and a critical vulnerability in a runtime image is
+#                           visible before anyone needs it to be.
+#   REGISTRY set            The same, then push by commit SHA, sign the digest
+#                           with cosign keyless OIDC, attach the SBOM as an
+#                           attestation, and record the digests as the release
+#                           artifact the deploy and rollback both refer to.
+#
+# Configure with `gh variable set REGISTRY --body <account>.dkr.ecr.ap-south-1.amazonaws.com`
+# and an `AWS_DEPLOY_ROLE_ARN` secret. Until then this is not a placeholder —
+# it runs on every push and does the half that does not need a registry.
+# ---------------------------------------------------------------------------
+
+on:
+  push:
+    branches: ["main", "wave/**", "wp/**"]
+  pull_request:
+    branches: ["main", "wave/**"]
+  workflow_dispatch: {}
+
+concurrency:
+  group: images-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+permissions:
+  contents: read
+  # cosign keyless signing exchanges this for a short-lived certificate; no
+  # signing key is stored anywhere (THREAT-MODEL T21).
+  id-token: write
+  # Trivy results go to the Security tab rather than being buried in a log.
+  security-events: write
+
+jobs:
+  build:
+    name: ${{ matrix.image }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    strategy:
+      # One broken image must not hide the state of the other five.
+      fail-fast: false
+      matrix:
+        include:
+          - image: web
+            dockerfile: apps/web/Dockerfile
+            target: runtime
+          - image: api
+            dockerfile: apps/api/Dockerfile
+            target: runtime
+          # The migration job is its own image on purpose: it needs the prisma
+          # CLI and the hand-written SQL, which the production-only runtime tree
+          # deliberately does not carry (docs/runbooks/deploy.md section 3).
+          - image: migrate
+            dockerfile: apps/api/Dockerfile
+            target: migrate
+          - image: worker-media
+            dockerfile: apps/worker-media/Dockerfile
+            target: runtime
+          - image: worker-ai
+            dockerfile: apps/worker-ai/Dockerfile
+            target: runtime
+          - image: render
+            dockerfile: apps/render/Dockerfile
+            target: runtime
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      # x86 only, deliberately. The production node group in
+      # infra/terraform/envs/prod is ARM (m7g.xlarge), and nothing has ever
+      # proven this stack's native Node, Python and ffmpeg dependencies build or
+      # run on ARM. Publishing a single-arch amd64 image and running it on
+      # verified x86 nodes is the honest launch position; add linux/arm64 here in
+      # the same change that switches the node group and proves it (P0-03).
+      - name: Build (amd64)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          target: ${{ matrix.target }}
+          platforms: linux/amd64
+          push: false
+          load: true
+          tags: montaj/${{ matrix.image }}:${{ github.sha }}
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+          build-args: |
+            GIT_SHA=${{ github.sha }}
+
+      - name: SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          image: montaj/${{ matrix.image }}:${{ github.sha }}
+          format: spdx-json
+          output-file: sbom-${{ matrix.image }}.spdx.json
+          upload-artifact: false
+
+      # Blocking on CRITICAL and HIGH in an image that serves customer traffic.
+      # `ignore-unfixed` because an advisory with no available patch is not
+      # something this pipeline can act on — it belongs in
+      # security/audit-exceptions.json with an owner and an expiry, like the
+      # dependency findings.
+      - name: Scan
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: montaj/${{ matrix.image }}:${{ github.sha }}
+          format: sarif
+          output: trivy-${{ matrix.image }}.sarif
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "1"
+
+      - name: Publish scan results
+        # `always()`: the findings are most worth reading when the scan failed.
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-${{ matrix.image }}.sarif
+          category: image-${{ matrix.image }}
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sbom-${{ matrix.image }}
+          path: sbom-${{ matrix.image }}.spdx.json
+          if-no-files-found: warn
+
+      # --- Everything below needs a registry --------------------------------
+
+      - name: Configure AWS credentials
+        if: vars.REGISTRY != '' && github.event_name == 'push'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ap-south-1
+
+      - name: Log in to ECR
+        if: vars.REGISTRY != '' && github.event_name == 'push'
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Push by commit SHA
+        if: vars.REGISTRY != '' && github.event_name == 'push'
+        id: push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          target: ${{ matrix.target }}
+          platforms: linux/amd64
+          push: true
+          # The SHA and nothing else. No `latest`: a deploy has to name the
+          # exact bytes it is deploying, and a rollback has to be able to name
+          # the bytes it is going back to.
+          tags: ${{ vars.REGISTRY }}/montaj/${{ matrix.image }}:${{ github.sha }}
+          cache-from: type=gha,scope=${{ matrix.image }}
+          provenance: mode=max
+          sbom: true
+
+      - name: Install cosign
+        if: vars.REGISTRY != '' && github.event_name == 'push'
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign the digest and attach the SBOM
+        if: vars.REGISTRY != '' && github.event_name == 'push'
+        env:
+          IMAGE: ${{ vars.REGISTRY }}/montaj/${{ matrix.image }}@${{ steps.push.outputs.digest }}
+        run: |
+          # Keyless: the signature is bound to this workflow's OIDC identity, so
+          # verification answers "which workflow, on which commit, built this",
+          # not merely "someone with the key signed it".
+          cosign sign --yes "$IMAGE"
+          cosign attest --yes --predicate sbom-${{ matrix.image }}.spdx.json \
+            --type spdxjson "$IMAGE"
+
+      - name: Record the digest
+        if: vars.REGISTRY != '' && github.event_name == 'push'
+        run: |
+          mkdir -p digests
+          echo "${{ steps.push.outputs.digest }}" > "digests/${{ matrix.image }}"
+          {
+            echo "### ${{ matrix.image }}"
+            echo '```'
+            echo "${{ vars.REGISTRY }}/montaj/${{ matrix.image }}@${{ steps.push.outputs.digest }}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        if: vars.REGISTRY != '' && github.event_name == 'push'
+        with:
+          name: digest-${{ matrix.image }}
+          path: digests/${{ matrix.image }}
+
+  # -------------------------------------------------------------------------
+  # One place to read "what did this commit produce", which is what the deploy
+  # runbook and a rollback both need.
+  # -------------------------------------------------------------------------
+  manifest:
+    name: Release manifest
+    needs: build
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Say what was published
+        run: |
+          if [ -z "${{ vars.REGISTRY }}" ]; then
+            echo "REGISTRY is not set, so nothing was published." >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "Every image was still built, SBOM'd and scanned — that half of the" >> "$GITHUB_STEP_SUMMARY"
+            echo "gate does not need a registry. Set the REGISTRY repository variable" >> "$GITHUB_STEP_SUMMARY"
+            echo "and the AWS_DEPLOY_ROLE_ARN secret to turn on push, signing and" >> "$GITHUB_STEP_SUMMARY"
+            echo "attestation (launch-readiness P0-02)." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - uses: actions/download-artifact@v4
+        if: vars.REGISTRY != '' && github.event_name == 'push'
+        with:
+          pattern: digest-*
+          path: digests
+          merge-multiple: false
+
+      - name: Collect digests
+        if: vars.REGISTRY != '' && github.event_name == 'push'
+        run: |
+          echo "## Release ${{ github.sha }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo '| image | digest |' >> "$GITHUB_STEP_SUMMARY"
+          echo '|---|---|' >> "$GITHUB_STEP_SUMMARY"
+          for dir in digests/digest-*; do
+            image="${dir#digests/digest-}"
+            echo "| $image | \`$(cat "$dir/$image")\` |" >> "$GITHUB_STEP_SUMMARY"
+          done

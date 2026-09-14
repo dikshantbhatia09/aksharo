@@ -69,7 +69,7 @@ staging evidence.
 | P0-11 (connections) | No explicit pool budget; Prisma defaults to `numCpus * 2 + 1`, making fleet-wide connection use a property of node size and discoverable only by exhausting the database. | `DATABASE_POOL_SIZE` per process, applied in `PrismaService` and logged at boot. Worksheet in `docs/runbooks/db-connection-budget.md`. 7 tests. |
 | P0-13 (recon surface) | Swagger UI and `/docs-json` always mounted, unauthenticated. | Disabled under `NODE_ENV=production` unless `API_DOCS_ENABLED=1`; also blocked at the edge along with `/internal/*`. |
 | P0-08 (edge) | Proxied DNS and nothing else: no WAF rule, no bot control, no endpoint rate limit, no challenge. | `infra/terraform/modules/dns-cdn/waf.tf` adds managed + OWASP rulesets, rate limits on auth / job-creation / share-viewer, admin and docs lockdown, and a Turnstile widget. Off by default (`manage_waf`), because it needs a real zone on a paid plan. |
-| P0-02 (CI) | `bridge-sea` built a workspace absent from this Git HEAD, failing before the gates that matter. Dependency audit was `|| true` on everything. | Stale job removed with the reasoning recorded. Audit split: **blocking** on `--prod`, reporting on the rest. |
+| P0-02 (CI) | No workflow built, scanned or published any of the five runtime images — CI built only the CPU model-server. `bridge-sea` built a workspace absent from this Git HEAD, failing before the gates that matter. The dependency audit was `|| true` on everything. | New `.github/workflows/images.yml` builds all six images (five runtime + the migration image), SBOMs and scans each, and — once a `REGISTRY` variable exists — pushes by commit SHA, signs the digest with cosign keyless OIDC and attaches the SBOM as an attestation. Stale job removed. Audit split: **blocking** on `--prod`, reporting on the rest. |
 | P0-12 (dead surfaces) | Marketing nav offered Plugins and Download; the sidebar offered "Get the desktop app". None of those products are in this Git HEAD. | `content/site/launch-surfaces.ts` is one matrix, everything off by default; nav and sidebar filter through it. 12 tests. |
 | P0-05 (capacity) | The harness measured job admission only, and the report presented a bare PASS/FAIL that reads like a capacity result. | `LOAD_CONCURRENCY` added so a fixed per-request cost can be told from queueing; every report now prints what it did **not** measure. |
 
@@ -128,16 +128,6 @@ that does not exist, and the binary refuses to pretend — but `realtime` and
 "deploy one coherent API service and do not pretend the roles are isolated",
 which is what this now does. Splitting the module graph is a P1 refactor.
 
-**The application delivery pipeline (most of P0-02).** The stale job is gone and
-the audit is now a real gate, but there is still **no workflow that builds,
-scans, signs and pushes the five runtime images**. That is the largest single
-gap left in this repository, and it was left deliberately: a publish pipeline
-needs a registry to publish to, an OIDC role to publish with, and an environment
-to deploy into, none of which exist. Writing one against placeholder values would
-produce exactly what the audit criticises everywhere else — infrastructure that
-reads as done and has never run. Build it in the same change that creates the
-registry.
-
 **Running the load harness (most of P0-05).** The harness can now distinguish a
 fixed per-request cost from queueing, and reports its own blind spots — but the
 3.67 s p95 is not diagnosed, because diagnosing it needs the stack running and,
@@ -147,6 +137,21 @@ observation worth carrying into that run: the 2026-09-02 report's p50 of
 Every request cost the same, which is the signature of a queue draining rather
 than a slow handler. `LOAD_CONCURRENCY=1` against the same build is the cheapest
 way to confirm that before anyone optimises the handler.
+
+**Actually running the image pipeline end to end.** `images.yml` is written so
+its useful half works with no registry at all: it builds every image, generates
+an SBOM and fails on a critical or high finding. The push, signing and
+attestation steps are gated on a `REGISTRY` repository variable and stay skipped
+until one exists. What has been verified here is that all six build targets
+exist and that every Dockerfile passes `docker build --check`; the images were
+**not** built locally, because the disk was at 10 GB free and six image builds
+would have refilled it. The first CI run is the real proof.
+
+It publishes `linux/amd64` only. The production node group in
+`infra/terraform/envs/prod` is ARM (`m7g.xlarge`) and nothing has ever
+demonstrated this stack's native Node, Python and ffmpeg dependencies on ARM, so
+single-arch plus verified x86 nodes is the honest launch position. Adding
+`linux/arm64` belongs in the change that switches the node group and proves it.
 
 **Any dependency bump beyond the four overrides.** The launch plan says fix only
 release blockers and repeat the affected tests. A lockfile-wide upgrade cannot be
