@@ -24,12 +24,16 @@ import { useState } from "react";
 import { BRAND } from "@montaj/config";
 import { Button } from "@montaj/ui";
 
-import { AUTH_NAV, PRIMARY_NAV } from "@/content/site/nav";
+import { useRuntimeConfig } from "@/components/providers";
+import { AUTH_NAV, PRIMARY_NAV, visibleNav } from "@/content/site/nav";
 import { cn } from "@/lib/utils";
 
 export function SiteHeader(): React.JSX.Element {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  // Plugins and Download lead to products that are not in this release; the
+  // nav drops them unless their surface flag says otherwise (P0-12).
+  const nav = visibleNav(PRIMARY_NAV, useRuntimeConfig().flags);
 
   return (
     <header className="border-border bg-bg-0/95 sticky top-0 z-40 border-b backdrop-blur">
@@ -47,7 +51,7 @@ export function SiteHeader(): React.JSX.Element {
           aria-label="Primary"
           data-testid="site-nav"
         >
-          {PRIMARY_NAV.map((item) => {
+          {nav.map((item) => {
             const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
             return (
               <Link
@@ -94,7 +98,7 @@ export function SiteHeader(): React.JSX.Element {
           aria-label="Primary"
           className="border-border flex flex-col gap-1 border-t px-4 py-3 md:hidden"
         >
-          {PRIMARY_NAV.map((item) => (
+          {nav.map((item) => (
             <Link
               key={item.href}
               href={item.href}

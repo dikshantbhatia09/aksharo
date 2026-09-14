@@ -47,16 +47,35 @@ describe("<Sidebar />", () => {
     expect(screen.getByTestId("nav-home")).toHaveAttribute("aria-current", "page");
   });
 
+  /**
+   * The desktop app is not in this release: `apps/desktop` is not in this Git
+   * HEAD, so the link advertised a download nobody could get (P0-12). It needs
+   * BOTH the production origin and an explicit flag.
+   */
   it("offers the desktop download from the brand domain, never the codename", () => {
-    renderWithProviders(<Sidebar />);
+    renderWithProviders(<Sidebar />, {
+      config: {
+        webOrigin: `https://app.${BRAND.domain}`,
+        flags: { "desktop.download": true },
+      },
+    });
     const download = screen.getByTestId("desktop-download");
     expect(download).toHaveAttribute("href", `https://${BRAND.domain}/download`);
     expect(download.getAttribute("href")).not.toContain("montaj");
   });
 
+  it("hides the desktop download until the flag turns it on", () => {
+    renderWithProviders(<Sidebar />, {
+      config: { webOrigin: `https://app.${BRAND.domain}` },
+    });
+    expect(screen.queryByTestId("desktop-download")).toBeNull();
+  });
+
   // F07-E8: aksharo.ai/download only exists for the production deployment.
   it("does not offer that download from a build served somewhere else", () => {
-    renderWithProviders(<Sidebar />, { config: { webOrigin: "http://127.0.0.1:3934" } });
+    renderWithProviders(<Sidebar />, {
+      config: { webOrigin: "http://127.0.0.1:3934", flags: { "desktop.download": true } },
+    });
     expect(screen.queryByTestId("desktop-download")).toBeNull();
   });
 

@@ -9,6 +9,7 @@ import { JobsService } from "./jobs.service.js";
 import { QueueRegistry } from "./queue.registry.js";
 import { DlqDepthTask } from "./tasks/dlq-depth.task.js";
 import { JobEventRetentionTask } from "./tasks/job-event-retention.task.js";
+import { QueueDepthTask } from "./tasks/queue-depth.task.js";
 import { QueueTimeoutTask } from "./tasks/queue-timeout.task.js";
 
 /**
@@ -38,6 +39,7 @@ import { QueueTimeoutTask } from "./tasks/queue-timeout.task.js";
     QueueTimeoutTask,
     JobEventRetentionTask,
     DlqDepthTask,
+    QueueDepthTask,
   ],
   exports: [
     JobsService,
@@ -48,6 +50,7 @@ import { QueueTimeoutTask } from "./tasks/queue-timeout.task.js";
     QueueTimeoutTask,
     JobEventRetentionTask,
     DlqDepthTask,
+    QueueDepthTask,
   ],
 })
 export class JobsModule {}

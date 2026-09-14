@@ -107,9 +107,12 @@ The email subject is hashed before it becomes part of a key: an address is
 personal data and Redis keys reach slow-log output. The limiter **fails open** —
 a Redis outage must not lock every user out — and says so in the log.
 
-The address itself comes from the socket unless `TRUST_PROXY=1` says an edge you
-control rewrites `X-Forwarded-For`. Trusting that header unconditionally would
-hand every attacker a fresh bucket per request.
+The address itself comes from the socket unless `TRUST_PROXY` names how many
+proxies you control sit in front of the API, in which case the limiter reads the
+entry that the outermost trusted hop wrote — counted from the *right* of
+`X-Forwarded-For`, because that header is built by appending and its left-hand
+side is whatever the client sent. Trusting the header unconditionally, or taking
+its left-most value, both hand every attacker a fresh bucket per request.
 
 ## The age gate (D60)
 

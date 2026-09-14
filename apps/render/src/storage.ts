@@ -138,8 +138,9 @@ export interface BucketConfig {
   readonly endpoint: string;
   readonly region: string;
   readonly bucket: string;
-  readonly accessKey: string;
-  readonly secretKey: string;
+  /** Blank uses the AWS default credential chain (IRSA). See below. */
+  readonly accessKey?: string;
+  readonly secretKey?: string;
 }
 
 /**
@@ -158,10 +159,19 @@ export async function createObjectStore(config: BucketConfig): Promise<ObjectSto
   // Imported here so `import "./storage.js"` does not pull the SDK into a test
   // that only builds keys.
   const { S3Client, GetObjectCommand, PutObjectCommand } = await import("@aws-sdk/client-s3");
+  // Omit `credentials` entirely when none are configured, so the SDK walks its
+  // default chain (IRSA / pod identity). Empty strings would disable it (P0-09).
+  const credentials =
+    config.accessKey !== undefined &&
+    config.accessKey !== "" &&
+    config.secretKey !== undefined &&
+    config.secretKey !== ""
+      ? { accessKeyId: config.accessKey, secretAccessKey: config.secretKey }
+      : undefined;
   const client = new S3Client({
     endpoint: config.endpoint,
     region: config.region,
-    credentials: { accessKeyId: config.accessKey, secretAccessKey: config.secretKey },
+    ...(credentials === undefined ? {} : { credentials }),
     forcePathStyle: true,
   });
 

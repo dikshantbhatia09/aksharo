@@ -73,12 +73,28 @@ spec:
       {{- end }}
       {{- if and $.Values.topologySpreadDefault (ne ($spec.kind | default "worker") "cron") }}
       topologySpreadConstraints:
+        {{- /* `topologySpreadStrict` turns ScheduleAnyway into DoNotSchedule.
+               ScheduleAnyway lets every replica of a service land in one zone
+               whenever capacity is tight — precisely when a zone failure is
+               most likely to matter — so a "3 replica" service silently becomes
+               a one-zone service costing three times as much (P0-05).
+               DoNotSchedule makes that a visible Pending pod instead. Hostname
+               spreading is added alongside it so three replicas never share one
+               node either, which no zone constraint prevents. */}}
         - maxSkew: 1
           topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: {{ if $.Values.topologySpreadStrict }}DoNotSchedule{{ else }}ScheduleAnyway{{ end }}
+          labelSelector:
+            matchLabels:
+              {{- include "montaj.componentSelectorLabels" (dict "root" $ "component" $name) | nindent 14 }}
+        {{- if $.Values.topologySpreadStrict }}
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
           whenUnsatisfiable: ScheduleAnyway
           labelSelector:
             matchLabels:
               {{- include "montaj.componentSelectorLabels" (dict "root" $ "component" $name) | nindent 14 }}
+        {{- end }}
       {{- end }}
       containers:
         - name: {{ $name }}
@@ -103,7 +119,7 @@ spec:
                 name: {{ include "montaj.configMapName" $ }}
             {{- if $.Values.externalSecrets.enabled }}
             - secretRef:
-                name: {{ include "montaj.envSecretName" $ }}
+                name: {{ include "montaj.envSecretName" (dict "root" $ "component" $name) }}
             {{- end }}
           env:
             - name: MONTAJ_COMPONENT

@@ -91,7 +91,7 @@ describe("Phonetic Auto-Repair", () => {
 describe("Hinglish Post-Processing Pipeline", () => {
   it("processes a code-mixed Hinglish chunk into clean captions", async () => {
     const chunk: TranscriptChunk = {
-      chunkIndex: 0,
+      chunkIdx: 0,
       startMs: 0,
       endMs: 20200,
       words: [

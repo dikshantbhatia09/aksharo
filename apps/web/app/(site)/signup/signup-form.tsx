@@ -39,7 +39,10 @@ const credentialsSchema = z.object({
   email: z.string().trim().min(3).max(254).email("That does not look like an email address."),
   password: z
     .string()
-    .min(12, "Use at least 12 characters — a phrase you can remember beats a short jumble.")
+    // 15 to match the server (`auth.constants.ts` PASSWORD_MIN_LENGTH, itself
+    // NIST SP 800-63B-4's single-factor minimum). A client floor below the
+    // server's turns a policy into a round-trip error at the worst moment.
+    .min(15, "Use at least 15 characters — a phrase you can remember beats a short jumble.")
     .max(256),
 });
 
@@ -279,7 +282,7 @@ export function SignUpForm(): React.JSX.Element {
         <Field
           label="Password"
           htmlFor="password"
-          hint="At least 12 characters. A phrase you can remember beats a short jumble."
+          hint="At least 15 characters. A phrase you can remember beats a short jumble."
           {...(issues.password === undefined ? {} : { error: issues.password })}
         >
           <Input

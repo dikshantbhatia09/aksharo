@@ -1,6 +1,8 @@
 import { Injectable, Logger, type OnModuleDestroy, type OnModuleInit } from "@nestjs/common";
 import { type Prisma, PrismaClient } from "@prisma/client";
 
+import { applyPoolBudget, type PoolBudget } from "./pool.js";
+
 /**
  * A transaction client: the same surface as {@link PrismaService} minus the
  * lifecycle and transaction methods, which is what `$transaction` hands a callback.
@@ -30,7 +32,20 @@ export interface TransactionOptions {
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(PrismaService.name);
 
+  /** What this process is allowed to open. See `pool.ts`. */
+  private readonly poolBudget: PoolBudget;
+
   constructor() {
+    // Prisma's default limit is derived from the host's CPU count, which makes
+    // the fleet's total connection use a property of the node size rather than
+    // of the replica count — and therefore unknowable until the database runs
+    // out. The budget is stated explicitly instead (P0-11).
+    const databaseUrl = process.env["DATABASE_URL"];
+    const pooled =
+      databaseUrl === undefined || databaseUrl === ""
+        ? undefined
+        : applyPoolBudget(databaseUrl);
+
     super({
       // Query text only, never parameters: parameters are user media, transcripts
       // and credentials (THREAT-MODEL T21).
@@ -38,12 +53,26 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
         { emit: "event", level: "warn" },
         { emit: "event", level: "error" },
       ],
+      ...(pooled === undefined ? {} : { datasources: { db: { url: pooled.url } } }),
     });
+
+    this.poolBudget = pooled?.budget ?? {
+      connectionLimit: 0,
+      poolTimeoutSec: 0,
+      fromUrl: false,
+    };
   }
 
   async onModuleInit(): Promise<void> {
     await this.$connect();
-    this.logger.log("database connected");
+    this.logger.log(
+      {
+        connectionLimit: this.poolBudget.connectionLimit,
+        poolTimeoutSec: this.poolBudget.poolTimeoutSec,
+        source: this.poolBudget.fromUrl ? "DATABASE_URL" : "DATABASE_POOL_SIZE",
+      },
+      "database connected",
+    );
   }
 
   async onModuleDestroy(): Promise<void> {

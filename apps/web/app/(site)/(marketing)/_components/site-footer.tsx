@@ -4,15 +4,19 @@
  * (08-ux-design-system.md §Marketing site legal footer and plugin naming).
  */
 
+"use client";
+
 import Link from "next/link";
 
 import { BRAND } from "@montaj/config";
 
+import { useRuntimeConfig } from "@/components/providers";
 import { ATTRIBUTION_LINE, GRIEVANCE_OFFICER } from "@/content/site/legal";
 import {
   FOOTER_COMPARE_NAV,
   FOOTER_LEGAL_NAV,
   FOOTER_PRODUCT_NAV,
+  visibleNav,
   type SiteNavItem,
 } from "@/content/site/nav";
 
@@ -40,6 +44,9 @@ function FooterColumn({
 }
 
 export function SiteFooter(): React.JSX.Element {
+  // Plugins and Download lead to products that are not in this release (P0-12).
+  const { flags } = useRuntimeConfig();
+
   return (
     <footer className="border-border border-t" data-testid="site-footer">
       <div className="mx-auto grid max-w-6xl grid-cols-2 gap-8 px-4 py-12 sm:px-6 md:grid-cols-4">
@@ -55,7 +62,7 @@ export function SiteFooter(): React.JSX.Element {
           </p>
         </div>
 
-        <FooterColumn title="Product" items={FOOTER_PRODUCT_NAV} />
+        <FooterColumn title="Product" items={visibleNav(FOOTER_PRODUCT_NAV, flags)} />
         <FooterColumn title="Compare" items={FOOTER_COMPARE_NAV} />
         <FooterColumn title="Legal" items={FOOTER_LEGAL_NAV} />
       </div>

@@ -19,6 +19,7 @@
     "db:migrate": "tsx scripts/db-migrate.ts",
     "db:reset": "tsx scripts/db-reset.ts",
     "db:seed": "tsx prisma/seed.ts",
+    "db:seed:reference": "tsx prisma/seed.ts --reference-only",
     "db:seed:sample": "tsx prisma/seed-sample.ts",
     "db:sql": "tsx scripts/apply-sql.ts",
     "ingest:audio-pack": "tsx scripts/ingest-audio-pack.ts",

@@ -5,14 +5,29 @@
  * package scope and BullMQ queue names. It must never reach UI copy, domains,
  * bundle ids, plugin ids, installer names, OAuth client names or marketing.
  * A rename after the legal review touches this file plus DNS.
+ *
+ * **Do not put a competitor's name here.** The Sep-2026 visual-parity work
+ * (matching the editor chrome of a competitor product) overwrote this file with
+ * that competitor's name, domain, deep-link scheme and support address, which
+ * would have shipped their trademark as our own brand and pointed support mail
+ * and the desktop deep link at a domain we do not control. Parity is a *visual*
+ * exercise; brand strings are decision D59 (CONTRACTS §0) and change only by ADR.
+ * {@link FORBIDDEN_BRAND_NAMES} makes the regression a failing test, not a review
+ * catch.
  */
 
+/**
+ * Names that must never appear in {@link BRAND}: other companies' products whose
+ * look-and-feel this codebase deliberately studies. Lower-cased for comparison.
+ */
+export const FORBIDDEN_BRAND_NAMES = ["kalakar", "montaj"] as const;
+
 export const BRAND = {
-  name: "Kalakar",
-  domain: "kalakar.io",
-  altDomain: "app.kalakar.io",
-  deepLinkScheme: "kalakar",
-  supportEmail: "support@kalakar.io",
+  name: "Aksharo",
+  domain: "aksharo.ai",
+  altDomain: "aksharo.in",
+  deepLinkScheme: "aksharo",
+  supportEmail: "support@aksharo.ai",
 } as const;
 
 export type Brand = typeof BRAND;

@@ -16,6 +16,7 @@ import {
   PASSWORD_MAX_LENGTH,
   PASSWORD_MIN_LENGTH,
 } from "./auth.constants.js";
+import { commonPasswordReason } from "./common-passwords.js";
 import { AppException } from "../common/index.js";
 
 /**
@@ -47,7 +48,15 @@ function absentHash(): string {
 }
 
 /** Reasons a password is refused; the client shows them, so they are specific. */
-export type PasswordRejection = "too_short" | "too_long" | "contains_email" | "breached";
+export type PasswordRejection =
+  | "too_short"
+  | "too_long"
+  | "contains_email"
+  | "breached"
+  | "common_password"
+  | "repeated_characters"
+  | "sequential_characters"
+  | "contains_product_name";
 
 @Injectable()
 export class PasswordService {
@@ -96,15 +105,20 @@ export class PasswordService {
   }
 
   /**
-   * Structural password policy (NIST SP 800-63B: length, no composition rules).
-   * The breach check is separate because it is a network call and feature-flagged.
+   * Local password policy (NIST SP 800-63B-4: length and a blocklist, never
+   * composition rules).
+   *
+   * The remote breach check stays separate because it is a network call that is
+   * feature-flagged and fails open; {@link commonPasswordReason} is the bounded,
+   * in-process floor under it, so the blocklist requirement holds even when HIBP
+   * is unreachable (launch-readiness P0-06).
    */
   check(password: string, email: string): PasswordRejection | undefined {
     if (password.length < PASSWORD_MIN_LENGTH) return "too_short";
     if (password.length > PASSWORD_MAX_LENGTH) return "too_long";
     const local = email.split("@")[0]?.toLowerCase() ?? "";
     if (local.length >= 3 && password.toLowerCase().includes(local)) return "contains_email";
-    return undefined;
+    return commonPasswordReason(password);
   }
 
   /** {@link check}, as an exception. */
@@ -113,13 +127,28 @@ export class PasswordService {
     if (rejection === undefined) return;
     throw new AppException(
       AUTH_ERRORS.weakPassword,
-      rejection === "too_short"
-        ? `Use at least ${String(PASSWORD_MIN_LENGTH)} characters.`
-        : rejection === "too_long"
-          ? `Use at most ${String(PASSWORD_MAX_LENGTH)} characters.`
-          : "Your password must not contain your email address.",
+      PASSWORD_REJECTION_MESSAGES[rejection],
       HttpStatus.BAD_REQUEST,
       { reason: rejection, minLength: PASSWORD_MIN_LENGTH, maxLength: PASSWORD_MAX_LENGTH },
     );
   }
 }
+
+/**
+ * What the user is told.
+ *
+ * Every message says what to change and nothing about how the decision was
+ * reached: "this is on a list of the 100 most common passwords" is a hint worth
+ * having on the other side of the login form.
+ */
+const PASSWORD_REJECTION_MESSAGES: Readonly<Record<PasswordRejection, string>> = {
+  too_short: `Use at least ${String(PASSWORD_MIN_LENGTH)} characters.`,
+  too_long: `Use at most ${String(PASSWORD_MAX_LENGTH)} characters.`,
+  contains_email: "Your password must not contain your email address.",
+  breached:
+    "This password has appeared in a public data breach. Please choose a different one.",
+  common_password: "This password is too easy to guess. Please choose a different one.",
+  repeated_characters: "This password is too easy to guess. Please choose a different one.",
+  sequential_characters: "This password is too easy to guess. Please choose a different one.",
+  contains_product_name: "Your password must not contain the name of this product.",
+};

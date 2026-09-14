@@ -37,6 +37,10 @@ export default mergeConfig(
           "lib/**/*.{test,spec}.{ts,tsx}",
           "components/**/*.{test,spec}.{ts,tsx}",
           "app/**/*.{test,spec}.{ts,tsx}",
+          // `content/` is source, not fixtures: the nav, the legal copy and the
+          // launch surface matrix all live there, and a test written beside one
+          // of them was silently never run until this was added.
+          "content/**/*.{test,spec}.{ts,tsx}",
           "middleware.test.ts",
           "next.config.test.ts",
         ],

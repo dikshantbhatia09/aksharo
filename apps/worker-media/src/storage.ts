@@ -53,8 +53,16 @@ export interface StoreConfig {
   readonly bucket: string;
   readonly endpoint: string;
   readonly region: string;
-  readonly accessKeyId: string;
-  readonly secretAccessKey: string;
+  /**
+   * Static credentials, or blank to use the AWS default credential chain.
+   *
+   * Blank is how IRSA works: the pod is handed a projected token and a role
+   * ARN, and the SDK finds them. Passing empty strings as `credentials` does
+   * NOT do that — the SDK takes them at face value and every request fails to
+   * sign — so the option is omitted entirely instead (P0-09).
+   */
+  readonly accessKeyId?: string;
+  readonly secretAccessKey?: string;
 }
 
 /** Tag every derived object, so the bucket's lifecycle rule can select them (D47). */
@@ -68,15 +76,19 @@ export class S3Store implements ObjectStore {
   constructor(config: StoreConfig, client?: S3Client) {
     this.bucket = config.bucket;
     this.kind = config.kind;
+    const credentials =
+      config.accessKeyId !== undefined &&
+      config.accessKeyId !== "" &&
+      config.secretAccessKey !== undefined &&
+      config.secretAccessKey !== ""
+        ? { accessKeyId: config.accessKeyId, secretAccessKey: config.secretAccessKey }
+        : undefined;
     this.client =
       client ??
       new S3Client({
         endpoint: config.endpoint,
         region: config.region,
-        credentials: {
-          accessKeyId: config.accessKeyId,
-          secretAccessKey: config.secretAccessKey,
-        },
+        ...(credentials === undefined ? {} : { credentials }),
         forcePathStyle: true,
         requestChecksumCalculation: "WHEN_REQUIRED",
         responseChecksumValidation: "WHEN_REQUIRED",

@@ -132,3 +132,13 @@ output "s3_access_policy_arn" {
   description = "IAM policy for ws/-scoped access to the raw bucket. Attach to the api and worker IRSA roles."
   value       = module.s3_raw.access_policy_arn
 }
+
+output "workload_role_arns" {
+  description = "Workload -> IRSA role ARN. Feed into the chart's per-component serviceAccountAnnotations."
+  value       = module.workload_irsa.role_arns
+}
+
+output "workload_service_account_annotations" {
+  description = "Ready-shaped annotations for values-staging.yaml, so no ARN is hand-copied."
+  value       = module.workload_irsa.helm_service_account_annotations
+}

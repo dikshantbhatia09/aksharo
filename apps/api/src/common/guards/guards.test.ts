@@ -60,7 +60,13 @@ describe("clientIp", () => {
     expect(clientIp(request)).toBe("10.0.0.1");
   });
 
-  it("reads the header when TRUST_PROXY=1, taking the left-most hop", () => {
+  /**
+   * `TRUST_PROXY` counts trusted hops, and the entry a trusted hop wrote is
+   * counted from the RIGHT. The left of the header is whatever the client sent;
+   * reading it — as this did until P0-08 — lets anyone mint a fresh rate-limit
+   * bucket per request by prepending an address.
+   */
+  it("reads the entry the single trusted proxy wrote, not the client's prefix", () => {
     process.env["TRUST_PROXY"] = "1";
     try {
       const request = {
@@ -68,7 +74,7 @@ describe("clientIp", () => {
         ip: "10.0.0.1",
         socket,
       } as unknown as Request;
-      expect(clientIp(request)).toBe("1.2.3.4");
+      expect(clientIp(request)).toBe("5.6.7.8");
 
       const arrayHeader = {
         headers: { "x-forwarded-for": ["9.9.9.9"] },
@@ -78,6 +84,73 @@ describe("clientIp", () => {
       expect(clientIp(arrayHeader)).toBe("9.9.9.9");
     } finally {
       delete process.env["TRUST_PROXY"];
+    }
+  });
+
+  it("steps in one entry per trusted hop", () => {
+    process.env["TRUST_PROXY"] = "2";
+    try {
+      // Forged, then the client (recorded by Cloudflare), then Cloudflare
+      // (recorded by the ingress).
+      const request = {
+        headers: { "x-forwarded-for": "9.9.9.9, 203.0.113.7, 10.0.0.5" },
+        ip: "10.0.0.1",
+        socket,
+      } as unknown as Request;
+      expect(clientIp(request)).toBe("203.0.113.7");
+    } finally {
+      delete process.env["TRUST_PROXY"];
+    }
+  });
+
+  it("cannot be shifted by prepending addresses, however many", () => {
+    process.env["TRUST_PROXY"] = "2";
+    try {
+      const forged = ["1.1.1.1", "2.2.2.2", "3.3.3.3", "4.4.4.4"].join(", ");
+      const request = {
+        headers: { "x-forwarded-for": `${forged}, 203.0.113.7, 10.0.0.5` },
+        ip: "10.0.0.1",
+        socket,
+      } as unknown as Request;
+      expect(clientIp(request)).toBe("203.0.113.7");
+    } finally {
+      delete process.env["TRUST_PROXY"];
+    }
+  });
+
+  /**
+   * A request that reached this process without passing every declared proxy —
+   * someone who found the origin directly — has no trustworthy entry at all.
+   * The socket address is the only honest answer, and it is also the one that
+   * makes a direct-origin attempt visible in the audit rows.
+   */
+  it("falls back to the socket when the chain is shorter than the trusted hops", () => {
+    process.env["TRUST_PROXY"] = "2";
+    try {
+      const request = {
+        headers: { "x-forwarded-for": "203.0.113.7" },
+        ip: "10.0.0.1",
+        socket,
+      } as unknown as Request;
+      expect(clientIp(request)).toBe("10.0.0.1");
+    } finally {
+      delete process.env["TRUST_PROXY"];
+    }
+  });
+
+  it("treats a zero, negative or unparseable hop count as no proxy at all", () => {
+    for (const value of ["0", "-1", "yes", ""]) {
+      process.env["TRUST_PROXY"] = value;
+      try {
+        const request = {
+          headers: { "x-forwarded-for": "1.2.3.4" },
+          ip: "10.0.0.1",
+          socket,
+        } as unknown as Request;
+        expect(clientIp(request), `TRUST_PROXY=${value}`).toBe("10.0.0.1");
+      } finally {
+        delete process.env["TRUST_PROXY"];
+      }
     }
   });
 

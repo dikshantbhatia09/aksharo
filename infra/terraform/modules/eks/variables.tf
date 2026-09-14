@@ -148,6 +148,23 @@ variable "addon_versions" {
   }
 }
 
+variable "enable_vpc_cni_network_policy" {
+  type        = bool
+  default     = true
+  description = <<-EOT
+    Turn on NetworkPolicy enforcement in the AWS VPC CNI addon.
+
+    Defaults to true because the chart already ships NetworkPolicy objects and,
+    without this, the CNI ignores every one of them: the policies exist, are
+    listed by kubectl, and filter nothing. Defaulting to off is how a cluster
+    ends up believing it has lateral-movement isolation it has never had.
+
+    Requires VPC CNI v1.14+ and a node AMI with the policy agent. Verify after
+    apply by making a denied request from inside a pod, not by reading the
+    addon's configuration back.
+  EOT
+}
+
 variable "access_entries" {
   description = "Extra IAM principals granted cluster access through EKS access entries (no aws-auth ConfigMap editing). Key is a stable label; policy_arn is an AmazonEKS*Policy ARN; access_scope_type is \"cluster\" or \"namespace\"."
   type = map(object({

@@ -27,8 +27,20 @@ aws ecr describe-images --repository-name montaj/worker-ai    --image-ids imageT
 aws ecr describe-images --repository-name montaj/render  --image-ids imageTag="$TAG" >/dev/null
 ```
 
-`realtime` and `scheduler` run the `montaj/api` image with a different
-`--role` argument, so there is no separate image for them.
+`realtime` and `scheduler` are **not deployed** as of 2026-09-14. They were
+declared as separate components running the `montaj/api` image with a
+`--role` argument, and `apps/api/src/main.ts` never parsed that argument: all
+three booted the identical full application on whichever port `API_PORT`
+named, so the realtime Service pointed at a port nothing listened on and the
+isolation the chart described did not exist (launch-readiness P0-03). The
+image now refuses to start with an unimplemented role, so this cannot come
+back silently.
+
+Nothing is lost. The API serves the WebSocket gateway itself at `/realtime`,
+and scheduled work is dispatched through BullMQ repeatable jobs, so a tick
+becomes exactly one job that exactly one replica runs — a guarantee of the
+queue, not of the replica count. There are four runtime images plus the
+migration image, not seven.
 
 ## 2. Point kubectl at the right cluster
 
@@ -46,11 +58,37 @@ data problem instead of a deploy problem.
 ```bash
 kubectl -n "$NS" delete job montaj-migrate --ignore-not-found
 kubectl -n "$NS" create job montaj-migrate \
-  --image "$REGISTRY/montaj/api:$TAG" \
-  -- node dist/scripts/migrate.js
+  --image "$REGISTRY/montaj/migrate:$TAG" \
+  -- sh -c "pnpm --filter @montaj/api db:migrate && pnpm --filter @montaj/api db:seed:reference"
 kubectl -n "$NS" wait --for=condition=complete job/montaj-migrate --timeout=10m
 kubectl -n "$NS" logs job/montaj-migrate | tail -40
 ```
+
+**This command changed on 2026-09-14, and the old one could never have worked.**
+It was `--image .../montaj/api:$TAG -- node dist/scripts/migrate.js`, and:
+
+- `dist/scripts/migrate.js` does not exist in any image. `apps/api/tsconfig.build.json`
+  compiles `src/**/*.ts` and explicitly excludes `scripts`, so nothing under
+  `scripts/` is ever emitted to `dist/`.
+- The runtime image carries a production-only dependency tree with no `prisma`
+  CLI, so it could not run migrations even if that entry point existed.
+- The `migrate` stage of `apps/api/Dockerfile` — which does have the full
+  toolchain — ran `prisma migrate deploy` and then the **whole** seed. That
+  applied the Prisma schema while skipping the hand-maintained DDL in
+  `prisma/sql/` (extensions, partial indexes, CHECK constraints), leaving a
+  database that looks healthy and quietly accepts rows the application believes
+  are impossible. It also seeded a demo admin user and a funded demo workspace
+  into whatever environment it ran against.
+
+`db:migrate` is the one command that applies both halves and is idempotent.
+`db:seed:reference` writes plans, system styles and feature flags **without** the
+demo account (`seedDemoWorkspace` now refuses to run under `NODE_ENV=production`
+regardless). The plan rows are not optional: sign-up fails closed without the
+`free` plan, because that is where a new workspace's monthly credit grant comes
+from.
+
+Build and push the `migrate` target of `apps/api/Dockerfile` as its own image
+alongside the five runtime images (launch-readiness P0-02, P0-03).
 
 If the migration fails, **stop**. Do not deploy the application on top of a
 half-applied schema.
@@ -74,7 +112,9 @@ worse than one that reverts.
 
 ```bash
 # 1. Rollouts finished
-for c in api web realtime worker-media worker-ai render scheduler; do
+# realtime and scheduler are disabled (see section 1); the API serves
+# /realtime and runs the scheduled tasks itself.
+for c in api web worker-media worker-ai render; do
   kubectl -n "$NS" rollout status "deploy/montaj-$c" --timeout=5m
 done
 

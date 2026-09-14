@@ -86,3 +86,107 @@ variable "extra_records" {
   }))
   default = {}
 }
+
+# --- Edge protection (P0-08) ------------------------------------------------
+
+variable "manage_waf" {
+  type        = bool
+  default     = false
+  description = <<-EOT
+    Create the WAF, rate-limit and custom rulesets in waf.tf.
+
+    Off by default so the module plans against a zone that does not yet exist
+    or sits on a plan without rate limiting (Pro or above). Turning it on is a
+    P0 launch gate: proxied DNS alone gives TLS and volumetric DDoS absorption
+    and no application-layer control whatsoever.
+  EOT
+}
+
+variable "account_id" {
+  type        = string
+  default     = null
+  description = "Cloudflare account id. Required only when manage_turnstile is true."
+}
+
+variable "manage_turnstile" {
+  type        = bool
+  default     = false
+  description = "Create the Turnstile widget the auth flows challenge with."
+}
+
+variable "managed_ruleset_id" {
+  type        = string
+  default     = "efb7b8c949ac4650a09736fc376e9aee"
+  description = <<-EOT
+    Cloudflare Managed Ruleset id. A well-known constant, exposed as a variable
+    so a zone on a different plan can point at the ruleset it actually has
+    rather than failing the apply with an opaque id error.
+  EOT
+}
+
+variable "owasp_ruleset_id" {
+  type        = string
+  default     = "4814384a9e5d4991b9815dcfc25d2f1f"
+  description = "Cloudflare OWASP Core Ruleset id. Same reasoning as managed_ruleset_id."
+}
+
+variable "rate_limit_auth_per_minute" {
+  type        = number
+  default     = 20
+  description = <<-EOT
+    Requests per minute per address across login, signup, magic-link, reset and
+    verify. Deliberately close to the application's own per-IP budget
+    (auth.constants.ts RATE_LIMITS) so the edge sheds the flood and the app
+    still owns the per-ACCOUNT limit an address-rotating attacker evades.
+  EOT
+}
+
+variable "rate_limit_jobs_per_minute" {
+  type        = number
+  default     = 60
+  description = "Upload-init, transcribe and export creation per minute per address."
+}
+
+variable "rate_limit_share_per_minute" {
+  type        = number
+  default     = 120
+  description = "Public share-viewer requests per minute per address. Challenged, not blocked: a legitimate viewer reloading must not be locked out."
+}
+
+variable "challenge_threat_score" {
+  type        = number
+  default     = 20
+  description = <<-EOT
+    Cloudflare threat score above which an auth request is challenged. 0 is
+    clean, 100 is worst. 20 challenges hosts Cloudflare already distrusts and
+    leaves an ordinary sign-up untouched. Lower it if credential stuffing gets
+    through; raise it if real users complain.
+  EOT
+}
+
+variable "protect_admin_paths" {
+  type        = bool
+  default     = true
+  description = "Block or challenge /admin from outside admin_allowed_cidrs."
+}
+
+variable "admin_allowed_cidrs" {
+  type        = list(string)
+  default     = []
+  description = <<-EOT
+    Source ranges allowed to reach /admin. Empty means every request is
+    challenged instead of blocked, because an empty allow-list that blocked
+    everything would lock the operators out of their own console during an
+    incident. Fill this in, or put Cloudflare Access in front and drop the rule.
+  EOT
+}
+
+variable "admin_allowed_countries" {
+  type        = list(string)
+  default     = null
+  description = <<-EOT
+    ISO-3166-1 alpha-2 countries the admin console may be reached from, e.g.
+    ["IN"]. Null disables the geo rule. Geo-blocking is a speed bump, not a
+    control — it stops opportunistic scanning, not anyone with a VPN.
+  EOT
+}

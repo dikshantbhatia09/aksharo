@@ -30,6 +30,16 @@ export const METRIC = {
   jobCompleted: "montaj_job_completed_total",
   /** METRICS.md §2. Pending dead letters, per queue. */
   dlqDepth: "montaj_queue_dlq_depth",
+  /**
+   * METRICS.md §2. Jobs on a queue, per BullMQ state.
+   *
+   * Two shipped alert rules (`MontajQueueBacklogGrowing`) already query
+   * `montaj_queue_depth{state="waiting"}`, and nothing emitted it — so the rule
+   * could never fire, which looks exactly like a queue that is never backed up.
+   * It is also what KEDA scales on, because the Redis-list scaler it used before
+   * could only see `waiting` (launch-readiness P0-04).
+   */
+  queueDepth: "montaj_queue_depth",
   /** METRICS.md §2. Enqueue to first pickup, in seconds. */
   queueWait: "montaj_queue_wait_duration_seconds",
   /** METRICS.md §3. Attempts before a terminal state. */
@@ -45,6 +55,16 @@ export const METRIC = {
   /** Alias of `montaj_queue_wait_duration_seconds`, in milliseconds. */
   aliasQueueWaitMs: "montaj_job_queue_wait_ms",
 } as const;
+
+/**
+ * BullMQ states worth a gauge.
+ *
+ * `waiting` and `prioritized` are the two runnable ones: a job enqueued with a
+ * `priority` goes to the `prioritized` sorted set and never appears in the
+ * `wait` list at all. `delayed` is a retry backing off, `active` is in progress.
+ */
+export const QUEUE_DEPTH_STATES = ["waiting", "prioritized", "delayed", "active"] as const;
+export type QueueDepthState = (typeof QUEUE_DEPTH_STATES)[number];
 
 /** METRICS.md §2: 1, 5, 10, 30, 60, 120, 300, 600, 1800, 3600 seconds. */
 const QUEUE_WAIT_BUCKETS_SECONDS = [1, 5, 10, 30, 60, 120, 300, 600, 1800, 3600] as const;
@@ -90,6 +110,11 @@ export class MetricsService {
       name: METRIC.dlqDepth,
       kind: "gauge",
       help: "Pending dead-lettered jobs, by queue (METRICS.md 2).",
+    });
+    this.registry.define({
+      name: METRIC.queueDepth,
+      kind: "gauge",
+      help: "Jobs on a queue by BullMQ state: waiting, prioritized, delayed, active (METRICS.md 2).",
     });
     this.registry.define({
       name: METRIC.queueWait,
@@ -151,6 +176,18 @@ export class MetricsService {
     const clamped = Math.max(0, waitedMs);
     this.record(METRIC.queueWait, { queue }, clamped / 1000);
     this.record(METRIC.aliasQueueWaitMs, { queue }, clamped);
+  }
+
+  /**
+   * Jobs sitting on one queue in one BullMQ state. Absolute, not a delta.
+   *
+   * `waiting` and `prioritized` are both runnable and are stored in *different*
+   * Redis structures — a list and a sorted set. Reporting them as one number
+   * would hide which is which; reporting only one of them is what made the
+   * autoscaler blind (P0-04).
+   */
+  queueDepth(queue: string, state: QueueDepthState, depth: number): void {
+    this.gauge(METRIC.queueDepth, { queue, state }, depth);
   }
 
   /** Pending dead letters on one queue. Absolute, not a delta. */

@@ -40,12 +40,65 @@ describe("RateLimitService", () => {
     expect(evalSpy.mock.calls[0]?.[5]).toBe("3");
   });
 
-  it("fails open when Redis is unreachable", async () => {
+  it("keeps serving when Redis is unreachable", async () => {
     const { service } = serviceWith(vi.fn().mockRejectedValue(new Error("ECONNREFUSED")));
     // A Redis outage must not lock every user out of the product.
-    await expect(service.consume(SPEC, "subject-1")).resolves.toEqual({
+    const verdict = await service.consume(SPEC, "subject-1", 1_000);
+    expect(verdict.allowed).toBe(true);
+  });
+
+  /**
+   * Losing the shared limiter used to remove the limit entirely, which turns a
+   * dependency incident into unlimited sign-up, login and job admission — a
+   * credential-stuffing window and an unbounded provider bill (P0-08). The
+   * degraded path is a per-replica bucket at half capacity: coarser and
+   * multiplied by the replica count, but finite.
+   */
+  it("degrades to a per-replica cap rather than no cap at all", async () => {
+    const { service } = serviceWith(vi.fn().mockRejectedValue(new Error("ECONNREFUSED")));
+
+    // capacity 5 * 0.5 = 2 tokens per replica, consumed at the same instant so
+    // nothing refills in between.
+    const verdicts = [];
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      verdicts.push(await service.consume(SPEC, "subject-1", 1_000));
+    }
+
+    expect(verdicts.map((verdict) => verdict.allowed)).toEqual([true, true, false, false, false]);
+    expect(verdicts[2]?.retryAfterSec).toBeGreaterThan(0);
+  });
+
+  it("refills the degraded bucket over time", async () => {
+    const { service } = serviceWith(vi.fn().mockRejectedValue(new Error("ECONNREFUSED")));
+
+    await service.consume(SPEC, "subject-1", 1_000);
+    await service.consume(SPEC, "subject-1", 1_000);
+    expect((await service.consume(SPEC, "subject-1", 1_000)).allowed).toBe(false);
+
+    // Half the configured refill rate: 0.5/s, so 4 s buys two tokens back.
+    expect((await service.consume(SPEC, "subject-1", 5_000)).allowed).toBe(true);
+  });
+
+  it("keeps degraded buckets separate per subject", async () => {
+    const { service } = serviceWith(vi.fn().mockRejectedValue(new Error("ECONNREFUSED")));
+
+    await service.consume(SPEC, "noisy", 1_000);
+    await service.consume(SPEC, "noisy", 1_000);
+    expect((await service.consume(SPEC, "noisy", 1_000)).allowed).toBe(false);
+    expect((await service.consume(SPEC, "quiet", 1_000)).allowed).toBe(true);
+  });
+
+  it("returns to the shared buckets once Redis answers again", async () => {
+    const evalSpy = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("ECONNREFUSED"))
+      .mockResolvedValue([1, 4, 0]);
+    const { service } = serviceWith(evalSpy);
+
+    await service.consume(SPEC, "subject-1", 1_000);
+    await expect(service.consume(SPEC, "subject-1", 1_000)).resolves.toEqual({
       allowed: true,
-      remaining: 5,
+      remaining: 4,
       retryAfterSec: 0,
     });
   });

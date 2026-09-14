@@ -81,9 +81,30 @@ failing that the chart appVersion.
 {{- end -}}
 {{- end -}}
 
-{{/* Name of the Kubernetes Secret holding the CONTRACTS section 1 variables. */}}
+{{/*
+Name of the Kubernetes Secret holding ONE COMPONENT's environment.
+
+Per component since P0-09: a single shared Secret handed every pod every
+credential in the contract. Call with (dict "root" $ "component" $name).
+*/}}
 {{- define "montaj.envSecretName" -}}
-{{- .Values.externalSecrets.secretName | default (printf "%s-env" (include "montaj.fullname" .)) -}}
+{{- $root := .root -}}
+{{- $prefix := $root.Values.externalSecrets.secretName | default (printf "%s-env" (include "montaj.fullname" $root)) -}}
+{{- printf "%s-%s" $prefix .component | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{/*
+The variables one component's Secret carries: the shared boot contract plus that
+component's own list, de-duplicated and sorted.
+
+Emitted as a YAML array so the caller can `fromYamlArray` it — Helm templates
+have no way to return a list directly. Call with (dict "root" $ "component" $name).
+*/}}
+{{- define "montaj.componentSecretVars" -}}
+{{- $root := .root -}}
+{{- $shared := $root.Values.externalSecrets.shared | default list -}}
+{{- $own := index ($root.Values.externalSecrets.variables | default dict) .component | default list -}}
+{{- concat $shared $own | uniq | sortAlpha | toYaml -}}
 {{- end -}}
 
 {{- define "montaj.configMapName" -}}

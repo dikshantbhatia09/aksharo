@@ -102,6 +102,49 @@ const JWT_PRIVATE_KEY = env.JWT_PRIVATE_KEY;
 const JOB_COUNT = Number(env.LOAD_JOB_COUNT ?? 100);
 const P95_BUDGET_MS = 300;
 
+/**
+ * How many requests are in flight at once.
+ *
+ * Defaults to all of them, which is what the harness has always done — and why
+ * the 2026-09-02 report is hard to act on. It recorded p50 3598.5 ms and p95
+ * 3672.8 ms: a 2% spread between the median and the 95th percentile is not tail
+ * latency, it is *every* request taking the same ~3.6 s. That is the shape of a
+ * queue, not of a slow handler — 100 requests arriving together and draining
+ * through something with far less than 100-way parallelism (a connection pool,
+ * a worker's event loop, a lane limit).
+ *
+ * Telling those apart needs a second data point at lower concurrency. If p50
+ * stays at 3.6 s with `LOAD_CONCURRENCY=1`, the cost is per-request and in the
+ * handler; if it collapses to tens of milliseconds, the 3.6 s was queueing and
+ * the fix is capacity, not code. Run both before changing anything
+ * (launch-readiness P0-05).
+ */
+const CONCURRENCY = Math.max(1, Number(env.LOAD_CONCURRENCY ?? JOB_COUNT));
+
+/**
+ * What this harness does NOT measure, printed into every report it writes.
+ *
+ * The 2026-09-02 report says "job admission only" once, in a subordinate clause
+ * of the scenario line, and then presents a PASS/FAIL verdict. Read quickly —
+ * which is how a go/no-go board reads it — that looks like a capacity result.
+ * It is a result for one endpoint with no worker, no upload, no media and no
+ * provider. Naming the gaps in the artefact itself is the only way the omission
+ * travels with the number.
+ */
+/** Written into the report between list items. Named so the template literal that builds the report does not need an escaped newline inside a nested one. */
+const NEWLINE = "\n";
+
+const NOT_MEASURED = [
+  "Upload throughput: presigned multipart PUTs straight to object storage never happen here.",
+  "Worker service time: no media, AI or render worker runs, so ffmpeg/ASR/Skia cost is unmeasured.",
+  "Queue drain and ETA: jobs are admitted and left queued; nothing observes them reaching a terminal state.",
+  "Provider quota and cost: no ASR, LLM or GPU provider is called.",
+  "Real media: no probe, proxy, waveform or thumbnail is produced; no invalid or oversized file is tried.",
+  "Autoscaling: KEDA and the node autoscaler are not exercised, so scale-up latency is unknown.",
+  "Dependency failure: no pod kill, node drain, Redis failover, DB pressure or object-store denial.",
+  "Sustained load: this is a single burst, not the 30 minutes at 3x forecast the launch plan requires.",
+];
+
 function mintAccessToken({ userId, workspaceId, role }) {
   const issuedAt = Math.floor(Date.now() / 1000);
   const claims = {
@@ -248,10 +291,37 @@ async function setupFixtures(client, count) {
   return { workspaces, jobs };
 }
 
+/**
+ * Run `tasks` with at most `limit` in flight, preserving input order.
+ *
+ * A plain `Promise.all` over every job fires all of them in the same tick, which
+ * measures how long the *slowest queue* takes to drain rather than how long a
+ * request takes to serve. Both numbers matter; only one of them was ever
+ * recorded (P0-05).
+ */
+async function withConcurrency(tasks, limit) {
+  // An iterator rather than an index, so several workers can pull from one
+  // shared queue without indexed reads and writes into a shared array — which
+  // is both simpler to reason about and what keeps the object-injection lint
+  // rule satisfied without a suppression.
+  const queue = tasks.entries();
+  const completed = [];
+
+  async function worker() {
+    for (const [order, task] of queue) {
+      completed.push({ order, value: await task() });
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.min(limit, tasks.length) }, worker));
+  // Workers finish out of order; the caller reads results positionally.
+  return completed.sort((a, b) => a.order - b.order).map((entry) => entry.value);
+}
+
 async function fireTranscribeRequests(jobs) {
   const durations = [];
-  const results = await Promise.all(
-    jobs.map(async ({ projectId, accessToken, workspaceId }) => {
+  const results = await withConcurrency(
+    jobs.map(({ projectId, accessToken, workspaceId }) => async () => {
       const start = performance.now();
       try {
         const response = await fetch(`${API_ORIGIN}/projects/${projectId}/transcribe`, {
@@ -293,6 +363,7 @@ async function fireTranscribeRequests(jobs) {
         };
       }
     }),
+    CONCURRENCY,
   );
   return { results, durations };
 }
@@ -450,7 +521,9 @@ async function main() {
   const reportPath = join(reportDir, `load-${date}.md`);
   const report = `# X02 load report — ${date}
 
-Scenario: ${JOB_COUNT} concurrent \`POST /projects/{id}/transcribe\` calls against \`${API_ORIGIN}\` (job admission only; no worker involved — see \`load/run.mjs\`'s header).
+Scenario: ${JOB_COUNT} \`POST /projects/{id}/transcribe\` calls against \`${API_ORIGIN}\`, ${CONCURRENCY === JOB_COUNT ? "all fired at once" : `at most ${CONCURRENCY} in flight`}.
+
+**This measures job admission and nothing else.** Read the "Not measured" list below before treating the verdict as a capacity result.
 
 | Metric | Value | Budget | Result |
 |---|---|---|---|
@@ -461,7 +534,17 @@ Scenario: ${JOB_COUNT} concurrent \`POST /projects/{id}/transcribe\` calls again
 | p99 job-creation latency | ${p99.toFixed(1)} ms | — | — |
 | WS event delivered (sampled job) | ${wsDelivered ? "yes" : "no"} | yes | ${wsDelivered ? "PASS" : "FAIL"} |
 
-**Overall: ${overallPass ? "PASS" : "FAIL"}**
+**Overall: ${overallPass ? "PASS" : "FAIL"}** — for job admission, at this concurrency, on this host.
+
+${p50 > 0 && p95 / p50 < 1.2 ? `> The spread between p50 (${p50.toFixed(1)} ms) and p95 (${p95.toFixed(1)} ms) is under 20%, so this is not tail latency: essentially every request cost the same. That is the shape of a queue draining, not of a slow handler. Re-run with \`LOAD_CONCURRENCY=1\` — if the median collapses, the time was spent waiting for capacity (connection pool, lane limit, event loop) and not in the handler.
+` : ""}
+## Not measured
+
+${NOT_MEASURED.map((gap) => `- ${gap}`).join(NEWLINE)}
+
+Closing the capacity gate needs the full plan in the launch-readiness document's
+"Capacity and resilience validation", run against staging at the exact release
+digest — not this harness.
 ${failed.length > 0 ? `\nFailures (first 10):\n\n\`\`\`json\n${JSON.stringify(failed.slice(0, 10), null, 2)}\n\`\`\`\n` : ""}
 `;
   writeFileSync(reportPath, report, "utf8");

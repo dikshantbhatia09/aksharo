@@ -1,0 +1,38 @@
+{
+  "$comment": [
+    "Accepted dependency-audit findings. Every entry here is a high or critical",
+    "advisory in a PRODUCTION dependency that CI would otherwise block on",
+    "(launch-readiness P0-02).",
+    "",
+    "An exception is a decision with a name and a date on it, not a `|| true`.",
+    "scripts/check-audit-exceptions.mjs fails the build when an entry is past",
+    "its expiry, when it has no owner, or when pnpm is ignoring a GHSA that is",
+    "not listed here — so an exception rots loudly instead of quietly.",
+    "",
+    "To accept a finding: add it here AND to pnpm.auditConfig.ignoreGhsas in",
+    "package.json, with the shortest expiry you can defend."
+  ],
+  "exceptions": [
+    {
+      "ghsa": "GHSA-ggr8-5vv4-36mx",
+      "package": "deepmerge-ts",
+      "severity": "high",
+      "title": "Stack exhaustion when merging recursive object graphs",
+      "path": "apps/api > @prisma/client > prisma > deepmerge-ts",
+      "reason": [
+        "Reached only by the Prisma CLI's own configuration merge, which runs at",
+        "build and migration time over files in this repository. No request path",
+        "reaches it: the generated client does not import deepmerge-ts, and",
+        "nothing merges attacker-supplied object graphs.",
+        "",
+        "The fix is deepmerge-ts >= 8.0.0, a major bump inside Prisma's",
+        "dependency tree. Forcing it with a pnpm override during a launch window",
+        "risks breaking migrations and client generation to close a finding that",
+        "no customer request can reach. Take it with the next Prisma upgrade."
+      ],
+      "owner": "TODO: name the platform owner before launch",
+      "accepted": "2026-09-14",
+      "expires": "2026-11-14"
+    }
+  ]
+}

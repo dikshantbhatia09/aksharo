@@ -32,6 +32,18 @@ locals {
       human       = false
       description = "Region-pinned S3 endpoint for raw uploads."
     }
+    S3_PUBLIC_ENDPOINT = {
+      secret      = false
+      human       = false
+      description = <<-EOT
+        Origin browsers PUT/GET raw media through (presigned multipart upload).
+        Falls back to S3_ENDPOINT when blank. Split from S3_ENDPOINT after the
+        API's internal head/stat calls were found round-tripping through a
+        public tunnel (2026-09-06). Added to this module 2026-09-14: it was in
+        CONTRACTS section 1 and in the env schema but had never been
+        provisioned, so the parity check had been failing.
+      EOT
+    }
     S3_REGION = {
       secret      = false
       human       = false
@@ -56,6 +68,16 @@ locals {
       secret      = false
       human       = false
       description = "Cloudflare R2 S3-compatible endpoint for derived objects."
+    }
+    R2_PUBLIC_ENDPOINT = {
+      secret      = false
+      human       = false
+      description = <<-EOT
+        Origin browsers fetch derived media from (proxy video, waveform,
+        thumbnails). Falls back to R2_ENDPOINT when blank; in production it is
+        the CDN domain in front of the derived bucket. Added 2026-09-14 for the
+        same reason as S3_PUBLIC_ENDPOINT.
+      EOT
     }
     R2_BUCKET_DERIVED = {
       secret      = false
@@ -158,6 +180,20 @@ locals {
       human       = false
       description = "anthropic | openai | mock. Set per environment; staging defaults to mock so no transcript leaves the account by accident."
     }
+    LLM_BASE_URL = {
+      secret      = false
+      human       = false
+      description = <<-EOT
+        Base URL for a self-hosted or non-default LLM endpoint (LLM_PROVIDER=ollama,
+        or an Anthropic/OpenAI-compatible gateway). Blank uses the provider's own.
+        Added 2026-09-14: in the env schema and .env.example, never provisioned.
+      EOT
+    }
+    LLM_MODEL = {
+      secret      = false
+      human       = false
+      description = "Model id for LLM_PROVIDER. Blank uses the provider default. Added 2026-09-14 alongside LLM_BASE_URL."
+    }
     ANTHROPIC_API_KEY = {
       secret      = true
       human       = true
@@ -182,6 +218,16 @@ locals {
       secret      = true
       human       = true
       description = "Bearer token for the serverless GPU endpoint. Pasted once by a human, like the other provider keys."
+    }
+    LICENSE_SIGNING_KID = {
+      secret      = false
+      human       = false
+      description = <<-EOT
+        Key id stamped on licence-key and revocation-snapshot tokens signed with
+        the JWT RSA pair (B08). Defaults to k1; bump on key rotation so a cached
+        offline snapshot can be told from a fresh one. Added 2026-09-14: in
+        CONTRACTS section 1 since 2026-09-02, never provisioned.
+      EOT
     }
     SENTRY_DSN = {
       secret      = true

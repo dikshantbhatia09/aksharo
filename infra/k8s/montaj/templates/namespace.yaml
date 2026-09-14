@@ -1,0 +1,44 @@
+{{/*
+The release namespace, labelled for Pod Security Admission at `restricted`.
+
+The pod templates in this chart already meet the restricted standard — non-root
+UID, read-only root filesystem, seccomp RuntimeDefault, no privilege escalation,
+every capability dropped — but nothing *enforced* it. A pod created by anything
+other than this chart, or a future values override that quietly drops a security
+context, would have been admitted without complaint (launch-readiness P0-10,
+Kubernetes Pod Security Standards).
+
+Three labels, deliberately:
+
+  enforce  Reject a pod that breaks the standard.
+  audit    Record it in the audit log, so a rejection has a trail.
+  warn     Tell whoever applied it, at apply time, rather than silently.
+
+`enforce` alone gives an operator a rejected pod and no explanation; the other
+two are what make the rejection diagnosable.
+
+Off by default (`namespace.create: false`) because `helm --create-namespace`
+already makes the namespace, and taking ownership of an existing one would hand
+Helm the right to delete it on uninstall. Turn it on for a namespace this
+release owns outright; otherwise apply the same labels with
+`kubectl label namespace <ns> pod-security.kubernetes.io/enforce=restricted`
+and keep them in the cluster's own configuration.
+*/}}
+{{- if .Values.namespace.create }}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Release.Namespace }}
+  labels:
+    {{- include "montaj.labels" . | nindent 4 }}
+    pod-security.kubernetes.io/enforce: {{ .Values.namespace.podSecurityLevel | quote }}
+    pod-security.kubernetes.io/enforce-version: {{ .Values.namespace.podSecurityVersion | quote }}
+    pod-security.kubernetes.io/audit: {{ .Values.namespace.podSecurityLevel | quote }}
+    pod-security.kubernetes.io/audit-version: {{ .Values.namespace.podSecurityVersion | quote }}
+    pod-security.kubernetes.io/warn: {{ .Values.namespace.podSecurityLevel | quote }}
+    pod-security.kubernetes.io/warn-version: {{ .Values.namespace.podSecurityVersion | quote }}
+  {{- with .Values.commonAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}

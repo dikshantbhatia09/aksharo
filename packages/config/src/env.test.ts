@@ -7,6 +7,7 @@ import {
   CONTRACT_ENV_VARS,
   EnvValidationError,
   MAIL_PROVIDERS,
+  PRODUCTION_GATE_FLAGS,
   REQUIRED_ENV_VARS,
   crossFieldProblems,
   envSchema,
@@ -382,5 +383,84 @@ describe("the serverless GPU endpoint (CONTRACTS §1, added after A09)", () => {
     expect(() => loadEnv({ source: validEnv({ GPU_PROVIDER_URL: "api.runpod.ai" }) })).toThrow(
       EnvValidationError,
     );
+  });
+});
+
+/**
+ * Development defaults that are harmless locally and silently wrong in front of
+ * customers. Each is a startup error rather than a log line, because every one
+ * of them had no visible symptom until a user hit it (launch-readiness P0-06,
+ * P0-12, P0-13).
+ */
+describe("production refuses development defaults", () => {
+  /** A production environment with every gate satisfied. */
+  function prodEnv(overrides: Record<string, string | undefined> = {}) {
+    return validEnv({
+      NODE_ENV: "production",
+      MAIL_PROVIDER: "ses",
+      MAIL_FROM: "hello@aksharo.ai",
+      LLM_PROVIDER: "anthropic",
+      ANTHROPIC_API_KEY: "sk-ant-test",
+      SENTRY_DSN: "https://public@o0.ingest.sentry.io/0",
+      ...overrides,
+    });
+  }
+
+  it("accepts a fully configured production environment", () => {
+    expect(() => loadEnv({ source: prodEnv() })).not.toThrow();
+  });
+
+  it("rejects the dev mail outbox, which no customer can read", () => {
+    expect(() =>
+      loadEnv({ source: prodEnv({ MAIL_PROVIDER: "dev", MAIL_FROM: undefined }) }),
+    ).toThrow(/MAIL_PROVIDER="dev" is not valid under NODE_ENV=production/);
+  });
+
+  it("rejects the mock LLM, whose canned output reads like a real answer", () => {
+    expect(() =>
+      loadEnv({ source: prodEnv({ LLM_PROVIDER: "mock", ANTHROPIC_API_KEY: undefined }) }),
+    ).toThrow(/LLM_PROVIDER="mock" is not valid/);
+  });
+
+  it("rejects checkout without the keys that make a payment real", () => {
+    const flags = JSON.stringify({ [PRODUCTION_GATE_FLAGS.checkout]: true });
+    expect(() => loadEnv({ source: prodEnv({ FEATURE_FLAGS_JSON: flags }) })).toThrow(
+      /requires RAZORPAY_KEY_ID/,
+    );
+
+    expect(() =>
+      loadEnv({
+        source: prodEnv({
+          FEATURE_FLAGS_JSON: flags,
+          RAZORPAY_KEY_ID: "rzp_live_x",
+          RAZORPAY_KEY_SECRET: "secret",
+          RAZORPAY_WEBHOOK_SECRET: "webhook",
+        }),
+      }),
+    ).not.toThrow();
+  });
+
+  it("rejects the partner catalogue while its licence snapshots are unwritten", () => {
+    const flags = JSON.stringify({ [PRODUCTION_GATE_FLAGS.partnerCatalogue]: true });
+    expect(() => loadEnv({ source: prodEnv({ FEATURE_FLAGS_JSON: flags }) })).toThrow(
+      /licence snapshot/,
+    );
+  });
+
+  it("rejects a production boot with no error tracking, unless that is a decision", () => {
+    expect(() => loadEnv({ source: prodEnv({ SENTRY_DSN: undefined }) })).toThrow(/SENTRY_DSN/);
+
+    const optOut = JSON.stringify({ [PRODUCTION_GATE_FLAGS.errorTrackingOptOut]: true });
+    expect(() =>
+      loadEnv({ source: prodEnv({ SENTRY_DSN: undefined, FEATURE_FLAGS_JSON: optOut }) }),
+    ).not.toThrow();
+  });
+
+  it("leaves every one of those alone outside production", () => {
+    expect(() =>
+      loadEnv({
+        source: validEnv({ MAIL_PROVIDER: "dev", LLM_PROVIDER: "mock", SENTRY_DSN: undefined }),
+      }),
+    ).not.toThrow();
   });
 });

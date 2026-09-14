@@ -2,7 +2,7 @@
   "name": "montaj",
   "version": "0.1.0",
   "private": true,
-  "description": "Montaj (codename) monorepo \u2014 Aksharo platform. See docs/PLAN.md and docs/CONTRACTS.md.",
+  "description": "Montaj (codename) monorepo — Aksharo platform. See docs/PLAN.md and docs/CONTRACTS.md.",
   "license": "UNLICENSED",
   "packageManager": "pnpm@9.15.9",
   "engines": {
@@ -44,5 +44,17 @@
     "turbo": "^2.10.12",
     "typescript": "^5.9.3",
     "vitest": "^3.2.7"
+  },
+  "pnpm": {
+    "overrides": {
+      "multer@<2.3.0": ">=2.3.0",
+      "postcss@<8.5.18": ">=8.5.18",
+      "js-yaml@3": ">=3.15.2 <4"
+    },
+    "auditConfig": {
+      "ignoreGhsas": [
+        "GHSA-ggr8-5vv4-36mx"
+      ]
+    }
   }
 }

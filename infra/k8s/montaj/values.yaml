@@ -54,19 +54,43 @@ externalSecrets:
   # SSM path prefix: `terraform output ssm_parameter_path`.
   parameterPath: /montaj/staging
 
-  # Kubernetes Secret the ExternalSecret materialises. Every component mounts it
-  # with envFrom.
+  # Name PREFIX for the Kubernetes Secrets the ExternalSecrets materialise. Each
+  # component gets its own, `<secretName>-<component>`.
   secretName: montaj-env
 
   refreshInterval: 1h
 
   # -------------------------------------------------------------------------
-  # The frozen environment contract: docs/CONTRACTS.md section 1, in order.
-  # The infra-validate CI job diffs this list against CONTRACTS section 1, so a
-  # variable added to the contract without being added here fails the build
-  # (X05 acceptance criterion 2).
+  # Per-component secret scope (launch-readiness P0-09).
+  #
+  # This used to be ONE ExternalSecret carrying the entire CONTRACTS section 1
+  # contract, mounted by every component with `envFrom`. A compromised web pod
+  # — the one process that parses untrusted input from the open internet — was
+  # therefore handed the database URL, the JWT signing key, the Razorpay live
+  # keys, the Google OAuth client secret, the mail credentials, every ASR and
+  # LLM provider key, the worker callback secret and both object-store
+  # credentials. One low-privilege RCE was a full-platform secret compromise.
+  #
+  # `shared` is the boot contract: `loadEnv()` in @montaj/config refuses to
+  # start without these, so every Node service gets them. `components` adds only
+  # what that component actually uses.
+  #
+  # KNOWN RESIDUAL, and it is not small: `shared` still includes DATABASE_URL,
+  # JWT_PRIVATE_KEY and JWT_PUBLIC_KEY, so worker-media and render — which touch
+  # neither a database nor a token — still receive them. That is forced by
+  # `loadEnv()` having a single required set for every service, not by anything
+  # in this chart. Fixing it properly is a code change: derive a per-service
+  # schema with `envSchema.pick()` and have `apps/worker-media/src/settings.ts`
+  # and `apps/render/src/config.ts` validate only their own subset. Tracked as
+  # the P1 follow-up to P0-09; until it lands, do not describe the workers as
+  # least-privilege.
+  #
+  # The infra-validate CI job diffs the union of these lists against CONTRACTS
+  # section 1, so a variable added to the contract without being placed here
+  # fails the build (X05 acceptance criterion 2).
   # -------------------------------------------------------------------------
-  variables:
+  shared:
+    # Refused at boot by loadEnv() if absent (REQUIRED_ENV_VARS).
     - DATABASE_URL
     - REDIS_URL
     - S3_ENDPOINT
@@ -81,30 +105,85 @@ externalSecrets:
     - JWT_PRIVATE_KEY
     - JWT_PUBLIC_KEY
     - INTERNAL_CALLBACK_SECRET
-    - INTERNAL_CALLBACK_SECRET_NEXT
-    - GOOGLE_OAUTH_CLIENT_ID
-    - GOOGLE_OAUTH_CLIENT_SECRET
     - WEB_ORIGIN
     - API_ORIGIN
-    - RAZORPAY_KEY_ID
-    - RAZORPAY_KEY_SECRET
-    - RAZORPAY_WEBHOOK_SECRET
-    - SARVAM_API_KEY
-    - ELEVENLABS_API_KEY
-    - ASSEMBLYAI_API_KEY
-    - LLM_PROVIDER
-    - ANTHROPIC_API_KEY
-    - OPENAI_API_KEY
-    - GPU_PROVIDER
-    - GPU_PROVIDER_URL
-    - GPU_PROVIDER_TOKEN
-    - SENTRY_DSN
-    - POSTHOG_KEY
+    # Operational, and carries no authority over customer data.
     - FEATURE_FLAGS_JSON
-    - MAIL_PROVIDER
-    - MAIL_FROM
-    - SMTP_URL
-    - MAIL_SNS_TOPIC_ARN
+    - SENTRY_DSN
+
+  variables:
+    # The API is the only component that talks to a payment provider, an
+    # identity provider and a mail provider, so it is the only one holding
+    # those credentials.
+    api:
+      - INTERNAL_CALLBACK_SECRET_NEXT
+      - GOOGLE_OAUTH_CLIENT_ID
+      - GOOGLE_OAUTH_CLIENT_SECRET
+      - RAZORPAY_KEY_ID
+      - RAZORPAY_KEY_SECRET
+      - RAZORPAY_WEBHOOK_SECRET
+      - MAIL_PROVIDER
+      - MAIL_FROM
+      - SMTP_URL
+      - MAIL_SNS_TOPIC_ARN
+      - POSTHOG_KEY
+      - S3_PUBLIC_ENDPOINT
+      - R2_PUBLIC_ENDPOINT
+      - LLM_PROVIDER
+      - ANTHROPIC_API_KEY
+      - OPENAI_API_KEY
+      - LLM_BASE_URL
+      - LLM_MODEL
+
+    # The web app is a Next server. It renders and proxies; it holds no
+    # provider, payment or identity credential of its own. Its OAuth journey is
+    # a redirect to the API, which is where the client secret lives.
+    web:
+      - POSTHOG_KEY
+      - S3_PUBLIC_ENDPOINT
+      - R2_PUBLIC_ENDPOINT
+
+    # ffmpeg/ffprobe over object storage, reporting back over a signed callback.
+    # No provider keys at all.
+    worker-media:
+      - INTERNAL_CALLBACK_SECRET_NEXT
+      - S3_PUBLIC_ENDPOINT
+      - R2_PUBLIC_ENDPOINT
+
+    # The only component that may talk to an ASR, LLM or GPU provider.
+    worker-ai:
+      - INTERNAL_CALLBACK_SECRET_NEXT
+      - SARVAM_API_KEY
+      - ELEVENLABS_API_KEY
+      - ASSEMBLYAI_API_KEY
+      - LLM_PROVIDER
+      - ANTHROPIC_API_KEY
+      - OPENAI_API_KEY
+      - LLM_BASE_URL
+      - LLM_MODEL
+      - GPU_PROVIDER
+      - GPU_PROVIDER_URL
+      - GPU_PROVIDER_TOKEN
+
+    # Skia + ffmpeg over object storage. Same shape as worker-media.
+    render:
+      - INTERNAL_CALLBACK_SECRET_NEXT
+      - LICENSE_SIGNING_KID
+      - S3_PUBLIC_ENDPOINT
+      - R2_PUBLIC_ENDPOINT
+
+    # Disabled components, kept so re-enabling one does not also have to
+    # rediscover its secret scope.
+    realtime:
+      - POSTHOG_KEY
+    scheduler:
+      - MAIL_PROVIDER
+      - MAIL_FROM
+      - SMTP_URL
+      - MAIL_SNS_TOPIC_ARN
+      - RAZORPAY_KEY_ID
+      - RAZORPAY_KEY_SECRET
+      - RAZORPAY_WEBHOOK_SECRET
 
 # -----------------------------------------------------------------------------
 # Non-secret configuration, mounted as a ConfigMap alongside the secret.
@@ -131,7 +210,23 @@ keda:
   enabled: true
   apiVersion: keda.sh/v1alpha1
 
-  # BullMQ stores waiting jobs in a Redis list at <prefix>:<queue>:wait.
+  # Where the backlog metric is read from.
+  #
+  # NOT the Redis-list scaler this chart used to use. Every job the API enqueues
+  # carries a priority, and BullMQ keeps prioritised jobs in a sorted set rather
+  # than in the `wait` list — so `LLEN <prefix>:<queue>:wait` was very nearly
+  # always 0 while the real backlog grew (P0-04). The scaler now reads
+  # `montaj_queue_depth{state=~"waiting|prioritized"}`, published by the API and
+  # scraped from `GET /internal/metrics`. See templates/scaledobject.yaml.
+  prometheus:
+    serverAddress: http://prometheus-server.observability.svc.cluster.local
+    # Set when Prometheus is behind auth; blank means an in-cluster scrape with
+    # no credential, which is what the NetworkPolicy already scopes.
+    authModes: ""
+    authenticationRef: ""
+
+  # Still used by the Redis key helper for tooling and runbooks; no longer the
+  # scaling signal.
   queuePrefix: bull
 
   pollingInterval: 15
@@ -244,6 +339,22 @@ networkPolicy:
       reason: Error reporting (SENTRY_DSN)
 
 # -----------------------------------------------------------------------------
+# Namespace and Pod Security Admission.
+#
+# The pod templates below already meet the `restricted` standard; PSA is what
+# makes that enforced rather than merely true today. `create: false` by default
+# because `helm --create-namespace` already makes the namespace and taking
+# ownership of an existing one would let an uninstall delete it — see
+# templates/namespace.yaml for how to apply the labels without that.
+# -----------------------------------------------------------------------------
+namespace:
+  create: false
+  podSecurityLevel: restricted
+  # Pin the standard's version so a cluster upgrade cannot silently tighten (or
+  # loosen) what is admitted. `latest` would make an upgrade a surprise.
+  podSecurityVersion: v1.33
+
+# -----------------------------------------------------------------------------
 # Pod-level defaults applied to every component.
 # -----------------------------------------------------------------------------
 podSecurityContext:
@@ -266,6 +377,10 @@ priorityClassName: ""
 nodeSelector: {}
 tolerations: []
 topologySpreadDefault: true
+# `DoNotSchedule` rather than `ScheduleAnyway` for zone spreading, plus a second
+# hostname constraint. Off by default so a single-node dev cluster can still
+# schedule; values-prod.yaml turns it on. See templates/deployment.yaml.
+topologySpreadStrict: false
 
 terminationGracePeriodSeconds: 60
 
@@ -301,18 +416,29 @@ components:
       enabled: true
       minAvailable: 1
     probes:
+      # Liveness is /health: dependency-free on purpose, so a slow database
+      # restarts nothing.
       liveness:
         httpGet: { path: /health, port: http }
         initialDelaySeconds: 15
         periodSeconds: 20
         timeoutSeconds: 3
         failureThreshold: 3
+      # Readiness is /health/ready, which actually checks PostgreSQL, Redis and
+      # both object stores. It pointed at /health until the launch-readiness
+      # audit, so a pod with a dead database, no Redis and invalid storage
+      # credentials was put straight into the load balancer and 500ed every
+      # request it was sent (P0-03). Longer timeout than liveness because this
+      # one makes real calls.
       readiness:
-        httpGet: { path: /health, port: http }
+        httpGet: { path: /health/ready, port: http }
         initialDelaySeconds: 5
         periodSeconds: 5
-        timeoutSeconds: 3
+        timeoutSeconds: 5
         failureThreshold: 3
+      # Startup stays on /health: the question here is "has the process finished
+      # booting", and a dependency that is slow to come up should delay traffic
+      # (readiness) rather than kill the container.
       startup:
         httpGet: { path: /health, port: http }
         periodSeconds: 5
@@ -360,20 +486,40 @@ components:
       allowIngressFromIngressController: true
       allowIngressFromCluster: false
 
+  # ---------------------------------------------------------------------------
+  # realtime — DISABLED. It was never a separate process.
+  #
+  # This block declared `--role=realtime` on port 3002 with its own Service and
+  # a /ws ingress path. None of it was true (launch-readiness P0-03):
+  #
+  #   * `apps/api/src/main.ts` never parsed `--role`, so the pod booted the
+  #     complete AppModule — the same REST surface, the same scheduled modules,
+  #     the whole secret set — and listened on API_PORT, not 3002. The Service
+  #     therefore pointed at a port nothing was bound to.
+  #   * The WebSocket path is `/realtime`
+  #     (`apps/api/src/realtime/realtime.protocol.ts`), not `/ws`. The route only
+  #     worked at all because the API's own `/` rule caught it.
+  #   * So the "isolation" — separate scaling, separate blast radius — did not
+  #     exist, while the deployment described it as if it did.
+  #
+  # The API image now REFUSES to start with an unimplemented `--role`, so this
+  # cannot quietly come back. Until real per-role module graphs exist, the API
+  # serves `/realtime` itself on its own port: `ingress.apiAnnotations` already
+  # carries the long proxy read/send timeouts a WebSocket upgrade needs.
+  #
+  # To re-enable: implement the role in `main.ts`, set `path: /realtime`, and
+  # point `port` at whatever that role actually binds.
   realtime:
-    enabled: true
+    enabled: false
     kind: web
     repository: montaj/api
-    # The realtime gateway is the api image started in gateway mode: same code,
-    # different process, so WebSocket fan-out scales without dragging REST
-    # traffic with it (CONTRACTS section 7).
     command: ["node", "dist/main.js", "--role=realtime"]
     replicas: 2
     port: 3002
     ingress:
       enabled: true
       host: api
-      path: /ws
+      path: /realtime
     resources:
       requests: { cpu: 200m, memory: 512Mi }
       limits: { memory: 1Gi }
@@ -391,9 +537,10 @@ components:
         initialDelaySeconds: 15
         periodSeconds: 20
       readiness:
-        httpGet: { path: /health, port: http }
+        httpGet: { path: /health/ready, port: http }
         initialDelaySeconds: 5
         periodSeconds: 5
+        timeoutSeconds: 5
     network:
       allowInternetHttps: false
       allowIngressFromIngressController: true
@@ -417,6 +564,10 @@ components:
       enabled: true
       minReplicaCount: 0
       maxReplicaCount: 12
+      # `listLength` is the target runnable backlog PER REPLICA: KEDA runs
+      # ceil(backlog / listLength) pods. The numbers are unchanged from the
+      # Redis-list scaler because the meaning is the same; only the source of
+      # "backlog" was wrong.
       queues:
         - name: media.probe
           listLength: 4
@@ -437,7 +588,12 @@ components:
     replicas: 1
     # The CPU variant: VAD, chunking, routing and the vendor ASR calls. Whisper
     # inference itself runs on the serverless GPU provider (decision D15).
-    port: 8000
+    #
+    # 8091 and not 8000: that is what `apps/worker-ai/Dockerfile` exposes and
+    # what the control server binds. The chart declared 8000, so the Service
+    # pointed at a closed port and both probes failed forever — the Deployment
+    # would never have become Available (P0-03).
+    port: 8091
     resources:
       requests: { cpu: 500m, memory: 1.5Gi }
       limits: { cpu: "2", memory: 3Gi }
@@ -522,13 +678,30 @@ components:
       allowIngressFromIngressController: false
       allowIngressFromCluster: false
 
+  # ---------------------------------------------------------------------------
+  # scheduler — DISABLED. The API replicas already schedule, safely.
+  #
+  # Same fiction as `realtime` above: `--role=scheduler` was never parsed, so
+  # this pod ran the entire API — every route, every secret — and called itself
+  # a cron singleton (P0-03).
+  #
+  # Nothing is lost by removing it. Scheduled work does not run on a timer in
+  # each process: `common/scheduler/scheduled-tasks.service.ts` registers BullMQ
+  # repeatable jobs, so a tick becomes exactly one Redis job and exactly one
+  # worker takes it, however many replicas exist. "Only one scheduler execution
+  # per task window" is a property of the queue, not of the replica count — and
+  # a separate Deployment adds a second full API's worth of attack surface for
+  # no scheduling guarantee it did not already have.
+  #
+  # `MONTAJ_SCHEDULER_DISABLED=1` on a component opts it out entirely.
+  # To re-enable as a real singleton: implement the role in `main.ts` so it
+  # boots only `SchedulerTasksModule` and its dependencies, then set the API
+  # components to `MONTAJ_SCHEDULER_DISABLED=1`.
   scheduler:
-    enabled: true
+    enabled: false
     kind: cron
     repository: montaj/api
     command: ["node", "dist/main.js", "--role=scheduler"]
-    # Exactly one: retention sweeps, the daily COGS rollup and the dunning ladder
-    # must not run twice.
     replicas: 1
     resources:
       requests: { cpu: 100m, memory: 256Mi }

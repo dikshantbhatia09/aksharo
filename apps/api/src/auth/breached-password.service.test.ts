@@ -29,9 +29,23 @@ describe("countFor", () => {
 });
 
 describe("BreachedPasswordService", () => {
-  it("does nothing while the feature flag is off", async () => {
-    const fetchSpy = vi.spyOn(globalThis, "fetch");
+  /**
+   * The flag defaults ON (P0-06): an unconfigured environment must still screen
+   * compromised passwords, because the one that shipped had `FEATURE_FLAGS_JSON`
+   * set to `{}` and therefore no screening at all.
+   */
+  it("runs when the environment says nothing about the flag", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response("AAAA:0\n", { status: 200 }));
     const result = await serviceWith({}).check(PASSWORD);
+    expect(result.checked).toBe(true);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("does nothing only when the flag is explicitly false", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const result = await serviceWith({ "auth.breachedPasswordCheck": false }).check(PASSWORD);
     expect(result).toEqual({ breached: undefined, count: 0, checked: false });
     expect(fetchSpy).not.toHaveBeenCalled();
   });

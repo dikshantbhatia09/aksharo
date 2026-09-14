@@ -119,6 +119,15 @@ export const JOBS_MAX_PAGE_SIZE = 100;
  */
 export const DLQ_MAX_BULK = 100;
 
+/**
+ * How often the per-queue backlog gauge is re-sampled from Redis.
+ *
+ * 15 s, matching KEDA's default polling interval: the autoscaler scales on this
+ * series (`infra/k8s/montaj/templates/scaledobject.yaml`), so sampling slower
+ * than it polls would make every scaling decision act on stale depth.
+ */
+export const QUEUE_DEPTH_INTERVAL_MS = 15_000;
+
 /** How often the dead-letter depth gauge is re-sampled from Postgres. */
 export const DLQ_DEPTH_INTERVAL_MS = 60_000;
 

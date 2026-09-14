@@ -331,12 +331,34 @@ resource "aws_eks_node_group" "gpu" {
 
 # --- addons ----------------------------------------------------------------
 
+locals {
+  # The VPC CNI enforces NetworkPolicy only when explicitly told to.
+  #
+  # The Helm chart emits NetworkPolicy objects for every component and the
+  # runbooks describe default-deny egress, but the addon shipped with no
+  # configuration at all — and the AWS VPC CNI ignores NetworkPolicy resources
+  # unless `enableNetworkPolicy` is on. The API server accepted every policy,
+  # `kubectl get networkpolicy` listed them, and not one packet was ever
+  # filtered. Operators would have read that as isolation they did not have
+  # (launch-readiness P0-10).
+  #
+  # Turning it on is necessary but not sufficient: the closure evidence is a
+  # test from inside each pod showing a forbidden destination actually fails.
+  addon_configuration = {
+    "vpc-cni" = var.enable_vpc_cni_network_policy ? jsonencode({
+      enableNetworkPolicy = "true"
+    }) : null
+  }
+}
+
 resource "aws_eks_addon" "this" {
   for_each = var.addon_versions
 
   cluster_name  = aws_eks_cluster.this.name
   addon_name    = each.key
   addon_version = each.value == "" ? null : each.value
+
+  configuration_values = lookup(local.addon_configuration, each.key, null)
 
   resolve_conflicts_on_create = "OVERWRITE"
   resolve_conflicts_on_update = "PRESERVE"

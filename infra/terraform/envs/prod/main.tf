@@ -248,3 +248,65 @@ module "secrets" {
 
   tags = local.common_tags
 }
+
+# --- workload identity -----------------------------------------------------
+#
+# One IAM role per workload, trusted only by that workload's service account.
+# Until this existed, the s3-raw module output a policy whose description said
+# "attach to the api and worker IRSA roles" and no such role was ever created:
+# the pods had no AWS identity, every process was handed static access keys
+# through the shared secret instead, and the SES mailer — which uses the pod
+# credential chain by design — could not have sent a message (P0-09).
+#
+# Feed `module.workload_irsa.helm_service_account_annotations` into
+# values-prod.yaml rather than hand-writing ARNs.
+
+module "workload_irsa" {
+  source = "../../modules/workload-irsa"
+
+  name              = local.name
+  namespace         = var.kubernetes_namespace
+  oidc_provider_arn = module.eks.oidc_provider_arn
+  oidc_provider_url = module.eks.oidc_provider_url
+
+  workloads = {
+    api = {
+      service_account = "montaj-api"
+      description     = "REST API: raw media, SES, the health canary."
+      policy_arns     = [module.s3_raw.access_policy_arn]
+    }
+    web = {
+      service_account = "montaj-web"
+      description     = "Next server. Renders and proxies; needs no AWS resource of its own."
+      policy_arns     = []
+    }
+    worker-media = {
+      service_account = "montaj-worker-media"
+      description     = "ffprobe/ffmpeg over raw media."
+      policy_arns     = [module.s3_raw.access_policy_arn]
+    }
+    worker-ai = {
+      service_account = "montaj-worker-ai"
+      description     = "Reads raw audio for ASR; provider keys come from its own secret."
+      policy_arns     = [module.s3_raw.access_policy_arn]
+    }
+    render = {
+      service_account = "montaj-render"
+      description     = "Reads raw media and writes exports."
+      policy_arns     = [module.s3_raw.access_policy_arn]
+    }
+  }
+
+  # Mail. `ses_identity_arn = null` (the default) leaves the policy uncreated,
+  # which is the right state until the domain is verified and out of the SES
+  # sandbox — an unattachable policy is better than one granting send on "*".
+  ses_identity_arn          = var.ses_identity_arn
+  ses_configuration_set_arn = var.ses_configuration_set_arn
+  mail_from_address         = var.mail_from_address
+
+  # The API's boot-time write/read/delete canary. Raw only: the derived store is
+  # Cloudflare R2, which is not IAM-governed and still uses a static key pair.
+  canary_bucket_arns = [module.s3_raw.bucket_arn]
+
+  tags = local.common_tags
+}

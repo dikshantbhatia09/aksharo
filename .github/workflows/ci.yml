@@ -5,9 +5,9 @@ on:
     branches: ["main", "wave/**", "wp/**"]
   pull_request:
     branches: ["main", "wave/**"]
-  # C01b: lets a maintainer re-run the whole matrix (including `bridge-sea`,
-  # which otherwise only runs on a push) from the Actions UI/`gh workflow run`
-  # without needing an empty commit, e.g. to dry-run a workflow-file change.
+  # C01b: lets a maintainer re-run the whole matrix from the Actions UI or
+  # `gh workflow run` without needing an empty commit, e.g. to dry-run a
+  # workflow-file change.
   workflow_dispatch: {}
 
 # One run per ref: a new push cancels the previous run, except on main where
@@ -367,42 +367,20 @@ jobs:
           retention-days: 7
 
   # ---------------------------------------------------------------------------
-  # C01: the bridge Node SEA must actually build and run a smoke check on both
-  # platforms it ships to (Windows and macOS; a Linux runner is not a real
-  # target so it is not in the matrix). This mirrors the local smoke test that
-  # produced the discovery file during development of this work package.
+  # REMOVED 2026-09-14 (launch-readiness P0-02): the `bridge-sea` job.
+  #
+  # It ran `pnpm --filter @montaj/bridge... build` against a workspace that does
+  # not exist in this Git HEAD — `git ls-tree HEAD apps/` lists api, model-server,
+  # render, web, worker-ai and worker-media, and nothing else. `apps/bridge`,
+  # `apps/desktop`, `apps/engine`, `plugins/` and `tools/release` are advertised
+  # by the README and invoked by the release workflows, but are not in the tree
+  # and are not uncommitted deletions.
+  #
+  # A job that fails on a missing filter is not a harmless leftover: it fails
+  # EARLY, before the gates that matter, so a red pipeline says "bridge" when
+  # the real question was whether the web and API tests passed. Restore this
+  # alongside the source, not before it (post-launch backlog P2).
   # ---------------------------------------------------------------------------
-  bridge-sea:
-    name: Bridge SEA build (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 15
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [windows-latest, macos-latest]
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build bridge-core and apps/bridge
-        run: pnpm --filter @montaj/bridge... build
-
-      - name: Build the SEA binary
-        run: pnpm --filter @montaj/bridge build:sea
-
-      - name: Smoke test (starts, binds loopback, writes discovery file, exits clean)
-        shell: bash
-        run: node scripts/ci/bridge-sea-smoke.mjs
 
   # ---------------------------------------------------------------------------
   # The dev stack must stay valid: a broken compose file blocks every wave gate
@@ -437,16 +415,27 @@ jobs:
           exit $missing
 
   # ---------------------------------------------------------------------------
-  # X01 security review: dependency audit, non-blocking.
+  # X01 security review: dependency audit.
   #
-  # `pnpm audit --audit-level=high` currently reports findings only in
-  # build-time/desktop-packaging dependency chains (Electron, electron-builder's
-  # bundled tar, Next's bundled PostCSS, gray-matter's js-yaml, the release
-  # tool's CycloneDX generator) — none reachable by an attacker over the
-  # network at runtime. `docs/security/threat-model-audit-2026-09-03.md`
-  # triages every finding; this job reports rather than blocks so a new
-  # advisory in one of those chains does not stall every PR, but the exit code
-  # is still logged for a maintainer to review each run.
+  # BLOCKING on production dependencies since 2026-09-14 (launch-readiness
+  # P0-02). It used to `|| true` every finding, on the reasoning that the
+  # high/critical advisories at the time were all in build-time or
+  # desktop-packaging chains — Electron, electron-builder's bundled tar, Next's
+  # bundled PostCSS, gray-matter's js-yaml, the release tool's CycloneDX
+  # generator — none of them reachable over the network at runtime. That
+  # reasoning was sound and the implementation was not: `|| true` suppresses
+  # the NEXT advisory too, including one in a package that does serve customer
+  # requests, and nothing would have said so.
+  #
+  # The split is by reachability, which is what the triage was actually about:
+  #
+  #   --prod   Only what ships in a running container. A high or critical here
+  #            fails the build. An accepted exception goes in the ignore list
+  #            below WITH an owner and an expiry, not in a `|| true`.
+  #   (all)    Dev and build-time chains. Reported, never blocking.
+  #
+  # `docs/security/threat-model-audit-2026-09-03.md` triages the existing
+  # findings; anything added to the ignore list belongs there too.
   # ---------------------------------------------------------------------------
   security-audit:
     name: Dependency audit
@@ -466,7 +455,19 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: pnpm audit (high/critical, non-blocking — see triage table above)
+      # An ignored advisory must be a decision with a name and a date on it.
+      # This fails when one is unowned, expired, undocumented, or silenced in
+      # package.json without a matching register entry.
+      - name: Accepted audit findings are owned and in date
+        run: node scripts/check-audit-exceptions.mjs
+
+      # Reachable at runtime: blocking.
+      - name: pnpm audit — production dependencies (high/critical, BLOCKING)
+        run: pnpm audit --prod --audit-level=high
+
+      # Dev and build-time chains: reported for a maintainer, never blocking.
+      - name: pnpm audit — all dependencies (report only)
+        if: always()
         run: pnpm audit --audit-level=high || true
 
       - uses: actions/setup-python@v5

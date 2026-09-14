@@ -27,3 +27,19 @@ output "targets_are_placeholders" {
   description = "True while the records still point at TEST-NET-1. The deploy runbook checks this before declaring an environment reachable."
   value       = local.is_placeholder
 }
+
+output "turnstile_site_key" {
+  description = "Public Turnstile site key for the web app's auth forms. Null when manage_turnstile is false."
+  value       = try(cloudflare_turnstile_widget.auth[0].id, null)
+}
+
+output "turnstile_secret_key" {
+  description = "Turnstile secret, verified server-side by the API. Null when manage_turnstile is false."
+  value       = try(cloudflare_turnstile_widget.auth[0].secret, null)
+  sensitive   = true
+}
+
+output "waf_managed" {
+  description = "Whether the WAF, rate-limit and custom rulesets are managed here. False means the edge has TLS and DDoS absorption and no application-layer control."
+  value       = var.manage_waf
+}

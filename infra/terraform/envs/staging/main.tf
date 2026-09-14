@@ -240,3 +240,56 @@ module "secrets" {
 
   tags = local.common_tags
 }
+
+# --- workload identity -----------------------------------------------------
+#
+# Same per-workload IAM roles as production (P0-09). Staging is where the
+# closure evidence for least privilege is produced: `aws iam
+# simulate-principal-policy` against each role, plus a live canary showing the
+# web role cannot read a payment or provider secret and the api role can send
+# SES and reach only the allowed prefixes.
+
+module "workload_irsa" {
+  source = "../../modules/workload-irsa"
+
+  name              = local.name
+  namespace         = var.kubernetes_namespace
+  oidc_provider_arn = module.eks.oidc_provider_arn
+  oidc_provider_url = module.eks.oidc_provider_url
+
+  workloads = {
+    api = {
+      service_account = "montaj-api"
+      description     = "REST API: raw media, SES, the health canary."
+      policy_arns     = [module.s3_raw.access_policy_arn]
+    }
+    web = {
+      service_account = "montaj-web"
+      description     = "Next server. Renders and proxies; needs no AWS resource of its own."
+      policy_arns     = []
+    }
+    worker-media = {
+      service_account = "montaj-worker-media"
+      description     = "ffprobe/ffmpeg over raw media."
+      policy_arns     = [module.s3_raw.access_policy_arn]
+    }
+    worker-ai = {
+      service_account = "montaj-worker-ai"
+      description     = "Reads raw audio for ASR; provider keys come from its own secret."
+      policy_arns     = [module.s3_raw.access_policy_arn]
+    }
+    render = {
+      service_account = "montaj-render"
+      description     = "Reads raw media and writes exports."
+      policy_arns     = [module.s3_raw.access_policy_arn]
+    }
+  }
+
+  ses_identity_arn          = var.ses_identity_arn
+  ses_configuration_set_arn = var.ses_configuration_set_arn
+  mail_from_address         = var.mail_from_address
+
+  canary_bucket_arns = [module.s3_raw.bucket_arn]
+
+  tags = local.common_tags
+}

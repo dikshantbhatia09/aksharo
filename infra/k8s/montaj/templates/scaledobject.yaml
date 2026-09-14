@@ -1,18 +1,45 @@
 {{/*
-KEDA ScaledObjects: workers and the render service scale on BullMQ queue depth.
+KEDA ScaledObjects: workers and the render service scale on queue backlog.
 
-BullMQ keeps waiting jobs in a Redis list at <prefix>:<queue>:wait, so the redis
-scaler's listLength on that key is the true backlog. One trigger per queue the
-component consumes; KEDA takes the maximum replica count the triggers ask for.
+WHY NOT THE REDIS LIST SCALER (it was, and it did not work).
+-----------------------------------------------------------
+This chart used KEDA's `redis` scaler against `<prefix>:<queue>:wait`, on the
+assumption that BullMQ's waiting jobs live in that list. They do not, for this
+application: `apps/api/src/jobs/jobs.config.ts` gives every job a priority of
+1-5 and `queue.registry.ts` passes it to BullMQ, and BullMQ stores a prioritised
+job in the `<prefix>:<queue>:prioritized` **sorted set** — never in the `wait`
+list. `LLEN` on a sorted set is 0.
+
+So the scaler read an almost-always-empty list while the real backlog grew
+beside it. Workers stayed at their floor through exactly the launch burst they
+exist to absorb, and the only symptom would have been jobs waiting: the API
+stays healthy, admission keeps succeeding, and nothing scales (launch-readiness
+P0-04).
+
+WHAT IT SCALES ON NOW
+---------------------
+`montaj_queue_depth{queue,state}`, published every 15 s by
+`apps/api/src/jobs/tasks/queue-depth.task.ts` and scraped from
+`GET /internal/metrics`. The trigger sums the two RUNNABLE states — `waiting`
+and `prioritized` — because both are work a free worker could start right now.
+
+Deliberately excluded from the scaling signal:
+  * `delayed` — a retry backing off. Adding workers does not make it runnable
+    sooner, and scaling up on a provider outage's retry backlog is how a failing
+    dependency turns into a bill.
+  * `active` — already being worked. Counting it would scale on the capacity
+    that already exists, which oscillates.
+Both are still published, and the dashboards show them; they are just not the
+autoscaler's input.
+
+`threshold` is the target backlog PER REPLICA, so KEDA's replica count is
+`ceil(backlog / threshold)` — the same meaning `listLength` had, which is why
+the per-queue numbers in values.yaml carry over unchanged.
 
 minReplicaCount 0 means an idle queue costs nothing. The first job after an idle
 period pays a cold start, which is acceptable for a job that already takes tens
 of seconds; the API's admission control (THREAT-MODEL T23) shows the user an ETA
 either way.
-
-The scaler reads the Redis address from KEDA_REDIS_ADDRESS in the scale target's
-environment (set from the chart ConfigMap), because it wants host:port while
-REDIS_URL carries the rediss:// form.
 */}}
 {{- if .Values.keda.enabled }}
 {{- range $name, $spec := .Values.components }}
@@ -57,16 +84,28 @@ spec:
               periodSeconds: 60
   triggers:
     {{- range $queue := $spec.keda.queues }}
-    - type: redis
+    - type: prometheus
       metadata:
-        addressFromEnv: KEDA_REDIS_ADDRESS
-        listName: {{ include "montaj.queueWaitKey" (dict "root" $ "queue" $queue.name) | quote }}
-        # One replica per this many waiting jobs.
-        listLength: {{ $queue.listLength | quote }}
+        serverAddress: {{ $.Values.keda.prometheus.serverAddress | quote }}
+        # KEDA requires a unique name per trigger on a ScaledObject.
+        metricName: {{ printf "montaj_queue_runnable_%s" ($queue.name | replace "." "_") | quote }}
+        # Runnable backlog = waiting + prioritized. `or vector(0)` so a queue
+        # that has never been sampled reads as empty rather than as an error,
+        # which KEDA would otherwise surface as a scaling failure on a brand-new
+        # cluster.
+        query: >-
+          sum(montaj_queue_depth{queue="{{ $queue.name }}",state=~"waiting|prioritized"}) or vector(0)
+        # Target backlog per replica: KEDA runs ceil(backlog / threshold) pods.
+        threshold: {{ $queue.listLength | quote }}
         # Below this the queue counts as idle and the component may scale to zero.
-        activationListLength: {{ $queue.activationListLength | default 0 | quote }}
-        enableTLS: {{ $.Values.redis.enableTLS | quote }}
-        databaseIndex: {{ $.Values.redis.databaseIndex | quote }}
+        activationThreshold: {{ $queue.activationListLength | default 0 | quote }}
+        {{- with $.Values.keda.prometheus.authModes }}
+        authModes: {{ . | quote }}
+        {{- end }}
+      {{- with $.Values.keda.prometheus.authenticationRef }}
+      authenticationRef:
+        name: {{ . }}
+      {{- end }}
     {{- end }}
 {{- end }}
 {{- end }}

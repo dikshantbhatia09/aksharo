@@ -92,7 +92,23 @@ def chart_values() -> dict:
 
 
 def chart_secret_vars(values: dict) -> set[str]:
-    return set(values.get("externalSecrets", {}).get("variables", []))
+    """Every variable the chart hands to at least one component.
+
+    `externalSecrets.variables` became a per-component map when the single
+    all-secrets Secret was split up (launch-readiness P0-09), so the parity
+    check is against the UNION of the shared boot contract and every
+    component's own list. A variable in CONTRACTS section 1 that no component
+    receives is still a failure -- it would be provisioned into SSM and read by
+    nothing.
+    """
+    external = values.get("externalSecrets", {})
+    names: set[str] = set(external.get("shared", []) or [])
+    per_component = external.get("variables", {}) or {}
+    if isinstance(per_component, list):  # pre-P0-09 flat list
+        return names | set(per_component)
+    for component_vars in per_component.values():
+        names.update(component_vars or [])
+    return names
 
 
 def chart_keda_queues(values: dict) -> set[str]:
@@ -124,7 +140,12 @@ def main() -> int:
     compare("terraform SSM parameters", env_vars, terraform_ssm_vars(), SECRETS_TF)
 
     values = chart_values()
-    compare("chart externalSecrets.variables", env_vars, chart_secret_vars(values), CHART_VALUES)
+    compare(
+        "chart externalSecrets (shared + per-component)",
+        env_vars,
+        chart_secret_vars(values),
+        CHART_VALUES,
+    )
 
     queues = contract_queues()
     if queues:

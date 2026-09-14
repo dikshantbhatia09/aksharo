@@ -15,7 +15,8 @@ const MESSAGES: Record<string, string> = {
   "auth/invalid_token": "That link no longer works. Ask for a new one and use the newest email.",
   "auth/expired": "Your session has ended. Sign in again to carry on.",
   "auth/email_unverified": "Confirm your email address first — check your inbox for the link.",
-  "auth/weak_password": "Pick a longer password: at least 12 characters, and not one you reuse.",
+  "auth/weak_password":
+    "Pick a longer password: at least 15 characters, not a common one, and not one you reuse.",
   "auth/age_restricted":
     "We cannot open an account for you yet. Join the waiting list and we will write when a parental-consent flow is ready.",
   "common/rate_limited": "Too many attempts. Wait a moment and try again.",

@@ -57,11 +57,24 @@ COPY --from=pruner /repo/out/full/ .
 RUN pnpm turbo run build --filter=@montaj/api
 
 # ---------------------------------------------------------------------------
-# Stage 3a — migrate + seed (one-shot compose service, full install kept)
+# Stage 3a — migrate (one-shot job / compose service, full install kept)
+#
+# `db:migrate` and not a bare `prisma migrate deploy`: the hand-maintained DDL
+# in `prisma/sql/` (extensions, partial indexes, CHECK constraints) hangs off
+# tables Prisma creates but is not part of any migration. A database with the
+# Prisma tables and none of those constraints looks healthy and quietly accepts
+# rows the application believes are impossible — a UPI mandate above the RBI
+# cap, a system style with a duplicate key. `db:migrate` is the one command
+# that applies both halves, and it is idempotent (P0-03).
+#
+# The seed is the *reference* half only — plans, system styles, feature flags.
+# Sign-up fails closed without the `free` plan row, so plans are a deploy step;
+# the demo admin user and its funded workspace are not, and `seedDemoWorkspace`
+# refuses to run under NODE_ENV=production anyway.
 # ---------------------------------------------------------------------------
 FROM build AS migrate
 WORKDIR /repo
-CMD ["sh", "-c", "pnpm --filter @montaj/api exec prisma migrate deploy && pnpm --filter @montaj/api exec tsx prisma/seed.ts"]
+CMD ["sh", "-c", "pnpm --filter @montaj/api db:migrate && pnpm --filter @montaj/api db:seed:reference"]
 
 # ---------------------------------------------------------------------------
 # Stage 3b — deploy (prod-only dependency tree, still inside the full /repo

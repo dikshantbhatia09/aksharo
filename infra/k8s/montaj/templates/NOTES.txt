@@ -12,7 +12,7 @@ Check the release:
 
   kubectl -n {{ .Release.Namespace }} rollout status deploy/{{ include "montaj.fullname" . }}-api
 {{- if .Values.externalSecrets.enabled }}
-  kubectl -n {{ .Release.Namespace }} get externalsecret {{ include "montaj.envSecretName" . }}
+  kubectl -n {{ .Release.Namespace }} get externalsecret -l app.kubernetes.io/instance={{ .Release.Name }}
 {{- end }}
 {{- if .Values.keda.enabled }}
   kubectl -n {{ .Release.Namespace }} get scaledobject

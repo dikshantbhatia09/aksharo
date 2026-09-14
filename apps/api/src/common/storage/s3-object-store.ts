@@ -45,8 +45,20 @@ export interface S3ObjectStoreConfig {
    */
   readonly publicEndpoint?: string;
   readonly region: string;
-  readonly accessKeyId: string;
-  readonly secretAccessKey: string;
+  /**
+   * Static credentials, or `undefined` to use the AWS default credential chain.
+   *
+   * Leaving both unset is how IRSA works: the EKS pod-identity webhook projects
+   * a token and sets `AWS_ROLE_ARN`/`AWS_WEB_IDENTITY_TOKEN_FILE`, and the SDK
+   * picks the role up on its own. Passing `credentials: { accessKeyId: "", ... }`
+   * does NOT do that — the SDK takes the empty strings at face value and every
+   * request fails to sign — which is why these are optional rather than
+   * empty-string-tolerant (launch-readiness P0-09).
+   *
+   * Cloudflare R2 has no IAM, so the derived store keeps a static key pair.
+   */
+  readonly accessKeyId?: string;
+  readonly secretAccessKey?: string;
   /** Override the part size; the default is tuning, not a contract. */
   readonly partSizeBytes?: number;
 }
@@ -92,13 +104,28 @@ export class S3ObjectStore implements ObjectStore {
     this.bucket = config.bucket;
     this.kind = config.kind;
     this.partSizeBytes = config.partSizeBytes ?? MULTIPART_PART_SIZE_BYTES;
+    // Only pass `credentials` when there are real ones. Omitting the key lets
+    // the SDK walk its default chain (IRSA / pod identity / instance profile /
+    // shared config); passing empty strings would silently disable it.
+    const staticCredentials =
+      config.accessKeyId !== undefined &&
+      config.accessKeyId !== "" &&
+      config.secretAccessKey !== undefined &&
+      config.secretAccessKey !== ""
+        ? { accessKeyId: config.accessKeyId, secretAccessKey: config.secretAccessKey }
+        : undefined;
+
+    if (staticCredentials === undefined) {
+      this.logger.log(
+        { bucket: config.bucket, kind: config.kind },
+        "no static credentials configured; using the AWS default credential chain (IRSA)",
+      );
+    }
+
     const clientOptions: S3ClientConfig = {
       endpoint: config.endpoint,
       region: config.region,
-      credentials: {
-        accessKeyId: config.accessKeyId,
-        secretAccessKey: config.secretAccessKey,
-      },
+      ...(staticCredentials === undefined ? {} : { credentials: staticCredentials }),
       forcePathStyle: true,
       requestChecksumCalculation: "WHEN_REQUIRED",
       responseChecksumValidation: "WHEN_REQUIRED",

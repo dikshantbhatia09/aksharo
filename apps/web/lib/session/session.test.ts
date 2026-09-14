@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { TokenResponse } from "@montaj/api-client";
 
-import { clearSession, hasSessionCookie, persistSession, refreshSession } from "./client";
+import { clearSession, endSession, hasSessionCookie, persistSession, refreshSession } from "./client";
 import {
   clearSessionCookie,
   isSameOrigin,
@@ -147,6 +147,43 @@ describe("the browser session helpers", () => {
   it("swallows a failure when clearing: the cookie must go either way", async () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
     await expect(clearSession()).resolves.toBeUndefined();
+  });
+
+  /**
+   * Signing out has to revoke the family upstream, not just drop this browser's
+   * copy of the token. The page cannot do it — the refresh token is httpOnly —
+   * so it posts to the route handler that can (P0-06).
+   */
+  it("signs out through the route handler that can revoke the family", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ revoked: true }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(endSession()).resolves.toBe(true);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/session/logout",
+      expect.objectContaining({ method: "POST" }),
+    );
+  });
+
+  it("reports an unrevoked sign-out rather than claiming a clean one", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ revoked: false }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      ),
+    );
+    await expect(endSession()).resolves.toBe(false);
+
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
+    await expect(endSession()).resolves.toBe(false);
   });
 
   it("returns the fresh access token from a rotation", async () => {

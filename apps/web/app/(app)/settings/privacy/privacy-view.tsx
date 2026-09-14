@@ -37,7 +37,7 @@ import {
   subscribePrivacy,
   writePrivacy,
 } from "@/lib/privacy/consent";
-import { clearSession } from "@/lib/session/client";
+import { endSession } from "@/lib/session/client";
 
 /**
  * Privacy: consents, data export, erasure (07 §Privacy & rights, D60, D62).
@@ -128,7 +128,9 @@ export function PrivacyView(): React.JSX.Element {
     deleteRequest.mutate(undefined, {
       onSuccess: () => {
         void (async () => {
-          await clearSession();
+          // Deleting the account revokes server-side, but this browser must not
+          // keep a usable refresh token if any of that partially failed.
+          await endSession();
           resetAnalytics();
           router.replace("/login?reason=deleted");
         })();

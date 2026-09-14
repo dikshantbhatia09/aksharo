@@ -100,8 +100,15 @@ describe("frame timing", () => {
 
 describe("the style catalogue", () => {
   it("parses every system style", () => {
-    const catalogue = parseStyleCatalogue(sampleStyles());
-    expect(catalogue.size).toBe(30);
+    const styles = sampleStyles();
+    const catalogue = parseStyleCatalogue(styles);
+    // Not a hard-coded count: the catalogue grows every time a style ships, and
+    // a magic number turns "we added a template" into a failing render suite
+    // (it had drifted to 30 against 66 actual styles). What matters is that
+    // EVERY style parses — a style the render worker cannot read is a style
+    // that exports a blank caption track.
+    expect(catalogue.size).toBe(Object.keys(styles).length);
+    expect(catalogue.size).toBeGreaterThan(0);
     expect(catalogue.get("punch-pop")?.id).toBe("punch-pop");
   });
 

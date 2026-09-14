@@ -1,4 +1,4 @@
-import denylist from "./naming/denylist.json";
+import { DENYLIST_DATA, type Denylist } from "./naming/denylist.js";
 
 /**
  * The style naming rule (decision D64).
@@ -7,26 +7,23 @@ import denylist from "./naming/denylist.json";
  * > becomes `punch-pop`, a MrBeast-style becomes `hype-bold`, and no name mirrors
  * > a competitor's.
  *
- * The deny-list is data (`src/naming/denylist.json`) so the catalogue admin can
- * extend it without a code change; `StyleDocSchema` runs this on every parse, and
- * `/styles` runs it again before an admin saves a name.
+ * The deny-list is data (`src/naming/denylist.ts`) so the catalogue admin can
+ * extend it without touching any logic; `StyleDocSchema` runs this on every
+ * parse, and `/styles` runs it again before an admin saves a name. It is a
+ * TypeScript module rather than JSON because a JSON import emits an ESM
+ * statement Node refuses without an import attribute — see that file.
  */
 
 /** Tokens shorter than this are only matched as whole words, never as substrings. */
 const SUBSTRING_MIN_LENGTH = 5;
 
-export interface Denylist {
-  version: number;
-  rule: string;
-  maintainer: string;
-  tokens: string[];
-}
+export type { Denylist };
 
 /** The deny-list as committed. */
-export const DENYLIST: Denylist = denylist;
+export const DENYLIST: Denylist = DENYLIST_DATA;
 
 /** Just the tokens, lowercased. */
-export const DENYLIST_TOKENS: readonly string[] = denylist.tokens.map((token) =>
+export const DENYLIST_TOKENS: readonly string[] = DENYLIST_DATA.tokens.map((token) =>
   token.toLowerCase(),
 );
 

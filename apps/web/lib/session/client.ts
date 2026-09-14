@@ -24,9 +24,36 @@ export async function persistSession(tokens: TokenResponse): Promise<void> {
   }
 }
 
-/** Drop the cookie. Safe to call when there is no session. */
+/**
+ * Drop the cookie **without** revoking the session server-side.
+ *
+ * Only correct when the family is already gone — the API answered 401, the
+ * account was deleted, the refresh failed. To sign a user out, call
+ * {@link endSession}: dropping the cookie alone leaves the refresh-token family
+ * live for its full 30 days, which is a stolen token that outlives the theft
+ * being noticed (P0-06).
+ */
 export async function clearSession(): Promise<void> {
   await fetch("/api/session", { method: "DELETE" }).catch(() => undefined);
+}
+
+/**
+ * Sign out: revoke the refresh-token family upstream, then drop the cookie.
+ *
+ * The route handler does both, because the refresh token is httpOnly and this
+ * code cannot see it. Resolves `false` when the revoke did not get through — the
+ * cookie is gone either way, so this browser is signed out, but the family may
+ * still be live and the caller should say so rather than promise otherwise.
+ */
+export async function endSession(): Promise<boolean> {
+  try {
+    const response = await fetch("/api/session/logout", { method: "POST" });
+    if (!response.ok) return false;
+    const body = (await response.json()) as { revoked?: unknown };
+    return body.revoked === true;
+  } catch {
+    return false;
+  }
 }
 
 export interface RefreshResult {

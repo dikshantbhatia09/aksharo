@@ -74,24 +74,68 @@ export function roleAtLeast(role: $Enums.MembershipRole, minimum: $Enums.Members
 }
 
 /**
+ * How many proxies in front of this process are trusted to have appended to
+ * `X-Forwarded-For`, from `TRUST_PROXY`. `0` (or unset) means none.
+ *
+ * A count and not a boolean, because "trust the header" and "trust the header's
+ * left-most value" are very different statements. `X-Forwarded-For` is built by
+ * appending: each hop adds the address it received the request *from*, so the
+ * right-most entry is the one written by the hop nearest this process — the only
+ * entry any of them can vouch for. Everything to the left of the trusted hops was
+ * supplied by the client and can say anything.
+ */
+function trustedProxyHops(): number {
+  const raw = process.env["TRUST_PROXY"];
+  if (raw === undefined || raw === "") return 0;
+  const hops = Number.parseInt(raw.trim(), 10);
+  if (!Number.isFinite(hops) || hops <= 0) return 0;
+  return hops;
+}
+
+/**
  * The client IP.
  *
- * `X-Forwarded-For` is read **only** when `TRUST_PROXY=1` says an edge the operator
- * controls rewrites it. Trusting it unconditionally would hand every attacker a
- * fresh rate-limit bucket per request, which is the same as having no per-IP limit
- * at all (THREAT-MODEL T1, T3). With no proxy configured the socket address is the
- * only honest answer.
+ * `X-Forwarded-For` is read **only** when `TRUST_PROXY` says how many proxies the
+ * operator controls sit in front of this process, and then only at the position
+ * those proxies actually wrote. Trusting the header unconditionally, or taking
+ * its left-most value, both hand every attacker a fresh rate-limit bucket per
+ * request — which is the same as having no per-IP limit at all (THREAT-MODEL T1,
+ * T3; launch-readiness P0-08).
+ *
+ * Worked example, `TRUST_PROXY=2` (Cloudflare, then the ingress controller) and a
+ * request whose header arrives as `9.9.9.9, 203.0.113.7, 10.0.0.5`:
+ *
+ *   * `10.0.0.5` was written by the ingress — the address it saw, i.e. Cloudflare;
+ *   * `203.0.113.7` was written by Cloudflare — the address *it* saw, the client;
+ *   * `9.9.9.9` was in the header when it reached Cloudflare: attacker-supplied.
+ *
+ * Two trusted hops means stepping two entries in from the right, giving
+ * `203.0.113.7`. A forged prefix of any length changes nothing, because the
+ * position is counted from the end. If the header is shorter than the configured
+ * hop count — a request that reached this process without passing every declared
+ * proxy, such as one that found the origin directly — there is no trustworthy
+ * entry at all, and the socket address is used instead.
  *
  * Never used for authorisation — only for rate limiting, audit rows and the device
  * approval screen. `TRUST_PROXY` is a local process setting, not a CONTRACTS §1
  * variable, so it is read from `process.env` (as `API_PORT` is in `main.ts`).
  */
 export function clientIp(request: Request): string {
-  if (process.env["TRUST_PROXY"] === "1") {
+  const hops = trustedProxyHops();
+  if (hops > 0) {
     const forwarded = request.headers["x-forwarded-for"];
-    const first = Array.isArray(forwarded) ? forwarded[0] : forwarded;
-    const fromHeader = first?.split(",")[0]?.trim();
-    if (fromHeader !== undefined && fromHeader !== "") return fromHeader;
+    // Express folds a repeated header into an array; the wire order is preserved
+    // by joining, so one parse handles both shapes.
+    const raw = Array.isArray(forwarded) ? forwarded.join(",") : forwarded;
+    const entries = (raw ?? "")
+      .split(",")
+      .map((entry) => entry.trim())
+      .filter((entry) => entry !== "");
+
+    // `hops` trusted proxies wrote the last `hops` entries; the client address is
+    // the one the outermost trusted proxy recorded.
+    const trusted = entries[entries.length - hops];
+    if (trusted !== undefined) return trusted;
   }
   return request.ip ?? request.socket?.remoteAddress ?? "unknown";
 }

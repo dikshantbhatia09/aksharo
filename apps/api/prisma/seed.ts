@@ -1,6 +1,16 @@
 /**
  * Database seed.
  *
+ * Two halves, because only one of them belongs in a production database:
+ *
+ *   * **reference data** ({@link seedReferenceData}) — plans, system caption
+ *     styles and feature-flag rows. Every environment needs these. Sign-up now
+ *     fails closed without the `free` plan row (`users/free-entitlement.ts`),
+ *     so this half is a deploy step, not a developer convenience.
+ *   * **demo data** ({@link seedDemoWorkspace}) — an admin user, a demo
+ *     workspace and a credit grant. Useful locally, a shipped account with
+ *     credits anywhere else, so it refuses to run under NODE_ENV=production.
+ *
  * Idempotent by construction: every row is written with `upsert` keyed on a
  * natural key (plan key, flag key, workspace slug, user email, style key) or on a
  * deterministic ULID from `seedUlid()`. Running it twice leaves the row counts
@@ -38,13 +48,23 @@ import {
 } from "./seed-data.js";
 import { loadRepoDotenv } from "../src/config/dotenv.js";
 
-export interface SeedResult {
+export interface ReferenceSeedResult {
   readonly plans: number;
   readonly styles: number;
   readonly styleSource: StyleSource;
   readonly featureFlags: number;
+}
+
+export interface DemoSeedResult {
   readonly adminEmail: string;
   readonly workspaceSlug: string;
+  readonly grantTenths: number;
+}
+
+export interface SeedResult extends ReferenceSeedResult {
+  /** `null` when the demo half was skipped (`{ demo: false }`). */
+  readonly adminEmail: string | null;
+  readonly workspaceSlug: string | null;
   readonly grantTenths: number;
 }
 
@@ -74,7 +94,20 @@ function addMonth(from: Date): Date {
   return end;
 }
 
-export async function seed(prisma: PrismaClient): Promise<SeedResult> {
+export interface SeedOptions {
+  /**
+   * Also create the admin user, the demo workspace and its credit grant.
+   * Defaults to true so local `db:seed` and the e2e fixtures are unchanged;
+   * the production migration job passes false.
+   */
+  readonly demo?: boolean;
+}
+
+/**
+ * Reference rows every environment needs: plans, system caption styles and the
+ * feature-flag registry. Idempotent, and safe to run against production.
+ */
+export async function seedReferenceData(prisma: PrismaClient): Promise<ReferenceSeedResult> {
   // --- Plans -------------------------------------------------------------
   for (const plan of PLAN_SEEDS) {
     await prisma.plan.upsert({
@@ -158,6 +191,33 @@ export async function seed(prisma: PrismaClient): Promise<SeedResult> {
       // in staging must not have it turned off again by a redeploy's seed.
       update: { description: flag.description },
     });
+  }
+
+  return {
+    plans: PLAN_SEEDS.length,
+    styles: styles.length,
+    styleSource,
+    featureFlags: FEATURE_FLAG_SEEDS.length,
+  };
+}
+
+/**
+ * The local demo account: an admin user, a demo personal workspace, a credit
+ * account holding the free monthly grant as a lot plus its ledger row, and a
+ * free-plan subscription.
+ *
+ * Refuses to run under NODE_ENV=production. A seeded administrator with a known
+ * address and a funded workspace is a shipped credential and a funded account in
+ * a customer database (THREAT-MODEL T21); the launch runbook's
+ * "do not seed production-like environments with demo accounts/credits" is
+ * enforced here rather than trusted to whoever types the deploy command.
+ */
+export async function seedDemoWorkspace(prisma: PrismaClient): Promise<DemoSeedResult> {
+  if (process.env["NODE_ENV"] === "production") {
+    throw new Error(
+      "Refusing to seed the demo admin user and funded demo workspace under " +
+        "NODE_ENV=production. Run seedReferenceData() alone (`db:seed:reference`).",
+    );
   }
 
   // --- Admin user, demo workspace, credits, subscription ------------------
@@ -280,29 +340,45 @@ export async function seed(prisma: PrismaClient): Promise<SeedResult> {
   });
 
   return {
-    plans: PLAN_SEEDS.length,
-    styles: styles.length,
-    styleSource,
-    featureFlags: FEATURE_FLAG_SEEDS.length,
     adminEmail: ADMIN_EMAIL,
     workspaceSlug: workspace.slug,
     grantTenths,
   };
 }
 
+/**
+ * Both halves, in order. `demo` defaults to true so a developer's `db:seed` and
+ * the e2e fixtures behave exactly as before.
+ */
+export async function seed(prisma: PrismaClient, options: SeedOptions = {}): Promise<SeedResult> {
+  const reference = await seedReferenceData(prisma);
+  if (options.demo === false) {
+    return { ...reference, adminEmail: null, workspaceSlug: null, grantTenths: 0 };
+  }
+  const demo = await seedDemoWorkspace(prisma);
+  return { ...reference, ...demo };
+}
+
 async function main(): Promise<void> {
   loadRepoDotenv(resolve(__dirname, ".."));
+  // `--reference-only` is what the production migration job runs: plans, styles
+  // and flags, no demo account.
+  const referenceOnly = process.argv.includes("--reference-only");
   const prisma = new PrismaClient();
   try {
-    const result = await seed(prisma);
+    const result = await seed(prisma, { demo: !referenceOnly });
     console.warn(
       `[db:seed] ${result.plans} plans, ${result.styles} system styles (source: ${result.styleSource}), ` +
         `${result.featureFlags} feature flags.`,
     );
-    console.warn(
-      `[db:seed] admin ${result.adminEmail}, workspace "${result.workspaceSlug}" ` +
-        `with ${result.grantTenths / 10} credits granted.`,
-    );
+    if (result.adminEmail === null) {
+      console.warn("[db:seed] reference data only — no demo account or credits written.");
+    } else {
+      console.warn(
+        `[db:seed] admin ${result.adminEmail}, workspace "${result.workspaceSlug}" ` +
+          `with ${result.grantTenths / 10} credits granted.`,
+      );
+    }
     if (result.styleSource === "fallback") {
       console.warn(
         "[db:seed] NOTE: @montaj/caption-styles has no fixtures yet (A02 in flight), " +

@@ -39,10 +39,20 @@ export class BreachedPasswordService {
 
   constructor(@Inject(ENV) private readonly env: Env) {}
 
-  /** `FEATURE_FLAGS_JSON` → `{"auth.breachedPasswordCheck": true}`. Off by default. */
+  /**
+   * `FEATURE_FLAGS_JSON` → `{"auth.breachedPasswordCheck": false}` to turn it OFF.
+   *
+   * On by default since the launch-readiness audit (P0-06). It used to default
+   * off, so the compromised-password screening NIST SP 800-63B-4 requires was
+   * absent everywhere it had not been thought about — including the live
+   * environment, whose `FEATURE_FLAGS_JSON` is `{}`. A control that has to be
+   * remembered is a control that is missing. The opt-out stays for an air-gapped
+   * deployment that cannot reach HIBP at all, where every lookup would otherwise
+   * spend its 2 s timeout before failing open.
+   */
   get enabled(): boolean {
     // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
-    return this.env.FEATURE_FLAGS_JSON[BREACHED_PASSWORD_FLAG] === true;
+    return this.env.FEATURE_FLAGS_JSON[BREACHED_PASSWORD_FLAG] !== false;
   }
 
   async check(password: string): Promise<BreachLookup> {

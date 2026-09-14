@@ -5,13 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import * as React from "react";
 
-import {
-  endpoints,
-  useApiClient,
-  useCurrentUser,
-  useSession,
-  useUpdateMe,
-} from "@montaj/api-client";
+import { useCurrentUser, useSession, useUpdateMe } from "@montaj/api-client";
 import {
   Button,
   DropdownMenu,
@@ -20,11 +14,12 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  toast,
 } from "@montaj/ui";
 
 import { resetAnalytics } from "@/lib/analytics/posthog";
 import { useLocale, useT } from "@/lib/i18n/locale-provider";
-import { clearSession } from "@/lib/session/client";
+import { endSession } from "@/lib/session/client";
 
 /** The profile block at the bottom of the sidebar (08 §3). */
 export function ProfileMenu({
@@ -36,7 +31,6 @@ export function ProfileMenu({
 }): React.JSX.Element {
   const session = useSession();
   const me = useCurrentUser();
-  const client = useApiClient();
   const router = useRouter();
   const [signingOut, setSigningOut] = React.useState(false);
   const [locale, setLocale] = useLocale();
@@ -47,11 +41,22 @@ export function ProfileMenu({
 
   const signOut = async (): Promise<void> => {
     setSigningOut(true);
-    // The API revokes the family; the route handler drops the cookie. The cookie
-    // goes even if the API call fails, because a token the server no longer
-    // honours is worse than none.
-    await client.call(endpoints.auth.logout, { body: { refreshToken: "" } }).catch(() => undefined);
-    await clearSession();
+    // One same-origin call does both halves: the route handler reads the
+    // httpOnly refresh cookie, asks the API to revoke the whole family, and
+    // drops the cookie whatever the answer. It used to send `refreshToken: ""`
+    // from here — which the API rejects as too short — and then clear only the
+    // cookie, leaving the family live for 30 days (P0-06).
+    const revoked = await endSession();
+    if (!revoked) {
+      // Signed out of this browser, but the session may still exist elsewhere.
+      // Say so: silently implying a clean sign-out is how a stolen token keeps
+      // working after the user believes they have stopped it.
+      toast.warning("Signed out of this browser", {
+        description:
+          "We could not reach the server to end the session everywhere. " +
+          "Check Settings → Sessions from another device.",
+      });
+    }
     resetAnalytics();
     router.replace("/login");
   };

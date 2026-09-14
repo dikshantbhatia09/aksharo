@@ -55,8 +55,20 @@ export const DEVICE_PENDING_CAP_PER_IP = 5;
 export const USER_CODE_ALPHABET = "BCDFGHJKLMNPQRSTVWXZ23456789";
 export const USER_CODE_LENGTH = 8;
 
-/** Password policy (THREAT-MODEL T1). Length beats composition rules (NIST SP 800-63B). */
-export const PASSWORD_MIN_LENGTH = 10;
+/**
+ * Password policy (THREAT-MODEL T1). Length beats composition rules.
+ *
+ * 15 and not 10: NIST SP 800-63B-4 sets 15 characters as the minimum for a
+ * *single-factor* password, which is what every account here has until passkeys
+ * or user MFA land. Raising it only affects passwords being set — existing
+ * credentials keep working, and are re-screened at the next change.
+ *
+ * The maximum is well past the 64 characters SP 800-63B-4 requires be accepted,
+ * so passphrases and password-manager output are never truncated. There are no
+ * composition rules and no rotation: both push users toward predictable
+ * transformations of one weak stem.
+ */
+export const PASSWORD_MIN_LENGTH = 15;
 export const PASSWORD_MAX_LENGTH = 128;
 
 /** argon2id parameters from the brief: 64 MiB, 3 iterations, 1 lane. */
@@ -64,7 +76,15 @@ export const ARGON2_MEMORY_KIB = 64 * 1024;
 export const ARGON2_TIME_COST = 3;
 export const ARGON2_PARALLELISM = 1;
 
-/** Feature flag (`FEATURE_FLAGS_JSON`) that turns the HIBP range check on. */
+/**
+ * Feature flag (`FEATURE_FLAGS_JSON`) for the HIBP range check.
+ *
+ * **On unless explicitly set to `false`.** It used to be off unless explicitly
+ * enabled, which meant the compromised-password screening SP 800-63B-4 requires
+ * was absent in every environment that had not thought about it — including the
+ * live one (launch-readiness P0-06). The local blocklist in
+ * `common-passwords.ts` is not flagged at all and always applies.
+ */
 export const BREACHED_PASSWORD_FLAG = "auth.breachedPasswordCheck";
 /** Feature flag that turns the age gate off in a sandbox. Defaults to ON. */
 export const AGE_GATE_FLAG = "auth.ageGate";

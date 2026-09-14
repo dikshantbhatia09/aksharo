@@ -174,3 +174,34 @@ variable "existing_github_oidc_provider_arn" {
   type        = string
   default     = ""
 }
+
+# --- workload identity (P0-09) ---------------------------------------------
+
+variable "kubernetes_namespace" {
+  type        = string
+  default     = "montaj"
+  description = "Namespace the Helm release runs in. Part of every workload role's trust condition."
+}
+
+variable "ses_identity_arn" {
+  type        = string
+  default     = null
+  description = <<-EOT
+    Verified SES identity the API may send transactional mail as. Leave null
+    until the sending domain is verified and SES production access is granted;
+    a null value leaves the policy uncreated, which is safer than a policy that
+    grants ses:SendEmail on "*" so the plan looks finished.
+  EOT
+}
+
+variable "ses_configuration_set_arn" {
+  type        = string
+  default     = null
+  description = "Optional SES configuration set carrying the bounce/complaint event destination."
+}
+
+variable "mail_from_address" {
+  type        = string
+  default     = null
+  description = "MAIL_FROM. Conditions the SES policy on ses:FromAddress so the API can send only as the product."
+}

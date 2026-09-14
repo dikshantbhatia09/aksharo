@@ -285,12 +285,24 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }): React.JSX.
         <StreakChip />
 
         {/*
-          aksharo.ai/download only exists for the production deployment. Offering
-          it from a local or staging build sends people to a download that has
-          nothing to do with the app they are using (F07-E8). `webOrigin` comes
-          from the server on the same render, so this gates without a flash.
+          Two gates, both of which have to be open.
+
+          `isProductionOrigin`: aksharo.ai/download only exists for the
+          production deployment, and offering it from a local or staging build
+          sends people to a download that has nothing to do with the app they
+          are using (F07-E8). `webOrigin` comes from the server on the same
+          render, so this gates without a flash.
+
+          `desktop.download`: the desktop app is not part of this release.
+          `apps/desktop` is not in this Git HEAD at all — the release workflow
+          that built it invokes a workspace that does not exist — so the link
+          advertised a product nobody could get, from the sidebar of every
+          signed-in user (launch-readiness P0-12). The flag is OFF unless
+          FEATURE_FLAGS_JSON explicitly turns it on, which is the right default
+          for a surface whose artefacts do not exist yet: turn it on in the same
+          change that restores and signs the build.
         */}
-        {isProductionOrigin ? (
+        {isProductionOrigin && config.flags["desktop.download"] === true ? (
           <a
             href={`https://${BRAND.domain}/download`}
             className="text-fg-1 hover:bg-bg-2 hover:text-fg-0 mx-1 flex items-center gap-2.5 rounded-sm px-2 py-2 text-xs"

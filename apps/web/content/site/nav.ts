@@ -9,25 +9,48 @@
  * when their work packages ship.
  */
 
+import { surfaceEnabled, type LaunchSurface } from "./launch-surfaces";
+
 export interface SiteNavItem {
   readonly label: string;
   readonly href: string;
+  /**
+   * The product surface this link leads to, when the link only makes sense if
+   * that surface ships. Items with no `surface` are always shown.
+   */
+  readonly surface?: LaunchSurface;
+}
+
+/**
+ * Drop the links whose product is not in this release.
+ *
+ * The nav offered Plugins and Download while `plugins/` and `apps/desktop` are
+ * not in this Git HEAD — the pages existed, described the product, and led to
+ * artefacts nobody could obtain (launch-readiness P0-12). Filtering at render
+ * keeps one list rather than a launch fork of the whole nav, and makes turning
+ * a surface back on a flag change rather than an edit here.
+ */
+export function visibleNav(
+  items: readonly SiteNavItem[],
+  flags: Readonly<Record<string, boolean>>,
+): readonly SiteNavItem[] {
+  return items.filter((item) => item.surface === undefined || surfaceEnabled(item.surface, flags));
 }
 
 export const PRIMARY_NAV: readonly SiteNavItem[] = [
   { label: "Features", href: "/features" },
   { label: "Styles", href: "/styles" },
-  { label: "Plugins", href: "/plugins" },
+  { label: "Plugins", href: "/plugins", surface: "plugins" },
   { label: "Pricing", href: "/pricing" },
-  { label: "Download", href: "/download" },
+  { label: "Download", href: "/download", surface: "desktop" },
 ];
 
 export const FOOTER_PRODUCT_NAV: readonly SiteNavItem[] = [
   { label: "Features", href: "/features" },
   { label: "Styles gallery", href: "/styles" },
   { label: "Pricing", href: "/pricing" },
-  { label: "Plugins", href: "/plugins" },
-  { label: "Download", href: "/download" },
+  { label: "Plugins", href: "/plugins", surface: "plugins" },
+  { label: "Download", href: "/download", surface: "desktop" },
   { label: "Changelog", href: "/changelog" },
 ];
 

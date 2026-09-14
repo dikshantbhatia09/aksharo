@@ -49,15 +49,18 @@ cd apps/api && node --env-file=../../.env.local-run dist/main.js
 # if dist/ is missing: pnpm --filter @montaj/api exec nest build
 
 # Web on 3914 (production build; NODE_ENV must be production for `next start`)
-cd apps/web && NEXT_DIST_DIR=.next-caption-live-20260912 NODE_ENV=production node --env-file=../../.env.local-run node_modules/next/dist/bin/next start --port 3914
+cd apps/web && NEXT_DIST_DIR=.next-typography-live-20260913 NODE_ENV=production node --env-file=../../.env.local-run node_modules/next/dist/bin/next start --port 3914
 ```
 
-The caption-editor release published on 2026-09-12 runs from
-`apps/web/.next-caption-live-20260912` (build `fzstBbkQAwLxfxTeVNKtz`).
-Set `NEXT_DIST_DIR` as shown when restarting this release; `.next` contains
-the previous build retained for rollback. Deployment details are in
-`scratch/caption-live-deployment.json`. A future build should use a new output
-directory while the live process is running, then switch the web service to it.
+The typography-motion release (3 new "editorial" kinetic-typography templates —
+`editorial-ghost-type`, `editorial-keyword-zoom`, `editorial-stack`) published
+2026-09-13 runs from `apps/web/.next-typography-live-20260913` (build
+`FVSuJD4Q1Btz16IpOz78T`). Set `NEXT_DIST_DIR` as shown when restarting this
+release. `.next-caption-live-20260912` (build `fzstBbkQAwLxfxTeVNKtz`) is the
+previous release, retained for rollback; `.next` is older still. Deployment
+details are in `scratch/typography-live-deployment.json`. A future build
+should use a new output directory while the live process is running, then
+switch the web service to it.
 
 `.env.local-run` contains multi-line quoted PEM keys (`JWT_PRIVATE_KEY`).
 Shell `source` breaks on them — use Node's `--env-file` / `process.loadEnvFile()`.
@@ -110,9 +113,14 @@ missing, the build or the restart was skipped.
 
 ```bash
 pnpm --filter @montaj/web typecheck        # must be clean
-pnpm --filter @montaj/web lint             # baseline is 13 PRE-EXISTING errors
-                                           # (CaptionStage.tsx + qa-sweep/*) — do not
-                                           # "fix" them, just do not add more
+pnpm --filter @montaj/web lint             # baseline is 20 PRE-EXISTING errors
+                                           # (CaptionStage.tsx, qa-sweep/*, plus
+                                           # import/order in the editor + nav files
+                                           # the Sep-2026 parity work touched) — do
+                                           # not "fix" them, just do not add more.
+                                           # Was 13; re-count with
+                                           # `pnpm --filter @montaj/web lint 2>&1 | tail -2`
+                                           # rather than trusting this number.
 npx vitest run components/editor --maxWorkers=2
 pnpm --filter @montaj/caption-styles test
 pnpm --filter @montaj/render-core test
@@ -156,10 +164,18 @@ Facts worth not re-deriving:
 - The **409 on `/transcribe` right after `complete` is by design**: the probe has
   not run yet. `AutoTranscribeTrigger` (`apps/api/src/transcripts/`) restarts it
   on `media.proxy` success — but only when the project has a `sourceLanguage`,
-  no existing transcript or edg document, and the workspace has credits. A
-  brand-new Free workspace is created with **0 credits and 0 monthly grant**, so
-  on a fresh test account the upload succeeds and transcription silently never
-  starts. That is not an upload bug.
+  no existing transcript or edg document, and the workspace has credits.
+- **CORRECTED 2026-09-14.** This file used to say a brand-new Free workspace is
+  created with 0 credits and 0 monthly grant, so a fresh account's upload
+  succeeded and transcription silently never started. That was true and it was a
+  bug, not a behaviour: sign-up created the user, the workspace, the membership
+  and the consent rows and stopped, so no subscription, credit account or grant
+  ever existed (launch-readiness P0-07). `users.service.ts` now calls
+  `provisionFreeEntitlement` inside the sign-up transaction, and a fresh account
+  starts with the Free plan's 20 credits. **A new account with zero credits is
+  now a symptom to investigate, not the expected state** — most likely an
+  unseeded database, which that function refuses loudly rather than papering
+  over.
 - **The Free plan cap is 500 MB / 20 min.** The size cap is enforced at `init`;
   the duration cap only after probing.
 
@@ -169,6 +185,40 @@ browser reached the API at all. No `project.create` row means the failure was
 modal and hashing, not at the server.
 
 ---
+
+## 4c. Changed on 2026-09-14 (launch-readiness pass)
+
+Things this file, the runbooks or your muscle memory may still have wrong. Full
+record in `docs/LAUNCH-READINESS-IMPLEMENTATION-2026-09-14.md`.
+
+- **The brand is Aksharo.** Commit `0be69d36` overwrote
+  `packages/config/src/brand.ts` with a competitor's name, domain, deep-link
+  scheme and support address (`Kalakar` / `kalakar.io`), and the built `dist/`
+  carried it into every app. Restored, with `FORBIDDEN_BRAND_NAMES` and a test so
+  it cannot come back quietly. Kalakar is the product being *visually* studied;
+  it is not this product's name.
+- **`TRUST_PROXY` is a hop count, not a boolean.** It used to read the left-most
+  `X-Forwarded-For` value, which the client supplies. It now counts trusted hops
+  from the **right**. `TRUST_PROXY=1` still behaves correctly for a single proxy;
+  behind Cloudflare *and* an ingress it must be `2`.
+- **Password minimum is 15** (was 10), and the compromised-password check now
+  defaults **on**. A local blocklist applies regardless of network reachability.
+- **Sign-out revokes server-side.** `POST /api/session/logout` is the route;
+  `clearSession()` only drops the cookie and is correct solely when the family is
+  already dead.
+- **Swagger is off under `NODE_ENV=production`** unless `API_DOCS_ENABLED=1`.
+- **`realtime` and `scheduler` are not deployed.** They were never separate
+  processes — the API image ignored `--role`, and now refuses to start with an
+  unimplemented one. The API serves `/realtime` itself.
+- **Migrations run `db:migrate`, not `prisma migrate deploy`.** Only the former
+  applies the hand-written DDL in `prisma/sql/`. Production seeds reference data
+  only (`db:seed:reference`); the demo workspace seed refuses under
+  `NODE_ENV=production`.
+- **Do not import a `.json` file from a package that ships an ESM build.**
+  `resolveJsonModule` emits an import real ESM rejects without
+  `with { type: "json" }`, and TypeScript will not accept that attribute while
+  also emitting CommonJS. This silently killed every render worker thread. Put
+  the data in a `.ts` module.
 
 ## 5. Design system
 

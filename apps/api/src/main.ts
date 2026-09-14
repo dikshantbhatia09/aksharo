@@ -13,11 +13,16 @@ import { startTelemetry } from "./common/telemetry/otel.js";
 import { ENV } from "./config/config.module.js";
 import { applyInternalBodyLimit } from "./internal/internal-body-limit.js";
 import { setupOpenApi } from "./openapi.js";
+import { parseRole } from "./role.js";
 import { APP_VERSION } from "./version.js";
 
 import type { INestApplication } from "@nestjs/common";
 
 export async function bootstrap(): Promise<INestApplication> {
+  // Before anything expensive: an unimplemented role must fail at start, not
+  // after the process has bound a port and looks healthy to the orchestrator.
+  parseRole(process.argv.slice(2));
+
   // Before NestFactory: the HTTP instrumentation has to patch `http` before Nest
   // requires it. A no-op when no OTLP endpoint is configured. `TelemetryService`
   // (in CommonModule) shuts it down again through the application's own hooks.
@@ -68,14 +73,27 @@ export async function bootstrap(): Promise<INestApplication> {
     corsOrigins.push(`http://127.0.0.1:${localWebPort}`, `http://localhost:${localWebPort}`);
   }
   app.enableCors({ origin: corsOrigins, credentials: true });
-  setupOpenApi(app);
+
+  // Interactive API docs are attacker reconnaissance in production: every route,
+  // every DTO field, every error code, unauthenticated (launch-readiness P0-13).
+  // They stay on everywhere else, because `packages/api-client` is generated
+  // from `/docs-json` and a developer without `/docs` is a slower developer.
+  // `API_DOCS_ENABLED=1` re-opens them deliberately — for a staging host behind
+  // Cloudflare Access, not for the public origin.
+  const docsEnabled =
+    process.env["NODE_ENV"] !== "production" || process.env["API_DOCS_ENABLED"] === "1";
+  if (docsEnabled) setupOpenApi(app);
 
   const port = Number(process.env["API_PORT"] ?? new URL(env.API_ORIGIN).port) || 3001;
   await app.listen(port, "0.0.0.0");
 
   const logger = app.get(PinoLogger);
   logger.log(`${BRAND.name} API ${APP_VERSION} listening on http://localhost:${port}`);
-  logger.log(`OpenAPI UI at http://localhost:${port}/docs`);
+  logger.log(
+    docsEnabled
+      ? `OpenAPI UI at http://localhost:${port}/docs`
+      : "OpenAPI UI disabled (production; set API_DOCS_ENABLED=1 behind an edge policy to expose it)",
+  );
   return app;
 }
 

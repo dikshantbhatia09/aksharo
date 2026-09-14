@@ -3,6 +3,7 @@ import { randomBytes } from "node:crypto";
 import { Injectable } from "@nestjs/common";
 import { ulid } from "ulid";
 
+import { provisionFreeEntitlement } from "./free-entitlement.js";
 import { PrismaService } from "../common/index.js";
 
 import type { $Enums, Prisma } from "@prisma/client";
@@ -173,6 +174,16 @@ export class UsersService {
           ...(input.ua === undefined ? {} : { ua: input.ua }),
           noticeVersion: input.noticeVersion ?? PRIVACY_NOTICE_VERSION,
         }),
+      });
+
+      // The Free plan the sign-up page promises: subscription, credit account,
+      // the first monthly grant lot and its ledger row. In the same transaction
+      // as the user, because an account that exists without its entitlement can
+      // upload but never transcribe, and nothing tells the user why (P0-07).
+      await provisionFreeEntitlement(tx, {
+        workspaceId,
+        currency: DEFAULT_CURRENCY[input.jurisdiction],
+        at: now,
       });
 
       return { userId, workspaceId, role: "owner" as const };

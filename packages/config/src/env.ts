@@ -68,8 +68,8 @@ export const REQUIRED_ENV_VARS = [
   "S3_ENDPOINT",
   "S3_REGION",
   "S3_BUCKET_RAW",
-  "S3_ACCESS_KEY",
-  "S3_SECRET_KEY",
+  // S3_ACCESS_KEY / S3_SECRET_KEY are deliberately NOT here: blank means "use
+  // the AWS default credential chain" (IRSA). See the schema below.
   "R2_ENDPOINT",
   "R2_BUCKET_DERIVED",
   "R2_ACCESS_KEY",
@@ -141,8 +141,18 @@ export const envSchema = z.object({
   S3_ENDPOINT: httpOrigin("S3_ENDPOINT"),
   S3_REGION: nonEmpty("S3_REGION"),
   S3_BUCKET_RAW: nonEmpty("S3_BUCKET_RAW"),
-  S3_ACCESS_KEY: nonEmpty("S3_ACCESS_KEY"),
-  S3_SECRET_KEY: nonEmpty("S3_SECRET_KEY"),
+  // Optional since P0-09: blank means "use the AWS default credential chain",
+  // which is how IRSA / EKS Pod Identity works — the pod is handed a projected
+  // token and a role ARN, and the SDK finds them on its own. Requiring a
+  // non-empty key forced a static, long-lived access key into every process
+  // that touches raw media, which is exactly the credential IRSA exists to
+  // remove. `S3ObjectStore` omits the `credentials` option entirely when these
+  // are blank; passing empty strings would silently disable the chain.
+  //
+  // R2 below stays required: Cloudflare has no IAM equivalent, so the derived
+  // store genuinely needs a static key pair.
+  S3_ACCESS_KEY: optionalSecret(),
+  S3_SECRET_KEY: optionalSecret(),
   // The origin BROWSERS PUT/GET raw media through (presigned multipart uploads,
   // CONTRACTS §6 — the upload never goes through the API). Falls back to
   // S3_ENDPOINT when unset. Internal head/tag/delete calls keep using
@@ -366,6 +376,8 @@ export function crossFieldProblems(
       problems.push("AUTH_DEV_AUTO_VERIFY=1 is never valid when NODE_ENV=production");
     }
   }
+  problems.push(...productionProblems(env, source));
+
   // A mixed-content object store can never work: the page is HTTPS, the browser
   // refuses plain-HTTP media/uploads before dispatch, and the only symptom is a
   // console CSP line. Refuse to boot instead — this exact drift shipped a build
@@ -388,6 +400,93 @@ export function crossFieldProblems(
       );
     }
   }
+  return problems;
+}
+
+/**
+ * Flags (`FEATURE_FLAGS_JSON`) that gate a surface whose production path is not
+ * finished, or that record a deliberate decision to run without a control.
+ */
+export const PRODUCTION_GATE_FLAGS = {
+  /** Checkout, subscriptions and refunds. Off until live Razorpay keys exist. */
+  checkout: "billing.checkout",
+  /** Partner music/SFX catalogues. Off until the licence snapshots are real. */
+  partnerCatalogue: "assets.partnerCatalogue",
+  /** "Yes, we know there is no error tracking." A decision, not an oversight. */
+  errorTrackingOptOut: "observability.errorTrackingOptOut",
+} as const;
+
+/**
+ * Rules that only apply under `NODE_ENV=production`.
+ *
+ * Every one of these is a development default that is harmless locally and
+ * silently wrong in front of customers. They are startup errors rather than
+ * warnings because each had, or would have had, no visible symptom until a user
+ * hit it: a verification email that goes to a Redis list nobody reads, an AI
+ * feature returning canned text that looks like a real answer, a checkout that
+ * marks an order paid without a payment. A log line at boot is not a control —
+ * nobody reads the boot log of a service that started (launch-readiness P0-06,
+ * P0-12, P0-13).
+ *
+ * `source` rather than `env` wherever "unset" and "set to the default" must be
+ * told apart, for the reason {@link crossFieldProblems} explains.
+ */
+function productionProblems(env: Env, source: Record<string, string | undefined>): string[] {
+  if (source["NODE_ENV"] !== "production") return [];
+  const problems: string[] = [];
+  const flags = env.FEATURE_FLAGS_JSON;
+
+  if (env.MAIL_PROVIDER === "dev") {
+    problems.push(
+      'MAIL_PROVIDER="dev" is not valid under NODE_ENV=production: the dev outbox is a ' +
+        "Redis list, so verification, magic-link and password-reset mail would never " +
+        'reach anyone. Set MAIL_PROVIDER="ses" (or "smtp") and MAIL_FROM.',
+    );
+  }
+
+  if (env.LLM_PROVIDER === "mock") {
+    problems.push(
+      'LLM_PROVIDER="mock" is not valid under NODE_ENV=production: prompted edits, ' +
+        "transcript cleanup and the other LLM passes would return canned output that " +
+        "a customer cannot tell from a real answer.",
+    );
+  }
+
+  // eslint-disable-next-line security/detect-object-injection -- bracket access on an internal enumerated key, not attacker-controlled
+  if (flags[PRODUCTION_GATE_FLAGS.checkout] === true) {
+    const razorpay = [env.RAZORPAY_KEY_ID, env.RAZORPAY_KEY_SECRET, env.RAZORPAY_WEBHOOK_SECRET];
+    if (razorpay.some((value) => value === undefined || value === "")) {
+      problems.push(
+        `${PRODUCTION_GATE_FLAGS.checkout}=true under NODE_ENV=production requires ` +
+          "RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET and RAZORPAY_WEBHOOK_SECRET. Without " +
+          "them billing falls back to the fake provider, which settles orders and " +
+          "grants credits without any payment ever being taken.",
+      );
+    }
+  }
+
+  // eslint-disable-next-line security/detect-object-injection -- bracket access on an internal enumerated key, not attacker-controlled
+  if (flags[PRODUCTION_GATE_FLAGS.partnerCatalogue] === true) {
+    problems.push(
+      `${PRODUCTION_GATE_FLAGS.partnerCatalogue}=true is not valid under ` +
+        "NODE_ENV=production: the per-track licence snapshot the catalogue is supposed " +
+        "to write with every use is still a TODO, so there would be no record of what " +
+        "was licensed to whom.",
+    );
+  }
+
+  if (env.SENTRY_DSN === undefined || env.SENTRY_DSN === "") {
+    // eslint-disable-next-line security/detect-object-injection -- bracket access on an internal enumerated key, not attacker-controlled
+    if (flags[PRODUCTION_GATE_FLAGS.errorTrackingOptOut] !== true) {
+      problems.push(
+        "SENTRY_DSN is empty under NODE_ENV=production: nothing would report an " +
+          "unhandled error, so the first sign of a broken release is a customer saying " +
+          `so. Set it, or record the decision with ${PRODUCTION_GATE_FLAGS.errorTrackingOptOut}=true ` +
+          "in FEATURE_FLAGS_JSON.",
+      );
+    }
+  }
+
   return problems;
 }
 
