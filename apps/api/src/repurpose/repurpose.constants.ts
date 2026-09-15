@@ -57,6 +57,38 @@ export const REPURPOSE_RATE_LIMITS = {
   },
 } as const satisfies Record<string, RateLimitRule>;
 
+/**
+ * How long `media.acquire` may spend on one source, end to end.
+ *
+ * Forty minutes: long enough for a two-hour talk over an ordinary connection,
+ * short enough that a source which has quietly stalled is a failure the user
+ * hears about rather than a job that never ends. It travels in the payload, so
+ * the limit that applied when the run was confirmed is the one the worker
+ * enforces even if this constant changes before the job runs (§8.2).
+ */
+export const ACQUIRE_TIMEOUT_MS = 40 * 60 * 1000;
+
+/**
+ * Credits held for an acquisition: **none**.
+ *
+ * `04-pricing-and-monetization.md` bills transcription and rendering. Fetching
+ * the source is the cost of accepting a link at all and is priced into the plan
+ * — the same reasoning `MEDIA_JOB_QUOTES` gives for probe and proxy. The call
+ * still goes through admission control, which is what a nonzero-cost queue needs
+ * from it anyway: one lane per workspace, so a run cannot open twenty downloads.
+ */
+export const ACQUIRE_QUOTE_TENTHS = 0;
+
+/**
+ * The filename an acquired source is recorded under.
+ *
+ * Ours, never the source's. A remote title is display text (`sourceDisplay`);
+ * letting it name a file puts an attacker-chosen string into a path, a
+ * `Content-Disposition` header and an export bundle.
+ */
+export const ACQUIRED_FILENAME = "source.mp4";
+export const ACQUIRED_MIME = "video/mp4";
+
 /** Default AI suggestions when the caller does not say (master plan §3.3). */
 export const DEFAULT_REQUESTED_CANDIDATES = 5;
 

@@ -93,4 +93,15 @@ describe("isMediaPayload", () => {
     expect(isMediaPayload({ mediaId: "m" })).toBe(false);
     expect(isMediaPayload(null)).toBe(false);
   });
+
+  it("accepts an acquisition, which names where it will WRITE", () => {
+    // `media.acquire` has no source object, so it carries `destination.key`
+    // instead of `key`. This guard rejecting it failed every acquisition at the
+    // envelope check — permanently, with a message about CONTRACTS §3 and no
+    // hint that the producer and the guard disagreed about a field name.
+    expect(isMediaPayload({ mediaId: "m", destination: { bucket: "s3", key: "k" } })).toBe(true);
+    expect(isMediaPayload({ mediaId: "m", destination: { bucket: "s3", key: "" } })).toBe(false);
+    expect(isMediaPayload({ mediaId: "m", destination: {} })).toBe(false);
+    expect(isMediaPayload({ mediaId: "m", destination: null })).toBe(false);
+  });
 });

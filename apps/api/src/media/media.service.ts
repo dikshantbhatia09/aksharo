@@ -28,7 +28,22 @@ import { EntitlementService } from "../workspaces/entitlement.service.js";
 
 import type { CompletedPart, ObjectStore } from "../common/storage/index.js";
 import type { PlanMediaLimits } from "../projects/plan-limits.js";
-import type { MediaAsset, Project } from "@prisma/client";
+import type { Job, MediaAsset, Project } from "@prisma/client";
+
+/**
+ * The project fields an external acquisition needs: enough to build the key,
+ * apply retention and take the project out of `draft`.
+ *
+ * Structural rather than `Project`, because the two callers hold different
+ * things — the run producer has the `ProjectView` it just created, the completion
+ * handler has the row it joined — and neither should re-read a project to name
+ * three columns.
+ */
+export interface AcquisitionProject {
+  readonly id: string;
+  readonly workspaceId: string;
+  readonly status: string;
+}
 
 export interface DerivedKeysView {
   readonly proxy: string | null;
@@ -487,6 +502,138 @@ export class MediaService {
   }
 
   // -------------------------------------------------------------------------
+  // External acquisition (`media.acquire`)
+  // -------------------------------------------------------------------------
+
+  /**
+   * Reserve the row and the object key an external acquisition will write into.
+   *
+   * There is no multipart ticket here and no client-declared size, because no
+   * browser is involved: `media.acquire` fetches the bytes and `putFile`s them.
+   * What this owns is the one thing a worker must never own — **the key**. It is
+   * built by `rawKey` out of ids this process generated, so a remote title with
+   * `../` in it is just a title (master plan §8.2, THREAT-MODEL T5).
+   *
+   * The row starts `pending`, which is what an upload that has not finished looks
+   * like too. That is deliberate: the run's stage derivation reads the media row,
+   * so "we are still getting your video" needs no second source of truth.
+   */
+  async reserveAcquisition(
+    project: AcquisitionProject,
+    input: { readonly filename: string; readonly mime: string },
+  ): Promise<{ readonly media: MediaAsset; readonly bucket: "s3" | "r2"; readonly key: string }> {
+    const mediaId = ulid();
+    const key = rawKey(
+      project.workspaceId,
+      project.id,
+      mediaId,
+      extensionFor(input.filename, input.mime),
+    );
+    const media = await this.prisma.mediaAsset.create({
+      data: {
+        id: mediaId,
+        projectId: project.id,
+        role: "primary",
+        bucket: this.raw.kind,
+        storageKey: key,
+        filename: input.filename,
+        mime: input.mime,
+        status: "pending",
+      },
+    });
+    return { media, bucket: this.raw.kind, key };
+  }
+
+  /**
+   * {@link complete}'s tail, for bytes that arrived through `media.acquire`.
+   *
+   * Identical in effect to finishing an upload — the store's own size, the plan's
+   * purge dates, the project's retention pushed out, `media.probe` enqueued — and
+   * deliberately so: past this point an acquired video must be indistinguishable
+   * from an uploaded one, or every downstream stage needs two code paths.
+   *
+   * Two differences, both from who is calling:
+   *
+   *   * **A missing object throws.** A `complete` call that cannot find its
+   *     object means a broken client; a *worker* reporting success for an object
+   *     the store does not have means the callback and the upload disagree, and
+   *     the honest answer is 5xx so the attempt is retried rather than a probe
+   *     enqueued against nothing.
+   *   * **The probe is a child job with `skipAdmission`.** The workspace was
+   *     admitted once, when the run was created. Making the second half of that
+   *     same work queue for its own slot is how a Free workspace 429s itself
+   *     halfway through its own video — the same reasoning `media.probe` uses
+   *     when it enqueues `media.proxy`.
+   *
+   * Idempotent: the writes are plain overwrites of measured facts and
+   * `enqueueChild` dedupes on `media.probe:{mediaId}`, so a replayed callback
+   * produces the same row and the same job id.
+   */
+  async completeAcquisition(input: {
+    readonly media: MediaAsset;
+    readonly project: AcquisitionProject;
+    readonly parent: Job;
+    readonly sizeBytes: number;
+    readonly mime: string;
+    readonly contentHash: string;
+  }): Promise<{ readonly media: MediaAsset; readonly probeJobId: string }> {
+    const head = await this.raw.head(input.media.storageKey);
+    if (head === null) {
+      throw new Error(
+        `media.acquire reported ${input.media.storageKey}, which the raw store does not have`,
+      );
+    }
+
+    if (head.sizeBytes !== input.sizeBytes) {
+      // Not fatal — the store is the authority either way — but the two numbers
+      // disagreeing means the upload and the measurement saw different files.
+      this.logger.warn(
+        { mediaId: input.media.id, stored: head.sizeBytes, reported: input.sizeBytes },
+        "media.acquire reported a size the raw store does not agree with",
+      );
+    }
+
+    const limits = mediaLimitsFor(await this.entitlements.forWorkspace(input.project.workspaceId));
+    const uploadedAt = new Date();
+    const updated = await this.prisma.mediaAsset.update({
+      where: { id: input.media.id },
+      data: {
+        status: "uploaded",
+        uploadedAt,
+        sizeBytes: BigInt(head.sizeBytes),
+        contentHash: input.contentHash,
+        mime: head.contentType ?? input.mime,
+        rawPurgeAt: rawPurgeAt(uploadedAt),
+        derivedPurgeAt: derivedPurgeAt(uploadedAt, limits),
+      },
+    });
+
+    await this.prisma.project.update({
+      where: { id: input.project.id },
+      data: {
+        lastActivityAt: uploadedAt,
+        retentionUntil: derivedPurgeAt(uploadedAt, limits),
+        ...(input.project.status === "draft" ? { status: "active" as const } : {}),
+      },
+    });
+
+    await this.raw.tag(updated.storageKey, RAW_OBJECT_TAGS).catch((error: unknown) => {
+      this.logger.debug({ key: updated.storageKey, err: describe(error) }, "raw tagging skipped");
+    });
+
+    const probe = await this.jobs.enqueueChild(input.parent, {
+      type: "media.probe",
+      payload: this.probePayload(updated, input.project),
+      worstCaseTenths: MEDIA_JOB_QUOTES.probeTenths,
+      jobKey: MEDIA_JOB_KEYS.probe(updated.id),
+      reason: `media.probe · ${updated.id}`,
+      skipAdmission: true,
+    });
+
+    return { media: updated, probeJobId: probe.job.id };
+  }
+
+  // -------------------------------------------------------------------------
   // Derived URLs
   // -------------------------------------------------------------------------
 
@@ -586,7 +733,22 @@ export class MediaService {
     project: Project,
     view: MediaView,
   ): Promise<CompletedUpload> {
-    const payload = {
+    const probe = await this.jobs.enqueue({
+      type: "media.probe",
+      workspaceId: project.workspaceId,
+      projectId: project.id,
+      params: this.probePayload(media, project),
+      jobKey: MEDIA_JOB_KEYS.probe(media.id),
+      worstCaseTenths: MEDIA_JOB_QUOTES.probeTenths,
+      reason: `media.probe · ${media.id}`,
+    });
+
+    return { media: view, probeJobId: probe.job.id, proxyJobId: null };
+  }
+
+  /** What `media.probe` is told about an asset. One definition, two callers. */
+  private probePayload(media: MediaAsset, project: AcquisitionProject): Record<string, unknown> {
+    return {
       mediaId: media.id,
       projectId: project.id,
       bucket: this.raw.kind,
@@ -596,18 +758,6 @@ export class MediaService {
       derivedBucket: this.derived.kind,
       derivedPrefix: media.storageKey.slice(0, media.storageKey.lastIndexOf("/")),
     };
-
-    const probe = await this.jobs.enqueue({
-      type: "media.probe",
-      workspaceId: project.workspaceId,
-      projectId: project.id,
-      params: payload,
-      jobKey: MEDIA_JOB_KEYS.probe(media.id),
-      worstCaseTenths: MEDIA_JOB_QUOTES.probeTenths,
-      reason: `media.probe · ${media.id}`,
-    });
-
-    return { media: view, probeJobId: probe.job.id, proxyJobId: null };
   }
 
   /** A settled upload of the same bytes, anywhere in this workspace. */

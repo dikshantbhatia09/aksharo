@@ -4,6 +4,16 @@ import { ulid } from "ulid";
 import type { Env } from "@montaj/config";
 
 import {
+  MediaAcquirePayloadSchema,
+  REPURPOSE_SCHEMA_VERSION,
+  mediaAcquireJobKey,
+} from "@montaj/repurpose-contracts";
+
+import {
+  ACQUIRE_QUOTE_TENTHS,
+  ACQUIRE_TIMEOUT_MS,
+  ACQUIRED_FILENAME,
+  ACQUIRED_MIME,
   REPURPOSE_ERRORS,
   REPURPOSE_FLAGS,
 } from "./repurpose.constants.js";
@@ -12,13 +22,16 @@ import { SOURCE_REJECTION_MESSAGES, parseSourceUrl } from "./source-url.js";
 import { CommonAuditService } from "../common/audit/audit.service.js";
 import { AppException, PrismaService } from "../common/index.js";
 import { ENV } from "../config/config.module.js";
+import { JobsService } from "../jobs/jobs.service.js";
 import { MediaService } from "../media/media.service.js";
+import { mediaLimitsFor } from "../projects/plan-limits.js";
 import { ProjectsService } from "../projects/projects.service.js";
 import { workspaceRoom } from "../realtime/realtime.protocol.js";
 import { RealtimePublisher } from "../realtime/realtime.publisher.js";
 import { StylesService } from "../styles/styles.service.js";
 import { EntitlementService } from "../workspaces/entitlement.service.js";
 
+import type { AcquisitionProject } from "../media/media.service.js";
 import type { CreateRunInput, CreateRunResponse, ListRunsInput, RunPage, RunView } from "./repurpose.dto.js";
 import type { $Enums, RepurposeRun } from "@prisma/client";
 
@@ -52,6 +65,7 @@ export class RepurposeService {
     private readonly entitlements: EntitlementService,
     private readonly audit: CommonAuditService,
     private readonly realtime: RealtimePublisher,
+    private readonly jobs: JobsService,
     @Inject(ENV) private readonly env: Env,
   ) {}
 
@@ -146,6 +160,7 @@ export class RepurposeService {
     // the compensation that refusal leaves a titled, empty project in their list.
     let upload;
     let run;
+    let acquireJobId: string | null = null;
     try {
       upload =
         input.source.kind === "upload" && input.source.issueUploadTicket
@@ -190,9 +205,36 @@ export class RepurposeService {
           createdBy: userId,
         },
       });
+
+      // A link source has no browser to push bytes, so the fetch is started
+      // here, in the same compensated block: a workspace that is over its
+      // admission limit refuses the run outright rather than leaving a project,
+      // a run and a media row behind for a download nothing ever queued.
+      if (source.normalizedUrl !== null) {
+        acquireJobId = await this.startAcquisition(workspaceId, project, run, {
+          kind: source.kind,
+          fingerprint: source.fingerprint,
+          normalizedUrl: source.normalizedUrl,
+        });
+      }
     } catch (error) {
       // Best effort, and deliberately not fatal: a cleanup that fails must not
       // replace the real error with a cleanup error.
+      //
+      // The run row is removed outright rather than marked failed. It is the
+      // acquisition enqueue that can now fail here, AFTER the run exists, and a
+      // create that answered with an error must not also leave a dead run in the
+      // person's list — from their side it never started.
+      if (run !== undefined) {
+        await this.prisma.repurposeRun.delete({ where: { id: run.id } }).catch(
+          (cleanupError: unknown) => {
+            this.logger.warn(
+              { runId, err: cleanupError },
+              "could not remove the run after a failed run create",
+            );
+          },
+        );
+      }
       await this.projects.softDelete(workspaceId, project.id).catch((cleanupError: unknown) => {
         this.logger.warn(
           { runId, projectId: project.id, err: cleanupError },
@@ -214,6 +256,7 @@ export class RepurposeService {
         sourceFingerprint: run.sourceFingerprint,
         mode: run.mode,
         duplicateUpload: upload?.duplicate ?? false,
+        acquireJobId,
       },
     });
 
@@ -254,12 +297,20 @@ export class RepurposeService {
     readonly display: string | null;
     readonly fingerprint: string | null;
     readonly title: string;
+    /**
+     * The canonical URL to fetch — held only as long as this request, and handed
+     * straight to the acquisition job. The run row still does not persist it
+     * (§17.4): `media.acquire`'s payload is where the contract puts the address,
+     * and that job is the only thing that needs it.
+     */
+    readonly normalizedUrl: string | null;
   }> {
     if (input.source.kind === "upload") {
       return {
         kind: "upload",
         display: null,
         fingerprint: null,
+        normalizedUrl: null,
         title: input.source.filename.replace(/\.[^.]+$/, "").slice(0, 160) || "Untitled video",
       };
     }
@@ -276,16 +327,27 @@ export class RepurposeService {
     }
 
     if (!(await this.flagEnabled(workspaceId, REPURPOSE_FLAGS.youtubeAcquire))) {
-      // BOTH link kinds are gated, not just YouTube. A `direct_media_url` has no
-      // path to acquisition either — the existing safe fetcher is not wired to
-      // this flow — and, worse, this service deliberately does not persist the
-      // full URL (`sourceUrlEncrypted` stays null, §17.4), while the fingerprint
-      // drops the query string that a signed media URL needs. So a direct-media
-      // run created today would be unacquirable even once Wave 3 lands: the only
-      // copy of the thing to fetch was in the request that created it.
+      // BOTH link kinds are gated, not just YouTube: with the flag off there is
+      // no consumer for `media.acquire` at all, and a run that can never progress
+      // is worse than a refusal a person can act on.
       throw new AppException(
         REPURPOSE_ERRORS.sourceUnsupported,
         "Links are not available yet. Upload the video file instead.",
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    if (parsed.source.kind === "direct_media_url") {
+      // Acquisition is enabled for the PROVIDER path only. A direct media URL is
+      // an arbitrary host chosen by the caller, and `parseSourceUrl` deliberately
+      // does not resolve it — so accepting one would point a downloader running
+      // on this machine at any address that ends in `.mp4`, including addresses
+      // only this machine can reach. That needs an egress policy (SSRF: no
+      // private ranges, no link-local, no redirect off-host), and until one
+      // exists this stays refused even with the flag on.
+      throw new AppException(
+        REPURPOSE_ERRORS.sourceUnsupported,
+        "Direct file links are not supported yet. Paste a YouTube link, or upload the video file.",
         HttpStatus.BAD_REQUEST,
       );
     }
@@ -310,8 +372,71 @@ export class RepurposeService {
       kind: parsed.source.kind,
       display: parsed.source.display,
       fingerprint: parsed.source.sourceFingerprint,
+      normalizedUrl: parsed.source.normalizedUrl,
       title: parsed.source.display,
     };
+  }
+
+  /**
+   * Enqueue the fetch for a link-sourced run.
+   *
+   * This is the producer half of REP-010. It runs inside `create`'s compensated
+   * block, so a workspace that is over its admission limit refuses the run
+   * outright rather than leaving a project, a run and a media row behind for a
+   * download that was never queued.
+   *
+   * The job key is the run and the SOURCE, not the media row
+   * (`mediaAcquireJobKey`): ten submissions of the same video inside one run are
+   * one download (§9.5). The limits are resolved here, from the plan in force at
+   * confirmation time, and travel in the payload — a worker never reads
+   * entitlements.
+   */
+  private async startAcquisition(
+    workspaceId: string,
+    project: AcquisitionProject,
+    run: RepurposeRun,
+    source: {
+      readonly kind: $Enums.RepurposeSourceKind;
+      readonly fingerprint: string | null;
+      readonly normalizedUrl: string;
+    },
+  ): Promise<string> {
+    const limits = mediaLimitsFor(await this.entitlements.forWorkspace(workspaceId));
+    const reserved = await this.media.reserveAcquisition(project, {
+      filename: ACQUIRED_FILENAME,
+      mime: ACQUIRED_MIME,
+    });
+
+    // Parsed, not assembled: the contract is the wire format both runtimes agree
+    // on, so building the object and hoping is not good enough (§8.1).
+    const payload = MediaAcquirePayloadSchema.parse({
+      schemaVersion: REPURPOSE_SCHEMA_VERSION,
+      runId: run.id,
+      projectId: project.id,
+      mediaId: reserved.media.id,
+      source: {
+        kind: source.kind === "youtube_url" ? "youtube_url" : "direct_media_url",
+        normalizedUrl: source.normalizedUrl,
+        sourceId: source.fingerprint,
+      },
+      destination: { bucket: reserved.bucket, key: reserved.key },
+      limits: {
+        maxBytes: limits.maxFileBytes,
+        maxDurationMs: limits.maxDurationMs,
+        timeoutMs: ACQUIRE_TIMEOUT_MS,
+      },
+    });
+
+    const enqueued = await this.jobs.enqueue({
+      type: "media.acquire",
+      workspaceId,
+      projectId: project.id,
+      params: payload,
+      jobKey: mediaAcquireJobKey(run.id, source.fingerprint ?? run.id),
+      worstCaseTenths: ACQUIRE_QUOTE_TENTHS,
+      reason: `media.acquire · ${run.id}`,
+    });
+    return enqueued.job.id;
   }
 
   async list(workspaceId: string, input: ListRunsInput): Promise<RunPage> {
@@ -539,7 +664,13 @@ export class RepurposeService {
    * fire and forget — `RealtimePublisher` swallows its own failures, because a
    * missed event costs a refetch and a failed request costs the run.
    */
-  private async publishStage(run: RepurposeRun): Promise<void> {
+  /**
+   * Public because the acquisition completion handler announces stages too: a
+   * fetch that failed has to reach the open tab, and the alternative — a second
+   * copy of the projection over in the handler — is how two surfaces start
+   * disagreeing about what a run is doing.
+   */
+  async publishStage(run: RepurposeRun): Promise<void> {
     const projection = projectRun(run);
     await this.realtime.publish(workspaceRoom(run.workspaceId), "repurpose.stage.changed", {
       runId: run.id,

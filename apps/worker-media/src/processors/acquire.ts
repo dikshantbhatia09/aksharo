@@ -65,6 +65,19 @@ export interface AcquirePayload {
 /** The filename inside the scratch directory. Ours, never the source's. */
 const OUTPUT_NAME = "source.mp4";
 
+/**
+ * The envelope version this processor writes — `media.acquire@1`.
+ *
+ * A literal rather than an import because this worker does not depend on
+ * `@montaj/repurpose-contracts`, and pulling a Zod package into a media worker
+ * to read one number is not a trade worth making. What keeps it honest is
+ * `acquire-result.parity.test.ts` on the API side: it reads this file and the
+ * contract, and fails if either the version or the field list drifts. That test
+ * exists because both had already drifted — a result with no `schemaVersion`
+ * parses nowhere, and the API would have rejected every completion.
+ */
+const RESULT_SCHEMA_VERSION = 1;
+
 export async function processAcquire(context: JobContext): Promise<ProcessorOutcome> {
   const { settings, envelope } = context;
   const payload = envelope.payload as unknown as AcquirePayload;
@@ -138,6 +151,7 @@ export async function processAcquire(context: JobContext): Promise<ProcessorOutc
 
     return {
       result: {
+        schemaVersion: RESULT_SCHEMA_VERSION,
         mediaId: payload.mediaId,
         bucket: payload.destination.bucket,
         key: payload.destination.key,

@@ -49,22 +49,63 @@ cd apps/api && node --env-file=../../.env.local-run dist/main.js
 # if dist/ is missing: pnpm --filter @montaj/api exec nest build
 
 # Web on 3914 (production build; NODE_ENV must be production for `next start`)
-cd apps/web && NEXT_DIST_DIR=.next-typography-live-20260913 NODE_ENV=production node --env-file=../../.env.local-run node_modules/next/dist/bin/next start --port 3914
+cd apps/web && NEXT_DIST_DIR=.next-live-20260915c NODE_ENV=production node --env-file=../../.env.local-run node_modules/next/dist/bin/next start --port 3914
 ```
 
-The **current release runs from `apps/web/.next-live-20260915b`**
-(build `xJsfGwIkxLyIIJWuKbQ9V`), published 2026-09-15. Set `NEXT_DIST_DIR` to
-that directory when restarting the web service, or the restore command brings
-back an older build. It carries two things: the caption/editor/font work that
-had accumulated in the working tree since 2026-09-13 (the `.next-typography-live`
-build predated it by a day and a half), and the repurposing platform's routes,
-which are INERT — `/repurpose/new` and `/repurpose/[runId]` render, but every
-API route behind them answers 404 while the `repurpose_flow` flag is off, and it
-is off. Nothing links to them from the navigation.
+**Three worker processes** also run detached, none of them on a port. Two are
+long-standing (`worker-media` on probe/proxy, `worker-render`), both started from
+`apps/*/dist/index.js`; `worker-ai` runs from `scripts/py.mjs -m worker_ai`. The
+third arrived on 2026-09-15 and needs its environment spelled out, because the
+defaults are deliberately unsafe to assume:
 
-Retained for rollback, newest first: `.next-repurpose-live-20260915` (build
-`-XBuUUyZGlEQjidK9pSc7`, the same code without the home entry point or the
-upload wiring), `.next-typography-live-20260913` (build
+```bash
+# worker-media, pinned to the acquisition queue only
+cd apps/worker-media
+WORKER_MEDIA_QUEUES=media.acquire \
+YT_DLP_PATH='C:\Users\diksh\AppData\Local\Programs\Python\Python312\Scripts\yt-dlp.exe' \
+WORKER_MEDIA_YT_DLP_VERIFY=0 \
+WORKER_MEDIA_CONCURRENCY=1 \
+node --env-file=../../.env.local-run dist/index.js
+# log: C:\Users\diksh\AppData\Local\Temp\worker-media-acquire.log
+```
+
+Why each of those is there, since removing one looks harmless and is not:
+
+- **`WORKER_MEDIA_QUEUES=media.acquire`** keeps it off probe and proxy, which the
+  older worker already serves. Conversely, anything that starts `worker-media`
+  with the default queue list now also asks for the acquisition queue — and that
+  refuses to boot without a pinned downloader digest. `media-pipeline.e2e-spec.ts`
+  names its two queues for exactly this reason.
+- **`WORKER_MEDIA_YT_DLP_VERIFY=0`** is the documented opt-out for a
+  package-manager build, which is what this machine has: yt-dlp came from pip, so
+  `yt-dlp.exe` is a ~108 KB launcher stub and the code lives in site-packages.
+  Hashing the stub would be theatre. The **version** pin still applies and matches
+  (2026.08.19). The container path keeps the real digest check —
+  `apps/worker-media/Dockerfile` downloads the publisher's binary and
+  `sha256sum -c`s it — so this opt-out is local, not a weakening of the image.
+- **`YT_DLP_PATH`** must be the `.exe`. The digest check reads the file, and the
+  bare name `yt-dlp` on PATH is a bash shim Node cannot spawn on Windows.
+
+The **current release runs from `apps/web/.next-live-20260915c`**
+(build `BW5EXx1_ZNWmleSPfNRYL`), published 2026-09-15. Set `NEXT_DIST_DIR` to
+that directory when restarting the web service, or the restore command brings
+back an older build.
+
+The repurposing surface is **no longer inert**. `repurpose_flow` and
+`source_youtube_acquire` are both enabled, targeted at workspace
+`01M1KFX35NJRD5N58H0J6YGAPC` only, and a YouTube link now runs the whole way
+through acquire -> probe -> proxy -> transcribe. It stops at "Finding promising
+moments", because highlight discovery has no producer yet. Direct media URLs are
+still refused **in code**, flag or no flag: `parseSourceUrl` accepts any https
+host ending in a media extension and resolves nothing, so accepting one would
+point a downloader running on this machine at any address that ends in `.mp4` —
+including addresses only this machine can reach. That needs an egress policy
+before it is switched on.
+
+Retained for rollback, newest first: `.next-live-20260915b` (build
+`xJsfGwIkxLyIIJWuKbQ9V`, the same code with links refused),
+`.next-repurpose-live-20260915` (build `-XBuUUyZGlEQjidK9pSc7`, no home entry
+point and no upload wiring), `.next-typography-live-20260913` (build
 `FVSuJD4Q1Btz16IpOz78T`, the 3 "editorial" kinetic-typography templates),
 `.next-caption-live-20260912` (build `fzstBbkQAwLxfxTeVNKtz`), then `.next`.
 Rolling back is a restart with `NEXT_DIST_DIR` pointed at one of them — the

@@ -371,6 +371,14 @@ beforeAll(async () => {
       R2_ACCESS_KEY: env.R2_ACCESS_KEY,
       R2_SECRET_KEY: env.R2_SECRET_KEY,
       WORKER_MEDIA_CONCURRENCY: "2",
+      // Probe and proxy only. This suite is about what ffmpeg does to an upload;
+      // the default queue list also includes `media.acquire`, and a worker that
+      // consumes that one refuses to start until the downloader's digest is
+      // pinned (REP-010). Naming the queues is what the boot check is for — a
+      // pod that will never acquire anything is not asked for a binary it does
+      // not need — and it also keeps yt-dlp off the dependency list of a suite
+      // that has no business needing it.
+      WORKER_MEDIA_QUEUES: "media.probe,media.proxy",
     },
   });
   worker.stdout?.setEncoding("utf8");

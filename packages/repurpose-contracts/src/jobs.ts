@@ -89,6 +89,16 @@ export const MediaAcquireResultSchema = z.strictObject({
   }),
   /** The pinned downloader that produced this, reported for support and audit. */
   toolVersion: z.string().trim().min(1).max(100),
+  /**
+   * The prober that measured what actually landed.
+   *
+   * Separate from {@link toolVersion} because they answer different questions and
+   * fail differently: `toolVersion` says which downloader fetched the bytes,
+   * this says which ffprobe produced the duration the plan's cap is then applied
+   * to. When a source is accepted that should not have been, the second one is
+   * the one worth knowing.
+   */
+  probeToolVersion: z.string().trim().min(1).max(100),
   /** True when the object already existed: a replay must not download twice. */
   deduplicated: z.boolean(),
 });

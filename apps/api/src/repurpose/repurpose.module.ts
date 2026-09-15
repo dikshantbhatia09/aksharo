@@ -1,7 +1,9 @@
 import { Module } from "@nestjs/common";
 
+import { RepurposeAcquireCompletionHandler } from "./acquire-completion.handler.js";
 import { RepurposeController } from "./repurpose.controller.js";
 import { RepurposeService } from "./repurpose.service.js";
+import { JobsModule } from "../jobs/jobs.module.js";
 import { MediaModule } from "../media/media.module.js";
 import { ProjectsModule } from "../projects/projects.module.js";
 import { IdempotencyService } from "../public-api/v1/idempotency.service.js";
@@ -25,13 +27,19 @@ import { WorkspacesModule } from "../workspaces/workspaces.module.js";
  * behaves identically, and importing the public API module here would drag its
  * controllers and their dependencies into a surface that is still switched off.
  *
- * Nothing in this module runs while `repurpose_flow` is disabled, which is how
- * it is seeded (`prisma/seed-data.ts`) and how it stays until CP-010 passes.
+ * `JobsModule` arrived with REP-010's producer: a link source has no browser to
+ * push bytes, so creating the run enqueues `media.acquire`, and this module owns
+ * that queue's completion — which is why the handler is provided here rather than
+ * in `MediaModule`. The queue belongs to the feature that produces it.
+ *
+ * The run surface is gated by `repurpose_flow` and link sources additionally by
+ * `source_youtube_acquire`; with the latter off nothing enqueues an acquisition,
+ * and the handler simply never fires.
  */
 @Module({
-  imports: [ProjectsModule, MediaModule, StylesModule, WorkspacesModule, RealtimeModule],
+  imports: [ProjectsModule, MediaModule, StylesModule, WorkspacesModule, RealtimeModule, JobsModule],
   controllers: [RepurposeController],
-  providers: [RepurposeService, IdempotencyService],
+  providers: [RepurposeService, RepurposeAcquireCompletionHandler, IdempotencyService],
   exports: [RepurposeService],
 })
 export class RepurposeModule {}

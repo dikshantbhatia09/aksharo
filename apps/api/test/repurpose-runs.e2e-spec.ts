@@ -42,6 +42,7 @@ import type { TestDatabase } from "./db-harness.js";
 import type { CommonAuditService } from "../src/common/audit/audit.service.js";
 import type { PrismaService } from "../src/common/prisma/prisma.service.js";
 import type { RedisService } from "../src/common/redis/redis.service.js";
+import type { JobsService } from "../src/jobs/jobs.service.js";
 import type { MediaService } from "../src/media/media.service.js";
 import type { ProjectsService } from "../src/projects/projects.service.js";
 import type { RealtimePublisher } from "../src/realtime/realtime.publisher.js";
@@ -100,6 +101,9 @@ let projectSeq = 0;
 let created: { projectId: string; workspaceId: string }[] = [];
 let published: { event: string; data: Record<string, unknown> }[] = [];
 let audited: { action: string; data: Record<string, unknown> }[] = [];
+let enqueued: { type: string; jobKey: string; params: Record<string, unknown> }[] = [];
+/** Set to a thrower to simulate admission control refusing the acquisition. */
+let enqueueFailure: Error | null = null;
 
 /** Creates a real project row, so foreign keys and cascades are exercised. */
 function fakeProjects(): ProjectsService {
@@ -150,7 +154,38 @@ function fakeMedia(): MediaService {
         media: {},
       };
     },
+    reserveAcquisition: async (project: { id: string }) => {
+      mediaSeq += 1;
+      const mediaId = id("MA" + String(mediaSeq).padStart(2, "0"));
+      const key = "ws/x/p/" + project.id + "/media/" + mediaId + "/raw.mp4";
+      await prisma.mediaAsset.create({
+        data: { id: mediaId, projectId: project.id, role: "primary", storageKey: key },
+      });
+      return { media: { id: mediaId }, bucket: "s3" as const, key };
+    },
   } as unknown as MediaService;
+}
+
+/** Sequence for the reserved media rows, so ids stay distinct within a file. */
+let mediaSeq = 0;
+
+/**
+ * Records what the producer asked for instead of writing a `jobs` row.
+ *
+ * What these tests are about is what the API decided - the queue name, the key it
+ * deduplicates on, the limits it froze into the payload - not that BullMQ works.
+ */
+function fakeJobs(): JobsService {
+  return {
+    enqueue: async (input: { type: string; jobKey: string; params: Record<string, unknown> }) => {
+      if (enqueueFailure !== null) throw enqueueFailure;
+      enqueued.push({ type: input.type, jobKey: input.jobKey, params: input.params });
+      return {
+        job: { id: id("J" + String(enqueued.length).padStart(2, "0")) },
+        deduplicated: false,
+      };
+    },
+  } as unknown as JobsService;
 }
 
 async function makeService(): Promise<RepurposeService> {
@@ -178,6 +213,7 @@ async function makeService(): Promise<RepurposeService> {
     entitlements,
     audit,
     realtime,
+    fakeJobs(),
     env,
   );
 }
@@ -256,6 +292,8 @@ describe.skipIf(!CAN_RUN)("repurpose run CRUD (REP-006)", () => {
     published = [];
     audited = [];
     uploadFailure = null;
+    enqueued = [];
+    enqueueFailure = null;
     await prisma.repurposeRun.deleteMany({});
     await prisma.idempotencyRecord.deleteMany({});
     await setFlag("repurpose_flow", true);
@@ -294,6 +332,7 @@ describe.skipIf(!CAN_RUN)("repurpose run CRUD (REP-006)", () => {
         ),
         { record: async () => undefined } as unknown as CommonAuditService,
         { publish: async () => undefined } as unknown as RealtimePublisher,
+        fakeJobs(),
         { FEATURE_FLAGS_JSON: { repurpose_flow: false } } as unknown as Env,
       );
 
@@ -538,6 +577,108 @@ describe.skipIf(!CAN_RUN)("repurpose run CRUD (REP-006)", () => {
         async () => service.create(WORKSPACE_A, USER_A, { source: UPLOAD_SOURCE, setup: SETUP }),
       );
       expect(await prisma.repurposeRun.count()).toBe(1);
+    });
+  });
+
+  describe("the acquisition producer", () => {
+    /**
+     * A link source has no browser to push bytes, so `create` is the producer.
+     * These assert what the API DECIDED - which queue, which dedupe key, which
+     * limits were frozen - because everything after that point is the worker's
+     * and is tested against a real yt-dlp over in `apps/worker-media`.
+     */
+    it("queues exactly one download, with the plan's limits frozen into it", async () => {
+      await setFlag("source_youtube_acquire", true);
+
+      const response = await service.create(WORKSPACE_A, USER_A, {
+        source: {
+          kind: "url",
+          url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+          rightsAttested: true,
+        },
+        setup: SETUP,
+      });
+
+      expect(enqueued).toHaveLength(1);
+      const job = enqueued[0];
+      expect(job?.type).toBe("media.acquire");
+      // The key names the RUN and the SOURCE, not the media row: ten submissions
+      // of the same video inside one run are one download (master plan 9.5).
+      expect(job?.jobKey).toBe(`media.acquire:${response.run.id}:youtube:dQw4w9WgXcQ`);
+
+      const params = job?.params as {
+        source: { kind: string; normalizedUrl: string; sourceId: string };
+        destination: { bucket: string; key: string };
+        limits: { maxBytes: number; maxDurationMs: number; timeoutMs: number };
+      };
+      expect(params.source.kind).toBe("youtube_url");
+      // Canonical, and stripped of the tracking parameter the user pasted.
+      expect(params.source.normalizedUrl).toBe("https://www.youtube.com/watch?v=dQw4w9WgXcQ");
+      expect(params.source.sourceId).toBe("youtube:dQw4w9WgXcQ");
+      // The key is ours, built from ids: a remote title never chooses a path.
+      expect(params.destination.key).toContain(`/p/${response.projectId}/media/`);
+
+      // The plan in force at confirmation travels with the job, so a plan change
+      // between enqueue and run cannot retroactively widen what was allowed.
+      expect(params.limits.maxBytes).toBe(500 * 1024 * 1024);
+      expect(params.limits.maxDurationMs).toBe(20 * 60 * 1000);
+      expect(params.limits.timeoutMs).toBeGreaterThan(0);
+
+      // And a media row is waiting for the bytes, which is what makes the stage
+      // rail read "getting your video" without a second source of truth.
+      const media = await prisma.mediaAsset.findFirstOrThrow({
+        where: { projectId: response.projectId },
+      });
+      expect(media.status).toBe("pending");
+      expect(media.storageKey).toBe(params.destination.key);
+    });
+
+    it("queues nothing for an upload, which brings its own bytes", async () => {
+      await service.create(WORKSPACE_A, USER_A, { source: UPLOAD_SOURCE, setup: SETUP });
+      expect(enqueued).toHaveLength(0);
+    });
+
+    it("leaves nothing behind when the download cannot be queued", async () => {
+      // Admission control refusing is the realistic case. The project row already
+      // exists by then, so without compensation a workspace at its limit collects
+      // an empty titled project every time it pastes a link.
+      await setFlag("source_youtube_acquire", true);
+      enqueueFailure = new Error("jobs/admission_denied");
+
+      await expect(
+        service.create(WORKSPACE_A, USER_A, { source: {
+          kind: "url",
+          url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+          rightsAttested: true,
+        }, setup: SETUP }),
+      ).rejects.toThrow("jobs/admission_denied");
+
+      expect(await prisma.repurposeRun.count()).toBe(0);
+      const project = await prisma.project.findUniqueOrThrow({
+        where: { id: created[0]?.projectId ?? "" },
+      });
+      expect(project.deletedAt).not.toBeNull();
+    });
+
+    it("still refuses a direct file link, even with acquisition switched on", async () => {
+      // The flag turns on the PROVIDER path. A direct media URL is an arbitrary
+      // host the caller chose, and pointing a downloader running on our own
+      // machine at one needs an egress policy that does not exist yet.
+      await setFlag("source_youtube_acquire", true);
+
+      await expect(
+        service.create(WORKSPACE_A, USER_A, {
+          source: {
+            kind: "url",
+            url: "https://cdn.example.test/videos/ep12.mp4",
+            rightsAttested: true,
+          },
+          setup: SETUP,
+        }),
+      ).rejects.toMatchObject({ code: "repurpose/source_unsupported" });
+
+      expect(enqueued).toHaveLength(0);
+      expect(created).toHaveLength(0);
     });
   });
 

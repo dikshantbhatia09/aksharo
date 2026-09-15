@@ -43,9 +43,10 @@ export type QueueName = (typeof QUEUE_NAMES)[number];
  * Wave 6. A job enqueued on it today would sit in Redis, which is why nothing
  * enqueues it until then.
  *
- * `media.acquire` IS consumed (REP-010), but nothing produces it either: the API
- * refuses to create a link-sourced run while `source_youtube_acquire` is disabled,
- * and that flag is seeded off.
+ * `media.acquire` IS consumed (REP-010), and since 2026-09-15 it is produced too:
+ * creating a link-sourced run enqueues one. It stays gated on
+ * `source_youtube_acquire`, which is seeded off, so a deployment that has not
+ * enabled the flag still sees no acquisitions.
  */
 export const MEDIA_PROBE_QUEUE = "media.probe" satisfies QueueName;
 export const MEDIA_PROXY_QUEUE = "media.proxy" satisfies QueueName;
@@ -68,6 +69,22 @@ export interface JobEnvelope<TPayload = unknown> {
   /** ISO-8601. */
   readonly createdAt: string;
   readonly payload: TPayload;
+}
+
+/**
+ * What the RUNTIME reads off a media payload, before any processor sees it.
+ *
+ * Deliberately weaker than {@link MediaProbePayload}: `media.acquire` has no
+ * source key, so a shared narrow type cannot promise one. Each processor casts
+ * to its own payload type, which is where the real shape is asserted.
+ */
+export interface MediaJobPayload {
+  readonly mediaId: string;
+  readonly projectId?: string | null;
+  /** Present on the queues that READ an object. */
+  readonly key?: string;
+  /** Present on the queues that WRITE one. */
+  readonly destination?: { readonly key?: string };
 }
 
 /**
@@ -119,14 +136,28 @@ export function isJobEnvelope(value: unknown): value is JobEnvelope {
   );
 }
 
-/** Narrow a payload to the minimum both media jobs need. */
-export function isMediaPayload(value: unknown): value is MediaProbePayload {
+/**
+ * Narrow a payload to the minimum every media job needs.
+ *
+ * Two shapes, because the queues address their object differently and both are
+ * legitimate. `media.probe` and `media.proxy` are given a `key` — the object
+ * they READ. `media.acquire` has nothing to read yet; it is given
+ * `destination.key`, the object it will WRITE. Requiring a top-level `key`
+ * rejected every acquisition at the envelope check, which is a permanent failure
+ * with a message about CONTRACTS §3 and no hint that the producer and the guard
+ * simply disagreed about a field name.
+ *
+ * What both shapes must have is `mediaId`: the runtime patches that row and
+ * reports failures against it before any processor runs.
+ */
+export function isMediaPayload(value: unknown): value is MediaJobPayload {
   if (typeof value !== "object" || value === null) return false;
   const candidate = value as Record<string, unknown>;
-  return (
-    typeof candidate["mediaId"] === "string" &&
-    candidate["mediaId"] !== "" &&
-    typeof candidate["key"] === "string" &&
-    candidate["key"] !== ""
-  );
+  if (typeof candidate["mediaId"] !== "string" || candidate["mediaId"] === "") return false;
+  if (typeof candidate["key"] === "string" && candidate["key"] !== "") return true;
+
+  const destination = candidate["destination"];
+  if (typeof destination !== "object" || destination === null) return false;
+  const key = (destination as Record<string, unknown>)["key"];
+  return typeof key === "string" && key !== "";
 }

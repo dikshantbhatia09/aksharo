@@ -15,5 +15,6 @@
     "durationMs": 1140000
   },
   "toolVersion": "yt-dlp 2026.08.19",
+  "probeToolVersion": "ffprobe version 9.0",
   "deduplicated": false
 }

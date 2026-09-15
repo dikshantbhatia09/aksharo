@@ -202,7 +202,7 @@ export function SourceStartForm({
           <Field
             label="Video link"
             htmlFor="repurpose-url"
-            hint="A YouTube link, or a direct link to a video file."
+            hint="A YouTube link. To use a file from somewhere else, upload it."
             {...(visible.url === undefined ? {} : { error: visible.url })}
           >
             <Input
