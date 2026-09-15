@@ -148,7 +148,7 @@ export class RepurposeService {
     let run;
     try {
       upload =
-        input.source.kind === "upload"
+        input.source.kind === "upload" && input.source.issueUploadTicket
           ? await this.media.initUpload(workspaceId, project.id, {
               filename: input.source.filename,
               size: input.source.sizeBytes,
@@ -346,7 +346,68 @@ export class RepurposeService {
     await this.assertAvailable(workspaceId);
     const run = await this.require(workspaceId, runId);
     const counts = await this.counts(run.id);
-    return this.toView(run, counts);
+    return this.toView(run, counts, await this.observedStatus(run));
+  }
+
+  /**
+   * What the run is ACTUALLY doing, read from its source project.
+   *
+   * `status` is the coarse value a list view reads, and it only moves when a
+   * producer moves it. The producers for acquisition, discovery and
+   * materialisation are later waves — but the source project is an ordinary
+   * Aksharo project, so its media and its transcript are already being worked on
+   * by the existing pipeline the moment the bytes land.
+   *
+   * §4.2 says exactly this: keep a coarse status for listing, derive detailed
+   * progress from the child records. Without it the rail would sit on "Add a
+   * video to get started" while the video was demonstrably being transcribed,
+   * which is worse than showing nothing — it would be telling the user something
+   * untrue about their own work.
+   *
+   * Returns null when the stored status is already ahead of what the project can
+   * tell us, or when the run is finished, cancelled or failed: a derived view
+   * must never walk a terminal run backwards.
+   */
+  private async observedStatus(run: RepurposeRun): Promise<$Enums.RepurposeRunStatus | null> {
+    if (["failed", "cancelled", "published", "partially_published"].includes(run.status)) {
+      return null;
+    }
+    // Only the earliest stages are derivable today; once discovery exists it
+    // owns the transition out of `transcribing` and this stops at that line.
+    if (!["draft", "acquiring", "preparing_media", "transcribing"].includes(run.status)) {
+      return null;
+    }
+
+    const [media, transcript] = await Promise.all([
+      this.prisma.mediaAsset.findFirst({
+        where: { projectId: run.sourceProjectId, role: "primary" },
+        orderBy: { createdAt: "desc" },
+        select: { status: true },
+      }),
+      this.prisma.transcript.findFirst({
+        where: { projectId: run.sourceProjectId },
+        orderBy: { createdAt: "desc" },
+        select: { id: true },
+      }),
+    ]);
+
+    if (transcript !== null) return "analyzing";
+    if (media === null) return null;
+    switch (media.status) {
+      case "pending":
+      case "uploading":
+        return run.sourceKind === "upload" ? "draft" : "acquiring";
+      case "uploaded":
+      case "probing":
+        return "preparing_media";
+      case "ready":
+        // Media is ready and no transcript exists yet: either it is being made,
+        // or auto-transcription never started. Both read as "transcribing" to a
+        // person, and the support code is how the difference gets diagnosed.
+        return "transcribing";
+      default:
+        return null;
+    }
   }
 
   async cancel(workspaceId: string, userId: string, runId: string): Promise<RunView> {
@@ -493,8 +554,9 @@ export class RepurposeService {
   private toView(
     run: RepurposeRun,
     counts: { candidateCount: number; clipCount: number; variantCount: number },
+    observed: $Enums.RepurposeRunStatus | null = null,
   ): RunView {
-    const projection = projectRun(run);
+    const projection = projectRun(observed === null ? run : { ...run, status: observed });
     return {
       id: run.id,
       workspaceId: run.workspaceId,
@@ -502,7 +564,7 @@ export class RepurposeService {
       sourceKind: run.sourceKind,
       sourceDisplay: run.sourceDisplay,
       mode: run.mode,
-      status: run.status,
+      status: observed ?? run.status,
       currentStage: projection.currentStage,
       progress: projection.progress,
       stages: projection.stages.map((stage) => ({ ...stage })),

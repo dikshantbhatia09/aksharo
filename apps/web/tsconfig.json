@@ -24,11 +24,12 @@
     "**/*.ts",
     "**/*.tsx",
     ".next-p0-verify/types/**/*.ts",
+    ".next-repurpose-live-20260915/types/**/*.ts",
     ".next-repurpose-verify-20260915/types/**/*.ts",
     ".next-typography-live-20260913/types/**/*.ts",
     ".next/types/**/*.ts",
     "next-env.d.ts",
-    ".next-repurpose-live-20260915/types/**/*.ts"
+    ".next-live-20260915b/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",

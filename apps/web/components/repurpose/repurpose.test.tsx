@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import * as React from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { RepurposeRunView, RepurposeStageView } from "@montaj/api-client";
 
 import { SAFE_ERROR_COPY, STAGE_COPY, beginnerSafetyViolations, safeErrorCopy } from "./copy";
+import { RepurposeEntryCard } from "./RepurposeEntryCard";
 import { PersistentPreview, RunActionBar } from "./RunActionBar";
 import { RunStageRail } from "./RunStageRail";
 import {
@@ -17,6 +18,19 @@ import {
   type StartFormValue,
 } from "./SourceStartForm";
 import { StageErrorCard, StagePanel, StageSummary } from "./StagePanel";
+
+import { renderWithProviders } from "@/test/harness";
+
+/** The entitlement snapshot shape the flag hook reads. */
+const ENTITLEMENT = {
+  workspaceId: "01JWORKSPACE",
+  planKey: "free",
+  planName: "Free",
+  creditsPerMonthTenths: 200,
+  seatsIncluded: 1,
+  seatsUsed: 1,
+  computedAt: "2026-09-15T10:00:00.000Z",
+};
 
 /**
  * The guided repurposing shell (REP-007 / REP-008).
@@ -411,5 +425,39 @@ describe("the copy dictionary", () => {
     for (const text of everything) {
       expect(beginnerSafetyViolations(text), text).toEqual([]);
     }
+  });
+});
+
+describe("<RepurposeEntryCard />", () => {
+  it("shows nothing when the flag is off for this workspace", async () => {
+    // The flag is targeted, so a workspace outside the cohort must see no link
+    // at all — a link whose every API route answers 404 is worse than none.
+    renderWithProviders(<RepurposeEntryCard />, {
+      routes: { "/workspaces/01JWORKSPACE/entitlement": { ...ENTITLEMENT, entitlements: { flags: {} } } },
+    });
+    await waitFor(() => {
+      expect(screen.queryByTestId("repurpose-entry")).toBeNull();
+    });
+  });
+
+  it("shows the front door when the flag is on", async () => {
+    renderWithProviders(<RepurposeEntryCard />, {
+      routes: {
+        "/workspaces/01JWORKSPACE/entitlement": {
+          ...ENTITLEMENT,
+          entitlements: { flags: { repurpose_flow: true } },
+        },
+      },
+    });
+    const link = await screen.findByTestId("repurpose-entry");
+    expect(link).toHaveAttribute("href", "/repurpose/new");
+    expect(link).toHaveTextContent("Create from a long video");
+  });
+
+  it("shows nothing while the entitlement is still loading", () => {
+    // An entry point that flickers in and back out is worse than one that
+    // appears a moment late, and a gated feature must never be briefly visible.
+    renderWithProviders(<RepurposeEntryCard />, { routes: {} });
+    expect(screen.queryByTestId("repurpose-entry")).toBeNull();
   });
 });

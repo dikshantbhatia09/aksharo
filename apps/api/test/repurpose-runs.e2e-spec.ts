@@ -75,6 +75,8 @@ const UPLOAD_SOURCE = {
   filename: "episode-12.mp4",
   mime: "video/mp4",
   sizeBytes: 148_372_910,
+  // The API default. The web passes false and uses the existing upload queue.
+  issueUploadTicket: true,
 } as const;
 
 const SETUP = {
@@ -536,6 +538,112 @@ describe.skipIf(!CAN_RUN)("repurpose run CRUD (REP-006)", () => {
         async () => service.create(WORKSPACE_A, USER_A, { source: UPLOAD_SOURCE, setup: SETUP }),
       );
       expect(await prisma.repurposeRun.count()).toBe(1);
+    });
+  });
+
+  describe("the stage a person is shown", () => {
+    /** Put a media row on the run's source project, as the upload pipeline would. */
+    async function attachMedia(projectId: string, status: string, suffix: string): Promise<void> {
+      await prisma.mediaAsset.create({
+        data: {
+          id: id(`M${suffix}`),
+          projectId,
+          role: "primary",
+          storageKey: `ws/x/p/${projectId}/media/m/raw.mp4`,
+          status: status as "pending",
+        },
+      });
+    }
+
+    it("stays on the first stage while there is nothing to work on", async () => {
+      const run = await service.create(WORKSPACE_A, USER_A, {
+        source: UPLOAD_SOURCE,
+        setup: SETUP,
+      });
+      const detail = await service.get(WORKSPACE_A, run.run.id);
+      expect(detail.status).toBe("draft");
+      expect(detail.currentStage).toBe("getting_video");
+    });
+
+    it("follows the source project through the existing media pipeline", async () => {
+      // The run's own `status` column never moves here — no producer exists yet.
+      // What moves is the SOURCE PROJECT, because it is an ordinary project and
+      // the existing pipeline is already working on it. §4.2 says to derive the
+      // visible progress from the child records rather than store it twice, and
+      // this is why: without it the rail would say "Add a video to get started"
+      // while the video was demonstrably being transcribed.
+      const run = await service.create(WORKSPACE_A, USER_A, {
+        source: UPLOAD_SOURCE,
+        setup: SETUP,
+      });
+      const projectId = created[0]?.projectId ?? "";
+
+      await attachMedia(projectId, "uploading", "01");
+      expect((await service.get(WORKSPACE_A, run.run.id)).currentStage).toBe("getting_video");
+
+      await prisma.mediaAsset.update({
+        where: { id: id("M01") },
+        data: { status: "probing" },
+      });
+      let detail = await service.get(WORKSPACE_A, run.run.id);
+      expect(detail.status).toBe("preparing_media");
+      expect(detail.message).toBe("Preparing audio and preview.");
+
+      await prisma.mediaAsset.update({ where: { id: id("M01") }, data: { status: "ready" } });
+      detail = await service.get(WORKSPACE_A, run.run.id);
+      expect(detail.status).toBe("transcribing");
+      expect(detail.currentStage).toBe("finding_clips");
+
+      await prisma.transcript.create({
+        data: { id: id("TR1"), projectId, language: "hi-Latn" },
+      });
+      detail = await service.get(WORKSPACE_A, run.run.id);
+      expect(detail.status).toBe("analyzing");
+      expect(detail.message).toBe("Finding promising moments.");
+
+      // And the stored column is untouched throughout: the derivation is a view,
+      // not a second writer racing the producers that arrive in later waves.
+      const stored = await prisma.repurposeRun.findUniqueOrThrow({ where: { id: run.run.id } });
+      expect(stored.status).toBe("draft");
+    });
+
+    it("never walks a cancelled or failed run forwards", async () => {
+      const run = await service.create(WORKSPACE_A, USER_A, {
+        source: UPLOAD_SOURCE,
+        setup: SETUP,
+      });
+      const projectId = created[0]?.projectId ?? "";
+      await attachMedia(projectId, "ready", "02");
+      await service.cancel(WORKSPACE_A, USER_A, run.run.id);
+
+      const detail = await service.get(WORKSPACE_A, run.run.id);
+      expect(detail.status).toBe("cancelled");
+      expect(detail.message).toContain("stopped");
+    });
+  });
+
+  describe("the upload ticket", () => {
+    it("is issued by default, for a caller with no upload pipeline of its own", async () => {
+      const response = await service.create(WORKSPACE_A, USER_A, {
+        source: UPLOAD_SOURCE,
+        setup: SETUP,
+      });
+      expect(response.upload).not.toBeNull();
+    });
+
+    it("is declined by a caller that owns one, so no orphan media row is left", async () => {
+      // The web app hands the file to the existing upload queue, and that queue
+      // calls `media/init` itself. Asking for a ticket we would then ignore
+      // leaves a `pending` media row behind every single upload.
+      const response = await service.create(WORKSPACE_A, USER_A, {
+        source: { ...UPLOAD_SOURCE, issueUploadTicket: false },
+        setup: SETUP,
+      });
+      expect(response.upload).toBeNull();
+      expect(response.projectId).toBe(created[0]?.projectId);
+      expect(
+        await prisma.mediaAsset.count({ where: { projectId: response.projectId } }),
+      ).toBe(0);
     });
   });
 

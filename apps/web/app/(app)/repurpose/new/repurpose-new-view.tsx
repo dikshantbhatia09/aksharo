@@ -17,12 +17,14 @@ import * as React from "react";
 
 import { isApiError, useCreateRepurposeRun } from "@montaj/api-client";
 
+
 import { rememberedLanguage, rememberLanguage } from "@/components/projects/language-picker";
 import {
   EMPTY_START_FORM,
   SourceStartForm,
   type StartFormValue,
 } from "@/components/repurpose/SourceStartForm";
+import { useUploadQueue } from "@/lib/upload/use-upload-queue";
 
 /** A key that survives a re-render but changes when the form is genuinely new. */
 function newIdempotencyKey(): string {
@@ -32,6 +34,11 @@ function newIdempotencyKey(): string {
 export function RepurposeNewView(): React.JSX.Element {
   const router = useRouter();
   const create = useCreateRepurposeRun();
+  // The SAME queue the home drop zone uses. It hashes, initialises, PUTs every
+  // part, completes, and lets the existing probe/proxy/transcribe chain take
+  // over — so a repurposing upload is an ordinary upload that happens to have a
+  // run attached, rather than a second pipeline that has to be kept in step.
+  const uploads = useUploadQueue();
   const idempotencyKey = React.useRef(newIdempotencyKey());
   const [value, setValue] = React.useState<StartFormValue>(() => ({
     ...EMPTY_START_FORM,
@@ -52,6 +59,9 @@ export function RepurposeNewView(): React.JSX.Element {
             filename: value.file?.name ?? "video.mp4",
             mime: value.file?.type === "" ? "video/mp4" : (value.file?.type ?? "video/mp4"),
             sizeBytes: value.file?.size ?? 0,
+            // The queue calls `media/init` itself. Asking for a ticket here too
+            // would leave a `pending` media row behind every upload.
+            issueUploadTicket: false,
           } as const);
 
     create.mutate(
@@ -75,6 +85,16 @@ export function RepurposeNewView(): React.JSX.Element {
       },
       {
         onSuccess: (created) => {
+          // Start the bytes moving BEFORE navigating. The queue lives in a
+          // provider above this route, so it keeps running across the
+          // navigation and the upload tray shows its progress the whole way.
+          if (value.tab === "upload" && value.file !== null) {
+            uploads.addFilesToProjects([{ file: value.file, projectId: created.projectId }], {
+              aspect: "9:16",
+              ...(value.sourceLanguage === undefined ? {} : { language: value.sourceLanguage }),
+              ...(value.styleId === "" ? {} : { styleId: value.styleId }),
+            });
+          }
           // The run exists server-side before anything else happens, so this
           // navigation is a bookmark, not a handoff of in-memory state.
           router.push(`/repurpose/${created.run.id}`);

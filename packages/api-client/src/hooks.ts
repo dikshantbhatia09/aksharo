@@ -1952,3 +1952,24 @@ export function useCancelRepurposeRun(): UseMutationResult<RepurposeRunView, Err
 export function useRetryRepurposeRun(): UseMutationResult<RepurposeRunView, Error, string> {
   return useRunCommand(endpoints.repurpose.retry);
 }
+
+/**
+ * Is a server-side rollout flag on for THIS workspace?
+ *
+ * Read from the entitlement snapshot, which is where the API already evaluates
+ * every flag including its targeting and hold-out lists — so a flag enabled for
+ * one workspace answers true there and false everywhere else, without the client
+ * knowing anything about cohorts.
+ *
+ * Returns false while the snapshot is loading. That is the right default for a
+ * rollout flag: an entry point that flickers into existence and back out is worse
+ * than one that appears a moment late, and a feature nobody is entitled to see
+ * should never be briefly visible.
+ */
+export function useFeatureFlag(key: string): boolean {
+  const entitlement = useEntitlement();
+  const flags = entitlement.data?.entitlements["flags"];
+  if (typeof flags !== "object" || flags === null) return false;
+  // eslint-disable-next-line security/detect-object-injection -- `key` is a flag name from the caller module constants, and a miss is simply false
+  return (flags as Record<string, unknown>)[key] === true;
+}

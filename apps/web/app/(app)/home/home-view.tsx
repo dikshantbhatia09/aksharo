@@ -38,6 +38,7 @@ import {
   rememberedWritingScript,
   rememberWritingScript,
 } from "@/components/projects/writing-script-picker";
+import { RepurposeEntryCard } from "@/components/repurpose/RepurposeEntryCard";
 import { useUploadQueue } from "@/lib/upload/use-upload-queue";
 
 function firstName(fullName: string | null): string | undefined {
@@ -224,6 +225,10 @@ export function HomeView(): React.JSX.Element {
               setQuickPick(next);
             }}
           />
+          {/* Renders only when `repurpose_flow` is on for this workspace; the
+              flag is targeted, so a workspace outside the cohort sees nothing
+              here rather than a link to a surface that would answer 404. */}
+          <RepurposeEntryCard className="mt-4" />
         </div>
       ) : (
         <BatchApplyToAllSheet

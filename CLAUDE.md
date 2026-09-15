@@ -52,8 +52,8 @@ cd apps/api && node --env-file=../../.env.local-run dist/main.js
 cd apps/web && NEXT_DIST_DIR=.next-typography-live-20260913 NODE_ENV=production node --env-file=../../.env.local-run node_modules/next/dist/bin/next start --port 3914
 ```
 
-The **current release runs from `apps/web/.next-repurpose-live-20260915`**
-(build `-XBuUUyZGlEQjidK9pSc7`), published 2026-09-15. Set `NEXT_DIST_DIR` to
+The **current release runs from `apps/web/.next-live-20260915b`**
+(build `xJsfGwIkxLyIIJWuKbQ9V`), published 2026-09-15. Set `NEXT_DIST_DIR` to
 that directory when restarting the web service, or the restore command brings
 back an older build. It carries two things: the caption/editor/font work that
 had accumulated in the working tree since 2026-09-13 (the `.next-typography-live`
@@ -62,7 +62,9 @@ which are INERT — `/repurpose/new` and `/repurpose/[runId]` render, but every
 API route behind them answers 404 while the `repurpose_flow` flag is off, and it
 is off. Nothing links to them from the navigation.
 
-Retained for rollback, newest first: `.next-typography-live-20260913` (build
+Retained for rollback, newest first: `.next-repurpose-live-20260915` (build
+`-XBuUUyZGlEQjidK9pSc7`, the same code without the home entry point or the
+upload wiring), `.next-typography-live-20260913` (build
 `FVSuJD4Q1Btz16IpOz78T`, the 3 "editorial" kinetic-typography templates),
 `.next-caption-live-20260912` (build `fzstBbkQAwLxfxTeVNKtz`), then `.next`.
 Rolling back is a restart with `NEXT_DIST_DIR` pointed at one of them — the

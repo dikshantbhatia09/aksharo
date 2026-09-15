@@ -78,6 +78,16 @@ export const createRunSourceSchema = z.discriminatedUnion("kind", [
     sizeBytes: z.number().int().positive().max(10_000_000_000),
     /** Client-computed hash, so a re-upload of the same file is deduplicated. */
     contentHash: sha256.optional(),
+    /**
+     * Whether to issue the multipart ticket with the run.
+     *
+     * Default true, which is what an API client wants: one call returns the run
+     * and somewhere to PUT the bytes. The web app passes FALSE, because it hands
+     * the file to the existing upload queue instead, and that queue calls
+     * `POST /projects/{id}/media/init` itself — asking for a ticket we would then
+     * ignore leaves an orphan `pending` media row behind every upload.
+     */
+    issueUploadTicket: z.boolean().default(true),
   }),
 ]);
 
