@@ -17,7 +17,7 @@ describe("the browser style catalogue", () => {
     expect(SYSTEM_STYLES.map((style) => style.id).sort()).toEqual(
       registry.styles.map((entry) => entry.id).sort(),
     );
-    expect(SYSTEM_STYLES).toHaveLength(52);
+    expect(SYSTEM_STYLES).toHaveLength(66);
   });
 
   it("validates every document against the StyleDoc schema", () => {

@@ -1,0 +1,97 @@
+{
+  "id": "editorial-keyword-zoom",
+  "name": "Keyword Zoom",
+  "version": 2,
+  "category": "kinetic",
+  "minPlan": "free",
+  "typography": {
+    "fontFamily": "Playfair Display",
+    "fallbacks": ["Noto Sans Devanagari", "Noto Sans Tamil", "Noto Sans"],
+    "weight": 600,
+    "italic": false,
+    "sizePct": 3.5,
+    "lineHeight": 1.1,
+    "letterSpacingEm": 0,
+    "textTransform": "none",
+    "scriptScale": {
+      "deva": 0.9,
+      "taml": 0.85
+    }
+  },
+  "colors": {
+    "text": "#4b0b03",
+    "activeText": "#4b0b03",
+    "accent": "#bc3b24"
+  },
+  "box": {
+    "enabled": true,
+    "mode": "block",
+    "fill": "#ffc39f",
+    "paddingPct": 25,
+    "radiusPct": 0,
+    "opacity": 1
+  },
+  "stroke": {
+    "enabled": false,
+    "color": "#4b0b03",
+    "widthPct": 0
+  },
+  "shadow": {
+    "enabled": false,
+    "color": "#000000",
+    "offsetXPct": 0,
+    "offsetYPct": 0,
+    "blurPct": 0,
+    "opacity": 0
+  },
+  "layout": {
+    "anchor": "center",
+    "x": 0.5,
+    "y": 0.5,
+    "align": "center",
+    "maxWidthPct": 86,
+    "maxLines": 4,
+    "wordsPerCue": 8,
+    "safeAreaPct": 5
+  },
+  "animation": {
+    "in": {
+      "type": "fade",
+      "durationMs": 240
+    },
+    "out": {
+      "type": "fade",
+      "durationMs": 220
+    },
+    "wordHighlight": {
+      "type": "none",
+      "durationMs": 120
+    },
+    "perWord": false,
+    "typographyMotion": {
+      "mode": "focus",
+      "keywordPresetId": "keyword",
+      "ghostOpacity": 0.12
+    }
+  },
+  "emphasisPresets": [
+    {
+      "id": "keyword",
+      "label": "Keyword",
+      "fontFamily": "Anton",
+      "weight": 400,
+      "effect": "none"
+    },
+    {
+      "id": "accent",
+      "label": "Highlight",
+      "color": "#bc3b24",
+      "underline": true,
+      "effect": "none"
+    }
+  ],
+  "assRenderable": false,
+  "assExportable": false,
+  "requiresLayoutMetrics": true,
+  "previewKey": "system/style-previews/soft-serif.mp4"
+}

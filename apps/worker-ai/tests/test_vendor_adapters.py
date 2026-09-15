@@ -215,12 +215,14 @@ async def test_saaras_runs_the_whole_batch_flow_and_returns_segments(audio: Path
     await provider.aclose()
 
     assert [request.method for request in session.seen] == [
-        "POST",
-        "PUT",
-        "POST",
-        "GET",
-        "GET",
-        "GET",
+        "POST",  # create job
+        "POST",  # upload-files: ask for a presigned PUT URL
+        "PUT",  # upload the audio to that URL
+        "POST",  # start
+        "GET",  # status: Running
+        "GET",  # status: Completed
+        "POST",  # download-files: ask for a presigned GET URL
+        "GET",  # download the transcript from that URL
     ]
     # No word timings: that is the whole reason the lane demands an aligner.
     assert result.words == ()
@@ -253,18 +255,18 @@ async def test_saaras_sends_the_lane_mode_and_the_glossary(audio: Path) -> None:
     )
     await provider.aclose()
 
-    start = next(
+    create = next(
         request
         for request in session.seen
-        if request.method == "POST" and request.url.path == "/speech-to-text/job"
+        if request.method == "POST" and request.url.path == "/speech-to-text/job/v1"
     )
-    body = json.loads(start.content)
+    body = json.loads(create.content)
     assert body["job_parameters"]["mode"] == "verbatim"
     assert body["job_parameters"]["language_code"] == "hi-IN"
     assert body["job_parameters"]["with_timestamps"] is True
     # Diarisation is pyannote's job (D13), not a ₹0.25/min vendor uplift.
     assert body["job_parameters"]["with_diarization"] is False
-    assert body["job_parameters"]["vocabulary"] == ["Aksharo"]
+    assert body["job_parameters"]["keyterms"] == ["Aksharo"]
 
 
 async def test_saaras_auto_detects_for_the_code_mix_lane(audio: Path) -> None:
@@ -273,12 +275,12 @@ async def test_saaras_auto_detects_for_the_code_mix_lane(audio: Path) -> None:
         TranscriptionRequest(audio_uri=str(audio), language="hi-en", options={"mode": "codemix"})
     )
     await provider.aclose()
-    start = next(
+    create = next(
         request
         for request in session.seen
-        if request.method == "POST" and request.url.path == "/speech-to-text/job"
+        if request.method == "POST" and request.url.path == "/speech-to-text/job/v1"
     )
-    assert json.loads(start.content)["job_parameters"]["language_code"] == "unknown"
+    assert json.loads(create.content)["job_parameters"]["language_code"] == "unknown"
 
 
 async def test_saaras_refuses_a_mode_the_vendor_does_not_have(audio: Path) -> None:
@@ -303,15 +305,12 @@ async def test_a_failed_saaras_job_is_not_retried(audio: Path) -> None:
 
 async def test_saaras_gives_up_on_a_job_that_never_finishes(audio: Path) -> None:
     async def handler(request: httpx2.Request) -> httpx2.Response:
-        if request.url.path.endswith("/job/init"):
+        if request.url.path.endswith("/upload-files"):
             return httpx2.Response(
-                200,
-                json={
-                    "job_id": "j",
-                    "input_storage_path": "https://blob.test/j?sig=x",
-                    "output_storage_path": "https://blob.test/o?sig=x",
-                },
+                200, json={"upload_urls": {"chunk-0000.wav": {"file_url": "https://blob.test/j"}}}
             )
+        if request.url.path.endswith("/job/v1"):
+            return httpx2.Response(200, json={"job_id": "j", "job_state": "Accepted"})
         if request.method == "PUT":
             return httpx2.Response(201)
         if request.url.path.endswith("/status"):
@@ -337,19 +336,26 @@ async def test_saaras_degrades_to_one_segment_when_only_a_transcript_comes_back(
 ) -> None:
     """A job that returned text is still usable — the aligner places the words."""
     async def handler(request: httpx2.Request) -> httpx2.Response:
-        if request.url.path.endswith("/job/init"):
+        if request.url.path.endswith("/upload-files"):
             return httpx2.Response(
-                200,
-                json={
-                    "job_id": "j",
-                    "input_storage_path": "https://blob.test/j?sig=x",
-                    "output_storage_path": "https://blob.test/o?sig=x",
-                },
+                200, json={"upload_urls": {"chunk-0000.wav": {"file_url": "https://blob.test/j"}}}
             )
+        if request.url.path.endswith("/job/v1"):
+            return httpx2.Response(200, json={"job_id": "j", "job_state": "Accepted"})
         if request.method == "PUT":
             return httpx2.Response(201)
         if request.url.path.endswith("/status"):
-            return httpx2.Response(200, json={"job_state": "Completed"})
+            return httpx2.Response(
+                200,
+                json={
+                    "job_state": "Completed",
+                    "job_details": [{"outputs": [{"file_name": "j.json"}]}],
+                },
+            )
+        if request.url.path.endswith("/download-files"):
+            return httpx2.Response(
+                200, json={"download_urls": {"j.json": {"file_url": "https://blob.test/o.json"}}}
+            )
         if request.url.path.endswith(".json"):
             return httpx2.Response(
                 200,

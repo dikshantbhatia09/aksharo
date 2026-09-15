@@ -24,6 +24,13 @@ import { type StyleDoc } from "@montaj/caption-styles";
 
 import { type Rect } from "../commands/types.js";
 import { RenderError } from "../errors.js";
+import {
+  balanceIntoLines,
+  breakWordAtClusters,
+  toWrapItems,
+  wrapByCharacters,
+  wrapByWidth,
+} from "./wrap.js";
 import { resolveFontOrThrow } from "../fonts/registry.js";
 import { clusterBoundaries, codePointsOf, type ShapedRun, type Shaper } from "../fonts/shaper.js";
 import { type FontRegistry } from "../fonts/types.js";
@@ -50,13 +57,7 @@ import {
   type RenderSegment,
   type RenderWord,
 } from "./types.js";
-import {
-  balanceIntoLines,
-  breakWordAtClusters,
-  toWrapItems,
-  wrapByCharacters,
-  wrapByWidth,
-} from "./wrap.js";
+import { composeTypographyMotion, typographyMotionWords } from "./typography-motion.js";
 
 /** The smallest fraction of the style's type size shrink-to-fit may use. */
 export const MIN_SHRINK = 0.55;
@@ -372,7 +373,10 @@ export function layoutSegment(options: LayoutOptions): Layout {
   const { style, segment, canvas, registry, shaper, tMs } = options;
   assertCanvas(canvas);
 
-  const transformed: RenderWord[] = visibleWords(options.words, style, tMs)
+  const transformed: RenderWord[] = typographyMotionWords(
+    visibleWords(options.words, style, tMs),
+    style,
+  )
     .map((word) => ({ ...word, t: applyTextTransform(word.t, style.typography.textTransform) }))
     .filter((word) => word.t.trim().length > 0);
 
@@ -575,7 +579,7 @@ export function layoutSegment(options: LayoutOptions): Layout {
     q(box[3] + padding),
   ];
 
-  return {
+  const layout: Layout = {
     segmentId: segment.id,
     segmentSeq: segment.seq,
     canvas,
@@ -593,6 +597,7 @@ export function layoutSegment(options: LayoutOptions): Layout {
     endMs: segment.endMs,
     clampedToSafeArea: clamped,
   };
+  return composeTypographyMotion(layout, style, shaper, { x: anchorX, y: anchorY, h, v });
 }
 
 /** Characters the caption spends, by the segmenter's rule; used by tests and the UI. */

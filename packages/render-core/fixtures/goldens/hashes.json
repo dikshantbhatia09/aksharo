@@ -26,6 +26,27 @@
    "hash": "5ca4b44bd413a05b32bbe0ad542ae1af29e5f399a013944d49a722b98230ebd0"
   },
   {
+   "style": "bengali-native",
+   "fixture": "hinglish",
+   "tMs": 80,
+   "commands": 8,
+   "hash": "08f8720895ceb2a311b5bec55dbacbe785f3dbbf24e20eb5cd899a9978b4dcc9"
+  },
+  {
+   "style": "bengali-native",
+   "fixture": "hinglish",
+   "tMs": 1500,
+   "commands": 7,
+   "hash": "d80e966eadcaf81e6a72d7df1c6a49d4aeb42548253be0a7e08e5fcb18f478bc"
+  },
+  {
+   "style": "bengali-native",
+   "fixture": "hinglish",
+   "tMs": 2940,
+   "commands": 7,
+   "hash": "ad798a732f6bb67cc51058c14ce0ada1c21f28b1f8d7be7f573a18396fd04a05"
+  },
+  {
    "style": "bold-drop",
    "fixture": "hinglish",
    "tMs": 80,
@@ -110,6 +131,27 @@
    "hash": "bf91498a898b18d20573ac510cbdfdf4433d630987832a639199101ace5c8616"
   },
   {
+   "style": "comic-book-bubble",
+   "fixture": "hinglish",
+   "tMs": 80,
+   "commands": 13,
+   "hash": "c535eb48861016bec3cc1e744d97fffb5897e946c636f9656c6e87c6b03c420a"
+  },
+  {
+   "style": "comic-book-bubble",
+   "fixture": "hinglish",
+   "tMs": 1500,
+   "commands": 13,
+   "hash": "234accd910244981041a1f15f97ded02431bbd1de35cefdbe37e08961153c2b5"
+  },
+  {
+   "style": "comic-book-bubble",
+   "fixture": "hinglish",
+   "tMs": 2940,
+   "commands": 11,
+   "hash": "c4c1a884c9fe8500a6c8dc226a98535188fc998f0fd3e6814822b39c015cf90f"
+  },
+  {
    "style": "duo-tone",
    "fixture": "hinglish",
    "tMs": 80,
@@ -129,6 +171,90 @@
    "tMs": 2940,
    "commands": 20,
    "hash": "e749054e0367e0ef7080e3e59b462f117a4ed90749e00b4cdbae14b1e4d0e7ae"
+  },
+  {
+   "style": "editorial-ghost-type",
+   "fixture": "hinglish",
+   "tMs": 80,
+   "commands": 9,
+   "hash": "c8bb705ec58653b2b65459927eba16340f4c659271bad171c952662bc2e0a1be"
+  },
+  {
+   "style": "editorial-ghost-type",
+   "fixture": "hinglish",
+   "tMs": 1500,
+   "commands": 21,
+   "hash": "c404b4fa70128950f38502a63f11a7ceb0be950a46202cf3e42c6404f7041025"
+  },
+  {
+   "style": "editorial-ghost-type",
+   "fixture": "hinglish",
+   "tMs": 2940,
+   "commands": 9,
+   "hash": "4810ad210c71831639d307578ed77105db1d4ae300b83e2bf008b6334cc8ecdc"
+  },
+  {
+   "style": "editorial-keyword-zoom",
+   "fixture": "hinglish",
+   "tMs": 80,
+   "commands": 9,
+   "hash": "ccec3c1db40709cc8417ea2ce58c1fdc4d542fd323c06a57efb1a975d64ec69f"
+  },
+  {
+   "style": "editorial-keyword-zoom",
+   "fixture": "hinglish",
+   "tMs": 1500,
+   "commands": 21,
+   "hash": "8f6977bce7bc5a270f695e66d4194fb3f68b2df0e402e3f8c14719f38bd67806"
+  },
+  {
+   "style": "editorial-keyword-zoom",
+   "fixture": "hinglish",
+   "tMs": 2940,
+   "commands": 9,
+   "hash": "9aa3289111ac1055e6b922722a2f45a02fbec96d2fd94cb3ac179f611ee010ea"
+  },
+  {
+   "style": "editorial-stack",
+   "fixture": "hinglish",
+   "tMs": 80,
+   "commands": 27,
+   "hash": "0f221943f3c5eb4a8dff76d2c6c778843f066197aa1d240b03915831beb7f2d6"
+  },
+  {
+   "style": "editorial-stack",
+   "fixture": "hinglish",
+   "tMs": 1500,
+   "commands": 27,
+   "hash": "c20b0a49f9ab1897807e03bf7049d16e43fa105c24a0749f42ddc72a73b3351d"
+  },
+  {
+   "style": "editorial-stack",
+   "fixture": "hinglish",
+   "tMs": 2940,
+   "commands": 6,
+   "hash": "02233ef48cd76acdb99667612a04b3360c998e288e67fe85f2c1808e13304266"
+  },
+  {
+   "style": "elegant-cursive",
+   "fixture": "hinglish",
+   "tMs": 80,
+   "commands": 11,
+   "hash": "59f9edbd151bbcbcadb1d8f0fd1e6e401358f1aac99f79fd67875d4da7bf8656"
+  },
+  {
+   "style": "elegant-cursive",
+   "fixture": "hinglish",
+   "tMs": 1500,
+   "commands": 11,
+   "hash": "434655bdf7e61ef91c3ae4e2058214ccf7c625c6d1dbcd9ffd25c9c5cd141cfd"
+  },
+  {
+   "style": "elegant-cursive",
+   "fixture": "hinglish",
+   "tMs": 2940,
+   "commands": 11,
+   "hash": "fd070f7dacb4e111b258e5b6a8ffae7aac8ca9c2ba3fdd0a61b009788b2bf8d2"
   },
   {
    "style": "estate-bounce",
@@ -404,6 +530,27 @@
    "hash": "c5d19ab86e554e1b2052ae1e36b14efaf8f4536fe99a182c6b1ce48990fe79b3"
   },
   {
+   "style": "gold-luxury-serif",
+   "fixture": "hinglish",
+   "tMs": 80,
+   "commands": 19,
+   "hash": "acb3b8b9d8d3622c9be90db4e2094f4141f90d5258738e0cfa0506f778ccc2ff"
+  },
+  {
+   "style": "gold-luxury-serif",
+   "fixture": "hinglish",
+   "tMs": 1500,
+   "commands": 19,
+   "hash": "cca580aaa1138395c3ccb9207d4dec93fd16393fce3a987fedf11c769c6cd8d0"
+  },
+  {
+   "style": "gold-luxury-serif",
+   "fixture": "hinglish",
+   "tMs": 2940,
+   "commands": 19,
+   "hash": "b41640f8a247abf5646281435f9abdab67efb3734ed113f8f157a3ab347187a5"
+  },
+  {
    "style": "gradient-sweep",
    "fixture": "hinglish",
    "tMs": 80,
@@ -423,6 +570,27 @@
    "tMs": 2940,
    "commands": 14,
    "hash": "8dda8f5b3294a4691904cd7359f105af587d75a7531fc90deb2a21700830c750"
+  },
+  {
+   "style": "handwritten-marker",
+   "fixture": "hinglish",
+   "tMs": 80,
+   "commands": 14,
+   "hash": "b937e08ddbf21d5b6a58dedbfb6311ba07f0789d9c8e443877808d28dbb690fc"
+  },
+  {
+   "style": "handwritten-marker",
+   "fixture": "hinglish",
+   "tMs": 1500,
+   "commands": 13,
+   "hash": "b0517611d840693b96d6c8b54edccffa105aab36b37c74acf37ed6941cccf067"
+  },
+  {
+   "style": "handwritten-marker",
+   "fixture": "hinglish",
+   "tMs": 2940,
+   "commands": 7,
+   "hash": "6ef83356290befa4b53c46186caca5b3caffcc9d122ae5e73dd1484e654f78e1"
   },
   {
    "style": "highlight-marker",
@@ -887,6 +1055,27 @@
    "hash": "4f9e8ff1b9f6586c34e5b1fb1735180005c7bdb6cf064f0237650f2f1c3c527a"
   },
   {
+   "style": "punjabi-native",
+   "fixture": "hinglish",
+   "tMs": 80,
+   "commands": 8,
+   "hash": "7b11a06297236a63864b29ab22d3dd3e3eb9c3e09f9cf8610390ab31f138fee7"
+  },
+  {
+   "style": "punjabi-native",
+   "fixture": "hinglish",
+   "tMs": 1500,
+   "commands": 7,
+   "hash": "c0b633a3c5d980fc8f50843aafe10934e768a46d6aaa3d6a325754f6aefe7ad5"
+  },
+  {
+   "style": "punjabi-native",
+   "fixture": "hinglish",
+   "tMs": 2940,
+   "commands": 7,
+   "hash": "d37da6fd3f815ff63af92224f1b36f4145cfc0b08f81645e7e5fa6570d0e2fff"
+  },
+  {
    "style": "quote-frame",
    "fixture": "hinglish",
    "tMs": 80,
@@ -906,6 +1095,48 @@
    "tMs": 2940,
    "commands": 12,
    "hash": "37c17b0dbaf8b647124b8421161bd21114fca8ad267b07fc2d1265cd00c1df1b"
+  },
+  {
+   "style": "signage-chunky",
+   "fixture": "hinglish",
+   "tMs": 80,
+   "commands": 9,
+   "hash": "fe1eaf2ca47ce2dd6de11ee3860acf230acf4f5edcc69004f1f661d47a2f5275"
+  },
+  {
+   "style": "signage-chunky",
+   "fixture": "hinglish",
+   "tMs": 1500,
+   "commands": 8,
+   "hash": "e74eceacab39e7372f284b8610499d23db8afc315f7d31406a02a9ebfcec93b7"
+  },
+  {
+   "style": "signage-chunky",
+   "fixture": "hinglish",
+   "tMs": 2940,
+   "commands": 7,
+   "hash": "08dfa741108bcff3da4e92dbe43b10d2ffda4d8b5cfb0f44924c97b3e97f7456"
+  },
+  {
+   "style": "soft-script-casual",
+   "fixture": "hinglish",
+   "tMs": 80,
+   "commands": 14,
+   "hash": "a1a69cdd1ac1424af78ebe0065d6f78d2b830cc6ec5b5d520f42ab64e77882c2"
+  },
+  {
+   "style": "soft-script-casual",
+   "fixture": "hinglish",
+   "tMs": 1500,
+   "commands": 13,
+   "hash": "8aa56812e35a9ad95d85bb9f5bd9f335f60239e4ab718239f0b394e85b38ffa0"
+  },
+  {
+   "style": "soft-script-casual",
+   "fixture": "hinglish",
+   "tMs": 2940,
+   "commands": 13,
+   "hash": "1f475cd11af3b452abe4ed9001f32bdc48e371f44f51ae8c1d86861d27628e0b"
   },
   {
    "style": "soft-serif",
@@ -950,6 +1181,27 @@
    "hash": "9abf2a3e7ad0a3459d163905e95d753c211b669f9d1f5b3f9be477fd70c6be25"
   },
   {
+   "style": "stencil-alert",
+   "fixture": "hinglish",
+   "tMs": 80,
+   "commands": 11,
+   "hash": "b6c30adc4b2baa48ea68c09feecce42298fd68c216e2d1f0cd38d5116d6ca84d"
+  },
+  {
+   "style": "stencil-alert",
+   "fixture": "hinglish",
+   "tMs": 1500,
+   "commands": 10,
+   "hash": "5bd235b707eca92415984b1487b3c5a95f6b265610982d15e80031132a87cd0b"
+  },
+  {
+   "style": "stencil-alert",
+   "fixture": "hinglish",
+   "tMs": 2940,
+   "commands": 4,
+   "hash": "e3b913d2aeac16d214f0b2845b572859cdc491392c88f499e6fb7fde4b32bd5d"
+  },
+  {
    "style": "stroke-heavy",
    "fixture": "hinglish",
    "tMs": 80,
@@ -992,6 +1244,27 @@
    "hash": "103ba8be0fae874a5d6bc7c2150a0ab559479a9eae454227ad8063ca67d81a59"
   },
   {
+   "style": "tall-caps-condensed",
+   "fixture": "hinglish",
+   "tMs": 80,
+   "commands": 12,
+   "hash": "3daabc09e9dc2207be335d70bf2aaa6bbd26b7b289f87deb48b9679c993b7ad0"
+  },
+  {
+   "style": "tall-caps-condensed",
+   "fixture": "hinglish",
+   "tMs": 1500,
+   "commands": 12,
+   "hash": "b0184274e104e6117c63cae3423dddff33b37fd0fc34f8f724f6fe6cc4baa138"
+  },
+  {
+   "style": "tall-caps-condensed",
+   "fixture": "hinglish",
+   "tMs": 2940,
+   "commands": 12,
+   "hash": "f27aa0eca282171e3673de0c390301a8487700988ef7be6377e2417b6b71942f"
+  },
+  {
    "style": "tape-retro",
    "fixture": "hinglish",
    "tMs": 80,
@@ -1011,6 +1284,27 @@
    "tMs": 2940,
    "commands": 39,
    "hash": "4f54efc60d9e79c8cabe7fa8904eda3e147122f5cdb0087d58be1efedba96c19"
+  },
+  {
+   "style": "telugu-native",
+   "fixture": "hinglish",
+   "tMs": 80,
+   "commands": 8,
+   "hash": "89df12ba318e7f662488815815501997552835c269935c31cc6b79a705201540"
+  },
+  {
+   "style": "telugu-native",
+   "fixture": "hinglish",
+   "tMs": 1500,
+   "commands": 7,
+   "hash": "2fe96ed58f094623de2e41092f84093061f9f099c6eeb8e57d682e9f02795565"
+  },
+  {
+   "style": "telugu-native",
+   "fixture": "hinglish",
+   "tMs": 2940,
+   "commands": 7,
+   "hash": "b3b338ae16c854efbfbfe3d3234fd247cbe6b2c349fc6d4e8481cf026a710fea"
   },
   {
    "style": "typewriter-mono",
@@ -1118,6 +1412,27 @@
    "hash": "2b6d0b32312cec8fec55b608894c33a33948f05d07d0fc6c50ea074b571d1726"
   },
   {
+   "style": "bengali-native",
+   "fixture": "hindi",
+   "tMs": 80,
+   "commands": 8,
+   "hash": "449fe773c054a380c5b7e68d511e90f0126eaa4f9dc750fc94ce40c8df0e82e9"
+  },
+  {
+   "style": "bengali-native",
+   "fixture": "hindi",
+   "tMs": 1500,
+   "commands": 7,
+   "hash": "830cdd1b914f207ad26be5939fb9beeb4b3a701e8f8ae9823cb754f7ac3e2c7b"
+  },
+  {
+   "style": "bengali-native",
+   "fixture": "hindi",
+   "tMs": 2940,
+   "commands": 5,
+   "hash": "a6825b18b9f750711f12985934e1ee5997b8e59b8ae80b99faf44e9238bd2c31"
+  },
+  {
    "style": "bold-drop",
    "fixture": "hindi",
    "tMs": 80,
@@ -1202,6 +1517,27 @@
    "hash": "01254b5aa04023276d8179e097d5cc58927f134edfdb33670134883bd56a7383"
   },
   {
+   "style": "comic-book-bubble",
+   "fixture": "hindi",
+   "tMs": 80,
+   "commands": 13,
+   "hash": "53bca4e9de42b04c9b00d2603d64c8f637f27e7a958c1e854f3b7ee8e994c836"
+  },
+  {
+   "style": "comic-book-bubble",
+   "fixture": "hindi",
+   "tMs": 1500,
+   "commands": 13,
+   "hash": "43ff13fad67c5f3a5f78b8555e0165d6325261807af95fa4df2ad69f8e93a444"
+  },
+  {
+   "style": "comic-book-bubble",
+   "fixture": "hindi",
+   "tMs": 2940,
+   "commands": 8,
+   "hash": "7e4328a357d3332f0799e024df2aa34dfb58a4edfb1ebe0394bceebe03b97378"
+  },
+  {
    "style": "duo-tone",
    "fixture": "hindi",
    "tMs": 80,
@@ -1221,6 +1557,90 @@
    "tMs": 2940,
    "commands": 18,
    "hash": "cf33d2554018237f1e51a76a319e6b3c98dcb0a046859a0db5433528052ee872"
+  },
+  {
+   "style": "editorial-ghost-type",
+   "fixture": "hindi",
+   "tMs": 80,
+   "commands": 9,
+   "hash": "0cbf19b94d5eeed64a7207de8e23edc79c9f28fa05a094848c7881e34e6a0b29"
+  },
+  {
+   "style": "editorial-ghost-type",
+   "fixture": "hindi",
+   "tMs": 1500,
+   "commands": 21,
+   "hash": "33291b02bf09fa2bd963327e24b8b468a7d6a23b4fe20c8ed6a372e5b314bece"
+  },
+  {
+   "style": "editorial-ghost-type",
+   "fixture": "hindi",
+   "tMs": 2940,
+   "commands": 30,
+   "hash": "c4ee3096835e74a3db210a5dffa2dbaff3a1f624cc808e06ed6c58fdf35fec12"
+  },
+  {
+   "style": "editorial-keyword-zoom",
+   "fixture": "hindi",
+   "tMs": 80,
+   "commands": 9,
+   "hash": "0e90b15b17672f3f93c3b00f51f8e8a838eee7a82434caf715bf73509f547a20"
+  },
+  {
+   "style": "editorial-keyword-zoom",
+   "fixture": "hindi",
+   "tMs": 1500,
+   "commands": 21,
+   "hash": "525e9cb7730987988d57630bb96052e32d9a2fb6b790f1c52780a30755f5cbd6"
+  },
+  {
+   "style": "editorial-keyword-zoom",
+   "fixture": "hindi",
+   "tMs": 2940,
+   "commands": 30,
+   "hash": "e50e8282b7ca965e4a46a1014e06765a9c1130a401d9f14427741e6e931451e0"
+  },
+  {
+   "style": "editorial-stack",
+   "fixture": "hindi",
+   "tMs": 80,
+   "commands": 27,
+   "hash": "2756158468cc40d21ae828d2384d0b36ac80305d1b6f31d983756975827caca7"
+  },
+  {
+   "style": "editorial-stack",
+   "fixture": "hindi",
+   "tMs": 1500,
+   "commands": 27,
+   "hash": "3441763fd495517663c98774f5464956eb2d577bdf9da23dd6e1a5c41b51f3cf"
+  },
+  {
+   "style": "editorial-stack",
+   "fixture": "hindi",
+   "tMs": 2940,
+   "commands": 27,
+   "hash": "2cbc83af45b2a9bb496a80b834f5e7fab54c88b5386bb201c18fa84d396fee25"
+  },
+  {
+   "style": "elegant-cursive",
+   "fixture": "hindi",
+   "tMs": 80,
+   "commands": 10,
+   "hash": "f8ff856641a0ac8fab475053acabd6ffb8fa21858914ce1666b851e582543a94"
+  },
+  {
+   "style": "elegant-cursive",
+   "fixture": "hindi",
+   "tMs": 1500,
+   "commands": 10,
+   "hash": "6f5fa5cd3dce1506543f4633445aca279cadb7d41461f9dd5ac78fcc74b1210c"
+  },
+  {
+   "style": "elegant-cursive",
+   "fixture": "hindi",
+   "tMs": 2940,
+   "commands": 10,
+   "hash": "3f56c5fce377f177b1a2675bb9e3fba5faae759f48104a8ee464109ee2ae1edc"
   },
   {
    "style": "estate-bounce",
@@ -1496,6 +1916,27 @@
    "hash": "41125402226d3836bc62ffc4d23983d66d5b051841b96deb8834be1df9d30f4a"
   },
   {
+   "style": "gold-luxury-serif",
+   "fixture": "hindi",
+   "tMs": 80,
+   "commands": 17,
+   "hash": "874aac2d63787dcd52ea3478ef34ecd1a6245558db964fcea0595822da1864b6"
+  },
+  {
+   "style": "gold-luxury-serif",
+   "fixture": "hindi",
+   "tMs": 1500,
+   "commands": 17,
+   "hash": "25fdb4edfac62b73e4365b6b679e696e74be8fe49cf2ded1832338284293016a"
+  },
+  {
+   "style": "gold-luxury-serif",
+   "fixture": "hindi",
+   "tMs": 2940,
+   "commands": 17,
+   "hash": "2a3bdc734fae9470e8cd53969beaf72833921a99672b80cd9d11c87ca435dc6b"
+  },
+  {
    "style": "gradient-sweep",
    "fixture": "hindi",
    "tMs": 80,
@@ -1515,6 +1956,27 @@
    "tMs": 2940,
    "commands": 13,
    "hash": "c9d747490509674bb93672cd7bf437f39ee58985c564e57dc1873de4322474b4"
+  },
+  {
+   "style": "handwritten-marker",
+   "fixture": "hindi",
+   "tMs": 80,
+   "commands": 14,
+   "hash": "131649b5003fa050015a3329b4511e7e9e547c976e512c2053f9f8de236003ae"
+  },
+  {
+   "style": "handwritten-marker",
+   "fixture": "hindi",
+   "tMs": 1500,
+   "commands": 13,
+   "hash": "87ec1cd7e81e45a4285f122b701f7aa92760578f6aeb729d6a26e7ab0d6f3352"
+  },
+  {
+   "style": "handwritten-marker",
+   "fixture": "hindi",
+   "tMs": 2940,
+   "commands": 5,
+   "hash": "fb24ec2f21e25bcb87b342981e97e6b814df6065e5dab462dca0151650cae08f"
   },
   {
    "style": "highlight-marker",
@@ -1979,6 +2441,27 @@
    "hash": "d85807f43b6a4ac3e7800196d1e1a2cec9362ea0bd4895bdf97339773403209b"
   },
   {
+   "style": "punjabi-native",
+   "fixture": "hindi",
+   "tMs": 80,
+   "commands": 8,
+   "hash": "de5cb603b8913654552bcef816cb6f0b08991a4fbd15dedae8b18a10e614d1a8"
+  },
+  {
+   "style": "punjabi-native",
+   "fixture": "hindi",
+   "tMs": 1500,
+   "commands": 7,
+   "hash": "3d308357c8d26e29fa0a98699af8f754417b6381a7c924d422a1e4a822357480"
+  },
+  {
+   "style": "punjabi-native",
+   "fixture": "hindi",
+   "tMs": 2940,
+   "commands": 5,
+   "hash": "7c0403db5a1d2afe067c1c932a40b9465550bc4f3ed88442d0a54107487ef66d"
+  },
+  {
    "style": "quote-frame",
    "fixture": "hindi",
    "tMs": 80,
@@ -1998,6 +2481,48 @@
    "tMs": 2940,
    "commands": 11,
    "hash": "dc3c1eceec463e747a9c0cb4d98bb062c7e081a6fe25b4f47b7fbc50ad471978"
+  },
+  {
+   "style": "signage-chunky",
+   "fixture": "hindi",
+   "tMs": 80,
+   "commands": 9,
+   "hash": "e98a9cede7e5af4cf57aa6e11c7eb8f59e38cb2bc3127a79707dca35cbeb2ad9"
+  },
+  {
+   "style": "signage-chunky",
+   "fixture": "hindi",
+   "tMs": 1500,
+   "commands": 8,
+   "hash": "35585d7b3b1adb1a700082a374126d0c112f2aaedf65ba5b2b9f9bf6081aeedc"
+  },
+  {
+   "style": "signage-chunky",
+   "fixture": "hindi",
+   "tMs": 2940,
+   "commands": 5,
+   "hash": "40c8418b693a02bd2b4fa422dbd19f229f85c2f52324fe315c64475e660b70c4"
+  },
+  {
+   "style": "soft-script-casual",
+   "fixture": "hindi",
+   "tMs": 80,
+   "commands": 13,
+   "hash": "d90cc9d5666476a1fe787880289203a388530a42e6a507dd1d4bc40fd2370979"
+  },
+  {
+   "style": "soft-script-casual",
+   "fixture": "hindi",
+   "tMs": 1500,
+   "commands": 12,
+   "hash": "ca300984b287c7ecf7b49558611491d5e4607815f2cb5bdac24f3a0fd088bcb6"
+  },
+  {
+   "style": "soft-script-casual",
+   "fixture": "hindi",
+   "tMs": 2940,
+   "commands": 12,
+   "hash": "116df95faca6012712f4874449bdbbfab1a537d9074c508f88ddf5befc6890e8"
   },
   {
    "style": "soft-serif",
@@ -2042,6 +2567,27 @@
    "hash": "1e308783e46f1b7e4f05a902cf838fdbaab36f75870fb6f6bd6d7aa9593ecb85"
   },
   {
+   "style": "stencil-alert",
+   "fixture": "hindi",
+   "tMs": 80,
+   "commands": 11,
+   "hash": "e770911e9f370ce9d7dca175d1f758d85550e099fef6754c3fb0f728be77bf4a"
+  },
+  {
+   "style": "stencil-alert",
+   "fixture": "hindi",
+   "tMs": 1500,
+   "commands": 10,
+   "hash": "85fa0cb88a02645dd0b070441193b7497cd6871a978eeaef9919fceae05a9cfb"
+  },
+  {
+   "style": "stencil-alert",
+   "fixture": "hindi",
+   "tMs": 2940,
+   "commands": 10,
+   "hash": "2d72f69ffe9bece34ce24d7e5bd1dae31377ff99c1bfda930f8360a81b9f032c"
+  },
+  {
    "style": "stroke-heavy",
    "fixture": "hindi",
    "tMs": 80,
@@ -2084,6 +2630,27 @@
    "hash": "6bd1aae272b1e79276c1965a9f6d6fd4d7a5a2a1e8b36e3757d747aed6071a79"
   },
   {
+   "style": "tall-caps-condensed",
+   "fixture": "hindi",
+   "tMs": 80,
+   "commands": 11,
+   "hash": "7d9997d3a7f4c014c8d3d3917265595bba6d4f6412bcfe3583e5bec43c5ed8c1"
+  },
+  {
+   "style": "tall-caps-condensed",
+   "fixture": "hindi",
+   "tMs": 1500,
+   "commands": 11,
+   "hash": "34ebf40c2886f5353178ce6301512c1a685df3934c2504d28be2d3cf8f68c9c8"
+  },
+  {
+   "style": "tall-caps-condensed",
+   "fixture": "hindi",
+   "tMs": 2940,
+   "commands": 11,
+   "hash": "adbb861a8fcc0e7df50774c05bae4a786dae14125f619ca317d5165dd2511a37"
+  },
+  {
    "style": "tape-retro",
    "fixture": "hindi",
    "tMs": 80,
@@ -2103,6 +2670,27 @@
    "tMs": 2940,
    "commands": 36,
    "hash": "48614698f985d15164c0986121e6f039c6eb941c3bb8f4fd058be132182fa660"
+  },
+  {
+   "style": "telugu-native",
+   "fixture": "hindi",
+   "tMs": 80,
+   "commands": 8,
+   "hash": "195f703e1c4879e3597a2184237dd4bc35f4fc9b8215fc54d51ad34d372d4dc3"
+  },
+  {
+   "style": "telugu-native",
+   "fixture": "hindi",
+   "tMs": 1500,
+   "commands": 7,
+   "hash": "b86a807be5a2fc1a319222bdce788778de6322dac069b0a73e917993e33c2068"
+  },
+  {
+   "style": "telugu-native",
+   "fixture": "hindi",
+   "tMs": 2940,
+   "commands": 5,
+   "hash": "12dd94e591235b2c2cf1e551bdb1185f7e863971bdcdcea8d83c5b4c4e3cdbed"
   },
   {
    "style": "typewriter-mono",
@@ -2210,6 +2798,27 @@
    "hash": "a991d343bf9929d6a9456ed6f8522cd9857dc0d173fbabcc42602453102cd705"
   },
   {
+   "style": "bengali-native",
+   "fixture": "tamil",
+   "tMs": 80,
+   "commands": 8,
+   "hash": "0ce07594f7c4b0ef6c607aab446c367dbd39572f4a57b8f8021b9ee63f13ddd1"
+  },
+  {
+   "style": "bengali-native",
+   "fixture": "tamil",
+   "tMs": 1500,
+   "commands": 7,
+   "hash": "15a215a62c8d2ce9b35cf9fab05a2b576fb123c26716462f0495b9133ab66705"
+  },
+  {
+   "style": "bengali-native",
+   "fixture": "tamil",
+   "tMs": 2940,
+   "commands": 7,
+   "hash": "2d19c9d6bb7f951c942262cb18ef74270637f1f90f8fb78f52233ad005dc750c"
+  },
+  {
    "style": "bold-drop",
    "fixture": "tamil",
    "tMs": 80,
@@ -2294,6 +2903,27 @@
    "hash": "f6bec5826862759b294cc6e28d06f6edee86b4ebf2196d25d8fa799e81df93ba"
   },
   {
+   "style": "comic-book-bubble",
+   "fixture": "tamil",
+   "tMs": 80,
+   "commands": 14,
+   "hash": "2f77a5ed09736c99d20e0aa778ee3fa048c9ec8c42a7069a729bb5974a2e0953"
+  },
+  {
+   "style": "comic-book-bubble",
+   "fixture": "tamil",
+   "tMs": 1500,
+   "commands": 14,
+   "hash": "855af60db4ffd3d8a2270bea354ed01c7ca98b5c33bc2c4ef9ef7d337b9f1bf9"
+  },
+  {
+   "style": "comic-book-bubble",
+   "fixture": "tamil",
+   "tMs": 2940,
+   "commands": 4,
+   "hash": "7fccd03547e4d4574b1183eb21cb8af9250c09f187e15bde995ce5ee6b274969"
+  },
+  {
    "style": "duo-tone",
    "fixture": "tamil",
    "tMs": 80,
@@ -2313,6 +2943,90 @@
    "tMs": 2940,
    "commands": 14,
    "hash": "3a96b91bc7ef7d2e190734e8af11f39f1104d7c51b8f4ff37a4d9c5da3996634"
+  },
+  {
+   "style": "editorial-ghost-type",
+   "fixture": "tamil",
+   "tMs": 80,
+   "commands": 9,
+   "hash": "ffd0bb31c947d0e66cff870633e27615e5c7d3f9815dcee4e33918d8190c6161"
+  },
+  {
+   "style": "editorial-ghost-type",
+   "fixture": "tamil",
+   "tMs": 1500,
+   "commands": 18,
+   "hash": "2517cb2dcab13af43dafb0862cee151d32f77464dd394491ecd30368ca69e9d7"
+  },
+  {
+   "style": "editorial-ghost-type",
+   "fixture": "tamil",
+   "tMs": 2940,
+   "commands": 24,
+   "hash": "94b5c6edd299cfe1edf7646b4a2f3f566dc3b344003c7dd21939c190f0c82277"
+  },
+  {
+   "style": "editorial-keyword-zoom",
+   "fixture": "tamil",
+   "tMs": 80,
+   "commands": 9,
+   "hash": "ea0c60383e7aee97842ce717631d8b6b2028362cf950025561cfc9009adc5b4d"
+  },
+  {
+   "style": "editorial-keyword-zoom",
+   "fixture": "tamil",
+   "tMs": 1500,
+   "commands": 18,
+   "hash": "45cbf04ccf294f3b87fa0724972114e1893039bdc330894eaa5babd23a56931e"
+  },
+  {
+   "style": "editorial-keyword-zoom",
+   "fixture": "tamil",
+   "tMs": 2940,
+   "commands": 24,
+   "hash": "c636bf38e8300a0db98d3144629613378649fdf9c82b47183b692683b9294c35"
+  },
+  {
+   "style": "editorial-stack",
+   "fixture": "tamil",
+   "tMs": 80,
+   "commands": 21,
+   "hash": "5611028d1530fc84d812fbfa775b29e9dcef905f44f255e2655488dd17a53524"
+  },
+  {
+   "style": "editorial-stack",
+   "fixture": "tamil",
+   "tMs": 1500,
+   "commands": 21,
+   "hash": "02e9b1404c31fcd855ea6388b23c05bb700a0df17c0ede687ffc98748fca7c6b"
+  },
+  {
+   "style": "editorial-stack",
+   "fixture": "tamil",
+   "tMs": 2940,
+   "commands": 21,
+   "hash": "4c17de5e30862583b81f7d4076ba13af1d378af445344ea318ceb0bbd8d4f838"
+  },
+  {
+   "style": "elegant-cursive",
+   "fixture": "tamil",
+   "tMs": 80,
+   "commands": 8,
+   "hash": "9806ab37b460493610ac38b0e11a286b2310a036316a6c84fb10d2cb967a3520"
+  },
+  {
+   "style": "elegant-cursive",
+   "fixture": "tamil",
+   "tMs": 1500,
+   "commands": 8,
+   "hash": "6a7beb0b9f8b57f20801ae23b60e6dfe57d4bf7ee5fa783ecbc7a9ef9cc93b76"
+  },
+  {
+   "style": "elegant-cursive",
+   "fixture": "tamil",
+   "tMs": 2940,
+   "commands": 8,
+   "hash": "60a656339a0934f9547527bd2e5289f85507209e2553a4f5c0da129085672890"
   },
   {
    "style": "estate-bounce",
@@ -2588,6 +3302,27 @@
    "hash": "e317991d38ce82985bf19fe9c0e2ad8b5b9c8d027b848a29815b26de115af89b"
   },
   {
+   "style": "gold-luxury-serif",
+   "fixture": "tamil",
+   "tMs": 80,
+   "commands": 13,
+   "hash": "0665d4c4bbefac4774d7ae2a280e66dca575bae117d283ef7d7c273df3c70aa8"
+  },
+  {
+   "style": "gold-luxury-serif",
+   "fixture": "tamil",
+   "tMs": 1500,
+   "commands": 13,
+   "hash": "ae19a7d6d6daeea59dd6d1d8aad75f57d270612c29fa484e23a5c6f103cded27"
+  },
+  {
+   "style": "gold-luxury-serif",
+   "fixture": "tamil",
+   "tMs": 2940,
+   "commands": 13,
+   "hash": "2db32572c4ec72e676e5b99137bc2ec58c8e3b73fcacbced58afcab4a303f7e9"
+  },
+  {
    "style": "gradient-sweep",
    "fixture": "tamil",
    "tMs": 80,
@@ -2607,6 +3342,27 @@
    "tMs": 2940,
    "commands": 11,
    "hash": "85ef97aca266847f6665789da4c9e39010cb75df0d1f5722d0e8587db7ad2b4f"
+  },
+  {
+   "style": "handwritten-marker",
+   "fixture": "tamil",
+   "tMs": 80,
+   "commands": 14,
+   "hash": "31a3e50ee171dd8aca82d287a3a07ecc840845da4825ae21fab8cb8aeaa138c9"
+  },
+  {
+   "style": "handwritten-marker",
+   "fixture": "tamil",
+   "tMs": 1500,
+   "commands": 13,
+   "hash": "ccaf9615408f068237e4b06838258e88e3e0483d07cb59953f4261802c91effc"
+  },
+  {
+   "style": "handwritten-marker",
+   "fixture": "tamil",
+   "tMs": 2940,
+   "commands": 13,
+   "hash": "a5d6f79b16aec84edbfef1b79b556b593cd7ee4c0a963e3be14b3fbda86f7269"
   },
   {
    "style": "highlight-marker",
@@ -3071,6 +3827,27 @@
    "hash": "24bc3d4d7816b296e7bceaa0198b9601a00d8d6ca9d7dfcfe2a2768438a9bef3"
   },
   {
+   "style": "punjabi-native",
+   "fixture": "tamil",
+   "tMs": 80,
+   "commands": 8,
+   "hash": "6ad4b9fac8635eb705a589d1281e6fb15142da62ab71763ffb5cc55a2c90aa49"
+  },
+  {
+   "style": "punjabi-native",
+   "fixture": "tamil",
+   "tMs": 1500,
+   "commands": 7,
+   "hash": "74d5da314a5994c0908b8ab21e23bde9c9c857591c65abf4558266b0db79ca0b"
+  },
+  {
+   "style": "punjabi-native",
+   "fixture": "tamil",
+   "tMs": 2940,
+   "commands": 7,
+   "hash": "e1914fb1818b2541a73fb783252ff9b599fc7da1a2778cc504bbf16d85fc1299"
+  },
+  {
    "style": "quote-frame",
    "fixture": "tamil",
    "tMs": 80,
@@ -3090,6 +3867,48 @@
    "tMs": 2940,
    "commands": 9,
    "hash": "ba7aa18a34e4558bd4e98de5b327943e8c0818001066fd1671542a2b19173d54"
+  },
+  {
+   "style": "signage-chunky",
+   "fixture": "tamil",
+   "tMs": 80,
+   "commands": 10,
+   "hash": "d5db3b795eccf12213de944bb9ba985e379c260b27dbde9db9d645d7879a3338"
+  },
+  {
+   "style": "signage-chunky",
+   "fixture": "tamil",
+   "tMs": 1500,
+   "commands": 9,
+   "hash": "58ef2a1b9fbcf2f1b6947cf2348c20c26132ca1cec89a1ace262f6d67cd80303"
+  },
+  {
+   "style": "signage-chunky",
+   "fixture": "tamil",
+   "tMs": 2940,
+   "commands": 3,
+   "hash": "b77d1c7ca5a53a235326954eb385c42a7f5347023af26dd76b54070c9539aeab"
+  },
+  {
+   "style": "soft-script-casual",
+   "fixture": "tamil",
+   "tMs": 80,
+   "commands": 11,
+   "hash": "153180ff288a279dacde47d16adc85555268f1aa8122b38354dafedde0dca3e1"
+  },
+  {
+   "style": "soft-script-casual",
+   "fixture": "tamil",
+   "tMs": 1500,
+   "commands": 10,
+   "hash": "e4ecd8f8fad13885bd1983fd46c0861c98366eae05c0cadb1835a69ca558e151"
+  },
+  {
+   "style": "soft-script-casual",
+   "fixture": "tamil",
+   "tMs": 2940,
+   "commands": 10,
+   "hash": "cf12b62663092852c6b9aa58e9392e1f501917f70a7615f031646ab38f84f86f"
   },
   {
    "style": "soft-serif",
@@ -3134,6 +3953,27 @@
    "hash": "06fe5fd51959bbedab8560170b6bc0bb8b369c1812909ade485ae9404c78850c"
   },
   {
+   "style": "stencil-alert",
+   "fixture": "tamil",
+   "tMs": 80,
+   "commands": 11,
+   "hash": "4b4b8b75be58686b641aef00dafd97f723dff5d7a98f9e5f3924798488f73932"
+  },
+  {
+   "style": "stencil-alert",
+   "fixture": "tamil",
+   "tMs": 1500,
+   "commands": 10,
+   "hash": "f7b708dc361e13d94b5baa3754cf8076eb2d5cd56e4b5d5527c5044663d395c7"
+  },
+  {
+   "style": "stencil-alert",
+   "fixture": "tamil",
+   "tMs": 2940,
+   "commands": 6,
+   "hash": "4f947da389e174df79e31c0f27c9798a2ad23734faeeb896a661c3f16651585b"
+  },
+  {
    "style": "stroke-heavy",
    "fixture": "tamil",
    "tMs": 80,
@@ -3176,6 +4016,27 @@
    "hash": "0e37e481611c3f81cebb19ff04116bcb0b441e78e1df34cbb1ec3b4dc1e30498"
   },
   {
+   "style": "tall-caps-condensed",
+   "fixture": "tamil",
+   "tMs": 80,
+   "commands": 9,
+   "hash": "f1cac7323e8bfe8d26b5475a7b64ed0165bfeb1cbf807273d8ca9a9eefd456e9"
+  },
+  {
+   "style": "tall-caps-condensed",
+   "fixture": "tamil",
+   "tMs": 1500,
+   "commands": 9,
+   "hash": "f54b6575896c4a0293fc5833e8e0d3eb782ef8b863c9880ad7591bef12f2f688"
+  },
+  {
+   "style": "tall-caps-condensed",
+   "fixture": "tamil",
+   "tMs": 2940,
+   "commands": 9,
+   "hash": "aea6bd0acc64b36de2f49d0e34a39153c121c86834ad3ea8e21fa95c8f00e2d5"
+  },
+  {
    "style": "tape-retro",
    "fixture": "tamil",
    "tMs": 80,
@@ -3195,6 +4056,27 @@
    "tMs": 2940,
    "commands": 30,
    "hash": "1d02a95600de6f51cdd36a01f89c3bc0aea5b73569f126a5dee2f90a6bf68c2f"
+  },
+  {
+   "style": "telugu-native",
+   "fixture": "tamil",
+   "tMs": 80,
+   "commands": 8,
+   "hash": "530978c4ba3a84551567534a74b9f2e4566ceebcb977f76a2d1a3b741e37231b"
+  },
+  {
+   "style": "telugu-native",
+   "fixture": "tamil",
+   "tMs": 1500,
+   "commands": 7,
+   "hash": "6b3563270a10865d84cfeefd67c57f4a32f6c8859397a14fad3bc5bbf559ea69"
+  },
+  {
+   "style": "telugu-native",
+   "fixture": "tamil",
+   "tMs": 2940,
+   "commands": 7,
+   "hash": "d5acd1846c93ef83857c06694eb4926502cef16f7fcf6b454a9f0338b9724e99"
   },
   {
    "style": "typewriter-mono",
@@ -3302,6 +4184,27 @@
    "hash": "cac0614b9db8d6b06456dc402b5d73a3fea0f1d6784d291d9adc47a17ba61df8"
   },
   {
+   "style": "bengali-native",
+   "fixture": "english",
+   "tMs": 80,
+   "commands": 8,
+   "hash": "ce453737a413edb7978c029340261bf360e0f674f4d446afa930c59a8e497b71"
+  },
+  {
+   "style": "bengali-native",
+   "fixture": "english",
+   "tMs": 1500,
+   "commands": 7,
+   "hash": "870d533b6a31d9cbf86764d3481bb717a8a693c2caf2159c32d524fee247c67e"
+  },
+  {
+   "style": "bengali-native",
+   "fixture": "english",
+   "tMs": 2940,
+   "commands": 3,
+   "hash": "a161f88b3970cced69728ab9ce198f98e21854c6d5cce68209a0e8cdc364c632"
+  },
+  {
    "style": "bold-drop",
    "fixture": "english",
    "tMs": 80,
@@ -3386,6 +4289,27 @@
    "hash": "8ade0a1822de5ceadb8526fa82ed32fadb8ab0d693b0cbea8123b4ffcc3cc084"
   },
   {
+   "style": "comic-book-bubble",
+   "fixture": "english",
+   "tMs": 80,
+   "commands": 14,
+   "hash": "0083879cdde82dfa28b1496e816332b05d050c070dd4e4c55a7702b265566b34"
+  },
+  {
+   "style": "comic-book-bubble",
+   "fixture": "english",
+   "tMs": 1500,
+   "commands": 13,
+   "hash": "0bb816c0725fd5887e021004f84a3116b4da93dd9930c70df959ce4fd589974b"
+  },
+  {
+   "style": "comic-book-bubble",
+   "fixture": "english",
+   "tMs": 2940,
+   "commands": 13,
+   "hash": "f1592a0eca404c270706b5306fc8e1554e00781fffc9d17915c9145e39ac5b44"
+  },
+  {
    "style": "duo-tone",
    "fixture": "english",
    "tMs": 80,
@@ -3405,6 +4329,90 @@
    "tMs": 2940,
    "commands": 22,
    "hash": "9753fdb446034b0cbb6c24fd116d7d4ac343698a8385e3847158a3c5d6fa0e38"
+  },
+  {
+   "style": "editorial-ghost-type",
+   "fixture": "english",
+   "tMs": 80,
+   "commands": 9,
+   "hash": "5f4403798028e1b37765bee263fef6c8b13a3422799cf6f44ba4897af5c08ab1"
+  },
+  {
+   "style": "editorial-ghost-type",
+   "fixture": "english",
+   "tMs": 1500,
+   "commands": 24,
+   "hash": "7067b0a1d096e85a4cb79bbd20e1e15fba8c980f29abd4b6ef04bb85b2d92d32"
+  },
+  {
+   "style": "editorial-ghost-type",
+   "fixture": "english",
+   "tMs": 2940,
+   "commands": 12,
+   "hash": "c7734c04c39ee3a121b3896442f32e9cd7c3c47fe7cce4b63eaff22214e22be1"
+  },
+  {
+   "style": "editorial-keyword-zoom",
+   "fixture": "english",
+   "tMs": 80,
+   "commands": 9,
+   "hash": "572d743c525c25ed4adfe177a7627e0b6614b29e211f99f638c036176b1a7d04"
+  },
+  {
+   "style": "editorial-keyword-zoom",
+   "fixture": "english",
+   "tMs": 1500,
+   "commands": 24,
+   "hash": "70518696c9d3a53b6549b57902baf6c6e22e65a7444a6b008f67374e90778006"
+  },
+  {
+   "style": "editorial-keyword-zoom",
+   "fixture": "english",
+   "tMs": 2940,
+   "commands": 12,
+   "hash": "e6c2b6c3ffe5695517ef8b739f0c73542539a2e032be6cd5909f6090b1f96960"
+  },
+  {
+   "style": "editorial-stack",
+   "fixture": "english",
+   "tMs": 80,
+   "commands": 27,
+   "hash": "324829dd0b9f100a7ac6236ba6a72a837784714eda5a455df826243e8599558a"
+  },
+  {
+   "style": "editorial-stack",
+   "fixture": "english",
+   "tMs": 1500,
+   "commands": 27,
+   "hash": "f4aaa9c5f79fb0e5bc61601c5cce730d46a4ca261bcfb9f41d8dfa856b23be9f"
+  },
+  {
+   "style": "editorial-stack",
+   "fixture": "english",
+   "tMs": 2940,
+   "commands": 9,
+   "hash": "3f89ad7858f6e350547c52faf3b046f382c05f498578d7b273b45927a7ca9c48"
+  },
+  {
+   "style": "elegant-cursive",
+   "fixture": "english",
+   "tMs": 80,
+   "commands": 12,
+   "hash": "faedf7342efc8c5edd3184ed9c801fa9df7f9db7fa7e0729ee24e6863c983a38"
+  },
+  {
+   "style": "elegant-cursive",
+   "fixture": "english",
+   "tMs": 1500,
+   "commands": 12,
+   "hash": "8523b9e8853d52cffd2dd41f3caf7ca5eefda52e96cb297e8137aaed4bc848b2"
+  },
+  {
+   "style": "elegant-cursive",
+   "fixture": "english",
+   "tMs": 2940,
+   "commands": 12,
+   "hash": "f9b938b54585448c75d178921cf5b8c7119ee8090f79d5a8eb302ff03f9e1bce"
   },
   {
    "style": "estate-bounce",
@@ -3680,6 +4688,27 @@
    "hash": "3de9527b3df1c44370eaec446399b658f785b2cbb8e173c7cc3486397345b730"
   },
   {
+   "style": "gold-luxury-serif",
+   "fixture": "english",
+   "tMs": 80,
+   "commands": 21,
+   "hash": "fd03c367cc2512b568d5e024da11a65d359b22d1ca38c2886113ee172a481c3e"
+  },
+  {
+   "style": "gold-luxury-serif",
+   "fixture": "english",
+   "tMs": 1500,
+   "commands": 21,
+   "hash": "ad1bb2ab5c55c81dfd9c23001f5db507a457ca1420663b5245d2d3a91b3371b4"
+  },
+  {
+   "style": "gold-luxury-serif",
+   "fixture": "english",
+   "tMs": 2940,
+   "commands": 21,
+   "hash": "09cde2ae432de3a54aaaaf9e7b00af54055f6e99b68372af841c8f00fd9e19df"
+  },
+  {
    "style": "gradient-sweep",
    "fixture": "english",
    "tMs": 80,
@@ -3699,6 +4728,27 @@
    "tMs": 2940,
    "commands": 15,
    "hash": "6023cc9e58d7d0f5a50ca0aaa318214ff03c21bb21c4bc44cc1dd05658bb5b07"
+  },
+  {
+   "style": "handwritten-marker",
+   "fixture": "english",
+   "tMs": 80,
+   "commands": 14,
+   "hash": "026fb09936c36b69d966f9ab00a2889ed7d694729e25e4ff9f816dbcb63466a8"
+  },
+  {
+   "style": "handwritten-marker",
+   "fixture": "english",
+   "tMs": 1500,
+   "commands": 13,
+   "hash": "700dbb248cf2945e41c78a5eb2d0758bcd2414a82ad5fbbea6598a8d149c3240"
+  },
+  {
+   "style": "handwritten-marker",
+   "fixture": "english",
+   "tMs": 2940,
+   "commands": 9,
+   "hash": "ee481f6d4dccccdb30e0029a0b4b08a322d3113f638e55d7dd30cb24c44fecfa"
   },
   {
    "style": "highlight-marker",
@@ -4163,6 +5213,27 @@
    "hash": "52ef6a90372589b2b83ad10dc96ae3e73c93bebc50f057521d1ce7610801fbc5"
   },
   {
+   "style": "punjabi-native",
+   "fixture": "english",
+   "tMs": 80,
+   "commands": 8,
+   "hash": "39531bd9d717f304deb1d4dcf75289a2e5a47b5a12ef9c25cc7ac432d53d3232"
+  },
+  {
+   "style": "punjabi-native",
+   "fixture": "english",
+   "tMs": 1500,
+   "commands": 7,
+   "hash": "b1bdda6cee363aee61e3219718de8b4ac18f3f6f02eb5bad5893d087dc059b84"
+  },
+  {
+   "style": "punjabi-native",
+   "fixture": "english",
+   "tMs": 2940,
+   "commands": 3,
+   "hash": "850ef9efe96ee7afefee736fad9d1a74d41316413f8ea12faff55ed3843f7b35"
+  },
+  {
    "style": "quote-frame",
    "fixture": "english",
    "tMs": 80,
@@ -4182,6 +5253,48 @@
    "tMs": 2940,
    "commands": 13,
    "hash": "6dd34d386840190669be7c37f30115dfb3acca6bea21fcc07151e2032a690dc9"
+  },
+  {
+   "style": "signage-chunky",
+   "fixture": "english",
+   "tMs": 80,
+   "commands": 10,
+   "hash": "dbab571761ed31f7d6e3f1fbaa7398e94580dd9a65c4aa22abff273ae392f358"
+  },
+  {
+   "style": "signage-chunky",
+   "fixture": "english",
+   "tMs": 1500,
+   "commands": 8,
+   "hash": "21617df00858a9adaca9a67bc206d9c44fbb04fa0104f8d8c9097323e30463ee"
+  },
+  {
+   "style": "signage-chunky",
+   "fixture": "english",
+   "tMs": 2940,
+   "commands": 8,
+   "hash": "07d2bf17bd9aaa5072663f0b9825db40896c5532ed5e8d0ed1d0c3b02213b2fb"
+  },
+  {
+   "style": "soft-script-casual",
+   "fixture": "english",
+   "tMs": 80,
+   "commands": 15,
+   "hash": "45d30e4593a81d97ed66cb5b3c1200787ac6b6b57229a2d21d0bec9c84c8f036"
+  },
+  {
+   "style": "soft-script-casual",
+   "fixture": "english",
+   "tMs": 1500,
+   "commands": 14,
+   "hash": "f5f6884054700a5571abfd31bdb2dcac02321bd29fcb200cebc15dba35a8d924"
+  },
+  {
+   "style": "soft-script-casual",
+   "fixture": "english",
+   "tMs": 2940,
+   "commands": 14,
+   "hash": "b4356264607485959ef8811276a974d082db3055a2f77702c62bc49399b81cc1"
   },
   {
    "style": "soft-serif",
@@ -4226,6 +5339,27 @@
    "hash": "690b24af536300ef3dbac895e3bf5aadd8f3e4310c27d265e5428a3d32c0d03d"
   },
   {
+   "style": "stencil-alert",
+   "fixture": "english",
+   "tMs": 80,
+   "commands": 11,
+   "hash": "79ec2cf794f6b7a3f5d045de33f327b4ac9c60a4716c67fc38507a64101f793a"
+  },
+  {
+   "style": "stencil-alert",
+   "fixture": "english",
+   "tMs": 1500,
+   "commands": 10,
+   "hash": "230a0d0b495a7d88884564c9016469cdee54e978a03d79ffcdc69e07db1a6224"
+  },
+  {
+   "style": "stencil-alert",
+   "fixture": "english",
+   "tMs": 2940,
+   "commands": 6,
+   "hash": "6ec0825c6dbaa8c1e3e61a0355f772e32dfe48bcdeac525300db3b8d68942375"
+  },
+  {
    "style": "stroke-heavy",
    "fixture": "english",
    "tMs": 80,
@@ -4268,6 +5402,27 @@
    "hash": "51c18a97445303187a2d8e86b2954210472e41781b14710f66704ad0829ba0b3"
   },
   {
+   "style": "tall-caps-condensed",
+   "fixture": "english",
+   "tMs": 80,
+   "commands": 13,
+   "hash": "0c978ad71d4d659139acef40f2b45b4d566fc68f1e65d43768556bbe5659ca4c"
+  },
+  {
+   "style": "tall-caps-condensed",
+   "fixture": "english",
+   "tMs": 1500,
+   "commands": 13,
+   "hash": "b823dae70b50b27e761de15e74d70b3eec623d66c33851b3c289e01cfb7dd41d"
+  },
+  {
+   "style": "tall-caps-condensed",
+   "fixture": "english",
+   "tMs": 2940,
+   "commands": 13,
+   "hash": "229c2f35072df1f9505e6065010d7867617e571576fd76e8858beb50c77d031a"
+  },
+  {
    "style": "tape-retro",
    "fixture": "english",
    "tMs": 80,
@@ -4287,6 +5442,27 @@
    "tMs": 2940,
    "commands": 42,
    "hash": "eef9dd717344d375530f3a6e45e8be34238d82de48eb155bb7cc19c3b57f55b4"
+  },
+  {
+   "style": "telugu-native",
+   "fixture": "english",
+   "tMs": 80,
+   "commands": 8,
+   "hash": "b4e52186c747c048dbf8d718f3c36f69fd18daae037e6ad6e7b15c8a96d60f33"
+  },
+  {
+   "style": "telugu-native",
+   "fixture": "english",
+   "tMs": 1500,
+   "commands": 7,
+   "hash": "af92b045cdc275eb917f152b3b3c4040080f6d4ecc3de7f0ab85f9d3361379da"
+  },
+  {
+   "style": "telugu-native",
+   "fixture": "english",
+   "tMs": 2940,
+   "commands": 3,
+   "hash": "8faba3b952595b87da92f4b191c3b063aaa2d1b17ac48b6ba76c0f956e604a7d"
   },
   {
    "style": "typewriter-mono",

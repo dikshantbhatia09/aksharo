@@ -4,12 +4,26 @@
   "exchanges": [
     {
       "method": "POST",
-      "path": "/speech-to-text/job/init",
+      "path": "/speech-to-text/job/v1",
+      "status": 202,
+      "json": {
+        "job_id": "job-1",
+        "storage_container_type": "Azure_V1",
+        "job_state": "Accepted"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/upload-files",
       "status": 200,
       "json": {
         "job_id": "job-1",
-        "input_storage_path": "https://sarvamblob.test/job-1?sv=2026-01-01&sig=replay",
-        "output_storage_path": "https://sarvamblob.test/job-1-out?sv=2026-01-01&sig=replay"
+        "job_state": "Accepted",
+        "upload_urls": {
+          "chunk-0000.wav": {
+            "file_url": "https://sarvamblob.test/job-1/chunk-0000.wav?sv=2026-01-01&sig=replay"
+          }
+        }
       }
     },
     {
@@ -20,16 +34,7 @@
     },
     {
       "method": "POST",
-      "path": "/speech-to-text/job",
-      "status": 200,
-      "json": {
-        "job_id": "job-1",
-        "job_state": "Pending"
-      }
-    },
-    {
-      "method": "GET",
-      "path": "/speech-to-text/job/job-1/status",
+      "path": "/start",
       "status": 200,
       "json": {
         "job_id": "job-1",
@@ -38,11 +43,43 @@
     },
     {
       "method": "GET",
-      "path": "/speech-to-text/job/job-1/status",
+      "path": "/status",
       "status": 200,
       "json": {
         "job_id": "job-1",
-        "job_state": "Completed"
+        "job_state": "Running"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/status",
+      "status": 200,
+      "json": {
+        "job_id": "job-1",
+        "job_state": "Completed",
+        "job_details": [
+          {
+            "inputs": [{ "file_name": "chunk-0000.wav", "file_id": "f-in-1" }],
+            "outputs": [{ "file_name": "chunk-0000.json", "file_id": "f-out-1" }],
+            "state": "Success",
+            "error_message": null,
+            "exception_name": null
+          }
+        ]
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/download-files",
+      "status": 200,
+      "json": {
+        "job_id": "job-1",
+        "job_state": "Completed",
+        "download_urls": {
+          "chunk-0000.json": {
+            "file_url": "https://sarvamblob.test/job-1-out/chunk-0000.json?sv=2026-01-01&sig=replay"
+          }
+        }
       }
     },
     {

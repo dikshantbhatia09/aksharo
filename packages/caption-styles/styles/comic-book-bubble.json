@@ -1,0 +1,80 @@
+{
+  "id": "comic-book-bubble",
+  "name": "Comic Book Bubble",
+  "version": 2,
+  "category": "playful",
+  "minPlan": "free",
+  "typography": {
+    "fontFamily": "Bangers",
+    "fallbacks": ["Noto Sans Devanagari", "Noto Sans Tamil", "Noto Sans"],
+    "weight": 400,
+    "italic": false,
+    "sizePct": 5.5,
+    "lineHeight": 1.1,
+    "letterSpacingEm": 0.01,
+    "textTransform": "none"
+  },
+  "colors": {
+    "text": "#1a1a1a",
+    "activeText": "#e8332a",
+    "accent": "#e8332a"
+  },
+  "box": {
+    "enabled": true,
+    "mode": "line",
+    "fill": "#ffffff",
+    "paddingPct": 30,
+    "radiusPct": 40,
+    "opacity": 1
+  },
+  "stroke": {
+    "enabled": true,
+    "color": "#1a1a1a",
+    "widthPct": 6
+  },
+  "shadow": {
+    "enabled": false,
+    "offsetXPct": 0,
+    "offsetYPct": 0,
+    "blurPct": 0,
+    "opacity": 0
+  },
+  "layout": {
+    "anchor": "center",
+    "x": 0.5,
+    "y": 0.5,
+    "align": "center",
+    "maxWidthPct": 82,
+    "maxLines": 3,
+    "wordsPerCue": 5,
+    "safeAreaPct": 8
+  },
+  "animation": {
+    "in": {
+      "type": "bounce",
+      "durationMs": 220
+    },
+    "out": {
+      "type": "fade",
+      "durationMs": 140
+    },
+    "wordHighlight": {
+      "type": "color",
+      "durationMs": 120
+    },
+    "perWord": false
+  },
+  "emphasisPresets": [
+    {
+      "id": "pow",
+      "label": "Pow",
+      "color": "#e8332a",
+      "scale": 1.3,
+      "effect": "shake"
+    }
+  ],
+  "assRenderable": false,
+  "assExportable": true,
+  "requiresLayoutMetrics": true,
+  "parityScore": 0.847
+}

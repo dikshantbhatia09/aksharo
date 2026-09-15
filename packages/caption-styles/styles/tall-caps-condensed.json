@@ -1,0 +1,77 @@
+{
+  "id": "tall-caps-condensed",
+  "name": "Tall Caps Condensed",
+  "version": 2,
+  "category": "clean",
+  "minPlan": "free",
+  "typography": {
+    "fontFamily": "Bebas Neue",
+    "fallbacks": ["Noto Sans Devanagari", "Noto Sans Tamil", "Noto Sans"],
+    "weight": 400,
+    "italic": false,
+    "sizePct": 4.4,
+    "lineHeight": 1.1,
+    "letterSpacingEm": 0.04,
+    "textTransform": "uppercase"
+  },
+  "colors": {
+    "text": "#ffffff",
+    "activeText": "#ffffff",
+    "accent": "#5ec8ff"
+  },
+  "box": {
+    "enabled": false,
+    "mode": "line",
+    "paddingPct": 16,
+    "radiusPct": 0,
+    "opacity": 0
+  },
+  "stroke": {
+    "enabled": false,
+    "widthPct": 0
+  },
+  "shadow": {
+    "enabled": true,
+    "color": "#000000",
+    "offsetXPct": 0,
+    "offsetYPct": 3,
+    "blurPct": 8,
+    "opacity": 0.5
+  },
+  "layout": {
+    "anchor": "bottom-center",
+    "x": 0.5,
+    "y": 0.85,
+    "align": "center",
+    "maxWidthPct": 90,
+    "maxLines": 2,
+    "safeAreaPct": 8
+  },
+  "animation": {
+    "in": {
+      "type": "fade",
+      "durationMs": 140
+    },
+    "out": {
+      "type": "fade",
+      "durationMs": 100
+    },
+    "wordHighlight": {
+      "type": "underline",
+      "durationMs": 100
+    },
+    "perWord": false
+  },
+  "emphasisPresets": [
+    {
+      "id": "accent-word",
+      "label": "Accent",
+      "color": "#5ec8ff",
+      "effect": "none"
+    }
+  ],
+  "assRenderable": true,
+  "assExportable": true,
+  "requiresLayoutMetrics": true,
+  "parityScore": 0.9597
+}

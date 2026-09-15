@@ -27,6 +27,77 @@ import { fileURLToPath } from "node:url";
 const require = createRequire(import.meta.url);
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
+// The condensed display face used by editorial typography, shared with export.
+mkdirSync(join(root, "public", "fonts"), { recursive: true });
+copyFileSync(
+  require.resolve("@montaj/fonts/pack/anton-400.ttf"),
+  join(root, "public", "fonts", "anton-400.ttf"),
+);
+
+// Every other bundled-catalogue face the font picker (`RightPanel.tsx`'s
+// `CATALOGUE`-driven Font Family list) can already offer but `use-canvaskit.ts`
+// could not yet draw before this pass — picking one of these from the picker
+// used to silently fall back to whichever registered face happened to cover
+// the same code points. `anton-400` above predates this and stays a separate,
+// explicit copy since export's font-pack story (`RENDER_FONT_DIR`) already
+// depends on that exact call.
+for (const file of [
+  "montserrat-400.ttf",
+  "montserrat-600.ttf",
+  "montserrat-800.ttf",
+  "montserrat-900.ttf",
+  "poppins-400.ttf",
+  "poppins-700.ttf",
+  "poppins-800.ttf",
+  "roboto-mono-500.ttf",
+  "roboto-mono-700.ttf",
+  "bricolage-grotesque-700.ttf",
+  "bricolage-grotesque-800.ttf",
+  "jetbrains-mono-400.ttf",
+  "jetbrains-mono-700.ttf",
+  "oswald-400.ttf",
+  "oswald-700.ttf",
+  "raleway-400.ttf",
+  "raleway-700.ttf",
+  "nunito-400.ttf",
+  "nunito-700.ttf",
+  "dm-sans-400.ttf",
+  "dm-sans-700.ttf",
+  "bebas-neue-400.ttf",
+  "black-ops-one-400.ttf",
+  "bungee-400.ttf",
+  "bangers-400.ttf",
+  "pacifico-400.ttf",
+  "caveat-400.ttf",
+  "caveat-700.ttf",
+  "dancing-script-400.ttf",
+  "dancing-script-700.ttf",
+  "permanent-marker-400.ttf",
+  "satisfy-400.ttf",
+  "noto-sans-bengali-400.ttf",
+  "noto-sans-bengali-700.ttf",
+  "noto-sans-gurmukhi-400.ttf",
+  "noto-sans-gurmukhi-700.ttf",
+  "noto-sans-gujarati-400.ttf",
+  "noto-sans-gujarati-700.ttf",
+  "noto-sans-oriya-400.ttf",
+  "noto-sans-oriya-700.ttf",
+  "noto-sans-telugu-400.ttf",
+  "noto-sans-telugu-700.ttf",
+  "noto-sans-kannada-400.ttf",
+  "noto-sans-kannada-700.ttf",
+  "noto-sans-malayalam-400.ttf",
+  "noto-sans-malayalam-700.ttf",
+  "noto-sans-ol-chiki-400.ttf",
+  "noto-sans-ol-chiki-700.ttf",
+  "noto-sans-meetei-mayek-400.ttf",
+  "noto-sans-meetei-mayek-700.ttf",
+  "noto-sans-arabic-400.ttf",
+  "noto-sans-arabic-700.ttf",
+]) {
+  copyFileSync(require.resolve(`@montaj/fonts/pack/${file}`), join(root, "public", "fonts", file));
+}
+
 // `canvaskit-wasm` belongs to `@montaj/render-canvaskit`, not to the app, and
 // pnpm's strict layout means it is only resolvable from there.
 const backendRoot = dirname(require.resolve("@montaj/render-canvaskit/package.json"));

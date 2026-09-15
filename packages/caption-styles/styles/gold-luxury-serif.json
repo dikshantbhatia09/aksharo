@@ -1,0 +1,77 @@
+{
+  "id": "gold-luxury-serif",
+  "name": "Gold Luxury Serif",
+  "version": 2,
+  "category": "cinematic",
+  "minPlan": "free",
+  "typography": {
+    "fontFamily": "Raleway",
+    "fallbacks": ["Noto Sans Devanagari", "Noto Sans Tamil", "Noto Sans"],
+    "weight": 700,
+    "italic": false,
+    "sizePct": 4.2,
+    "lineHeight": 1.2,
+    "letterSpacingEm": 0.08,
+    "textTransform": "none"
+  },
+  "colors": {
+    "text": "#ffd76a",
+    "activeText": "#ffffff",
+    "accent": "#ffffff"
+  },
+  "box": {
+    "enabled": false,
+    "mode": "line",
+    "paddingPct": 16,
+    "radiusPct": 0,
+    "opacity": 0
+  },
+  "stroke": {
+    "enabled": true,
+    "color": "#5a3c1a",
+    "widthPct": 3
+  },
+  "shadow": {
+    "enabled": false,
+    "offsetXPct": 0,
+    "offsetYPct": 0,
+    "blurPct": 0,
+    "opacity": 0
+  },
+  "layout": {
+    "anchor": "center",
+    "x": 0.5,
+    "y": 0.5,
+    "align": "center",
+    "maxWidthPct": 78,
+    "maxLines": 3,
+    "safeAreaPct": 10
+  },
+  "animation": {
+    "in": {
+      "type": "fade",
+      "durationMs": 260
+    },
+    "out": {
+      "type": "fade",
+      "durationMs": 200
+    },
+    "wordHighlight": {
+      "type": "color",
+      "durationMs": 140
+    },
+    "perWord": false
+  },
+  "emphasisPresets": [
+    {
+      "id": "spotlight",
+      "label": "Spotlight",
+      "color": "#ffffff",
+      "effect": "glow"
+    }
+  ],
+  "assRenderable": true,
+  "assExportable": true,
+  "requiresLayoutMetrics": true,
+  "parityScore": 0.9627
+}

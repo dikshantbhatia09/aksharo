@@ -109,7 +109,7 @@ describe("the bundled pack", () => {
     for (const face of manifest.fonts) {
       expect(face.upstream?.repo).toBe("google/fonts");
       expect(face.upstream?.ref).toMatch(/^[0-9a-f]{40}$/);
-      expect(face.upstream?.path).toMatch(/^ofl\//);
+      expect(face.upstream?.path).toMatch(/^(ofl|apache)\//);
     }
   });
 

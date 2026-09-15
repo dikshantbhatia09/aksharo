@@ -69,6 +69,7 @@ import {
   progress,
   shakeOffset,
 } from "./easing.js";
+import { typographyMotionCommands } from "./typography-motion.js";
 
 export interface AnimateOptions {
   readonly layout: Layout;
@@ -237,14 +238,14 @@ const KINETIC_FLOW_CYCLE: readonly {
   readonly in: StyleDoc["animation"]["in"]["type"];
   readonly out: StyleDoc["animation"]["out"]["type"];
 }[] = [
-  { in: "pop", out: "slide-left" },       // Cue 0: Scale punch -> camera pans right (cue exits left)
-  { in: "slide-left", out: "slide-up" },   // Cue 1: Enters from right -> camera shifts down (cue exits up)
-  { in: "slide-up", out: "slide-right" },  // Cue 2: Enters from bottom -> camera pans left (cue exits right)
-  { in: "slide-right", out: "zoom" },      // Cue 3: Enters from left -> zoom dissolve
-  { in: "zoom", out: "slide-down" },       // Cue 4: Expanding center disc -> camera moves up
-  { in: "bounce", out: "slide-left" },     // Cue 5: Top impact slam -> camera pans right
-  { in: "slide-left", out: "pop" },        // Cue 6: Horizontal tracking sweep -> cyan pop
-  { in: "bounce", out: "fade" },           // Cue 7: Flat slab punch slam (0° tilt) -> fade
+  { in: "pop", out: "slide-left" }, // Cue 0: Scale punch -> camera pans right (cue exits left)
+  { in: "slide-left", out: "slide-up" }, // Cue 1: Enters from right -> camera shifts down (cue exits up)
+  { in: "slide-up", out: "slide-right" }, // Cue 2: Enters from bottom -> camera pans left (cue exits right)
+  { in: "slide-right", out: "zoom" }, // Cue 3: Enters from left -> zoom dissolve
+  { in: "zoom", out: "slide-down" }, // Cue 4: Expanding center disc -> camera moves up
+  { in: "bounce", out: "slide-left" }, // Cue 5: Top impact slam -> camera pans right
+  { in: "slide-left", out: "pop" }, // Cue 6: Horizontal tracking sweep -> cyan pop
+  { in: "bounce", out: "fade" }, // Cue 7: Flat slab punch slam (0° tilt) -> fade
 ];
 
 function parseSeq(seq: string | number | undefined): number | undefined {
@@ -278,7 +279,9 @@ function resolveCueAnimationTypes(
       : layout?.startMs !== undefined
         ? Math.floor(layout.startMs / 2000)
         : 0;
-  const cycle = KINETIC_FLOW_CYCLE[idx % KINETIC_FLOW_CYCLE.length] ?? KINETIC_FLOW_CYCLE[0]!;
+  const cycle =
+    KINETIC_FLOW_CYCLE[idx % KINETIC_FLOW_CYCLE.length] ??
+    ({ in: "pop", out: "slide-left" } as const);
   return {
     inType: style.animation.in.type === "kinetic-flow" ? cycle.in : style.animation.in.type,
     outType: style.animation.out.type === "kinetic-flow" ? cycle.out : style.animation.out.type,
@@ -763,7 +766,17 @@ function lineCommands(
 /** Blocks the whole caption sits on: the `block` box, plus any backdrop blur. */
 function blockGround(style: StyleDoc, layout: Layout): DrawCommand[] {
   if (!style.box.enabled || style.box.mode !== "block") return [];
-  const box = layout.paddedBox;
+  const centreY = (layout.paddedBox[1] + layout.paddedBox[3]) / 2;
+  const panelHeight = Math.max(rectHeight(layout.paddedBox), (layout.canvas.width * 9) / 16);
+  const box: Rect =
+    style.animation.typographyMotion === undefined
+      ? layout.paddedBox
+      : [
+          0,
+          Math.max(0, centreY - panelHeight / 2),
+          layout.canvas.width,
+          Math.min(layout.canvas.height, centreY + panelHeight / 2),
+        ];
   const radius = boxRadius(box, style.box.radiusPct);
   const panel = roundRect(box, radius, radius, { fill: boxFill(style, box) });
   if (!capabilitiesOf(style.id).backdrop) return [panel];
@@ -840,7 +853,8 @@ export function animate(options: AnimateOptions): DrawCommand[] {
   // function, specifically so the "line" scope below — every existing
   // style's behaviour, since `cueScope` is additive and absent on all of
   // them — is untouched line for line and the golden hashes cannot move.
-  if (style.animation.cueScope === "word") return animateWordScope(options);
+  if (style.animation.cueScope === "word" && style.animation.typographyMotion === undefined)
+    return animateWordScope(options);
 
   const phase = cueTiming(layout, style, tMs);
   if (phase.opacity <= 0) return [];
@@ -849,19 +863,26 @@ export function animate(options: AnimateOptions): DrawCommand[] {
   const totalWidth = layout.lines.reduce((sum, line) => sum + rectWidth(line.box), 0);
   let revealedBefore = 0;
 
-  for (const line of layout.lines) {
-    const commands = lineCommands(line, style, layout, tMs, options);
-    if (phase.reveal >= 1 || totalWidth <= 0) {
-      body.push(...commands);
+  if (style.animation.typographyMotion !== undefined) {
+    body.push(
+      ...typographyMotionCommands(layout, style, tMs, (word) =>
+        wordCommands(word, style, layout, tMs, options),
+      ),
+    );
+  } else
+    for (const line of layout.lines) {
+      const commands = lineCommands(line, style, layout, tMs, options);
+      if (phase.reveal >= 1 || totalWidth <= 0) {
+        body.push(...commands);
+        revealedBefore += rectWidth(line.box);
+        continue;
+      }
+      const revealed = phase.reveal * totalWidth - revealedBefore;
       revealedBefore += rectWidth(line.box);
-      continue;
+      if (revealed <= 0) continue;
+      const right = Math.min(line.box[2], line.box[0] + revealed);
+      body.push(clipRect([line.box[0], line.box[1], right, line.box[3]], commands));
     }
-    const revealed = phase.reveal * totalWidth - revealedBefore;
-    revealedBefore += rectWidth(line.box);
-    if (revealed <= 0) continue;
-    const right = Math.min(line.box[2], line.box[0] + revealed);
-    body.push(clipRect([line.box[0], line.box[1], right, line.box[3]], commands));
-  }
 
   let content: DrawCommand[] = rasterCopies(style, layout, tMs, body);
 

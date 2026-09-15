@@ -337,12 +337,28 @@ export const AnimationSchema = z.object({
    * exactly as before.
    */
   dynamicSpeed: z.boolean().optional(),
+  /** Speech-timed editorial compositions, shared by preview and video export. */
+  typographyMotion: z
+    .object({
+      mode: z.enum(["focus", "stack", "echo"]),
+      /** The emphasis preset used for the automatically chosen keyword. */
+      keywordPresetId: z.string().min(2).max(32),
+      ghostOpacity: z.number().min(0).max(0.4),
+    })
+    .optional(),
   /**
    * Kinetic typography lockup mode: standard subtitle flow, auto-scaled stacked lockup,
    * split perpendicular (sidebar + main), continuous cross-axis orbit, or isometric tilt.
    */
   lockupMode: z
-    .enum(["standard", "stacked-fit", "split-perpendicular", "cross-axis", "isometric-angle", "kinetic-flow"])
+    .enum([
+      "standard",
+      "stacked-fit",
+      "split-perpendicular",
+      "cross-axis",
+      "isometric-angle",
+      "kinetic-flow",
+    ])
     .optional(),
   /** Virtual camera / canvas rotation in degrees (e.g. -90, 90, -25). */
   cameraRotationDeg: z.number().min(-360).max(360).optional(),

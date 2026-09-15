@@ -13,11 +13,17 @@
 
 import type { StyleDoc } from "@montaj/caption-styles";
 import arcadePixel from "@montaj/caption-styles/styles/arcade-pixel.json";
+import bengaliNative from "@montaj/caption-styles/styles/bengali-native.json";
 import boldDrop from "@montaj/caption-styles/styles/bold-drop.json";
 import boxBlock from "@montaj/caption-styles/styles/box-block.json";
 import bubbleSoft from "@montaj/caption-styles/styles/bubble-soft.json";
 import captionCard from "@montaj/caption-styles/styles/caption-card.json";
+import comicBookBubble from "@montaj/caption-styles/styles/comic-book-bubble.json";
 import duoTone from "@montaj/caption-styles/styles/duo-tone.json";
+import editorialGhostType from "@montaj/caption-styles/styles/editorial-ghost-type.json";
+import editorialKeywordZoom from "@montaj/caption-styles/styles/editorial-keyword-zoom.json";
+import editorialStack from "@montaj/caption-styles/styles/editorial-stack.json";
+import elegantCursive from "@montaj/caption-styles/styles/elegant-cursive.json";
 import estateBounce from "@montaj/caption-styles/styles/estate-bounce.json";
 import estateCharTypewriter from "@montaj/caption-styles/styles/estate-char-typewriter.json";
 import estateContemporary from "@montaj/caption-styles/styles/estate-contemporary.json";
@@ -31,7 +37,9 @@ import estateTrackingSlide from "@montaj/caption-styles/styles/estate-tracking-s
 import estateWordFade from "@montaj/caption-styles/styles/estate-word-fade.json";
 import estateWordPop from "@montaj/caption-styles/styles/estate-word-pop.json";
 import glitchShift from "@montaj/caption-styles/styles/glitch-shift.json";
+import goldLuxurySerif from "@montaj/caption-styles/styles/gold-luxury-serif.json";
 import gradientSweep from "@montaj/caption-styles/styles/gradient-sweep.json";
+import handwrittenMarker from "@montaj/caption-styles/styles/handwritten-marker.json";
 import highlightMarker from "@montaj/caption-styles/styles/highlight-marker.json";
 import hypeBold from "@montaj/caption-styles/styles/hype-bold.json";
 import impactShout from "@montaj/caption-styles/styles/impact-shout.json";
@@ -54,12 +62,18 @@ import plainWhite from "@montaj/caption-styles/styles/plain-white.json";
 import podcastDuo from "@montaj/caption-styles/styles/podcast-duo.json";
 import prismSplit from "@montaj/caption-styles/styles/prism-split.json";
 import punchPop from "@montaj/caption-styles/styles/punch-pop.json";
+import punjabiNative from "@montaj/caption-styles/styles/punjabi-native.json";
 import quoteFrame from "@montaj/caption-styles/styles/quote-frame.json";
+import signageChunky from "@montaj/caption-styles/styles/signage-chunky.json";
+import softScriptCasual from "@montaj/caption-styles/styles/soft-script-casual.json";
 import softSerif from "@montaj/caption-styles/styles/soft-serif.json";
 import spotlightWord from "@montaj/caption-styles/styles/spotlight-word.json";
+import stencilAlert from "@montaj/caption-styles/styles/stencil-alert.json";
 import strokeHeavy from "@montaj/caption-styles/styles/stroke-heavy.json";
 import subtitleClassic from "@montaj/caption-styles/styles/subtitle-classic.json";
+import tallCapsCondensed from "@montaj/caption-styles/styles/tall-caps-condensed.json";
 import tapeRetro from "@montaj/caption-styles/styles/tape-retro.json";
+import teluguNative from "@montaj/caption-styles/styles/telugu-native.json";
 import typewriterMono from "@montaj/caption-styles/styles/typewriter-mono.json";
 import verticalClean from "@montaj/caption-styles/styles/vertical-clean.json";
 import whisperThin from "@montaj/caption-styles/styles/whisper-thin.json";
@@ -73,11 +87,17 @@ import wordPop from "@montaj/caption-styles/styles/word-pop.json";
  */
 const DOCUMENTS: readonly unknown[] = [
   arcadePixel,
+  bengaliNative,
   boldDrop,
   boxBlock,
   bubbleSoft,
   captionCard,
+  comicBookBubble,
   duoTone,
+  editorialGhostType,
+  editorialKeywordZoom,
+  editorialStack,
+  elegantCursive,
   estateBounce,
   estateCharTypewriter,
   estateContemporary,
@@ -91,7 +111,9 @@ const DOCUMENTS: readonly unknown[] = [
   estateWordFade,
   estateWordPop,
   glitchShift,
+  goldLuxurySerif,
   gradientSweep,
+  handwrittenMarker,
   highlightMarker,
   hypeBold,
   impactShout,
@@ -114,12 +136,18 @@ const DOCUMENTS: readonly unknown[] = [
   podcastDuo,
   prismSplit,
   punchPop,
+  punjabiNative,
   quoteFrame,
+  signageChunky,
+  softScriptCasual,
   softSerif,
   spotlightWord,
+  stencilAlert,
   strokeHeavy,
   subtitleClassic,
+  tallCapsCondensed,
   tapeRetro,
+  teluguNative,
   typewriterMono,
   verticalClean,
   whisperThin,

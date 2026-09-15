@@ -1496,6 +1496,60 @@ function TransitionTile({
 
 export function AnimPanel({ style, scope, onOp, base }: TabProps): React.JSX.Element {
   const cueScope = style.animation.cueScope ?? "line";
+  const motion = style.animation.typographyMotion;
+  if (motion !== undefined)
+    return (
+      <div className="flex shrink-0 flex-col" data-testid="anim-panel">
+        <p className="text-fg-2 text-xs pb-3">
+          Words appear with your voice. Mark a word with the Keyword emphasis to choose the large
+          text; otherwise the longest word is used.
+        </p>
+        <SelectField
+          label="Typography motion"
+          path="animation.typographyMotion.mode"
+          value={motion.mode}
+          options={[
+            { value: "focus", label: "Keyword Zoom" },
+            { value: "stack", label: "Editorial Stack" },
+            { value: "echo", label: "Ghost Type" },
+          ]}
+          scope={scope}
+          onOp={onOp}
+        />
+        <SliderField
+          label="Ghost opacity"
+          path="animation.typographyMotion.ghostOpacity"
+          value={motion.ghostOpacity}
+          min={0}
+          max={0.4}
+          step={0.01}
+          scope={scope}
+          onOp={onOp}
+        />
+        <SliderField
+          label="Reveal duration"
+          path="animation.in.durationMs"
+          value={style.animation.in.durationMs}
+          min={0}
+          max={800}
+          step={10}
+          unit="ms"
+          scope={scope}
+          onOp={onOp}
+        />
+        <SliderField
+          label="Exit duration"
+          path="animation.out.durationMs"
+          value={style.animation.out.durationMs}
+          min={0}
+          max={600}
+          step={10}
+          unit="ms"
+          scope={scope}
+          onOp={onOp}
+        />
+      </div>
+    );
   return (
     <div className="flex shrink-0 flex-col" data-testid="anim-panel">
       {/*

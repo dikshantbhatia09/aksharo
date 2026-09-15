@@ -13,21 +13,38 @@ shape every line below, and neither is negotiable:
   `09 §2` is **mandatory** behind this adapter. A Saaras result reaches the EDG
   as ``segments``, never as words.
 
-## Wire contract (fixture-driven; verify at A00-06)
+## Wire contract (verified live 2026-09-14 against a real account)
+
+This adapter's first version guessed this shape from stale documentation
+without ever calling the vendor (see git history) — every real call 400'd on
+the very first request. The shape below was checked against Sarvam's current
+published API reference and confirmed with a live call:
 
 ```
-POST {SARVAM_BASE_URL}/speech-to-text/job/init
+POST {SARVAM_BASE_URL}/speech-to-text/job/v1
 api-subscription-key: {SARVAM_API_KEY}
-200 { "job_id": "...", "input_storage_path": "https://...?sas",
-      "output_storage_path": "https://...?sas" }
+{ "job_parameters": { "model": "saaras:v4", "mode": "codemix",
+  "language_code": "unknown", "with_timestamps": true,
+  "with_diarization": false, "keyterms": ["..."] } }
+202 { "job_id": "...", "storage_container_type": "Azure_V1", "job_state": "Accepted" }
 
-PUT {input_storage_path}/{name}.wav          x-ms-blob-type: BlockBlob
-POST {SARVAM_BASE_URL}/speech-to-text/job
-     { "job_id": "...", "job_parameters": { "model": "saaras:v4", "mode": "codemix",
-       "language_code": "unknown", "with_timestamps": true } }
-GET  {SARVAM_BASE_URL}/speech-to-text/job/{job_id}/status
-200  { "job_state": "Pending|Running|Completed|Failed", "error_message": null }
-GET  {output_storage_path}/{name}.json
+POST {SARVAM_BASE_URL}/speech-to-text/job/v1/upload-files
+{ "job_id": "...", "files": ["name.wav"] }
+200 { "upload_urls": { "name.wav": { "file_url": "https://...?sas" } } }
+
+PUT {file_url}                                     x-ms-blob-type: BlockBlob
+
+POST {SARVAM_BASE_URL}/speech-to-text/job/v1/{job_id}/start      (empty body)
+
+GET  {SARVAM_BASE_URL}/speech-to-text/job/v1/{job_id}/status
+200  { "job_state": "Pending|Running|Completed|Failed", "error_message": null,
+       "job_details": [ { "outputs": [ { "file_name": "name.json" } ] } ] }
+
+POST {SARVAM_BASE_URL}/speech-to-text/job/v1/download-files
+{ "job_id": "...", "files": ["name.json"] }
+200 { "download_urls": { "name.json": { "file_url": "https://...?sas" } } }
+
+GET  {file_url}
 200  { "language_code": "hi-IN",
        "transcript": "toh aaj hum baat karenge",
        "timestamps": { "chunks": [ { "text": "toh aaj hum",
@@ -35,12 +52,12 @@ GET  {output_storage_path}/{name}.json
                                      "end_time_seconds": 2.4 } ] } }
 ```
 
-No vendor key exists yet (A00-06), so the shapes above are what the recorded
-fixtures under ``worker_ai/fixtures/vendor/sarvam`` replay and what the manual
-smoke path in the README checks first. The parser accepts the two shapes the
-docs show for the chunk list and degrades to one whole-file segment when a
-response carries only ``transcript`` — a Saaras job that returned text is still
-usable, because the aligner is going to place the words anyway.
+The shapes above are what the recorded fixtures under
+``worker_ai/fixtures/vendor/sarvam`` replay and what the manual smoke path in
+the README checks first. The parser accepts the two shapes the docs show for
+the chunk list and degrades to one whole-file segment when a response carries
+only ``transcript`` — a Saaras job that returned text is still usable, because
+the aligner is going to place the words anyway.
 """
 
 from __future__ import annotations
@@ -155,22 +172,31 @@ class SarvamSaarasProvider(Provider):
         name = Path(request.audio_uri).name or "audio.wav"
         submissions: list[ProviderSubmission] = []
 
-        job = await self._init_job()
+        job = await self._create_job(mode=mode, language=request.language, hints=request.hints)
         job_id = str(job.get("job_id") or "")
         if not job_id:
             raise ProviderError(
                 "Sarvam did not return a job id", provider=self.name, retryable=True
             )
-        submissions.append(self._submission("/speech-to-text/job/init", name, job_id))
+        submissions.append(self._submission("/speech-to-text/job/v1", name, job_id))
 
-        await self._upload(str(job.get("input_storage_path") or ""), name, request.audio_uri)
+        upload_url = await self._upload_url(job_id, name)
+        submissions.append(self._submission("/speech-to-text/job/v1/upload-files", name, job_id))
+
+        await self._upload(upload_url, request.audio_uri)
         submissions.append(self._submission("azure-blob/input", name, job_id))
 
-        await self._start(job_id, mode=mode, language=request.language, hints=request.hints)
-        await self._await_completion(job_id)
+        await self._start(job_id)
+        outputs = await self._await_completion(job_id)
+        output_name = outputs[0] if outputs else name.rsplit(".", 1)[0] + ".json"
 
-        payload = await self._download(str(job.get("output_storage_path") or ""), name)
-        submissions.append(self._submission("azure-blob/output", name + ".json", job_id))
+        download_url = await self._download_url(job_id, output_name)
+        submissions.append(
+            self._submission("/speech-to-text/job/v1/download-files", output_name, job_id)
+        )
+
+        payload = await self._download(download_url)
+        submissions.append(self._submission("azure-blob/output", output_name, job_id))
 
         segments = _segments(payload, request.offset_ms)
         if not segments:
@@ -199,29 +225,11 @@ class SarvamSaarasProvider(Provider):
             raw={"model": self.model, "mode": mode, "jobId": job_id, "alignmentRequired": True},
         )
 
-    # -- the four Batch phases ---------------------------------------------
+    # -- the six Batch phases -----------------------------------------------
 
-    async def _init_job(self) -> dict[str, Any]:
-        return await self._http.json("POST", "/speech-to-text/job/init")
-
-    async def _upload(self, storage_path: str, name: str, audio_uri: str) -> None:
-        """PUT the chunk into the job's input container (Azure blob SAS)."""
-        if not storage_path:
-            raise ProviderError(
-                "Sarvam did not return an input storage path",
-                provider=self.name,
-                retryable=True,
-            )
-        await self._http.content(
-            "PUT",
-            _blob_url(storage_path, name),
-            body=_read(audio_uri, self.name),
-            headers={"x-ms-blob-type": "BlockBlob", "content-type": "audio/wav"},
-        )
-
-    async def _start(
-        self, job_id: str, *, mode: str, language: str | None, hints: tuple[str, ...]
-    ) -> None:
+    async def _create_job(
+        self, *, mode: str, language: str | None, hints: tuple[str, ...]
+    ) -> dict[str, Any]:
         parameters: dict[str, Any] = {
             "model": self.model,
             "mode": mode,
@@ -233,19 +241,43 @@ class SarvamSaarasProvider(Provider):
         }
         if hints:
             # Custom vocabulary where the vendor supports it (`09 §3`).
-            parameters["vocabulary"] = list(hints)
-        await self._http.json(
-            "POST",
-            "/speech-to-text/job",
-            json_body={"job_id": job_id, "job_parameters": parameters},
+            parameters["keyterms"] = list(hints)
+        return await self._http.json(
+            "POST", "/speech-to-text/job/v1", json_body={"job_parameters": parameters}
         )
 
-    async def _await_completion(self, job_id: str) -> None:
-        """Poll ``/status`` until the job leaves ``Pending``/``Running``."""
+    async def _upload_url(self, job_id: str, name: str) -> str:
+        """Ask the job for a presigned PUT URL for ``name`` (Azure blob SAS)."""
+        payload = await self._http.json(
+            "POST",
+            "/speech-to-text/job/v1/upload-files",
+            json_body={"job_id": job_id, "files": [name]},
+        )
+        return _presigned_url(payload, "upload_urls", name, self.name)
+
+    async def _upload(self, upload_url: str, audio_uri: str) -> None:
+        await self._http.content(
+            "PUT",
+            upload_url,
+            body=_read(audio_uri, self.name),
+            headers={"x-ms-blob-type": "BlockBlob", "content-type": "audio/wav"},
+        )
+
+    async def _start(self, job_id: str) -> None:
+        await self._http.json("POST", "/speech-to-text/job/v1/" + job_id + "/start")
+
+    async def _await_completion(self, job_id: str) -> tuple[str, ...]:
+        """Poll ``/status`` until the job leaves ``Pending``/``Running``.
+
+        Returns the output file names named in the final payload's
+        ``job_details``, so the caller knows what to ask ``download-files`` for.
+        """
 
         async def check() -> tuple[bool, dict[str, Any]]:
-            payload = await self._http.json("GET", "/speech-to-text/job/" + job_id + "/status")
-            state = str(payload.get("job_state") or payload.get("status") or "").lower()
+            payload = await self._http.json(
+                "GET", "/speech-to-text/job/v1/" + job_id + "/status"
+            )
+            state = str(payload.get("job_state") or "").lower()
             if state in {"failed", "error", "cancelled"}:
                 raise ProviderError(
                     "the Saaras job failed: " + _reason(payload),
@@ -254,23 +286,26 @@ class SarvamSaarasProvider(Provider):
                     # same answer. Routing falls back to the next candidate.
                     retryable=False,
                 )
-            return state in {"completed", "succeeded", "done"}, payload
+            return state in {"completed", "partiallycompleted"}, payload
 
-        await self._http.poll(
+        payload = await self._http.poll(
             check=check,
             interval_s=self.poll_interval_s,
             timeout_s=self.poll_timeout_s,
         )
+        return _output_names(payload)
 
-    async def _download(self, storage_path: str, name: str) -> dict[str, Any]:
-        if not storage_path:
-            raise ProviderError(
-                "Sarvam did not return an output storage path",
-                provider=self.name,
-                retryable=True,
-            )
-        stem = name.rsplit(".", 1)[0]
-        body = await self._http.content("GET", _blob_url(storage_path, stem + ".json"))
+    async def _download_url(self, job_id: str, name: str) -> str:
+        """Ask the job for a presigned GET URL for output file ``name``."""
+        payload = await self._http.json(
+            "POST",
+            "/speech-to-text/job/v1/download-files",
+            json_body={"job_id": job_id, "files": [name]},
+        )
+        return _presigned_url(payload, "download_urls", name, self.name)
+
+    async def _download(self, download_url: str) -> dict[str, Any]:
+        body = await self._http.content("GET", download_url)
         try:
             parsed: Any = json.loads(body.decode("utf-8"))
         except (UnicodeDecodeError, ValueError) as error:
@@ -331,16 +366,45 @@ def _vendor_language(tag: str | None) -> str:
     return normalised + "-IN"
 
 
-def _blob_url(storage_path: str, name: str) -> str:
-    """Join a SAS container URL and a blob name, keeping the query string.
+def _presigned_url(payload: dict[str, Any], key: str, name: str, provider: str) -> str:
+    """Pull ``payload[key][name]["file_url"]`` — the shape both upload-files and
+    download-files answer with, one presigned Azure blob URL per requested name.
 
-    ``https://acct.blob.core.windows.net/job-1?sv=...`` plus ``a.wav`` becomes
-    ``https://acct.blob.core.windows.net/job-1/a.wav?sv=...`` — the token lives
-    on the container, not on the blob.
+    A batch job in this product is always exactly one file (`max_parallel_requests
+    = 1`; D14 chunks are submitted one per job), so a single-entry map is used
+    even when its key does not echo the name we sent — do not require the vendor
+    to round-trip a name it may normalise or rename.
     """
-    head, _, query = storage_path.partition("?")
-    url = head.rstrip("/") + "/" + name.lstrip("/")
-    return url + "?" + query if query else url
+    urls = payload.get(key)
+    if not isinstance(urls, dict) or not urls:
+        raise ProviderError(
+            "Sarvam did not return any " + key, provider=provider, retryable=True
+        )
+    entry = urls.get(name)
+    if entry is None and len(urls) == 1:
+        entry = next(iter(urls.values()))
+    url = entry.get("file_url") if isinstance(entry, dict) else None
+    if not url:
+        raise ProviderError(
+            "Sarvam did not return a " + key + " entry for " + name,
+            provider=provider,
+            retryable=True,
+        )
+    return str(url)
+
+
+def _output_names(payload: dict[str, Any]) -> tuple[str, ...]:
+    """Output file names named in a completed job's ``job_details``."""
+    names: list[str] = []
+    for detail in payload.get("job_details") or []:
+        if not isinstance(detail, dict):
+            continue
+        for output in detail.get("outputs") or []:
+            if isinstance(output, dict):
+                name = output.get("file_name")
+                if isinstance(name, str) and name:
+                    names.append(name)
+    return tuple(names)
 
 
 def _segments(payload: dict[str, Any], offset_ms: int) -> tuple[tuple[int, int, str], ...]:

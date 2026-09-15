@@ -1,0 +1,84 @@
+{
+  "id": "stencil-alert",
+  "name": "Stencil Alert",
+  "version": 2,
+  "category": "gaming",
+  "minPlan": "free",
+  "typography": {
+    "fontFamily": "Black Ops One",
+    "fallbacks": ["Noto Sans Devanagari", "Noto Sans Tamil", "Noto Sans"],
+    "weight": 400,
+    "italic": false,
+    "sizePct": 5.4,
+    "lineHeight": 1.08,
+    "letterSpacingEm": 0.02,
+    "textTransform": "uppercase",
+    "scriptScale": {
+      "deva": 0.8,
+      "taml": 0.6
+    }
+  },
+  "colors": {
+    "text": "#e8e8e8",
+    "activeText": "#ff9d00",
+    "accent": "#ff9d00"
+  },
+  "box": {
+    "enabled": false,
+    "mode": "line",
+    "paddingPct": 16,
+    "radiusPct": 0,
+    "opacity": 0
+  },
+  "stroke": {
+    "enabled": true,
+    "color": "#000000",
+    "widthPct": 7
+  },
+  "shadow": {
+    "enabled": true,
+    "color": "#000000",
+    "offsetXPct": 3,
+    "offsetYPct": 3,
+    "blurPct": 0,
+    "opacity": 0.7
+  },
+  "layout": {
+    "anchor": "center",
+    "x": 0.5,
+    "y": 0.5,
+    "align": "center",
+    "maxWidthPct": 86,
+    "maxLines": 2,
+    "wordsPerCue": 4,
+    "safeAreaPct": 8
+  },
+  "animation": {
+    "in": {
+      "type": "slide-left",
+      "durationMs": 160
+    },
+    "out": {
+      "type": "hide",
+      "durationMs": 100
+    },
+    "wordHighlight": {
+      "type": "color",
+      "durationMs": 90
+    },
+    "perWord": false
+  },
+  "emphasisPresets": [
+    {
+      "id": "warn",
+      "label": "Warn",
+      "color": "#ff9d00",
+      "scale": 1.2,
+      "effect": "shake"
+    }
+  ],
+  "assRenderable": true,
+  "assExportable": true,
+  "requiresLayoutMetrics": true,
+  "parityScore": 0.9422
+}

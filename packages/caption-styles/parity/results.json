@@ -1,47 +1,57 @@
 {
-  "generatedAt": "2026-09-02T11:20:18.897Z",
+  "generatedAt": "2026-09-13T11:13:04.511Z",
   "maxDiffRatio": 0.01,
   "libassMeasured": true,
   "styles": {
     "arcade-pixel": {
       "styleId": "arcade-pixel",
-      "canvasVsSkia": 0.015196759259259259,
+      "canvasVsSkia": 0.014853395061728395,
       "assVsSkia": 0.09691743827160494,
       "assRenderable": false,
       "assExportable": true,
       "requiresLayoutMetrics": true,
       "warnings": ["word_highlight_per_word_events"],
-      "measuredAt": "2026-09-02T11:19:19.548Z"
+      "measuredAt": "2026-09-13T11:12:09.883Z"
     },
-    "bold-drop": {
-      "styleId": "bold-drop",
-      "canvasVsSkia": 0.008119212962962963,
-      "assVsSkia": 0.051487268518518516,
+    "bengali-native": {
+      "styleId": "bengali-native",
+      "canvasVsSkia": 0.011965663580246914,
+      "assVsSkia": 0.033331404320987655,
       "assRenderable": true,
       "assExportable": true,
       "requiresLayoutMetrics": true,
       "warnings": ["word_highlight_per_word_events"],
-      "measuredAt": "2026-09-02T11:19:21.502Z"
+      "measuredAt": "2026-09-13T11:12:10.377Z"
+    },
+    "bold-drop": {
+      "styleId": "bold-drop",
+      "canvasVsSkia": 0.007768132716049383,
+      "assVsSkia": 0.052849151234567904,
+      "assRenderable": true,
+      "assExportable": true,
+      "requiresLayoutMetrics": true,
+      "warnings": ["word_highlight_per_word_events"],
+      "measuredAt": "2026-09-13T11:12:11.413Z"
     },
     "box-block": {
       "styleId": "box-block",
-      "canvasVsSkia": 0.009920910493827161,
+      "canvasVsSkia": 0.009986496913580247,
       "assVsSkia": 0.10138117283950618,
       "assRenderable": false,
       "assExportable": true,
       "requiresLayoutMetrics": true,
       "warnings": ["word_highlight_per_word_events"],
-      "measuredAt": "2026-09-02T11:19:22.630Z"
+      "measuredAt": "2026-09-13T11:12:11.883Z"
     },
     "bubble-soft": {
       "styleId": "bubble-soft",
-      "canvasVsSkia": 0.00796682098765432,
+      "canvasVsSkia": 0.00802662037037037,
       "assVsSkia": 0.09962577160493827,
       "assRenderable": false,
       "assExportable": true,
       "requiresLayoutMetrics": true,
       "warnings": ["word_highlight_per_word_events"],
-      "measuredAt": "2026-09-02T11:19:24.484Z"
+      "measuredAt": "2026-09-13T11:12:12.745Z"
     },
     "caption-card": {
       "styleId": "caption-card",
@@ -51,7 +61,17 @@
       "assExportable": true,
       "requiresLayoutMetrics": true,
       "warnings": ["word_highlight_per_word_events"],
-      "measuredAt": "2026-09-02T11:19:26.425Z"
+      "measuredAt": "2026-09-13T11:12:13.621Z"
+    },
+    "comic-book-bubble": {
+      "styleId": "comic-book-bubble",
+      "canvasVsSkia": 0.012903163580246913,
+      "assVsSkia": 0.15303626543209878,
+      "assRenderable": false,
+      "assExportable": true,
+      "requiresLayoutMetrics": true,
+      "warnings": ["word_highlight_per_word_events"],
+      "measuredAt": "2026-09-13T11:12:14.191Z"
     },
     "duo-tone": {
       "styleId": "duo-tone",
@@ -61,17 +81,187 @@
       "assExportable": true,
       "requiresLayoutMetrics": true,
       "warnings": ["word_highlight_per_word_events"],
-      "measuredAt": "2026-09-02T11:19:28.356Z"
+      "measuredAt": "2026-09-13T11:12:15.184Z"
     },
-    "glitch-shift": {
-      "styleId": "glitch-shift",
-      "canvasVsSkia": 0.008794367283950617,
-      "assVsSkia": 0.0450462962962963,
+    "editorial-ghost-type": {
+      "styleId": "editorial-ghost-type",
+      "canvasVsSkia": 0.013059413580246914,
+      "assVsSkia": 0.31666666666666665,
+      "assRenderable": false,
+      "assExportable": true,
+      "requiresLayoutMetrics": false,
+      "warnings": [],
+      "measuredAt": "2026-09-13T11:12:15.738Z"
+    },
+    "editorial-keyword-zoom": {
+      "styleId": "editorial-keyword-zoom",
+      "canvasVsSkia": 0.013784722222222223,
+      "assVsSkia": 0.31666666666666665,
+      "assRenderable": false,
+      "assExportable": true,
+      "requiresLayoutMetrics": false,
+      "warnings": [],
+      "measuredAt": "2026-09-13T11:12:16.283Z"
+    },
+    "editorial-stack": {
+      "styleId": "editorial-stack",
+      "canvasVsSkia": 0.008775077160493827,
+      "assVsSkia": 0.31666666666666665,
+      "assRenderable": false,
+      "assExportable": true,
+      "requiresLayoutMetrics": false,
+      "warnings": [],
+      "measuredAt": "2026-09-13T11:12:16.990Z"
+    },
+    "elegant-cursive": {
+      "styleId": "elegant-cursive",
+      "canvasVsSkia": 0.011630015432098765,
+      "assVsSkia": 0.04964699074074074,
       "assRenderable": true,
       "assExportable": true,
       "requiresLayoutMetrics": true,
       "warnings": ["word_highlight_per_word_events"],
-      "measuredAt": "2026-09-02T11:19:30.719Z"
+      "measuredAt": "2026-09-13T11:12:17.852Z"
+    },
+    "estate-bounce": {
+      "styleId": "estate-bounce",
+      "canvasVsSkia": 0.0009162808641975308,
+      "assVsSkia": 0.021377314814814814,
+      "assRenderable": true,
+      "assExportable": true,
+      "requiresLayoutMetrics": true,
+      "warnings": ["word_highlight_per_word_events"],
+      "measuredAt": "2026-09-13T11:12:18.480Z"
+    },
+    "estate-char-typewriter": {
+      "styleId": "estate-char-typewriter",
+      "canvasVsSkia": 0.017677469135802468,
+      "assVsSkia": 0.05016975308641975,
+      "assRenderable": true,
+      "assExportable": true,
+      "requiresLayoutMetrics": false,
+      "warnings": [],
+      "measuredAt": "2026-09-13T11:12:19.552Z"
+    },
+    "estate-contemporary": {
+      "styleId": "estate-contemporary",
+      "canvasVsSkia": 0.01386766975308642,
+      "assVsSkia": 0.05109567901234568,
+      "assRenderable": true,
+      "assExportable": true,
+      "requiresLayoutMetrics": false,
+      "warnings": [],
+      "measuredAt": "2026-09-13T11:12:20.634Z"
+    },
+    "estate-editorial-luxury": {
+      "styleId": "estate-editorial-luxury",
+      "canvasVsSkia": 0.015073302469135802,
+      "assVsSkia": 0.039712577160493825,
+      "assRenderable": true,
+      "assExportable": true,
+      "requiresLayoutMetrics": true,
+      "warnings": ["word_highlight_per_word_events"],
+      "measuredAt": "2026-09-13T11:12:21.732Z"
+    },
+    "estate-flicker": {
+      "styleId": "estate-flicker",
+      "canvasVsSkia": 0.0021489197530864196,
+      "assVsSkia": 0.017995756172839505,
+      "assRenderable": true,
+      "assExportable": true,
+      "requiresLayoutMetrics": true,
+      "warnings": ["glow_reduced_to_outline"],
+      "measuredAt": "2026-09-13T11:12:22.349Z"
+    },
+    "estate-grand-reveal": {
+      "styleId": "estate-grand-reveal",
+      "canvasVsSkia": 0.018721064814814815,
+      "assVsSkia": 0.06506751543209877,
+      "assRenderable": false,
+      "assExportable": true,
+      "requiresLayoutMetrics": false,
+      "warnings": [],
+      "measuredAt": "2026-09-13T11:12:23.321Z"
+    },
+    "estate-modern-rise": {
+      "styleId": "estate-modern-rise",
+      "canvasVsSkia": 0.016263503086419752,
+      "assVsSkia": 0.05906635802469136,
+      "assRenderable": true,
+      "assExportable": true,
+      "requiresLayoutMetrics": false,
+      "warnings": [],
+      "measuredAt": "2026-09-13T11:12:24.413Z"
+    },
+    "estate-slide-ltr": {
+      "styleId": "estate-slide-ltr",
+      "canvasVsSkia": 0.010046296296296296,
+      "assVsSkia": 0.03321759259259259,
+      "assRenderable": true,
+      "assExportable": true,
+      "requiresLayoutMetrics": true,
+      "warnings": ["word_highlight_per_word_events"],
+      "measuredAt": "2026-09-13T11:12:25.487Z"
+    },
+    "estate-slide-rtl": {
+      "styleId": "estate-slide-rtl",
+      "canvasVsSkia": 0.010046296296296296,
+      "assVsSkia": 0.04966242283950617,
+      "assRenderable": true,
+      "assExportable": true,
+      "requiresLayoutMetrics": false,
+      "warnings": [],
+      "measuredAt": "2026-09-13T11:12:26.539Z"
+    },
+    "estate-tracking-slide": {
+      "styleId": "estate-tracking-slide",
+      "canvasVsSkia": 0.012853009259259258,
+      "assVsSkia": 0.050806327160493825,
+      "assRenderable": true,
+      "assExportable": true,
+      "requiresLayoutMetrics": false,
+      "warnings": [],
+      "measuredAt": "2026-09-13T11:12:27.616Z"
+    },
+    "estate-word-fade": {
+      "styleId": "estate-word-fade",
+      "canvasVsSkia": 0.007669753086419753,
+      "assVsSkia": 0.028659336419753087,
+      "assRenderable": true,
+      "assExportable": true,
+      "requiresLayoutMetrics": true,
+      "warnings": ["word_highlight_per_word_events"],
+      "measuredAt": "2026-09-13T11:12:28.625Z"
+    },
+    "estate-word-pop": {
+      "styleId": "estate-word-pop",
+      "canvasVsSkia": 0.0008275462962962963,
+      "assVsSkia": 0.016315586419753086,
+      "assRenderable": true,
+      "assExportable": true,
+      "requiresLayoutMetrics": true,
+      "warnings": ["word_highlight_per_word_events"],
+      "measuredAt": "2026-09-13T11:12:29.215Z"
+    },
+    "glitch-shift": {
+      "styleId": "glitch-shift",
+      "canvasVsSkia": 0.008794367283950617,
+      "assVsSkia": 0.0466454475308642,
+      "assRenderable": true,
+      "assExportable": true,
+      "requiresLayoutMetrics": true,
+      "warnings": ["word_highlight_per_word_events"],
+      "measuredAt": "2026-09-13T11:12:30.242Z"
+    },
+    "gold-luxury-serif": {
+      "styleId": "gold-luxury-serif",
+      "canvasVsSkia": 0.01830439814814815,
+      "assVsSkia": 0.03726466049382716,
+      "assRenderable": true,
+      "assExportable": true,
+      "requiresLayoutMetrics": true,
+      "warnings": ["word_highlight_per_word_events"],
+      "measuredAt": "2026-09-13T11:12:30.750Z"
     },
     "gradient-sweep": {
       "styleId": "gradient-sweep",
@@ -81,7 +271,17 @@
       "assExportable": true,
       "requiresLayoutMetrics": true,
       "warnings": ["word_highlight_per_word_events"],
-      "measuredAt": "2026-09-02T11:19:32.855Z"
+      "measuredAt": "2026-09-13T11:12:31.632Z"
+    },
+    "handwritten-marker": {
+      "styleId": "handwritten-marker",
+      "canvasVsSkia": 0.023292824074074073,
+      "assVsSkia": 0.05372106481481481,
+      "assRenderable": true,
+      "assExportable": true,
+      "requiresLayoutMetrics": true,
+      "warnings": ["word_highlight_per_word_events"],
+      "measuredAt": "2026-09-13T11:12:32.145Z"
     },
     "highlight-marker": {
       "styleId": "highlight-marker",
@@ -91,7 +291,7 @@
       "assExportable": true,
       "requiresLayoutMetrics": true,
       "warnings": ["word_highlight_per_word_events"],
-      "measuredAt": "2026-09-02T11:19:34.891Z"
+      "measuredAt": "2026-09-13T11:12:33.026Z"
     },
     "hype-bold": {
       "styleId": "hype-bold",
@@ -101,7 +301,7 @@
       "assExportable": true,
       "requiresLayoutMetrics": true,
       "warnings": ["word_highlight_per_word_events"],
-      "measuredAt": "2026-09-02T11:19:36.764Z"
+      "measuredAt": "2026-09-13T11:12:34.302Z"
     },
     "impact-shout": {
       "styleId": "impact-shout",
@@ -111,7 +311,7 @@
       "assExportable": true,
       "requiresLayoutMetrics": true,
       "warnings": [],
-      "measuredAt": "2026-09-02T11:19:38.242Z"
+      "measuredAt": "2026-09-13T11:12:35.153Z"
     },
     "karaoke-fill": {
       "styleId": "karaoke-fill",
@@ -121,7 +321,97 @@
       "assExportable": true,
       "requiresLayoutMetrics": true,
       "warnings": ["karaoke_non_latin_disabled"],
-      "measuredAt": "2026-09-02T11:19:39.252Z"
+      "measuredAt": "2026-09-13T11:12:35.622Z"
+    },
+    "kinetic-burst-shrink": {
+      "styleId": "kinetic-burst-shrink",
+      "canvasVsSkia": 0.01715470679012346,
+      "assVsSkia": 0.09728202160493828,
+      "assRenderable": false,
+      "assExportable": true,
+      "requiresLayoutMetrics": true,
+      "warnings": ["word_highlight_per_word_events"],
+      "measuredAt": "2026-09-13T11:12:36.619Z"
+    },
+    "kinetic-circle-wipe": {
+      "styleId": "kinetic-circle-wipe",
+      "canvasVsSkia": 0.015399305555555555,
+      "assVsSkia": 0.07624807098765432,
+      "assRenderable": false,
+      "assExportable": true,
+      "requiresLayoutMetrics": true,
+      "warnings": ["word_highlight_per_word_events"],
+      "measuredAt": "2026-09-13T11:12:37.673Z"
+    },
+    "kinetic-cross-orbit": {
+      "styleId": "kinetic-cross-orbit",
+      "canvasVsSkia": 0.01470679012345679,
+      "assVsSkia": 0.07889274691358025,
+      "assRenderable": false,
+      "assExportable": true,
+      "requiresLayoutMetrics": true,
+      "warnings": ["word_highlight_per_word_events"],
+      "measuredAt": "2026-09-13T11:12:38.659Z"
+    },
+    "kinetic-flow": {
+      "styleId": "kinetic-flow",
+      "canvasVsSkia": 0.014496527777777778,
+      "assVsSkia": 0.0930420524691358,
+      "assRenderable": false,
+      "assExportable": true,
+      "requiresLayoutMetrics": true,
+      "warnings": ["word_highlight_per_word_events"],
+      "measuredAt": "2026-09-13T11:12:39.631Z"
+    },
+    "kinetic-lockup-cyan": {
+      "styleId": "kinetic-lockup-cyan",
+      "canvasVsSkia": 0.01392746913580247,
+      "assVsSkia": 0.06989197530864198,
+      "assRenderable": false,
+      "assExportable": true,
+      "requiresLayoutMetrics": true,
+      "warnings": ["word_highlight_per_word_events"],
+      "measuredAt": "2026-09-13T11:12:40.543Z"
+    },
+    "kinetic-sidebar-shift": {
+      "styleId": "kinetic-sidebar-shift",
+      "canvasVsSkia": 0.015142746913580247,
+      "assVsSkia": 0.09233989197530865,
+      "assRenderable": false,
+      "assExportable": true,
+      "requiresLayoutMetrics": true,
+      "warnings": ["word_highlight_per_word_events"],
+      "measuredAt": "2026-09-13T11:12:41.499Z"
+    },
+    "kinetic-slab-punch": {
+      "styleId": "kinetic-slab-punch",
+      "canvasVsSkia": 0.011670524691358024,
+      "assVsSkia": 0.06884837962962963,
+      "assRenderable": false,
+      "assExportable": true,
+      "requiresLayoutMetrics": true,
+      "warnings": ["word_highlight_per_word_events"],
+      "measuredAt": "2026-09-13T11:12:42.566Z"
+    },
+    "kinetic-tracking-contrast": {
+      "styleId": "kinetic-tracking-contrast",
+      "canvasVsSkia": 0.011136188271604938,
+      "assVsSkia": 0.03647569444444444,
+      "assRenderable": true,
+      "assExportable": true,
+      "requiresLayoutMetrics": true,
+      "warnings": ["word_highlight_per_word_events"],
+      "measuredAt": "2026-09-13T11:12:43.620Z"
+    },
+    "kinetic-whip-script": {
+      "styleId": "kinetic-whip-script",
+      "canvasVsSkia": 0.017332175925925924,
+      "assVsSkia": 0.09411458333333333,
+      "assRenderable": false,
+      "assExportable": true,
+      "requiresLayoutMetrics": true,
+      "warnings": ["word_highlight_per_word_events"],
+      "measuredAt": "2026-09-13T11:12:44.604Z"
     },
     "liquid-glass": {
       "styleId": "liquid-glass",
@@ -131,17 +421,17 @@
       "assExportable": true,
       "requiresLayoutMetrics": true,
       "warnings": ["word_highlight_per_word_events"],
-      "measuredAt": "2026-09-02T11:19:40.760Z"
+      "measuredAt": "2026-09-13T11:12:45.556Z"
     },
     "minimal-lower-third": {
       "styleId": "minimal-lower-third",
-      "canvasVsSkia": 0.007116126543209877,
-      "assVsSkia": 0.07439621913580247,
+      "canvasVsSkia": 0.007106481481481482,
+      "assVsSkia": 0.07326195987654321,
       "assRenderable": false,
       "assExportable": true,
       "requiresLayoutMetrics": false,
       "warnings": [],
-      "measuredAt": "2026-09-02T11:19:41.829Z"
+      "measuredAt": "2026-09-13T11:12:45.986Z"
     },
     "neon-glow": {
       "styleId": "neon-glow",
@@ -151,7 +441,7 @@
       "assExportable": true,
       "requiresLayoutMetrics": true,
       "warnings": ["glow_reduced_to_outline"],
-      "measuredAt": "2026-09-02T11:19:43.525Z"
+      "measuredAt": "2026-09-13T11:12:46.953Z"
     },
     "news-ticker": {
       "styleId": "news-ticker",
@@ -161,7 +451,7 @@
       "assExportable": true,
       "requiresLayoutMetrics": true,
       "warnings": ["word_highlight_per_word_events"],
-      "measuredAt": "2026-09-02T11:19:44.421Z"
+      "measuredAt": "2026-09-13T11:12:47.406Z"
     },
     "outline-only": {
       "styleId": "outline-only",
@@ -171,27 +461,37 @@
       "assExportable": true,
       "requiresLayoutMetrics": true,
       "warnings": ["word_highlight_per_word_events"],
-      "measuredAt": "2026-09-02T11:19:46.974Z"
+      "measuredAt": "2026-09-13T11:12:48.368Z"
+    },
+    "plain-white": {
+      "styleId": "plain-white",
+      "canvasVsSkia": 0.012417052469135803,
+      "assVsSkia": 0.04586805555555556,
+      "assRenderable": true,
+      "assExportable": true,
+      "requiresLayoutMetrics": false,
+      "warnings": [],
+      "measuredAt": "2026-09-13T11:12:49.405Z"
     },
     "podcast-duo": {
       "styleId": "podcast-duo",
-      "canvasVsSkia": 0.008013117283950617,
-      "assVsSkia": 0.08549961419753087,
+      "canvasVsSkia": 0.008003472222222223,
+      "assVsSkia": 0.0861766975308642,
       "assRenderable": false,
       "assExportable": true,
       "requiresLayoutMetrics": true,
       "warnings": ["word_highlight_per_word_events"],
-      "measuredAt": "2026-09-02T11:19:49.770Z"
+      "measuredAt": "2026-09-13T11:12:50.252Z"
     },
     "prism-split": {
       "styleId": "prism-split",
-      "canvasVsSkia": 0.010144675925925927,
+      "canvasVsSkia": 0.010376157407407407,
       "assVsSkia": 0.05108603395061728,
       "assRenderable": true,
       "assExportable": true,
       "requiresLayoutMetrics": true,
       "warnings": ["word_highlight_per_word_events"],
-      "measuredAt": "2026-09-02T11:19:52.445Z"
+      "measuredAt": "2026-09-13T11:12:51.311Z"
     },
     "punch-pop": {
       "styleId": "punch-pop",
@@ -201,17 +501,47 @@
       "assExportable": true,
       "requiresLayoutMetrics": true,
       "warnings": ["word_highlight_per_word_events"],
-      "measuredAt": "2026-09-02T11:19:56.624Z"
+      "measuredAt": "2026-09-13T11:12:52.378Z"
+    },
+    "punjabi-native": {
+      "styleId": "punjabi-native",
+      "canvasVsSkia": 0.011956018518518519,
+      "assVsSkia": 0.033331404320987655,
+      "assRenderable": true,
+      "assExportable": true,
+      "requiresLayoutMetrics": true,
+      "warnings": ["word_highlight_per_word_events"],
+      "measuredAt": "2026-09-13T11:12:52.851Z"
     },
     "quote-frame": {
       "styleId": "quote-frame",
-      "canvasVsSkia": 0.010518904320987654,
-      "assVsSkia": 0.23071180555555557,
+      "canvasVsSkia": 0.010630787037037038,
+      "assVsSkia": 0.22197530864197532,
       "assRenderable": false,
       "assExportable": true,
       "requiresLayoutMetrics": false,
       "warnings": [],
-      "measuredAt": "2026-09-02T11:19:59.125Z"
+      "measuredAt": "2026-09-13T11:12:53.721Z"
+    },
+    "signage-chunky": {
+      "styleId": "signage-chunky",
+      "canvasVsSkia": 0.010082947530864198,
+      "assVsSkia": 0.10995756172839506,
+      "assRenderable": false,
+      "assExportable": true,
+      "requiresLayoutMetrics": true,
+      "warnings": ["word_highlight_per_word_events"],
+      "measuredAt": "2026-09-13T11:12:54.148Z"
+    },
+    "soft-script-casual": {
+      "styleId": "soft-script-casual",
+      "canvasVsSkia": 0.009695216049382716,
+      "assVsSkia": 0.10048225308641975,
+      "assRenderable": false,
+      "assExportable": true,
+      "requiresLayoutMetrics": true,
+      "warnings": ["word_highlight_per_word_events"],
+      "measuredAt": "2026-09-13T11:12:54.613Z"
     },
     "soft-serif": {
       "styleId": "soft-serif",
@@ -221,37 +551,57 @@
       "assExportable": true,
       "requiresLayoutMetrics": false,
       "warnings": [],
-      "measuredAt": "2026-09-02T11:20:07.215Z"
+      "measuredAt": "2026-09-13T11:12:55.489Z"
     },
     "spotlight-word": {
       "styleId": "spotlight-word",
-      "canvasVsSkia": 0.012202932098765431,
+      "canvasVsSkia": 0.012038966049382717,
       "assVsSkia": 0.05865740740740741,
       "assRenderable": true,
       "assExportable": true,
       "requiresLayoutMetrics": true,
       "warnings": ["word_highlight_per_word_events"],
-      "measuredAt": "2026-09-02T11:20:09.204Z"
+      "measuredAt": "2026-09-13T11:12:56.552Z"
+    },
+    "stencil-alert": {
+      "styleId": "stencil-alert",
+      "canvasVsSkia": 0.015437885802469136,
+      "assVsSkia": 0.0577758487654321,
+      "assRenderable": true,
+      "assExportable": true,
+      "requiresLayoutMetrics": true,
+      "warnings": ["word_highlight_per_word_events"],
+      "measuredAt": "2026-09-13T11:12:57.448Z"
     },
     "stroke-heavy": {
       "styleId": "stroke-heavy",
-      "canvasVsSkia": 0.015808256172839506,
+      "canvasVsSkia": 0.01589506172839506,
       "assVsSkia": 0.047818287037037034,
       "assRenderable": true,
       "assExportable": true,
       "requiresLayoutMetrics": true,
       "warnings": ["word_highlight_per_word_events"],
-      "measuredAt": "2026-09-02T11:20:10.298Z"
+      "measuredAt": "2026-09-13T11:12:57.993Z"
     },
     "subtitle-classic": {
       "styleId": "subtitle-classic",
-      "canvasVsSkia": 0.011911651234567902,
+      "canvasVsSkia": 0.011842206790123457,
       "assVsSkia": 0.040102237654320985,
       "assRenderable": true,
       "assExportable": true,
       "requiresLayoutMetrics": false,
       "warnings": [],
-      "measuredAt": "2026-09-02T11:20:11.939Z"
+      "measuredAt": "2026-09-13T11:12:59.019Z"
+    },
+    "tall-caps-condensed": {
+      "styleId": "tall-caps-condensed",
+      "canvasVsSkia": 0.010825617283950617,
+      "assVsSkia": 0.04025270061728395,
+      "assRenderable": true,
+      "assExportable": true,
+      "requiresLayoutMetrics": true,
+      "warnings": ["word_highlight_per_word_events"],
+      "measuredAt": "2026-09-13T11:12:59.929Z"
     },
     "tape-retro": {
       "styleId": "tape-retro",
@@ -261,17 +611,27 @@
       "assExportable": true,
       "requiresLayoutMetrics": true,
       "warnings": ["word_highlight_per_word_events"],
-      "measuredAt": "2026-09-02T11:20:13.626Z"
+      "measuredAt": "2026-09-13T11:13:00.903Z"
+    },
+    "telugu-native": {
+      "styleId": "telugu-native",
+      "canvasVsSkia": 0.011944444444444445,
+      "assVsSkia": 0.03333526234567901,
+      "assRenderable": true,
+      "assExportable": true,
+      "requiresLayoutMetrics": true,
+      "warnings": ["word_highlight_per_word_events"],
+      "measuredAt": "2026-09-13T11:13:01.375Z"
     },
     "typewriter-mono": {
       "styleId": "typewriter-mono",
       "canvasVsSkia": 0.008952546296296297,
-      "assVsSkia": 0.14690586419753088,
+      "assVsSkia": 0.11813850308641975,
       "assRenderable": false,
       "assExportable": true,
       "requiresLayoutMetrics": true,
       "warnings": ["word_highlight_per_word_events"],
-      "measuredAt": "2026-09-02T11:20:14.496Z"
+      "measuredAt": "2026-09-13T11:13:01.833Z"
     },
     "vertical-clean": {
       "styleId": "vertical-clean",
@@ -281,17 +641,17 @@
       "assExportable": true,
       "requiresLayoutMetrics": false,
       "warnings": [],
-      "measuredAt": "2026-09-02T11:20:16.105Z"
+      "measuredAt": "2026-09-13T11:13:02.706Z"
     },
     "whisper-thin": {
       "styleId": "whisper-thin",
       "canvasVsSkia": 0.007102623456790124,
-      "assVsSkia": 0.01931520061728395,
+      "assVsSkia": 0.019913194444444445,
       "assRenderable": true,
       "assExportable": true,
       "requiresLayoutMetrics": true,
       "warnings": ["word_highlight_per_word_events"],
-      "measuredAt": "2026-09-02T11:20:17.477Z"
+      "measuredAt": "2026-09-13T11:13:03.551Z"
     },
     "word-pop": {
       "styleId": "word-pop",
@@ -301,7 +661,7 @@
       "assExportable": true,
       "requiresLayoutMetrics": true,
       "warnings": ["word_highlight_per_word_events"],
-      "measuredAt": "2026-09-02T11:20:18.897Z"
+      "measuredAt": "2026-09-13T11:13:04.511Z"
     }
   }
 }

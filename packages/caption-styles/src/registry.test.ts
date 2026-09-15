@@ -39,7 +39,7 @@ describe("loadSystemStyles", () => {
   const styles = loadSystemStyles();
 
   it("returns every shipped style, validated and ordered", () => {
-    expect(styles).toHaveLength(52);
+    expect(styles).toHaveLength(66);
     expect(styles.map((style) => style.id)).toEqual(
       [...loadStyleRegistry().styles.map((entry) => entry.id)].sort(),
     );
@@ -71,6 +71,14 @@ describe("loadSystemStyles", () => {
     // flags are never hand-edited (D33), so this test is really asserting
     // "the gate has run and its numbers look sane", not any particular value.
     for (const style of styles) {
+      if (style.animation.typographyMotion !== undefined) {
+        // These compositions use portable draw commands, not ASS effects.
+        expect(style.assRenderable, style.id).toBe(false);
+        expect(style.assExportable, style.id).toBe(false);
+        expect(style.requiresLayoutMetrics, style.id).toBe(true);
+        expect(style.parityScore, style.id).toBeUndefined();
+        continue;
+      }
       expect(style.assExportable, style.id).toBe(true);
       expect(typeof style.assRenderable, style.id).toBe("boolean");
       expect(typeof style.requiresLayoutMetrics, style.id).toBe("boolean");
@@ -112,9 +120,9 @@ describe("loadSystemStyles", () => {
 describe("styles/registry.json", () => {
   const registry = loadStyleRegistry();
 
-  it("lists the 52 planned styles", () => {
-    expect(registry.styles).toHaveLength(52);
-    expect(new Set(registry.styles.map((entry) => entry.id)).size).toBe(52);
+  it("lists the 66 planned styles", () => {
+    expect(registry.styles).toHaveLength(66);
+    expect(new Set(registry.styles.map((entry) => entry.id)).size).toBe(66);
   });
 
   it("marks exactly the styles with a document as shipped", () => {

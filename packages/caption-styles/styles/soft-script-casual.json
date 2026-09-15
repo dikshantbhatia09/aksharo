@@ -1,0 +1,78 @@
+{
+  "id": "soft-script-casual",
+  "name": "Soft Script Casual",
+  "version": 2,
+  "category": "playful",
+  "minPlan": "free",
+  "typography": {
+    "fontFamily": "Caveat",
+    "fallbacks": ["Noto Sans Devanagari", "Noto Sans Tamil", "Noto Sans"],
+    "weight": 700,
+    "italic": false,
+    "sizePct": 5.8,
+    "lineHeight": 1.15,
+    "letterSpacingEm": 0,
+    "textTransform": "none"
+  },
+  "colors": {
+    "text": "#2b2b2b",
+    "activeText": "#ff7a59",
+    "accent": "#ff7a59"
+  },
+  "box": {
+    "enabled": true,
+    "mode": "line",
+    "fill": "#fff8ec",
+    "paddingPct": 24,
+    "radiusPct": 30,
+    "opacity": 0.92
+  },
+  "stroke": {
+    "enabled": false,
+    "widthPct": 0
+  },
+  "shadow": {
+    "enabled": false,
+    "offsetXPct": 0,
+    "offsetYPct": 0,
+    "blurPct": 0,
+    "opacity": 0
+  },
+  "layout": {
+    "anchor": "bottom-center",
+    "x": 0.5,
+    "y": 0.78,
+    "align": "center",
+    "maxWidthPct": 78,
+    "maxLines": 2,
+    "safeAreaPct": 10
+  },
+  "animation": {
+    "in": {
+      "type": "slide-up",
+      "durationMs": 200
+    },
+    "out": {
+      "type": "fade",
+      "durationMs": 140
+    },
+    "wordHighlight": {
+      "type": "underline",
+      "durationMs": 120
+    },
+    "perWord": false
+  },
+  "emphasisPresets": [
+    {
+      "id": "pop",
+      "label": "Pop",
+      "color": "#ff7a59",
+      "scale": 1.15,
+      "effect": "none"
+    }
+  ],
+  "assRenderable": false,
+  "assExportable": true,
+  "requiresLayoutMetrics": true,
+  "parityScore": 0.8995
+}

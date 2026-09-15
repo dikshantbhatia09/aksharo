@@ -38,8 +38,12 @@ const PREVIEW_TEXT: Readonly<Record<WordScript, readonly string[]>> = {
  * word-pop visibly move across the tile.
  */
 export function previewFor(styleId: string, script: WordScript = "latin"): StylePreview {
-  // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
-  const texts = PREVIEW_TEXT[script];
+  // eslint-disable-next-line security/detect-object-injection -- script is a renderer enum, not an arbitrary input key.
+  const defaultTexts = PREVIEW_TEXT[script];
+  const texts =
+    styleId.startsWith("editorial-") && script === "latin"
+      ? ["Make", "your", "captions", "feel", "alive"]
+      : defaultTexts;
   const span = PREVIEW_DURATION_MS / texts.length;
   return {
     segment: { id: `preview:${styleId}`, startMs: 0, endMs: PREVIEW_DURATION_MS },

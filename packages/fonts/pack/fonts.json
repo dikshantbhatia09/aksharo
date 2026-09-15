@@ -1,7 +1,7 @@
 {
   "v": 1,
   "origin": "bundled",
-  "generatedAt": "2026-09-02T03:28:24.379Z",
+  "generatedAt": "2026-09-13T10:59:53.158Z",
   "fonts": [
     {
       "id": "inter-300",
@@ -535,6 +535,462 @@
         "repo": "google/fonts",
         "ref": "45b0855d499c093e4d1bd08926fec4e1a582e225",
         "path": "ofl/jetbrainsmono/JetBrainsMono[wght].ttf"
+      }
+    },
+    {
+      "id": "oswald-400",
+      "family": "Oswald",
+      "weight": 400,
+      "italic": false,
+      "file": "oswald-400.ttf",
+      "scripts": [
+        "latin"
+      ],
+      "scriptTags": [
+        "Latn"
+      ],
+      "woff2": "oswald-400.woff2",
+      "sizeBytes": 36232,
+      "woff2SizeBytes": 14752,
+      "sha256": "a56e336af6f29f83bcb82b3a8aa2a2da8eeb31f91b22ce672a0b4f42cd87fad2",
+      "licence": "OFL-1.1",
+      "licenceFile": "OFL-Oswald.txt",
+      "upstream": {
+        "repo": "google/fonts",
+        "ref": "45b0855d499c093e4d1bd08926fec4e1a582e225",
+        "path": "ofl/oswald/Oswald[wght].ttf"
+      }
+    },
+    {
+      "id": "oswald-700",
+      "family": "Oswald",
+      "weight": 700,
+      "italic": false,
+      "file": "oswald-700.ttf",
+      "scripts": [
+        "latin"
+      ],
+      "scriptTags": [
+        "Latn"
+      ],
+      "woff2": "oswald-700.woff2",
+      "sizeBytes": 36332,
+      "woff2SizeBytes": 15168,
+      "sha256": "0fce24da7b8f3f07ee3b990dfe3cc92774b5066c8c24144068d120df4dd47cd6",
+      "licence": "OFL-1.1",
+      "licenceFile": "OFL-Oswald.txt",
+      "upstream": {
+        "repo": "google/fonts",
+        "ref": "45b0855d499c093e4d1bd08926fec4e1a582e225",
+        "path": "ofl/oswald/Oswald[wght].ttf"
+      }
+    },
+    {
+      "id": "raleway-400",
+      "family": "Raleway",
+      "weight": 400,
+      "italic": false,
+      "file": "raleway-400.ttf",
+      "scripts": [
+        "latin"
+      ],
+      "scriptTags": [
+        "Latn"
+      ],
+      "woff2": "raleway-400.woff2",
+      "sizeBytes": 87788,
+      "woff2SizeBytes": 34004,
+      "sha256": "65b25ecdc1e50c1fd2531b4c1198ce4a60a1263cd0ea0a4d54c4eb6e5992bc55",
+      "licence": "OFL-1.1",
+      "licenceFile": "OFL-Raleway.txt",
+      "upstream": {
+        "repo": "google/fonts",
+        "ref": "45b0855d499c093e4d1bd08926fec4e1a582e225",
+        "path": "ofl/raleway/Raleway[wght].ttf"
+      }
+    },
+    {
+      "id": "raleway-700",
+      "family": "Raleway",
+      "weight": 700,
+      "italic": false,
+      "file": "raleway-700.ttf",
+      "scripts": [
+        "latin"
+      ],
+      "scriptTags": [
+        "Latn"
+      ],
+      "woff2": "raleway-700.woff2",
+      "sizeBytes": 87800,
+      "woff2SizeBytes": 34828,
+      "sha256": "baf628c64133f74b6e743ae7cf5b5602dc90455c0bf1be24fda7568c98c3f5cc",
+      "licence": "OFL-1.1",
+      "licenceFile": "OFL-Raleway.txt",
+      "upstream": {
+        "repo": "google/fonts",
+        "ref": "45b0855d499c093e4d1bd08926fec4e1a582e225",
+        "path": "ofl/raleway/Raleway[wght].ttf"
+      }
+    },
+    {
+      "id": "nunito-400",
+      "family": "Nunito",
+      "weight": 400,
+      "italic": false,
+      "file": "nunito-400.ttf",
+      "scripts": [
+        "latin"
+      ],
+      "scriptTags": [
+        "Latn"
+      ],
+      "woff2": "nunito-400.woff2",
+      "sizeBytes": 51240,
+      "woff2SizeBytes": 20096,
+      "sha256": "640832f5b115c16000e379b26375bb1e480233de6197206703e170603b1fb8b8",
+      "licence": "OFL-1.1",
+      "licenceFile": "OFL-Nunito.txt",
+      "upstream": {
+        "repo": "google/fonts",
+        "ref": "45b0855d499c093e4d1bd08926fec4e1a582e225",
+        "path": "ofl/nunito/Nunito[wght].ttf"
+      }
+    },
+    {
+      "id": "nunito-700",
+      "family": "Nunito",
+      "weight": 700,
+      "italic": false,
+      "file": "nunito-700.ttf",
+      "scripts": [
+        "latin"
+      ],
+      "scriptTags": [
+        "Latn"
+      ],
+      "woff2": "nunito-700.woff2",
+      "sizeBytes": 51208,
+      "woff2SizeBytes": 19964,
+      "sha256": "488bf34115c269619a6557e0589b2e8198af82eabeaf537d4e6bad70eb934985",
+      "licence": "OFL-1.1",
+      "licenceFile": "OFL-Nunito.txt",
+      "upstream": {
+        "repo": "google/fonts",
+        "ref": "45b0855d499c093e4d1bd08926fec4e1a582e225",
+        "path": "ofl/nunito/Nunito[wght].ttf"
+      }
+    },
+    {
+      "id": "dm-sans-400",
+      "family": "DM Sans",
+      "weight": 400,
+      "italic": false,
+      "file": "dm-sans-400.ttf",
+      "scripts": [
+        "latin"
+      ],
+      "scriptTags": [
+        "Latn"
+      ],
+      "woff2": "dm-sans-400.woff2",
+      "sizeBytes": 43784,
+      "woff2SizeBytes": 17092,
+      "sha256": "60aefeaaf7e2cc9eca4ccd906b21bf5782ac7f8d29d4d754358683aaee8dde16",
+      "licence": "OFL-1.1",
+      "licenceFile": "OFL-DMSans.txt",
+      "upstream": {
+        "repo": "google/fonts",
+        "ref": "45b0855d499c093e4d1bd08926fec4e1a582e225",
+        "path": "ofl/dmsans/DMSans[opsz,wght].ttf"
+      }
+    },
+    {
+      "id": "dm-sans-700",
+      "family": "DM Sans",
+      "weight": 700,
+      "italic": false,
+      "file": "dm-sans-700.ttf",
+      "scripts": [
+        "latin"
+      ],
+      "scriptTags": [
+        "Latn"
+      ],
+      "woff2": "dm-sans-700.woff2",
+      "sizeBytes": 43760,
+      "woff2SizeBytes": 17404,
+      "sha256": "4c976ab5657a36a0e838d62d7500d0bf1aa8070fdbe23a249a994792264d0eb2",
+      "licence": "OFL-1.1",
+      "licenceFile": "OFL-DMSans.txt",
+      "upstream": {
+        "repo": "google/fonts",
+        "ref": "45b0855d499c093e4d1bd08926fec4e1a582e225",
+        "path": "ofl/dmsans/DMSans[opsz,wght].ttf"
+      }
+    },
+    {
+      "id": "bebas-neue-400",
+      "family": "Bebas Neue",
+      "weight": 400,
+      "italic": false,
+      "file": "bebas-neue-400.ttf",
+      "scripts": [
+        "latin"
+      ],
+      "scriptTags": [
+        "Latn"
+      ],
+      "woff2": "bebas-neue-400.woff2",
+      "sizeBytes": 42584,
+      "woff2SizeBytes": 15384,
+      "sha256": "031f3201f27c05f0e080f3f2aad6fd6b03d2bfb8abe16d5b44a4aa0dc1fc11ee",
+      "licence": "OFL-1.1",
+      "licenceFile": "OFL-BebasNeue.txt",
+      "upstream": {
+        "repo": "google/fonts",
+        "ref": "45b0855d499c093e4d1bd08926fec4e1a582e225",
+        "path": "ofl/bebasneue/BebasNeue-Regular.ttf"
+      }
+    },
+    {
+      "id": "black-ops-one-400",
+      "family": "Black Ops One",
+      "weight": 400,
+      "italic": false,
+      "file": "black-ops-one-400.ttf",
+      "scripts": [
+        "latin"
+      ],
+      "scriptTags": [
+        "Latn"
+      ],
+      "woff2": "black-ops-one-400.woff2",
+      "sizeBytes": 108404,
+      "woff2SizeBytes": 39124,
+      "sha256": "5ba2081dbe3f391419ac7993e4980203a5aa41d5dd6c5d1f8a8541c3882f8eb0",
+      "licence": "OFL-1.1",
+      "licenceFile": "OFL-BlackOpsOne.txt",
+      "upstream": {
+        "repo": "google/fonts",
+        "ref": "45b0855d499c093e4d1bd08926fec4e1a582e225",
+        "path": "ofl/blackopsone/BlackOpsOne-Regular.ttf"
+      }
+    },
+    {
+      "id": "bungee-400",
+      "family": "Bungee",
+      "weight": 400,
+      "italic": false,
+      "file": "bungee-400.ttf",
+      "scripts": [
+        "latin"
+      ],
+      "scriptTags": [
+        "Latn"
+      ],
+      "woff2": "bungee-400.woff2",
+      "sizeBytes": 81844,
+      "woff2SizeBytes": 28704,
+      "sha256": "70c62279f61ff164ed845ae206a28cdff4f2aa4e55faab10578d62405b867396",
+      "licence": "OFL-1.1",
+      "licenceFile": "OFL-Bungee.txt",
+      "upstream": {
+        "repo": "google/fonts",
+        "ref": "45b0855d499c093e4d1bd08926fec4e1a582e225",
+        "path": "ofl/bungee/Bungee-Regular.ttf"
+      }
+    },
+    {
+      "id": "bangers-400",
+      "family": "Bangers",
+      "weight": 400,
+      "italic": false,
+      "file": "bangers-400.ttf",
+      "scripts": [
+        "latin"
+      ],
+      "scriptTags": [
+        "Latn"
+      ],
+      "woff2": "bangers-400.woff2",
+      "sizeBytes": 63896,
+      "woff2SizeBytes": 26260,
+      "sha256": "edf07c478c13b8ffd7789efad39ff48d9dca3d77666c0cbf8cf5ce9b3c1b392e",
+      "licence": "OFL-1.1",
+      "licenceFile": "OFL-Bangers.txt",
+      "upstream": {
+        "repo": "google/fonts",
+        "ref": "45b0855d499c093e4d1bd08926fec4e1a582e225",
+        "path": "ofl/bangers/Bangers-Regular.ttf"
+      }
+    },
+    {
+      "id": "pacifico-400",
+      "family": "Pacifico",
+      "weight": 400,
+      "italic": false,
+      "file": "pacifico-400.ttf",
+      "scripts": [
+        "latin"
+      ],
+      "scriptTags": [
+        "Latn"
+      ],
+      "woff2": "pacifico-400.woff2",
+      "sizeBytes": 136476,
+      "woff2SizeBytes": 49752,
+      "sha256": "77865d8d253747e62a5bdb180e42fc1fa5f1ec187d2a82708242c6d7dd5c1fc2",
+      "licence": "OFL-1.1",
+      "licenceFile": "OFL-Pacifico.txt",
+      "upstream": {
+        "repo": "google/fonts",
+        "ref": "45b0855d499c093e4d1bd08926fec4e1a582e225",
+        "path": "ofl/pacifico/Pacifico-Regular.ttf"
+      }
+    },
+    {
+      "id": "caveat-400",
+      "family": "Caveat",
+      "weight": 400,
+      "italic": false,
+      "file": "caveat-400.ttf",
+      "scripts": [
+        "latin"
+      ],
+      "scriptTags": [
+        "Latn"
+      ],
+      "woff2": "caveat-400.woff2",
+      "sizeBytes": 128436,
+      "woff2SizeBytes": 52488,
+      "sha256": "84b62de89037277fb4aa821290993c17acea488c592c7ed13b94ccd0f0f6df59",
+      "licence": "OFL-1.1",
+      "licenceFile": "OFL-Caveat.txt",
+      "upstream": {
+        "repo": "google/fonts",
+        "ref": "45b0855d499c093e4d1bd08926fec4e1a582e225",
+        "path": "ofl/caveat/Caveat[wght].ttf"
+      }
+    },
+    {
+      "id": "caveat-700",
+      "family": "Caveat",
+      "weight": 700,
+      "italic": false,
+      "file": "caveat-700.ttf",
+      "scripts": [
+        "latin"
+      ],
+      "scriptTags": [
+        "Latn"
+      ],
+      "woff2": "caveat-700.woff2",
+      "sizeBytes": 128436,
+      "woff2SizeBytes": 55308,
+      "sha256": "2c6c06f40816916f22bc1c8eecfbb6e094ff962453352120f6ed5a70c32a9c40",
+      "licence": "OFL-1.1",
+      "licenceFile": "OFL-Caveat.txt",
+      "upstream": {
+        "repo": "google/fonts",
+        "ref": "45b0855d499c093e4d1bd08926fec4e1a582e225",
+        "path": "ofl/caveat/Caveat[wght].ttf"
+      }
+    },
+    {
+      "id": "dancing-script-400",
+      "family": "Dancing Script",
+      "weight": 400,
+      "italic": false,
+      "file": "dancing-script-400.ttf",
+      "scripts": [
+        "latin"
+      ],
+      "scriptTags": [
+        "Latn"
+      ],
+      "woff2": "dancing-script-400.woff2",
+      "sizeBytes": 64312,
+      "woff2SizeBytes": 28152,
+      "sha256": "c3e0607d85abd21e2ae845beddcb532c07a87b2222221f73fddd6ff7cb44969c",
+      "licence": "OFL-1.1",
+      "licenceFile": "OFL-DancingScript.txt",
+      "upstream": {
+        "repo": "google/fonts",
+        "ref": "45b0855d499c093e4d1bd08926fec4e1a582e225",
+        "path": "ofl/dancingscript/DancingScript[wght].ttf"
+      }
+    },
+    {
+      "id": "dancing-script-700",
+      "family": "Dancing Script",
+      "weight": 700,
+      "italic": false,
+      "file": "dancing-script-700.ttf",
+      "scripts": [
+        "latin"
+      ],
+      "scriptTags": [
+        "Latn"
+      ],
+      "woff2": "dancing-script-700.woff2",
+      "sizeBytes": 64596,
+      "woff2SizeBytes": 29804,
+      "sha256": "6e35a2d9eb4899a39c6d4639e49011ee5587e017761fa2355ccc7fecef40bb3d",
+      "licence": "OFL-1.1",
+      "licenceFile": "OFL-DancingScript.txt",
+      "upstream": {
+        "repo": "google/fonts",
+        "ref": "45b0855d499c093e4d1bd08926fec4e1a582e225",
+        "path": "ofl/dancingscript/DancingScript[wght].ttf"
+      }
+    },
+    {
+      "id": "permanent-marker-400",
+      "family": "Permanent Marker",
+      "weight": 400,
+      "italic": false,
+      "file": "permanent-marker-400.ttf",
+      "scripts": [
+        "latin"
+      ],
+      "scriptTags": [
+        "Latn"
+      ],
+      "woff2": "permanent-marker-400.woff2",
+      "sizeBytes": 57880,
+      "woff2SizeBytes": 27280,
+      "sha256": "044194532c8d7dc986f173227da61a9164194aca8e33da459fd0f3545eae9f5c",
+      "licence": "Apache-2.0",
+      "licenceFile": "Apache-PermanentMarker.txt",
+      "upstream": {
+        "repo": "google/fonts",
+        "ref": "45b0855d499c093e4d1bd08926fec4e1a582e225",
+        "path": "apache/permanentmarker/PermanentMarker-Regular.ttf"
+      }
+    },
+    {
+      "id": "satisfy-400",
+      "family": "Satisfy",
+      "weight": 400,
+      "italic": false,
+      "file": "satisfy-400.ttf",
+      "scripts": [
+        "latin"
+      ],
+      "scriptTags": [
+        "Latn"
+      ],
+      "woff2": "satisfy-400.woff2",
+      "sizeBytes": 41364,
+      "woff2SizeBytes": 21784,
+      "sha256": "c72abfbba5a85f280a55a1cf332f02a08933fa180757b8fa647d438ee3b4e490",
+      "licence": "Apache-2.0",
+      "licenceFile": "Apache-Satisfy.txt",
+      "upstream": {
+        "repo": "google/fonts",
+        "ref": "45b0855d499c093e4d1bd08926fec4e1a582e225",
+        "path": "apache/satisfy/Satisfy-Regular.ttf"
       }
     },
     {

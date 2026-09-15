@@ -38,6 +38,24 @@
       "status": "shipped"
     },
     {
+      "id": "editorial-ghost-type",
+      "name": "Ghost Type",
+      "category": "kinetic",
+      "status": "shipped"
+    },
+    {
+      "id": "editorial-keyword-zoom",
+      "name": "Keyword Zoom",
+      "category": "kinetic",
+      "status": "shipped"
+    },
+    {
+      "id": "editorial-stack",
+      "name": "Editorial Stack",
+      "category": "kinetic",
+      "status": "shipped"
+    },
+    {
       "id": "estate-bounce",
       "name": "Real Estate: Dynamic Bounce",
       "category": "playful",
@@ -311,6 +329,72 @@
       "id": "word-pop",
       "name": "Word Pop",
       "category": "playful",
+      "status": "shipped"
+    },
+    {
+      "id": "comic-book-bubble",
+      "name": "Comic Book Bubble",
+      "category": "playful",
+      "status": "shipped"
+    },
+    {
+      "id": "handwritten-marker",
+      "name": "Handwritten Marker",
+      "category": "playful",
+      "status": "shipped"
+    },
+    {
+      "id": "elegant-cursive",
+      "name": "Elegant Cursive",
+      "category": "cinematic",
+      "status": "shipped"
+    },
+    {
+      "id": "soft-script-casual",
+      "name": "Soft Script Casual",
+      "category": "playful",
+      "status": "shipped"
+    },
+    {
+      "id": "stencil-alert",
+      "name": "Stencil Alert",
+      "category": "gaming",
+      "status": "shipped"
+    },
+    {
+      "id": "signage-chunky",
+      "name": "Signage Chunky",
+      "category": "bold",
+      "status": "shipped"
+    },
+    {
+      "id": "tall-caps-condensed",
+      "name": "Tall Caps Condensed",
+      "category": "clean",
+      "status": "shipped"
+    },
+    {
+      "id": "gold-luxury-serif",
+      "name": "Gold Luxury Serif",
+      "category": "cinematic",
+      "status": "shipped"
+    },
+    {
+      "id": "bengali-native",
+      "name": "Bengali Native",
+      "category": "bold",
+      "status": "shipped"
+    },
+    {
+      "id": "punjabi-native",
+      "name": "Punjabi Native",
+      "category": "bold",
+      "status": "shipped"
+    },
+    {
+      "id": "telugu-native",
+      "name": "Telugu Native",
+      "category": "bold",
       "status": "shipped"
     }
   ]

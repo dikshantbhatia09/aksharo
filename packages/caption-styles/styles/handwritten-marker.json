@@ -1,0 +1,78 @@
+{
+  "id": "handwritten-marker",
+  "name": "Handwritten Marker",
+  "version": 2,
+  "category": "playful",
+  "minPlan": "free",
+  "typography": {
+    "fontFamily": "Permanent Marker",
+    "fallbacks": ["Noto Sans Devanagari", "Noto Sans Tamil", "Noto Sans"],
+    "weight": 400,
+    "italic": false,
+    "sizePct": 4.6,
+    "lineHeight": 1.2,
+    "letterSpacingEm": 0,
+    "textTransform": "none"
+  },
+  "colors": {
+    "text": "#ffffff",
+    "activeText": "#80ff60",
+    "accent": "#80ff60"
+  },
+  "box": {
+    "enabled": false,
+    "mode": "line",
+    "paddingPct": 16,
+    "radiusPct": 20,
+    "opacity": 0
+  },
+  "stroke": {
+    "enabled": true,
+    "color": "#000000",
+    "widthPct": 9
+  },
+  "shadow": {
+    "enabled": false,
+    "offsetXPct": 0,
+    "offsetYPct": 0,
+    "blurPct": 0,
+    "opacity": 0
+  },
+  "layout": {
+    "anchor": "center",
+    "x": 0.5,
+    "y": 0.5,
+    "align": "center",
+    "maxWidthPct": 84,
+    "maxLines": 3,
+    "wordsPerCue": 6,
+    "safeAreaPct": 8
+  },
+  "animation": {
+    "in": {
+      "type": "pop",
+      "durationMs": 200
+    },
+    "out": {
+      "type": "fade",
+      "durationMs": 140
+    },
+    "wordHighlight": {
+      "type": "color",
+      "durationMs": 100
+    },
+    "perWord": false
+  },
+  "emphasisPresets": [
+    {
+      "id": "highlight",
+      "label": "Highlight",
+      "color": "#80ff60",
+      "effect": "highlight"
+    }
+  ],
+  "assRenderable": true,
+  "assExportable": true,
+  "requiresLayoutMetrics": true,
+  "parityScore": 0.9463
+}

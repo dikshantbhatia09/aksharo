@@ -41,6 +41,14 @@ export interface FontFile {
 /** The three scripts the product ships captions in on day one. */
 export const DEFAULT_FONTS: readonly FontFile[] = [
   {
+    id: "anton-400",
+    family: "Anton",
+    weight: 400,
+    italic: false,
+    file: "anton-400.ttf",
+    scripts: ["latin"],
+  },
+  {
     id: "noto-sans-400",
     family: "Noto Sans",
     weight: 400,
@@ -136,6 +144,79 @@ export const DEFAULT_FONTS: readonly FontFile[] = [
     file: "Helvetica-Bold.ttf",
     scripts: ["latin"],
   },
+  // Every other face `@montaj/fonts`' bundled CATALOGUE ships — the same list
+  // the Font Family picker (`RightPanel.tsx`) already offers. Registering them
+  // here is what makes picking one of these actually draw in that family
+  // instead of silently falling back (`FontRegistry.resolve`'s last resort) to
+  // whichever already-registered face happens to cover the same code points.
+  { id: "montserrat-400", family: "Montserrat", weight: 400, italic: false, file: "montserrat-400.ttf", scripts: ["latin"] },
+  { id: "montserrat-600", family: "Montserrat", weight: 600, italic: false, file: "montserrat-600.ttf", scripts: ["latin"] },
+  { id: "montserrat-800", family: "Montserrat", weight: 800, italic: false, file: "montserrat-800.ttf", scripts: ["latin"] },
+  { id: "montserrat-900", family: "Montserrat", weight: 900, italic: false, file: "montserrat-900.ttf", scripts: ["latin"] },
+  { id: "poppins-400", family: "Poppins", weight: 400, italic: false, file: "poppins-400.ttf", scripts: ["latin"] },
+  { id: "poppins-700", family: "Poppins", weight: 700, italic: false, file: "poppins-700.ttf", scripts: ["latin"] },
+  { id: "poppins-800", family: "Poppins", weight: 800, italic: false, file: "poppins-800.ttf", scripts: ["latin"] },
+  { id: "roboto-mono-500", family: "Roboto Mono", weight: 500, italic: false, file: "roboto-mono-500.ttf", scripts: ["latin"] },
+  { id: "roboto-mono-700", family: "Roboto Mono", weight: 700, italic: false, file: "roboto-mono-700.ttf", scripts: ["latin"] },
+  { id: "bricolage-grotesque-700", family: "Bricolage Grotesque", weight: 700, italic: false, file: "bricolage-grotesque-700.ttf", scripts: ["latin"] },
+  { id: "bricolage-grotesque-800", family: "Bricolage Grotesque", weight: 800, italic: false, file: "bricolage-grotesque-800.ttf", scripts: ["latin"] },
+  { id: "jetbrains-mono-400", family: "JetBrains Mono", weight: 400, italic: false, file: "jetbrains-mono-400.ttf", scripts: ["latin"] },
+  { id: "jetbrains-mono-700", family: "JetBrains Mono", weight: 700, italic: false, file: "jetbrains-mono-700.ttf", scripts: ["latin"] },
+  { id: "oswald-400", family: "Oswald", weight: 400, italic: false, file: "oswald-400.ttf", scripts: ["latin"] },
+  { id: "oswald-700", family: "Oswald", weight: 700, italic: false, file: "oswald-700.ttf", scripts: ["latin"] },
+  { id: "raleway-400", family: "Raleway", weight: 400, italic: false, file: "raleway-400.ttf", scripts: ["latin"] },
+  { id: "raleway-700", family: "Raleway", weight: 700, italic: false, file: "raleway-700.ttf", scripts: ["latin"] },
+  { id: "nunito-400", family: "Nunito", weight: 400, italic: false, file: "nunito-400.ttf", scripts: ["latin"] },
+  { id: "nunito-700", family: "Nunito", weight: 700, italic: false, file: "nunito-700.ttf", scripts: ["latin"] },
+  { id: "dm-sans-400", family: "DM Sans", weight: 400, italic: false, file: "dm-sans-400.ttf", scripts: ["latin"] },
+  { id: "dm-sans-700", family: "DM Sans", weight: 700, italic: false, file: "dm-sans-700.ttf", scripts: ["latin"] },
+  { id: "bebas-neue-400", family: "Bebas Neue", weight: 400, italic: false, file: "bebas-neue-400.ttf", scripts: ["latin"] },
+  { id: "black-ops-one-400", family: "Black Ops One", weight: 400, italic: false, file: "black-ops-one-400.ttf", scripts: ["latin"] },
+  { id: "bungee-400", family: "Bungee", weight: 400, italic: false, file: "bungee-400.ttf", scripts: ["latin"] },
+  { id: "bangers-400", family: "Bangers", weight: 400, italic: false, file: "bangers-400.ttf", scripts: ["latin"] },
+  { id: "pacifico-400", family: "Pacifico", weight: 400, italic: false, file: "pacifico-400.ttf", scripts: ["latin"] },
+  { id: "caveat-400", family: "Caveat", weight: 400, italic: false, file: "caveat-400.ttf", scripts: ["latin"] },
+  { id: "caveat-700", family: "Caveat", weight: 700, italic: false, file: "caveat-700.ttf", scripts: ["latin"] },
+  { id: "dancing-script-400", family: "Dancing Script", weight: 400, italic: false, file: "dancing-script-400.ttf", scripts: ["latin"] },
+  { id: "dancing-script-700", family: "Dancing Script", weight: 700, italic: false, file: "dancing-script-700.ttf", scripts: ["latin"] },
+  { id: "permanent-marker-400", family: "Permanent Marker", weight: 400, italic: false, file: "permanent-marker-400.ttf", scripts: ["latin"] },
+  { id: "satisfy-400", family: "Satisfy", weight: 400, italic: false, file: "satisfy-400.ttf", scripts: ["latin"] },
+  // "other" matches `@montaj/fonts`' own manifest tag for every one of these —
+  // `@montaj/edg`'s frozen segmenter alphabet only names latin/devanagari/tamil
+  // (`FontRegistry`'s docstring, `packages/render-core/src/script.ts`), so a
+  // script beyond those three is "other" until the segmenter itself grows a
+  // dedicated case for it. `FontRegistry.resolve`'s coverage-based last resort
+  // still finds these faces by their actual glyph coverage regardless, so text
+  // in these scripts draws in the right typeface; what "other" does not yet
+  // buy is Devanagari/Tamil-grade complex-script line-budgeting or the correct
+  // OpenType script tag for shaping (`openTypeScriptTag`'s `default: "Zyyy"`).
+  { id: "noto-sans-bengali-400", family: "Noto Sans Bengali", weight: 400, italic: false, file: "noto-sans-bengali-400.ttf", scripts: ["other"] },
+  { id: "noto-sans-bengali-700", family: "Noto Sans Bengali", weight: 700, italic: false, file: "noto-sans-bengali-700.ttf", scripts: ["other"] },
+  { id: "noto-sans-gurmukhi-400", family: "Noto Sans Gurmukhi", weight: 400, italic: false, file: "noto-sans-gurmukhi-400.ttf", scripts: ["other"] },
+  { id: "noto-sans-gurmukhi-700", family: "Noto Sans Gurmukhi", weight: 700, italic: false, file: "noto-sans-gurmukhi-700.ttf", scripts: ["other"] },
+  { id: "noto-sans-gujarati-400", family: "Noto Sans Gujarati", weight: 400, italic: false, file: "noto-sans-gujarati-400.ttf", scripts: ["other"] },
+  { id: "noto-sans-gujarati-700", family: "Noto Sans Gujarati", weight: 700, italic: false, file: "noto-sans-gujarati-700.ttf", scripts: ["other"] },
+  { id: "noto-sans-oriya-400", family: "Noto Sans Oriya", weight: 400, italic: false, file: "noto-sans-oriya-400.ttf", scripts: ["other"] },
+  { id: "noto-sans-oriya-700", family: "Noto Sans Oriya", weight: 700, italic: false, file: "noto-sans-oriya-700.ttf", scripts: ["other"] },
+  { id: "noto-sans-telugu-400", family: "Noto Sans Telugu", weight: 400, italic: false, file: "noto-sans-telugu-400.ttf", scripts: ["other"] },
+  { id: "noto-sans-telugu-700", family: "Noto Sans Telugu", weight: 700, italic: false, file: "noto-sans-telugu-700.ttf", scripts: ["other"] },
+  { id: "noto-sans-kannada-400", family: "Noto Sans Kannada", weight: 400, italic: false, file: "noto-sans-kannada-400.ttf", scripts: ["other"] },
+  { id: "noto-sans-kannada-700", family: "Noto Sans Kannada", weight: 700, italic: false, file: "noto-sans-kannada-700.ttf", scripts: ["other"] },
+  { id: "noto-sans-malayalam-400", family: "Noto Sans Malayalam", weight: 400, italic: false, file: "noto-sans-malayalam-400.ttf", scripts: ["other"] },
+  { id: "noto-sans-malayalam-700", family: "Noto Sans Malayalam", weight: 700, italic: false, file: "noto-sans-malayalam-700.ttf", scripts: ["other"] },
+  { id: "noto-sans-ol-chiki-400", family: "Noto Sans Ol Chiki", weight: 400, italic: false, file: "noto-sans-ol-chiki-400.ttf", scripts: ["other"] },
+  { id: "noto-sans-ol-chiki-700", family: "Noto Sans Ol Chiki", weight: 700, italic: false, file: "noto-sans-ol-chiki-700.ttf", scripts: ["other"] },
+  { id: "noto-sans-meetei-mayek-400", family: "Noto Sans Meetei Mayek", weight: 400, italic: false, file: "noto-sans-meetei-mayek-400.ttf", scripts: ["other"] },
+  { id: "noto-sans-meetei-mayek-700", family: "Noto Sans Meetei Mayek", weight: 700, italic: false, file: "noto-sans-meetei-mayek-700.ttf", scripts: ["other"] },
+  // Arabic script only; Urdu is conventionally set in Nastaliq calligraphic
+  // style, a visually distinct typeface this pack does not yet bundle, and
+  // this repo's layout engine does not yet do right-to-left line layout (line
+  // positions, alignment and word order throughout `render-core/src/layout`
+  // are left-to-right only) — real RTL text will draw in the right glyphs,
+  // left-to-right, which is wrong for genuine Urdu sentences. Flagged rather
+  // than silently shipped as correct.
+  { id: "noto-sans-arabic-400", family: "Noto Sans Arabic", weight: 400, italic: false, file: "noto-sans-arabic-400.ttf", scripts: ["other"] },
+  { id: "noto-sans-arabic-700", family: "Noto Sans Arabic", weight: 700, italic: false, file: "noto-sans-arabic-700.ttf", scripts: ["other"] },
 ];
 
 let backendPromise: Promise<CanvasKitBackend> | undefined;

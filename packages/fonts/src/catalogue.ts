@@ -51,8 +51,10 @@ export interface CatalogueFace {
 
 export interface CatalogueFamily {
   readonly family: string;
-  /** Directory under `ofl/` in `google/fonts`. */
+  /** Directory under {@link upstreamDir} in `google/fonts`. */
   readonly directory: string;
+  /** Top-level licence directory in `google/fonts`. Defaults to `"ofl"`. */
+  readonly upstreamDir?: "ofl" | "apache" | "ufl";
   /** The variable source, when the family ships one. */
   readonly variableFile?: string;
   readonly licence: BundledLicence;
@@ -184,6 +186,162 @@ const LATIN_FAMILIES: readonly CatalogueFamily[] = [
       { weight: 400, axes: { wght: 400 } },
       { weight: 700, axes: { wght: 700 } },
     ],
+  },
+  {
+    family: "Oswald",
+    directory: "oswald",
+    variableFile: "Oswald[wght].ttf",
+    licence: OFL,
+    licenceFile: "OFL-Oswald.txt",
+    upstreamLicenceFile: "OFL.txt",
+    scripts: ["Latn"],
+    note: "condensed news/sports headline face.",
+    faces: [
+      { weight: 400, axes: { wght: 400 } },
+      { weight: 700, axes: { wght: 700 } },
+    ],
+  },
+  {
+    family: "Raleway",
+    directory: "raleway",
+    variableFile: "Raleway[wght].ttf",
+    licence: OFL,
+    licenceFile: "OFL-Raleway.txt",
+    upstreamLicenceFile: "OFL.txt",
+    scripts: ["Latn"],
+    note: "luxury-gold: wide-tracked high-fashion serif alternative.",
+    faces: [
+      { weight: 400, axes: { wght: 400 } },
+      { weight: 700, axes: { wght: 700 } },
+    ],
+  },
+  {
+    family: "Nunito",
+    directory: "nunito",
+    variableFile: "Nunito[wght].ttf",
+    licence: OFL,
+    licenceFile: "OFL-Nunito.txt",
+    upstreamLicenceFile: "OFL.txt",
+    scripts: ["Latn"],
+    note: "rounded, friendly sans for softer clean styles.",
+    faces: [
+      { weight: 400, axes: { wght: 400 } },
+      { weight: 700, axes: { wght: 700 } },
+    ],
+  },
+  {
+    family: "DM Sans",
+    directory: "dmsans",
+    variableFile: "DMSans[opsz,wght].ttf",
+    licence: OFL,
+    licenceFile: "OFL-DMSans.txt",
+    upstreamLicenceFile: "OFL.txt",
+    scripts: ["Latn"],
+    note: "low-contrast geometric sans for minimal styles.",
+    faces: [
+      { weight: 400, axes: { wght: 400, opsz: 14 } },
+      { weight: 700, axes: { wght: 700, opsz: 14 } },
+    ],
+  },
+  {
+    family: "Bebas Neue",
+    directory: "bebasneue",
+    licence: OFL,
+    licenceFile: "OFL-BebasNeue.txt",
+    upstreamLicenceFile: "OFL.txt",
+    scripts: ["Latn"],
+    note: "tall condensed caps display face. One weight upstream.",
+    faces: [{ weight: 400, file: "BebasNeue-Regular.ttf" }],
+  },
+  {
+    family: "Black Ops One",
+    directory: "blackopsone",
+    licence: OFL,
+    licenceFile: "OFL-BlackOpsOne.txt",
+    upstreamLicenceFile: "OFL.txt",
+    scripts: ["Latn"],
+    note: "military stencil display face. One weight upstream.",
+    faces: [{ weight: 400, file: "BlackOpsOne-Regular.ttf" }],
+  },
+  {
+    family: "Bungee",
+    directory: "bungee",
+    licence: OFL,
+    licenceFile: "OFL-Bungee.txt",
+    upstreamLicenceFile: "OFL.txt",
+    scripts: ["Latn"],
+    note: "chunky urban-signage display face. One weight upstream.",
+    faces: [{ weight: 400, file: "Bungee-Regular.ttf" }],
+  },
+  {
+    family: "Bangers",
+    directory: "bangers",
+    licence: OFL,
+    licenceFile: "OFL-Bangers.txt",
+    upstreamLicenceFile: "OFL.txt",
+    scripts: ["Latn"],
+    note: "comic-book display face for comic-pop. One weight upstream.",
+    faces: [{ weight: 400, file: "Bangers-Regular.ttf" }],
+  },
+  {
+    family: "Pacifico",
+    directory: "pacifico",
+    licence: OFL,
+    licenceFile: "OFL-Pacifico.txt",
+    upstreamLicenceFile: "OFL.txt",
+    scripts: ["Latn"],
+    note: "brush-script casual face. One weight upstream.",
+    faces: [{ weight: 400, file: "Pacifico-Regular.ttf" }],
+  },
+  {
+    family: "Caveat",
+    directory: "caveat",
+    variableFile: "Caveat[wght].ttf",
+    licence: OFL,
+    licenceFile: "OFL-Caveat.txt",
+    upstreamLicenceFile: "OFL.txt",
+    scripts: ["Latn"],
+    note: "casual handwriting face for handwritten-marker.",
+    faces: [
+      { weight: 400, axes: { wght: 400 } },
+      { weight: 700, axes: { wght: 700 } },
+    ],
+  },
+  {
+    family: "Dancing Script",
+    directory: "dancingscript",
+    variableFile: "DancingScript[wght].ttf",
+    licence: OFL,
+    licenceFile: "OFL-DancingScript.txt",
+    upstreamLicenceFile: "OFL.txt",
+    scripts: ["Latn"],
+    note: "flowing cursive script face.",
+    faces: [
+      { weight: 400, axes: { wght: 400 } },
+      { weight: 700, axes: { wght: 700 } },
+    ],
+  },
+  {
+    family: "Permanent Marker",
+    directory: "permanentmarker",
+    upstreamDir: "apache",
+    licence: "Apache-2.0",
+    licenceFile: "Apache-PermanentMarker.txt",
+    upstreamLicenceFile: "LICENSE.txt",
+    scripts: ["Latn"],
+    note: "marker-pen handwriting face. One weight upstream, Apache-licensed.",
+    faces: [{ weight: 400, file: "PermanentMarker-Regular.ttf" }],
+  },
+  {
+    family: "Satisfy",
+    directory: "satisfy",
+    upstreamDir: "apache",
+    licence: "Apache-2.0",
+    licenceFile: "Apache-Satisfy.txt",
+    upstreamLicenceFile: "LICENSE.txt",
+    scripts: ["Latn"],
+    note: "casual brush-script face. One weight upstream, Apache-licensed.",
+    faces: [{ weight: 400, file: "Satisfy-Regular.ttf" }],
   },
 ];
 
@@ -332,18 +490,18 @@ export function faceFileName(
   return `${faceId(family, weight, italic)}.${extension}`;
 }
 
+/** The upstream path recorded in the manifest's `upstream.path`. */
+export function upstreamPath(family: CatalogueFamily, file: string): string {
+  return `${family.upstreamDir ?? "ofl"}/${family.directory}/${file}`;
+}
+
 /** The raw upstream URL of one catalogue file, at the pinned commit. */
 export function upstreamUrl(family: CatalogueFamily, file: string): string {
-  const path = `ofl/${family.directory}/${file}`;
+  const path = upstreamPath(family, file);
   return `https://raw.githubusercontent.com/${CATALOGUE_UPSTREAM_REPO}/${CATALOGUE_UPSTREAM_REF}/${path
     .split("/")
     .map(encodeURIComponent)
     .join("/")}`;
-}
-
-/** The upstream path recorded in the manifest's `upstream.path`. */
-export function upstreamPath(family: CatalogueFamily, file: string): string {
-  return `ofl/${family.directory}/${file}`;
 }
 
 /** The source file one face is built from. */

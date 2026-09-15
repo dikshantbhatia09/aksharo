@@ -1,0 +1,79 @@
+{
+  "id": "telugu-native",
+  "name": "Telugu Native",
+  "version": 2,
+  "category": "bold",
+  "minPlan": "free",
+  "typography": {
+    "fontFamily": "Noto Sans Telugu",
+    "fallbacks": ["Noto Sans Devanagari", "Noto Sans Tamil", "Noto Sans"],
+    "weight": 700,
+    "italic": false,
+    "sizePct": 4.6,
+    "lineHeight": 1.25,
+    "letterSpacingEm": 0,
+    "textTransform": "none"
+  },
+  "colors": {
+    "text": "#ffffff",
+    "activeText": "#9900ff",
+    "accent": "#9900ff"
+  },
+  "box": {
+    "enabled": false,
+    "mode": "line",
+    "paddingPct": 16,
+    "radiusPct": 0,
+    "opacity": 0
+  },
+  "stroke": {
+    "enabled": true,
+    "color": "#000000",
+    "widthPct": 8
+  },
+  "shadow": {
+    "enabled": false,
+    "offsetXPct": 0,
+    "offsetYPct": 0,
+    "blurPct": 0,
+    "opacity": 0
+  },
+  "layout": {
+    "anchor": "center",
+    "x": 0.5,
+    "y": 0.5,
+    "align": "center",
+    "maxWidthPct": 86,
+    "maxLines": 3,
+    "wordsPerCue": 3,
+    "safeAreaPct": 8
+  },
+  "animation": {
+    "in": {
+      "type": "pop",
+      "durationMs": 200
+    },
+    "out": {
+      "type": "fade",
+      "durationMs": 120
+    },
+    "wordHighlight": {
+      "type": "color",
+      "durationMs": 100
+    },
+    "perWord": false
+  },
+  "emphasisPresets": [
+    {
+      "id": "pop",
+      "label": "Pop",
+      "color": "#9900ff",
+      "scale": 1.2,
+      "effect": "none"
+    }
+  ],
+  "assRenderable": true,
+  "assExportable": true,
+  "requiresLayoutMetrics": true,
+  "parityScore": 0.9667
+}

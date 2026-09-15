@@ -58,6 +58,8 @@ export interface PlacedRun {
 
 /** A word placed on a line, with the box a highlight or a box-mode style draws. */
 export interface LayoutWord {
+  /** Editorial composition rotation, around the word's own box centre. */
+  readonly rotationDeg?: number;
   readonly wid: string;
   readonly text: string;
   readonly startMs: number;

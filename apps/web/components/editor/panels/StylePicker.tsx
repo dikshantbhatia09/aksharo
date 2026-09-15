@@ -75,7 +75,11 @@ export interface StylePickerProps {
 export function matchesQuery(style: StyleDoc, query: string): boolean {
   const needle = query.trim().toLowerCase();
   if (needle.length === 0) return true;
-  return `${style.name} ${style.id} ${style.category}`.toLowerCase().includes(needle);
+  const motionKeywords =
+    style.animation.typographyMotion === undefined ? "" : "typography motion editorial";
+  return `${style.name} ${style.id} ${style.category} ${motionKeywords}`
+    .toLowerCase()
+    .includes(needle);
 }
 
 /** The categories actually present, in the order the catalogue lists them. */
@@ -235,6 +239,9 @@ export function StylePicker({
               <StylePreviewCanvas
                 style={style}
                 {...preview}
+                {...(style.animation.typographyMotion === undefined
+                  ? {}
+                  : { background: "#e5a381" })}
                 playing={hovered === style.id}
                 className="mx-auto"
               />

@@ -1,0 +1,78 @@
+{
+  "id": "signage-chunky",
+  "name": "Signage Chunky",
+  "version": 2,
+  "category": "bold",
+  "minPlan": "free",
+  "typography": {
+    "fontFamily": "Bungee",
+    "fallbacks": ["Noto Sans Devanagari", "Noto Sans Tamil", "Noto Sans"],
+    "weight": 400,
+    "italic": false,
+    "sizePct": 4.8,
+    "lineHeight": 1.15,
+    "letterSpacingEm": 0,
+    "textTransform": "none"
+  },
+  "colors": {
+    "text": "#1a1a1a",
+    "activeText": "#ffffff",
+    "accent": "#ffffff"
+  },
+  "box": {
+    "enabled": true,
+    "mode": "line",
+    "fill": "#ffce00",
+    "paddingPct": 20,
+    "radiusPct": 8,
+    "opacity": 1
+  },
+  "stroke": {
+    "enabled": false,
+    "widthPct": 0
+  },
+  "shadow": {
+    "enabled": false,
+    "offsetXPct": 0,
+    "offsetYPct": 0,
+    "blurPct": 0,
+    "opacity": 0
+  },
+  "layout": {
+    "anchor": "center",
+    "x": 0.5,
+    "y": 0.5,
+    "align": "center",
+    "maxWidthPct": 84,
+    "maxLines": 3,
+    "wordsPerCue": 5,
+    "safeAreaPct": 8
+  },
+  "animation": {
+    "in": {
+      "type": "pop",
+      "durationMs": 180
+    },
+    "out": {
+      "type": "fade",
+      "durationMs": 120
+    },
+    "wordHighlight": {
+      "type": "color",
+      "durationMs": 100
+    },
+    "perWord": false
+  },
+  "emphasisPresets": [
+    {
+      "id": "flip",
+      "label": "Flip",
+      "color": "#ffffff",
+      "effect": "none"
+    }
+  ],
+  "assRenderable": false,
+  "assExportable": true,
+  "requiresLayoutMetrics": true,
+  "parityScore": 0.89
+}
