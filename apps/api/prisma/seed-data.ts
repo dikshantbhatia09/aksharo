@@ -335,6 +335,31 @@ export interface FeatureFlagSeed {
 /** All off by default: each one gates work that is not built or not cleared yet. */
 export const FEATURE_FLAG_SEEDS: readonly FeatureFlagSeed[] = [
   {
+    key: "repurpose_flow",
+    description:
+      "Guided five-stage repurposing workflow. Off until the sequential repurposing checkpoints pass.",
+  },
+  {
+    key: "source_youtube_acquire",
+    description:
+      "Authorized YouTube source acquisition. Off until the downloader, limits, rights, and security gates pass.",
+  },
+  {
+    key: "highlight_discovery",
+    description:
+      "Multimodal highlight candidate discovery. Off until schema parity and multilingual quality benchmarks pass.",
+  },
+  {
+    key: "publishing_postiz",
+    description:
+      "Postiz-backed account connection and publishing. Off until staging, token-boundary, and reconciliation gates pass.",
+  },
+  {
+    key: "publishing_tiktok",
+    description:
+      "TikTok publishing provider path. Off until provider review, scopes, consent, and test-account evidence pass.",
+  },
+  {
     key: "streak_experiment",
     description:
       "Streak levels, freezes and renewal discounts (04 §Streak rewards). Runs against a holdout; design pending RR-10.",

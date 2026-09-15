@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "id": "01ARZ3NDEKTSV4RRFFQ69G5FB1",
+  "workspaceId": "01ARZ3NDEKTSV4RRFFQ69G5FB0",
+  "provider": "instagram",
+  "externalIntegrationId": "int_9f2c1b",
+  "displayName": "Aksharo Demo",
+  "username": "aksharo.demo",
+  "avatarUrl": "https://example.test/avatar.png",
+  "status": "connected",
+  "capabilities": {
+    "schemaVersion": 1,
+    "modes": ["direct", "schedule"],
+    "maxDurationMs": 90000,
+    "minDurationMs": 3000,
+    "maxBytes": 1073741824,
+    "aspects": ["9:16"],
+    "maxTitleLength": null,
+    "maxBodyLength": 2200,
+    "maxHashtags": 30,
+    "scheduleMinLeadMs": 600000,
+    "scheduleMaxHorizonMs": 5184000000,
+    "privateOnly": false,
+    "checkedAt": "2026-09-15T10:00:00.000Z"
+  },
+  "lastVerifiedAt": "2026-09-15T10:00:00.000Z"
+}

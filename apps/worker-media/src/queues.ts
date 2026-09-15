@@ -14,6 +14,8 @@
 export const QUEUE_NAMES = [
   "media.probe",
   "media.proxy",
+  "media.acquire",
+  "media.clip",
   "ai.vad",
   "ai.transcribe",
   "ai.align",
@@ -23,19 +25,34 @@ export const QUEUE_NAMES = [
   "ai.clean",
   "ai.pass",
   "ai.llm",
+  "ai.highlights",
   "render.video",
   "render.subtitle",
+  "publish.dispatch",
+  "publish.reconcile",
   "notify",
 ] as const;
 
 export type QueueName = (typeof QUEUE_NAMES)[number];
 
-/** Queues this worker consumes. */
+/**
+ * Queues this worker consumes.
+ *
+ * `media.clip` is in QUEUE_NAMES from REP-005 but is NOT here: registering a name
+ * is a contract, consuming it is an implementation, and its processor arrives in
+ * Wave 6. A job enqueued on it today would sit in Redis, which is why nothing
+ * enqueues it until then.
+ *
+ * `media.acquire` IS consumed (REP-010), but nothing produces it either: the API
+ * refuses to create a link-sourced run while `source_youtube_acquire` is disabled,
+ * and that flag is seeded off.
+ */
 export const MEDIA_PROBE_QUEUE = "media.probe" satisfies QueueName;
 export const MEDIA_PROXY_QUEUE = "media.proxy" satisfies QueueName;
+export const MEDIA_ACQUIRE_QUEUE = "media.acquire" satisfies QueueName;
 
-/** Both of them, in the order a pipeline runs them. */
-export const MEDIA_QUEUES = [MEDIA_PROBE_QUEUE, MEDIA_PROXY_QUEUE] as const;
+/** The three, in the order a pipeline runs them. */
+export const MEDIA_QUEUES = [MEDIA_ACQUIRE_QUEUE, MEDIA_PROBE_QUEUE, MEDIA_PROXY_QUEUE] as const;
 
 export type MediaQueue = (typeof MEDIA_QUEUES)[number];
 

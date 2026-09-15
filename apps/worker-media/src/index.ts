@@ -4,11 +4,13 @@ import IORedis from "ioredis";
 import { logger } from "./logger.js";
 import { assertMediaToolsAvailable } from "./media-tools.js";
 import { workerOptions } from "./policies.js";
+import { processAcquire } from "./processors/acquire.js";
 import { processProbe } from "./processors/probe.js";
 import { processProxy } from "./processors/proxy.js";
-import { MEDIA_PROBE_QUEUE, MEDIA_PROXY_QUEUE } from "./queues.js";
+import { MEDIA_ACQUIRE_QUEUE, MEDIA_PROBE_QUEUE, MEDIA_PROXY_QUEUE } from "./queues.js";
 import { buildServices, makeHandler } from "./runtime.js";
 import { loadRepoDotenv, resolveSettings } from "./settings.js";
+import { assertYtDlpUsable } from "./yt-dlp.js";
 
 import type { MediaQueue } from "./queues.js";
 import type { Processor, Services } from "./runtime.js";
@@ -19,8 +21,9 @@ import type { Settings } from "./settings.js";
  * open (A07).
  *
  * ```
- * media.probe  duration, dimensions, codec, rotation, HDR, loudness, silence
- * media.proxy  audio16k.wav · audio48k.wav · waveform.json · proxy540.mp4 · thumb-{n}.jpg
+ * media.acquire  an authorised external source, downloaded into raw storage
+ * media.probe    duration, dimensions, codec, rotation, HDR, loudness, silence
+ * media.proxy    audio16k.wav · audio48k.wav · waveform.json · proxy540.mp4 · thumb-{n}.jpg
  * ```
  *
  * Boot order is deliberate: **FFmpeg is checked before Redis**. A worker without
@@ -35,6 +38,7 @@ import type { Settings } from "./settings.js";
  */
 
 const PROCESSORS: Readonly<Record<MediaQueue, Processor>> = {
+  [MEDIA_ACQUIRE_QUEUE]: processAcquire,
   [MEDIA_PROBE_QUEUE]: processProbe,
   [MEDIA_PROXY_QUEUE]: processProxy,
 };
@@ -81,6 +85,24 @@ async function main(): Promise<void> {
     ffprobe: settings.ffprobePath,
   });
   for (const { tool, version } of tools) logger.info("media tool available", { tool, version });
+
+  // The downloader is checked ONLY when this pod actually consumes the queue that
+  // uses it, for the same reason ffmpeg is checked at all: a pod that will never
+  // acquire anything should not be refused for a binary it does not need. When it
+  // IS consumed, the version and digest are verified before a single job is taken
+  // — an unpinned downloader running a user's URL is exactly what ADR 0002 §7
+  // forbids, and finding out mid-job is finding out too late.
+  if (settings.queues.includes(MEDIA_ACQUIRE_QUEUE)) {
+    const downloader = await assertYtDlpUsable({
+      binary: settings.ytDlpPath,
+      verifyDigest: settings.ytDlpVerifyDigest,
+    });
+    logger.info("media tool available", {
+      tool: "yt-dlp",
+      version: downloader.version,
+      digestVerified: downloader.sha256 !== null,
+    });
+  }
 
   // BullMQ uses blocking commands, so retries-per-request must be disabled.
   const connection = new IORedis(settings.env.REDIS_URL, { maxRetriesPerRequest: null });

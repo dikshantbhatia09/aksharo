@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "runId": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+  "transcriptId": "01ARZ3NDEKTSV4RRFFQ69G5FB7",
+  "transcriptRevision": 3,
+  "proposals": [
+    {
+      "windowId": "w-0042",
+      "startMs": 330000,
+      "endMs": 360000,
+      "startWordId": "word-100",
+      "endWordId": "word-199",
+      "title": "Sabse bada galti jo log karte hain",
+      "transcriptExcerpt": "Sabse bada galti ye hai ki log shuru mein hi bade goals rakh lete hain.",
+      "potentialScore": 78,
+      "scoreBreakdown": {
+        "hook": 81,
+        "clarity": 88,
+        "emotion": 62,
+        "visualActivity": 75,
+        "novelty": 71,
+        "standaloneValue": 83,
+        "safety": 100
+      },
+      "reasons": [
+        {
+          "label": "hook",
+          "explanation": "Opens on the mistake before explaining it."
+        },
+        {
+          "label": "standalone",
+          "explanation": "Makes sense without the rest of the episode."
+        }
+      ]
+    }
+  ],
+  "featureVersion": "features-1",
+  "promptVersion": "highlight-candidates-1",
+  "model": "mock",
+  "windowsConsidered": 184
+}

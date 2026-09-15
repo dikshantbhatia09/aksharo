@@ -13,6 +13,8 @@
 export const QUEUE_NAMES = [
   "media.probe",
   "media.proxy",
+  "media.acquire",
+  "media.clip",
   "ai.vad",
   "ai.transcribe",
   "ai.align",
@@ -22,8 +24,11 @@ export const QUEUE_NAMES = [
   "ai.clean",
   "ai.pass",
   "ai.llm",
+  "ai.highlights",
   "render.video",
   "render.subtitle",
+  "publish.dispatch",
+  "publish.reconcile",
   "notify",
 ] as const;
 

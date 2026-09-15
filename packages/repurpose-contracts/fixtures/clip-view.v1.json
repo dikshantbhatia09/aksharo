@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "id": "01ARZ3NDEKTSV4RRFFQ69G5FAY",
+  "runId": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+  "candidateId": "01ARZ3NDEKTSV4RRFFQ69G5FAW",
+  "title": "The useful answer",
+  "sourceStartMs": 330000,
+  "sourceEndMs": 360000,
+  "copyVersion": 1,
+  "copy": {
+    "summary": "A self-contained answer.",
+    "hook": "Use this today.",
+    "cta": "Save it for later.",
+    "hashtags": ["#Aksharo"],
+    "locale": "hi-Latn"
+  }
+}

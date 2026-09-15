@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "run": { "id": "01ARZ3NDEKTSV4RRFFQ69G5FAV", "status": "draft", "currentStage": "getting_video" },
+  "projectId": "01ARZ3NDEKTSV4RRFFQ69G5FAX",
+  "upload": {
+    "mediaId": "01ARZ3NDEKTSV4RRFFQ69G5FAZ",
+    "uploadId": "upload-1",
+    "key": "ws/test/raw/clip.mp4",
+    "bucket": "s3",
+    "partSizeBytes": 5242880,
+    "parts": [{ "partNumber": 1, "url": "http://127.0.0.1:59000/montaj-raw/test?partNumber=1" }],
+    "expiresAt": "2026-09-15T01:00:00.000Z",
+    "duplicate": false,
+    "media": {
+      "id": "01ARZ3NDEKTSV4RRFFQ69G5FAZ",
+      "projectId": "01ARZ3NDEKTSV4RRFFQ69G5FAX",
+      "role": "primary",
+      "bucket": "s3",
+      "storageKey": "ws/test/raw/clip.mp4",
+      "filename": "clip.mp4",
+      "mime": "video/mp4",
+      "sizeBytes": 5242880,
+      "contentHash": null,
+      "durationMs": null,
+      "fps": null,
+      "width": null,
+      "height": null,
+      "audioChannels": null,
+      "status": "uploading",
+      "needsRealign": false,
+      "uploadedAt": null,
+      "rawPurgeAt": null,
+      "derivedPurgeAt": null,
+      "derived": { "proxy": null, "audio16k": null, "audio48k": null, "waveform": null, "thumbs": [] },
+      "createdAt": "2026-09-15T00:00:00.000Z"
+    }
+  },
+  "next": { "rel": "run", "href": "/repurpose/01ARZ3NDEKTSV4RRFFQ69G5FAV" }
+}

@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "source": {
+    "kind": "youtube_url",
+    "url": "https://www.youtube.com/watch?v=example12345",
+    "rightsAttested": true
+  },
+  "setup": {
+    "sourceLanguage": "hi-Latn",
+    "caption": {
+      "outputLanguage": "same",
+      "scriptMode": "roman",
+      "styleId": "punch-pop"
+    },
+    "discovery": {
+      "mode": "ai",
+      "requestedCandidates": 5,
+      "contentGoal": "reach"
+    }
+  }
+}

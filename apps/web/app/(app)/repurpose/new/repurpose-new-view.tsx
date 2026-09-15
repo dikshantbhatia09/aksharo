@@ -1,0 +1,113 @@
+"use client";
+
+/**
+ * `/repurpose/new` — the calm start screen (REP-008, master plan §3.3).
+ *
+ * The one rule that shapes this file: **persist the run before any background
+ * work begins, then navigate to its own URL** (§3.4). A run that exists only in
+ * component state is a run a refresh destroys, and this flow is explicitly built
+ * to survive a refresh, a navigation and a closed laptop.
+ *
+ * The idempotency key is minted once per form, not per submit: a double-clicked
+ * button, a flaky connection and a retried request must all land on the same run
+ * rather than starting a second transcription.
+ */
+import { useRouter } from "next/navigation";
+import * as React from "react";
+
+import { isApiError, useCreateRepurposeRun } from "@montaj/api-client";
+
+import { rememberedLanguage, rememberLanguage } from "@/components/projects/language-picker";
+import {
+  EMPTY_START_FORM,
+  SourceStartForm,
+  type StartFormValue,
+} from "@/components/repurpose/SourceStartForm";
+
+/** A key that survives a re-render but changes when the form is genuinely new. */
+function newIdempotencyKey(): string {
+  return `repurpose-${String(Date.now())}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+export function RepurposeNewView(): React.JSX.Element {
+  const router = useRouter();
+  const create = useCreateRepurposeRun();
+  const idempotencyKey = React.useRef(newIdempotencyKey());
+  const [value, setValue] = React.useState<StartFormValue>(() => ({
+    ...EMPTY_START_FORM,
+    // The last language they used, the way every other entry point remembers it.
+    sourceLanguage: rememberedLanguage(),
+  }));
+  const [serverError, setServerError] = React.useState<string | null>(null);
+
+  const submit = (): void => {
+    setServerError(null);
+    if (value.sourceLanguage !== undefined) rememberLanguage(value.sourceLanguage);
+
+    const source =
+      value.tab === "link"
+        ? ({ kind: "url", url: value.url.trim(), rightsAttested: true } as const)
+        : ({
+            kind: "upload",
+            filename: value.file?.name ?? "video.mp4",
+            mime: value.file?.type === "" ? "video/mp4" : (value.file?.type ?? "video/mp4"),
+            sizeBytes: value.file?.size ?? 0,
+          } as const);
+
+    create.mutate(
+      {
+        idempotencyKey: idempotencyKey.current,
+        body: {
+          source,
+          setup: {
+            sourceLanguage: value.sourceLanguage ?? "en",
+            caption: {
+              outputLanguage: value.outputLanguage,
+              scriptMode: value.scriptMode as "auto" | "roman" | "native" | "bilingual",
+              styleId: value.styleId,
+            },
+            discovery: {
+              mode: value.method,
+              requestedCandidates: value.method === "manual" ? 0 : value.requestedCandidates,
+            },
+          },
+        },
+      },
+      {
+        onSuccess: (created) => {
+          // The run exists server-side before anything else happens, so this
+          // navigation is a bookmark, not a handoff of in-memory state.
+          router.push(`/repurpose/${created.run.id}`);
+        },
+        onError: (error) => {
+          // The API's message is already plain language and already safe; a raw
+          // transport failure is not, so it gets a sentence of its own.
+          setServerError(
+            isApiError(error)
+              ? error.message
+              : "We could not start this just now. Please try again.",
+          );
+        },
+      },
+    );
+  };
+
+  return (
+    <main className="mx-auto w-full max-w-2xl px-4 py-8">
+      <h1 className="text-lg text-fg-0">Create from a long video</h1>
+      <p className="mt-1 text-sm text-fg-2">
+        One long video becomes short, captioned videos you can review before anything is posted.
+      </p>
+
+      <div className="mt-6">
+        <SourceStartForm
+          value={value}
+          onChange={setValue}
+          onSubmit={submit}
+          submitting={create.isPending}
+          serverError={serverError}
+        />
+      </div>
+    </main>
+  );
+}

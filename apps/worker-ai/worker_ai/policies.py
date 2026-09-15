@@ -105,6 +105,14 @@ QUEUE_POLICY_BY_FAMILY: Final[dict[str, QueuePolicy]] = {
         stalled_interval_ms=15_000,
         max_stalled_count=2,
     ),
+    "publish": QueuePolicy(
+        attempts=1,
+        backoff_ms=30_000,
+        backoff_jitter=0.5,
+        lock_duration_ms=120_000,
+        stalled_interval_ms=30_000,
+        max_stalled_count=1,
+    ),
 }
 
 #: Queues whose work outlives the family lock. Only the differing fields appear,
@@ -112,6 +120,9 @@ QUEUE_POLICY_BY_FAMILY: Final[dict[str, QueuePolicy]] = {
 QUEUE_POLICY_OVERRIDES: Final[dict[str, dict[str, int]]] = {
     "media.probe": {"lockDurationMs": 600_000, "stalledIntervalMs": 60_000},
     "media.proxy": {"lockDurationMs": 600_000, "stalledIntervalMs": 60_000},
+    "media.acquire": {"lockDurationMs": 600_000, "stalledIntervalMs": 60_000},
+    "media.clip": {"lockDurationMs": 300_000, "stalledIntervalMs": 60_000},
+    "ai.highlights": {"lockDurationMs": 600_000, "stalledIntervalMs": 60_000},
     "ai.transcribe": {"lockDurationMs": 600_000, "stalledIntervalMs": 60_000},
     "ai.diarise": {"lockDurationMs": 600_000, "stalledIntervalMs": 60_000},
     "ai.align": {"lockDurationMs": 300_000, "stalledIntervalMs": 60_000},

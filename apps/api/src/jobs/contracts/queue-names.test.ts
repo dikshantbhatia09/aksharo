@@ -12,6 +12,8 @@ const APPS = resolve(process.cwd(), "..");
 const CONTRACT_QUEUES = [
   "media.probe",
   "media.proxy",
+  "media.acquire",
+  "media.clip",
   "ai.vad",
   "ai.transcribe",
   "ai.align",
@@ -21,8 +23,11 @@ const CONTRACT_QUEUES = [
   "ai.clean",
   "ai.pass",
   "ai.llm",
+  "ai.highlights",
   "render.video",
   "render.subtitle",
+  "publish.dispatch",
+  "publish.reconcile",
   "notify",
 ];
 

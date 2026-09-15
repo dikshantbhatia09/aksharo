@@ -84,6 +84,9 @@ export const REALTIME_EVENTS = [
   // before Gate A. Raised in the A25 report rather than edited into the frozen
   // document, because a contract changes by ADR and not by a feature commit.
   "notification.created",
+  // REP-006. Additive in the same way: a client that does not know this event
+  // ignores the frame. CONTRACTS §7 carries the amendment.
+  "repurpose.stage.changed",
 ] as const;
 
 export type RealtimeEvent = (typeof REALTIME_EVENTS)[number];
@@ -141,12 +144,32 @@ export interface NotificationCreatedEvent {
   readonly at: string;
 }
 
+/**
+ * `repurpose.stage.changed` — emitted by REP-006 on the WORKSPACE room.
+ *
+ * The run outlives any one project (the source project and every child variant
+ * project belong to it), so the workspace room is the only one that can carry it
+ * for a whole run. Like `notification.created` the payload is a pointer plus
+ * enough to render a rail without a refetch — never a job id, a queue name or a
+ * worker error (§13.4).
+ */
+export interface RepurposeStageChangedEvent {
+  readonly runId: string;
+  readonly status: string;
+  readonly stage: string;
+  readonly progress: number;
+  /** Already plain language, already safe to show. */
+  readonly message: string;
+  readonly at: string;
+}
+
 export interface RealtimeEventPayloads {
   "job.progress": JobProgressEvent;
   "job.completed": JobCompletedEvent;
   "edg.ops": EdgOpsEvent;
   "comment.added": CommentAddedEvent;
   "notification.created": NotificationCreatedEvent;
+  "repurpose.stage.changed": RepurposeStageChangedEvent;
 }
 
 // ---------------------------------------------------------------------------

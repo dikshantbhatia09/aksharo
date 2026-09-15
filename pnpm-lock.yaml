@@ -173,6 +173,9 @@ importers:
         specifier: ^4.5.4
         version: 4.5.4
     devDependencies:
+      '@montaj/repurpose-contracts':
+        specifier: workspace:*
+        version: link:../../packages/repurpose-contracts
       '@nestjs/cli':
         specifier: ^11.0.24
         version: 11.0.24(@swc/core@1.16.1)(@types/node@22.20.1)(esbuild@0.28.2)(lightningcss@1.32.0)(prettier@3.9.6)
@@ -788,6 +791,34 @@ importers:
         specifier: ^3.2.7
         version: 3.2.7(@types/debug@4.1.13)(@types/node@22.20.1)(jiti@2.7.0)(jsdom@30.0.1(@noble/hashes@2.4.0))(lightningcss@1.32.0)(terser@5.51.2)(tsx@4.23.13)(yaml@2.9.0)
 
+  packages/platform-profiles:
+    dependencies:
+      '@montaj/repurpose-contracts':
+        specifier: workspace:*
+        version: link:../repurpose-contracts
+      zod:
+        specifier: ^4.5.4
+        version: 4.5.4
+    devDependencies:
+      '@montaj/config':
+        specifier: workspace:*
+        version: link:../config
+      '@types/node':
+        specifier: ^22.19.2
+        version: 22.20.1
+      '@vitest/coverage-v8':
+        specifier: ^3.2.7
+        version: 3.2.7(vitest@3.2.7(@types/debug@4.1.13)(@types/node@22.20.1)(jiti@2.7.0)(jsdom@30.0.1(@noble/hashes@2.4.0))(lightningcss@1.32.0)(terser@5.51.2)(tsx@4.23.13)(yaml@2.9.0))
+      eslint:
+        specifier: ^9.39.5
+        version: 9.39.5(jiti@2.7.0)
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.7
+        version: 3.2.7(@types/debug@4.1.13)(@types/node@22.20.1)(jiti@2.7.0)(jsdom@30.0.1(@noble/hashes@2.4.0))(lightningcss@1.32.0)(terser@5.51.2)(tsx@4.23.13)(yaml@2.9.0)
+
   packages/prompts:
     dependencies:
       zod:
@@ -806,6 +837,34 @@ importers:
       tsx:
         specifier: ^4.23.13
         version: 4.23.13
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.7
+        version: 3.2.7(@types/debug@4.1.13)(@types/node@22.20.1)(jiti@2.7.0)(jsdom@30.0.1(@noble/hashes@2.4.0))(lightningcss@1.32.0)(terser@5.51.2)(tsx@4.23.13)(yaml@2.9.0)
+
+  packages/publishing-contracts:
+    dependencies:
+      zod:
+        specifier: ^4.5.4
+        version: 4.5.4
+    devDependencies:
+      '@montaj/config':
+        specifier: workspace:*
+        version: link:../config
+      '@montaj/repurpose-contracts':
+        specifier: workspace:*
+        version: link:../repurpose-contracts
+      '@types/node':
+        specifier: ^22.19.2
+        version: 22.20.1
+      '@vitest/coverage-v8':
+        specifier: ^3.2.7
+        version: 3.2.7(vitest@3.2.7(@types/debug@4.1.13)(@types/node@22.20.1)(jiti@2.7.0)(jsdom@30.0.1(@noble/hashes@2.4.0))(lightningcss@1.32.0)(terser@5.51.2)(tsx@4.23.13)(yaml@2.9.0))
+      eslint:
+        specifier: ^9.39.5
+        version: 9.39.5(jiti@2.7.0)
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -951,6 +1010,31 @@ importers:
       tsx:
         specifier: ^4.23.13
         version: 4.23.13
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.7
+        version: 3.2.7(@types/debug@4.1.13)(@types/node@22.20.1)(jiti@2.7.0)(jsdom@30.0.1(@noble/hashes@2.4.0))(lightningcss@1.32.0)(terser@5.51.2)(tsx@4.23.13)(yaml@2.9.0)
+
+  packages/repurpose-contracts:
+    dependencies:
+      zod:
+        specifier: ^4.5.4
+        version: 4.5.4
+    devDependencies:
+      '@montaj/config':
+        specifier: workspace:*
+        version: link:../config
+      '@types/node':
+        specifier: ^22.19.2
+        version: 22.20.1
+      '@vitest/coverage-v8':
+        specifier: ^3.2.7
+        version: 3.2.7(vitest@3.2.7(@types/debug@4.1.13)(@types/node@22.20.1)(jiti@2.7.0)(jsdom@30.0.1(@noble/hashes@2.4.0))(lightningcss@1.32.0)(terser@5.51.2)(tsx@4.23.13)(yaml@2.9.0))
+      eslint:
+        specifier: ^9.39.5
+        version: 9.39.5(jiti@2.7.0)
       typescript:
         specifier: ^5.9.3
         version: 5.9.3

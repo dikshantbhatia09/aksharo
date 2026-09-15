@@ -33,8 +33,8 @@ const ENV: NodeJS.ProcessEnv = {
 };
 
 describe("resolveSettings", () => {
-  it("consumes both media queues by default", () => {
-    expect(resolveSettings(ENV).queues).toEqual(["media.probe", "media.proxy"]);
+  it("consumes every implemented media queue by default", () => {
+    expect(resolveSettings(ENV).queues).toEqual(["media.acquire", "media.probe", "media.proxy"]);
   });
 
   it("lets a pod be pinned to one queue", () => {

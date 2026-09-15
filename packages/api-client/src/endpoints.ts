@@ -14,6 +14,10 @@
 import { defineEndpoint } from "./http.js";
 
 import type {
+  CreateRepurposeRunRequest,
+  CreateRepurposeRunResponse,
+  RepurposeRunPage,
+  RepurposeRunView,
   AcademyProgressResponse,
   AdminStepUpResponse,
   AdminTotpCodeRequest,
@@ -444,6 +448,48 @@ export const jobEndpoints = {
     path: "/jobs/{id}/cancel",
     auth: "bearer",
     operationId: "cancelJob",
+  }),
+} as const;
+
+/**
+ * Repurposing runs (REP-006).
+ *
+ * Every one of these answers 404 while `repurpose_flow` is off, which is how the
+ * feature ships: the client treats that as "not available", not as an error worth
+ * showing. `create`, `cancel` and `retry` accept an `Idempotency-Key`, so a
+ * retried POST after a dropped response replays the first answer rather than
+ * starting a second run.
+ */
+export const repurposeEndpoints = {
+  list: defineEndpoint<void, RepurposeRunPage>({
+    method: "GET",
+    path: "/repurpose/runs",
+    auth: "bearer",
+    operationId: "listRepurposeRuns",
+  }),
+  create: defineEndpoint<CreateRepurposeRunRequest, CreateRepurposeRunResponse>({
+    method: "POST",
+    path: "/repurpose/runs",
+    auth: "bearer",
+    operationId: "createRepurposeRun",
+  }),
+  get: defineEndpoint<void, RepurposeRunView>({
+    method: "GET",
+    path: "/repurpose/runs/{runId}",
+    auth: "bearer",
+    operationId: "getRepurposeRun",
+  }),
+  cancel: defineEndpoint<void, RepurposeRunView>({
+    method: "POST",
+    path: "/repurpose/runs/{runId}/cancel",
+    auth: "bearer",
+    operationId: "cancelRepurposeRun",
+  }),
+  retry: defineEndpoint<void, RepurposeRunView>({
+    method: "POST",
+    path: "/repurpose/runs/{runId}/retry",
+    auth: "bearer",
+    operationId: "retryRepurposeRun",
   }),
 } as const;
 
@@ -1028,6 +1074,7 @@ export const endpoints = {
   account: accountEndpoints,
   jobs: jobEndpoints,
   projects: projectEndpoints,
+  repurpose: repurposeEndpoints,
   folders: folderEndpoints,
   media: mediaEndpoints,
   styles: styleEndpoints,
@@ -1065,6 +1112,7 @@ export const ALL_ENDPOINTS = [
   ...Object.entries(accountEndpoints),
   ...Object.entries(jobEndpoints),
   ...Object.entries(projectEndpoints),
+  ...Object.entries(repurposeEndpoints),
   ...Object.entries(folderEndpoints),
   ...Object.entries(mediaEndpoints),
   ...Object.entries(styleEndpoints),

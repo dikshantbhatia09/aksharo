@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "sourceLanguage": "hi-Latn",
+  "caption": {
+    "outputLanguage": "same",
+    "scriptMode": "roman",
+    "styleId": "punch-pop",
+    "styleVersion": 1
+  },
+  "discovery": {
+    "mode": "ai",
+    "requestedCandidates": 5,
+    "minDurationMs": 15000,
+    "maxDurationMs": 60000,
+    "contentGoal": "reach"
+  },
+  "formats": [
+    {
+      "aspect": "9:16",
+      "destinations": ["instagram_reel", "youtube_short"],
+      "reframe": "auto"
+    }
+  ],
+  "enhancements": {
+    "audioClean": true,
+    "autoZoom": false,
+    "autoTextFx": false,
+    "music": "off"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "run": {
+    "id": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "status": "acquiring",
+    "currentStage": "getting_video"
+  },
+  "projectId": "01ARZ3NDEKTSV4RRFFQ69G5FAX",
+  "upload": null,
+  "next": {
+    "rel": "run",
+    "href": "/repurpose/01ARZ3NDEKTSV4RRFFQ69G5FAV"
+  }
+}

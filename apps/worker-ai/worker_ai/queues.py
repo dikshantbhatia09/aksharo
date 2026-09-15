@@ -31,6 +31,8 @@ __all__ = [
 QUEUE_NAMES: Final[tuple[str, ...]] = (
     "media.probe",
     "media.proxy",
+    "media.acquire",
+    "media.clip",
     "ai.vad",
     "ai.transcribe",
     "ai.align",
@@ -40,8 +42,11 @@ QUEUE_NAMES: Final[tuple[str, ...]] = (
     "ai.clean",
     "ai.pass",
     "ai.llm",
+    "ai.highlights",
     "render.video",
     "render.subtitle",
+    "publish.dispatch",
+    "publish.reconcile",
     "notify",
 )
 
@@ -53,7 +58,8 @@ AI_QUEUES: Final[tuple[str, ...]] = tuple(name for name in QUEUE_NAMES if name.s
 #: `ai.transliterate` from A22, `ai.llm` from B11, `ai.pass` from B18,
 #: `ai.clean` from B10); the rest are registered and answer `not_implemented`
 #: so a producer gets a clear failure instead of a job that sits in Redis
-#: forever. `ai.pass` itself still answers `worker/not_implemented` for any
+#: forever — `ai.highlights` (REP-005) is exactly that case until Wave 4 adds its
+#: processor. `ai.pass` itself still answers `worker/not_implemented` for any
 #: `passType` other than `"autocut"` (`processors/autocut_pass.py`) — B19
 #: adds `"reframe"`/`"zoom"`, D06 adds `"textfx"`, D04c adds `"sfx"`.
 IMPLEMENTED_AI_QUEUES: Final[tuple[str, ...]] = (

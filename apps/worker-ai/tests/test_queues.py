@@ -29,8 +29,8 @@ VALID_JOB: dict[str, Any] = {
 }
 
 
-def test_lists_all_fourteen_frozen_queue_names() -> None:
-    assert len(QUEUE_NAMES) == 14
+def test_lists_all_nineteen_frozen_queue_names() -> None:
+    assert len(QUEUE_NAMES) == 19
     assert len(set(QUEUE_NAMES)) == len(QUEUE_NAMES)
     assert AI_TRANSCRIBE_QUEUE == "ai.transcribe"
     assert AI_TRANSCRIBE_QUEUE in QUEUE_NAMES

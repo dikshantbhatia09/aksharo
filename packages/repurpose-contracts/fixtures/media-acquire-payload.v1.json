@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "runId": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+  "projectId": "01ARZ3NDEKTSV4RRFFQ69G5FAX",
+  "mediaId": "01ARZ3NDEKTSV4RRFFQ69G5FB6",
+  "source": {
+    "kind": "youtube_url",
+    "normalizedUrl": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+    "sourceId": "youtube:dQw4w9WgXcQ"
+  },
+  "destination": {
+    "bucket": "s3",
+    "key": "ws/01ARZ3NDEKTSV4RRFFQ69G5FB0/p/01ARZ3NDEKTSV4RRFFQ69G5FAX/media/01ARZ3NDEKTSV4RRFFQ69G5FB6/raw.mp4"
+  },
+  "limits": {
+    "maxBytes": 524288000,
+    "maxDurationMs": 1200000,
+    "timeoutMs": 900000
+  }
+}

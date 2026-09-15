@@ -128,6 +128,16 @@ export function AppShell({ children }: { children: React.ReactNode }): React.JSX
           void queryClient.invalidateQueries({ queryKey: ["ws", session.workspaceId, "jobs"] });
         }
 
+        // REP-006: a repurposing run's stage moved. Emitted on the WORKSPACE room
+        // because a run outlives any one project, and invalidated as a pointer
+        // rather than merged: the payload carries enough to render, but the run
+        // projection is the server's to own, and a refetch cannot disagree with it.
+        if (event.event === "repurpose.stage.changed") {
+          void queryClient.invalidateQueries({
+            queryKey: ["ws", session.workspaceId, "repurpose"],
+          });
+        }
+
         // FIX-03: a finished transcription is the one completion that changes
         // which screen the user should be on, so it gets its own narrow branch.
         //

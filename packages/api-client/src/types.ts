@@ -1267,3 +1267,81 @@ export interface PackAssetUrl {
   url: string;
   expiresAt: string;
 }
+
+// ---------------------------------------------------------------------------
+// Repurposing runs (REP-006). Off by default: every route answers 404 while the
+// `repurpose_flow` flag is disabled, which is how it ships.
+// ---------------------------------------------------------------------------
+
+/** The five visible stages, in the fixed order the rail draws them. */
+export type RepurposeStage =
+  | "getting_video"
+  | "finding_clips"
+  | "styles_formats"
+  | "review"
+  | "publish";
+
+export interface RepurposeStageView {
+  stage: RepurposeStage;
+  state: "waiting" | "running" | "complete" | "failed";
+  /** Already plain language — render it, do not map it again. */
+  label: string;
+}
+
+export interface RepurposeRunView {
+  id: string;
+  workspaceId: string;
+  sourceProjectId: string;
+  sourceKind: "upload" | "youtube_url" | "direct_media_url";
+  /** Safe display form: a host and, for a link, the video id. Never a token. */
+  sourceDisplay: string | null;
+  mode: "ai" | "manual" | "mixed";
+  status: string;
+  currentStage: RepurposeStage;
+  progress: number;
+  stages: RepurposeStageView[];
+  message: string;
+  failureCode: string | null;
+  canCancel: boolean;
+  canRetry: boolean;
+  candidateCount: number;
+  clipCount: number;
+  variantCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RepurposeRunPage {
+  items: RepurposeRunView[];
+  nextCursor: string | null;
+}
+
+export interface CreateRepurposeRunRequest {
+  source:
+    | { kind: "url"; url: string; rightsAttested: true }
+    | { kind: "upload"; filename: string; mime: string; sizeBytes: number; contentHash?: string };
+  setup: {
+    sourceLanguage: string;
+    caption: {
+      outputLanguage?: "same" | string;
+      scriptMode?: "auto" | "roman" | "native" | "bilingual";
+      styleId: string;
+    };
+    discovery: {
+      mode?: "ai" | "manual" | "mixed";
+      requestedCandidates?: number;
+      minDurationMs?: number;
+      maxDurationMs?: number;
+      contentGoal?: "reach" | "education" | "authority" | "engagement";
+    };
+  };
+  title?: string;
+}
+
+export interface CreateRepurposeRunResponse {
+  run: RepurposeRunView;
+  projectId: string;
+  /** The ordinary multipart ticket; `null` for a link, which has nothing to PUT. */
+  upload: UploadTicket | null;
+  next: { rel: "run"; href: string };
+}

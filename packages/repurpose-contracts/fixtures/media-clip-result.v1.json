@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "clipId": "01ARZ3NDEKTSV4RRFFQ69G5FAY",
+  "bucket": "r2",
+  "key": "ws/01ARZ3NDEKTSV4RRFFQ69G5FB0/p/01ARZ3NDEKTSV4RRFFQ69G5FAX/repurpose/01ARZ3NDEKTSV4RRFFQ69G5FAV/clips/01ARZ3NDEKTSV4RRFFQ69G5FAW/master.mp4",
+  "checksum": "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
+  "sizeBytes": 8123904,
+  "durationMs": 34000,
+  "effectiveStartMs": 328000,
+  "effectiveEndMs": 362000,
+  "leadHandleMs": 2000,
+  "tailHandleMs": 2000,
+  "hasAudio": true,
+  "deduplicated": false
+}

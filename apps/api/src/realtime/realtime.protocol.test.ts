@@ -96,7 +96,7 @@ describe("constants", () => {
     expect(MAX_ROOMS_PER_CONNECTION).toBe(64);
   });
 
-  it("carry the four events of CONTRACTS §7, plus A25's additive fifth", () => {
+  it("carry the four events of CONTRACTS §7, plus the two additive ones", () => {
     expect([...REALTIME_EVENTS].sort()).toEqual([
       "comment.added",
       "edg.ops",
@@ -105,6 +105,8 @@ describe("constants", () => {
       // A25 added this one and raised the amendment to CONTRACTS §7 in its
       // report. Listed separately so the four frozen names stay obvious.
       "notification.created",
+      // REP-006, amended into CONTRACTS §7 in the same change.
+      "repurpose.stage.changed",
     ]);
   });
 

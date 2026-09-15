@@ -131,11 +131,16 @@ describe("PLAN_SEEDS", () => {
 });
 
 describe("FEATURE_FLAG_SEEDS", () => {
-  it("is exactly the four flags the brief names", () => {
+  it("contains the established and repurposing rollout flags", () => {
     expect(FEATURE_FLAG_SEEDS.map((flag) => flag.key).sort()).toEqual([
+      "highlight_discovery",
       "local_mode",
       "partner_audio",
       "provider_bhashini",
+      "publishing_postiz",
+      "publishing_tiktok",
+      "repurpose_flow",
+      "source_youtube_acquire",
       "streak_experiment",
     ]);
   });

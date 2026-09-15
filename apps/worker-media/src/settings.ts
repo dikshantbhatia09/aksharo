@@ -36,6 +36,17 @@ export interface Settings {
   readonly queuePrefix: string;
   readonly ffmpegPath: string;
   readonly ffprobePath: string;
+  /** The pinned downloader (REP-010). Its version is checked before first use. */
+  readonly ytDlpPath: string;
+  /**
+   * Verify the downloader's SHA-256 at boot.
+   *
+   * On by default in production and off for a developer machine, where the binary
+   * came from a package manager and hashing it proves nothing. It is a separate
+   * switch from the path because "I have yt-dlp" and "I have THE yt-dlp" are
+   * different claims, and only the second one may run a user's URL.
+   */
+  readonly ytDlpVerifyDigest: boolean;
   /** Where scratch files go; `undefined` means the OS temp directory. */
   readonly tempDir: string | undefined;
   /** How long a signed read URL for the source object stays valid. */
@@ -107,6 +118,10 @@ export function resolveSettings(source: NodeJS.ProcessEnv = process.env): Settin
     queuePrefix: queuePrefix(source),
     ffmpegPath: source["FFMPEG_PATH"]?.trim() || "ffmpeg",
     ffprobePath: source["FFPROBE_PATH"]?.trim() || "ffprobe",
+    ytDlpPath: source["YT_DLP_PATH"]?.trim() || "yt-dlp",
+    // Explicit opt-out, not opt-in: a deployment that forgets to set this gets
+    // the safe behaviour, and the unsafe one has to be asked for by name.
+    ytDlpVerifyDigest: source["WORKER_MEDIA_YT_DLP_VERIFY"] !== "0",
     tempDir: source["WORKER_MEDIA_TEMP_DIR"]?.trim() || undefined,
     sourceUrlTtlSeconds: positiveInteger(
       source["WORKER_MEDIA_SOURCE_URL_TTL"],

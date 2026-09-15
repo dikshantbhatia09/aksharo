@@ -4067,6 +4067,38 @@
         ]
       }
     },
+    "/jobs/{id}/progress": {
+      "get": {
+        "operationId": "streamJobProgress",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Stream real-time SSE progress for a job (transcription, media processing, audio clean, render)",
+        "tags": [
+          "jobs"
+        ]
+      }
+    },
     "/me/notifications": {
       "get": {
         "description": "Cursor pagination: pass the previous page's `nextCursor` as `cursor`. `unread` is the badge count and covers every page, not just this one.",
@@ -9084,7 +9116,8 @@
                           "cinematic",
                           "playful",
                           "minimal",
-                          "retro"
+                          "retro",
+                          "kinetic"
                         ]
                       },
                       "minPlan": {
@@ -9161,6 +9194,12 @@
                               "maximum": 2
                             },
                             "description": "per-script multiplier on sizePct, keyed by lowercase OpenType script tag"
+                          },
+                          "underline": {
+                            "type": "boolean"
+                          },
+                          "strikethrough": {
+                            "type": "boolean"
                           }
                         },
                         "required": [
@@ -9177,8 +9216,57 @@
                         "type": "object",
                         "properties": {
                           "text": {
-                            "type": "string",
-                            "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+                              },
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "stops": {
+                                    "minItems": 2,
+                                    "maxItems": 6,
+                                    "type": "array",
+                                    "items": {
+                                      "type": "object",
+                                      "properties": {
+                                        "offset": {
+                                          "type": "number",
+                                          "minimum": 0,
+                                          "maximum": 1
+                                        },
+                                        "color": {
+                                          "type": "string",
+                                          "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+                                        }
+                                      },
+                                      "required": [
+                                        "offset",
+                                        "color"
+                                      ]
+                                    }
+                                  },
+                                  "angleDeg": {
+                                    "type": "number",
+                                    "minimum": 0,
+                                    "maximum": 360
+                                  },
+                                  "level": {
+                                    "type": "string",
+                                    "enum": [
+                                      "line",
+                                      "word",
+                                      "char"
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "stops",
+                                  "angleDeg"
+                                ]
+                              }
+                            ]
                           },
                           "activeText": {
                             "type": "string",
@@ -9299,6 +9387,43 @@
                           "opacity"
                         ]
                       },
+                      "depth3d": {
+                        "type": "object",
+                        "properties": {
+                          "enabled": {
+                            "type": "boolean"
+                          },
+                          "color": {
+                            "type": "string",
+                            "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+                          },
+                          "offsetPct": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 30
+                          },
+                          "layers": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 8
+                          },
+                          "depth": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 100
+                          },
+                          "angle": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 360
+                          }
+                        },
+                        "required": [
+                          "enabled",
+                          "color",
+                          "offsetPct"
+                        ]
+                      },
                       "layout": {
                         "type": "object",
                         "properties": {
@@ -9381,7 +9506,19 @@
                                   "slide-down",
                                   "typewriter",
                                   "bounce",
-                                  "blur"
+                                  "blur",
+                                  "zoom",
+                                  "scale",
+                                  "slide-left",
+                                  "slide-right",
+                                  "rise",
+                                  "hide",
+                                  "hook",
+                                  "slide_lr",
+                                  "slide_ud",
+                                  "slide-left-right",
+                                  "slide-up-down",
+                                  "kinetic-flow"
                                 ]
                               },
                               "durationMs": {
@@ -9408,7 +9545,19 @@
                                   "slide-down",
                                   "typewriter",
                                   "bounce",
-                                  "blur"
+                                  "blur",
+                                  "zoom",
+                                  "scale",
+                                  "slide-left",
+                                  "slide-right",
+                                  "rise",
+                                  "hide",
+                                  "hook",
+                                  "slide_lr",
+                                  "slide_ud",
+                                  "slide-left-right",
+                                  "slide-up-down",
+                                  "kinetic-flow"
                                 ]
                               },
                               "durationMs": {
@@ -9455,6 +9604,80 @@
                           },
                           "perWord": {
                             "type": "boolean"
+                          },
+                          "cueScope": {
+                            "type": "string",
+                            "enum": [
+                              "line",
+                              "word"
+                            ]
+                          },
+                          "dynamicSpeed": {
+                            "type": "boolean"
+                          },
+                          "typographyMotion": {
+                            "type": "object",
+                            "properties": {
+                              "mode": {
+                                "type": "string",
+                                "enum": [
+                                  "focus",
+                                  "stack",
+                                  "echo"
+                                ]
+                              },
+                              "keywordPresetId": {
+                                "type": "string",
+                                "minLength": 2,
+                                "maxLength": 32
+                              },
+                              "ghostOpacity": {
+                                "type": "number",
+                                "minimum": 0,
+                                "maximum": 0.4
+                              }
+                            },
+                            "required": [
+                              "mode",
+                              "keywordPresetId",
+                              "ghostOpacity"
+                            ]
+                          },
+                          "lockupMode": {
+                            "type": "string",
+                            "enum": [
+                              "standard",
+                              "stacked-fit",
+                              "split-perpendicular",
+                              "cross-axis",
+                              "isometric-angle",
+                              "kinetic-flow"
+                            ]
+                          },
+                          "cameraRotationDeg": {
+                            "type": "number",
+                            "minimum": -360,
+                            "maximum": 360
+                          },
+                          "persistence": {
+                            "type": "string",
+                            "enum": [
+                              "none",
+                              "sidebar-left",
+                              "corner-tl"
+                            ]
+                          },
+                          "secondaryGraphic": {
+                            "type": "string",
+                            "enum": [
+                              "none",
+                              "question-mark",
+                              "radial-burst",
+                              "circle-wipe",
+                              "sunburst",
+                              "chevrons",
+                              "speed-lines"
+                            ]
                           }
                         },
                         "required": [
@@ -9482,8 +9705,57 @@
                               "maxLength": 48
                             },
                             "color": {
-                              "type": "string",
-                              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+                                },
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "stops": {
+                                      "minItems": 2,
+                                      "maxItems": 6,
+                                      "type": "array",
+                                      "items": {
+                                        "type": "object",
+                                        "properties": {
+                                          "offset": {
+                                            "type": "number",
+                                            "minimum": 0,
+                                            "maximum": 1
+                                          },
+                                          "color": {
+                                            "type": "string",
+                                            "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+                                          }
+                                        },
+                                        "required": [
+                                          "offset",
+                                          "color"
+                                        ]
+                                      }
+                                    },
+                                    "angleDeg": {
+                                      "type": "number",
+                                      "minimum": 0,
+                                      "maximum": 360
+                                    },
+                                    "level": {
+                                      "type": "string",
+                                      "enum": [
+                                        "line",
+                                        "word",
+                                        "char"
+                                      ]
+                                    }
+                                  },
+                                  "required": [
+                                    "stops",
+                                    "angleDeg"
+                                  ]
+                                }
+                              ]
                             },
                             "scale": {
                               "type": "number",
@@ -9505,6 +9777,95 @@
                                 "highlight",
                                 "underline"
                               ]
+                            },
+                            "fontFamily": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 120
+                            },
+                            "italic": {
+                              "type": "boolean"
+                            },
+                            "underline": {
+                              "type": "boolean"
+                            },
+                            "type": {
+                              "type": "string",
+                              "enum": [
+                                "spotlight",
+                                "gradient",
+                                "color",
+                                "glow",
+                                "size",
+                                "emphasize"
+                              ]
+                            },
+                            "gradient": {
+                              "type": "object",
+                              "properties": {
+                                "stops": {
+                                  "minItems": 2,
+                                  "maxItems": 6,
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "offset": {
+                                        "type": "number",
+                                        "minimum": 0,
+                                        "maximum": 1
+                                      },
+                                      "color": {
+                                        "type": "string",
+                                        "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+                                      }
+                                    },
+                                    "required": [
+                                      "offset",
+                                      "color"
+                                    ]
+                                  }
+                                },
+                                "angleDeg": {
+                                  "type": "number",
+                                  "minimum": 0,
+                                  "maximum": 360
+                                },
+                                "level": {
+                                  "type": "string",
+                                  "enum": [
+                                    "line",
+                                    "word",
+                                    "char"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "stops",
+                                "angleDeg"
+                              ]
+                            },
+                            "glowColor": {
+                              "type": "string",
+                              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+                            },
+                            "fontOverride": {
+                              "type": "object",
+                              "properties": {
+                                "family": {
+                                  "type": "string"
+                                },
+                                "weight": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "number"
+                                    }
+                                  ]
+                                }
+                              }
                             }
                           },
                           "required": [
@@ -9702,7 +10063,8 @@
                           "cinematic",
                           "playful",
                           "minimal",
-                          "retro"
+                          "retro",
+                          "kinetic"
                         ]
                       },
                       "minPlan": {
@@ -9779,6 +10141,12 @@
                               "maximum": 2
                             },
                             "description": "per-script multiplier on sizePct, keyed by lowercase OpenType script tag"
+                          },
+                          "underline": {
+                            "type": "boolean"
+                          },
+                          "strikethrough": {
+                            "type": "boolean"
                           }
                         },
                         "required": [
@@ -9795,8 +10163,57 @@
                         "type": "object",
                         "properties": {
                           "text": {
-                            "type": "string",
-                            "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+                              },
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "stops": {
+                                    "minItems": 2,
+                                    "maxItems": 6,
+                                    "type": "array",
+                                    "items": {
+                                      "type": "object",
+                                      "properties": {
+                                        "offset": {
+                                          "type": "number",
+                                          "minimum": 0,
+                                          "maximum": 1
+                                        },
+                                        "color": {
+                                          "type": "string",
+                                          "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+                                        }
+                                      },
+                                      "required": [
+                                        "offset",
+                                        "color"
+                                      ]
+                                    }
+                                  },
+                                  "angleDeg": {
+                                    "type": "number",
+                                    "minimum": 0,
+                                    "maximum": 360
+                                  },
+                                  "level": {
+                                    "type": "string",
+                                    "enum": [
+                                      "line",
+                                      "word",
+                                      "char"
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "stops",
+                                  "angleDeg"
+                                ]
+                              }
+                            ]
                           },
                           "activeText": {
                             "type": "string",
@@ -9917,6 +10334,43 @@
                           "opacity"
                         ]
                       },
+                      "depth3d": {
+                        "type": "object",
+                        "properties": {
+                          "enabled": {
+                            "type": "boolean"
+                          },
+                          "color": {
+                            "type": "string",
+                            "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+                          },
+                          "offsetPct": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 30
+                          },
+                          "layers": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 8
+                          },
+                          "depth": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 100
+                          },
+                          "angle": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 360
+                          }
+                        },
+                        "required": [
+                          "enabled",
+                          "color",
+                          "offsetPct"
+                        ]
+                      },
                       "layout": {
                         "type": "object",
                         "properties": {
@@ -9999,7 +10453,19 @@
                                   "slide-down",
                                   "typewriter",
                                   "bounce",
-                                  "blur"
+                                  "blur",
+                                  "zoom",
+                                  "scale",
+                                  "slide-left",
+                                  "slide-right",
+                                  "rise",
+                                  "hide",
+                                  "hook",
+                                  "slide_lr",
+                                  "slide_ud",
+                                  "slide-left-right",
+                                  "slide-up-down",
+                                  "kinetic-flow"
                                 ]
                               },
                               "durationMs": {
@@ -10026,7 +10492,19 @@
                                   "slide-down",
                                   "typewriter",
                                   "bounce",
-                                  "blur"
+                                  "blur",
+                                  "zoom",
+                                  "scale",
+                                  "slide-left",
+                                  "slide-right",
+                                  "rise",
+                                  "hide",
+                                  "hook",
+                                  "slide_lr",
+                                  "slide_ud",
+                                  "slide-left-right",
+                                  "slide-up-down",
+                                  "kinetic-flow"
                                 ]
                               },
                               "durationMs": {
@@ -10073,6 +10551,80 @@
                           },
                           "perWord": {
                             "type": "boolean"
+                          },
+                          "cueScope": {
+                            "type": "string",
+                            "enum": [
+                              "line",
+                              "word"
+                            ]
+                          },
+                          "dynamicSpeed": {
+                            "type": "boolean"
+                          },
+                          "typographyMotion": {
+                            "type": "object",
+                            "properties": {
+                              "mode": {
+                                "type": "string",
+                                "enum": [
+                                  "focus",
+                                  "stack",
+                                  "echo"
+                                ]
+                              },
+                              "keywordPresetId": {
+                                "type": "string",
+                                "minLength": 2,
+                                "maxLength": 32
+                              },
+                              "ghostOpacity": {
+                                "type": "number",
+                                "minimum": 0,
+                                "maximum": 0.4
+                              }
+                            },
+                            "required": [
+                              "mode",
+                              "keywordPresetId",
+                              "ghostOpacity"
+                            ]
+                          },
+                          "lockupMode": {
+                            "type": "string",
+                            "enum": [
+                              "standard",
+                              "stacked-fit",
+                              "split-perpendicular",
+                              "cross-axis",
+                              "isometric-angle",
+                              "kinetic-flow"
+                            ]
+                          },
+                          "cameraRotationDeg": {
+                            "type": "number",
+                            "minimum": -360,
+                            "maximum": 360
+                          },
+                          "persistence": {
+                            "type": "string",
+                            "enum": [
+                              "none",
+                              "sidebar-left",
+                              "corner-tl"
+                            ]
+                          },
+                          "secondaryGraphic": {
+                            "type": "string",
+                            "enum": [
+                              "none",
+                              "question-mark",
+                              "radial-burst",
+                              "circle-wipe",
+                              "sunburst",
+                              "chevrons",
+                              "speed-lines"
+                            ]
                           }
                         },
                         "required": [
@@ -10100,8 +10652,57 @@
                               "maxLength": 48
                             },
                             "color": {
-                              "type": "string",
-                              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+                                },
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "stops": {
+                                      "minItems": 2,
+                                      "maxItems": 6,
+                                      "type": "array",
+                                      "items": {
+                                        "type": "object",
+                                        "properties": {
+                                          "offset": {
+                                            "type": "number",
+                                            "minimum": 0,
+                                            "maximum": 1
+                                          },
+                                          "color": {
+                                            "type": "string",
+                                            "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+                                          }
+                                        },
+                                        "required": [
+                                          "offset",
+                                          "color"
+                                        ]
+                                      }
+                                    },
+                                    "angleDeg": {
+                                      "type": "number",
+                                      "minimum": 0,
+                                      "maximum": 360
+                                    },
+                                    "level": {
+                                      "type": "string",
+                                      "enum": [
+                                        "line",
+                                        "word",
+                                        "char"
+                                      ]
+                                    }
+                                  },
+                                  "required": [
+                                    "stops",
+                                    "angleDeg"
+                                  ]
+                                }
+                              ]
                             },
                             "scale": {
                               "type": "number",
@@ -10123,6 +10724,95 @@
                                 "highlight",
                                 "underline"
                               ]
+                            },
+                            "fontFamily": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 120
+                            },
+                            "italic": {
+                              "type": "boolean"
+                            },
+                            "underline": {
+                              "type": "boolean"
+                            },
+                            "type": {
+                              "type": "string",
+                              "enum": [
+                                "spotlight",
+                                "gradient",
+                                "color",
+                                "glow",
+                                "size",
+                                "emphasize"
+                              ]
+                            },
+                            "gradient": {
+                              "type": "object",
+                              "properties": {
+                                "stops": {
+                                  "minItems": 2,
+                                  "maxItems": 6,
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "offset": {
+                                        "type": "number",
+                                        "minimum": 0,
+                                        "maximum": 1
+                                      },
+                                      "color": {
+                                        "type": "string",
+                                        "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+                                      }
+                                    },
+                                    "required": [
+                                      "offset",
+                                      "color"
+                                    ]
+                                  }
+                                },
+                                "angleDeg": {
+                                  "type": "number",
+                                  "minimum": 0,
+                                  "maximum": 360
+                                },
+                                "level": {
+                                  "type": "string",
+                                  "enum": [
+                                    "line",
+                                    "word",
+                                    "char"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "stops",
+                                "angleDeg"
+                              ]
+                            },
+                            "glowColor": {
+                              "type": "string",
+                              "pattern": "^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+                            },
+                            "fontOverride": {
+                              "type": "object",
+                              "properties": {
+                                "family": {
+                                  "type": "string"
+                                },
+                                "weight": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "number"
+                                    }
+                                  ]
+                                }
+                              }
                             }
                           },
                           "required": [
@@ -23443,6 +24133,1178 @@
           "batch"
         ]
       }
+    },
+    "/repurpose/runs": {
+      "post": {
+        "description": "Creates the source project and, for an upload, the normal multipart ticket. The run is persisted before any background work, so a refresh never loses it.",
+        "operationId": "createRepurposeRun",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "source": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "url"
+                            ]
+                          },
+                          "url": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 2048
+                          },
+                          "rightsAttested": {
+                            "type": "boolean",
+                            "enum": [
+                              true
+                            ]
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "url",
+                          "rightsAttested"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "upload"
+                            ]
+                          },
+                          "filename": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 160
+                          },
+                          "mime": {
+                            "type": "string",
+                            "minLength": 3,
+                            "maxLength": 100
+                          },
+                          "sizeBytes": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "exclusiveMinimum": true,
+                            "maximum": 10000000000
+                          },
+                          "contentHash": {
+                            "type": "string",
+                            "pattern": "^[a-f0-9]{64}$"
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "filename",
+                          "mime",
+                          "sizeBytes"
+                        ]
+                      }
+                    ]
+                  },
+                  "setup": {
+                    "type": "object",
+                    "properties": {
+                      "sourceLanguage": {
+                        "type": "string",
+                        "minLength": 2,
+                        "maxLength": 64
+                      },
+                      "caption": {
+                        "type": "object",
+                        "properties": {
+                          "outputLanguage": {
+                            "default": "same",
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "same"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "minLength": 2,
+                                "maxLength": 64
+                              }
+                            ]
+                          },
+                          "scriptMode": {
+                            "default": "auto",
+                            "type": "string",
+                            "enum": [
+                              "auto",
+                              "roman",
+                              "native",
+                              "bilingual"
+                            ]
+                          },
+                          "styleId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 160
+                          }
+                        },
+                        "required": [
+                          "styleId"
+                        ]
+                      },
+                      "discovery": {
+                        "type": "object",
+                        "properties": {
+                          "mode": {
+                            "default": "ai",
+                            "type": "string",
+                            "enum": [
+                              "ai",
+                              "manual",
+                              "mixed"
+                            ]
+                          },
+                          "requestedCandidates": {
+                            "default": 5,
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 20
+                          },
+                          "minDurationMs": {
+                            "default": 15000,
+                            "type": "integer",
+                            "minimum": 3000,
+                            "maximum": 180000
+                          },
+                          "maxDurationMs": {
+                            "default": 60000,
+                            "type": "integer",
+                            "minimum": 3000,
+                            "maximum": 180000
+                          },
+                          "contentGoal": {
+                            "default": "reach",
+                            "type": "string",
+                            "enum": [
+                              "reach",
+                              "education",
+                              "authority",
+                              "engagement"
+                            ]
+                          }
+                        }
+                      }
+                    },
+                    "required": [
+                      "sourceLanguage",
+                      "caption",
+                      "discovery"
+                    ]
+                  },
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 160
+                  }
+                },
+                "required": [
+                  "source",
+                  "setup"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The new run and its upload ticket.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "run": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                        },
+                        "workspaceId": {
+                          "type": "string",
+                          "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                        },
+                        "sourceProjectId": {
+                          "type": "string",
+                          "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                        },
+                        "sourceKind": {
+                          "type": "string",
+                          "enum": [
+                            "upload",
+                            "youtube_url",
+                            "direct_media_url"
+                          ]
+                        },
+                        "sourceDisplay": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "mode": {
+                          "type": "string",
+                          "enum": [
+                            "ai",
+                            "manual",
+                            "mixed"
+                          ]
+                        },
+                        "status": {
+                          "type": "string"
+                        },
+                        "currentStage": {
+                          "type": "string",
+                          "enum": [
+                            "getting_video",
+                            "finding_clips",
+                            "styles_formats",
+                            "review",
+                            "publish"
+                          ]
+                        },
+                        "progress": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 100
+                        },
+                        "stages": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "stage": {
+                                "type": "string",
+                                "enum": [
+                                  "getting_video",
+                                  "finding_clips",
+                                  "styles_formats",
+                                  "review",
+                                  "publish"
+                                ]
+                              },
+                              "state": {
+                                "type": "string",
+                                "enum": [
+                                  "waiting",
+                                  "running",
+                                  "complete",
+                                  "failed"
+                                ]
+                              },
+                              "label": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "stage",
+                              "state",
+                              "label"
+                            ]
+                          }
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "failureCode": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "canCancel": {
+                          "type": "boolean"
+                        },
+                        "canRetry": {
+                          "type": "boolean"
+                        },
+                        "candidateCount": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "clipCount": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "variantCount": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "createdAt": {
+                          "type": "string"
+                        },
+                        "updatedAt": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "workspaceId",
+                        "sourceProjectId",
+                        "sourceKind",
+                        "sourceDisplay",
+                        "mode",
+                        "status",
+                        "currentStage",
+                        "progress",
+                        "stages",
+                        "message",
+                        "failureCode",
+                        "canCancel",
+                        "canRetry",
+                        "candidateCount",
+                        "clipCount",
+                        "variantCount",
+                        "createdAt",
+                        "updatedAt"
+                      ]
+                    },
+                    "projectId": {
+                      "type": "string",
+                      "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                    },
+                    "upload": {
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "mediaId": {
+                          "type": "string",
+                          "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                        },
+                        "uploadId": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "key": {
+                          "type": "string"
+                        },
+                        "bucket": {
+                          "type": "string",
+                          "enum": [
+                            "s3",
+                            "r2"
+                          ]
+                        },
+                        "partSizeBytes": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "parts": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "partNumber": {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              },
+                              "url": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "partNumber",
+                              "url"
+                            ]
+                          }
+                        },
+                        "expiresAt": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "duplicate": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "mediaId",
+                        "uploadId",
+                        "key",
+                        "bucket",
+                        "partSizeBytes",
+                        "parts",
+                        "expiresAt",
+                        "duplicate"
+                      ]
+                    },
+                    "next": {
+                      "type": "object",
+                      "properties": {
+                        "rel": {
+                          "type": "string",
+                          "enum": [
+                            "run"
+                          ]
+                        },
+                        "href": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "rel",
+                        "href"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "run",
+                    "projectId",
+                    "upload",
+                    "next"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Start a repurposing run from a link or an upload",
+        "tags": [
+          "repurpose"
+        ]
+      },
+      "get": {
+        "operationId": "listRepurposeRuns",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "One page of runs, newest first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                          },
+                          "workspaceId": {
+                            "type": "string",
+                            "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                          },
+                          "sourceProjectId": {
+                            "type": "string",
+                            "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                          },
+                          "sourceKind": {
+                            "type": "string",
+                            "enum": [
+                              "upload",
+                              "youtube_url",
+                              "direct_media_url"
+                            ]
+                          },
+                          "sourceDisplay": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "mode": {
+                            "type": "string",
+                            "enum": [
+                              "ai",
+                              "manual",
+                              "mixed"
+                            ]
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "currentStage": {
+                            "type": "string",
+                            "enum": [
+                              "getting_video",
+                              "finding_clips",
+                              "styles_formats",
+                              "review",
+                              "publish"
+                            ]
+                          },
+                          "progress": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 100
+                          },
+                          "stages": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "stage": {
+                                  "type": "string",
+                                  "enum": [
+                                    "getting_video",
+                                    "finding_clips",
+                                    "styles_formats",
+                                    "review",
+                                    "publish"
+                                  ]
+                                },
+                                "state": {
+                                  "type": "string",
+                                  "enum": [
+                                    "waiting",
+                                    "running",
+                                    "complete",
+                                    "failed"
+                                  ]
+                                },
+                                "label": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "stage",
+                                "state",
+                                "label"
+                              ]
+                            }
+                          },
+                          "message": {
+                            "type": "string"
+                          },
+                          "failureCode": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "canCancel": {
+                            "type": "boolean"
+                          },
+                          "canRetry": {
+                            "type": "boolean"
+                          },
+                          "candidateCount": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "clipCount": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "variantCount": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "createdAt": {
+                            "type": "string"
+                          },
+                          "updatedAt": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "workspaceId",
+                          "sourceProjectId",
+                          "sourceKind",
+                          "sourceDisplay",
+                          "mode",
+                          "status",
+                          "currentStage",
+                          "progress",
+                          "stages",
+                          "message",
+                          "failureCode",
+                          "canCancel",
+                          "canRetry",
+                          "candidateCount",
+                          "clipCount",
+                          "variantCount",
+                          "createdAt",
+                          "updatedAt"
+                        ]
+                      }
+                    },
+                    "nextCursor": {
+                      "nullable": true,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "List repurposing runs",
+        "tags": [
+          "repurpose"
+        ]
+      }
+    },
+    "/repurpose/runs/{runId}": {
+      "get": {
+        "operationId": "getRepurposeRun",
+        "parameters": [
+          {
+            "name": "runId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The run and its five stages.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                    },
+                    "workspaceId": {
+                      "type": "string",
+                      "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                    },
+                    "sourceProjectId": {
+                      "type": "string",
+                      "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                    },
+                    "sourceKind": {
+                      "type": "string",
+                      "enum": [
+                        "upload",
+                        "youtube_url",
+                        "direct_media_url"
+                      ]
+                    },
+                    "sourceDisplay": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "mode": {
+                      "type": "string",
+                      "enum": [
+                        "ai",
+                        "manual",
+                        "mixed"
+                      ]
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "currentStage": {
+                      "type": "string",
+                      "enum": [
+                        "getting_video",
+                        "finding_clips",
+                        "styles_formats",
+                        "review",
+                        "publish"
+                      ]
+                    },
+                    "progress": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 100
+                    },
+                    "stages": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "stage": {
+                            "type": "string",
+                            "enum": [
+                              "getting_video",
+                              "finding_clips",
+                              "styles_formats",
+                              "review",
+                              "publish"
+                            ]
+                          },
+                          "state": {
+                            "type": "string",
+                            "enum": [
+                              "waiting",
+                              "running",
+                              "complete",
+                              "failed"
+                            ]
+                          },
+                          "label": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "stage",
+                          "state",
+                          "label"
+                        ]
+                      }
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "failureCode": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "canCancel": {
+                      "type": "boolean"
+                    },
+                    "canRetry": {
+                      "type": "boolean"
+                    },
+                    "candidateCount": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "clipCount": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "variantCount": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "workspaceId",
+                    "sourceProjectId",
+                    "sourceKind",
+                    "sourceDisplay",
+                    "mode",
+                    "status",
+                    "currentStage",
+                    "progress",
+                    "stages",
+                    "message",
+                    "failureCode",
+                    "canCancel",
+                    "canRetry",
+                    "candidateCount",
+                    "clipCount",
+                    "variantCount",
+                    "createdAt",
+                    "updatedAt"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Read one repurposing run",
+        "tags": [
+          "repurpose"
+        ]
+      }
+    },
+    "/repurpose/runs/{runId}/cancel": {
+      "post": {
+        "description": "Stops future work. Anything already finished stays available.",
+        "operationId": "cancelRepurposeRun",
+        "parameters": [
+          {
+            "name": "runId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The cancelled run.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                    },
+                    "workspaceId": {
+                      "type": "string",
+                      "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                    },
+                    "sourceProjectId": {
+                      "type": "string",
+                      "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                    },
+                    "sourceKind": {
+                      "type": "string",
+                      "enum": [
+                        "upload",
+                        "youtube_url",
+                        "direct_media_url"
+                      ]
+                    },
+                    "sourceDisplay": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "mode": {
+                      "type": "string",
+                      "enum": [
+                        "ai",
+                        "manual",
+                        "mixed"
+                      ]
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "currentStage": {
+                      "type": "string",
+                      "enum": [
+                        "getting_video",
+                        "finding_clips",
+                        "styles_formats",
+                        "review",
+                        "publish"
+                      ]
+                    },
+                    "progress": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 100
+                    },
+                    "stages": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "stage": {
+                            "type": "string",
+                            "enum": [
+                              "getting_video",
+                              "finding_clips",
+                              "styles_formats",
+                              "review",
+                              "publish"
+                            ]
+                          },
+                          "state": {
+                            "type": "string",
+                            "enum": [
+                              "waiting",
+                              "running",
+                              "complete",
+                              "failed"
+                            ]
+                          },
+                          "label": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "stage",
+                          "state",
+                          "label"
+                        ]
+                      }
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "failureCode": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "canCancel": {
+                      "type": "boolean"
+                    },
+                    "canRetry": {
+                      "type": "boolean"
+                    },
+                    "candidateCount": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "clipCount": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "variantCount": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "workspaceId",
+                    "sourceProjectId",
+                    "sourceKind",
+                    "sourceDisplay",
+                    "mode",
+                    "status",
+                    "currentStage",
+                    "progress",
+                    "stages",
+                    "message",
+                    "failureCode",
+                    "canCancel",
+                    "canRetry",
+                    "candidateCount",
+                    "clipCount",
+                    "variantCount",
+                    "createdAt",
+                    "updatedAt"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Stop a run",
+        "tags": [
+          "repurpose"
+        ]
+      }
+    },
+    "/repurpose/runs/{runId}/retry": {
+      "post": {
+        "operationId": "retryRepurposeRun",
+        "parameters": [
+          {
+            "name": "runId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The run, ready to continue.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                    },
+                    "workspaceId": {
+                      "type": "string",
+                      "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                    },
+                    "sourceProjectId": {
+                      "type": "string",
+                      "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                    },
+                    "sourceKind": {
+                      "type": "string",
+                      "enum": [
+                        "upload",
+                        "youtube_url",
+                        "direct_media_url"
+                      ]
+                    },
+                    "sourceDisplay": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "mode": {
+                      "type": "string",
+                      "enum": [
+                        "ai",
+                        "manual",
+                        "mixed"
+                      ]
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "currentStage": {
+                      "type": "string",
+                      "enum": [
+                        "getting_video",
+                        "finding_clips",
+                        "styles_formats",
+                        "review",
+                        "publish"
+                      ]
+                    },
+                    "progress": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 100
+                    },
+                    "stages": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "stage": {
+                            "type": "string",
+                            "enum": [
+                              "getting_video",
+                              "finding_clips",
+                              "styles_formats",
+                              "review",
+                              "publish"
+                            ]
+                          },
+                          "state": {
+                            "type": "string",
+                            "enum": [
+                              "waiting",
+                              "running",
+                              "complete",
+                              "failed"
+                            ]
+                          },
+                          "label": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "stage",
+                          "state",
+                          "label"
+                        ]
+                      }
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "failureCode": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "canCancel": {
+                      "type": "boolean"
+                    },
+                    "canRetry": {
+                      "type": "boolean"
+                    },
+                    "candidateCount": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "clipCount": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "variantCount": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "workspaceId",
+                    "sourceProjectId",
+                    "sourceKind",
+                    "sourceDisplay",
+                    "mode",
+                    "status",
+                    "currentStage",
+                    "progress",
+                    "stages",
+                    "message",
+                    "failureCode",
+                    "canCancel",
+                    "canRetry",
+                    "candidateCount",
+                    "clipCount",
+                    "variantCount",
+                    "createdAt",
+                    "updatedAt"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Try a failed run again",
+        "tags": [
+          "repurpose"
+        ]
+      }
     }
   },
   "info": {
@@ -23630,6 +25492,8 @@
             "enum": [
               "media.probe",
               "media.proxy",
+              "media.acquire",
+              "media.clip",
               "ai.vad",
               "ai.transcribe",
               "ai.align",
@@ -23639,8 +25503,11 @@
               "ai.clean",
               "ai.pass",
               "ai.llm",
+              "ai.highlights",
               "render.video",
               "render.subtitle",
+              "publish.dispatch",
+              "publish.reconcile",
               "notify"
             ],
             "description": "Queue name (CONTRACTS §3)."
@@ -24677,6 +26544,8 @@
             "enum": [
               "media.probe",
               "media.proxy",
+              "media.acquire",
+              "media.clip",
               "ai.vad",
               "ai.transcribe",
               "ai.align",
@@ -24686,8 +26555,11 @@
               "ai.clean",
               "ai.pass",
               "ai.llm",
+              "ai.highlights",
               "render.video",
               "render.subtitle",
+              "publish.dispatch",
+              "publish.reconcile",
               "notify"
             ]
           },
@@ -24787,6 +26659,8 @@
             "enum": [
               "media.probe",
               "media.proxy",
+              "media.acquire",
+              "media.clip",
               "ai.vad",
               "ai.transcribe",
               "ai.align",
@@ -24796,8 +26670,11 @@
               "ai.clean",
               "ai.pass",
               "ai.llm",
+              "ai.highlights",
               "render.video",
               "render.subtitle",
+              "publish.dispatch",
+              "publish.reconcile",
               "notify"
             ]
           },
@@ -24951,6 +26828,8 @@
             "enum": [
               "media.probe",
               "media.proxy",
+              "media.acquire",
+              "media.clip",
               "ai.vad",
               "ai.transcribe",
               "ai.align",
@@ -24960,8 +26839,11 @@
               "ai.clean",
               "ai.pass",
               "ai.llm",
+              "ai.highlights",
               "render.video",
               "render.subtitle",
+              "publish.dispatch",
+              "publish.reconcile",
               "notify"
             ]
           }
@@ -24992,6 +26874,8 @@
             "enum": [
               "media.probe",
               "media.proxy",
+              "media.acquire",
+              "media.clip",
               "ai.vad",
               "ai.transcribe",
               "ai.align",
@@ -25001,8 +26885,11 @@
               "ai.clean",
               "ai.pass",
               "ai.llm",
+              "ai.highlights",
               "render.video",
               "render.subtitle",
+              "publish.dispatch",
+              "publish.reconcile",
               "notify"
             ]
           },

@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "id": "01ARZ3NDEKTSV4RRFFQ69G5FB2",
+  "runId": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+  "mode": "mixed",
+  "timezone": "Asia/Kolkata",
+  "status": "pending",
+  "confirmedAt": "2026-09-15T10:05:00.000Z",
+  "targets": [
+    {
+      "schemaVersion": 1,
+      "id": "01ARZ3NDEKTSV4RRFFQ69G5FB3",
+      "batchId": "01ARZ3NDEKTSV4RRFFQ69G5FB2",
+      "clipId": "01ARZ3NDEKTSV4RRFFQ69G5FAY",
+      "variantId": "01ARZ3NDEKTSV4RRFFQ69G5FAZ",
+      "connectionId": "01ARZ3NDEKTSV4RRFFQ69G5FB1",
+      "provider": "instagram",
+      "publishMode": "direct",
+      "scheduledAt": null,
+      "status": "ready",
+      "copy": {
+        "schemaVersion": 1,
+        "title": null,
+        "body": "Ye clip aapke liye. Poora episode bio mein.",
+        "hashtags": ["#hindi", "#podcast"],
+        "locale": "hi-Latn"
+      },
+      "settings": {
+        "provider": "instagram",
+        "surface": "reel",
+        "shareToFeed": true,
+        "collaborators": []
+      },
+      "artifactFingerprint": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "externalUrl": null,
+      "lastError": null,
+      "attemptNo": 0
+    },
+    {
+      "schemaVersion": 1,
+      "id": "01ARZ3NDEKTSV4RRFFQ69G5FB4",
+      "batchId": "01ARZ3NDEKTSV4RRFFQ69G5FB2",
+      "clipId": "01ARZ3NDEKTSV4RRFFQ69G5FAY",
+      "variantId": "01ARZ3NDEKTSV4RRFFQ69G5FAZ",
+      "connectionId": "01ARZ3NDEKTSV4RRFFQ69G5FB5",
+      "provider": "youtube",
+      "publishMode": "schedule",
+      "scheduledAt": "2026-09-16T04:30:00.000Z",
+      "status": "scheduled",
+      "copy": {
+        "schemaVersion": 1,
+        "title": "The useful answer",
+        "body": "Full episode linked below.",
+        "hashtags": ["#shorts"],
+        "locale": "en"
+      },
+      "settings": {
+        "provider": "youtube",
+        "surface": "short",
+        "privacy": "private",
+        "madeForKids": false,
+        "categoryId": null
+      },
+      "artifactFingerprint": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "externalUrl": null,
+      "lastError": null,
+      "attemptNo": 1
+    }
+  ]
+}

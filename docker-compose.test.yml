@@ -65,7 +65,7 @@ services:
       start_period: 5s
 
   minio:
-    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
     container_name: montaj-e2e-minio
     restart: unless-stopped
     command: ["server", "/data", "--console-address", ":9001"]
@@ -76,8 +76,8 @@ services:
       MINIO_API_CORS_ALLOW_ORIGIN: "*"
       MINIO_BROWSER: "on"
     ports:
-      - "${E2E_MINIO_API_PORT:-9000}:9000"
-      - "${E2E_MINIO_CONSOLE_PORT:-9001}:9001"
+      - "${E2E_MINIO_API_PORT:-59000}:9000"
+      - "${E2E_MINIO_CONSOLE_PORT:-59001}:9001"
     volumes:
       - e2e-minio-data:/data
     healthcheck:
@@ -88,7 +88,7 @@ services:
       start_period: 10s
 
   minio-bootstrap:
-    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
+    image: quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z
     container_name: montaj-e2e-minio-bootstrap
     depends_on:
       minio:
@@ -129,8 +129,8 @@ services:
       REDIS_URL: redis://redis:6379
       S3_ENDPOINT: http://minio:9000
       R2_ENDPOINT: http://minio:9000
-      S3_PUBLIC_ENDPOINT: http://localhost:9000
-      R2_PUBLIC_ENDPOINT: http://localhost:9000
+      S3_PUBLIC_ENDPOINT: http://127.0.0.1:${E2E_MINIO_API_PORT:-59000}
+      R2_PUBLIC_ENDPOINT: http://127.0.0.1:${E2E_MINIO_API_PORT:-59000}
       S3_REGION: ap-south-1
       S3_BUCKET_RAW: montaj-raw
       R2_BUCKET_DERIVED: montaj-derived
@@ -145,7 +145,7 @@ services:
       GPU_PROVIDER: none
       API_PORT: "3001"
       WEB_PORT: "3000"
-      WEB_ORIGIN: http://localhost:3000
+      WEB_ORIGIN: http://127.0.0.1:${E2E_WEB_PORT:-59924}
       API_ORIGIN: http://api:3001
       MONTAJ_QUEUE_PREFIX: e2e
       MONTAJ_REDIS_PREFIX: e2e
@@ -211,10 +211,10 @@ services:
     environment:
       NODE_ENV: development
       API_ORIGIN: http://api:3001
-      BROWSER_API_ORIGIN: http://localhost:3001
-      WEB_ORIGIN: http://localhost:3000
-      S3_PUBLIC_ENDPOINT: http://localhost:9000
-      R2_PUBLIC_ENDPOINT: http://localhost:9000
+      BROWSER_API_ORIGIN: http://127.0.0.1:${E2E_API_PORT:-59923}
+      WEB_ORIGIN: http://127.0.0.1:${E2E_WEB_PORT:-59924}
+      S3_PUBLIC_ENDPOINT: http://127.0.0.1:${E2E_MINIO_API_PORT:-59000}
+      R2_PUBLIC_ENDPOINT: http://127.0.0.1:${E2E_MINIO_API_PORT:-59000}
       FEATURE_FLAGS_JSON: "{}"
     ports:
       - "${E2E_WEB_PORT:-59924}:3000"

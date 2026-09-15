@@ -906,6 +906,11 @@ model Workspace {
   folders             Folder[]
   notifications       Notification[]
   batches             Batch[]
+  repurposeRuns       RepurposeRun[]
+  reviewBundles       ReviewBundle[]
+  channelConnections  ChannelConnection[]
+  publishBatches      PublishBatch[]
+  publishTargets      PublishTarget[]
 
   @@index([ownerId])
   @@index([billingCountry])
@@ -1163,6 +1168,10 @@ model Project {
   publishEvents       PublishEvent[]
   llmOutputs          LlmOutput[]
   promptedEditPlans   PromptedEditPlan[]
+  /// Runs that use this project as their full-length source (REP-003).
+  repurposeRunsAsSource RepurposeRun[] @relation("RepurposeRunSource")
+  /// Set when this project IS one aspect variant of a repurposed clip (REP-003).
+  clipVariant         ClipVariant?
 
   @@index([workspaceId])
   @@index([lastActivityAt])
@@ -1579,6 +1588,7 @@ model ShareLink {
   project  Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
   reports  ShareReport[]
   comments Comment[]
+  reviewBundles ReviewBundle[]
 
   @@index([projectId])
   @@index([expiresAt])
@@ -1693,6 +1703,7 @@ model Job {
   creditHold          CreditHold?
   dlqEntries          DlqEntry[]
   audioCleans         AudioClean[]
+  repurposeClips      RepurposeClip[]
 
   @@index([workspaceId])
   @@index([projectId])
@@ -1951,6 +1962,8 @@ model Export {
   job         Job?            @relation(fields: [jobId], references: [id], onDelete: SetNull)
   manifest    ExportManifest? @relation(fields: [manifestId], references: [id], onDelete: SetNull)
   assetUsages AssetUsage[]
+  clipVariants   ClipVariant[]
+  publishTargets PublishTarget[]
 
   @@index([projectId])
   @@index([workspaceId])
@@ -3374,4 +3387,515 @@ model RoutingFreeze {
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@map("routing_freeze")
+}
+
+// ===========================================================================
+// Repurposing and publishing (REP-003 / REP-004)
+//
+// `docs/repurposing-platform-master-plan/MASTER_IMPLEMENTATION_PLAN.md` §6 is the
+// source of truth for these tables, and ADR 0002 for their boundaries. Three
+// invariants are structural rather than conventional:
+//
+//   * Aksharo is the system of record for publish INTENT. Provider access tokens
+//     live only in the licensed publishing deployment — `channel_connections`
+//     stores an external integration id and safe display metadata, and the
+//     database test asserts no column here can hold a secret.
+//   * Approval is bound to an artefact fingerprint, so an edit after approval
+//     invalidates exactly the variant that changed (§6.6, §11.6).
+//   * A publish target is frozen at confirmation and carries an idempotency key.
+//     One LIVE target per key is enforced by a partial unique index in
+//     `prisma/sql/0008-rep-repurpose-publish.sql`, which Prisma cannot express.
+//
+// Everything here is inert until the `repurpose_flow` flag is enabled; the flag
+// is seeded off (`prisma/seed-data.ts`) and CP-010 has not passed.
+// ===========================================================================
+
+/// §6.1. `direct_media_url` goes through the existing SSRF-safe fetch path; only
+/// `youtube_url` needs the Wave 3 acquisition worker.
+enum RepurposeSourceKind {
+  upload
+  youtube_url
+  direct_media_url
+}
+
+enum RepurposeMode {
+  ai
+  manual
+  mixed
+}
+
+/// §4.2. Server-owned and monotonic apart from `review_ready` <-> `changes_requested`
+/// and a retry out of `failed`.
+enum RepurposeRunStatus {
+  draft
+  acquiring
+  preparing_media
+  transcribing
+  analyzing
+  candidates_ready
+  materializing
+  rendering
+  review_ready
+  changes_requested
+  approved
+  publishing
+  partially_published
+  published
+  failed
+  cancelled
+}
+
+enum CandidateSource {
+  ai
+  manual
+}
+
+enum CandidateState {
+  proposed
+  selected
+  rejected
+  materialized
+}
+
+enum VariantStatus {
+  preparing
+  rendering
+  ready
+  stale
+  failed
+}
+
+/// §6.6. Run-level aggregate over the existing per-project `ProjectReviewStatus`.
+enum ReviewBundleStatus {
+  open
+  changes_requested
+  approved
+  expired
+}
+
+enum ReviewItemStatus {
+  needs_review
+  approved
+  changes_requested
+}
+
+/// §6.7. `attention` means the connection still exists but the provider needs the
+/// user (expired permission, removed page); it is not an error state to retry.
+enum ChannelConnectionStatus {
+  connected
+  attention
+  disconnected
+}
+
+/// §12.5. `mobile_handoff` and `download_only` are truthful outcomes, not failures:
+/// the file is correct and the user completes the share themselves.
+enum PublishMode {
+  direct
+  schedule
+  mobile_handoff
+  download_only
+}
+
+enum PublishBatchMode {
+  now
+  mixed
+  scheduled
+}
+
+enum PublishBatchStatus {
+  pending
+  publishing
+  partially_published
+  published
+  failed
+  cancelled
+}
+
+/// §4.3. `failed_retryable` may return to `validating`; `published` is terminal and
+/// is never re-submitted — "post again" is a separate user command with a new key.
+enum PublishTargetStatus {
+  draft
+  validating
+  ready
+  submitted
+  processing
+  published
+  scheduled
+  action_required
+  failed_retryable
+  failed_permanent
+  cancelled
+}
+
+/// One guided repurposing run over one full-length source project (§6.2).
+///
+/// `status` is the coarse value list views read; detailed stage progress is derived
+/// from the child rows and the job ledger, never stored twice.
+///
+/// Objects Prisma cannot express live in `prisma/sql/0008-rep-repurpose-publish.sql`:
+/// the `progress` range check and the active-run partial index.
+model RepurposeRun {
+  id                  String              @id @db.Char(26)
+  workspaceId         String              @map("workspace_id") @db.Char(26)
+  /// The canonical full-length project. Transcription happens once, here.
+  sourceProjectId     String              @map("source_project_id") @db.Char(26)
+  sourceKind          RepurposeSourceKind @map("source_kind")
+  /// Encrypted only when retention needs the full URL; the normalised id and the
+  /// redacted display form below are what the product actually reads (§17.4).
+  sourceUrlEncrypted  String?             @map("source_url_encrypted")
+  /// Safe domain/title for the UI. Never a signed URL or a query string.
+  sourceDisplay       String?             @map("source_display")
+  /// Normalised provider source id (`youtube:dQw4w9WgXcQ`): the dedupe key both
+  /// `media.acquire`'s job key and the "you already imported this" check use.
+  sourceFingerprint   String?             @map("source_fingerprint")
+  /// Required before any external acquisition (§9.3); null for uploads.
+  rightsAttestedAt    DateTime?           @map("rights_attested_at") @db.Timestamptz(6)
+  rightsAttestedBy    String?             @map("rights_attested_by") @db.Char(26)
+  mode                RepurposeMode
+  status              RepurposeRunStatus  @default(draft)
+  /// Zod: `RunConfigSchema` (`@montaj/repurpose-contracts`). Frozen at create so a
+  /// later change to the defaults cannot reinterpret an old run (§6.9).
+  config              Json                @default("{}") @db.JsonB
+  configVersion       Int                 @default(1) @map("config_version")
+  requestedCandidates Int                 @default(5) @map("requested_candidates")
+  /// Cached 0-100 summary for list views only; the stage rail derives its own.
+  progress            Int                 @default(0)
+  /// Zod: `StageSchema` — a friendly stage id (`getting_video`), never a queue name.
+  currentStage        String              @default("getting_video") @map("current_stage")
+  /// Zod: `SafeErrorSchema.code`. A stable code, never a provider message.
+  failureCode         String?             @map("failure_code")
+  createdBy           String?             @map("created_by") @db.Char(26)
+  createdAt           DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  completedAt         DateTime?           @map("completed_at") @db.Timestamptz(6)
+  cancelledAt         DateTime?           @map("cancelled_at") @db.Timestamptz(6)
+
+  workspace      Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  sourceProject  Project         @relation("RepurposeRunSource", fields: [sourceProjectId], references: [id], onDelete: Cascade)
+  candidates     ClipCandidate[]
+  clips          RepurposeClip[]
+  reviewBundles  ReviewBundle[]
+  publishBatches PublishBatch[]
+
+  @@index([workspaceId])
+  @@index([workspaceId, createdAt])
+  @@index([workspaceId, status, updatedAt])
+  @@index([sourceProjectId])
+  @@index([workspaceId, sourceFingerprint])
+  @@map("repurpose_runs")
+}
+
+/// A proposed moment in the source timeline (§6.3). AI candidates carry rank and
+/// score evidence; manual ones carry neither and are never re-ranked.
+///
+/// The bounds checks (`start_ms >= 0`, `end_ms > start_ms`, 3-180 s) are in
+/// `prisma/sql/0008-rep-repurpose-publish.sql`; the service additionally validates
+/// `end_ms <= sourceProject.durationMs`, which the database cannot see.
+model ClipCandidate {
+  id                String          @id @db.Char(26)
+  runId             String          @map("run_id") @db.Char(26)
+  source            CandidateSource
+  state             CandidateState  @default(proposed)
+  /// AI ordering, 1-based. Always null for `manual` (§10.3: never rank a manual pick).
+  rank              Int?
+  startMs           Int             @map("start_ms")
+  endMs             Int             @map("end_ms")
+  /// Word ids the bounds were snapped to, so a re-snap after a transcript edit is
+  /// traceable. Null when the user asked for exact bounds.
+  startWordId       String?         @map("start_word_id")
+  endWordId         String?         @map("end_word_id")
+  title             String
+  transcriptExcerpt String          @default("") @map("transcript_excerpt")
+  /// Calibrated 0-100. A ranking aid shown as "Potential score" with its reasons —
+  /// never presented as a prediction that the clip will perform (§10.3).
+  potentialScore    Int?            @map("potential_score")
+  /// Zod: `CandidateScoreBreakdownSchema`.
+  scoreBreakdown    Json?           @map("score_breakdown") @db.JsonB
+  /// Zod: `CandidateReasonSchema[]` — the evidence chips.
+  reasons           Json            @default("[]") @db.JsonB
+  /// Zod: `CandidateSignalsSchema`. Aggregate features only: no face identity, no
+  /// inferred personal traits, no raw biometric data (§17.3).
+  signals           Json?           @db.JsonB
+  signalVersion     Int             @default(1) @map("signal_version")
+  promptVersion     String?         @map("prompt_version")
+  model             String?
+  featureVersion    String?         @map("feature_version")
+  createdAt         DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  run  RepurposeRun   @relation(fields: [runId], references: [id], onDelete: Cascade)
+  clip RepurposeClip?
+
+  /// Two candidates with the same exact bounds in one run are the same moment;
+  /// overlapping-but-different manual bounds remain legal (§6.3).
+  @@unique([runId, startMs, endMs])
+  @@index([runId])
+  @@index([runId, state])
+  @@index([runId, rank])
+  @@map("clip_candidates")
+}
+
+/// One selected moment, independent of the shapes it is published in (§6.4).
+///
+/// The mezzanine columns are the `media.clip@1` result (§8.5): recording the object
+/// and its checksum here is what makes a replayed cut return the existing cut
+/// instead of producing a second one.
+model RepurposeClip {
+  id                  String   @id @db.Char(26)
+  runId               String   @map("run_id") @db.Char(26)
+  candidateId         String   @unique @map("candidate_id") @db.Char(26)
+  title               String
+  /// Frozen at materialisation; the candidate may keep moving afterwards.
+  sourceStartMs       Int      @map("source_start_ms")
+  sourceEndMs         Int      @map("source_end_ms")
+  /// Zod: `ClipCopySchema` — the base copy every platform variant starts from.
+  copy                Json     @default("{}") @db.JsonB
+  copyVersion         Int      @default(1) @map("copy_version")
+  /// Storage key of the canonical short mezzanine with edit handles (§11.2).
+  mezzanineKey        String?  @map("mezzanine_key")
+  mezzanineChecksum   String?  @map("mezzanine_checksum")
+  mezzanineDurationMs Int?     @map("mezzanine_duration_ms")
+  /// The `media.clip` job that produced it, for support and replay.
+  mezzanineJobId      String?  @map("mezzanine_job_id") @db.Char(26)
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  run            RepurposeRun    @relation(fields: [runId], references: [id], onDelete: Cascade)
+  candidate      ClipCandidate   @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  mezzanineJob   Job?            @relation(fields: [mezzanineJobId], references: [id], onDelete: SetNull)
+  variants       ClipVariant[]
+  publishTargets PublishTarget[]
+
+  @@index([runId])
+  @@map("repurpose_clips")
+}
+
+/// One editable aspect family of one clip (§6.5). `projectId` is a NORMAL Aksharo
+/// project: the existing editor, passes, captions, render and export paths all work
+/// on it unchanged, which is why the relation is one-to-one and unique.
+model ClipVariant {
+  id              String        @id @db.Char(26)
+  clipId          String        @map("clip_id") @db.Char(26)
+  projectId       String        @unique @map("project_id") @db.Char(26)
+  aspect          Aspect
+  /// `platform-profile@N` snapshot this variant was prepared against.
+  profileVersion  String        @default("1") @map("profile_version")
+  /// Zod: `CaptionConfigSchema` — output language, script mode, style id/version.
+  captionConfig   Json          @default("{}") @map("caption_config") @db.JsonB
+  /// SHA-256 over the EDG revision plus render-relevant settings. An editor save
+  /// changes it, which is what makes an approval go stale (§13.5).
+  editFingerprint String        @default("") @map("edit_fingerprint")
+  status          VariantStatus @default(preparing)
+  latestExportId  String?       @map("latest_export_id") @db.Char(26)
+  approvedAt      DateTime?     @map("approved_at") @db.Timestamptz(6)
+  approvedBy      String?       @map("approved_by") @db.Char(26)
+  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  clip           RepurposeClip   @relation(fields: [clipId], references: [id], onDelete: Cascade)
+  project        Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  latestExport   Export?         @relation(fields: [latestExportId], references: [id], onDelete: SetNull)
+  reviewItems    ReviewItem[]
+  publishTargets PublishTarget[]
+
+  /// One variant per aspect family per clip: two identical shapes would render the
+  /// same artefact twice (§11.6).
+  @@unique([clipId, aspect])
+  @@index([clipId])
+  @@index([status])
+  @@map("clip_variants")
+}
+
+/// Run-level review aggregate (§6.6). Per-project review keeps working through the
+/// existing `share_links` / `ProjectReviewStatus`; this bundles them so a team can
+/// approve the collection.
+model ReviewBundle {
+  id          String             @id @db.Char(26)
+  runId       String             @map("run_id") @db.Char(26)
+  workspaceId String             @map("workspace_id") @db.Char(26)
+  status      ReviewBundleStatus @default(open)
+  /// Optional existing share link, when the bundle is shared with a reviewer who
+  /// has no account. Least privilege and expiry come from the link itself.
+  shareLinkId String?            @map("share_link_id") @db.Char(26)
+  expiresAt   DateTime?          @map("expires_at") @db.Timestamptz(6)
+  createdBy   String?            @map("created_by") @db.Char(26)
+  createdAt   DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  run       RepurposeRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  workspace Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  shareLink ShareLink?   @relation(fields: [shareLinkId], references: [id], onDelete: SetNull)
+  items     ReviewItem[]
+
+  @@index([runId])
+  @@index([workspaceId])
+  @@map("review_bundles")
+}
+
+/// One reviewer decision about one variant. `fingerprintAtDecision` is the whole
+/// point: an approval is a statement about an exact artefact, so when the variant's
+/// `editFingerprint` moves on, this row becomes `needs_review` again and only the
+/// targets built from it are invalidated (§6.6).
+model ReviewItem {
+  id                    String           @id @db.Char(26)
+  bundleId              String           @map("bundle_id") @db.Char(26)
+  variantId             String           @map("variant_id") @db.Char(26)
+  status                ReviewItemStatus @default(needs_review)
+  decisionBy            String?          @map("decision_by") @db.Char(26)
+  decisionAt            DateTime?        @map("decision_at") @db.Timestamptz(6)
+  note                  String?
+  fingerprintAtDecision String?          @map("fingerprint_at_decision")
+  createdAt             DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  bundle  ReviewBundle @relation(fields: [bundleId], references: [id], onDelete: Cascade)
+  variant ClipVariant  @relation(fields: [variantId], references: [id], onDelete: Cascade)
+
+  @@unique([bundleId, variantId])
+  @@index([variantId])
+  @@map("review_items")
+}
+
+/// A connected publishing account, as Aksharo is allowed to know it (§6.7).
+///
+/// THERE IS NO TOKEN COLUMN HERE, AND THERE MUST NEVER BE ONE. Provider access and
+/// refresh tokens stay inside the licensed publishing deployment's secret boundary
+/// (ADR 0002 §3); Aksharo keeps the external integration id it was given plus the
+/// display metadata the UI needs. `test/repurpose-schema.e2e-spec.ts` asserts the
+/// column list, so adding `access_token` here fails a test rather than quietly
+/// moving a secret into this database.
+model ChannelConnection {
+  id                     String                  @id @db.Char(26)
+  workspaceId            String                  @map("workspace_id") @db.Char(26)
+  /// Canonical Aksharo provider id (`instagram`, `youtube`, `linkedin`, ...), not
+  /// the publishing service's internal name; the adapter maps between them.
+  provider               String
+  /// Opaque id issued by the publishing service. Meaningless without its secrets.
+  externalIntegrationId  String                  @map("external_integration_id")
+  externalOrganizationId String?                 @map("external_organization_id")
+  displayName            String?                 @map("display_name")
+  username               String?
+  avatarUrl              String?                 @map("avatar_url")
+  connectionStatus       ChannelConnectionStatus @default(connected) @map("connection_status")
+  /// Zod: `ConnectionCapabilitiesSchema` (`@montaj/publishing-contracts`). A cached
+  /// snapshot so the plan screen still renders when the service is unreachable.
+  capabilities           Json                    @default("{}") @db.JsonB
+  capabilitiesVersion    Int                     @default(1) @map("capabilities_version")
+  lastVerifiedAt         DateTime?               @map("last_verified_at") @db.Timestamptz(6)
+  createdAt              DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime                @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  workspace Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  targets   PublishTarget[]
+
+  /// Workspace A cannot attach workspace B's integration id twice, and the pair is
+  /// how every lookup is scoped (§17.3).
+  @@unique([workspaceId, externalIntegrationId])
+  @@index([workspaceId])
+  @@index([workspaceId, provider])
+  @@map("channel_connections")
+}
+
+/// One user confirmation covering one or more destinations (§6.8). Counts are a
+/// cached summary for the progress header; the targets remain authoritative.
+model PublishBatch {
+  id             String             @id @db.Char(26)
+  runId          String             @map("run_id") @db.Char(26)
+  workspaceId    String             @map("workspace_id") @db.Char(26)
+  confirmedBy    String?            @map("confirmed_by") @db.Char(26)
+  confirmedAt    DateTime           @default(now()) @map("confirmed_at") @db.Timestamptz(6)
+  mode           PublishBatchMode   @default(now)
+  /// IANA zone the user picked; every instant is stored UTC beside it (§12.6).
+  timezone       String             @default("UTC")
+  status         PublishBatchStatus @default(pending)
+  targetCount    Int                @default(0) @map("target_count")
+  publishedCount Int                @default(0) @map("published_count")
+  failedCount    Int                @default(0) @map("failed_count")
+  createdAt      DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  run       RepurposeRun    @relation(fields: [runId], references: [id], onDelete: Cascade)
+  workspace Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  targets   PublishTarget[]
+
+  @@index([runId])
+  @@index([workspaceId])
+  @@index([workspaceId, status])
+  @@map("publish_batches")
+}
+
+/// One destination, frozen at confirmation (§6.8, §12.4).
+///
+/// "Frozen" is literal: `artifactFingerprint`, `exportId`, `copy`/`settings` and
+/// their versions are copied in at confirm time, so an edit afterwards cannot
+/// change what was agreed — it invalidates the target instead.
+///
+/// `idempotencyKey` carries the at-most-once rule. One LIVE target per
+/// (workspace, key) is a partial unique index in
+/// `prisma/sql/0008-rep-repurpose-publish.sql`
+/// (`WHERE status NOT IN ('cancelled', 'failed_permanent')`), because a deliberate
+/// "post again" is a NEW key and must be allowed to coexist with the old record.
+/// The workspace is part of that key for the same reason it is part of every other
+/// uniqueness here: one tenant must never be able to refuse, or detect, another's.
+model PublishTarget {
+  id                   String              @id @db.Char(26)
+  /// Denormalised from the batch on purpose.
+  ///
+  /// Every other uniqueness in this migration is tenant-scoped, and the live
+  /// idempotency index has to be too: the key is derived from data a tenant
+  /// supplies, so a globally unique index lets one workspace's live key refuse
+  /// another workspace's publish — and lets either probe for the other's keys by
+  /// watching the constraint. Scoping needs the column ON THIS TABLE, and adding
+  /// it later would mean backfilling the publish ledger.
+  workspaceId          String              @map("workspace_id") @db.Char(26)
+  batchId              String              @map("batch_id") @db.Char(26)
+  clipId               String              @map("clip_id") @db.Char(26)
+  variantId            String              @map("variant_id") @db.Char(26)
+  /// Null once the account is disconnected: the history stays readable, and the
+  /// dispatcher refuses a target whose connection is gone rather than guessing.
+  channelConnectionId  String?             @map("channel_connection_id") @db.Char(26)
+  provider             String
+  publishMode          PublishMode         @map("publish_mode")
+  /// UTC instant; `PublishBatch.timezone` is the zone it was chosen in.
+  scheduledAt          DateTime?           @map("scheduled_at") @db.Timestamptz(6)
+  /// Zod: `PostCopySchema` / `ProviderSettingsSchema` (`@montaj/publishing-contracts`).
+  copy                 Json                @default("{}") @db.JsonB
+  copyVersion          Int                 @default(1) @map("copy_version")
+  settings             Json                @default("{}") @db.JsonB
+  settingsVersion      Int                 @default(1) @map("settings_version")
+  /// SHA-256 over everything that makes the media reusable (§11.6). Re-checked at
+  /// dispatch: if it moved, the target fails validation instead of posting.
+  artifactFingerprint  String              @default("") @map("artifact_fingerprint")
+  exportId             String?             @map("export_id") @db.Char(26)
+  status               PublishTargetStatus @default(draft)
+  attemptNo            Int                 @default(0) @map("attempt_no")
+  idempotencyKey       String              @map("idempotency_key")
+  /// Persisted the moment the provider accepts, BEFORE any further call, so a lost
+  /// response reconciles instead of submitting twice (§4.3).
+  externalPostId       String?             @map("external_post_id")
+  externalUrl          String?             @map("external_url")
+  externalStatus       String?             @map("external_status")
+  /// Zod: `PublishErrorSchema.code`. Stable class, never a raw provider message.
+  lastErrorCode        String?             @map("last_error_code")
+  lastErrorSafeMessage String?             @map("last_error_safe_message")
+  retryAfter           DateTime?           @map("retry_after") @db.Timestamptz(6)
+  submittedAt          DateTime?           @map("submitted_at") @db.Timestamptz(6)
+  publishedAt          DateTime?           @map("published_at") @db.Timestamptz(6)
+  createdAt            DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  workspace         Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  batch             PublishBatch       @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  clip              RepurposeClip      @relation(fields: [clipId], references: [id], onDelete: Cascade)
+  variant           ClipVariant        @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  channelConnection ChannelConnection? @relation(fields: [channelConnectionId], references: [id], onDelete: SetNull)
+  export            Export?            @relation(fields: [exportId], references: [id], onDelete: SetNull)
+
+  @@index([batchId])
+  @@index([workspaceId])
+  @@index([variantId])
+  @@index([channelConnectionId])
+  @@index([status, retryAfter])
+  @@index([provider, externalPostId])
+  @@map("publish_targets")
 }

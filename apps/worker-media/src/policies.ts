@@ -76,6 +76,14 @@ export const QUEUE_POLICY_BY_FAMILY: Readonly<Record<string, QueuePolicy>> = Obj
     stalledIntervalMs: 15_000,
     maxStalledCount: 2,
   },
+  publish: {
+    attempts: 1,
+    backoffMs: 30_000,
+    backoffJitter: 0.5,
+    lockDurationMs: 120_000,
+    stalledIntervalMs: 30_000,
+    maxStalledCount: 1,
+  },
 });
 
 /** Queues whose work outlives the family lock. Only the differing fields appear. */
@@ -83,6 +91,9 @@ export const QUEUE_POLICY_OVERRIDES: Readonly<Record<string, Partial<QueuePolicy
   {
     "media.probe": { lockDurationMs: 600_000, stalledIntervalMs: 60_000 },
     "media.proxy": { lockDurationMs: 600_000, stalledIntervalMs: 60_000 },
+    "media.acquire": { lockDurationMs: 600_000, stalledIntervalMs: 60_000 },
+    "media.clip": { lockDurationMs: 300_000, stalledIntervalMs: 60_000 },
+    "ai.highlights": { lockDurationMs: 600_000, stalledIntervalMs: 60_000 },
     "ai.transcribe": { lockDurationMs: 600_000, stalledIntervalMs: 60_000 },
     "ai.diarise": { lockDurationMs: 600_000, stalledIntervalMs: 60_000 },
     "ai.align": { lockDurationMs: 300_000, stalledIntervalMs: 60_000 },

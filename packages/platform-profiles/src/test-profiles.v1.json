@@ -1,0 +1,153 @@
+{
+  "schemaVersion": 1,
+  "registryVersion": "2026-09-15.test.1",
+  "defaultEnabled": false,
+  "profiles": [
+    {
+      "schemaVersion": 1,
+      "profileVersion": "2026-09-15.test.1",
+      "id": "instagram-reel",
+      "provider": "meta",
+      "surface": "instagram_reel",
+      "status": "test_only",
+      "enabled": false,
+      "desiredModes": ["direct", "schedule"],
+      "enabledModes": ["download_only"],
+      "fallback": "download_only",
+      "featureFlags": ["repurpose_flow", "publishing_postiz"],
+      "needsLiveAccountCapabilityCheck": true,
+      "preparation": {
+        "aspect": "9:16",
+        "width": 1080,
+        "height": 1920,
+        "frameRate": 30,
+        "container": "mp4",
+        "videoCodec": "h264",
+        "audioCodec": "aac",
+        "minDurationMs": 3000,
+        "maxDurationMs": 60000,
+        "maxBytes": 250000000
+      },
+      "sources": [
+        {
+          "url": "https://www.postman.com/meta/instagram/folder/830j7my/reels-publishing",
+          "sourceType": "official_owner_collection",
+          "checkedAt": "2026-09-15"
+        }
+      ],
+      "activationProof": null
+    },
+    {
+      "schemaVersion": 1,
+      "profileVersion": "2026-09-15.test.1",
+      "id": "youtube-short",
+      "provider": "youtube",
+      "surface": "youtube_short",
+      "status": "test_only",
+      "enabled": false,
+      "desiredModes": ["direct", "schedule"],
+      "enabledModes": ["download_only"],
+      "fallback": "download_only",
+      "featureFlags": ["repurpose_flow", "publishing_postiz"],
+      "needsLiveAccountCapabilityCheck": true,
+      "preparation": {
+        "aspect": "9:16",
+        "width": 1080,
+        "height": 1920,
+        "frameRate": 30,
+        "container": "mp4",
+        "videoCodec": "h264",
+        "audioCodec": "aac",
+        "minDurationMs": 3000,
+        "maxDurationMs": 60000,
+        "maxBytes": 250000000
+      },
+      "sources": [
+        {
+          "url": "https://developers.google.com/youtube/v3/docs/videos/insert",
+          "sourceType": "official_docs",
+          "checkedAt": "2026-09-15"
+        },
+        {
+          "url": "https://support.google.com/youtube/answer/15424877?hl=en",
+          "sourceType": "official_help",
+          "checkedAt": "2026-09-15"
+        }
+      ],
+      "activationProof": null
+    },
+    {
+      "schemaVersion": 1,
+      "profileVersion": "2026-09-15.test.1",
+      "id": "linkedin-video",
+      "provider": "linkedin",
+      "surface": "linkedin_video",
+      "status": "test_only",
+      "enabled": false,
+      "desiredModes": ["direct", "schedule"],
+      "enabledModes": ["download_only"],
+      "fallback": "download_only",
+      "featureFlags": ["repurpose_flow", "publishing_postiz"],
+      "needsLiveAccountCapabilityCheck": true,
+      "preparation": {
+        "aspect": "4:5",
+        "width": 1080,
+        "height": 1350,
+        "frameRate": 30,
+        "container": "mp4",
+        "videoCodec": "h264",
+        "audioCodec": "aac",
+        "minDurationMs": 3000,
+        "maxDurationMs": 60000,
+        "maxBytes": 250000000
+      },
+      "sources": [
+        {
+          "url": "https://learn.microsoft.com/en-us/linkedin/marketing/community-management/shares/videos-api?tabs=http&view=li-lms-2026-03",
+          "sourceType": "official_docs",
+          "checkedAt": "2026-09-15"
+        },
+        {
+          "url": "https://learn.microsoft.com/en-us/linkedin/marketing/community-management/shares/posts-api?view=li-lms-2026-01",
+          "sourceType": "official_docs",
+          "checkedAt": "2026-09-15"
+        }
+      ],
+      "activationProof": null
+    },
+    {
+      "schemaVersion": 1,
+      "profileVersion": "2026-09-15.test.1",
+      "id": "tiktok-video",
+      "provider": "tiktok",
+      "surface": "tiktok_video",
+      "status": "test_only",
+      "enabled": false,
+      "desiredModes": ["direct", "schedule"],
+      "enabledModes": ["download_only"],
+      "fallback": "download_only",
+      "featureFlags": ["repurpose_flow", "publishing_postiz", "publishing_tiktok"],
+      "needsLiveAccountCapabilityCheck": true,
+      "preparation": {
+        "aspect": "9:16",
+        "width": 1080,
+        "height": 1920,
+        "frameRate": 30,
+        "container": "mp4",
+        "videoCodec": "h264",
+        "audioCodec": "aac",
+        "minDurationMs": 3000,
+        "maxDurationMs": 60000,
+        "maxBytes": 250000000
+      },
+      "sources": [
+        {
+          "url": "https://developers.tiktok.com/docs/en/content-posting-api-get-started",
+          "sourceType": "official_docs",
+          "checkedAt": "2026-09-15"
+        }
+      ],
+      "activationProof": null
+    }
+  ]
+}

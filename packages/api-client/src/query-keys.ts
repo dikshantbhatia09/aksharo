@@ -21,6 +21,18 @@ export const queryKeys = {
   affiliateStats: () => ["affiliate", "me", "stats"] as const,
   deviceApproval: (userCode: string) => ["auth", "device", userCode] as const,
   jobs: (workspaceId: string) => ["ws", workspaceId, "jobs"] as const,
+  /**
+   * Every repurposing query for a workspace.
+   *
+   * `repurposeRuns`/`repurposeRun` both nest under `["ws", id, "repurpose"]` so
+   * that ONE `repurpose.stage.changed` event invalidates the list and every open
+   * run with a single partial-key match, exactly as the jobs keys do for
+   * `job.progress` (see `app-shell.tsx`).
+   */
+  repurposeScope: (workspaceId: string) => ["ws", workspaceId, "repurpose"] as const,
+  repurposeRuns: (workspaceId: string) => ["ws", workspaceId, "repurpose", "runs"] as const,
+  repurposeRun: (workspaceId: string, runId: string) =>
+    ["ws", workspaceId, "repurpose", "runs", runId] as const,
   job: (workspaceId: string, jobId: string) => ["ws", workspaceId, "jobs", jobId] as const,
   subscription: (workspaceId: string) => ["ws", workspaceId, "subscription"] as const,
   streak: (workspaceId: string) => ["ws", workspaceId, "streak"] as const,

@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "runId": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+  "projectId": "01ARZ3NDEKTSV4RRFFQ69G5FAX",
+  "transcriptId": "01ARZ3NDEKTSV4RRFFQ69G5FB7",
+  "transcriptRevision": 3,
+  "proxy": {
+    "bucket": "r2",
+    "key": "ws/01ARZ3NDEKTSV4RRFFQ69G5FB0/p/01ARZ3NDEKTSV4RRFFQ69G5FAX/media/01ARZ3NDEKTSV4RRFFQ69G5FB6/proxy540.mp4"
+  },
+  "waveform": {
+    "bucket": "r2",
+    "key": "ws/01ARZ3NDEKTSV4RRFFQ69G5FB0/p/01ARZ3NDEKTSV4RRFFQ69G5FAX/media/01ARZ3NDEKTSV4RRFFQ69G5FB6/waveform.json"
+  },
+  "options": {
+    "count": 5,
+    "minDurationMs": 15000,
+    "maxDurationMs": 60000,
+    "contentGoal": "reach",
+    "language": "hi-Latn"
+  },
+  "promptVersion": "highlight-candidates-1",
+  "featureVersion": "features-1"
+}

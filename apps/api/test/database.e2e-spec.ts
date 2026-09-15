@@ -580,13 +580,18 @@ describe.skipIf(!available)("database schema and seed", () => {
       }
     });
 
-    it("seeds four feature flags, all off", async () => {
+    it("seeds every reference feature flag, all off", async () => {
       await seed(prisma);
       const flags = await prisma.featureFlag.findMany({ orderBy: { key: "asc" } });
       expect(flags.map((flag) => flag.key)).toEqual([
+        "highlight_discovery",
         "local_mode",
         "partner_audio",
         "provider_bhashini",
+        "publishing_postiz",
+        "publishing_tiktok",
+        "repurpose_flow",
+        "source_youtube_acquire",
         "streak_experiment",
       ]);
       expect(flags.every((flag) => !flag.enabled && flag.rolloutPct === 0)).toBe(true);

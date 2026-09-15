@@ -74,6 +74,7 @@
     "zod": "^4.5.4"
   },
   "devDependencies": {
+    "@montaj/repurpose-contracts": "workspace:*",
     "@nestjs/cli": "^11.0.24",
     "@nestjs/schematics": "^11.1.0",
     "@nestjs/testing": "^11.2.3",

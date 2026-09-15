@@ -18,6 +18,19 @@ export interface RealtimeEventMap {
   "job.completed": { jobId: string; status: string; type?: string; error?: string };
   "edg.ops": { revision: number; ops: unknown[]; source: string };
   "comment.added": { commentId: string; projectId: string; authorId: string; at: string };
+  /**
+   * REP-006. Emitted on the WORKSPACE room, because a repurposing run outlives
+   * any one project. The payload is a pointer plus enough to render a stage rail
+   * without a refetch; it carries no job id, queue name or provider error.
+   */
+  "repurpose.stage.changed": {
+    runId: string;
+    status: string;
+    stage: string;
+    progress: number;
+    message: string;
+    at: string;
+  };
 }
 
 export type RealtimeEventName = keyof RealtimeEventMap;

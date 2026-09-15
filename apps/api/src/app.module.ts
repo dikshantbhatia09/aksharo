@@ -43,6 +43,7 @@ import { PromptedEditsModule } from "./prompted-edits/prompted-edits.module.js";
 import { PublicApiModule } from "./public-api/public-api.module.js";
 import { RealtimeModule } from "./realtime/realtime.module.js";
 import { ReferralsModule } from "./referrals/referrals.module.js";
+import { RepurposeModule } from "./repurpose/repurpose.module.js";
 import { SchedulerTasksModule } from "./scheduler/scheduler-tasks.module.js";
 import { ShareModule } from "./share/share.module.js";
 import { StreakModule } from "./streak/streak.module.js";
@@ -191,6 +192,12 @@ import { WorkspacesModule } from "./workspaces/workspaces.module.js";
     // (`POST /internal/evals/runs`). Last for the same reason as the other
     // internal/last-mile modules above: nothing else depends on it.
     EvalsModule,
+    // REP-006: the guided repurposing run (`/repurpose/runs`). Registered last
+    // and gated by `repurpose_flow`, which is seeded OFF — every route answers
+    // 404 until the flag is enabled, so mounting it changes no existing
+    // behaviour. It builds on `ProjectsModule` and `MediaModule` rather than
+    // adding a second project or upload path.
+    RepurposeModule,
   ],
 })
 export class AppModule {}

@@ -107,6 +107,26 @@ describe("policy table (mirrors apps/api/src/jobs/jobs.config.ts)", () => {
     expect(fromApi).toEqual(QUEUE_POLICY_OVERRIDES);
   });
 
+  it("never retries a publish, because a publish is an external side effect", () => {
+      // REP-005 / DEC-007. Every other family's work is idempotent, so a retry is
+      // free; a blind retry of a publish after a lost response is how a product
+      // posts the same video twice. The queue must not be the thing that decides
+      // to try again — reconciliation or the user is.
+      const publish = queuePolicyFor("publish.dispatch");
+      expect(publish.attempts).toBe(1);
+      expect(queuePolicyFor("publish.reconcile").attempts).toBe(1);
+      expect(publish).toEqual(QUEUE_POLICY_BY_FAMILY["publish"]);
+    });
+
+    it("gives the three new long-running queues a lock they cannot outlive", () => {
+      // A download, an accurate cut and an LLM pass over a long transcript all
+      // outlive the two-minute family default; a stalled job handed to a second
+      // worker mid-download is two workers writing one key.
+      expect(queuePolicyFor("media.acquire").lockDurationMs).toBe(600_000);
+      expect(queuePolicyFor("media.clip").lockDurationMs).toBe(300_000);
+      expect(queuePolicyFor("ai.highlights").lockDurationMs).toBe(600_000);
+    });
+
   it("keeps the heartbeat at a third of the lock in both files", () => {
     expect(source()).toContain("lockDurationMs / 3");
     for (const queue of QUEUE_NAMES) {

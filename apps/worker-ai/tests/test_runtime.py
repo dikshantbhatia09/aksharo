@@ -34,11 +34,26 @@ def test_the_worker_owns_every_ai_queue_and_nothing_else() -> None:
     settings = load_settings(VALID_ENV)
     assert queues_for(settings) == AI_QUEUES
     assert all(name.startswith("ai.") for name in AI_QUEUES)
-    assert len(AI_QUEUES) == 9
+    # Ten since REP-005 added `ai.highlights`. The worker CONSUMES all ten and
+    # implements nine; the tenth answers `worker/not_implemented` until Wave 4.
+    assert len(AI_QUEUES) == 10
 
 
 def test_every_implemented_queue_has_a_processor() -> None:
     assert set(PROCESSORS) == set(IMPLEMENTED_AI_QUEUES)
+
+
+def test_a_registered_queue_without_a_processor_is_declared_not_implemented() -> None:
+    """A queue in AI_QUEUES but not IMPLEMENTED_AI_QUEUES must be deliberate.
+
+    The runtime answers `worker/not_implemented` for it, which is a clear failure
+    for a producer rather than a job that waits in Redis forever. REP-005 created
+    the first such queue; this pins the invariant so the next one is a decision
+    rather than an oversight.
+    """
+    unimplemented = set(AI_QUEUES) - set(IMPLEMENTED_AI_QUEUES)
+    assert unimplemented == {"ai.highlights"}
+    assert not any(name in PROCESSORS for name in unimplemented)
 
 
 def test_a_pool_can_be_pinned_to_a_subset_of_queues() -> None:

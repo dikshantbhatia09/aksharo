@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "id": "01ARZ3NDEKTSV4RRFFQ69G5FAW",
+  "runId": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+  "source": "ai",
+  "state": "proposed",
+  "rank": 1,
+  "startMs": 330000,
+  "endMs": 360000,
+  "startWordId": "word-100",
+  "endWordId": "word-199",
+  "title": "The useful answer",
+  "transcriptExcerpt": "Here is the answer you can use today.",
+  "potentialScore": 78,
+  "scoreBreakdown": {
+    "hook": 81,
+    "clarity": 88,
+    "emotion": 62,
+    "visualActivity": 75,
+    "novelty": 71,
+    "standaloneValue": 83,
+    "safety": 100
+  },
+  "reasons": [
+    {
+      "label": "clear_point",
+      "explanation": "The speaker states a complete answer without earlier context."
+    }
+  ],
+  "signalVersion": 1,
+  "signals": {
+    "schemaVersion": 1,
+    "speechActivityPct": 80,
+    "visualActivityPct": 62,
+    "shotChanges": 3
+  },
+  "promptVersion": "highlights-1",
+  "model": "mock",
+  "featureVersion": "features-1"
+}

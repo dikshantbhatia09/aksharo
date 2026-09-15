@@ -97,3 +97,11 @@ apps/worker-ai/eval-results/
 
 # C02/C02c: electron-builder's own --dir output (pack:dry), never committed
 apps/desktop/release/
+
+# Regenerable QA artefacts, not source (2026-09-15). The repository tracks the
+# reference trees and the deployment records in `scratch/`, but not the frame
+# dumps and extracted font binaries those QA passes produced - 88 MB that any
+# re-run recreates, and that no build reads.
+scratch/extracted_fonts/
+scratch/all_frames/
+apps/web/test-results-wave0/

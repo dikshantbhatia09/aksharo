@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "mediaId": "01ARZ3NDEKTSV4RRFFQ69G5FB6",
+  "bucket": "s3",
+  "key": "ws/01ARZ3NDEKTSV4RRFFQ69G5FB0/p/01ARZ3NDEKTSV4RRFFQ69G5FAX/media/01ARZ3NDEKTSV4RRFFQ69G5FB6/raw.mp4",
+  "filename": "raw.mp4",
+  "mime": "video/mp4",
+  "sizeBytes": 148372910,
+  "checksum": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  "sourceMetadata": {
+    "provider": "youtube",
+    "sourceId": "youtube:dQw4w9WgXcQ",
+    "title": "Episode 12",
+    "channel": "Example Channel",
+    "durationMs": 1140000
+  },
+  "toolVersion": "yt-dlp 2026.08.19",
+  "deduplicated": false
+}

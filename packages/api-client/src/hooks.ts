@@ -29,6 +29,10 @@ import { queryKeys } from "./query-keys.js";
 
 import type { ApiClient } from "./http.js";
 import type {
+  CreateRepurposeRunRequest,
+  CreateRepurposeRunResponse,
+  RepurposeRunPage,
+  RepurposeRunView,
   AcademyProgressResponse,
   ChangelogDismissedResponse,
   CreateSupportTicketRequest,
@@ -1844,4 +1848,107 @@ export function useAudioAssetUrls(assetIds: readonly string[]): ReadonlyMap<stri
     });
     return map;
   }, [unique, results]);
+}
+
+// ---------------------------------------------------------------------------
+// Repurposing runs (REP-006)
+// ---------------------------------------------------------------------------
+
+/**
+ * Is the guided repurposing surface available to this workspace?
+ *
+ * The API answers 404 while `repurpose_flow` is off, so "available" is not a
+ * separate question the client asks — it is what the first call tells it. A
+ * caller renders the entry point only when this is `true`.
+ */
+export function useRepurposeRuns(enabled = true): UseQueryResult<RepurposeRunPage> {
+  const client = useApiClient();
+  const workspaceId = useWorkspaceId();
+  return useQuery({
+    queryKey: queryKeys.repurposeRuns(workspaceId ?? "none"),
+    enabled: enabled && workspaceId !== null,
+    retry: retryPolicy,
+    queryFn: () => client.call(endpoints.repurpose.list),
+  });
+}
+
+/**
+ * One run, polled while it is still moving.
+ *
+ * Realtime `repurpose.stage.changed` events invalidate this query; the poll is
+ * the bounded fallback for a browser whose socket is gone (§13.6). It stops
+ * entirely once the run reaches a state that cannot change on its own.
+ */
+export function useRepurposeRun(
+  runId: string | null,
+  options: { readonly pollMs?: number } = {},
+): UseQueryResult<RepurposeRunView> {
+  const client = useApiClient();
+  const workspaceId = useWorkspaceId();
+  const pollMs = options.pollMs ?? 10_000;
+  return useQuery({
+    queryKey: queryKeys.repurposeRun(workspaceId ?? "none", runId ?? "none"),
+    enabled: workspaceId !== null && runId !== null,
+    retry: retryPolicy,
+    refetchInterval: (query) => {
+      const run = query.state.data;
+      if (run === undefined) return false;
+      // Only a TERMINAL run stops the poll. `draft` was wrongly on this list:
+      // it is the state a run sits in while its media is being prepared, so
+      // treating it as settled left the page with no way to notice it move —
+      // the realtime event is a courtesy, and this is the fallback that has to
+      // hold when the socket is gone (§13.6).
+      const settled = ["published", "failed", "cancelled"].includes(run.status);
+      return settled ? false : pollMs;
+    },
+    queryFn: () => client.call(endpoints.repurpose.get, { params: { runId: runId ?? "" } }),
+  });
+}
+
+export function useCreateRepurposeRun(): UseMutationResult<
+  CreateRepurposeRunResponse,
+  Error,
+  { readonly body: CreateRepurposeRunRequest; readonly idempotencyKey: string }
+> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  const workspaceId = useWorkspaceId();
+  return useMutation({
+    // The key is the caller's, not ours: it must survive a component remount, or
+    // a double-submitted form becomes two runs and two transcriptions.
+    mutationFn: (input) =>
+      client.call(endpoints.repurpose.create, {
+        body: input.body,
+        headers: { "Idempotency-Key": input.idempotencyKey },
+      }),
+    onSuccess: (created) => {
+      if (workspaceId === null) return;
+      queryClient.setQueryData(queryKeys.repurposeRun(workspaceId, created.run.id), created.run);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.repurposeRuns(workspaceId) });
+    },
+  });
+}
+
+function useRunCommand(
+  endpoint: typeof endpoints.repurpose.cancel,
+): UseMutationResult<RepurposeRunView, Error, string> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  const workspaceId = useWorkspaceId();
+  return useMutation({
+    mutationFn: (runId: string) => client.call(endpoint, { params: { runId } }),
+    onSuccess: (run) => {
+      if (workspaceId === null) return;
+      queryClient.setQueryData(queryKeys.repurposeRun(workspaceId, run.id), run);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.repurposeRuns(workspaceId) });
+    },
+  });
+}
+
+export function useCancelRepurposeRun(): UseMutationResult<RepurposeRunView, Error, string> {
+  return useRunCommand(endpoints.repurpose.cancel);
+}
+
+export function useRetryRepurposeRun(): UseMutationResult<RepurposeRunView, Error, string> {
+  return useRunCommand(endpoints.repurpose.retry);
 }

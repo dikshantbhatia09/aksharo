@@ -488,6 +488,13 @@ export const API_OPERATIONS = [
     summary: "Cancel a queued or running job",
   },
   {
+    operationId: "cancelRepurposeRun",
+    method: "POST",
+    path: "/repurpose/runs/{runId}/cancel",
+    tags: ["repurpose"],
+    summary: "Stop a run",
+  },
+  {
     operationId: "cancelSubscription",
     method: "POST",
     path: "/billing/subscription/cancel",
@@ -661,6 +668,13 @@ export const API_OPERATIONS = [
     path: "/projects/{projectId}/prompted-edits",
     tags: ["prompted-edits"],
     summary: "Generate a prompted-edit plan from a free-text instruction",
+  },
+  {
+    operationId: "createRepurposeRun",
+    method: "POST",
+    path: "/repurpose/runs",
+    tags: ["repurpose"],
+    summary: "Start a repurposing run from a link or an upload",
   },
   {
     operationId: "createSampleProject",
@@ -1083,6 +1097,13 @@ export const API_OPERATIONS = [
     summary: "This workspace's referral code and reward counts",
   },
   {
+    operationId: "getRepurposeRun",
+    method: "GET",
+    path: "/repurpose/runs/{runId}",
+    tags: ["repurpose"],
+    summary: "Read one repurposing run",
+  },
+  {
     operationId: "getStatusRss",
     method: "GET",
     path: "/ops/status/rss.xml",
@@ -1475,6 +1496,13 @@ export const API_OPERATIONS = [
     summary: "Projects carrying a client tag",
   },
   {
+    operationId: "listRepurposeRuns",
+    method: "GET",
+    path: "/repurpose/runs",
+    tags: ["repurpose"],
+    summary: "List repurposing runs",
+  },
+  {
     operationId: "listScheduledTasks",
     method: "GET",
     path: "/admin/scheduler/tasks",
@@ -1853,6 +1881,13 @@ export const API_OPERATIONS = [
     summary: "Retry a failed prompted-edit plan's current chain step",
   },
   {
+    operationId: "retryRepurposeRun",
+    method: "POST",
+    path: "/repurpose/runs/{runId}/retry",
+    tags: ["repurpose"],
+    summary: "Try a failed run again",
+  },
+  {
     operationId: "revokeApiKey",
     method: "DELETE",
     path: "/workspaces/{id}/api-keys/{keyId}",
@@ -2019,6 +2054,13 @@ export const API_OPERATIONS = [
     path: "/streak/test-hooks",
     tags: ["streak"],
     summary: "Simulate weeks (test environment only)",
+  },
+  {
+    operationId: "streamJobProgress",
+    method: "GET",
+    path: "/jobs/{id}/progress",
+    tags: ["jobs"],
+    summary: "Stream real-time SSE progress for a job (transcription, media processing, audio clean, render)",
   },
   {
     operationId: "submitCrashReport",

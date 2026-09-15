@@ -45,10 +45,12 @@ export interface EdgHot { meta: { edgId: string; projectId: string; revision: nu
 - Burn rates: `textFxPass` 1 credit/finished-minute; `sfxMusicPass` unchanged.
 
 ## 3. Queue contracts (BullMQ; Redis)
-Queue names: `media.probe`, `media.proxy`, `ai.vad`, `ai.transcribe`, `ai.align`, `ai.diarise`, `ai.translate`, `ai.transliterate`, `ai.clean`, `ai.pass`, `ai.llm`, `render.video`, `render.subtitle`, `notify`.
+Queue names: `media.probe`, `media.proxy`, `media.acquire`, `media.clip`, `ai.vad`, `ai.transcribe`, `ai.align`, `ai.diarise`, `ai.translate`, `ai.transliterate`, `ai.clean`, `ai.pass`, `ai.llm`, `ai.highlights`, `render.video`, `render.subtitle`, `publish.dispatch`, `publish.reconcile`, `notify`.
 Envelope (every job data): `{ jobId, attemptId, workspaceId, projectId?, priority, jobKey, createdAt, payload }`.
 Completion callback: `POST {API_ORIGIN}/internal/jobs/{jobId}/complete` with headers `X-Montaj-Attempt: <attemptId>`, `X-Montaj-Timestamp`, `X-Montaj-Signature: hex(hmac_sha256(INTERNAL_CALLBACK_SECRET, timestamp + "." + body))`; body `{ status: "succeeded"|"failed", result?, error?, usage?: { mediaSeconds?, outputSeconds?, provider?, model?, costMinor?, egressBytes? } }`. The API verifies the signature against `INTERNAL_CALLBACK_SECRET` first and, when set, against `INTERNAL_CALLBACK_SECRET_NEXT` (two-key rotation); workers always sign with the primary they were given. Replays return 200 without side effects. Progress: `POST /internal/jobs/{jobId}/progress {progress, etaMs, message}` (same signature).
 Python worker uses the official `bullmq` package pinned in `apps/worker-ai/pyproject.toml`; unsupported features (documented): flow producers, repeatable jobs, sandboxed processors — not used.
+
+- Amendment 2026-09-15 (REP-005, repurposing platform): five queues added — `media.acquire` (authorised external source into object storage), `media.clip` (accurate cut of a selected interval into a short mezzanine), `ai.highlights` (ranked clip candidates from transcript + audio/visual features), `publish.dispatch` (validate and submit ONE publish target), `publish.reconcile` (poll/callback reconciliation of an uncertain or processing target). Payload and result schemas are versioned in `@montaj/repurpose-contracts` (`media.acquire@1`, `media.clip@1`, `ai.highlights@1`) and `@montaj/publishing-contracts` (`publish.dispatch@1`, `publish.reconcile@1`), with Pydantic mirrors in `apps/worker-ai/worker_ai/highlights/contracts.py` and JSON fixtures both sides round-trip in their tests. Job keys: `media.acquire:{runId}:{sourceFingerprint}`, `media.clip:{candidateId}:{boundsFingerprint}:{profileVersion}`, `ai.highlights:{runId}:{transcriptId}:{revision}:{configFingerprint}`, `publish.dispatch:{targetId}:{attemptNo}`, `publish.reconcile:{targetId}`. Retry policy: the `publish` family is `attempts: 1` — the queue never retries an external side effect; a further attempt is created only by reconciliation or an explicit user action (`jobs.config.ts`). Consumers arrive with their waves: `ai.highlights` answers `worker/not_implemented` until Wave 4, and the two `media.*` queues are registered names without a processor until Waves 3 and 6. Nothing enqueues any of them while `repurpose_flow` is off.
 
 ## 4. CreditsFacade (api-internal interface; Wave 1 no-op, Wave 3 real)
 ```ts
@@ -69,11 +71,17 @@ Raw (S3): `ws/{workspaceId}/p/{projectId}/media/{mediaId}/raw.{ext}`. Derived (R
 
 - Amendment 2026-09-03: shared audio library objects live at `packs/{packId}/{assetId}.wav` (not workspace-scoped; read via signed URLs only; licence predicate enforced at the API).
 
+- Amendment 2026-09-15 (REP-005): repurposing artefacts live under the SOURCE project, so they purge with it — features `ws/{workspaceId}/p/{sourceProjectId}/repurpose/{runId}/features/{featureVersion}.json`, clip mezzanines `ws/{workspaceId}/p/{sourceProjectId}/repurpose/{runId}/clips/{candidateId}/master.mp4`. An acquired external source uses the ordinary raw media key, because after acquisition it IS ordinary media. Child variant projects use normal project keys.
+
 ## 7. Realtime
 Rooms `project:{projectId}`, `workspace:{workspaceId}`; events `edg.ops {revision, ops, source}`, `job.progress {jobId, progress, etaMs}`, `job.completed {jobId, status}`, `comment.added`, `notification.created {notificationId, kind}` (added 2026-09-02 after A25; user-room delivery of in-app notifications). Bridge relay rooms `bridge:{workspaceId}` (Wave 4).
 
+- Amendment 2026-09-15 (REP-006): `repurpose.stage.changed {runId, status, stage, progress, message, at}` on the workspace room. A run outlives any one project, so the workspace room is the only one that can carry it end to end. Additive: a client that does not know the event ignores the frame. The payload is already plain language and carries no job id, queue name or provider error.
+
 ## 8. Error envelope
 `{ error: { code, message, details?, requestId } }`; codes are `namespace/slug` (see `03-architecture/07`).
+
+- Amendment 2026-09-15 (REP-005): namespaces `repurpose/*` and `publishing/*` are reserved for the repurposing platform. Their member codes are the closed lists `SAFE_ERROR_CODES` in `@montaj/repurpose-contracts` and `PUBLISH_ERROR_CODES` in `@montaj/publishing-contracts`; a provider's own message is never rendered to a user, only mapped onto one of these.
 
 ## 9. Testing conventions
 Unit: vitest (TS) / pytest (Py). Integration: testcontainers. E2E: Playwright (chromium + webkit). Property tests: fast-check (TS) / hypothesis (Py) for credits and EDG ops. **Coverage thresholds** (lines/branches) enforced via `coverageThresholds()` from `@montaj/config`: `packages/edg`, `packages/timemap`, `packages/caption-styles`, `packages/render-core`, `packages/render-canvaskit`, `packages/render-skia-node`, `packages/render-manifest`, `packages/fonts`, `packages/ass-exporter` = 90/85; `apps/api`, `apps/worker-media`, `apps/render`, `apps/worker-ai`, `apps/model-server` = 75/70; `apps/web` = 60/50 (UI); generated code excluded. Each WP that creates a package adds its threshold.

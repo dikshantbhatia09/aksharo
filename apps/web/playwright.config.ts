@@ -104,10 +104,10 @@ export default defineConfig({
       // screenshots should show.
       command: `npx next build && npx next start --port ${String(WEB_PORT)}`,
       url: BASE_URL,
-      // Never reused: reusing would skip the build in the same command and serve
-      // whatever `.next` happened to be there, which is how a suite ends up
-      // green against last week's code.
-      reuseExistingServer: false,
+      // Normally never reused: that would skip the build and risk testing an
+      // older `.next`. The isolated compose baseline explicitly opts in after
+      // building its own image and health-checking the external web service.
+      reuseExistingServer: process.env["E2E_REUSE_WEB"] === "1",
       timeout: 420_000,
       stdout: "ignore",
       stderr: "pipe",

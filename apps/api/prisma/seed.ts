@@ -25,7 +25,7 @@
  *     pre-gate defaults until `pnpm --filter @montaj/ass-exporter parity` has
  *     run, the gate's real measured answer afterwards; the seed only ever
  *     reads them, never writes them by hand (D33);
- *   * four feature flags, all off;
+ *   * reference feature flags, all off;
  *   * one admin user and a demo personal workspace with an owner membership, a
  *     credit account holding the free monthly grant as a lot plus its ledger row,
  *     and a free-plan subscription.

@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "deliveryId": "dlv_7a31c9",
+  "sentAt": "2026-09-15T10:06:12.000Z",
+  "event": "post.published",
+  "publishTargetId": "01ARZ3NDEKTSV4RRFFQ69G5FB3",
+  "externalPostId": "ig_1799",
+  "externalUrl": "https://example.test/p/ig_1799",
+  "error": null
+}

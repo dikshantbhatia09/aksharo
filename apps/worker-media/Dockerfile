@@ -63,6 +63,43 @@ RUN apt-get update \
         ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
+# yt-dlp for `media.acquire` (REP-010, ADR 0002 section 7).
+#
+# Pinned to one release and verified against a digest, unlike the apt packages
+# above. The difference is deliberate: ffmpeg processes bytes we already hold,
+# while this fetches bytes from the public internet using a URL a user supplied,
+# so the binary that runs has to be the binary that was reviewed. The official
+# standalone build is used rather than pip, so there is no dependency resolution
+# between the review and the run.
+#
+# The worker refuses to start when the version or the digest does not match, so
+# this image cannot acquire with a different downloader than the one it shipped.
+#
+# YT_DLP_SHA256 has no default on purpose: until the publisher's digest is
+# recorded (docs/repurposing-platform-master-plan/WAVE-0-FOUNDATION.md) this
+# build argument must be supplied explicitly, and a build without it fails HERE
+# rather than shipping an executable nobody identified.
+ARG YT_DLP_VERSION=2026.08.19
+ARG YT_DLP_SHA256
+# The build argument is checked FIRST, so a build without it fails before it
+# installs anything or touches the network.
+RUN test -n "${YT_DLP_SHA256}" \
+    || { echo 'YT_DLP_SHA256 build argument is required; see ADR 0002 section 7' >&2; exit 1; }
+
+# hadolint ignore=DL3008
+RUN apt-get update \
+    && apt-get install --no-install-recommends -y curl \
+    && curl -fsSL --proto '=https' --tlsv1.2 \
+        "https://github.com/yt-dlp/yt-dlp/releases/download/${YT_DLP_VERSION}/yt-dlp_linux" \
+        -o /usr/local/bin/yt-dlp \
+    && echo "${YT_DLP_SHA256}  /usr/local/bin/yt-dlp" | sha256sum -c - \
+    && chmod 0755 /usr/local/bin/yt-dlp \
+    && /usr/local/bin/yt-dlp --version \
+    && apt-get purge -y curl \
+    && apt-get autoremove -y \
+    && rm -rf /var/lib/apt/lists/*
+ENV YT_DLP_PATH=/usr/local/bin/yt-dlp
+
 WORKDIR /app
 COPY --from=build /repo .
 

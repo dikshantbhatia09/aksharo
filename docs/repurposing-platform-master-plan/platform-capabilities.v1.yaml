@@ -1,0 +1,97 @@
+schemaVersion: 1
+registryVersion: "2026-09-15.wave0-draft"
+status: draft
+defaultEnabled: false
+releaseRule: >-
+  A direct or scheduled mode remains disabled until credentials, scopes,
+  provider review, a rights-cleared test account, current official-source
+  verification, and a successful staging smoke test are recorded.
+profiles:
+  - id: instagram-reel
+    provider: meta
+    surface: instagram_reel
+    intendedLaunchCohort: true
+    preparationAspect: "9:16"
+    desiredModes: [direct, schedule]
+    enabledModes: [download_only]
+    fallback: download_only
+    featureFlags: [repurpose_flow, publishing_postiz]
+    verificationStatus: blocked_external_access
+    lastVerifiedAt: null
+  - id: facebook-reel
+    provider: meta
+    surface: facebook_reel
+    intendedLaunchCohort: true
+    preparationAspect: "9:16"
+    desiredModes: [direct, schedule]
+    enabledModes: [download_only]
+    fallback: download_only
+    featureFlags: [repurpose_flow, publishing_postiz]
+    verificationStatus: blocked_external_access
+    lastVerifiedAt: null
+  - id: youtube-short
+    provider: youtube
+    surface: youtube_short
+    intendedLaunchCohort: true
+    preparationAspect: "9:16"
+    desiredModes: [direct, schedule]
+    enabledModes: [download_only]
+    fallback: download_only
+    featureFlags: [repurpose_flow, publishing_postiz]
+    verificationStatus: blocked_external_access
+    lastVerifiedAt: null
+  - id: linkedin-video
+    provider: linkedin
+    surface: linkedin_video
+    intendedLaunchCohort: true
+    preparationAspect: "4:5"
+    desiredModes: [direct, schedule]
+    enabledModes: [download_only]
+    fallback: download_only
+    featureFlags: [repurpose_flow, publishing_postiz]
+    verificationStatus: blocked_external_access
+    lastVerifiedAt: null
+  - id: tiktok-video
+    provider: tiktok
+    surface: tiktok_video
+    intendedLaunchCohort: conditional
+    preparationAspect: "9:16"
+    desiredModes: [direct, schedule]
+    enabledModes: [download_only]
+    fallback: download_only
+    featureFlags: [repurpose_flow, publishing_postiz, publishing_tiktok]
+    verificationStatus: blocked_external_access
+    lastVerifiedAt: null
+  - id: x-video
+    provider: x
+    surface: x_video
+    intendedLaunchCohort: alternate
+    preparationAspect: "1:1"
+    desiredModes: [direct, schedule]
+    enabledModes: [download_only]
+    fallback: download_only
+    featureFlags: [repurpose_flow, publishing_postiz]
+    verificationStatus: not_selected
+    lastVerifiedAt: null
+  - id: snapchat-spotlight
+    provider: snapchat
+    surface: snapchat_spotlight
+    intendedLaunchCohort: false
+    preparationAspect: "9:16"
+    desiredModes: [direct, mobile_handoff]
+    enabledModes: [download_only]
+    fallback: download_only
+    featureFlags: [repurpose_flow]
+    verificationStatus: deferred_pending_partner_access
+    lastVerifiedAt: null
+  - id: whatsapp-status
+    provider: whatsapp
+    surface: whatsapp_status
+    intendedLaunchCohort: false
+    preparationAspect: "9:16"
+    desiredModes: [mobile_handoff]
+    enabledModes: [download_only]
+    fallback: download_only
+    featureFlags: [repurpose_flow]
+    verificationStatus: deferred_pending_official_handoff
+    lastVerifiedAt: null

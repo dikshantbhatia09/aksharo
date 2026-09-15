@@ -196,6 +196,15 @@ export const DEFAULT_QUEUE_POLICY: QueuePolicy = Object.freeze({
  * notify 5. `notify` retries most and backs off least because a notification is
  * cheap, idempotent and worthless late; `render` retries least and backs off most
  * because a re-render costs GPU minutes and a failing one usually fails again.
+ *
+ * `publish` (REP-005) is the odd one: **one attempt, never retried by the queue**.
+ * Every other queue's work is idempotent, so a retry is free; a publish is an
+ * external side effect, and a blind retry after a lost response is how a product
+ * posts the same video twice. The next attempt is created deliberately, by
+ * `publish.reconcile` once it has established what the provider actually did, or
+ * by the user pressing Retry — never by BullMQ. The dispatcher also re-reads the
+ * target's stored provider reference before submitting, so even a stalled-job
+ * recovery cannot submit a second time (master plan §4.3).
  */
 export const QUEUE_POLICY_BY_FAMILY: Readonly<Record<string, QueuePolicy>> = Object.freeze({
   media: {
@@ -230,6 +239,14 @@ export const QUEUE_POLICY_BY_FAMILY: Readonly<Record<string, QueuePolicy>> = Obj
     stalledIntervalMs: 15_000,
     maxStalledCount: 2,
   },
+  publish: {
+    attempts: 1,
+    backoffMs: 30_000,
+    backoffJitter: 0.5,
+    lockDurationMs: 120_000,
+    stalledIntervalMs: 30_000,
+    maxStalledCount: 1,
+  },
 });
 
 /**
@@ -250,6 +267,9 @@ export const QUEUE_POLICY_OVERRIDES: Readonly<Record<string, Partial<QueuePolicy
   {
     "media.probe": { lockDurationMs: 600_000, stalledIntervalMs: 60_000 },
     "media.proxy": { lockDurationMs: 600_000, stalledIntervalMs: 60_000 },
+    "media.acquire": { lockDurationMs: 600_000, stalledIntervalMs: 60_000 },
+    "media.clip": { lockDurationMs: 300_000, stalledIntervalMs: 60_000 },
+    "ai.highlights": { lockDurationMs: 600_000, stalledIntervalMs: 60_000 },
     "ai.transcribe": { lockDurationMs: 600_000, stalledIntervalMs: 60_000 },
     "ai.diarise": { lockDurationMs: 600_000, stalledIntervalMs: 60_000 },
     "ai.align": { lockDurationMs: 300_000, stalledIntervalMs: 60_000 },

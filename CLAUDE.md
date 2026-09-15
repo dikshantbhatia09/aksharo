@@ -52,15 +52,25 @@ cd apps/api && node --env-file=../../.env.local-run dist/main.js
 cd apps/web && NEXT_DIST_DIR=.next-typography-live-20260913 NODE_ENV=production node --env-file=../../.env.local-run node_modules/next/dist/bin/next start --port 3914
 ```
 
-The typography-motion release (3 new "editorial" kinetic-typography templates —
-`editorial-ghost-type`, `editorial-keyword-zoom`, `editorial-stack`) published
-2026-09-13 runs from `apps/web/.next-typography-live-20260913` (build
-`FVSuJD4Q1Btz16IpOz78T`). Set `NEXT_DIST_DIR` as shown when restarting this
-release. `.next-caption-live-20260912` (build `fzstBbkQAwLxfxTeVNKtz`) is the
-previous release, retained for rollback; `.next` is older still. Deployment
-details are in `scratch/typography-live-deployment.json`. A future build
-should use a new output directory while the live process is running, then
-switch the web service to it.
+The **current release runs from `apps/web/.next-repurpose-live-20260915`**
+(build `-XBuUUyZGlEQjidK9pSc7`), published 2026-09-15. Set `NEXT_DIST_DIR` to
+that directory when restarting the web service, or the restore command brings
+back an older build. It carries two things: the caption/editor/font work that
+had accumulated in the working tree since 2026-09-13 (the `.next-typography-live`
+build predated it by a day and a half), and the repurposing platform's routes,
+which are INERT — `/repurpose/new` and `/repurpose/[runId]` render, but every
+API route behind them answers 404 while the `repurpose_flow` flag is off, and it
+is off. Nothing links to them from the navigation.
+
+Retained for rollback, newest first: `.next-typography-live-20260913` (build
+`FVSuJD4Q1Btz16IpOz78T`, the 3 "editorial" kinetic-typography templates),
+`.next-caption-live-20260912` (build `fzstBbkQAwLxfxTeVNKtz`), then `.next`.
+Rolling back is a restart with `NEXT_DIST_DIR` pointed at one of them — the
+2026-09-15 database migration is additive and older code ignores its tables.
+Deployment details are in `scratch/typography-live-deployment.json` for the
+2026-09-13 release, and in the master plan's `DEPLOY-0001` record for this one.
+A future build should use a new output directory while the live process is
+running, then switch the web service to it.
 
 `.env.local-run` contains multi-line quoted PEM keys (`JWT_PRIVATE_KEY`).
 Shell `source` breaks on them — use Node's `--env-file` / `process.loadEnvFile()`.
@@ -86,6 +96,22 @@ To ship a change:
 pnpm --filter @montaj/web build      # or the package you changed
 # restart the 3914 process (section 1)
 ```
+
+A schema change also needs the migration applied to the production database
+BEFORE the API restarts. `.env.local-run` carries the production `DATABASE_URL`
+and multi-line PEM keys, so pass it through Node rather than `source`:
+
+```bash
+# reads DATABASE_URL out of .env.local-run and runs prisma migrate deploy + prisma/sql
+node -e "const m=/^DATABASE_URL=\"?([^\"\n]+)/m.exec(require('fs').readFileSync('.env.local-run','utf8'));process.env.DATABASE_URL=m[1];require('child_process').spawnSync('pnpm',['--filter','@montaj/api','db:migrate'],{stdio:'inherit',shell:true,env:process.env})"
+```
+
+The two live processes are **detached** — their launching shell has exited — so a
+restart must detach too, or the service dies with the terminal that started it.
+On Windows that means `Start-Process -WindowStyle Hidden` with an explicit
+`-WorkingDirectory`; `next start` resolves the project from the working
+directory, so running it from the repository root silently looks for `.next`
+there and fails with "Could not find a production build".
 
 Committing alone changes nothing that a user can see.
 
