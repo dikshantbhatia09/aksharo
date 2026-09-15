@@ -1,0 +1,1979 @@
+{
+  "style": {
+    "id": "editorial-stack",
+    "name": "Editorial Stack",
+    "version": 2,
+    "category": "kinetic",
+    "minPlan": "free",
+    "typography": {
+      "fontFamily": "Playfair Display",
+      "fallbacks": [
+        "Noto Sans Devanagari",
+        "Noto Sans Tamil",
+        "Noto Sans"
+      ],
+      "weight": 600,
+      "italic": false,
+      "sizePct": 3.5,
+      "lineHeight": 1.1,
+      "letterSpacingEm": 0,
+      "textTransform": "none",
+      "scriptScale": {
+        "deva": 0.9,
+        "taml": 0.85
+      }
+    },
+    "colors": {
+      "text": "#4b0b03",
+      "activeText": "#4b0b03",
+      "accent": "#bc3b24"
+    },
+    "box": {
+      "enabled": true,
+      "mode": "block",
+      "fill": "#ffc39f",
+      "paddingPct": 25,
+      "radiusPct": 0,
+      "opacity": 1
+    },
+    "stroke": {
+      "enabled": false,
+      "color": "#4b0b03",
+      "widthPct": 0
+    },
+    "shadow": {
+      "enabled": false,
+      "color": "#000000",
+      "offsetXPct": 0,
+      "offsetYPct": 0,
+      "blurPct": 0,
+      "opacity": 0
+    },
+    "layout": {
+      "anchor": "center",
+      "x": 0.5,
+      "y": 0.5,
+      "align": "center",
+      "maxWidthPct": 86,
+      "maxLines": 4,
+      "wordsPerCue": 8,
+      "safeAreaPct": 5
+    },
+    "animation": {
+      "in": {
+        "type": "fade",
+        "durationMs": 240
+      },
+      "out": {
+        "type": "fade",
+        "durationMs": 220
+      },
+      "wordHighlight": {
+        "type": "none",
+        "durationMs": 120
+      },
+      "perWord": false,
+      "typographyMotion": {
+        "mode": "stack",
+        "keywordPresetId": "keyword",
+        "ghostOpacity": 0
+      }
+    },
+    "emphasisPresets": [
+      {
+        "id": "keyword",
+        "label": "Keyword",
+        "weight": 400,
+        "effect": "none",
+        "fontFamily": "Anton"
+      },
+      {
+        "id": "accent",
+        "label": "Highlight",
+        "color": "#bc3b24",
+        "effect": "none",
+        "underline": true
+      }
+    ],
+    "assRenderable": false,
+    "assExportable": false,
+    "requiresLayoutMetrics": true,
+    "previewKey": "system/style-previews/soft-serif.mp4"
+  },
+  "layout": {
+    "segmentId": "demo",
+    "canvas": {
+      "width": 720,
+      "height": 1280
+    },
+    "script": "latin",
+    "fontSizePx": 44.8,
+    "shrink": 1,
+    "lineHeightPx": 49.28,
+    "ascentPx": 48.474,
+    "descentPx": 11.245,
+    "lines": [
+      {
+        "index": 5,
+        "text": "Acha",
+        "baselineY": 652.658,
+        "box": [
+          83.85350000000003,
+          605.5605,
+          124.46149999999997,
+          674.4395
+        ],
+        "words": [
+          {
+            "wid": "0:0",
+            "text": "Acha",
+            "startMs": 0,
+            "endMs": 300,
+            "lineIndex": 5,
+            "index": 0,
+            "box": [
+              69.718,
+              619.696,
+              138.597,
+              660.304
+            ],
+            "runs": [
+              {
+                "fontId": "playfair-display-600",
+                "fontSizePx": 30.464,
+                "script": "latin",
+                "text": "Acha",
+                "x": 69.718,
+                "y": 652.658,
+                "widthPx": 68.879,
+                "glyphs": [
+                  {
+                    "id": 1,
+                    "cluster": 0,
+                    "x": 69.718,
+                    "y": 652.658
+                  },
+                  {
+                    "id": 154,
+                    "cluster": 1,
+                    "x": 89.672,
+                    "y": 652.658
+                  },
+                  {
+                    "id": 185,
+                    "cluster": 2,
+                    "x": 104.691,
+                    "y": 652.658
+                  },
+                  {
+                    "id": 141,
+                    "cluster": 3,
+                    "x": 123.03,
+                    "y": 652.658
+                  }
+                ]
+              }
+            ],
+            "rotationDeg": -90
+          }
+        ],
+        "runs": [
+          {
+            "fontId": "playfair-display-600",
+            "fontSizePx": 30.464,
+            "script": "latin",
+            "text": "Acha",
+            "x": 69.718,
+            "y": 652.658,
+            "widthPx": 68.879,
+            "glyphs": [
+              {
+                "id": 1,
+                "cluster": 0,
+                "x": 69.718,
+                "y": 652.658
+              },
+              {
+                "id": 154,
+                "cluster": 1,
+                "x": 89.672,
+                "y": 652.658
+              },
+              {
+                "id": 185,
+                "cluster": 2,
+                "x": 104.691,
+                "y": 652.658
+              },
+              {
+                "id": 141,
+                "cluster": 3,
+                "x": 123.03,
+                "y": 652.658
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "index": 0,
+        "text": "font viewer",
+        "baselineY": 497.645,
+        "box": [
+          287.389,
+          456.442,
+          482.179,
+          507.203
+        ],
+        "words": [
+          {
+            "wid": "0:1",
+            "text": "font",
+            "startMs": 300,
+            "endMs": 600,
+            "lineIndex": 0,
+            "index": 1,
+            "box": [
+              287.389,
+              456.442,
+              357.684,
+              507.203
+            ],
+            "runs": [
+              {
+                "fontId": "playfair-display-600",
+                "fontSizePx": 38.08,
+                "script": "latin",
+                "text": "font",
+                "x": 287.389,
+                "y": 497.645,
+                "widthPx": 70.296,
+                "glyphs": [
+                  {
+                    "id": 176,
+                    "cluster": 0,
+                    "x": 287.389,
+                    "y": 497.645
+                  },
+                  {
+                    "id": 222,
+                    "cluster": 1,
+                    "x": 299.841,
+                    "y": 497.645
+                  },
+                  {
+                    "id": 215,
+                    "cluster": 2,
+                    "x": 321.128,
+                    "y": 497.645
+                  },
+                  {
+                    "id": 250,
+                    "cluster": 3,
+                    "x": 344.281,
+                    "y": 497.645
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "wid": "0:2",
+            "text": "viewer",
+            "startMs": 600,
+            "endMs": 900,
+            "lineIndex": 0,
+            "index": 2,
+            "box": [
+              366.644,
+              456.442,
+              482.179,
+              507.203
+            ],
+            "runs": [
+              {
+                "fontId": "playfair-display-600",
+                "fontSizePx": 38.08,
+                "script": "latin",
+                "text": "viewer",
+                "x": 366.644,
+                "y": 497.645,
+                "widthPx": 115.535,
+                "glyphs": [
+                  {
+                    "id": 268,
+                    "cluster": 0,
+                    "x": 366.644,
+                    "y": 497.645
+                  },
+                  {
+                    "id": 189,
+                    "cluster": 1,
+                    "x": 385.722,
+                    "y": 497.645
+                  },
+                  {
+                    "id": 164,
+                    "cluster": 2,
+                    "x": 397.451,
+                    "y": 497.645
+                  },
+                  {
+                    "id": 269,
+                    "cluster": 3,
+                    "x": 416.376,
+                    "y": 497.645
+                  },
+                  {
+                    "id": 164,
+                    "cluster": 4,
+                    "x": 445.622,
+                    "y": 497.645
+                  },
+                  {
+                    "id": 238,
+                    "cluster": 5,
+                    "x": 464.7,
+                    "y": 497.645
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "runs": [
+          {
+            "fontId": "playfair-display-600",
+            "fontSizePx": 38.08,
+            "script": "latin",
+            "text": "font",
+            "x": 287.389,
+            "y": 497.645,
+            "widthPx": 70.296,
+            "glyphs": [
+              {
+                "id": 176,
+                "cluster": 0,
+                "x": 287.389,
+                "y": 497.645
+              },
+              {
+                "id": 222,
+                "cluster": 1,
+                "x": 299.841,
+                "y": 497.645
+              },
+              {
+                "id": 215,
+                "cluster": 2,
+                "x": 321.128,
+                "y": 497.645
+              },
+              {
+                "id": 250,
+                "cluster": 3,
+                "x": 344.281,
+                "y": 497.645
+              }
+            ]
+          },
+          {
+            "fontId": "playfair-display-600",
+            "fontSizePx": 38.08,
+            "script": "latin",
+            "text": "viewer",
+            "x": 366.644,
+            "y": 497.645,
+            "widthPx": 115.535,
+            "glyphs": [
+              {
+                "id": 268,
+                "cluster": 0,
+                "x": 366.644,
+                "y": 497.645
+              },
+              {
+                "id": 189,
+                "cluster": 1,
+                "x": 385.722,
+                "y": 497.645
+              },
+              {
+                "id": 164,
+                "cluster": 2,
+                "x": 397.451,
+                "y": 497.645
+              },
+              {
+                "id": 269,
+                "cluster": 3,
+                "x": 416.376,
+                "y": 497.645
+              },
+              {
+                "id": 164,
+                "cluster": 4,
+                "x": 445.622,
+                "y": 497.645
+              },
+              {
+                "id": 238,
+                "cluster": 5,
+                "x": 464.7,
+                "y": 497.645
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "index": 1,
+        "text": "ko",
+        "baselineY": 550.645,
+        "box": [
+          363.688,
+          509.443,
+          405.88,
+          560.203
+        ],
+        "words": [
+          {
+            "wid": "0:3",
+            "text": "ko",
+            "startMs": 900,
+            "endMs": 1200,
+            "lineIndex": 1,
+            "index": 3,
+            "box": [
+              363.688,
+              509.443,
+              405.88,
+              560.203
+            ],
+            "runs": [
+              {
+                "fontId": "playfair-display-600",
+                "fontSizePx": 38.08,
+                "script": "latin",
+                "text": "ko",
+                "x": 363.688,
+                "y": 550.645,
+                "widthPx": 42.192,
+                "glyphs": [
+                  {
+                    "id": 204,
+                    "cluster": 0,
+                    "x": 363.688,
+                    "y": 550.645
+                  },
+                  {
+                    "id": 222,
+                    "cluster": 1,
+                    "x": 384.594,
+                    "y": 550.645
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "runs": [
+          {
+            "fontId": "playfair-display-600",
+            "fontSizePx": 38.08,
+            "script": "latin",
+            "text": "ko",
+            "x": 363.688,
+            "y": 550.645,
+            "widthPx": 42.192,
+            "glyphs": [
+              {
+                "id": 204,
+                "cluster": 0,
+                "x": 363.688,
+                "y": 550.645
+              },
+              {
+                "id": 222,
+                "cluster": 1,
+                "x": 384.594,
+                "y": 550.645
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "index": 2,
+        "text": "Comfortable",
+        "baselineY": 683.646,
+        "box": [
+          133.422,
+          562.443,
+          636.147,
+          717.557
+        ],
+        "words": [
+          {
+            "wid": "0:4",
+            "text": "Comfortable",
+            "startMs": 1200,
+            "endMs": 1500,
+            "lineIndex": 2,
+            "index": 4,
+            "box": [
+              133.422,
+              562.443,
+              636.147,
+              717.557
+            ],
+            "runs": [
+              {
+                "fontId": "anton-400",
+                "fontSizePx": 103.04,
+                "script": "latin",
+                "text": "Comfortable",
+                "x": 133.422,
+                "y": 683.646,
+                "widthPx": 502.722,
+                "glyphs": [
+                  {
+                    "id": 26,
+                    "cluster": 0,
+                    "x": 133.422,
+                    "y": 683.646
+                  },
+                  {
+                    "id": 548,
+                    "cluster": 1,
+                    "x": 182.276,
+                    "y": 683.646
+                  },
+                  {
+                    "id": 519,
+                    "cluster": 2,
+                    "x": 233.444,
+                    "y": 683.646
+                  },
+                  {
+                    "id": 399,
+                    "cluster": 3,
+                    "x": 311.58,
+                    "y": 683.646
+                  },
+                  {
+                    "id": 548,
+                    "cluster": 4,
+                    "x": 340.459,
+                    "y": 683.646
+                  },
+                  {
+                    "id": 642,
+                    "cluster": 5,
+                    "x": 391.627,
+                    "y": 683.646
+                  },
+                  {
+                    "id": 692,
+                    "cluster": 6,
+                    "x": 427.348,
+                    "y": 683.646
+                  },
+                  {
+                    "id": 219,
+                    "cluster": 7,
+                    "x": 458.794,
+                    "y": 683.646
+                  },
+                  {
+                    "id": 267,
+                    "cluster": 8,
+                    "x": 508.602,
+                    "y": 683.646
+                  },
+                  {
+                    "id": 500,
+                    "cluster": 9,
+                    "x": 560.274,
+                    "y": 683.646
+                  },
+                  {
+                    "id": 349,
+                    "cluster": 10,
+                    "x": 585.834,
+                    "y": 683.646
+                  }
+                ]
+              }
+            ],
+            "emphasisPresetId": "keyword"
+          }
+        ],
+        "runs": [
+          {
+            "fontId": "anton-400",
+            "fontSizePx": 103.04,
+            "script": "latin",
+            "text": "Comfortable",
+            "x": 133.422,
+            "y": 683.646,
+            "widthPx": 502.722,
+            "glyphs": [
+              {
+                "id": 26,
+                "cluster": 0,
+                "x": 133.422,
+                "y": 683.646
+              },
+              {
+                "id": 548,
+                "cluster": 1,
+                "x": 182.276,
+                "y": 683.646
+              },
+              {
+                "id": 519,
+                "cluster": 2,
+                "x": 233.444,
+                "y": 683.646
+              },
+              {
+                "id": 399,
+                "cluster": 3,
+                "x": 311.58,
+                "y": 683.646
+              },
+              {
+                "id": 548,
+                "cluster": 4,
+                "x": 340.459,
+                "y": 683.646
+              },
+              {
+                "id": 642,
+                "cluster": 5,
+                "x": 391.627,
+                "y": 683.646
+              },
+              {
+                "id": 692,
+                "cluster": 6,
+                "x": 427.348,
+                "y": 683.646
+              },
+              {
+                "id": 219,
+                "cluster": 7,
+                "x": 458.794,
+                "y": 683.646
+              },
+              {
+                "id": 267,
+                "cluster": 8,
+                "x": 508.602,
+                "y": 683.646
+              },
+              {
+                "id": 500,
+                "cluster": 9,
+                "x": 560.274,
+                "y": 683.646
+              },
+              {
+                "id": 349,
+                "cluster": 10,
+                "x": 585.834,
+                "y": 683.646
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "index": 3,
+        "text": "feel karata",
+        "baselineY": 760.999,
+        "box": [
+          293.634,
+          719.797,
+          475.935,
+          770.557
+        ],
+        "words": [
+          {
+            "wid": "0:5",
+            "text": "feel",
+            "startMs": 1500,
+            "endMs": 1800,
+            "lineIndex": 3,
+            "index": 5,
+            "box": [
+              293.634,
+              719.797,
+              356.085,
+              770.557
+            ],
+            "runs": [
+              {
+                "fontId": "playfair-display-600",
+                "fontSizePx": 38.08,
+                "script": "latin",
+                "text": "feel",
+                "x": 293.634,
+                "y": 760.999,
+                "widthPx": 62.451,
+                "glyphs": [
+                  {
+                    "id": 176,
+                    "cluster": 0,
+                    "x": 293.634,
+                    "y": 760.999
+                  },
+                  {
+                    "id": 164,
+                    "cluster": 1,
+                    "x": 306.086,
+                    "y": 760.999
+                  },
+                  {
+                    "id": 164,
+                    "cluster": 2,
+                    "x": 325.316,
+                    "y": 760.999
+                  },
+                  {
+                    "id": 208,
+                    "cluster": 3,
+                    "x": 344.546,
+                    "y": 760.999
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "wid": "0:6",
+            "text": "karata",
+            "startMs": 1800,
+            "endMs": 2100,
+            "lineIndex": 3,
+            "index": 6,
+            "box": [
+              365.045,
+              719.797,
+              475.935,
+              770.557
+            ],
+            "runs": [
+              {
+                "fontId": "playfair-display-600",
+                "fontSizePx": 38.08,
+                "script": "latin",
+                "text": "karata",
+                "x": 365.045,
+                "y": 760.999,
+                "widthPx": 110.889,
+                "glyphs": [
+                  {
+                    "id": 204,
+                    "cluster": 0,
+                    "x": 365.045,
+                    "y": 760.999
+                  },
+                  {
+                    "id": 141,
+                    "cluster": 1,
+                    "x": 386.674,
+                    "y": 760.999
+                  },
+                  {
+                    "id": 238,
+                    "cluster": 2,
+                    "x": 406.133,
+                    "y": 760.999
+                  },
+                  {
+                    "id": 141,
+                    "cluster": 3,
+                    "x": 423.612,
+                    "y": 760.999
+                  },
+                  {
+                    "id": 250,
+                    "cluster": 4,
+                    "x": 443.071,
+                    "y": 760.999
+                  },
+                  {
+                    "id": 141,
+                    "cluster": 5,
+                    "x": 456.475,
+                    "y": 760.999
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "runs": [
+          {
+            "fontId": "playfair-display-600",
+            "fontSizePx": 38.08,
+            "script": "latin",
+            "text": "feel",
+            "x": 293.634,
+            "y": 760.999,
+            "widthPx": 62.451,
+            "glyphs": [
+              {
+                "id": 176,
+                "cluster": 0,
+                "x": 293.634,
+                "y": 760.999
+              },
+              {
+                "id": 164,
+                "cluster": 1,
+                "x": 306.086,
+                "y": 760.999
+              },
+              {
+                "id": 164,
+                "cluster": 2,
+                "x": 325.316,
+                "y": 760.999
+              },
+              {
+                "id": 208,
+                "cluster": 3,
+                "x": 344.546,
+                "y": 760.999
+              }
+            ]
+          },
+          {
+            "fontId": "playfair-display-600",
+            "fontSizePx": 38.08,
+            "script": "latin",
+            "text": "karata",
+            "x": 365.045,
+            "y": 760.999,
+            "widthPx": 110.889,
+            "glyphs": [
+              {
+                "id": 204,
+                "cluster": 0,
+                "x": 365.045,
+                "y": 760.999
+              },
+              {
+                "id": 141,
+                "cluster": 1,
+                "x": 386.674,
+                "y": 760.999
+              },
+              {
+                "id": 238,
+                "cluster": 2,
+                "x": 406.133,
+                "y": 760.999
+              },
+              {
+                "id": 141,
+                "cluster": 3,
+                "x": 423.612,
+                "y": 760.999
+              },
+              {
+                "id": 250,
+                "cluster": 4,
+                "x": 443.071,
+                "y": 760.999
+              },
+              {
+                "id": 141,
+                "cluster": 5,
+                "x": 456.475,
+                "y": 760.999
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "index": 4,
+        "text": "hai",
+        "baselineY": 814,
+        "box": [
+          357.729,
+          772.797,
+          411.84,
+          823.558
+        ],
+        "words": [
+          {
+            "wid": "0:7",
+            "text": "hai",
+            "startMs": 2100,
+            "endMs": 2400,
+            "lineIndex": 4,
+            "index": 7,
+            "box": [
+              357.729,
+              772.797,
+              411.84,
+              823.558
+            ],
+            "runs": [
+              {
+                "fontId": "playfair-display-600",
+                "fontSizePx": 38.08,
+                "script": "latin",
+                "text": "hai",
+                "x": 357.729,
+                "y": 814,
+                "widthPx": 54.112,
+                "glyphs": [
+                  {
+                    "id": 185,
+                    "cluster": 0,
+                    "x": 357.729,
+                    "y": 814
+                  },
+                  {
+                    "id": 141,
+                    "cluster": 1,
+                    "x": 380.652,
+                    "y": 814
+                  },
+                  {
+                    "id": 189,
+                    "cluster": 2,
+                    "x": 400.111,
+                    "y": 814
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "runs": [
+          {
+            "fontId": "playfair-display-600",
+            "fontSizePx": 38.08,
+            "script": "latin",
+            "text": "hai",
+            "x": 357.729,
+            "y": 814,
+            "widthPx": 54.112,
+            "glyphs": [
+              {
+                "id": 185,
+                "cluster": 0,
+                "x": 357.729,
+                "y": 814
+              },
+              {
+                "id": 141,
+                "cluster": 1,
+                "x": 380.652,
+                "y": 814
+              },
+              {
+                "id": 189,
+                "cluster": 2,
+                "x": 400.111,
+                "y": 814
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "words": [
+      {
+        "wid": "0:0",
+        "text": "Acha",
+        "startMs": 0,
+        "endMs": 300,
+        "lineIndex": 5,
+        "index": 0,
+        "box": [
+          69.718,
+          619.696,
+          138.597,
+          660.304
+        ],
+        "runs": [
+          {
+            "fontId": "playfair-display-600",
+            "fontSizePx": 30.464,
+            "script": "latin",
+            "text": "Acha",
+            "x": 69.718,
+            "y": 652.658,
+            "widthPx": 68.879,
+            "glyphs": [
+              {
+                "id": 1,
+                "cluster": 0,
+                "x": 69.718,
+                "y": 652.658
+              },
+              {
+                "id": 154,
+                "cluster": 1,
+                "x": 89.672,
+                "y": 652.658
+              },
+              {
+                "id": 185,
+                "cluster": 2,
+                "x": 104.691,
+                "y": 652.658
+              },
+              {
+                "id": 141,
+                "cluster": 3,
+                "x": 123.03,
+                "y": 652.658
+              }
+            ]
+          }
+        ],
+        "rotationDeg": -90
+      },
+      {
+        "wid": "0:1",
+        "text": "font",
+        "startMs": 300,
+        "endMs": 600,
+        "lineIndex": 0,
+        "index": 1,
+        "box": [
+          287.389,
+          456.442,
+          357.684,
+          507.203
+        ],
+        "runs": [
+          {
+            "fontId": "playfair-display-600",
+            "fontSizePx": 38.08,
+            "script": "latin",
+            "text": "font",
+            "x": 287.389,
+            "y": 497.645,
+            "widthPx": 70.296,
+            "glyphs": [
+              {
+                "id": 176,
+                "cluster": 0,
+                "x": 287.389,
+                "y": 497.645
+              },
+              {
+                "id": 222,
+                "cluster": 1,
+                "x": 299.841,
+                "y": 497.645
+              },
+              {
+                "id": 215,
+                "cluster": 2,
+                "x": 321.128,
+                "y": 497.645
+              },
+              {
+                "id": 250,
+                "cluster": 3,
+                "x": 344.281,
+                "y": 497.645
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "wid": "0:2",
+        "text": "viewer",
+        "startMs": 600,
+        "endMs": 900,
+        "lineIndex": 0,
+        "index": 2,
+        "box": [
+          366.644,
+          456.442,
+          482.179,
+          507.203
+        ],
+        "runs": [
+          {
+            "fontId": "playfair-display-600",
+            "fontSizePx": 38.08,
+            "script": "latin",
+            "text": "viewer",
+            "x": 366.644,
+            "y": 497.645,
+            "widthPx": 115.535,
+            "glyphs": [
+              {
+                "id": 268,
+                "cluster": 0,
+                "x": 366.644,
+                "y": 497.645
+              },
+              {
+                "id": 189,
+                "cluster": 1,
+                "x": 385.722,
+                "y": 497.645
+              },
+              {
+                "id": 164,
+                "cluster": 2,
+                "x": 397.451,
+                "y": 497.645
+              },
+              {
+                "id": 269,
+                "cluster": 3,
+                "x": 416.376,
+                "y": 497.645
+              },
+              {
+                "id": 164,
+                "cluster": 4,
+                "x": 445.622,
+                "y": 497.645
+              },
+              {
+                "id": 238,
+                "cluster": 5,
+                "x": 464.7,
+                "y": 497.645
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "wid": "0:3",
+        "text": "ko",
+        "startMs": 900,
+        "endMs": 1200,
+        "lineIndex": 1,
+        "index": 3,
+        "box": [
+          363.688,
+          509.443,
+          405.88,
+          560.203
+        ],
+        "runs": [
+          {
+            "fontId": "playfair-display-600",
+            "fontSizePx": 38.08,
+            "script": "latin",
+            "text": "ko",
+            "x": 363.688,
+            "y": 550.645,
+            "widthPx": 42.192,
+            "glyphs": [
+              {
+                "id": 204,
+                "cluster": 0,
+                "x": 363.688,
+                "y": 550.645
+              },
+              {
+                "id": 222,
+                "cluster": 1,
+                "x": 384.594,
+                "y": 550.645
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "wid": "0:4",
+        "text": "Comfortable",
+        "startMs": 1200,
+        "endMs": 1500,
+        "lineIndex": 2,
+        "index": 4,
+        "box": [
+          133.422,
+          562.443,
+          636.147,
+          717.557
+        ],
+        "runs": [
+          {
+            "fontId": "anton-400",
+            "fontSizePx": 103.04,
+            "script": "latin",
+            "text": "Comfortable",
+            "x": 133.422,
+            "y": 683.646,
+            "widthPx": 502.722,
+            "glyphs": [
+              {
+                "id": 26,
+                "cluster": 0,
+                "x": 133.422,
+                "y": 683.646
+              },
+              {
+                "id": 548,
+                "cluster": 1,
+                "x": 182.276,
+                "y": 683.646
+              },
+              {
+                "id": 519,
+                "cluster": 2,
+                "x": 233.444,
+                "y": 683.646
+              },
+              {
+                "id": 399,
+                "cluster": 3,
+                "x": 311.58,
+                "y": 683.646
+              },
+              {
+                "id": 548,
+                "cluster": 4,
+                "x": 340.459,
+                "y": 683.646
+              },
+              {
+                "id": 642,
+                "cluster": 5,
+                "x": 391.627,
+                "y": 683.646
+              },
+              {
+                "id": 692,
+                "cluster": 6,
+                "x": 427.348,
+                "y": 683.646
+              },
+              {
+                "id": 219,
+                "cluster": 7,
+                "x": 458.794,
+                "y": 683.646
+              },
+              {
+                "id": 267,
+                "cluster": 8,
+                "x": 508.602,
+                "y": 683.646
+              },
+              {
+                "id": 500,
+                "cluster": 9,
+                "x": 560.274,
+                "y": 683.646
+              },
+              {
+                "id": 349,
+                "cluster": 10,
+                "x": 585.834,
+                "y": 683.646
+              }
+            ]
+          }
+        ],
+        "emphasisPresetId": "keyword"
+      },
+      {
+        "wid": "0:5",
+        "text": "feel",
+        "startMs": 1500,
+        "endMs": 1800,
+        "lineIndex": 3,
+        "index": 5,
+        "box": [
+          293.634,
+          719.797,
+          356.085,
+          770.557
+        ],
+        "runs": [
+          {
+            "fontId": "playfair-display-600",
+            "fontSizePx": 38.08,
+            "script": "latin",
+            "text": "feel",
+            "x": 293.634,
+            "y": 760.999,
+            "widthPx": 62.451,
+            "glyphs": [
+              {
+                "id": 176,
+                "cluster": 0,
+                "x": 293.634,
+                "y": 760.999
+              },
+              {
+                "id": 164,
+                "cluster": 1,
+                "x": 306.086,
+                "y": 760.999
+              },
+              {
+                "id": 164,
+                "cluster": 2,
+                "x": 325.316,
+                "y": 760.999
+              },
+              {
+                "id": 208,
+                "cluster": 3,
+                "x": 344.546,
+                "y": 760.999
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "wid": "0:6",
+        "text": "karata",
+        "startMs": 1800,
+        "endMs": 2100,
+        "lineIndex": 3,
+        "index": 6,
+        "box": [
+          365.045,
+          719.797,
+          475.935,
+          770.557
+        ],
+        "runs": [
+          {
+            "fontId": "playfair-display-600",
+            "fontSizePx": 38.08,
+            "script": "latin",
+            "text": "karata",
+            "x": 365.045,
+            "y": 760.999,
+            "widthPx": 110.889,
+            "glyphs": [
+              {
+                "id": 204,
+                "cluster": 0,
+                "x": 365.045,
+                "y": 760.999
+              },
+              {
+                "id": 141,
+                "cluster": 1,
+                "x": 386.674,
+                "y": 760.999
+              },
+              {
+                "id": 238,
+                "cluster": 2,
+                "x": 406.133,
+                "y": 760.999
+              },
+              {
+                "id": 141,
+                "cluster": 3,
+                "x": 423.612,
+                "y": 760.999
+              },
+              {
+                "id": 250,
+                "cluster": 4,
+                "x": 443.071,
+                "y": 760.999
+              },
+              {
+                "id": 141,
+                "cluster": 5,
+                "x": 456.475,
+                "y": 760.999
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "wid": "0:7",
+        "text": "hai",
+        "startMs": 2100,
+        "endMs": 2400,
+        "lineIndex": 4,
+        "index": 7,
+        "box": [
+          357.729,
+          772.797,
+          411.84,
+          823.558
+        ],
+        "runs": [
+          {
+            "fontId": "playfair-display-600",
+            "fontSizePx": 38.08,
+            "script": "latin",
+            "text": "hai",
+            "x": 357.729,
+            "y": 814,
+            "widthPx": 54.112,
+            "glyphs": [
+              {
+                "id": 185,
+                "cluster": 0,
+                "x": 357.729,
+                "y": 814
+              },
+              {
+                "id": 141,
+                "cluster": 1,
+                "x": 380.652,
+                "y": 814
+              },
+              {
+                "id": 189,
+                "cluster": 2,
+                "x": 400.111,
+                "y": 814
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "box": [
+      83.85350000000003,
+      456.442,
+      636.147,
+      823.558
+    ],
+    "paddedBox": [
+      72.65350000000002,
+      445.242,
+      647.3470000000001,
+      834.758
+    ],
+    "startMs": 0,
+    "endMs": 3000,
+    "clampedToSafeArea": false
+  },
+  "commands": [
+    {
+      "kind": "group",
+      "id": "segment:demo",
+      "children": [
+        {
+          "kind": "roundRect",
+          "rect": [
+            0,
+            437.5,
+            720,
+            842.5
+          ],
+          "radiusX": 0,
+          "radiusY": 0,
+          "fill": {
+            "paint": {
+              "type": "solid",
+              "color": "#ffc39fff"
+            }
+          }
+        },
+        {
+          "kind": "transform",
+          "matrix": [
+            1,
+            0,
+            0,
+            1,
+            0,
+            0
+          ],
+          "children": [
+            {
+              "kind": "group",
+              "id": "typography:word:0:0",
+              "children": [
+                {
+                  "kind": "transform",
+                  "matrix": [
+                    0,
+                    -1,
+                    1,
+                    0,
+                    -535.842,
+                    744.158
+                  ],
+                  "children": [
+                    {
+                      "kind": "text",
+                      "run": {
+                        "fontId": "playfair-display-600",
+                        "fontSizePx": 30.464,
+                        "glyphs": [
+                          1,
+                          154,
+                          185,
+                          141
+                        ],
+                        "positions": [
+                          69.718,
+                          652.658,
+                          89.672,
+                          652.658,
+                          104.691,
+                          652.658,
+                          123.03,
+                          652.658
+                        ],
+                        "clusters": [
+                          0,
+                          1,
+                          2,
+                          3
+                        ],
+                        "text": "Acha"
+                      },
+                      "fill": {
+                        "paint": {
+                          "type": "solid",
+                          "color": "#4b0b03ff"
+                        }
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "kind": "group",
+              "id": "typography:word:0:1",
+              "children": [
+                {
+                  "kind": "transform",
+                  "matrix": [
+                    1,
+                    0,
+                    0,
+                    1,
+                    0,
+                    0
+                  ],
+                  "children": [
+                    {
+                      "kind": "text",
+                      "run": {
+                        "fontId": "playfair-display-600",
+                        "fontSizePx": 38.08,
+                        "glyphs": [
+                          176,
+                          222,
+                          215,
+                          250
+                        ],
+                        "positions": [
+                          287.389,
+                          497.645,
+                          299.841,
+                          497.645,
+                          321.128,
+                          497.645,
+                          344.281,
+                          497.645
+                        ],
+                        "clusters": [
+                          0,
+                          1,
+                          2,
+                          3
+                        ],
+                        "text": "font"
+                      },
+                      "fill": {
+                        "paint": {
+                          "type": "solid",
+                          "color": "#4b0b03ff"
+                        }
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "kind": "group",
+              "id": "typography:word:0:2",
+              "children": [
+                {
+                  "kind": "transform",
+                  "matrix": [
+                    1,
+                    0,
+                    0,
+                    1,
+                    0,
+                    0
+                  ],
+                  "children": [
+                    {
+                      "kind": "text",
+                      "run": {
+                        "fontId": "playfair-display-600",
+                        "fontSizePx": 38.08,
+                        "glyphs": [
+                          268,
+                          189,
+                          164,
+                          269,
+                          164,
+                          238
+                        ],
+                        "positions": [
+                          366.644,
+                          497.645,
+                          385.722,
+                          497.645,
+                          397.451,
+                          497.645,
+                          416.376,
+                          497.645,
+                          445.622,
+                          497.645,
+                          464.7,
+                          497.645
+                        ],
+                        "clusters": [
+                          0,
+                          1,
+                          2,
+                          3,
+                          4,
+                          5
+                        ],
+                        "text": "viewer"
+                      },
+                      "fill": {
+                        "paint": {
+                          "type": "solid",
+                          "color": "#4b0b03ff"
+                        }
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "kind": "group",
+              "id": "typography:word:0:3",
+              "children": [
+                {
+                  "kind": "transform",
+                  "matrix": [
+                    1,
+                    0,
+                    0,
+                    1,
+                    0,
+                    0
+                  ],
+                  "children": [
+                    {
+                      "kind": "text",
+                      "run": {
+                        "fontId": "playfair-display-600",
+                        "fontSizePx": 38.08,
+                        "glyphs": [
+                          204,
+                          222
+                        ],
+                        "positions": [
+                          363.688,
+                          550.645,
+                          384.594,
+                          550.645
+                        ],
+                        "clusters": [
+                          0,
+                          1
+                        ],
+                        "text": "ko"
+                      },
+                      "fill": {
+                        "paint": {
+                          "type": "solid",
+                          "color": "#4b0b03ff"
+                        }
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "kind": "group",
+              "id": "typography:word:0:4",
+              "children": [
+                {
+                  "kind": "transform",
+                  "matrix": [
+                    1,
+                    0,
+                    0,
+                    1,
+                    0,
+                    0
+                  ],
+                  "children": [
+                    {
+                      "kind": "text",
+                      "run": {
+                        "fontId": "anton-400",
+                        "fontSizePx": 103.04,
+                        "glyphs": [
+                          26,
+                          548,
+                          519,
+                          399,
+                          548,
+                          642,
+                          692,
+                          219,
+                          267,
+                          500,
+                          349
+                        ],
+                        "positions": [
+                          133.422,
+                          683.646,
+                          182.276,
+                          683.646,
+                          233.444,
+                          683.646,
+                          311.58,
+                          683.646,
+                          340.459,
+                          683.646,
+                          391.627,
+                          683.646,
+                          427.348,
+                          683.646,
+                          458.794,
+                          683.646,
+                          508.602,
+                          683.646,
+                          560.274,
+                          683.646,
+                          585.834,
+                          683.646
+                        ],
+                        "clusters": [
+                          0,
+                          1,
+                          2,
+                          3,
+                          4,
+                          5,
+                          6,
+                          7,
+                          8,
+                          9,
+                          10
+                        ],
+                        "text": "Comfortable"
+                      },
+                      "fill": {
+                        "paint": {
+                          "type": "solid",
+                          "color": "#4b0b03ff"
+                        }
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "kind": "group",
+              "id": "typography:word:0:5",
+              "children": [
+                {
+                  "kind": "transform",
+                  "matrix": [
+                    1,
+                    0,
+                    0,
+                    1,
+                    0,
+                    0
+                  ],
+                  "children": [
+                    {
+                      "kind": "text",
+                      "run": {
+                        "fontId": "playfair-display-600",
+                        "fontSizePx": 38.08,
+                        "glyphs": [
+                          176,
+                          164,
+                          164,
+                          208
+                        ],
+                        "positions": [
+                          293.634,
+                          760.999,
+                          306.086,
+                          760.999,
+                          325.316,
+                          760.999,
+                          344.546,
+                          760.999
+                        ],
+                        "clusters": [
+                          0,
+                          1,
+                          2,
+                          3
+                        ],
+                        "text": "feel"
+                      },
+                      "fill": {
+                        "paint": {
+                          "type": "solid",
+                          "color": "#4b0b03ff"
+                        }
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "kind": "group",
+              "id": "typography:word:0:6",
+              "children": [
+                {
+                  "kind": "transform",
+                  "matrix": [
+                    1,
+                    0,
+                    0,
+                    1,
+                    0,
+                    0
+                  ],
+                  "children": [
+                    {
+                      "kind": "text",
+                      "run": {
+                        "fontId": "playfair-display-600",
+                        "fontSizePx": 38.08,
+                        "glyphs": [
+                          204,
+                          141,
+                          238,
+                          141,
+                          250,
+                          141
+                        ],
+                        "positions": [
+                          365.045,
+                          760.999,
+                          386.674,
+                          760.999,
+                          406.133,
+                          760.999,
+                          423.612,
+                          760.999,
+                          443.071,
+                          760.999,
+                          456.475,
+                          760.999
+                        ],
+                        "clusters": [
+                          0,
+                          1,
+                          2,
+                          3,
+                          4,
+                          5
+                        ],
+                        "text": "karata"
+                      },
+                      "fill": {
+                        "paint": {
+                          "type": "solid",
+                          "color": "#4b0b03ff"
+                        }
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "kind": "group",
+              "id": "typography:word:0:7",
+              "children": [
+                {
+                  "kind": "transform",
+                  "matrix": [
+                    1,
+                    0,
+                    0,
+                    1,
+                    0,
+                    0
+                  ],
+                  "children": [
+                    {
+                      "kind": "text",
+                      "run": {
+                        "fontId": "playfair-display-600",
+                        "fontSizePx": 38.08,
+                        "glyphs": [
+                          185,
+                          141,
+                          189
+                        ],
+                        "positions": [
+                          357.729,
+                          814,
+                          380.652,
+                          814,
+                          400.111,
+                          814
+                        ],
+                        "clusters": [
+                          0,
+                          1,
+                          2
+                        ],
+                        "text": "hai"
+                      },
+                      "fill": {
+                        "paint": {
+                          "type": "solid",
+                          "color": "#4b0b03ff"
+                        }
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

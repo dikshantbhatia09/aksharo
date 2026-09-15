@@ -1,0 +1,44 @@
+{
+  "passed": true,
+  "presets": 3,
+  "distinctFrames": true,
+  "deterministicSeek": true,
+  "operations": [
+    {
+      "type": "SetStyle",
+      "styleRef": "editorial-keyword-zoom",
+      "overrides": {}
+    },
+    {
+      "type": "SetStyle",
+      "styleRef": "editorial-stack",
+      "overrides": {}
+    },
+    {
+      "type": "SetStyle",
+      "styleRef": "editorial-ghost-type",
+      "overrides": {}
+    },
+    {
+      "type": "SetStyle",
+      "overrides": {
+        "animation": {
+          "typographyMotion": {
+            "mode": "stack"
+          }
+        }
+      }
+    },
+    {
+      "type": "SetStyle",
+      "overrides": {
+        "animation": {
+          "typographyMotion": {
+            "mode": "focus"
+          }
+        }
+      }
+    }
+  ],
+  "errors": []
+}
