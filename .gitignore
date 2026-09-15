@@ -81,6 +81,9 @@ fixtures/large/
 # Reproducible local video/font extraction output.
 scratch/all_frames/
 scratch/video_frames/
+# Service restart stderr, beside the *.log files the same restarts write.
+*.err
+
 scratch/extracted_fonts/
 
 # ---- Fonts pack build cache (A18b) ----
