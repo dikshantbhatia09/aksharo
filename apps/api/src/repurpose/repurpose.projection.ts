@@ -221,7 +221,18 @@ export function projectRun(input: {
     id: input.id,
     status: input.status,
     currentStage: current,
-    progress: input.progress ?? progressForStatus(input.status),
+    // A stored ZERO means "nobody has written this", not "no progress". The
+    // column exists for a producer that reports a finer-grained number than the
+    // status can — a download percentage, say — and no such producer exists yet,
+    // so it sits at its default while the status moves underneath it. `??` only
+    // falls back on null, so the default won and the bar stayed at 0% through
+    // acquiring, preparing and transcribing while the rail beside it advanced.
+    // Two things on one screen disagreeing about the same run is worse than
+    // either being coarse.
+    progress:
+      input.progress !== undefined && input.progress > 0
+        ? input.progress
+        : progressForStatus(input.status),
     stages,
     message: messageForStatus(input.status),
     failureCode: input.failureCode,

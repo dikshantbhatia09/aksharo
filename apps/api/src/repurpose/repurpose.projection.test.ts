@@ -122,6 +122,36 @@ describe("the stage rail", () => {
     const view = run({ status: "transcribing", currentStage: "not_a_stage" });
     expect(view.currentStage).toBe("finding_clips");
   });
+
+  describe("progress", () => {
+    it("derives from the status while the stored column is untouched", () => {
+      // Nothing writes `progress` yet, so it sits at its default of 0 while the
+      // status moves. Reading that 0 literally pinned the bar at the very start
+      // through acquiring, preparing and transcribing, next to a rail that was
+      // visibly advancing — two things on one screen disagreeing about one run.
+      expect(run({ status: "acquiring", currentStage: "getting_video", progress: 0 }).progress).toBe(
+        5,
+      );
+      expect(
+        run({ status: "transcribing", currentStage: "finding_clips", progress: 0 }).progress,
+      ).toBe(30);
+      expect(run({ status: "analyzing", currentStage: "finding_clips", progress: 0 }).progress).toBe(
+        45,
+      );
+    });
+
+    it("prefers a real reported number over the status's coarse one", () => {
+      // When a producer does report a finer-grained figure, it wins: that is the
+      // whole reason the column exists.
+      expect(
+        run({ status: "acquiring", currentStage: "getting_video", progress: 12 }).progress,
+      ).toBe(12);
+    });
+
+    it("still reads zero for a run that has not started", () => {
+      expect(run({ status: "draft", currentStage: "getting_video", progress: 0 }).progress).toBe(0);
+    });
+  });
 });
 
 describe("what a person reads", () => {
