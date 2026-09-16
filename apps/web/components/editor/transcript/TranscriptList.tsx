@@ -148,9 +148,16 @@ export function TranscriptList({
   // render, defeating `React.memo` on both for any row that re-renders
   // without actually changing (the overlap between one scroll frame's window
   // and the next, which is most of it outside the adversarial perf test).
-  // Caching by segment id keeps the reference stable across renders and is
-  // invalidated wholesale only when `wordsOf` itself changes identity (i.e.
-  // the underlying word index changed — an edit, not a scroll).
+  // Caching by segment id keeps the reference stable across renders, but a
+  // key of segment id ALONE is wrong: `SplitSegment`/`MergeSegments`/
+  // `Resegment` change a segment's `startWordId`/`endWordId` without
+  // touching `state.words` at all (words don't move, only which segment's
+  // range they fall in), so `wordsOf`'s own identity (memoized on
+  // `state.words` in editor-client.tsx) does not change either — nothing
+  // would tell this cache the just-split segment's word list is stale.
+  // Keying by the boundary ids too makes any boundary change a fresh key on
+  // its own, while an unrelated segment mid-scroll still hits its existing
+  // entry.
   const wordsCacheRef = useRef<{ wordsOf: typeof wordsOf; cache: Map<string, readonly Word[]> }>({
     wordsOf,
     cache: new Map(),
@@ -160,10 +167,11 @@ export function TranscriptList({
   }
   function getWords(segment: Segment): readonly Word[] {
     const { cache } = wordsCacheRef.current;
-    const cached = cache.get(segment.id);
+    const key = `${segment.id}:${segment.startWordId}:${segment.endWordId}`;
+    const cached = cache.get(key);
     if (cached !== undefined) return cached;
     const words = wordsOf(segment);
-    cache.set(segment.id, words);
+    cache.set(key, words);
     return words;
   }
 
