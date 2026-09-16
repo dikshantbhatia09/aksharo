@@ -164,9 +164,19 @@ export function OverviewPanel(): React.JSX.Element {
                   {Math.round(balanceTenths / 10)}
                 </span>
                 <span className="text-neutral-400 pb-1 text-xs">
-                  {grantTenths > 0
-                    ? `of ${String(Math.round(grantTenths / 10))} left`
-                    : "credits left"}
+                  {
+                    // A workspace can carry an admin "adjustment" lot on top
+                    // of its monthly grant (the lots list just below draws
+                    // these as separate "grant" and "adjust" entries), and
+                    // `balanceTenths` sums every lot -- so once one of those
+                    // exists the balance can exceed the grant, and "N of
+                    // {grant} left" reads as a broken counter the moment N >
+                    // grant. Same fix as `this-month-card.tsx`: drop the
+                    // denominator rather than let the balance appear to lie.
+                    grantTenths > 0 && balanceTenths <= grantTenths
+                      ? `of ${String(Math.round(grantTenths / 10))} left`
+                      : "credits left"
+                  }
                 </span>
               </div>
 

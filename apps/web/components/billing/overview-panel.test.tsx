@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -136,6 +136,34 @@ describe("<OverviewPanel />", () => {
       expect(screen.getByTestId("plan-card")).toHaveTextContent("Your plan");
     });
     expect(screen.getByTestId("plan-card")).toHaveTextContent("Free");
+  });
+
+  // CLAUDE.md §8 documents this bug fixed on the home page's `ThisMonthCard`:
+  // an admin "adjustment" lot on top of the monthly grant can push the
+  // balance past it, and framing that as "of {grant} left" then reads like a
+  // broken/overflowing counter even though the ledger underneath is correct.
+  // The same bug was still present here, unfixed, until now.
+  it("does not claim a false denominator once a lot pushes the balance past the monthly grant", async () => {
+    renderWithProviders(<OverviewPanel />, {
+      routes: {
+        "/billing/subscription": ACTIVE_SUBSCRIPTION,
+        "/workspaces/01JWORKSPACE/credits": {
+          ...CREDITS,
+          balanceTenths: 100_001_780,
+        },
+        "/billing/mandates": [],
+      },
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId("credit-balance")).toHaveTextContent("10000178"),
+    );
+    const creditsCard = screen.getByTestId("credits-card");
+    expect(within(creditsCard).getByText("credits left")).toBeInTheDocument();
+    // Scoped to the balance card, not the "Where the credits went" lot list
+    // just below it, whose own per-lot "N of M left" is a different,
+    // correct statement (a lot's remaining vs. its own grant, which cannot
+    // exceed 100%).
+    expect(within(creditsCard).queryByText(/^of \d+ left$/)).toBeNull();
   });
 
   it("shows the credit lots with their expiry", async () => {
