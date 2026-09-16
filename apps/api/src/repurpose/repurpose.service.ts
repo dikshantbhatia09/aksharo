@@ -560,13 +560,22 @@ export class RepurposeService {
       );
     }
 
+    // `run.status` is the raw stored column, which for the early stages is
+    // never written past "draft" (§4.2, `observedStatus`) -- a run visibly on
+    // "Finding promising moments" when the person clicked Stop is still
+    // `status: "draft"` in the row. Freezing on `stageForStatus(run.status)`
+    // unconditionally therefore always froze a cancelled run at "getting_video"
+    // regardless of how far it had actually gotten, because the intent --
+    // "the stage it stopped on is kept" -- was implemented against the wrong
+    // status. The observed status is what the person was actually looking at.
+    const observed = await this.observedStatus(run);
     const cancelled = await this.prisma.repurposeRun.update({
       where: { id: run.id },
       data: {
         status: "cancelled",
         cancelledAt: new Date(),
         // The stage it stopped on is kept, so the rail can still show where.
-        currentStage: stageForStatus(run.status),
+        currentStage: stageForStatus(observed ?? run.status),
       },
     });
 

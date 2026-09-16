@@ -468,7 +468,7 @@ compare against the mockup. Say what was and was not built.
 
 ## 8. Found and fixed 2026-09-16 (a QA pass, clicking through the live site)
 
-Five bugs, found by using the product end to end as a logged-in user rather
+Six bugs, found by using the product end to end as a logged-in user rather
 than by reading the code. None of them showed up in a health check.
 
 - **The home page pipeline banner showed a stage that was a full day stale.**
@@ -530,7 +530,17 @@ than by reading the code. None of them showed up in a health check.
   existing test file and stitching one together for a single-line behavioural
   change was not a good trade against the rest of this pass.
 
-All five were live in production before this pass and are fixed and deployed
+- **Cancelling an in-progress run always froze it at "Add video," no matter
+  how far it had actually gotten.** `RepurposeService.cancel()`
+  (`apps/api/src/repurpose/repurpose.service.ts`) froze the stage rail with
+  `stageForStatus(run.status)` — the raw stored column, which never moves
+  past `draft` for the early stages (the same fact `observedStatus`'s own
+  comment explains). A run visibly on "Finding promising moments" when the
+  person clicked Stop was still `status: "draft"` in the row, so it always
+  came back as "Add video." Fixed to freeze on the same observed status the
+  run's own page was showing; test in `repurpose-runs.e2e-spec.ts`.
+
+All six were live in production before this pass and are fixed and deployed
 as of `.next-live-20260916e` / API restart at the same time. One more thing
 found and deliberately **not** touched: workspace `01M1KFX35NJRD5N58H0J6YGAPC`
 (Dikshant Bhatia's) carries a balance of ~10,000,178 credits against a 200/mo
@@ -540,3 +550,18 @@ out of credits while testing" grant, not corruption — the ledger is
 consistent and every job settles correctly against it — so it was left alone.
 If it was not deliberate, the fix is a new ledger entry, never touching or
 deleting the existing rows.
+
+**Also observed, not resolved:** partway through this pass the browser
+session signed itself out with "Your session ended" (the `?reason=expired`
+copy `apps/web/app/(site)/login/login-form.tsx` shows when `refreshSession()`
+returns null on mount). This looked at first like the refresh-token reuse
+detector (`SessionService.refresh`, `apps/api/src/auth/session.service.ts`)
+firing — the mechanism a second, out-of-band caller hammering
+`/api/session/refresh` would plausibly trip. It was not: `audit_log` has no
+`auth.refresh.reuse_detected` row anywhere near the time, and the session's
+own row in `sessions` was neither revoked nor near its (month-out) expiry.
+So the refresh cookie itself was gone or stopped matching, for a reason this
+pass never pinned down. Whether that is specific to the built-in browser tool
+used for this QA pass or a real gap in cookie handling is still open — worth
+someone's attention if it recurs for a real user, but not chased further
+here because it cannot be reproduced without also risking a real sign-in.

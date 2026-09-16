@@ -883,6 +883,40 @@ describe.skipIf(!CAN_RUN)("repurpose run CRUD (REP-006)", () => {
       expect(stored.cancelledAt).not.toBeNull();
     });
 
+    it("freezes on the stage it had actually reached, not the stage the stored column never left", async () => {
+      // `run.status` never moves past "draft" for the early stages -- the same
+      // fact "the stage a person is shown" tests above exist to pin -- so a run
+      // that had visibly reached "Finding promising moments" was, until this
+      // fix, cancelled straight back to "Add video": `cancel()` froze the rail
+      // on `stageForStatus(run.status)`, the raw stored (and stale) status,
+      // instead of the same observed status the run's own page was showing the
+      // person the moment they clicked Stop.
+      const run = await service.create(WORKSPACE_A, USER_A, {
+        source: UPLOAD_SOURCE,
+        setup: SETUP,
+      });
+      const projectId = created.at(-1)?.projectId ?? "";
+      await prisma.mediaAsset.create({
+        data: {
+          id: id("M04"),
+          projectId,
+          role: "primary",
+          storageKey: `ws/x/p/${projectId}/media/m/raw.mp4`,
+          status: "ready",
+        },
+      });
+      await prisma.transcript.create({
+        data: { id: id("TR4"), projectId, language: "hi-Latn" },
+      });
+      expect((await service.get(WORKSPACE_A, run.run.id)).currentStage).toBe("finding_clips");
+
+      const cancelled = await service.cancel(WORKSPACE_A, USER_A, run.run.id);
+      expect(cancelled.currentStage).toBe("finding_clips");
+
+      const stored = await prisma.repurposeRun.findUniqueOrThrow({ where: { id: run.run.id } });
+      expect(stored.currentStage).toBe("finding_clips");
+    });
+
     it("refuses to cancel a finished run", async () => {
       const run = await service.create(WORKSPACE_A, USER_A, {
         source: UPLOAD_SOURCE,
