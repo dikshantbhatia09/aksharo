@@ -56,6 +56,38 @@ describe("CaptionStage transport (FIX-02)", () => {
     expect(view.queryByTestId("caption-stage-video")).toBeNull();
     expect(view.getByTestId("caption-stage-no-media")).toBeInTheDocument();
   });
+
+  /**
+   * Confirmed QA finding: an audio-only project's canvas said "Preview is
+   * preparing…" forever — true for a still-encoding video, never true for a
+   * source with no video track at all. `noMediaReason` is how the caller
+   * (`editor-client.tsx`'s `noMediaReasonFor`) tells the placeholder which
+   * of the three it actually is.
+   */
+  describe("the no-media placeholder's wording (a permanent state must not read as a transient one)", () => {
+    it("defaults to the original 'preparing' wording when the caller says nothing", () => {
+      const view = render(stage({ src: undefined }));
+      const placeholder = view.getByTestId("caption-stage-no-media");
+      expect(placeholder).toHaveAttribute("data-reason", "processing");
+      expect(placeholder.textContent).toBe("Preview is preparing…");
+    });
+
+    it("says the preview is permanent for an audio-only source, not that it's loading", () => {
+      const view = render(stage({ src: undefined, noMediaReason: "audio-only" }));
+      const placeholder = view.getByTestId("caption-stage-no-media");
+      expect(placeholder).toHaveAttribute("data-reason", "audio-only");
+      expect(placeholder.textContent).not.toMatch(/preparing/i);
+      expect(placeholder.textContent).toMatch(/no video/i);
+    });
+
+    it("tells a failed media fetch apart from both of the above", () => {
+      const view = render(stage({ src: undefined, noMediaReason: "error" }));
+      const placeholder = view.getByTestId("caption-stage-no-media");
+      expect(placeholder).toHaveAttribute("data-reason", "error");
+      expect(placeholder.textContent).not.toMatch(/preparing/i);
+      expect(placeholder.textContent).toMatch(/couldn't load/i);
+    });
+  });
 });
 
 /**
