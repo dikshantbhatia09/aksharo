@@ -13,12 +13,14 @@ shape every line below, and neither is negotiable:
   `09 §2` is **mandatory** behind this adapter. A Saaras result reaches the EDG
   as ``segments``, never as words.
 
-## Wire contract (verified live 2026-09-14 against a real account)
+## Wire contract (batch flow verified live 2026-09-14; timestamp shape
+## corrected 2026-09-17 — see the warning below before trusting either date)
 
 This adapter's first version guessed this shape from stale documentation
 without ever calling the vendor (see git history) — every real call 400'd on
-the very first request. The shape below was checked against Sarvam's current
-published API reference and confirmed with a live call:
+the very first request. The six-phase batch flow below was checked against
+Sarvam's published API reference and confirmed with a live call and has not
+been wrong since:
 
 ```
 POST {SARVAM_BASE_URL}/speech-to-text/job/v1
@@ -45,19 +47,35 @@ POST {SARVAM_BASE_URL}/speech-to-text/job/v1/download-files
 200 { "download_urls": { "name.json": { "file_url": "https://...?sas" } } }
 
 GET  {file_url}
-200  { "language_code": "hi-IN",
-       "transcript": "toh aaj hum baat karenge",
-       "timestamps": { "chunks": [ { "text": "toh aaj hum",
-                                     "start_time_seconds": 0.0,
-                                     "end_time_seconds": 2.4 } ] } }
+200  { "language_code": "en-IN",
+       "transcript": "Alright, so here we are, ...",
+       "timestamps": { "words": ["Alright, so here we are, ..."],
+                        "start_time_seconds": [0.0],
+                        "end_time_seconds": [19.07] } }
 ```
 
-The shapes above are what the recorded fixtures under
-``worker_ai/fixtures/vendor/sarvam`` replay and what the manual smoke path in
-the README checks first. The parser accepts the two shapes the docs show for
-the chunk list and degrades to one whole-file segment when a response carries
-only ``transcript`` — a Saaras job that returned text is still usable, because
-the aligner is going to place the words anyway.
+**The ``timestamps`` shape above is what a live account actually returns as
+of 2026-09-17** — three parallel arrays, keyed ``words`` even though (at least
+for the call that produced this example) each entry was chunk-grained, not a
+single word. `_parallel_array_segments` parses this. The *previous* version of
+this docstring claimed a different shape (a ``chunks`` list of ``{text,
+start_time_seconds, end_time_seconds}`` objects) was "verified live
+2026-09-14" — that verification's own example was not `mode: codemix`, and
+every real call this product makes is, which is the gap that produced the
+2026-09-16 incident: real Hindi/Hinglish projects transcribed with correct
+*text* and every word's timing silently collapsed to ``(0, 0)``, because
+nothing in the actual response matched the keys this parser was looking for.
+`_chunk_list`'s object-list parsing stays as a fallback in case some other
+mode or a future response genuinely uses it — it is not proven wrong, only
+proven not to be what `mode: codemix` returns today — and the whole-file
+fallback below it stays as the last resort for a response with neither shape.
+
+Nothing here is fixture-verified end to end against a live, non-empty
+response yet: `worker_ai/fixtures/vendor/sarvam` and the manual smoke path in
+the README were written against the *first* (2026-09-14) shape, so replaying
+them proves the parser handles that shape, not that the vendor still sends
+it. `test_vendor_smoke.py`, gated behind `RUN_VENDOR_SMOKE=1`, is what proves
+this against the real account when someone is willing to spend the call.
 """
 
 from __future__ import annotations
@@ -409,6 +427,10 @@ def _output_names(payload: dict[str, Any]) -> tuple[str, ...]:
 
 def _segments(payload: dict[str, Any], offset_ms: int) -> tuple[tuple[int, int, str], ...]:
     """Chunk-level spans in milliseconds, from any of the shapes the docs show."""
+    parallel = _parallel_array_segments(payload, offset_ms)
+    if parallel is not None:
+        return parallel
+
     raw = _chunk_list(payload)
     segments: list[tuple[int, int, str]] = []
     for item in raw:
@@ -457,6 +479,57 @@ def _segments(payload: dict[str, Any], offset_ms: int) -> tuple[tuple[int, int, 
             extra={"provider": "sarvam", "payloadKeys": sorted(payload.keys())},
         )
     return ((offset_ms, offset_ms + round(duration * 1000), transcript),)
+
+
+def _parallel_array_segments(
+    payload: dict[str, Any], offset_ms: int
+) -> tuple[tuple[int, int, str], ...] | None:
+    """The shape a real account actually returns (confirmed live 2026-09-17,
+    `mode: codemix`, against `worker_ai/fixtures/vendor/sarvam` audio already
+    known to transcribe correctly through this exact adapter):
+
+    ```json
+    "timestamps": { "words": ["toh aaj hum baat karenge"],
+                     "start_time_seconds": [0.0], "end_time_seconds": [2.1] }
+    ```
+
+    Three parallel arrays under ``timestamps``, not a list of chunk objects.
+    The key is named ``words`` but each entry is chunk-grained (a real call
+    returned one 19-second entry holding the *entire* transcript) -- Saaras
+    still has no word-level timing, this is just a different envelope for the
+    same chunk spans `_chunk_list` was written for. This is what the docstring
+    above's "verified live 2026-09-14" shape never actually was: that
+    verification's example was not `mode: codemix`, and every real call this
+    product makes is. Checked first because it is the shape a live call
+    returns today; `_chunk_list` stays as a fallback for whatever the object-
+    list shape was verified against, in case a different mode or a future
+    vendor response still uses it.
+
+    ``None`` when this shape is not present, so the caller falls through to
+    the older parsing rather than treating an absent field as "zero segments."
+    """
+    timestamps = payload.get("timestamps")
+    if not isinstance(timestamps, dict):
+        return None
+    texts = timestamps.get("words")
+    starts = timestamps.get("start_time_seconds")
+    ends = timestamps.get("end_time_seconds")
+    if not (isinstance(texts, list) and isinstance(starts, list) and isinstance(ends, list)):
+        return None
+    if not texts or not (len(texts) == len(starts) == len(ends)):
+        return None
+
+    segments: list[tuple[int, int, str]] = []
+    for raw_text, raw_start, raw_end in zip(texts, starts, ends, strict=True):
+        text = str(raw_text).strip()
+        if not text:
+            continue
+        start = float(raw_start) if isinstance(raw_start, int | float) else 0.0
+        end = float(raw_end) if isinstance(raw_end, int | float) else start
+        segments.append(
+            (offset_ms + round(start * 1000), offset_ms + round(max(end, start) * 1000), text)
+        )
+    return tuple(segments) if segments else None
 
 
 def _chunk_list(payload: dict[str, Any]) -> list[Any]:

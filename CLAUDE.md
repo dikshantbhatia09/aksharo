@@ -590,64 +590,73 @@ here because it cannot be reproduced without also risking a real sign-in.
 
 ---
 
-## 9. OPEN, HIGH SEVERITY — Sarvam-routed transcripts have no real word timing
+## 9. FIXED 2026-09-17 — Sarvam-routed transcripts had no real word timing
 
-Found the same day as §8, kept separate because it is **not fixed**, only
-instrumented — guessing at the actual fix without seeing a real vendor
-response risked planting a second wrong shape on top of the first (this
-adapter's own docstring already admits to doing exactly that once: "guessed
-this shape from stale documentation without ever calling the vendor... every
-real call 400'd on the very first request").
+Found and diagnosed 2026-09-16 (kept undiagnosed overnight rather than guess
+at a fix — this adapter's own docstring already records one bad guess at
+Sarvam's wire shape that 400'd on every real call). Root-caused and fixed
+2026-09-17 with one real, deliberately-authorised call against the live
+Sarvam account.
 
-**The bug.** Every word in every transcript this pass could find that was
-routed to Sarvam (`provider: "sarvam"`, model `saaras-v4` — the Hindi/Hinglish
-lane, `apps/worker-ai/worker_ai/routing.yaml`) has `s: 0, e: 0`. Not
-approximately zero — every single word, including the last one in an 8m58s
-file. Checked three independent occurrences, two of them real pre-existing
-projects this session never touched:
+**The bug.** Every word in every transcript routed to Sarvam (`provider:
+"sarvam"`, the Hindi/Hinglish lane) had `s: 0, e: 0` — not approximately
+zero, every single word, including the last one in an 8m58s file. Confirmed
+on a real pre-existing project this pass never touched
+(`01M2K1R52AANE4TH9RS5VH167D`, "Air India Phuket Turbulence Incident,"
+transcribed 2026-09-14) as well as this pass's own test uploads. A
+same-language project routed to `local-whisper` instead
+(`01M2AT48M2ERZ8J1AX2DS3H667`) had completely normal timestamps — the bug was
+specific to the Sarvam path, not to Hindi/Hinglish content. Since captions,
+the timeline, word-highlighting and export all key off these timestamps,
+this was not cosmetic: every Sarvam-routed project's captions were
+effectively unusable for anything timing-dependent, and nothing about the
+project ever said so — it sat at "Ready" like any other.
 
-- `01M2K1R52AANE4TH9RS5VH167D` ("Air India Phuket Turbulence Incident," a real
-  project, transcribed 2026-09-14) — 300+ words, all `s:0,e:0`.
-- `01M2NMY6R8298F0NSQD0SHC124` (this pass's own test upload) — same.
-- For contrast: `01M2AT48M2ERZ8J1AX2DS3H667` ("vidssave.com..." — also real,
-  also Hindi/Hinglish, but routed to `local-whisper` instead) has completely
-  normal, correctly increasing timestamps. **The bug is specific to the Sarvam
-  path, not to Hindi/Hinglish content or to this session's test data.**
+**Root cause, confirmed against the real vendor.** `providers/sarvam.py`
+expected `payload.timestamps.chunks` — a list of `{text, start_time_seconds,
+end_time_seconds}` objects — a shape whose docstring claimed it was "verified
+live 2026-09-14," but that verification was not against `mode: codemix`, and
+every real call this product makes is (`default_mode = "codemix"`, always,
+per D12). One real call against the live account (with an explicitly
+user-provided API key, for this diagnosis only, never written to a file or
+committed) showed the actual codemix response:
 
-Since captions, the timeline, word-highlighting and export all key off these
-timestamps, this is not a cosmetic gap — every Sarvam-routed project's
-captions are effectively unusable for anything timing-dependent, and nothing
-about the project ever says so: it sits at "Ready" like any other.
+```json
+"timestamps": { "words": ["Alright, so here we are, one of the uh elephants..."],
+                 "start_time_seconds": [0.0], "end_time_seconds": [19.07] }
+```
 
-**Where, and why no blind fix.** `providers/sarvam.py`'s `_segments()` /
-`_seconds()` read `start_time_seconds` / `end_time_seconds` (plus two
-alternate spellings each) off Sarvam's response chunks. That shape carries a
-comment claiming it was "verified live 2026-09-14 against a real account" —
-but the verification call in that same docstring does not show `mode:
-codemix`, and every real call this product makes does (`default_mode =
-"codemix"`, always, per D12). If Sarvam's codemix responses shape timestamps
-differently — a different key, a nested location, or genuinely not
-populating them for auto-detected code-mixed audio — that would explain
-exactly this, and only a real call proves which. Renaming the expected keys
-without that evidence would trade one unverified guess for another, and the
-first guess is on record for having 400'd in production once already.
+Three **parallel arrays**, not a list of objects — confusingly keyed
+`words` even though this call's one entry held the entire transcript
+(chunk-grained, exactly as the docstring already said Saaras is; this is a
+new envelope for the same thing, not new granularity). `_chunk_list()` found
+none of `chunks`/`segments`/`diarized_transcript`, fell through to the
+whole-file fallback, found no `duration_seconds` either, and produced one
+segment spanning `(0, 0)` — collapsing every word in `ProportionalAligner`'s
+zero-length-span branch. That is the exact, now-confirmed mechanism.
 
-**What this pass did instead:** made the failure mode loud rather than silent.
-`_segments()` now logs a warning with the chunk's own key names (never its
-text) whenever none of the recognised timestamp or duration keys match —
-`sarvam.py`, tests in `test_vendor_adapters.py`
-(`test_saaras_warns_when_a_chunk_has_no_recognised_timestamp_field`). Restarted
-`worker-ai` to deploy it. It has not fired yet in production because every
-test transcription after the redeploy replayed the 30-day result cache
-(`worker_ai/cache.py`, keyed on audio content + language + provider + model)
-from before the fix existed — a fresh, uncached Sarvam call for content this
-workspace has never transcribed before is what will actually exercise it, and
-its log line will carry the real key names.
+**The fix.** `_parallel_array_segments()` in `providers/sarvam.py` parses the
+real shape directly (`apps/worker-ai/tests/test_vendor_adapters.py`,
+`test_saaras_parses_the_parallel_timestamp_arrays_a_live_account_actually_sends`,
+using the real captured response verbatim). `_chunk_list()`'s object-list
+parsing stays as a fallback — not proven wrong, only proven not to be what
+`mode: codemix` returns today — with its own test
+(`test_saaras_still_reads_the_object_list_shape_as_a_fallback`) so a
+regression there cannot hide behind the new path's tests passing. The
+diagnostic warning from the first pass (`_seconds()`'s "no recognised
+field" log) stays in place for whatever shape neither parser recognises.
+Full suite: 906 passed. Deployed by restarting `worker-ai`.
 
-**The fastest way to actually resolve this:** `apps/worker-ai/tests/test_vendor_smoke.py`
-calls the real Sarvam account and costs real money — gated behind
-`RUN_VENDOR_SMOKE=1` for exactly that reason, and this pass did not set it
-without asking. Running it once, or just transcribing one new Hindi/Hinglish
-clip in production and reading `worker-ai.out.log` for either the new warning
-or (if it doesn't fire) the actual `timestamps` shape in a debug-level dump,
-is what turns this from "instrumented" into "fixed."
+**Verification note:** confirming this fix through the product's own UI
+needed a genuinely uncached Sarvam call, and the same audio+language+
+provider+model+mode combination this pass had already tested was still
+sitting in the 30-day result cache from *before* the fix — so the ASR
+result cache (`montaj:asr:v1:*` in Redis, 39 entries, all this session's own
+test traffic) was cleared to force a real call rather than a replay. That
+end-to-end confirmation then hit an unrelated, transient yt-dlp/YouTube
+rate-limit ("Sign in to confirm you're not a bot") from re-fetching the same
+test video too many times in one session — nothing to do with this fix, and
+not chased further. The unit test against the real captured response is the
+authoritative proof the parser is correct; the live confirmation was a nice-
+to-have that a scraper-side rate limit got in the way of, not a gap in the fix
+itself.

@@ -235,6 +235,90 @@ async def test_saaras_runs_the_whole_batch_flow_and_returns_segments(audio: Path
     assert result.raw["mode"] == "codemix"
 
 
+async def test_saaras_parses_the_parallel_timestamp_arrays_a_live_account_actually_sends(
+    audio: Path,
+) -> None:
+    """This is not the fixture's shape -- it is a real, non-empty response,
+    captured 2026-09-17 from a live `mode: codemix` call against audio already
+    known (through this exact adapter) to transcribe correctly. `timestamps`
+    is three parallel arrays, not a list of `{text, start_time_seconds,
+    end_time_seconds}` objects, and the fixture/session.json's shape -- what
+    every other test in this file replays -- was never actually confirmed
+    against a codemix response. Getting this wrong is what silently collapsed
+    every word's timing to (0, 0) in production while the transcript text
+    stayed perfectly readable, which is exactly why it went unnoticed.
+    """
+
+    async def handler(request: httpx2.Request) -> httpx2.Response:
+        if request.url.path.endswith("/upload-files"):
+            return httpx2.Response(
+                200, json={"upload_urls": {"chunk-0000.wav": {"file_url": "https://blob.test/j"}}}
+            )
+        if request.url.path.endswith("/job/v1"):
+            return httpx2.Response(200, json={"job_id": "j", "job_state": "Accepted"})
+        if request.method == "PUT":
+            return httpx2.Response(201)
+        if request.url.path.endswith("/status"):
+            return httpx2.Response(
+                200,
+                json={
+                    "job_state": "Completed",
+                    "job_details": [{"outputs": [{"file_name": "j.json"}]}],
+                },
+            )
+        if request.url.path.endswith("/download-files"):
+            return httpx2.Response(
+                200, json={"download_urls": {"j.json": {"file_url": "https://blob.test/o.json"}}}
+            )
+        if request.url.path.endswith(".json"):
+            return httpx2.Response(
+                200,
+                json={
+                    "language_code": "en-IN",
+                    "language_probability": 1.0,
+                    "transcript": "Alright, so here we are, one of the uh elephants.",
+                    "timestamps": {
+                        "words": ["Alright, so here we are, one of the uh elephants."],
+                        "start_time_seconds": [0.0],
+                        "end_time_seconds": [19.07],
+                    },
+                    "diarized_transcript": None,
+                },
+            )
+        return httpx2.Response(200, json={})
+
+    provider = SarvamSaarasProvider(
+        "k",
+        base_url="https://api.sarvam.test",
+        poll_interval_s=0.0,
+        client=httpx2.AsyncClient(transport=httpx2.MockTransport(handler)),
+    )
+    result = await provider.transcribe(TranscriptionRequest(audio_uri=str(audio)))
+    await provider.aclose()
+
+    assert result.words == ()
+    assert result.segments == (
+        (0, 19_070, "Alright, so here we are, one of the uh elephants."),
+    )
+    assert result.language == "en-IN"
+
+
+async def test_saaras_still_reads_the_object_list_shape_as_a_fallback(audio: Path) -> None:
+    """Not proven wrong, only proven not to be what `mode: codemix` returns
+    today (see the module docstring) -- kept in case some other mode or a
+    future response genuinely uses it. Same fixture/session.json shape every
+    other replay-based test in this file exercises, asserted directly here so
+    a change that broke only this fallback would not hide behind the others.
+    """
+    provider, _session = build_replay_provider("sarvam")
+    result = await provider.transcribe(TranscriptionRequest(audio_uri=str(audio)))
+    await provider.aclose()
+    assert result.segments == (
+        (120, 2_100, "toh aaj hum baat karenge"),
+        (2_200, 3_980, "video editing ke baare mein"),
+    )
+
+
 async def test_saaras_uploads_to_the_sas_container_keeping_the_token(audio: Path) -> None:
     provider, session = build_replay_provider("sarvam")
     await provider.transcribe(TranscriptionRequest(audio_uri=str(audio)))
