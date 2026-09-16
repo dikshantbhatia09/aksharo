@@ -72,38 +72,24 @@ export const DEFAULT_FONTS: readonly FontFile[] = [
     file: "NotoSansTamil-Regular-subset.ttf",
     scripts: ["tamil"],
   },
-  {
-    id: "inter-medium",
-    family: "Inter",
-    weight: 500,
-    italic: false,
-    file: "Inter-Medium.ttf",
-    scripts: ["latin"],
-  },
-  {
-    id: "inter-medium-italic",
-    family: "Inter",
-    weight: 500,
-    italic: true,
-    file: "Inter-MediumItalic.ttf",
-    scripts: ["latin"],
-  },
-  {
-    id: "inter-black",
-    family: "Inter",
-    weight: 900,
-    italic: false,
-    file: "Inter-Black.ttf",
-    scripts: ["latin"],
-  },
-  {
-    id: "inter-regular",
-    family: "Inter",
-    weight: 400,
-    italic: false,
-    file: "Inter-Regular.ttf",
-    scripts: ["latin"],
-  },
+  // Every weight `@montaj/fonts`' bundled CATALOGUE ships for Inter
+  // (`packages/fonts/src/catalogue.ts`), named and sourced exactly like the
+  // pack's own files (`inter-<weight>.ttf`) rather than the ad hoc
+  // "Inter-Medium.ttf"-style names this block used before A18b's real subset
+  // pack existed. That mismatch is what let this drift silently: the pack has
+  // no weight-600 face at all under the old names, so a style asking for Inter
+  // 600 (`vertical-clean`, the default a brand-new project opens on) measured
+  // through whichever weight `FontRegistry.resolve`'s nearest-match picked
+  // instead of the one the server actually has — a real, wrong-face
+  // measurement, not the ~1-character shaper noise `checkReflow` tolerates,
+  // and the false "Reflow captions" banner on a first, untouched load was one
+  // symptom of it.
+  { id: "inter-300", family: "Inter", weight: 300, italic: false, file: "inter-300.ttf", scripts: ["latin"] },
+  { id: "inter-400", family: "Inter", weight: 400, italic: false, file: "inter-400.ttf", scripts: ["latin"] },
+  { id: "inter-500", family: "Inter", weight: 500, italic: false, file: "inter-500.ttf", scripts: ["latin"] },
+  { id: "inter-600", family: "Inter", weight: 600, italic: false, file: "inter-600.ttf", scripts: ["latin"] },
+  { id: "inter-700", family: "Inter", weight: 700, italic: false, file: "inter-700.ttf", scripts: ["latin"] },
+  { id: "inter-900", family: "Inter", weight: 900, italic: false, file: "inter-900.ttf", scripts: ["latin"] },
   {
     id: "playfair-semibold",
     family: "Playfair Display",

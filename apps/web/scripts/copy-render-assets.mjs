@@ -42,6 +42,12 @@ copyFileSync(
 // explicit copy since export's font-pack story (`RENDER_FONT_DIR`) already
 // depends on that exact call.
 for (const file of [
+  "inter-300.ttf",
+  "inter-400.ttf",
+  "inter-500.ttf",
+  "inter-600.ttf",
+  "inter-700.ttf",
+  "inter-900.ttf",
   "montserrat-400.ttf",
   "montserrat-600.ttf",
   "montserrat-800.ttf",
