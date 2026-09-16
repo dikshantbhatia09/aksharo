@@ -119,7 +119,7 @@ export class UploadJob {
     try {
       contentHash = await this.hashFn(this.deps.file);
     } catch (error) {
-      this.fail(error);
+      await this.fail(error);
       return;
     }
     if (this.cancelled) return;
@@ -181,7 +181,7 @@ export class UploadJob {
           },
         });
       } catch (error) {
-        this.fail(error);
+        await this.fail(error);
         return;
       }
       if (this.cancelled) return;
@@ -201,7 +201,7 @@ export class UploadJob {
         },
       });
     } catch (error) {
-      this.fail(error);
+      await this.fail(error);
       return;
     }
     if (this.cancelled) return;
@@ -271,7 +271,7 @@ export class UploadJob {
       parts = await engine.run();
     } catch (error) {
       if (this.cancelled || this.status === "cancelled") return;
-      this.fail(error);
+      await this.fail(error);
       return;
     }
     if (this.cancelled) return;
@@ -283,7 +283,7 @@ export class UploadJob {
         body: { etags: parts.map((part) => part.etag) },
       });
     } catch (error) {
-      this.fail(error);
+      await this.fail(error);
       return;
     }
 
@@ -378,10 +378,30 @@ export class UploadJob {
     this.emit();
   }
 
-  private fail(error: unknown): void {
+  /**
+   * Awaited (not fire-and-forget like `persist()`'s other callers) because
+   * every caller returns immediately after this, and the write has to have
+   * actually landed before then -- see the comment inside.
+   */
+  private async fail(error: unknown): Promise<void> {
     this.errorMessage = error instanceof Error ? error.message : "The upload failed.";
     this.status = "error";
     this.emit();
+    // Every other terminal path (`cancel()`, the duplicate branch, a clean
+    // finish) persists or deletes the IndexedDB record; this one never did.
+    // A record left at whatever non-terminal status it last saw --
+    // "uploading", "completing" -- is exactly what `listResumableUploads()`
+    // still offers back on the next mount, so a failed upload retried the
+    // same doomed resume, and failed the same way, on every single page load
+    // forever (observed live: an upload whose project had since been
+    // deleted kept coming back as "No such media" no matter how many times
+    // it was dismissed, because dismiss only ever cleared the in-memory row
+    // -- see `dismiss()` in `use-upload-queue.ts`).
+    await this.persist({
+      status: "error",
+      ...(this.projectId === undefined ? {} : { projectId: this.projectId }),
+      ...(this.mediaId === undefined ? {} : { mediaId: this.mediaId }),
+    });
   }
 
   private emit(): void {

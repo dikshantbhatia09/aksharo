@@ -100,8 +100,8 @@ Why each env var is there, since removing one looks harmless and is not:
 - **`YT_DLP_PATH`** must be the `.exe`. The digest check reads the file, and the
   bare name `yt-dlp` on PATH is a bash shim Node cannot spawn on Windows.
 
-The **current release runs from `apps/web/.next-live-20260916e`**
-(build `vxl0CO0wrlkRPKLQlmH83`), published 2026-09-16 — the Nocturne front-end
+The **current release runs from `apps/web/.next-live-20260916f`**
+(build `892eaAltvsd5sT1njM0Rn`), published 2026-09-16 — the Nocturne front-end
 (§5, `docs/NOCTURNE-FRONTEND-2026-09-16.md`) plus the QA-pass fixes in §8.
 
 **The release directory is now recorded in exactly one place:**
@@ -156,10 +156,15 @@ point a downloader running on this machine at any address that ends in `.mp4` �
 including addresses only this machine can reach. That needs an egress policy
 before it is switched on.
 
-Retained for rollback, newest first: `.next-live-20260916d` (build
+Retained for rollback, newest first: `.next-live-20260916e` (build
+`vxl0CO0wrlkRPKLQlmH83`, the credits-label and export-dialog-tab fixes from
+§8, but still freezing a cancelled run's stage at "Add video" regardless of
+how far it had gotten, and still losing a failed upload back into an
+infinite retry-and-fail loop on Home — both also fixed in §8),
+`.next-live-20260916d` (build
 `6NPCBIaJf1JUxoJOUr6ZU`, the realtime-reconnect fix in §8 but still showing
 "N credits left of 200" once N exceeds 200, and the export dialog's error
-banner still bleeding across tabs — both also fixed in §8), `.next-live-20260916c` (build
+banner still bleeding across tabs), `.next-live-20260916c` (build
 `6fMUXvjIqwUGBhH1D8xFV`, Nocturne with the contrast fixes and the workspace
 switcher, but the realtime WebSocket client had no way to recover from an
 expired access token — see §8), `.next-live-20260916b` (build
@@ -468,7 +473,7 @@ compare against the mockup. Say what was and was not built.
 
 ## 8. Found and fixed 2026-09-16 (a QA pass, clicking through the live site)
 
-Six bugs, found by using the product end to end as a logged-in user rather
+Seven bugs, found by using the product end to end as a logged-in user rather
 than by reading the code. None of them showed up in a health check.
 
 - **The home page pipeline banner showed a stage that was a full day stale.**
@@ -540,8 +545,25 @@ than by reading the code. None of them showed up in a health check.
   came back as "Add video." Fixed to freeze on the same observed status the
   run's own page was showing; test in `repurpose-runs.e2e-spec.ts`.
 
-All six were live in production before this pass and are fixed and deployed
-as of `.next-live-20260916e` / API restart at the same time. One more thing
+- **A failed upload stayed stuck on Home forever, retrying and failing the
+  same way on every page load, and Dismiss didn't actually get rid of it.**
+  `UploadJob.fail()` (`apps/web/lib/upload/upload-job.ts`) set the in-memory
+  status to `"error"` but never persisted that to the IndexedDB record every
+  other terminal path (`cancel()`, the duplicate branch, a clean finish)
+  persists or deletes. A record left at whatever non-terminal status the
+  upload last saw is exactly what `listResumableUploads()`
+  (`apps/web/lib/upload/store.ts`) offers back on the next mount, so a failed
+  resume retried the same doomed request and failed the same way forever —
+  observed live as an upload whose project had since been deleted, stuck
+  showing "No such media." And `dismiss()` (`use-upload-queue.ts`) only ever
+  cleared the in-memory row, never the record, so even clicking Dismiss
+  brought it right back next load. Fixed both: `fail()` now persists the
+  terminal status (test in `upload-job.test.ts`), and `dismiss()` deletes the
+  record. Verified live — the actual stuck "vidssave.com" upload from an
+  earlier session, gone for good after one Dismiss.
+
+All seven were live in production before this pass and are fixed and deployed
+as of `.next-live-20260916f` / API restart at the same time. One more thing
 found and deliberately **not** touched: workspace `01M1KFX35NJRD5N58H0J6YGAPC`
 (Dikshant Bhatia's) carries a balance of ~10,000,178 credits against a 200/mo
 plan, from a single `kind: adjust, ref_type: grant` ledger row for

@@ -4,7 +4,7 @@ import * as React from "react";
 
 import { useApiContext } from "@montaj/api-client";
 
-import { listResumableUploads } from "./store";
+import { deleteUploadRecord, listResumableUploads } from "./store";
 import { UploadJob } from "./upload-job";
 
 import type { UploadItemState, UploadQuickPick } from "./types";
@@ -153,6 +153,12 @@ export function useUploadQueue(): {
       const { [id]: _removed, ...rest } = current;
       return rest;
     });
+    // Without this, dismissing only ever cleared this row from React state:
+    // the IndexedDB record survived, and a row whose job never itself reached
+    // a terminal-and-persisted state (a cancel, a duplicate, a clean finish --
+    // see `upload-job.ts`) came right back on the next mount via
+    // `listResumableUploads()`, exactly as if Dismiss had never been clicked.
+    void deleteUploadRecord(id).catch(() => undefined);
   }, []);
 
   return {

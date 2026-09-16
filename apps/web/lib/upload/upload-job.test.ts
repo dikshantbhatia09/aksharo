@@ -211,6 +211,55 @@ describe("UploadJob.run — happy path", () => {
   });
 });
 
+describe("UploadJob.run — failure", () => {
+  it("marks the record as an error, so it is not offered back as resumable", async () => {
+    // Every other terminal path (a clean finish, cancel, a duplicate) deletes
+    // or persists the record. Before this fix, a failure did neither: the
+    // record stayed at whatever non-terminal status the part upload last
+    // wrote, `listResumableUploads()` (store.ts) kept offering it back on
+    // every mount, and the resumed job failed the same way every time --
+    // observed live as an upload row stuck forever on "No such media", coming
+    // back even after Dismiss (which only ever cleared the in-memory row, not
+    // the record — see the paired fix in `use-upload-queue.ts`).
+    const fetchMock = async (input: string | URL): Promise<Response> => {
+      const url = new URL(String(input));
+      if (url.pathname === "/projects") return jsonResponse(projectJson(), 201);
+      if (url.pathname === "/projects/01JPROJECT0000000000000AA/media/init") {
+        return jsonResponse(
+          { error: { code: "common/internal", message: "Storage is unavailable." } },
+          500,
+        );
+      }
+      throw new Error(`unexpected fetch: ${url.pathname}`);
+    };
+
+    const client = createApiClient({ baseUrl: BASE, fetch: fetchMock as typeof fetch });
+    const updates: UploadItemState[] = [];
+
+    const job = new UploadJob({
+      client,
+      file: fakeFile(),
+      quickPick: { language: "hi-Latn", aspect: "9:16" },
+      localId: "local-failed",
+      onUpdate: (state) => {
+        updates.push(state);
+      },
+      hashFileFn: async () => "deadbeef",
+      xhrFactory: () => new FakeXhr(),
+      setTimeoutFn: (handler) => {
+        handler();
+        return 0;
+      },
+    });
+
+    await job.run();
+
+    expect(updates.at(-1)?.status).toBe("error");
+    const record = await getUploadRecord("local-failed");
+    expect(record?.status).toBe("error");
+  });
+});
+
 describe("UploadJob.run — duplicate detection", () => {
   it("removes the just-created project and reports the original", async () => {
     const deleteCalls: string[] = [];
