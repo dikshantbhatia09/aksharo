@@ -100,10 +100,9 @@ Why each env var is there, since removing one looks harmless and is not:
 - **`YT_DLP_PATH`** must be the `.exe`. The digest check reads the file, and the
   bare name `yt-dlp` on PATH is a bash shim Node cannot spawn on Windows.
 
-The **current release runs from `apps/web/.next-live-20260916d`**
-(build `6NPCBIaJf1JUxoJOUr6ZU`), published 2026-09-16 — the Nocturne front-end
-(§5, `docs/NOCTURNE-FRONTEND-2026-09-16.md`) plus the realtime-reconnect fix
-in §8.
+The **current release runs from `apps/web/.next-live-20260916e`**
+(build `vxl0CO0wrlkRPKLQlmH83`), published 2026-09-16 — the Nocturne front-end
+(§5, `docs/NOCTURNE-FRONTEND-2026-09-16.md`) plus the QA-pass fixes in §8.
 
 **The release directory is now recorded in exactly one place:**
 `_orchestration/release/web-dist.txt`. `start-production-stack.ps1` reads it
@@ -157,7 +156,10 @@ point a downloader running on this machine at any address that ends in `.mp4` �
 including addresses only this machine can reach. That needs an egress policy
 before it is switched on.
 
-Retained for rollback, newest first: `.next-live-20260916c` (build
+Retained for rollback, newest first: `.next-live-20260916d` (build
+`6NPCBIaJf1JUxoJOUr6ZU`, the realtime-reconnect fix in §8 but still showing
+"N credits left of 200" once N exceeds 200, and the export dialog's error
+banner still bleeding across tabs — both also fixed in §8), `.next-live-20260916c` (build
 `6fMUXvjIqwUGBhH1D8xFV`, Nocturne with the contrast fixes and the workspace
 switcher, but the realtime WebSocket client had no way to recover from an
 expired access token — see §8), `.next-live-20260916b` (build
@@ -466,7 +468,7 @@ compare against the mockup. Say what was and was not built.
 
 ## 8. Found and fixed 2026-09-16 (a QA pass, clicking through the live site)
 
-Three bugs, found by using the product end to end as a logged-in user rather
+Five bugs, found by using the product end to end as a logged-in user rather
 than by reading the code. None of them showed up in a health check.
 
 - **The home page pipeline banner showed a stage that was a full day stale.**
@@ -503,8 +505,33 @@ than by reading the code. None of them showed up in a health check.
   without `onopen` ever having fired. Tests in
   `packages/api-client/src/realtime.test.ts`.
 
-All three were live in production before this pass and are fixed and deployed
-as of `.next-live-20260916d` / API restart at the same time. One more thing
+- **The home page's credit count read "10000178 credits left of 200."** A
+  workspace can carry an admin "adjustment" lot on top of its monthly grant —
+  `settings/subscription` and `billing/usage` both draw these as separate
+  "Grant" and "Adjust" lots, correctly. `ThisMonthCard`
+  (`apps/web/components/home/this-month-card.tsx`) summed every lot into one
+  balance and always framed it as "left of {grant}," so the moment a
+  workspace has such a lot the balance can exceed the grant and the card
+  reads like a broken counter even though the ledger is fine. Fixed to drop
+  the denominator once `balance > grant`; test in
+  `this-month-card.test.tsx`.
+- **The export dialog's error banner bled across tabs.** Trying to export
+  Video on an audio-only source (the bundled "Try with a sample" clip is
+  `welcome.wav` — no video track, on purpose, `MediaService.attachSample`)
+  correctly fails with "the source has no video track." But that banner is
+  rendered once for the whole dialog, outside `TabsContent`
+  (`ExportDialog.tsx`), and nothing cleared it on a tab change — so switching
+  to Subtitles or To editor kept showing a video-specific error over a format
+  that has nothing to do with video, before the reader had clicked anything
+  there. The subtitle export itself was never actually blocked by it. Fixed
+  by clearing dialog state on a tab switch whenever nothing is actually in
+  flight (`!busy`), so an active render still survives a stray click.
+  Verified live; not covered by an automated test — `ExportDialog.tsx` has no
+  existing test file and stitching one together for a single-line behavioural
+  change was not a good trade against the rest of this pass.
+
+All five were live in production before this pass and are fixed and deployed
+as of `.next-live-20260916e` / API restart at the same time. One more thing
 found and deliberately **not** touched: workspace `01M1KFX35NJRD5N58H0J6YGAPC`
 (Dikshant Bhatia's) carries a balance of ~10,000,178 credits against a 200/mo
 plan, from a single `kind: adjust, ref_type: grant` ledger row for

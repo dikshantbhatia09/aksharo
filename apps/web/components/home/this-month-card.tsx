@@ -53,7 +53,17 @@ export function ThisMonthCard({ className }: { className?: string }): React.JSX.
           {Math.round(balance / 10)}
         </span>
         <span className="text-neutral-400 pb-1 text-xs">
-          {grant > 0 ? `credits left of ${String(Math.round(grant / 10))}` : "credits left"}
+          {
+            // A workspace can carry an admin "adjustment" lot on top of its
+            // monthly grant (Subscription -> Usage shows these as separate
+            // "Grant" and "Adjust" lots). `balance` sums every lot, so once one
+            // of those exists the balance can exceed the grant -- and "N left
+            // of {grant}" reads as a broken counter the moment N > grant. Drop
+            // the denominator rather than let the balance appear to be lying.
+            grant > 0 && balance <= grant
+              ? `credits left of ${String(Math.round(grant / 10))}`
+              : "credits left"
+          }
         </span>
       </div>
 

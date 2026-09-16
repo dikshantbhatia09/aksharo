@@ -196,7 +196,21 @@ export function ExportDialog(props: ExportDialogProps): React.JSX.Element {
           <DialogTitle>Export</DialogTitle>
         </DialogHeader>
 
-        <Tabs value={tab} onValueChange={(value) => setTab(value as typeof tab)}>
+        <Tabs
+          value={tab}
+          onValueChange={(value) => {
+            // The result/error banner below is rendered once for the whole
+            // dialog, not per tab (it sits outside `TabsContent`), so a failed
+            // Video attempt -- "the source has no video track" for an
+            // audio-only project, say -- otherwise keeps showing over
+            // Subtitles or To editor until the reader starts another export,
+            // implying a format that has nothing to do with video is about to
+            // fail too. Only when nothing is actually in flight: `busy` mid
+            // render or mid cloud-follow must survive a tab click untouched.
+            if (!busy) reset();
+            setTab(value as typeof tab);
+          }}
+        >
           <TabsList>
             <TabsTrigger value="video" data-testid="export-tab-video">
               Video
