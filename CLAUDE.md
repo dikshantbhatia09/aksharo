@@ -660,3 +660,42 @@ not chased further. The unit test against the real captured response is the
 authoritative proof the parser is correct; the live confirmation was a nice-
 to-have that a scraper-side rate limit got in the way of, not a gap in the fix
 itself.
+
+**Pre-existing corrupted data, confirmed not auto-repaired.** A later QA pass
+(2026-09-17) reopened `01M2K1R52AANE4TH9RS5VH167D` ("Air India Phuket
+Turbulence Incident") live and confirmed the corruption is still there end to
+end, as expected — the fix only changes how a *new* Sarvam call is parsed, it
+does not touch rows already written. `transcripts` for this project still
+shows `created_at 2026-09-15` (before the fix); every one of its 194
+`transcript_chunks` segments and all 2,193 words still carry `s:0, e:0` in
+Postgres, and `toRenderProjection` (what the caption timeline and the export
+engine actually consume) reproduces the same zero-width segments — confirmed
+via `/export-harness`'s exposed `window.__exportHarness.projection`, not just
+the DB. So exporting this project today renders a video whose captions are
+still effectively frozen/invisible past frame 0. This is a data problem, not
+a code defect: the only fix is re-running transcription (real Sarvam credits)
+on this and any other project transcribed before 2026-09-17 on the Sarvam
+path. Still awaiting a decision on whether to spend the credits to do that;
+do not re-diagnose this project's broken caption timing as a new bug.
+
+---
+
+## 10. QA tooling note — the browser automation's own coordinate frame lies
+
+Two false positives this pass (2026-09-17) turned out to be the same root
+cause, not product bugs: a search-button click that "did nothing" on the
+first try, and a right-panel tab (`Templates`) that stayed on `Text` no
+matter how many times its button was clicked by screenshot coordinate or by
+element `ref`. Both reproduced with `aria-selected` provably not changing —
+not just a visual/timing miss. `document.elementFromPoint()` on the tab
+button's own real `getBoundingClientRect()` center showed why: the page's
+actual CSS viewport is far larger (`2400×1068`, `devicePixelRatio 0.8`) than
+the screenshot buffer this tool returns (`1568×698`), so a coordinate read
+off a screenshot and a `ref` resolved from the same stale layout both land
+off-target on small elements — most visibly a ~66×38px tab strip button.
+Calling `element.click()` directly (find the node by text/role, `.click()`
+it) always worked and is unaffected by either scaling frame. When a click
+"does nothing" in this environment, check `aria-selected`/`aria-pressed`
+(or another concrete DOM signal) before concluding it is a product bug —
+and prefer a JS-dispatched `.click()` over coordinate or `ref` clicks for
+small targets.
