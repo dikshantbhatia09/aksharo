@@ -25,6 +25,7 @@ import { BRAND } from "@montaj/config";
 import { Button } from "@montaj/ui";
 
 import { useRuntimeConfig } from "@/components/providers";
+import { BrandMark } from "@/components/shell/brand-mark";
 import { AUTH_NAV, PRIMARY_NAV, visibleNav } from "@/content/site/nav";
 import { cn } from "@/lib/utils";
 
@@ -36,13 +37,14 @@ export function SiteHeader(): React.JSX.Element {
   const nav = visibleNav(PRIMARY_NAV, useRuntimeConfig().flags);
 
   return (
-    <header className="border-border bg-bg-0/95 sticky top-0 z-40 border-b backdrop-blur">
+    <header className="bg-bg-0/95 rule-fade-b sticky top-0 z-40 backdrop-blur">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
         <Link
           href="/"
           data-testid="home-heading"
-          className="font-display text-fg-0 rounded-sm text-lg font-semibold tracking-tight"
+          className="font-display text-fg-0 flex items-center gap-2.5 rounded-sm text-lg font-medium tracking-tight"
         >
+          <BrandMark size={28} />
           {BRAND.name}
         </Link>
 

@@ -200,13 +200,13 @@ export function LiveCaptionDemo(): React.JSX.Element {
   return (
     <div className="flex flex-col items-center gap-4" data-testid="live-caption-demo">
       <div
-        className="border-border relative overflow-hidden rounded-lg border bg-black shadow-[var(--shadow-panel)]"
+        className="bg-ink relative overflow-hidden rounded-lg shadow-[var(--shadow-md)]"
         style={{ width: TILE_WIDTH, height: TILE_HEIGHT }}
       >
         {/* A placeholder frame stands in for real footage — see the file header. */}
         <div
           aria-hidden="true"
-          className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(216,255,61,0.12),transparent_55%),linear-gradient(160deg,#1b1b22,#0b0b0e_70%)]"
+          className="absolute inset-0 bg-[radial-gradient(120%_80%_at_50%_18%,var(--color-accent-900),var(--color-bg-0)_55%,var(--color-ink))]"
         />
         {idle ? (
           <RendererCanvas

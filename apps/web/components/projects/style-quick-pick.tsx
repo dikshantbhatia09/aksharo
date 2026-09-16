@@ -46,20 +46,23 @@ export function StyleQuickPick({
         onClick={() => {
           setOpen(true);
         }}
-        className="h-auto gap-2 py-1.5 pl-1.5 pr-3"
+        className="border-border hover:border-accent h-auto gap-[7px] rounded-sm py-1.5 pr-2.5 pl-1.5 text-[12.5px]"
         data-testid="quick-pick-style"
       >
+        <span className="text-neutral-500 shrink-0 text-[9.5px] tracking-[0.1em] uppercase">
+          Style
+        </span>
         {styles.isPending ? (
-          <Skeleton className="size-7 rounded-sm" />
+          <Skeleton className="size-6 rounded-[6px]" />
         ) : selected?.previewKey === null || selected?.previewKey === undefined ? (
-          <span className="bg-bg-2 flex size-7 items-center justify-center rounded-sm text-2xs">
+          <span className="bg-sunken flex size-6 items-center justify-center rounded-[6px] text-[10px]">
             Aa
           </span>
         ) : (
           <img
             src={stylePreviewUrl(selected.previewKey)}
             alt=""
-            className="size-7 rounded-sm object-cover"
+            className="size-6 rounded-[6px] object-cover"
             data-testid="quick-pick-style-preview"
           />
         )}

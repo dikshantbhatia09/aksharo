@@ -28,7 +28,18 @@ import { persistSession } from "@/lib/session/client";
  * re-checks the membership while doing it. The hook clears the whole query cache
  * on success, so nothing from the previous workspace can survive the switch.
  */
-export function WorkspaceSwitcher(): React.JSX.Element {
+export function WorkspaceSwitcher({
+  compact = false,
+}: {
+  /**
+   * The canvas's sidebar does not give the workspace a control of its own: it
+   * is a 10 px uppercase line under the brand name ("ISHAAN'S WORKSPACE"). In
+   * `compact` this renders as that line — still a real menu when there is more
+   * than one workspace to switch to, still the same token exchange, just
+   * without the bordered box.
+   */
+  compact?: boolean;
+} = {}): React.JSX.Element {
   const session = useSession();
   const workspaces = useWorkspaces();
   const router = useRouter();
@@ -55,14 +66,21 @@ export function WorkspaceSwitcher(): React.JSX.Element {
   };
 
   if (workspaces.isPending && session !== null) {
-    return <Skeleton className="mx-1 h-9" />;
+    return <Skeleton className={compact ? "h-3 w-28" : "mx-1 h-9"} />;
   }
 
   // With one workspace there is nothing to switch to, so the control is a label
   // rather than a menu that opens onto a single item.
   const options = workspaces.data ?? [];
   if (options.length < 2) {
-    return (
+    return compact ? (
+      <span
+        className="text-neutral-500 truncate text-[10px] tracking-[0.09em] uppercase"
+        data-testid="workspace-switcher"
+      >
+        {label}
+      </span>
+    ) : (
       <div
         className="border-border text-fg-1 mx-1 flex items-center gap-2 rounded-sm border px-2.5 py-2 text-sm"
         data-testid="workspace-switcher"
@@ -75,15 +93,27 @@ export function WorkspaceSwitcher(): React.JSX.Element {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button
-          variant="outline"
-          className="mx-1 justify-between"
-          data-testid="workspace-switcher"
-          disabled={switchWorkspace.isPending}
-        >
-          <span className="truncate">{label}</span>
-          <ChevronsUpDown className="size-4 shrink-0" aria-hidden="true" />
-        </Button>
+        {compact ? (
+          <button
+            type="button"
+            className="text-neutral-500 hover:text-neutral-300 flex max-w-full items-center gap-1 truncate rounded-sm text-[10px] tracking-[0.09em] uppercase"
+            data-testid="workspace-switcher"
+            disabled={switchWorkspace.isPending}
+          >
+            <span className="truncate">{label}</span>
+            <ChevronsUpDown className="size-2.5 shrink-0" aria-hidden="true" />
+          </button>
+        ) : (
+          <Button
+            variant="outline"
+            className="mx-1 justify-between"
+            data-testid="workspace-switcher"
+            disabled={switchWorkspace.isPending}
+          >
+            <span className="truncate">{label}</span>
+            <ChevronsUpDown className="size-4 shrink-0" aria-hidden="true" />
+          </Button>
+        )}
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-64">
         <DropdownMenuLabel>Workspaces</DropdownMenuLabel>

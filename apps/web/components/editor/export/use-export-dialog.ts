@@ -18,6 +18,7 @@ import type { StyleDoc } from "@montaj/caption-styles";
 import type { EdgProjection, FontRegistry, Shaper } from "@montaj/render-core";
 import type { RenderManifest } from "@montaj/render-manifest";
 
+import { loadLayoutEngine, loadRenderer } from "@/components/editor/canvas/use-canvaskit";
 import {
   completeExportManifest,
   decideAudioStrategy,
@@ -34,7 +35,6 @@ import {
   type ExportCapabilityProbe,
 } from "@/lib/export";
 import { runExport } from "@/lib/export/engine";
-import { loadLayoutEngine, loadRenderer } from "@/components/editor/canvas/use-canvaskit";
 
 export interface ExportDialogDeps {
   readonly projectId: string;

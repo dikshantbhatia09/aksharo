@@ -6,11 +6,13 @@
  * palette's own input), so this field only needs to own the in-page list;
  * it does not have to be a second implementation of that shortcut.
  */
+import { ChevronDown, Search } from "lucide-react";
 import * as React from "react";
 
 import { useEntitlement } from "@montaj/api-client";
 import type { ProjectStatus } from "@montaj/api-client";
 import {
+  cn,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -56,12 +58,19 @@ function FilterMenu({
   options,
   onSelect,
   testId,
+  /**
+   * The accent outline means "this is narrowing the list". Sort always has a
+   * value and never narrows anything, so it opts out — otherwise the bar
+   * claims a filter is applied on a screen where nothing is filtered.
+   */
+  narrows = true,
 }: {
   label: string;
   value: string | undefined;
   options: readonly { key: string; label: string }[];
   onSelect: (value: string | undefined) => void;
   testId: string;
+  narrows?: boolean;
 }): React.JSX.Element {
   const selected = options.find((option) => option.key === value)?.label;
   return (
@@ -69,10 +78,20 @@ function FilterMenu({
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          className="border-border bg-bg-2 text-fg-1 hover:text-fg-0 rounded-full border px-3 py-1.5 text-sm"
+          className={cn(
+            // The canvas's filter control: a 36 px outlined button with a
+            // caret, not a pill. An applied filter takes the accent outline
+            // so the bar says at a glance that the list is narrowed.
+            "flex h-9 items-center gap-1.5 rounded-sm border px-3 text-[12.5px]",
+            "transition-colors duration-[160ms] ease-[var(--ease-out-soft)]",
+            selected === undefined || !narrows
+              ? "border-border text-fg-0 hover:border-accent"
+              : "border-accent/45 bg-accent/12 text-accent-200",
+          )}
           data-testid={testId}
         >
           {selected ?? label}
+          <ChevronDown className="size-3 opacity-70" aria-hidden="true" />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start">
@@ -103,26 +122,35 @@ function FilterMenu({
 export function ProjectToolbar({
   filters,
   onChange,
+  children,
 }: {
   filters: ProjectFilters;
   onChange: (filters: ProjectFilters) => void;
+  /** Controls the page adds to the right of the bar — the view toggle, Select. */
+  children?: React.ReactNode;
 }): React.JSX.Element {
   const entitlement = useEntitlement();
   const isAgency = entitlement.data?.planKey === "agency";
 
   return (
     <div className="flex flex-wrap items-center gap-2" data-testid="project-toolbar">
-      <Input
-        type="search"
-        placeholder="Search by title… (Ctrl+K also searches)"
-        value={filters.q}
-        onChange={(event) => {
-          onChange({ ...filters, q: event.target.value });
-        }}
-        className="w-64"
-        aria-label="Search projects"
-        data-testid="project-search"
-      />
+      <span className="relative flex items-center">
+        <Search
+          className="text-neutral-500 pointer-events-none absolute left-2.5 size-3.5"
+          aria-hidden="true"
+        />
+        <Input
+          type="search"
+          placeholder="Search titles and transcripts"
+          value={filters.q}
+          onChange={(event) => {
+            onChange({ ...filters, q: event.target.value });
+          }}
+          className="h-9 w-[250px] pl-[30px]"
+          aria-label="Search projects"
+          data-testid="project-search"
+        />
+      </span>
 
       <FilterMenu
         label="Status"
@@ -161,7 +189,7 @@ export function ProjectToolbar({
         />
       ) : null}
 
-      <div className="ml-auto">
+      <div className="ml-auto flex flex-wrap items-center gap-2">
         <FilterMenu
           label="Sort"
           value={filters.sort}
@@ -170,7 +198,9 @@ export function ProjectToolbar({
             onChange({ ...filters, sort: (value as SortOrder | undefined) ?? "newest" });
           }}
           testId="sort-order"
+          narrows={false}
         />
+        {children}
       </div>
     </div>
   );

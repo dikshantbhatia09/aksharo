@@ -100,6 +100,18 @@ import {
 import { resolvePassItemDrag, type PassItemNeighbour } from "@/lib/timeline/pass-item-drag";
 import { resolveSegmentDrag, resolveWordEdgeDrag, type Neighbour } from "@/lib/timeline/snapping";
 import { useMemoryNudgeSink } from "@/lib/timeline/use-memory-nudge-sink";
+/**
+ * Canvas colours.
+ *
+ * A 2D canvas takes a resolved colour, not a CSS variable and not a Tailwind
+ * class, so these are the only two places in the app where a palette value is
+ * written out by hand. They are `--color-accent` and `--color-proposed` from
+ * `packages/ui/src/styles/tokens.css`; changing a token means changing these
+ * with it, which is why they are named constants at the top of the file
+ * rather than string literals buried in the draw loop.
+ */
+const ACCENT = "#9184d9";
+const PROPOSED = "#e6b45c";
 import {
   reduceWaveform,
   waveformDrawWindow,
@@ -762,7 +774,7 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
         waveformWindow.widthPx,
         WAVEFORM_HEIGHT - 6,
       );
-      ctx.fillStyle = "#49a781";
+      ctx.fillStyle = ACCENT;
       ctx.strokeStyle = "#6dc99e";
       for (let i = 0; i < buckets.length; i++) {
         // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
@@ -816,7 +828,7 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
         // colours, which the reference's static frame never shows a state
         // for.
         ctx.fillStyle = playing
-          ? "#49a781"
+          ? ACCENT
           : selected
             ? "#ffffff"
             : word.filler === true
@@ -826,7 +838,7 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
         ctx.roundRect(x0, laneTops.wordTop + 4, w, WORD_LANE_HEIGHT - 8, Math.min(4, w / 2));
         ctx.fill();
         if (lowConfidence) {
-          ctx.fillStyle = "#f59e0b";
+          ctx.fillStyle = PROPOSED;
           ctx.fillRect(x0, laneTops.wordTop + WORD_LANE_HEIGHT - 2, w, 2);
         }
         if (selected) {

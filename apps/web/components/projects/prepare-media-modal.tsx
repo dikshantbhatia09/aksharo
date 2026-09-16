@@ -54,9 +54,11 @@ import {
 import { LanguagePicker } from "./language-picker";
 import { PROCESSING_TIPS, ProcessingScreen, useRotatingTip } from "./processing-tips";
 import { WritingScriptPicker } from "./writing-script-picker";
-import { cn } from "@/lib/utils";
 
 import type { UploadItemState } from "@/lib/upload/types";
+
+import { cn } from "@/lib/utils";
+
 
 function formatFileSize(bytes: number): string {
   if (!Number.isFinite(bytes) || bytes <= 0) return "0 B";
@@ -125,16 +127,16 @@ export function PrepareMediaModal({
             {file === undefined ? null : (
               <div className="mb-4 flex flex-col gap-2">
                 <div className="bg-bg-2 border-border relative flex h-36 w-full items-center justify-center overflow-hidden rounded-lg border">
-                  <div className="flex size-11 items-center justify-center rounded-full bg-[#10B981] text-black shadow-lg">
+                  <div className="bg-accent text-on-accent flex size-11 items-center justify-center rounded-full shadow-lg">
                     <Play className="ml-0.5 size-5 fill-current" />
                   </div>
-                  <span className="bg-black/75 absolute top-2 right-2 rounded-full px-2 py-0.5 text-[11px] font-medium text-[#10B981] backdrop-blur-sm">
+                  <span className="bg-ink/75 text-accent-300 absolute top-2 right-2 rounded-full px-2 py-0.5 text-[11px] backdrop-blur-sm">
                     ● Ready for processing
                   </span>
-                  <span className="bg-black/75 absolute bottom-2 left-2 flex items-center gap-1 rounded px-2 py-0.5 text-xs text-white backdrop-blur-sm">
+                  <span className="bg-ink/75 text-neutral-100 absolute bottom-2 left-2 flex items-center gap-1 rounded px-2 py-0.5 text-xs backdrop-blur-sm">
                     <span>{file.name}</span>
-                    <span className="text-white/70">·</span>
-                    <span className="text-white/70">{formatFileSize(file.size)}</span>
+                    <span className="text-neutral-400">·</span>
+                    <span className="text-neutral-400">{formatFileSize(file.size)}</span>
                   </span>
                 </div>
               </div>
@@ -194,7 +196,7 @@ export function PrepareMediaModal({
                   <div>
                     <div className="flex items-center gap-1.5">
                       <p className="text-fg-0 text-xs font-medium">Audio Enhancement</p>
-                      <span className="text-[#10B981] text-[10px] font-semibold">✦ AI-Powered</span>
+                      <span className="text-accent-300 text-[10px]">✦ AI-Powered</span>
                     </div>
                     <p className="text-fg-2 text-[11px]">
                       Clean background noise and enhance speech clarity
@@ -232,7 +234,7 @@ export function PrepareMediaModal({
             <Button
               type="button"
               variant="primary"
-              className="bg-[#10B981] hover:bg-[#059669] text-black font-semibold w-full h-11 rounded-lg"
+              className="border-accent text-accent hover:bg-accent/12 h-11 w-full rounded-md border"
               disabled={!canGenerate}
               data-testid="prepare-media-generate"
               onClick={() => {

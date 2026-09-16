@@ -41,9 +41,9 @@ export default function BillingLayout({ children }: { children: ReactNode }): Re
     href === "/billing" ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
 
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 lg:flex-row lg:gap-10">
-      <nav aria-label="Subscription" className="lg:w-56 lg:shrink-0">
-        <ul className="flex gap-1 overflow-x-auto lg:flex-col lg:overflow-visible">
+    <div className="grid w-full grid-cols-1 gap-5 lg:grid-cols-[minmax(0,196px)_minmax(0,1fr)]">
+      <nav aria-label="Subscription">
+        <ul className="flex gap-0.5 overflow-x-auto lg:flex-col lg:overflow-visible">
           {sections.map((section) => {
             const active = isActive(section.href);
             return (
@@ -53,8 +53,14 @@ export default function BillingLayout({ children }: { children: ReactNode }): Re
                   aria-current={active ? "page" : undefined}
                   data-testid={`billing-nav-${section.key}`}
                   className={cn(
-                    "block rounded-sm px-3 py-2 text-sm whitespace-nowrap",
-                    active ? "bg-bg-2 text-lime-500" : "text-fg-1 hover:bg-bg-2 hover:text-fg-0",
+                    // `no-underline`: the base stylesheet underlines any <a>
+                    // inside an <li> for WCAG 1.4.1, which is right for a link
+                    // in a sentence and wrong for a section list.
+                    "block rounded-sm px-2.5 py-2 text-[12.5px] whitespace-nowrap no-underline",
+                    "transition-colors duration-[160ms] ease-[var(--ease-out-soft)]",
+                    active
+                      ? "bg-accent/12 text-accent-200"
+                      : "text-neutral-300 hover:bg-neutral-100/6 hover:text-fg-0",
                   )}
                 >
                   {section.label}
@@ -65,7 +71,7 @@ export default function BillingLayout({ children }: { children: ReactNode }): Re
         </ul>
       </nav>
 
-      <div className="min-w-0 flex-1">{children}</div>
+      <div className="min-w-0">{children}</div>
     </div>
   );
 }

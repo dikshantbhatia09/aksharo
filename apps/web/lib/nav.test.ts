@@ -3,32 +3,63 @@ import { describe, expect, it } from "vitest";
 import { BRAND, CODENAME } from "@montaj/config";
 
 import { parseFlags } from "./flags";
-import { isActivePath, PRIMARY_NAV, SETTINGS_NAV } from "./nav";
+import { ALL_NAV, isActivePath, PRIMARY_NAV, SECONDARY_NAV, SETTINGS_NAV } from "./nav";
 
 describe("PRIMARY_NAV", () => {
-  it("is the information architecture of 08 §3, in order", () => {
+  it("is the premium canvas's rail, in its order", () => {
     expect(PRIMARY_NAV.map((item) => item.label)).toEqual([
-      "Home",
+      "Clips pipeline",
+      "Studio",
       "Projects",
+      "Editor",
+      "Styles",
+      "Plan and credits",
+      "Settings",
+      "First run",
+    ]);
+  });
+
+  it("gives the 68 px rail a one-word caption for every entry", () => {
+    for (const item of PRIMARY_NAV) {
+      expect(item.short, item.label).toBeTruthy();
+      // The rail draws it at 9 px under a 19 px icon; two words do not fit.
+      expect(item.short.split(" "), item.label).toHaveLength(1);
+    }
+  });
+
+  /*
+   * The canvas's rail has room for eight, and the routes it left out are
+   * shipped pages, not future ones. They have to stay reachable, so the
+   * expanded sidebar lists them under "More" and the command palette offers
+   * every one of them. Dropping a route on the floor during a redesign is the
+   * failure this test exists to catch.
+   */
+  it("keeps every shipped destination reachable, primary or secondary", () => {
+    expect(SECONDARY_NAV.map((item) => item.label)).toEqual([
       "Templates",
       "Academy",
       "Plugins",
       "Team",
-      "Subscription",
       "Refer & Earn",
       "Help",
     ]);
+    expect(ALL_NAV).toHaveLength(PRIMARY_NAV.length + SECONDARY_NAV.length);
+  });
+
+  it("has no duplicate keys across the two groups", () => {
+    const keys = ALL_NAV.map((item) => item.key);
+    expect(new Set(keys).size).toBe(keys.length);
   });
 
   it("names the owning work package for everything not built yet", () => {
-    for (const item of PRIMARY_NAV) {
+    for (const item of ALL_NAV) {
       if (!item.ready) expect(item.owner, item.label).toBeTruthy();
     }
   });
 
   it("never shows the codename (CONTRACTS §0)", () => {
     const copy = [
-      ...PRIMARY_NAV.map((item) => `${item.label} ${item.href}`),
+      ...ALL_NAV.map((item) => `${item.label} ${item.short} ${item.href}`),
       ...SETTINGS_NAV.map((item) => `${item.label} ${item.description} ${item.href}`),
     ].join(" ");
     expect(copy.toLowerCase()).not.toContain(CODENAME);

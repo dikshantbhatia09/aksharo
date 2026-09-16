@@ -221,6 +221,19 @@ export async function signIn(page: Page, account: Account, next = "/studio"): Pr
  * state back. A person cannot type that fast; Playwright can, and WebKit hydrates
  * late enough that it did — the first field of the sign-up form arrived empty.
  */
+/**
+ * `/projects` opens on the table view (the premium canvas's shape). The card
+ * grid — and with it `project-card`, `project-card-select` and the card's own
+ * link — lives behind the Table/Grid toggle. A spec that asserts on cards has
+ * to say so; this is that one line.
+ */
+export async function showProjectGrid(page: Page): Promise<void> {
+  const toggle = page.getByTestId("view-grid");
+  await toggle.waitFor({ state: "visible" });
+  await toggle.click();
+  await page.getByTestId("project-grid").waitFor({ state: "visible" });
+}
+
 export async function gotoHydrated(page: Page, path: string): Promise<void> {
   await page.goto(path);
   await waitForHydration(page);

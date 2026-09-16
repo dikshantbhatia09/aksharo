@@ -62,8 +62,9 @@ describe("<ProjectsView /> empty states", () => {
     renderWithProviders(<ProjectsView />, { routes: ROUTES });
 
     // The one project is Hindi; filtering to another language empties the list
-    // without the workspace being empty.
-    expect(await screen.findByTestId("project-grid")).toBeInTheDocument();
+    // without the workspace being empty. The canvas's default view is the
+    // table, so that is what a populated list renders.
+    expect(await screen.findByTestId("project-table")).toBeInTheDocument();
     await user.click(screen.getByTestId("filter-language"));
     await user.click(await screen.findByTestId("filter-language-ta"));
 
@@ -73,6 +74,18 @@ describe("<ProjectsView /> empty states", () => {
     // And the way out is a clear, not a new sample project.
     const clear = screen.getByTestId("clear-filters");
     await user.click(clear);
+    expect(await screen.findByTestId("project-table")).toBeInTheDocument();
+  });
+
+  it("switches between the canvas's table and the card grid", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<ProjectsView />, { routes: ROUTES });
+
+    expect(await screen.findByTestId("project-table")).toBeInTheDocument();
+    expect(screen.queryByTestId("project-grid")).toBeNull();
+
+    await user.click(screen.getByTestId("view-grid"));
     expect(await screen.findByTestId("project-grid")).toBeInTheDocument();
+    expect(screen.queryByTestId("project-table")).toBeNull();
   });
 });

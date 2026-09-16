@@ -1,33 +1,60 @@
 "use client";
 
-import { ChevronDown, Globe, LogOut, Settings, ShieldCheck, User } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronsUpDown,
+  Globe,
+  LogOut,
+  Settings,
+  ShieldCheck,
+  User,
+} from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import * as React from "react";
 
-import { useCurrentUser, useSession, useUpdateMe } from "@montaj/api-client";
+import {
+  useCurrentUser,
+  useSession,
+  useSwitchWorkspace,
+  useUpdateMe,
+  useWorkspaces,
+} from "@montaj/api-client";
+import type { TokenResponse } from "@montaj/api-client";
 import {
   Button,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
   toast,
 } from "@montaj/ui";
 
 import { resetAnalytics } from "@/lib/analytics/posthog";
+import { messageForError } from "@/lib/errors";
 import { useLocale, useT } from "@/lib/i18n/locale-provider";
-import { endSession } from "@/lib/session/client";
+import { endSession, persistSession } from "@/lib/session/client";
 
-/** The profile block at the bottom of the sidebar (08 §3). */
+/**
+ * The profile block at the bottom of the sidebar (08 §3).
+ *
+ * Three widths, one menu. `editor` is the studio's slim top bar; `compact` is
+ * the canvas's 68 px rail, where only the avatar fits and the name has to come
+ * from the tooltip-less accessible label instead; the default is the expanded
+ * sidebar's avatar-name-caret row.
+ */
 export function ProfileMenu({
   onNavigate,
   editor = false,
+  compact = false,
 }: {
   onNavigate?: () => void;
   editor?: boolean;
+  compact?: boolean;
 }): React.JSX.Element {
   const session = useSession();
   const me = useCurrentUser();
@@ -36,6 +63,26 @@ export function ProfileMenu({
   const [locale, setLocale] = useLocale();
   const updateMe = useUpdateMe();
   const t = useT();
+
+  /*
+   * Switching workspace lives here, not only in the sidebar.
+   *
+   * The 68 px rail is the shell's default width and has no room for the
+   * sidebar's switcher, and the sidebar's only other mount is a sheet whose
+   * trigger is `lg:hidden` — so on a desktop in the default shell there was
+   * no way to change workspace at all. This menu is in both shells.
+   *
+   * It is still a **token exchange**, never a header (CONTRACTS §5,
+   * THREAT-MODEL T4): the API mints a new session bound to the new workspace
+   * and re-checks membership while doing it.
+   */
+  const workspaces = useWorkspaces();
+  const switchWorkspace = useSwitchWorkspace(
+    React.useCallback(async (tokens: TokenResponse) => {
+      await persistSession(tokens);
+    }, []),
+  );
+  const options = workspaces.data ?? [];
 
   const name = me.data?.name ?? me.data?.email ?? "Your account";
 
@@ -66,26 +113,70 @@ export function ProfileMenu({
       <DropdownMenuTrigger asChild>
         <Button
           variant="ghost"
-          className={editor ? "editor-profile justify-start gap-2" : "mx-1 justify-start gap-2.5"}
+          size={compact ? "icon" : undefined}
+          aria-label={compact ? name : undefined}
+          className={
+            compact
+              ? "size-7 rounded-full p-0"
+              : editor
+                ? "editor-profile justify-start gap-2"
+                : "mx-1 justify-start gap-2.5"
+          }
           data-testid="profile-menu"
         >
           <span
             aria-hidden="true"
-            className="bg-bg-2 text-fg-1 flex size-6 shrink-0 items-center justify-center rounded-full text-2xs font-semibold"
+            className="bg-accent-800 text-accent-100 flex size-7 shrink-0 items-center justify-center rounded-full text-[10px] font-medium"
           >
             {editor ? initials(name).slice(0, 1) : initials(name)}
           </span>
-          <span className="truncate text-sm">{name}</span>
+          {compact ? null : <span className="truncate text-sm">{name}</span>}
           {editor ? <ChevronDown className="size-3 text-fg-2" aria-hidden="true" /> : null}
+          {compact || editor ? null : (
+            <ChevronsUpDown className="text-neutral-500 ml-auto size-3" aria-hidden="true" />
+          )}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align={editor ? "end" : "start"}
-        side={editor ? "bottom" : "top"}
+        side={editor ? "bottom" : compact ? "right" : "top"}
         className="w-64"
       >
         <DropdownMenuLabel>{session?.role ?? "Account"}</DropdownMenuLabel>
         <DropdownMenuSeparator />
+        {options.length < 2 ? null : (
+          <>
+            <DropdownMenuLabel>Workspace</DropdownMenuLabel>
+            <DropdownMenuRadioGroup
+              value={session?.workspaceId ?? ""}
+              onValueChange={(workspaceId) => {
+                if (workspaceId === session?.workspaceId) return;
+                switchWorkspace.mutate(workspaceId, {
+                  onSuccess: () => {
+                    router.refresh();
+                  },
+                  onError: (error) => {
+                    toast.error("Could not switch workspace", {
+                      description: messageForError(error),
+                    });
+                  },
+                });
+              }}
+            >
+              {options.map((workspace) => (
+                <DropdownMenuRadioItem
+                  key={workspace.id}
+                  value={workspace.id}
+                  data-testid={`profile-workspace-${workspace.id}`}
+                >
+                  <span className="truncate">{workspace.name}</span>
+                  <span className="text-neutral-500 ml-auto text-2xs">{workspace.role}</span>
+                </DropdownMenuRadioItem>
+              ))}
+            </DropdownMenuRadioGroup>
+            <DropdownMenuSeparator />
+          </>
+        )}
         <DropdownMenuItem asChild>
           <Link href="/settings/profile" onClick={onNavigate}>
             <User aria-hidden="true" />

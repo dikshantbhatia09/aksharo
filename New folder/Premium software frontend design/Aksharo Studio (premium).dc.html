@@ -1,0 +1,1710 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="_ds/nocturne-b1009d34-d446-4e5b-a1db-e386a7161bd6/styles.css">
+<script src="_ds/nocturne-b1009d34-d446-4e5b-a1db-e386a7161bd6/_ds_bundle.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.2/src/regular/style.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.2/src/fill/style.css">
+<style>
+:root{ --sunken:#101220; --ink:#0a0b12; }
+body{ margin:0; -webkit-font-smoothing:antialiased }
+button{ font:inherit; cursor:pointer }
+input,select{ font:inherit }
+a{ color:var(--color-accent); text-decoration:none }
+a:hover{ color:var(--color-accent-300) }
+i.ph,i.ph-fill{ display:inline-block; line-height:1 }
+*::-webkit-scrollbar{ width:9px; height:9px }
+*::-webkit-scrollbar-thumb{ background:#3f424d; border-radius:9px }
+*::-webkit-scrollbar-track{ background:transparent }
+[data-hide-scrollbar]{ scrollbar-width:none }
+[data-hide-scrollbar]::-webkit-scrollbar{ width:0; height:0 }
+</style>
+</helmet>
+
+<div style="min-height:100vh;background:var(--color-bg);color:var(--color-text);font-family:var(--font-body)">
+<div style="display:flex;min-height:100vh;align-items:stretch">
+
+  <sc-if value="{{ isRail }}" hint-placeholder-val="{{ true }}">
+  <nav style="display:flex;width:68px;flex-shrink:0;flex-direction:column;align-items:center;gap:3px;padding:14px 0 12px;background:var(--sunken);box-shadow:inset -1px 0 0 var(--color-neutral-900)">
+    <span style="display:flex;align-items:center;justify-content:center;width:32px;height:32px;margin-bottom:12px;border:1px solid var(--color-accent);border-radius:8px;color:var(--color-accent);font-size:17px">अ</span>
+    <sc-for list="{{ navItems }}" as="n" hint-placeholder-count="8">
+      <button type="button" onClick="{{ n.onClick }}" style="{{ n.railStyle }}">
+        <i class="{{ n.icon }}" style="font-size:19px"></i>
+        <span style="font-size:9px;letter-spacing:.02em">{{ n.short }}</span>
+      </button>
+    </sc-for>
+    <span style="margin-top:auto;display:flex;flex-direction:column;align-items:center;gap:10px">
+      <span style="display:flex;flex-direction:column;align-items:center;gap:2px;color:var(--color-neutral-400)">
+        <i class="ph ph-lightning" style="font-size:15px;color:var(--color-accent)"></i>
+        <span style="font-size:10px;font-variant-numeric:tabular-nums">342</span>
+      </span>
+      <span style="display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;background:var(--color-accent-800);color:var(--color-accent-100);font-size:11px">IS</span>
+    </span>
+  </nav>
+  </sc-if>
+
+  <sc-if value="{{ isSidebar }}">
+  <nav style="display:flex;width:232px;flex-shrink:0;flex-direction:column;gap:18px;padding:16px 12px 14px;background:var(--sunken);box-shadow:inset -1px 0 0 var(--color-neutral-900)">
+    <div style="display:flex;align-items:center;gap:9px;padding:0 6px">
+      <span style="display:flex;align-items:center;justify-content:center;width:30px;height:30px;border:1px solid var(--color-accent);border-radius:8px;color:var(--color-accent);font-size:16px">अ</span>
+      <span style="display:flex;flex-direction:column;line-height:1.15">
+        <span style="font-family:var(--font-heading);font-weight:500;font-size:16px;letter-spacing:-0.01em">Aksharo</span>
+        <span style="font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--color-neutral-500)">Ishaan's workspace</span>
+      </span>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:2px">
+      <sc-for list="{{ navItems }}" as="n" hint-placeholder-count="8">
+        <button type="button" onClick="{{ n.onClick }}" style="{{ n.barStyle }}">
+          <i class="{{ n.icon }}" style="font-size:16px;flex-shrink:0"></i>{{ n.label }}
+          <sc-if value="{{ n.badge }}"><span style="margin-left:auto;font-size:10px;font-variant-numeric:tabular-nums;color:var(--color-neutral-500)">{{ n.badge }}</span></sc-if>
+        </button>
+      </sc-for>
+    </div>
+    <div style="margin-top:auto;display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;flex-direction:column;gap:7px;padding:11px 12px;border-radius:8px;background:var(--color-surface)">
+        <span style="display:flex;align-items:center;justify-content:space-between;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--color-accent)">Credits<span style="color:var(--color-neutral-400);letter-spacing:0;text-transform:none;font-size:11px">342 / 500</span></span>
+        <span style="display:block;height:3px;border-radius:999px;background:var(--color-neutral-800);overflow:hidden"><span style="display:block;width:68%;height:100%;background:var(--color-accent)"></span></span>
+        <span style="font-size:11px;color:var(--color-neutral-500)">5h 42m of transcription. Resets 1 Oct.</span>
+      </div>
+      <button type="button" style="display:flex;align-items:center;gap:9px;padding:7px 8px;border:0;border-radius:8px;background:transparent;color:var(--color-text);font-size:13px" style-hover="background:color-mix(in srgb,var(--color-text) 7%,transparent)">
+        <span style="display:flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;background:var(--color-accent-800);color:var(--color-accent-100);font-size:10px">IS</span>
+        Ishaan Sethi
+        <i class="ph ph-caret-up-down" style="margin-left:auto;font-size:13px;color:var(--color-neutral-500)"></i>
+      </button>
+    </div>
+  </nav>
+  </sc-if>
+
+  <div style="display:flex;min-width:0;flex:1;flex-direction:column">
+    <header style="display:flex;align-items:center;gap:14px;height:52px;flex-shrink:0;padding:0 18px;background:linear-gradient(to right,transparent,var(--color-divider) 48px,var(--color-divider) calc(100% - 48px),transparent) no-repeat bottom / 100% 1px">
+      <span style="display:flex;flex-direction:column;line-height:1.2;min-width:0">
+        <span style="font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--color-neutral-500)">{{ crumb }}</span>
+        <span style="font-family:var(--font-heading);font-weight:500;font-size:15px;letter-spacing:-0.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ title }}</span>
+      </span>
+      <span style="margin-left:auto;display:flex;align-items:center;gap:10px">
+        <sc-if value="{{ inApp }}" hint-placeholder-val="{{ true }}">
+        <span style="display:flex;align-items:center;gap:6px;padding:3px;border:1px solid var(--color-divider);border-radius:8px">
+          <span style="padding-left:6px;font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--color-neutral-500)">Nav</span>
+          <button type="button" onClick="{{ setRail }}" style="{{ railSwitch }}">Rail</button>
+          <button type="button" onClick="{{ setSidebar }}" style="{{ sidebarSwitch }}">Sidebar</button>
+        </span>
+        <button type="button" onClick="{{ goSite }}" class="btn btn-secondary" style="height:30px;font-size:12px">Signed out view</button>
+        </sc-if>
+        <sc-if value="{{ isSite }}">
+        <button type="button" onClick="{{ goHome }}" class="btn btn-primary" style="height:30px;font-size:12px">Back to the studio</button>
+        </sc-if>
+      </span>
+    </header>
+
+    <main style="flex:1;min-width:0;min-height:0;display:flex;flex-direction:column">
+
+      <sc-if value="{{ isHome }}" hint-placeholder-val="{{ true }}">
+      <div style="display:flex;flex-direction:column;gap:20px;padding:22px 18px 34px">
+
+        <section style="display:flex;flex-direction:column;gap:13px;padding:18px 20px;border-radius:14px;background:var(--color-surface);box-shadow:0 0 0 1px color-mix(in srgb,var(--color-accent) 35%,transparent)">
+          <div style="display:flex;flex-wrap:wrap;align-items:flex-end;gap:14px">
+            <div style="min-width:260px;flex:1">
+              <span style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--color-accent)">Clips pipeline</span>
+              <h2 style="margin:6px 0 5px;font-size:24px;letter-spacing:-0.02em">One long video, nine posts</h2>
+              <p style="margin:0;max-width:56ch;font-size:13px;color:var(--color-neutral-400)">Paste a link. Aksharo reads the transcript, scores where attention sits, cuts the moments, reframes them, burns in captions in the language you pick, builds a version per platform, then posts on your schedule.</p>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px">
+              <span style="position:relative;display:flex;min-width:210px;align-items:center">
+                <i class="ph ph-link-simple" style="position:absolute;left:10px;font-size:13px;color:var(--color-neutral-500)"></i>
+                <input class="input" placeholder="Paste a YouTube link" style="padding-left:30px">
+              </span>
+              <button type="button" onClick="{{ goRepurpose }}" class="btn btn-primary" style="height:36px">Start a run</button>
+            </div>
+          </div>
+
+          <div style="display:flex;flex-wrap:wrap;gap:6px">
+            <sc-for list="{{ homeStages }}" as="h" hint-placeholder-count="10">
+              <button type="button" onClick="{{ h.onClick }}" style="{{ h.style }}"><span style="{{ h.nStyle }}">{{ h.n }}</span>{{ h.label }}</button>
+            </sc-for>
+          </div>
+
+          <div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px;padding-top:2px">
+            <span style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--color-neutral-300)">
+              <span style="width:5px;height:5px;border-radius:50%;background:var(--color-accent)"></span>
+              Podcast ep 14 is at stage 4 of 10, reframing 3 clips
+            </span>
+            <span style="display:block;width:120px;height:2px;border-radius:999px;background:var(--color-neutral-800)"><span style="display:block;width:38%;height:100%;border-radius:999px;background:var(--color-accent)"></span></span>
+            <span style="display:flex;gap:6px;margin-left:auto">
+              <sc-for list="{{ clipsOut }}" as="c" hint-placeholder-count="3">
+                <span style="position:relative;display:block;width:34px;height:48px;border-radius:5px;background:{{ c.thumb }}"><span style="position:absolute;right:2px;bottom:2px;font-family:ui-monospace,monospace;font-size:7.5px;color:var(--color-neutral-200)">{{ c.dur }}</span></span>
+              </sc-for>
+            </span>
+            <button type="button" onClick="{{ goRepurpose }}" class="btn btn-ghost" style="font-size:12px">Open the pipeline <i class="ph ph-arrow-right" style="font-size:12px"></i></button>
+          </div>
+        </section>
+
+        <section style="display:grid;grid-template-columns:minmax(0,1.25fr) minmax(220px,0.75fr);border-radius:14px;background:var(--color-surface);overflow:hidden;box-shadow:var(--shadow-sm)">
+          <div style="display:flex;flex-direction:column;gap:13px;padding:22px">
+            <span style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--color-accent)">New project</span>
+            <div>
+              <h2 style="margin:0 0 6px;font-size:26px;letter-spacing:-0.02em">Drop footage. Get captions that match how you talk.</h2>
+              <p style="margin:0;max-width:48ch;font-size:13.5px;color:var(--color-neutral-400)">Pick the language you actually spoke and your credits go to the engine that scores best on it. Creator takes files up to 4 GB and three hours.</p>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:7px">
+              <sc-for list="{{ quickPicks }}" as="q" hint-placeholder-count="3">
+                <button type="button" style="display:flex;align-items:center;gap:7px;padding:6px 11px;border:1px solid var(--color-divider);border-radius:8px;background:transparent;color:var(--color-text);font-size:12.5px" style-hover="border-color:var(--color-accent)">
+                  <span style="font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--color-neutral-500)">{{ q.k }}</span>{{ q.v }}
+                  <i class="ph ph-caret-down" style="font-size:11px;color:var(--color-neutral-500)"></i>
+                </button>
+              </sc-for>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:2px">
+              <button type="button" class="btn btn-primary" style="height:34px;padding:0 16px">Choose files</button>
+              <button type="button" class="btn btn-secondary" style="height:34px;padding:0 14px">Paste a link</button>
+              <span style="font-size:11px;color:var(--color-neutral-500)">or press ⌘V anywhere on this page</span>
+            </div>
+          </div>
+          <div style="position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;min-height:186px;padding:16px;background:var(--sunken);box-shadow:inset 1px 0 0 var(--color-neutral-900)">
+            <span style="position:absolute;inset:14px;border:1px dashed color-mix(in srgb,var(--color-accent) 45%,transparent);border-radius:10px"></span>
+            <i class="ph ph-film-script" style="font-size:26px;color:var(--color-accent)"></i>
+            <span style="font-size:13px">Drop video or audio here</span>
+            <span style="font-size:11px;text-align:center;color:var(--color-neutral-500)">MP4, MOV, MP3, WAV and eight more</span>
+          </div>
+        </section>
+
+        <section style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px">
+          <div style="display:flex;flex-direction:column;gap:2px;padding:14px 16px 8px;border-radius:14px;background:var(--color-surface)">
+            <span style="display:flex;align-items:center;gap:8px;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--color-neutral-500)">Working now
+              <span style="width:5px;height:5px;border-radius:50%;background:var(--color-accent)"></span>
+              <span style="font-size:11px;letter-spacing:0;text-transform:none;color:var(--color-accent)">2 jobs</span>
+            </span>
+            <sc-for list="{{ queue }}" as="j" hint-placeholder-count="2">
+              <div style="display:flex;align-items:center;gap:12px;padding:11px 0;background:linear-gradient(to right,color-mix(in srgb,var(--color-text) 8%,transparent),color-mix(in srgb,var(--color-text) 8%,transparent) calc(100% - 48px),transparent) no-repeat bottom / 100% 1px">
+                <span style="width:44px;height:30px;flex-shrink:0;border-radius:4px;background:{{ j.thumb }}"></span>
+                <span style="display:flex;min-width:0;flex:1;flex-direction:column;gap:5px">
+                  <span style="display:flex;align-items:baseline;gap:8px">
+                    <span style="font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ j.title }}</span>
+                    <span style="margin-left:auto;font-size:11px;white-space:nowrap;color:var(--color-neutral-500)">{{ j.stage }}</span>
+                  </span>
+                  <span style="display:block;height:2px;border-radius:999px;background:var(--color-neutral-800);overflow:hidden"><span style="display:block;width:{{ j.pct }};height:100%;background:var(--color-accent)"></span></span>
+                </span>
+                <span style="font-family:ui-monospace,monospace;font-size:11px;white-space:nowrap;color:var(--color-neutral-400)">{{ j.eta }}</span>
+              </div>
+            </sc-for>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:11px;padding:14px 16px;border-radius:14px;background:var(--color-surface)">
+            <span style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--color-neutral-500)">This month</span>
+            <div style="display:flex;align-items:flex-end;gap:7px">
+              <span style="font-family:var(--font-heading);font-size:34px;line-height:1;letter-spacing:-0.02em">342</span>
+              <span style="padding-bottom:4px;font-size:12px;color:var(--color-neutral-400)">credits left of 500</span>
+            </div>
+            <span style="display:block;height:3px;border-radius:999px;background:var(--color-neutral-800);overflow:hidden"><span style="display:block;width:68%;height:100%;background:var(--color-accent)"></span></span>
+            <p style="margin:0;font-size:12px;color:var(--color-neutral-400)">About 5h 42m of transcription, or 41 more Reels at the length you usually post.</p>
+            <div style="display:flex;gap:8px;margin-top:auto">
+              <button type="button" class="btn btn-primary" style="height:30px;font-size:12.5px">Top up</button>
+              <button type="button" onClick="{{ goBilling }}" class="btn btn-secondary" style="height:30px;font-size:12.5px">Usage</button>
+            </div>
+          </div>
+        </section>
+
+        <section style="display:flex;flex-direction:column;gap:12px">
+          <div style="display:flex;align-items:baseline;gap:12px">
+            <h3 style="margin:0;font-size:17px;letter-spacing:-0.01em">Pick up where you left off</h3>
+            <button type="button" onClick="{{ goProjects }}" class="btn btn-ghost" style="margin-left:auto;font-size:12.5px">All projects <i class="ph ph-arrow-right" style="font-size:12px"></i></button>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px">
+            <sc-for list="{{ projects }}" as="p" hint-placeholder-count="5">
+              <button type="button" onClick="{{ goEditor }}" style="display:flex;flex-direction:column;padding:0;border:0;border-radius:10px;background:var(--color-surface);overflow:hidden;text-align:left;color:var(--color-text);transition:box-shadow 160ms" style-hover="box-shadow:0 0 0 1px var(--color-accent)">
+                <span style="position:relative;display:block;aspect-ratio:9/13;background:{{ p.thumb }}">
+                  <span style="position:absolute;left:8px;right:8px;bottom:12%;text-align:center;font-size:11px;font-weight:700;color:#f3f5fe;text-shadow:0 1px 4px rgba(0,0,0,.9)">{{ p.caption }}</span>
+                  <span style="position:absolute;right:6px;bottom:6px;padding:1px 5px;border-radius:4px;background:rgba(10,11,18,.72);font-family:ui-monospace,monospace;font-size:10px;color:var(--color-neutral-200)">{{ p.dur }}</span>
+                </span>
+                <span style="display:flex;flex-direction:column;gap:5px;padding:9px 10px 11px">
+                  <span style="font-size:12.5px;line-height:1.3">{{ p.title }}</span>
+                  <span style="display:flex;align-items:center;gap:6px;font-size:10.5px;color:var(--color-neutral-500)"><span style="{{ p.dotStyle }}"></span>{{ p.status }} · {{ p.lang }}</span>
+                </span>
+              </button>
+            </sc-for>
+          </div>
+        </section>
+      </div>
+      </sc-if>
+
+      <sc-if value="{{ isEditor }}">
+      <div style="display:flex;flex:1;min-height:0;flex-direction:column;gap:10px;padding:12px 14px 14px">
+        <div style="display:grid;grid-template-columns:minmax(260px,1fr) minmax(200px,0.85fr) minmax(250px,268px);gap:10px;flex:1;min-height:430px">
+
+          <section style="display:flex;min-width:0;flex-direction:column;border-radius:12px;background:var(--color-surface);overflow:hidden">
+            <div style="display:flex;align-items:center;gap:9px;padding:12px 14px 9px">
+              <h3 style="margin:0;font-size:15px;letter-spacing:-0.01em">Transcript</h3>
+              <span style="font-size:10.5px;color:var(--color-neutral-500)">86 captions</span>
+              <span style="margin-left:auto;display:flex;gap:4px">
+                <button type="button" style="display:flex;align-items:center;justify-content:center;width:28px;height:28px;border:1px solid var(--color-divider);border-radius:8px;background:transparent;color:var(--color-neutral-300);font-size:14px" style-hover="border-color:var(--color-accent);color:var(--color-accent)"><i class="ph ph-magnifying-glass"></i></button>
+                <button type="button" style="display:flex;align-items:center;justify-content:center;width:28px;height:28px;border:1px solid var(--color-divider);border-radius:8px;background:transparent;color:var(--color-neutral-300);font-size:14px" style-hover="border-color:var(--color-accent);color:var(--color-accent)"><i class="ph ph-sliders-horizontal"></i></button>
+              </span>
+            </div>
+            <div style="display:flex;gap:3px;padding:0 14px 10px">
+              <sc-for list="{{ scriptTabs }}" as="t" hint-placeholder-count="3">
+                <button type="button" onClick="{{ t.onClick }}" style="{{ t.style }}">{{ t.label }}</button>
+              </sc-for>
+            </div>
+            <div style="flex:1;min-height:0;overflow-y:auto;padding:0 8px 12px 14px">
+              <sc-for list="{{ rows }}" as="r" hint-placeholder-count="8">
+                <div onClick="{{ r.onClick }}" style="{{ r.style }}">
+                  <span style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;width:32px;flex-shrink:0;padding-top:2px">
+                    <span style="font-family:ui-monospace,monospace;font-size:10px;font-variant-numeric:tabular-nums;color:{{ r.tcColor }}">{{ r.tc }}</span>
+                    <span style="font-size:9px;color:var(--color-neutral-700)">{{ r.n }}</span>
+                  </span>
+                  <span style="display:flex;min-width:0;flex:1;flex-wrap:wrap;align-items:center;gap:3px;font-size:14px;line-height:1.5">
+                    <sc-for list="{{ r.words }}" as="w" hint-placeholder-count="6">
+                      <span style="{{ w.style }}">{{ w.t }}</span>
+                    </sc-for>
+                  </span>
+                  <span style="{{ r.spStyle }}">{{ r.sp }}</span>
+                </div>
+              </sc-for>
+            </div>
+          </section>
+
+          <section style="display:flex;min-width:0;flex-direction:column;gap:8px">
+            <div style="display:flex;flex:1;min-height:0;align-items:center;justify-content:center;border-radius:12px;background:var(--ink);overflow:hidden;container-type:size">
+              <div style="position:relative;width:min(100%,calc(100cqh * 0.5625));height:auto;aspect-ratio:9/16;container-type:inline-size">
+                <span style="position:absolute;inset:0;background:radial-gradient(120% 80% at 50% 20%,#3a2e4d 0%,#1b1930 45%,#0a0b12 100%)"></span>
+                <span style="position:absolute;inset:7% 6%;border:1px solid color-mix(in srgb,var(--color-text) 8%,transparent)"></span>
+                <span style="position:absolute;left:0;right:0;bottom:15%;display:flex;justify-content:center;padding:0 7%">
+                  <span style="text-align:center;font-size:clamp(11px,6.2cqw,26px);font-weight:700;line-height:1.2;letter-spacing:-0.01em;color:#f3f5fe;text-shadow:0 2px 10px rgba(0,0,0,.85)">edits ko <span style="color:var(--color-accent-300)">dus guna</span> fast</span>
+                </span>
+                <span style="position:absolute;top:9px;left:9px;right:9px;display:flex;align-items:center;gap:6px">
+                  <span style="padding:2px 7px;border-radius:6px;background:rgba(10,11,18,.6);font-family:ui-monospace,monospace;font-size:10px;color:var(--color-neutral-300)">1080×1920</span>
+                  <button type="button" style="margin-left:auto;padding:2px 7px;border:1px solid color-mix(in srgb,var(--color-accent) 55%,transparent);border-radius:6px;background:color-mix(in srgb,var(--color-accent) 14%,transparent);color:var(--color-accent-200);font-size:9.5px;white-space:nowrap">Safe zones</button>
+                </span>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:11px;padding:0 4px">
+              <button type="button" onClick="{{ togglePlay }}" style="display:flex;align-items:center;justify-content:center;width:32px;height:32px;flex-shrink:0;border:1px solid var(--color-accent);border-radius:50%;background:transparent;color:var(--color-accent);font-size:13px" style-hover="background:color-mix(in srgb,var(--color-accent) 12%,transparent)"><i class="{{ playIcon }}"></i></button>
+              <span style="font-family:ui-monospace,monospace;font-size:11.5px;font-variant-numeric:tabular-nums;color:var(--color-neutral-300)">0:12 / 0:38</span>
+              <span style="flex:1;height:2px;border-radius:999px;background:var(--color-neutral-800)"><span style="display:block;width:31%;height:100%;border-radius:999px;background:var(--color-accent)"></span></span>
+              <button type="button" style="border:0;background:transparent;color:var(--color-neutral-400);font-size:16px"><i class="ph ph-speaker-high"></i></button>
+              <button type="button" style="border:0;background:transparent;color:var(--color-neutral-400);font-size:16px"><i class="ph ph-corners-out"></i></button>
+            </div>
+          </section>
+
+          <section style="display:flex;flex-direction:column;border-radius:12px;background:var(--color-surface);overflow:hidden">
+            <div style="display:flex;gap:2px;padding:10px 10px 0">
+              <sc-for list="{{ panelTabs }}" as="p" hint-placeholder-count="4">
+                <button type="button" onClick="{{ p.onClick }}" style="{{ p.style }}">{{ p.label }}</button>
+              </sc-for>
+            </div>
+            <div style="flex:1;min-height:0;overflow-y:auto;padding:14px 12px">
+              <sc-if value="{{ tabIsText }}" hint-placeholder-val="{{ true }}">
+              <div style="display:flex;flex-direction:column;gap:14px">
+                <div style="display:flex;flex-direction:column;gap:8px">
+                  <span style="font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--color-neutral-500)">Typeface</span>
+                  <button type="button" style="display:flex;align-items:center;justify-content:space-between;height:32px;padding:0 10px;border:1px solid var(--color-divider);border-radius:8px;background:transparent;color:var(--color-text);font-size:13px">Poppins ExtraBold <i class="ph ph-caret-down" style="font-size:11px;color:var(--color-neutral-500)"></i></button>
+                  <div style="display:flex;gap:6px">
+                    <button type="button" style="flex:1;height:30px;border:1px solid var(--color-accent);border-radius:8px;background:color-mix(in srgb,var(--color-accent) 14%,transparent);color:var(--color-accent-200);font-size:13px"><i class="ph ph-text-b"></i></button>
+                    <button type="button" style="flex:1;height:30px;border:1px solid var(--color-divider);border-radius:8px;background:transparent;color:var(--color-neutral-300);font-size:13px"><i class="ph ph-text-italic"></i></button>
+                    <button type="button" style="flex:1;height:30px;border:1px solid var(--color-divider);border-radius:8px;background:transparent;color:var(--color-neutral-300);font-size:13px"><i class="ph ph-text-underline"></i></button>
+                    <button type="button" style="flex:1;height:30px;border:1px solid var(--color-divider);border-radius:8px;background:transparent;color:var(--color-neutral-300);font-size:13px"><i class="ph ph-text-align-center"></i></button>
+                  </div>
+                </div>
+                <sc-for list="{{ sliders }}" as="s" hint-placeholder-count="4">
+                  <div style="display:flex;flex-direction:column;gap:6px">
+                    <span style="display:flex;align-items:baseline;justify-content:space-between;font-size:12px;color:var(--color-neutral-300)">{{ s.label }}<span style="font-family:ui-monospace,monospace;font-size:11px;color:var(--color-text)">{{ s.value }}</span></span>
+                    <span style="position:relative;display:block;height:3px;border-radius:999px;background:var(--color-neutral-800)"><span style="display:block;width:{{ s.pct }};height:100%;border-radius:999px;background:var(--color-accent)"></span><span style="position:absolute;top:-3px;left:{{ s.knob }};width:8px;height:9px;border-radius:2px;background:var(--color-neutral-200)"></span></span>
+                  </div>
+                </sc-for>
+                <div style="display:flex;flex-direction:column;gap:7px">
+                  <span style="font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--color-neutral-500)">Colour</span>
+                  <sc-for list="{{ colours }}" as="c" hint-placeholder-count="3">
+                    <span style="display:flex;align-items:center;gap:9px;height:32px;padding:0 9px;border:1px solid var(--color-divider);border-radius:8px">
+                      <span style="width:16px;height:16px;flex-shrink:0;border-radius:4px;background:{{ c.hex }};box-shadow:0 0 0 1px rgba(243,245,254,.14)"></span>
+                      <span style="font-size:12px;color:var(--color-neutral-400)">{{ c.label }}</span>
+                      <span style="margin-left:auto;font-family:ui-monospace,monospace;font-size:11px;text-transform:uppercase">{{ c.hex }}</span>
+                    </span>
+                  </sc-for>
+                </div>
+              </div>
+              </sc-if>
+              <sc-if value="{{ tabIsTemplates }}">
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+                <sc-for list="{{ miniStyles }}" as="m" hint-placeholder-count="6">
+                  <button type="button" style="{{ m.style }}">
+                    <span style="display:flex;aspect-ratio:9/13;align-items:flex-end;justify-content:center;padding:8px;background:{{ m.bg }}"><span style="{{ m.textStyle }}">{{ m.sample }}</span></span>
+                    <span style="display:block;padding:6px 7px;font-size:10.5px;text-align:left;color:var(--color-neutral-300)">{{ m.name }}</span>
+                  </button>
+                </sc-for>
+              </div>
+              </sc-if>
+              <sc-if value="{{ tabIsMotion }}">
+              <div style="display:flex;flex-direction:column;gap:9px">
+                <p style="margin:0;font-size:12px;color:var(--color-neutral-400)">How each word arrives. The frame beside this panel plays your pick.</p>
+                <sc-for list="{{ motions }}" as="mo" hint-placeholder-count="5">
+                  <button type="button" onClick="{{ mo.onClick }}" style="{{ mo.style }}">
+                    <i class="{{ mo.icon }}" style="font-size:15px;flex-shrink:0"></i>
+                    <span style="display:flex;flex-direction:column;align-items:flex-start;line-height:1.25">
+                      <span style="font-size:12.5px">{{ mo.name }}</span>
+                      <span style="font-size:10.5px;color:var(--color-neutral-500)">{{ mo.note }}</span>
+                    </span>
+                  </button>
+                </sc-for>
+              </div>
+              </sc-if>
+              <sc-if value="{{ tabIsAudio }}">
+              <div style="display:flex;flex-direction:column;gap:12px">
+                <div style="display:flex;flex-direction:column;gap:7px;padding:11px;border-radius:8px;background:var(--sunken)">
+                  <span style="display:flex;align-items:center;gap:8px;font-size:12.5px"><i class="ph ph-waveform" style="color:var(--color-accent)"></i>Audio clean<span class="tag tag-accent" style="margin-left:auto">Applied</span></span>
+                  <span style="font-size:11px;color:var(--color-neutral-500)">Room noise and traffic hum removed. One credit a minute, so 0.6 spent here.</span>
+                </div>
+                <sc-for list="{{ audioRows }}" as="a" hint-placeholder-count="3">
+                  <button type="button" onClick="{{ a.onClick }}" style="display:flex;align-items:center;gap:10px;padding:0;border:0;background:transparent;font-size:12.5px;color:var(--color-neutral-300);text-align:left">
+                    {{ a.label }}
+                    <span style="{{ a.trackStyle }}"><span style="{{ a.knobStyle }}"></span></span>
+                  </button>
+                </sc-for>
+              </div>
+              </sc-if>
+            </div>
+            <div style="padding:10px 12px 12px;background:linear-gradient(to right,transparent,var(--color-divider) 24px,var(--color-divider) calc(100% - 24px),transparent) no-repeat top / 100% 1px">
+              <button type="button" class="btn btn-primary btn-block" style="height:34px;margin:0">Export <i class="ph ph-arrow-line-down" style="font-size:13px"></i></button>
+              <p style="margin:7px 0 0;font-size:10.5px;text-align:center;color:var(--color-neutral-500)">1080p burn in, about 3 credits</p>
+            </div>
+          </section>
+        </div>
+
+        <section style="display:flex;flex-shrink:0;flex-direction:column;border-radius:12px;background:var(--color-surface);overflow:hidden">
+          <div style="display:flex;flex-wrap:wrap;align-items:center;gap:9px;padding:9px 12px">
+            <span style="display:flex;padding:2px;border:1px solid var(--color-divider);border-radius:8px">
+              <button type="button" style="padding:3px 10px;border:0;border-radius:6px;background:color-mix(in srgb,var(--color-accent) 16%,transparent);color:var(--color-accent-200);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase">Word</button>
+              <button type="button" style="padding:3px 10px;border:0;border-radius:6px;background:transparent;color:var(--color-neutral-500);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase">Line</button>
+            </span>
+            <button type="button" class="btn btn-secondary" style="height:26px;font-size:11.5px"><i class="ph ph-scissors" style="font-size:12px"></i> Split</button>
+            <button type="button" class="btn btn-secondary" style="height:26px;font-size:11.5px"><i class="ph ph-arrows-in-line-horizontal" style="font-size:12px"></i> Merge</button>
+            <button type="button" class="btn btn-secondary" style="height:26px;font-size:11.5px"><i class="ph ph-shield-check" style="font-size:12px"></i> Protect</button>
+            <span style="margin-left:auto;display:flex;align-items:center;gap:9px;font-size:11px;color:var(--color-neutral-500)">
+              <i class="ph ph-magnifying-glass-minus" style="font-size:13px"></i>
+              <span style="display:block;width:86px;height:2px;border-radius:999px;background:var(--color-neutral-800)"><span style="display:block;width:45%;height:100%;background:var(--color-neutral-400)"></span></span>
+              <i class="ph ph-magnifying-glass-plus" style="font-size:13px"></i>
+            </span>
+          </div>
+          <div style="display:flex;background:var(--sunken)">
+            <div style="display:flex;width:78px;flex-shrink:0;flex-direction:column;font-size:10px;color:var(--color-neutral-500)">
+              <span style="height:18px"></span>
+              <span style="display:flex;align-items:center;gap:5px;height:34px;padding-left:11px"><i class="ph ph-subtitles" style="font-size:12px"></i>Captions</span>
+              <span style="display:flex;align-items:center;gap:5px;height:30px;padding-left:11px"><i class="ph ph-video" style="font-size:12px"></i>Video</span>
+              <span style="display:flex;align-items:center;gap:5px;height:34px;padding-left:11px"><i class="ph ph-waveform" style="font-size:12px;color:var(--color-accent)"></i>Audio</span>
+              <span style="display:flex;align-items:center;gap:5px;height:16px;padding-left:11px">Cuts</span>
+            </div>
+            <div style="position:relative;flex:1;min-width:0;padding-right:10px">
+              <div style="display:flex;height:18px;align-items:flex-end;font-family:ui-monospace,monospace;font-size:8.5px;color:var(--color-neutral-700)">
+                <sc-for list="{{ ticks }}" as="tk" hint-placeholder-count="8">
+                  <span style="flex:1;padding-left:3px;box-shadow:inset 1px 0 0 var(--color-neutral-800)">{{ tk }}</span>
+                </sc-for>
+              </div>
+              <div style="display:flex;gap:2px;height:34px;align-items:center">
+                <sc-for list="{{ clips }}" as="c" hint-placeholder-count="5">
+                  <span style="{{ c.style }}">{{ c.t }}</span>
+                </sc-for>
+              </div>
+              <div style="display:flex;gap:1px;height:30px;align-items:center">
+                <sc-for list="{{ frames }}" as="f" hint-placeholder-count="12">
+                  <span style="flex:1;height:22px;border-radius:2px;background:{{ f }}"></span>
+                </sc-for>
+              </div>
+              <div style="display:flex;align-items:center;gap:1px;height:34px">
+                <sc-for list="{{ wave }}" as="h" hint-placeholder-count="48">
+                  <span style="flex:1;height:{{ h }};border-radius:1px;background:color-mix(in srgb,var(--color-accent) 70%,transparent)"></span>
+                </sc-for>
+              </div>
+              <div style="display:flex;align-items:center;height:16px"><span style="display:block;width:19%;margin-left:23%;height:9px;border-radius:2px;border:1px dashed color-mix(in srgb,var(--color-accent) 60%,transparent);background:color-mix(in srgb,var(--color-accent) 12%,transparent)"></span></div>
+              <span style="position:absolute;top:0;bottom:0;left:31%;width:1px;background:var(--color-neutral-100)"></span>
+              <span style="position:absolute;top:0;left:calc(31% - 4px);width:9px;height:9px;border-radius:2px;background:var(--color-neutral-100)"></span>
+            </div>
+          </div>
+        </section>
+      </div>
+      </sc-if>
+
+      <sc-if value="{{ isProjects }}">
+      <div style="display:flex;flex-direction:column;gap:14px;padding:20px 18px 34px">
+        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px">
+          <span style="position:relative;display:flex;align-items:center">
+            <i class="ph ph-magnifying-glass" style="position:absolute;left:10px;font-size:13px;color:var(--color-neutral-500)"></i>
+            <input class="input" placeholder="Search titles and transcripts" style="width:250px;padding-left:30px">
+          </span>
+          <button type="button" class="btn btn-secondary" style="height:36px;font-size:12.5px">Status <i class="ph ph-caret-down" style="font-size:11px"></i></button>
+          <button type="button" class="btn btn-secondary" style="height:36px;font-size:12.5px">Language <i class="ph ph-caret-down" style="font-size:11px"></i></button>
+          <button type="button" class="btn btn-secondary" style="height:36px;font-size:12.5px">Client <i class="ph ph-caret-down" style="font-size:11px"></i></button>
+          <span style="margin-left:auto;display:flex;align-items:center;gap:8px">
+            <span style="font-size:11px;color:var(--color-neutral-500)">Newest first</span>
+            <button type="button" class="btn btn-primary" style="height:36px;font-size:12.5px"><i class="ph ph-plus" style="font-size:13px"></i> New project</button>
+          </span>
+        </div>
+
+        <div style="display:grid;grid-template-columns:minmax(0,150px) minmax(0,1fr);gap:20px">
+          <div style="display:flex;flex-direction:column;gap:2px">
+            <span style="padding:0 10px 6px;font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--color-neutral-500)">Folders</span>
+            <button type="button" style="display:flex;align-items:center;gap:8px;padding:7px 10px;border:0;border-radius:8px;background:color-mix(in srgb,var(--color-accent) 12%,transparent);color:var(--color-accent-200);font-size:12.5px;text-align:left"><i class="ph ph-folders" style="font-size:14px"></i>All projects<span style="margin-left:auto;font-size:10px">24</span></button>
+            <button type="button" style="display:flex;align-items:center;gap:8px;padding:7px 10px;border:0;border-radius:8px;background:transparent;color:var(--color-neutral-300);font-size:12.5px;text-align:left" style-hover="background:color-mix(in srgb,var(--color-text) 6%,transparent)"><i class="ph ph-folder" style="font-size:14px"></i>Bikaji<span style="margin-left:auto;font-size:10px;color:var(--color-neutral-600)">7</span></button>
+            <button type="button" style="display:flex;align-items:center;gap:8px;padding:7px 10px;border:0;border-radius:8px;background:transparent;color:var(--color-neutral-300);font-size:12.5px;text-align:left" style-hover="background:color-mix(in srgb,var(--color-text) 6%,transparent)"><i class="ph ph-folder" style="font-size:14px"></i>Podcast S2<span style="margin-left:auto;font-size:10px;color:var(--color-neutral-600)">9</span></button>
+            <button type="button" style="display:flex;align-items:center;gap:8px;padding:7px 10px;border:0;border-radius:8px;background:transparent;color:var(--color-neutral-300);font-size:12.5px;text-align:left" style-hover="background:color-mix(in srgb,var(--color-text) 6%,transparent)"><i class="ph ph-folder" style="font-size:14px"></i>Shorts backlog<span style="margin-left:auto;font-size:10px;color:var(--color-neutral-600)">8</span></button>
+            <button type="button" style="display:flex;align-items:center;gap:8px;margin-top:6px;padding:7px 10px;border:0;border-radius:8px;background:transparent;color:var(--color-neutral-500);font-size:12.5px;text-align:left"><i class="ph ph-archive" style="font-size:14px"></i>Archive</button>
+          </div>
+
+          <div style="min-width:0;border-radius:12px;background:var(--color-surface);padding:4px 14px 10px;overflow-x:auto">
+            <table class="table">
+              <thead><tr><th style="width:52px"></th><th>Project</th><th>Status</th><th>Language</th><th>Length</th><th>Credits</th><th>Updated</th><th></th></tr></thead>
+              <tbody>
+                <sc-for list="{{ projects }}" as="p" hint-placeholder-count="5">
+                  <tr onClick="{{ goEditor }}" style="cursor:pointer">
+                    <td><span style="display:block;width:38px;height:26px;border-radius:4px;background:{{ p.thumb }}"></span></td>
+                    <td style="font-size:13px">{{ p.title }}</td>
+                    <td><span style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--color-neutral-300)"><span style="{{ p.dotStyle }}"></span>{{ p.status }}</span></td>
+                    <td style="font-size:12px;color:var(--color-neutral-400)">{{ p.lang }}</td>
+                    <td style="font-family:ui-monospace,monospace;font-size:11.5px;color:var(--color-neutral-400)">{{ p.dur }}</td>
+                    <td style="font-family:ui-monospace,monospace;font-size:11.5px;color:var(--color-neutral-400)">{{ p.credits }}</td>
+                    <td style="font-size:11.5px;color:var(--color-neutral-500)">{{ p.updated }}</td>
+                    <td style="text-align:right"><i class="ph ph-dots-three" style="font-size:15px;color:var(--color-neutral-500)"></i></td>
+                  </tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      </sc-if>
+
+      <sc-if value="{{ isStyles }}">
+      <div style="display:flex;flex-direction:column;gap:14px;padding:20px 18px 34px">
+        <div style="display:flex;flex-wrap:wrap;align-items:flex-end;gap:14px">
+          <div style="max-width:52ch">
+            <h2 style="margin:0 0 5px;font-size:23px;letter-spacing:-0.02em">Styles</h2>
+            <p style="margin:0;font-size:13px;color:var(--color-neutral-400)">Every style renders through the same engine your export uses, so the tile is the result. Hover to play one.</p>
+          </div>
+          <div style="margin-left:auto;display:flex;flex-direction:column;align-items:flex-end;gap:7px">
+            <span style="font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--color-neutral-500)">Preview script</span>
+            <div style="display:flex;gap:6px">
+              <sc-for list="{{ styleScripts }}" as="sx" hint-placeholder-count="3">
+                <button type="button" onClick="{{ sx.onClick }}" style="{{ sx.style }}">{{ sx.label }}</button>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px">
+          <sc-for list="{{ styleCats }}" as="c" hint-placeholder-count="7">
+            <button type="button" onClick="{{ c.onClick }}" style="{{ c.style }}">{{ c.label }}</button>
+          </sc-for>
+          <span style="margin-left:auto;font-size:11.5px;color:var(--color-neutral-500)">{{ styleCount }} styles</span>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px">
+          <sc-for list="{{ styleTiles }}" as="m" hint-placeholder-count="10">
+            <button type="button" style="{{ m.style }}">
+              <span style="display:flex;aspect-ratio:9/13;align-items:flex-end;justify-content:center;padding:12px;background:{{ m.bg }}"><span style="{{ m.textStyle }}">{{ m.sample }}</span></span>
+              <span style="display:flex;align-items:baseline;justify-content:space-between;gap:6px;padding:8px 9px 10px">
+                <span style="font-size:11.5px;color:var(--color-text)">{{ m.name }}</span>
+                <span style="font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--color-neutral-600)">{{ m.cat }}</span>
+              </span>
+            </button>
+          </sc-for>
+        </div>
+      </div>
+      </sc-if>
+
+      <sc-if value="{{ isRepurpose }}">
+      <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(220px,264px);gap:16px;padding:20px 18px 34px">
+        <div style="display:flex;min-width:0;flex-direction:column;gap:16px">
+          <div style="max-width:60ch">
+            <h2 style="margin:0 0 5px;font-size:23px;letter-spacing:-0.02em">One long video, nine posts</h2>
+            <p style="margin:0;font-size:13px;color:var(--color-neutral-400)">Paste a link and the pipeline runs end to end: read the transcript, find the moments worth cutting, reframe, caption, build a version per platform, then post on a schedule you set. Every stage is resumable and nothing publishes until you say so.</p>
+          </div>
+
+          <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:11px 12px;border-radius:12px;background:var(--color-surface)">
+            <span style="position:relative;display:flex;min-width:240px;flex:1;align-items:center">
+              <i class="ph ph-link-simple" style="position:absolute;left:10px;font-size:13px;color:var(--color-neutral-500)"></i>
+              <input class="input" value="https://youtube.com/watch?v=podcast-ep-14" style="padding-left:30px">
+            </span>
+            <button type="button" class="btn btn-primary" style="height:36px">Read the video</button>
+            <button type="button" class="btn btn-secondary" style="height:36px">Upload a file</button>
+            <span style="font-size:11px;color:var(--color-neutral-500)">12:04 · English · audio separated</span>
+          </div>
+
+          <div style="display:flex;flex-wrap:wrap;gap:6px">
+            <sc-for list="{{ stages }}" as="st" hint-placeholder-count="10">
+              <button type="button" onClick="{{ st.onClick }}" style="{{ st.pillStyle }}">
+                <span style="{{ st.dotStyle }}"><i class="{{ st.icon }}" style="font-size:9px"></i></span>
+                {{ st.label }}
+              </button>
+            </sc-for>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:13px;padding:16px;border-radius:12px;background:var(--color-surface)">
+            <span style="display:flex;align-items:baseline;gap:9px">
+              <span style="font-family:ui-monospace,monospace;font-size:11px;color:var(--color-accent)">{{ stageNumber }}</span>
+              <h3 style="margin:0;font-size:15px">{{ stageTitle }}</h3>
+              <span style="margin-left:auto;font-size:11px;color:var(--color-neutral-500)">{{ stageNote }}</span>
+            </span>
+
+            <sc-if value="{{ stIsUpload }}">
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <p style="margin:0;font-size:12.5px;color:var(--color-neutral-400)">A public YouTube link, or a file up to 4 GB. Audio is separated first so the transcript and the attention pass can run at the same time.</p>
+              <div style="display:flex;flex-wrap:wrap;gap:8px">
+                <span style="display:flex;align-items:center;gap:8px;padding:9px 11px;border-radius:9px;background:var(--sunken);font-size:12px"><i class="ph ph-youtube-logo" style="font-size:15px;color:var(--color-accent)"></i>Podcast ep 14, full episode</span>
+                <span style="display:flex;align-items:center;gap:8px;padding:9px 11px;border-radius:9px;background:var(--sunken);font-size:12px"><i class="ph ph-waveform" style="font-size:15px;color:var(--color-accent)"></i>Audio track ready</span>
+                <span style="display:flex;align-items:center;gap:8px;padding:9px 11px;border-radius:9px;background:var(--sunken);font-size:12px"><i class="ph ph-subtitles" style="font-size:15px;color:var(--color-accent)"></i>Transcript, 2,104 words</span>
+              </div>
+            </div>
+            </sc-if>
+
+            <sc-if value="{{ stIsAnalyse }}" hint-placeholder-val="{{ true }}">
+            <div style="display:flex;flex-direction:column;gap:12px">
+              <p style="margin:0;font-size:12.5px;color:var(--color-neutral-400)">The transcript gives the words. A second pass scores every ten seconds on delivery, laughter, pace and pauses, so the peaks below are where attention actually sits.</p>
+              <div style="display:flex;align-items:flex-end;gap:2px;height:66px;padding:0 2px">
+                <sc-for list="{{ attention }}" as="b" hint-placeholder-count="64">
+                  <span style="{{ b.style }}"></span>
+                </sc-for>
+              </div>
+              <div style="display:flex;align-items:center;gap:14px;font-size:10.5px;color:var(--color-neutral-500)">
+                <sc-for list="{{ emotionKeys }}" as="k" hint-placeholder-count="3">
+                  <span style="display:flex;align-items:center;gap:5px"><span style="width:8px;height:8px;border-radius:2px;background:{{ k.c }}"></span>{{ k.l }}</span>
+                </sc-for>
+                <span style="margin-left:auto;font-family:ui-monospace,monospace">00:00 to 12:04</span>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:7px">
+                <sc-for list="{{ peaks }}" as="p" hint-placeholder-count="4">
+                  <div style="{{ p.style }}">
+                    <span style="font-family:ui-monospace,monospace;font-size:11px;flex-shrink:0;color:var(--color-neutral-300)">{{ p.tc }}</span>
+                    <span style="display:flex;min-width:0;flex-direction:column;gap:3px">
+                      <span style="display:flex;flex-wrap:wrap;align-items:center;gap:7px">
+                        <span style="{{ p.tagStyle }}">{{ p.label }}</span>
+                        <span style="font-size:12.5px">{{ p.why }}</span>
+                      </span>
+                      <span style="font-size:10.5px;color:var(--color-neutral-500)">Suggested cut {{ p.tc }} to {{ p.to }} · attention {{ p.score }}</span>
+                    </span>
+                    <button type="button" class="btn btn-ghost" style="margin-left:auto;height:26px;font-size:11.5px;flex-shrink:0">Use this</button>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+            </sc-if>
+
+            <sc-if value="{{ stIsSelect }}">
+            <div style="display:flex;flex-direction:column;gap:12px">
+              <div style="display:flex;flex-direction:column;gap:7px">
+                <sc-for list="{{ candidates }}" as="c" hint-placeholder-count="4">
+                  <div style="{{ c.rowStyle }}">
+                    <span style="{{ c.boxStyle }}"><i class="{{ c.check }}"></i></span>
+                    <span style="display:flex;min-width:0;flex-direction:column;gap:2px">
+                      <span style="font-size:12.5px">{{ c.label }}</span>
+                      <span style="font-family:ui-monospace,monospace;font-size:10.5px;color:var(--color-neutral-500)">{{ c.range }} · {{ c.dur }}</span>
+                    </span>
+                    <span style="margin-left:auto;font-family:ui-monospace,monospace;font-size:11px;color:var(--color-accent-300)">{{ c.score }}</span>
+                  </div>
+                </sc-for>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:9px;padding:12px;border-radius:10px;background:var(--sunken)">
+                <span style="font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--color-neutral-500)">Cut an exact range yourself</span>
+                <div style="display:flex;flex-wrap:wrap;align-items:flex-end;gap:9px">
+                  <label class="field" style="width:104px"><label>From</label><input class="input" value="05:30.0" style="font-family:ui-monospace,monospace"></label>
+                  <label class="field" style="width:104px"><label>To</label><input class="input" value="05:40.0" style="font-family:ui-monospace,monospace"></label>
+                  <span style="padding-bottom:9px;font-size:11px;color:var(--color-neutral-500)">10.0 seconds</span>
+                  <button type="button" class="btn btn-primary" style="height:36px;margin-bottom:1px">Extract this clip</button>
+                </div>
+                <span style="font-size:11px;color:var(--color-neutral-500)">Word boundaries snap to the transcript, so a cut never lands mid word.</span>
+              </div>
+            </div>
+            </sc-if>
+
+            <sc-if value="{{ stIsReframe }}">
+            <div style="display:flex;flex-direction:column;gap:12px">
+              <p style="margin:0;font-size:12.5px;color:var(--color-neutral-400)">The speaker is tracked, so a 16:9 frame becomes a vertical one without cutting a head in half. Pick which sizes this run should build.</p>
+              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(104px,1fr));gap:9px">
+                <sc-for list="{{ aspects }}" as="a" hint-placeholder-count="4">
+                  <button type="button" style="{{ a.style }}">
+                    <span style="{{ a.frameStyle }}"><span style="position:absolute;left:14%;right:14%;bottom:12%;height:3px;border-radius:2px;background:color-mix(in srgb,var(--color-accent) 70%,transparent)"></span></span>
+                    <span style="{{ a.labelStyle }}">{{ a.l }}</span>
+                    <span style="font-size:10.5px;color:var(--color-neutral-500)">{{ a.note }}</span>
+                  </button>
+                </sc-for>
+              </div>
+              <span style="display:flex;align-items:center;gap:10px;font-size:12.5px;color:var(--color-neutral-300)">Keep the subject centred through cuts
+                <span style="position:relative;display:block;width:30px;height:17px;margin-left:auto;border-radius:999px;background:var(--color-accent)"><span style="position:absolute;top:2px;left:15px;width:13px;height:13px;border-radius:50%;background:var(--color-neutral-100)"></span></span>
+              </span>
+            </div>
+            </sc-if>
+
+            <sc-if value="{{ stIsCaptions }}">
+            <div style="display:flex;flex-direction:column;gap:13px">
+              <p style="margin:0;font-size:12.5px;color:var(--color-neutral-400)">The captioning tool runs on each clip. Same engine as the editor, so what you see here is what burns in.</p>
+              <div style="display:flex;flex-direction:column;gap:7px">
+                <span style="font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--color-neutral-500)">Caption language</span>
+                <div style="display:flex;flex-wrap:wrap;gap:6px">
+                  <sc-for list="{{ capLangs }}" as="l" hint-placeholder-count="3">
+                    <button type="button" style="{{ l.style }}">{{ l.label }}</button>
+                  </sc-for>
+                </div>
+              </div>
+              <div style="display:grid;grid-template-columns:minmax(0,1fr) 122px;gap:14px">
+                <div style="display:flex;flex-direction:column;gap:7px">
+                  <span style="font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--color-neutral-500)">Style</span>
+                  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(88px,1fr));gap:8px">
+                    <sc-for list="{{ miniStyles }}" as="m" hint-placeholder-count="6">
+                      <button type="button" style="{{ m.style }}">
+                        <span style="display:flex;aspect-ratio:9/13;align-items:flex-end;justify-content:center;padding:7px;background:{{ m.bg }}"><span style="{{ m.textStyle }}">{{ m.sample }}</span></span>
+                        <span style="display:block;padding:5px 6px;font-size:10px;text-align:left;color:var(--color-neutral-300)">{{ m.name }}</span>
+                      </button>
+                    </sc-for>
+                  </div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:7px">
+                  <span style="font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--color-neutral-500)">Placement</span>
+                  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:4px">
+                    <sc-for list="{{ placements }}" as="p" hint-placeholder-count="9">
+                      <span style="{{ p.style }}"><i class="ph ph-text-align-center"></i></span>
+                    </sc-for>
+                  </div>
+                  <span style="font-size:10.5px;color:var(--color-neutral-500)">Lower third, clear of the platform's own buttons.</span>
+                </div>
+              </div>
+            </div>
+            </sc-if>
+
+            <sc-if value="{{ stIsVersions }}">
+            <div style="display:flex;flex-direction:column;gap:11px">
+              <p style="margin:0;font-size:12.5px;color:var(--color-neutral-400)">One cut per destination, each with its own frame, caption size and copy. Edit any line before it goes out.</p>
+              <div style="overflow-x:auto">
+                <table class="table">
+                  <thead><tr><th>Platform</th><th>Frame</th><th>Captions</th><th>Copy</th><th style="text-align:right">On</th></tr></thead>
+                  <tbody>
+                    <sc-for list="{{ platforms }}" as="p" hint-placeholder-count="5">
+                      <tr>
+                        <td style="white-space:nowrap"><span style="display:flex;align-items:center;gap:7px;font-size:12.5px"><i class="{{ p.icon }}" style="font-size:15px;color:var(--color-accent)"></i>{{ p.name }}</span></td>
+                        <td style="font-family:ui-monospace,monospace;font-size:11.5px;color:var(--color-neutral-400)">{{ p.frame }}</td>
+                        <td style="font-size:11.5px;color:var(--color-neutral-400);white-space:nowrap">{{ p.cap }}</td>
+                        <td style="font-size:12px;color:var(--color-neutral-300)">{{ p.copy }}</td>
+                        <td style="text-align:right"><span style="{{ p.trackStyle }}"><span style="{{ p.knobStyle }}"></span></span></td>
+                      </tr>
+                    </sc-for>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            </sc-if>
+
+            <sc-if value="{{ stIsReview }}">
+            <div style="display:flex;flex-direction:column;gap:11px">
+              <p style="margin:0;font-size:12.5px;color:var(--color-neutral-400)">Watch each cut with its captions burned in. Approve, send back for a retime, or drop it.</p>
+              <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px">
+                <sc-for list="{{ clipsOut }}" as="c" hint-placeholder-count="3">
+                  <div style="display:flex;flex-direction:column;border-radius:10px;overflow:hidden;background:var(--sunken);box-shadow:0 0 0 1px var(--color-neutral-900)">
+                    <span style="position:relative;display:block;aspect-ratio:9/13;background:{{ c.thumb }}">
+                      <span style="position:absolute;top:6px;left:6px;padding:1px 6px;border-radius:5px;background:var(--color-accent-800);color:var(--color-accent-100);font-size:9.5px">Hook {{ c.score }}</span>
+                      <span style="position:absolute;right:6px;bottom:6px;padding:1px 5px;border-radius:4px;background:rgba(10,11,18,.72);font-family:ui-monospace,monospace;font-size:10px;color:var(--color-neutral-200)">{{ c.dur }}</span>
+                    </span>
+                    <span style="padding:8px 9px 4px;font-size:11.5px;line-height:1.35">{{ c.title }}</span>
+                    <span style="display:flex;gap:6px;padding:0 9px 10px">
+                      <button type="button" class="btn btn-primary" style="height:24px;font-size:10.5px;flex:1">Approve</button>
+                      <button type="button" class="btn btn-secondary" style="height:24px;font-size:10.5px">Retime</button>
+                    </span>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+            </sc-if>
+
+            <sc-if value="{{ stIsSchedule }}">
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <p style="margin:0;font-size:12.5px;color:var(--color-neutral-400)">Slots in your timezone, two per platform per day. Drag a row to move it.</p>
+              <div style="display:flex;flex-direction:column;gap:6px">
+                <sc-for list="{{ slots }}" as="sl" hint-placeholder-count="5">
+                  <span style="display:flex;align-items:center;gap:11px;padding:9px 11px;border-radius:9px;background:var(--sunken)">
+                    <i class="ph ph-dots-six-vertical" style="font-size:14px;color:var(--color-neutral-600)"></i>
+                    <span style="font-family:ui-monospace,monospace;font-size:11px;color:var(--color-neutral-300);white-space:nowrap">{{ sl.day }} · {{ sl.time }}</span>
+                    <span style="font-size:12.5px">{{ sl.what }}</span>
+                    <span class="tag tag-neutral" style="margin-left:auto">{{ sl.plat }}</span>
+                  </span>
+                </sc-for>
+              </div>
+            </div>
+            </sc-if>
+
+            <sc-if value="{{ stIsPublish }}">
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <p style="margin:0;font-size:12.5px;color:var(--color-neutral-400)">Posting runs through your own connected accounts. Nothing leaves until you press publish, and every post is logged with the clip it came from.</p>
+              <div style="display:flex;flex-direction:column;gap:6px">
+                <sc-for list="{{ accounts }}" as="a" hint-placeholder-count="5">
+                  <span style="display:flex;align-items:center;gap:10px;padding:9px 11px;border-radius:9px;background:var(--sunken)">
+                    <span style="display:flex;flex-direction:column;gap:2px">
+                      <span style="font-size:12.5px">{{ a.name }}</span>
+                      <span style="font-size:10.5px;color:var(--color-neutral-500)">{{ a.handle }}</span>
+                    </span>
+                    <span class="{{ a.tagClass }}" style="margin-left:auto">{{ a.status }}</span>
+                  </span>
+                </sc-for>
+              </div>
+            </div>
+            </sc-if>
+
+            <sc-if value="{{ stIsMeasure }}">
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <p style="margin:0;font-size:12.5px;color:var(--color-neutral-400)">What each cut did, per platform. The next run reads these numbers when it scores moments, so your own audience teaches the picker.</p>
+              <div style="overflow-x:auto">
+                <table class="table">
+                  <thead><tr><th>Post</th><th>Platform</th><th style="text-align:right">Views</th><th style="text-align:right">Retention</th><th style="text-align:right">Saves</th></tr></thead>
+                  <tbody>
+                    <sc-for list="{{ metrics }}" as="m" hint-placeholder-count="4">
+                      <tr>
+                        <td style="font-size:12.5px">{{ m.post }}</td>
+                        <td style="font-size:12px;color:var(--color-neutral-400)">{{ m.plat }}</td>
+                        <td style="text-align:right;font-family:ui-monospace,monospace;font-size:11.5px">{{ m.views }}</td>
+                        <td style="text-align:right;font-family:ui-monospace,monospace;font-size:11.5px;color:var(--color-accent-300)">{{ m.ret }}</td>
+                        <td style="text-align:right;font-family:ui-monospace,monospace;font-size:11.5px;color:var(--color-neutral-400)">{{ m.saves }}</td>
+                      </tr>
+                    </sc-for>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            </sc-if>
+
+            <div style="display:flex;flex-wrap:wrap;align-items:center;gap:9px;padding-top:4px">
+              <button type="button" onClick="{{ stageAdvance }}" class="btn btn-primary" style="height:32px">{{ stageCta }}</button>
+              <button type="button" class="btn btn-secondary" style="height:32px">Stop this run</button>
+              <span style="font-size:11px;color:var(--color-neutral-500)">{{ stageCost }}</span>
+            </div>
+          </div>
+        </div>
+        <aside style="display:flex;flex-direction:column;gap:11px;padding:14px;border-radius:12px;background:var(--color-surface);align-self:flex-start">
+          <span style="font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--color-neutral-500)">Source</span>
+          <span style="display:block;aspect-ratio:16/9;border-radius:8px;background:radial-gradient(120% 90% at 50% 20%,#2c2340,#0d0b12)"></span>
+          <span style="font-size:12.5px">Podcast ep 14, full episode</span>
+          <span style="font-size:11px;color:var(--color-neutral-500)">12:04 · English · uploaded 13 Sep</span>
+          <span style="display:block;height:1px;background:linear-gradient(to right,transparent,var(--color-divider) 24px,var(--color-divider) calc(100% - 24px),transparent)"></span>
+          <span style="font-size:11.5px;color:var(--color-neutral-400)">Nothing is posted anywhere without your confirmation.</span>
+        </aside>
+      </div>
+      </sc-if>
+
+      <sc-if value="{{ isBilling }}">
+      <div style="display:flex;flex-direction:column;gap:16px;padding:20px 18px 34px">
+        <section style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px">
+          <div style="display:flex;flex-direction:column;gap:10px;padding:18px;border-radius:12px;background:var(--color-surface);box-shadow:var(--shadow-sm)">
+            <span style="display:flex;align-items:center;gap:9px">
+              <span style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--color-accent)">Your plan</span>
+              <span class="tag tag-accent" style="margin-left:auto">Active</span>
+            </span>
+            <h2 style="margin:0;font-size:25px;letter-spacing:-0.02em">Creator</h2>
+            <p style="margin:0;font-size:13px;color:var(--color-neutral-400)">₹699 a month, renews 1 Oct through UPI Autopay. 500 credits a month, 4K exports, every language.</p>
+            <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:auto">
+              <button type="button" class="btn btn-primary" style="height:32px">Change plan</button>
+              <button type="button" class="btn btn-secondary" style="height:32px">Invoices</button>
+              <button type="button" class="btn btn-ghost" style="height:32px">Pause</button>
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:11px;padding:18px;border-radius:12px;background:var(--color-surface)">
+            <span style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--color-neutral-500)">Credits</span>
+            <div style="display:flex;align-items:flex-end;gap:7px">
+              <span style="font-family:var(--font-heading);font-size:34px;line-height:1;letter-spacing:-0.02em">342</span>
+              <span style="padding-bottom:4px;font-size:12px;color:var(--color-neutral-400)">of 500 left</span>
+            </div>
+            <span style="display:block;height:3px;border-radius:999px;background:var(--color-neutral-800);overflow:hidden"><span style="display:block;width:68%;height:100%;background:var(--color-accent)"></span></span>
+            <p style="margin:0;font-size:12px;color:var(--color-neutral-400)">You are spending about 21 credits a day this week, so this balance lasts about 16 more days.</p>
+            <div style="display:flex;gap:8px;margin-top:auto">
+              <button type="button" class="btn btn-primary" style="height:30px;font-size:12.5px">Top up 100 for ₹149</button>
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:9px;padding:18px;border-radius:12px;background:var(--color-surface)">
+            <span style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--color-neutral-500)">What 500 credits buys</span>
+            <sc-for list="{{ outcomes }}" as="o" hint-placeholder-count="3">
+              <span style="display:flex;align-items:baseline;gap:9px;font-size:12.5px;color:var(--color-neutral-300)">{{ o.l }}<span style="margin-left:auto;font-family:ui-monospace,monospace;font-size:12px;color:var(--color-text)">{{ o.v }}</span></span>
+            </sc-for>
+            <p style="margin:4px 0 0;font-size:11px;color:var(--color-neutral-500)">One credit is one minute of transcription at the base rate.</p>
+          </div>
+        </section>
+
+        <section style="display:flex;flex-direction:column;gap:12px">
+          <div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px">
+            <h3 style="margin:0;font-size:17px;letter-spacing:-0.01em">Move up or down</h3>
+            <span style="display:flex;align-items:center;gap:4px;padding:3px;border:1px solid var(--color-divider);border-radius:8px">
+              <button type="button" onClick="{{ intervalMonth }}" style="{{ monthStyle }}">Monthly</button>
+              <button type="button" onClick="{{ intervalYear }}" style="{{ yearStyle }}">Yearly, two months free</button>
+            </span>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px">
+            <sc-for list="{{ plans }}" as="p" hint-placeholder-count="3">
+              <div style="{{ p.style }}">
+                <span style="display:flex;align-items:baseline;gap:8px">
+                  <span style="font-family:var(--font-heading);font-size:17px">{{ p.name }}</span>
+                  <sc-if value="{{ p.featured }}"><span class="tag tag-outline" style="margin-left:auto">You are here</span></sc-if>
+                </span>
+                <span style="display:flex;align-items:baseline;gap:5px">
+                  <span style="font-family:var(--font-heading);font-size:27px;letter-spacing:-0.02em">{{ p.price }}</span>
+                  <span style="font-size:11.5px;color:var(--color-neutral-500)">{{ p.per }}</span>
+                </span>
+                <span style="font-size:12.5px;color:var(--color-accent-300)">{{ p.credits }}</span>
+                <p style="margin:0;font-size:12px;color:var(--color-neutral-400);flex:1">{{ p.note }}</p>
+                <button type="button" class="{{ p.ctaClass }}" style="height:32px;width:100%;margin-top:4px">{{ p.cta }}</button>
+              </div>
+            </sc-for>
+          </div>
+        </section>
+
+        <section style="display:flex;flex-direction:column;gap:10px;padding:16px 16px 8px;border-radius:12px;background:var(--color-surface)">
+          <span style="display:flex;align-items:baseline;gap:9px">
+            <h3 style="margin:0;font-size:15px">Where the credits went</h3>
+            <button type="button" class="btn btn-ghost" style="margin-left:auto;font-size:12px">Download CSV</button>
+          </span>
+          <div style="overflow-x:auto">
+            <table class="table">
+              <thead><tr><th>Date</th><th>Job</th><th style="text-align:right">Credits</th></tr></thead>
+              <tbody>
+                <sc-for list="{{ ledger }}" as="l" hint-placeholder-count="5">
+                  <tr>
+                    <td style="font-size:12px;color:var(--color-neutral-400);white-space:nowrap">{{ l.when }}</td>
+                    <td style="font-size:12.5px">{{ l.what }}</td>
+                    <td style="text-align:right;font-family:ui-monospace,monospace;font-size:12px">{{ l.amount }}</td>
+                  </tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+      </sc-if>
+
+      <sc-if value="{{ isSettings }}">
+      <div style="display:grid;grid-template-columns:minmax(0,196px) minmax(0,1fr);gap:22px;padding:20px 18px 34px">
+        <div style="display:flex;flex-direction:column;gap:2px">
+          <sc-for list="{{ sections }}" as="x" hint-placeholder-count="6">
+            <button type="button" onClick="{{ x.onClick }}" style="{{ x.style }}"><i class="{{ x.icon }}" style="font-size:14px;flex-shrink:0"></i>{{ x.label }}</button>
+          </sc-for>
+        </div>
+        <div style="min-width:0;max-width:720px;display:flex;flex-direction:column;gap:16px">
+          <h2 style="margin:0;font-size:21px;letter-spacing:-0.02em">{{ sectionTitle }}</h2>
+
+          <sc-if value="{{ sectionIsProfile }}" hint-placeholder-val="{{ true }}">
+          <div style="display:flex;flex-direction:column;gap:14px;padding:18px;border-radius:12px;background:var(--color-surface)">
+            <div style="display:flex;align-items:center;gap:12px">
+              <span style="display:flex;align-items:center;justify-content:center;width:46px;height:46px;border-radius:50%;background:var(--color-accent-800);color:var(--color-accent-100);font-size:16px">IS</span>
+              <span style="display:flex;flex-direction:column;gap:2px">
+                <span style="font-size:14px">Ishaan Sethi</span>
+                <span style="font-size:12px;color:var(--color-neutral-500)">ishaan@sethiedits.in · signed in with Google</span>
+              </span>
+              <button type="button" class="btn btn-secondary" style="margin-left:auto;height:30px;font-size:12px">Replace photo</button>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px">
+              <label class="field"><label>Display name</label><input class="input" value="Ishaan Sethi"></label>
+              <label class="field"><label>Studio name on share links</label><input class="input" value="Sethi Edits"></label>
+            </div>
+            <div style="display:flex;gap:8px"><button type="button" class="btn btn-primary" style="height:32px">Save</button><button type="button" class="btn btn-ghost" style="height:32px">Cancel</button></div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:9px;padding:18px;border-radius:12px;background:var(--color-surface)">
+            <span style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--color-neutral-500)">Devices and sessions</span>
+            <sc-for list="{{ devices }}" as="d" hint-placeholder-count="3">
+              <span style="display:flex;align-items:center;gap:10px;padding:8px 0;background:linear-gradient(to right,color-mix(in srgb,var(--color-text) 8%,transparent),color-mix(in srgb,var(--color-text) 8%,transparent) calc(100% - 48px),transparent) no-repeat bottom / 100% 1px">
+                <span style="display:flex;flex-direction:column;gap:2px">
+                  <span style="font-size:12.5px">{{ d.name }}</span>
+                  <span style="font-size:11px;color:var(--color-neutral-500)">{{ d.note }}</span>
+                </span>
+                <button type="button" class="btn btn-ghost" style="margin-left:auto;height:26px;font-size:11.5px">Sign out</button>
+              </span>
+            </sc-for>
+          </div>
+          </sc-if>
+
+          <sc-if value="{{ sectionIsLanguages }}">
+          <div style="display:flex;flex-direction:column;gap:14px;padding:18px;border-radius:12px;background:var(--color-surface)">
+            <div>
+              <h3 style="margin:0 0 4px;font-size:15px">Languages you speak on camera</h3>
+              <p style="margin:0;font-size:12.5px;color:var(--color-neutral-400)">Your first pick becomes the default tag on a new upload. The tag decides which engine reads the audio.</p>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:6px">
+              <sc-for list="{{ langChips }}" as="l" hint-placeholder-count="9">
+                <button type="button" style="{{ l.style }}">{{ l.label }}</button>
+              </sc-for>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px">
+              <label class="field"><label>Default frame</label><input class="input" value="9:16 Reels and Shorts"></label>
+              <label class="field"><label>Default caption style</label><input class="input" value="Punch Pop"></label>
+              <label class="field"><label>Writing script</label><input class="input" value="Roman"></label>
+              <label class="field"><label>Export preset</label><input class="input" value="Reels 1080p"></label>
+            </div>
+          </div>
+          </sc-if>
+
+          <sc-if value="{{ sectionIsMemory }}">
+          <div style="display:flex;flex-direction:column;gap:12px;padding:18px;border-radius:12px;background:var(--color-surface)">
+            <div>
+              <h3 style="margin:0 0 4px;font-size:15px">Spellings we remember for you</h3>
+              <p style="margin:0;font-size:12.5px;color:var(--color-neutral-400)">Kept only because you turned memory on. Edit or clear any row, any time.</p>
+            </div>
+            <table class="table">
+              <thead><tr><th>Word</th><th>Why</th><th style="text-align:right">Applied</th><th></th></tr></thead>
+              <tbody>
+                <sc-for list="{{ memoryRows }}" as="m" hint-placeholder-count="3">
+                  <tr>
+                    <td style="font-size:12.5px">{{ m.term }}</td>
+                    <td style="font-size:12px;color:var(--color-neutral-400)">{{ m.note }}</td>
+                    <td style="text-align:right;font-family:ui-monospace,monospace;font-size:11.5px;color:var(--color-neutral-400)">{{ m.count }}</td>
+                    <td style="text-align:right"><button type="button" class="btn btn-ghost" style="height:24px;font-size:11px">Forget</button></td>
+                  </tr>
+                </sc-for>
+              </tbody>
+            </table>
+            <div style="display:flex;align-items:center;gap:10px;padding-top:4px">
+              <span style="font-size:12.5px;color:var(--color-neutral-300)">Keep learning my spellings</span>
+              <span style="position:relative;display:block;width:32px;height:18px;margin-left:auto;border-radius:999px;background:var(--color-accent)"><span style="position:absolute;top:2px;left:16px;width:14px;height:14px;border-radius:50%;background:var(--color-neutral-100)"></span></span>
+            </div>
+          </div>
+          </sc-if>
+
+          <sc-if value="{{ sectionIsOther }}">
+          <div style="display:flex;flex-direction:column;gap:10px;padding:18px;border-radius:12px;background:var(--color-surface)">
+            <p style="margin:0;font-size:13px;color:var(--color-neutral-300)">This section carries the same layout: one card per decision, the plain sentence about what it does, and the control on the right.</p>
+            <p style="margin:0;font-size:12.5px;color:var(--color-neutral-500)">Pick Profile, Languages or Memory on the left to see it filled in.</p>
+          </div>
+          </sc-if>
+        </div>
+      </div>
+      </sc-if>
+
+      <sc-if value="{{ isOnboarding }}">
+      <div style="display:flex;flex:1;align-items:flex-start;justify-content:center;padding:34px 18px">
+        <div style="width:100%;max-width:560px;display:flex;flex-direction:column;gap:18px">
+          <div style="display:flex;align-items:center;gap:8px">
+            <sc-for list="{{ steps }}" as="st" hint-placeholder-count="4">
+              <span style="{{ st.style }}">{{ st.n }}</span>
+            </sc-for>
+            <span style="margin-left:auto;font-size:11px;color:var(--color-neutral-500)">Takes under a minute</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:16px;padding:22px;border-radius:14px;background:var(--color-surface);box-shadow:var(--shadow-sm)">
+            <h2 style="margin:0;font-size:23px;letter-spacing:-0.02em">{{ stepLabel }}</h2>
+
+            <sc-if value="{{ stepIs1 }}">
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <p style="margin:0;font-size:12.5px;color:var(--color-neutral-400)">Pick as many as apply. This sets your frame, style and export preset, and you can change all three later.</p>
+              <sc-for list="{{ makes }}" as="m" hint-placeholder-count="5">
+                <button type="button" style="{{ m.style }}"><i class="{{ m.icon }}" style="font-size:16px"></i>{{ m.label }}</button>
+              </sc-for>
+            </div>
+            </sc-if>
+
+            <sc-if value="{{ stepIs2 }}" hint-placeholder-val="{{ true }}">
+            <div style="display:flex;flex-direction:column;gap:11px">
+              <p style="margin:0;font-size:12.5px;color:var(--color-neutral-400)">Your first pick becomes the default tag on an upload. Hinglish is its own option because mixing English into Hindi is what most reels actually do.</p>
+              <div style="display:flex;flex-wrap:wrap;gap:6px">
+                <sc-for list="{{ langChips }}" as="l" hint-placeholder-count="9">
+                  <button type="button" style="{{ l.style }}">{{ l.label }}</button>
+                </sc-for>
+              </div>
+            </div>
+            </sc-if>
+
+            <sc-if value="{{ stepIs3 }}">
+            <div style="display:flex;flex-direction:column;gap:12px">
+              <div style="display:flex;flex-wrap:wrap;gap:6px">
+                <sc-for list="{{ sources }}" as="src" hint-placeholder-count="6">
+                  <button type="button" style="{{ src.style }}">{{ src.label }}</button>
+                </sc-for>
+              </div>
+              <label class="field"><label>Referral or affiliate code, if you have one</label><input class="input" placeholder="AK-XXXX"></label>
+            </div>
+            </sc-if>
+
+            <sc-if value="{{ stepIs4 }}">
+            <div style="display:flex;flex-direction:column;gap:12px">
+              <p style="margin:0;font-size:13px;color:var(--color-neutral-300)">Your studio opens on 9:16, Punch Pop captions and Hinglish. There are 20 free credits waiting, and one export without a watermark.</p>
+              <div style="display:flex;gap:9px">
+                <button type="button" onClick="{{ goHome }}" class="btn btn-primary" style="height:34px">Open the studio</button>
+                <button type="button" onClick="{{ goEditor }}" class="btn btn-secondary" style="height:34px">Try a sample project</button>
+              </div>
+            </div>
+            </sc-if>
+
+            <div style="display:flex;align-items:center;gap:9px;padding-top:2px">
+              <button type="button" onClick="{{ stepBack }}" class="btn btn-ghost" style="height:32px">Back</button>
+              <button type="button" onClick="{{ stepNext }}" class="btn btn-primary" style="margin-left:auto;height:32px">Continue</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      </sc-if>
+
+      <sc-if value="{{ isSite }}">
+      <div style="display:flex;flex-direction:column">
+        <section style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:26px;padding:44px 22px 34px;max-width:1120px">
+          <div style="display:flex;flex-direction:column;gap:16px">
+            <div style="display:flex;align-items:center;gap:10px">
+              <span style="font-size:11px;color:var(--color-neutral-400)">Captions, cuts and polish, inside your timeline</span>
+              <span style="display:flex;gap:3px;padding:2px;border:1px solid var(--color-divider);border-radius:8px">
+                <button type="button" onClick="{{ localeEn }}" style="{{ enStyle }}">EN</button>
+                <button type="button" onClick="{{ localeHi }}" style="{{ hiStyle }}">हिं</button>
+              </span>
+            </div>
+            <h1 style="margin:0;font-size:40px;line-height:1.08;letter-spacing:-0.025em;max-width:22ch">{{ heroHead }}</h1>
+            <div style="display:flex;flex-direction:column;gap:9px;max-width:54ch">
+              <sc-for list="{{ heroSubs }}" as="line" hint-placeholder-count="3">
+                <p style="margin:0;font-size:14.5px;line-height:1.55;color:var(--color-neutral-300)">{{ line }}</p>
+              </sc-for>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:4px">
+              <button type="button" onClick="{{ goOnboarding }}" class="btn btn-primary" style="height:38px;padding:0 18px;font-size:14px">Start free, one clean export on us</button>
+              <button type="button" onClick="{{ goBilling }}" class="btn btn-secondary" style="height:38px;padding:0 16px;font-size:14px">See pricing</button>
+            </div>
+            <p style="margin:0;font-size:11.5px;color:var(--color-neutral-500)">No card required. Your footage never trains anyone's model.</p>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:center">
+            <div style="position:relative;width:100%;max-width:260px;aspect-ratio:9/16;border-radius:14px;overflow:hidden;background:radial-gradient(120% 80% at 50% 18%,#3a2e4d,#16182a 55%,#0a0b12);box-shadow:var(--shadow-md);container-type:inline-size">
+              <span style="position:absolute;left:0;right:0;bottom:16%;padding:0 8%;text-align:center;font-size:clamp(15px,10cqw,30px);font-weight:700;line-height:1.15;color:#f3f5fe;text-shadow:0 2px 12px rgba(0,0,0,.85)">har word <span style="color:var(--color-accent-300)">editable</span></span>
+              <span style="position:absolute;top:10px;left:10px;padding:2px 7px;border-radius:6px;background:rgba(10,11,18,.55);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--color-neutral-300)">Live preview</span>
+            </div>
+          </div>
+        </section>
+
+        <section style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:20px;padding:26px 22px;background:var(--color-section);max-width:1120px">
+          <sc-for list="{{ proof }}" as="p" hint-placeholder-count="3">
+            <div style="display:flex;flex-direction:column;gap:4px">
+              <span style="font-family:var(--font-heading);font-size:25px;letter-spacing:-0.02em">{{ p.v }}</span>
+              <span style="font-size:12.5px;color:var(--color-neutral-200)">{{ p.l }}</span>
+            </div>
+          </sc-for>
+        </section>
+
+        <section style="display:flex;flex-direction:column;gap:20px;padding:34px 22px;max-width:1120px">
+          <h2 style="margin:0;font-size:27px;letter-spacing:-0.02em;max-width:26ch">What makes a caption tool worth paying for</h2>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:20px">
+            <sc-for list="{{ valueProps }}" as="v" hint-placeholder-count="4">
+              <div style="display:flex;flex-direction:column;gap:7px">
+                <span style="font-family:ui-monospace,monospace;font-size:12px;color:var(--color-accent)">{{ v.n }}</span>
+                <span style="font-family:var(--font-heading);font-size:15px;line-height:1.25">{{ v.t }}</span>
+                <p style="margin:0;font-size:12.5px;line-height:1.55;color:var(--color-neutral-400)">{{ v.b }}</p>
+              </div>
+            </sc-for>
+          </div>
+        </section>
+
+        <section style="display:flex;flex-direction:column;gap:12px;padding:0 22px 44px;max-width:1120px">
+          <div style="display:flex;flex-direction:column;gap:12px;padding:26px;border-radius:14px;background:var(--color-surface)">
+            <h2 style="margin:0;font-size:23px;letter-spacing:-0.02em">Bring one clip. It is free.</h2>
+            <p style="margin:0;max-width:52ch;font-size:13.5px;color:var(--color-neutral-400)">One clean export on us when you sign up. If Hinglish is what you speak, this is the tool that spells it the way you do.</p>
+            <div style="display:flex;gap:9px"><button type="button" onClick="{{ goOnboarding }}" class="btn btn-primary" style="height:36px;padding:0 16px">Start free</button></div>
+          </div>
+        </section>
+      </div>
+      </sc-if>
+
+    </main>
+  </div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:900},&quot;startScreen&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;home&quot;,&quot;editor&quot;,&quot;projects&quot;,&quot;styles&quot;,&quot;repurpose&quot;,&quot;billing&quot;,&quot;settings&quot;,&quot;onboarding&quot;,&quot;site&quot;],&quot;default&quot;:&quot;home&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Prototype&quot;},&quot;navModel&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;rail&quot;,&quot;sidebar&quot;],&quot;default&quot;:&quot;rail&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Prototype&quot;},&quot;showRailLabels&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Prototype&quot;}}">
+class Component extends DCLogic {
+  state = {
+    screen: "home", nav: "rail", tab: "text", script: "roman", sel: 2, playing: false,
+    motion: "pop", audio: { dehum: true, music: false, dub: false },
+    cat: "all", scr: "latin", interval: "month", section: "profile", step: 2, locale: "en",
+    stage: "analyse",
+  };
+
+  set(k, v) { return () => this.setState({ [k]: v }); }
+
+  componentDidMount() {
+    const next = {};
+    if (typeof this.props.startScreen === "string") next.screen = this.props.startScreen;
+    if (typeof this.props.navModel === "string") next.nav = this.props.navModel;
+    if (Object.keys(next).length > 0) this.setState(next);
+  }
+
+  renderVals() {
+    const s = this.state;
+    const accentTint = (pct) => `color-mix(in srgb,var(--color-accent) ${pct}%,transparent)`;
+    const nav = [
+      { key: "repurpose", label: "Clips pipeline", short: "Clips", icon: "ph ph-flow-arrow" },
+      { key: "home", label: "Studio", short: "Studio", icon: "ph ph-squares-four" },
+      { key: "projects", label: "Projects", short: "Files", icon: "ph ph-folders", badge: "24" },
+      { key: "editor", label: "Editor", short: "Edit", icon: "ph ph-subtitles" },
+      { key: "styles", label: "Styles", short: "Styles", icon: "ph ph-palette" },
+      { key: "billing", label: "Plan and credits", short: "Plan", icon: "ph ph-lightning" },
+      { key: "settings", label: "Settings", short: "Setup", icon: "ph ph-sliders" },
+      { key: "onboarding", label: "First run", short: "Intro", icon: "ph ph-hand-waving" },
+    ];
+    const titles = {
+      home: ["Aksharo studio", "Good evening, Ishaan"],
+      projects: ["Library", "24 projects"],
+      editor: ["Project · 0:38 · Hinglish (Roman)", "Diwali skit, final cut"],
+      styles: ["Caption styles", "Thirty styles, every word tunable"],
+      repurpose: ["Repurpose run", "One long video, nine posts"],
+      billing: ["Plan and credits", "Creator, renews 1 Oct"],
+      settings: ["Settings", "Your studio, your defaults"],
+      onboarding: ["First run", "Four questions, then you are in"],
+      site: ["aksharo.ai", "Signed out"],
+    };
+    const t = titles[s.screen] || titles.home;
+    const seg = (on) =>
+      "padding:4px 10px;border:0;border-radius:6px;font-size:11.5px;transition:background-color 160ms,color 160ms;" +
+      (on ? `background:${accentTint(16)};color:var(--color-accent-200)` : "background:transparent;color:var(--color-neutral-500)");
+    const pill = (on) =>
+      "padding:5px 11px;border-radius:8px;border:1px solid " + (on ? "var(--color-accent)" : "var(--color-divider)") +
+      ";background:" + (on ? accentTint(14) : "transparent") + ";color:" + (on ? "var(--color-accent-200)" : "var(--color-neutral-400)") +
+      ";font-size:11.5px;transition:all 160ms";
+
+    const lines = [
+      { tc: "0:00", t: "Namaste doston, aaj hum baat karenge", sp: "Ishaan", emph: 4 },
+      { tc: "0:03", t: "ek chhoti si trick ke baare mein", sp: "Ishaan", emph: 1 },
+      { tc: "0:06", t: "jo aapke edits ko dus guna fast kar degi", sp: "Ishaan", emph: 5 },
+      { tc: "0:10", t: "seedha timeline ke andar, bina export kiye", sp: "Ishaan", emph: -1 },
+      { tc: "0:14", t: "pehle apni spoken language choose karo", sp: "Riya", emph: 3 },
+      { tc: "0:18", t: "phir har word ko tweak kar sakte ho", sp: "Riya", emph: 4 },
+      { tc: "0:22", t: "aur bas, export ready hai", sp: "Riya", emph: -1 },
+      { tc: "0:25", t: "Hinglish mein spelling bhi sahi aayegi", sp: "Ishaan", emph: 2 },
+    ];
+    const styleCards = [
+      { id: "punch-pop", name: "Punch Pop", cat: "bold", sample: "PUNCH", weight: 800, colour: "#f3f5fe", bg: "linear-gradient(160deg,#2f2545,#12131f)" },
+      { id: "karaoke-fill", name: "Karaoke Fill", cat: "kinetic", sample: "karaoke", weight: 700, colour: "#b5abfc", bg: "linear-gradient(160deg,#1d2b3a,#0f1219)" },
+      { id: "minimal-lower-third", name: "Minimal Lower Third", cat: "clean", sample: "minimal", weight: 500, colour: "#e9e9ed", bg: "linear-gradient(160deg,#20222e,#101118)" },
+      { id: "neon-glow", name: "Neon Glow", cat: "gaming", sample: "NEON", weight: 800, colour: "#d2cefd", bg: "linear-gradient(160deg,#141a2e,#0a0c14)" },
+      { id: "gold-luxury-serif", name: "Gold Luxury Serif", cat: "cinematic", sample: "Luxury", weight: 500, colour: "#e6cf97", bg: "linear-gradient(160deg,#2a2418,#111009)" },
+      { id: "hype-bold", name: "Hype Bold", cat: "bold", sample: "HYPE", weight: 900, colour: "#f3f5fe", bg: "linear-gradient(160deg,#2b1b2b,#120a12)" },
+      { id: "editorial-stack", name: "Editorial Stack", cat: "kinetic", sample: "stack", weight: 600, colour: "#cfd3e5", bg: "linear-gradient(160deg,#1c2030,#0d0f16)" },
+      { id: "bubble-soft", name: "Bubble Soft", cat: "playful", sample: "bubble", weight: 700, colour: "#f5f4ff", bg: "linear-gradient(160deg,#2c2038,#120c18)" },
+      { id: "typewriter-mono", name: "Typewriter Mono", cat: "clean", sample: "mono", weight: 400, colour: "#e4e7f5", bg: "linear-gradient(160deg,#1a1c26,#0c0d13)" },
+      { id: "devanagari-native", name: "Devanagari Native", cat: "clean", sample: "हिन्दी", weight: 600, colour: "#f3f5fe", bg: "linear-gradient(160deg,#242034,#101018)" },
+    ];
+    const motionList = [
+      { id: "pop", name: "Word pop", note: "Each word scales in on its own beat", icon: "ph ph-cursor-click" },
+      { id: "fill", name: "Karaoke fill", note: "Colour sweeps through as it is spoken", icon: "ph ph-paint-brush-broad" },
+      { id: "rise", name: "Rise", note: "The line lifts from below the safe area", icon: "ph ph-arrow-up" },
+      { id: "type", name: "Typewriter", note: "Character by character", icon: "ph ph-keyboard" },
+      { id: "none", name: "None", note: "Cut on, cut off", icon: "ph ph-prohibit" },
+    ];
+    const audioDefs = [
+      { id: "dehum", label: "Remove room hum" },
+      { id: "music", label: "Duck background music under speech" },
+      { id: "dub", label: "Dub into English (Creator)" },
+    ];
+    const cats = ["all", "bold", "clean", "kinetic", "cinematic", "playful", "gaming"];
+    const scripts = [
+      { id: "latin", label: "Roman" },
+      { id: "devanagari", label: "Devanagari" },
+      { id: "tamil", label: "Tamil" },
+    ];
+    const sections = [
+      { id: "profile", label: "Profile", icon: "ph ph-user" },
+      { id: "languages", label: "Languages and defaults", icon: "ph ph-translate" },
+      { id: "memory", label: "What Aksharo learned", icon: "ph ph-brain" },
+      { id: "devices", label: "Devices and sessions", icon: "ph ph-devices" },
+      { id: "privacy", label: "Privacy", icon: "ph ph-lock-key" },
+      { id: "team", label: "Team and seats", icon: "ph ph-users-three" },
+    ];
+    const rowBase =
+      "display:flex;align-items:flex-start;gap:10px;padding:8px 6px;border-radius:8px;cursor:pointer;transition:background-color 160ms;";
+
+    return {
+      isRail: s.nav === "rail" && s.screen !== "site",
+      isSidebar: s.nav === "sidebar" && s.screen !== "site",
+      inApp: s.screen !== "site",
+      isHome: s.screen === "home",
+      isEditor: s.screen === "editor",
+      isProjects: s.screen === "projects",
+      isStyles: s.screen === "styles",
+      isRepurpose: s.screen === "repurpose",
+      isBilling: s.screen === "billing",
+      isSettings: s.screen === "settings",
+      isOnboarding: s.screen === "onboarding",
+      isSite: s.screen === "site",
+      crumb: t[0],
+      title: t[1],
+      setRail: this.set("nav", "rail"),
+      setSidebar: this.set("nav", "sidebar"),
+      railSwitch: seg(s.nav === "rail"),
+      sidebarSwitch: seg(s.nav === "sidebar"),
+      goSite: this.set("screen", "site"),
+      goHome: this.set("screen", "home"),
+      goProjects: this.set("screen", "projects"),
+      goEditor: this.set("screen", "editor"),
+      goBilling: this.set("screen", "billing"),
+      goStyles: this.set("screen", "styles"),
+      goRepurpose: this.set("screen", "repurpose"),
+      goOnboarding: this.set("screen", "onboarding"),
+      navItems: nav.map((n) => ({
+        label: n.label, icon: n.icon, badge: n.badge,
+        short: this.props.showRailLabels === false ? "" : n.short,
+        onClick: this.set("screen", n.key),
+        railStyle:
+          "display:flex;width:56px;flex-direction:column;align-items:center;gap:5px;padding:8px 0 7px;border:0;border-radius:8px;transition:background-color 160ms,color 160ms;" +
+          (s.screen === n.key
+            ? `background:${accentTint(16)};color:var(--color-accent-200);box-shadow:inset 0 0 0 1px ${accentTint(45)}`
+            : "background:transparent;color:var(--color-neutral-500)"),
+        barStyle:
+          "display:flex;width:100%;align-items:center;gap:9px;padding:8px 10px;border:0;border-radius:8px;font-size:13px;text-align:left;transition:background-color 160ms,color 160ms;" +
+          (s.screen === n.key
+            ? `background:${accentTint(14)};color:var(--color-accent-200)`
+            : "background:transparent;color:var(--color-neutral-300)"),
+      })),
+      homeStages: ["Upload", "Analyse", "Select clips", "Reframe", "Captions", "Versions", "Review", "Schedule", "Publish", "Measure"].map((label, i) => {
+        const keys = ["upload", "analyse", "select", "reframe", "captions", "versions", "review", "schedule", "publish", "measure"];
+        const done = i < 3;
+        const active = i === 3;
+        return {
+          label,
+          n: String(i + 1).padStart(2, "0"),
+          onClick: () => this.setState({ screen: "repurpose", stage: keys[i] }),
+          style:
+            "display:flex;align-items:center;gap:6px;padding:5px 9px;border-radius:8px;flex-shrink:0;white-space:nowrap;font-size:11px;transition:all 160ms;border:1px solid " +
+            (active ? "var(--color-accent)" : "var(--color-divider)") +
+            ";background:" + (active ? accentTint(12) : "transparent") +
+            ";color:" + (active ? "var(--color-accent-200)" : done ? "var(--color-neutral-300)" : "var(--color-neutral-500)"),
+          nStyle: "font-family:ui-monospace,monospace;font-size:9px;color:" + (done || active ? "var(--color-accent-300)" : "var(--color-neutral-600)"),
+        };
+      }),
+      quickPicks: [
+        { k: "Spoken", v: "Hinglish (Roman)" },
+        { k: "Style", v: "Punch Pop" },
+        { k: "Frame", v: "9:16" },
+      ],
+      queue: [
+        { title: "Bikaji ad v3, client review", stage: "Transcribing 62%", pct: "62%", eta: "2m 10s", thumb: "linear-gradient(140deg,#1b2430,#0c0f12)" },
+        { title: "Podcast ep 14, full episode", stage: "Aligning words 31%", pct: "31%", eta: "9m 40s", thumb: "linear-gradient(200deg,#231a2b,#0d0b10)" },
+      ],
+      projects: [
+        { title: "Diwali skit, final cut", dur: "0:38", status: "Ready", lang: "Hinglish", caption: "dus guna fast", thumb: "radial-gradient(120% 80% at 50% 25%,#3a2e4d,#12131f)" },
+        { title: "Street food reel, Sadar", dur: "0:47", status: "Ready", lang: "Hinglish", caption: "ek hi jagah", thumb: "radial-gradient(120% 80% at 50% 25%,#3d2b23,#14100e)" },
+        { title: "Bikaji ad v3", dur: "0:22", status: "Working", lang: "हिन्दी", caption: "स्वाद वही", thumb: "radial-gradient(120% 80% at 50% 25%,#233245,#0c1015)" },
+        { title: "Podcast ep 14, hook", dur: "1:04", status: "Ready", lang: "English", caption: "the one thing", thumb: "radial-gradient(120% 80% at 50% 25%,#2c2340,#100d16)" },
+        { title: "Tamil recipe short", dur: "0:55", status: "Queued", lang: "தமிழ்", caption: "இது எளிது", thumb: "radial-gradient(120% 80% at 50% 25%,#2e2b1c,#12110b)" },
+      ].map((p, i) => ({
+        ...p,
+        credits: ["18.4", "0.8", "6.2", "24.1", "0.0"][i],
+        updated: ["2 hours ago", "yesterday", "3 days ago", "5 days ago", "today"][i],
+        dotStyle:
+          "width:5px;height:5px;border-radius:50%;background:" +
+          (p.status === "Ready" ? "var(--color-accent)" : p.status === "Working" ? "var(--color-accent-400)" : "var(--color-neutral-600)"),
+      })),
+      scriptTabs: [
+        { id: "roman", label: "Roman" },
+        { id: "native", label: "Devanagari" },
+        { id: "en", label: "English" },
+      ].map((x) => ({ label: x.label, onClick: this.set("script", x.id), style: pill(s.script === x.id) })),
+      panelTabs: [
+        { id: "text", label: "Text" },
+        { id: "templates", label: "Styles" },
+        { id: "motion", label: "Motion" },
+        { id: "audio", label: "Audio" },
+      ].map((x) => ({
+        label: x.label,
+        onClick: this.set("tab", x.id),
+        style:
+          "flex:1;padding:7px 0;border:0;border-radius:8px 8px 0 0;font-size:12px;transition:color 160ms,box-shadow 160ms;background:transparent;" +
+          (s.tab === x.id
+            ? "color:var(--color-text);box-shadow:inset 0 -2px 0 var(--color-accent)"
+            : "color:var(--color-neutral-500)"),
+      })),
+      tabIsText: s.tab === "text",
+      tabIsTemplates: s.tab === "templates",
+      tabIsMotion: s.tab === "motion",
+      tabIsAudio: s.tab === "audio",
+      togglePlay: () => this.setState({ playing: !s.playing }),
+      playIcon: s.playing ? "ph-fill ph-pause" : "ph-fill ph-play",
+      rows: lines.map((l, i) => ({
+        n: l.tc === "" ? "" : String(i + 1),
+        tc: l.tc,
+        tcColor: s.sel === i ? "var(--color-accent-300)" : "var(--color-neutral-600)",
+        sp: l.sp,
+        spStyle:
+          "flex-shrink:0;margin-top:3px;padding:1px 7px;border-radius:6px;font-size:10px;" +
+          (l.sp === "Ishaan"
+            ? "background:var(--color-accent-800);color:var(--color-accent-100)"
+            : "background:var(--color-neutral-800);color:var(--color-neutral-200)"),
+        onClick: this.set("sel", i),
+        style: rowBase + (s.sel === i ? `background:${accentTint(10)};box-shadow:inset 2px 0 0 var(--color-accent)` : "background:transparent"),
+        words: l.t.split(" ").map((w, wi) => ({
+          t: w,
+          style:
+            wi === l.emph
+              ? "padding:1px 6px;border-radius:5px;background:var(--color-accent-800);color:var(--color-accent-100)"
+              : "padding:1px 2px;border-radius:5px;color:" + (s.sel === i ? "var(--color-text)" : "var(--color-neutral-300)"),
+        })),
+      })),
+      sliders: [
+        { label: "Size", value: "96 px", pct: "62%" },
+        { label: "Line height", value: "1.15", pct: "34%" },
+        { label: "Letter spacing", value: "-1%", pct: "22%" },
+        { label: "Max width", value: "86%", pct: "86%" },
+      ].map((x) => ({ ...x, knob: `calc(${x.pct} - 4px)` })),
+      colours: [
+        { label: "Fill", hex: "#f3f5fe" },
+        { label: "Spoken word", hex: "#9184d9" },
+        { label: "Outline", hex: "#0a0b12" },
+      ],
+      miniStyles: styleCards.slice(0, 6).map((m) => ({
+        name: m.name, sample: m.sample, bg: m.bg,
+        style:
+          "display:flex;flex-direction:column;padding:0;border:0;border-radius:8px;overflow:hidden;background:var(--sunken);cursor:pointer;transition:box-shadow 160ms;" +
+          (m.id === "punch-pop" ? "box-shadow:0 0 0 1px var(--color-accent)" : "box-shadow:0 0 0 1px var(--color-neutral-900)"),
+        textStyle: `font-size:12px;font-weight:${m.weight};color:${m.colour};text-shadow:0 1px 4px rgba(0,0,0,.8)`,
+      })),
+      motions: motionList.map((m) => ({
+        name: m.name, note: m.note, icon: m.icon,
+        onClick: this.set("motion", m.id),
+        style:
+          "display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:8px;border:1px solid " +
+          (s.motion === m.id ? "var(--color-accent)" : "var(--color-divider)") +
+          ";background:" + (s.motion === m.id ? accentTint(10) : "transparent") +
+          ";color:" + (s.motion === m.id ? "var(--color-accent-200)" : "var(--color-neutral-300)") + ";text-align:left;transition:all 160ms",
+      })),
+      audioRows: audioDefs.map((a) => {
+        const on = s.audio[a.id];
+        return {
+          label: a.label,
+          onClick: () => this.setState({ audio: { ...s.audio, [a.id]: !on } }),
+          trackStyle:
+            "position:relative;display:block;width:32px;height:18px;flex-shrink:0;margin-left:auto;border-radius:999px;transition:background-color 160ms;background:" +
+            (on ? "var(--color-accent)" : "var(--color-neutral-800)"),
+          knobStyle:
+            "position:absolute;top:2px;left:" + (on ? "16px" : "2px") +
+            ";width:14px;height:14px;border-radius:50%;background:var(--color-neutral-100);transition:left 160ms",
+        };
+      }),
+      ticks: ["0:00", "0:05", "0:10", "0:15", "0:20", "0:25", "0:30", "0:35"],
+      clips: [
+        { t: "Namaste doston, aaj hum", w: 3 },
+        { t: "baat karenge", w: 2 },
+        { t: "ek chhoti si trick", w: 2.4 },
+        { t: "edits ko dus guna fast", w: 3.2 },
+        { t: "bina export kiye", w: 2 },
+      ].map((c, i) => ({
+        t: c.t,
+        style:
+          `flex:${c.w};min-width:0;height:26px;display:flex;align-items:center;padding:0 6px;border-radius:4px;font-size:10px;overflow:hidden;white-space:nowrap;` +
+          (i === 3
+            ? "background:var(--color-accent-700);color:var(--color-accent-100);box-shadow:inset 0 0 0 1px var(--color-accent-400)"
+            : "background:var(--color-neutral-800);color:var(--color-neutral-200)"),
+      })),
+      frames: ["#241c2e", "#2e2338", "#1b1726", "#3a2b44", "#241c2e", "#2a2036", "#191423", "#33263c", "#221a2c", "#2c2238", "#1d1827", "#332640"],
+      wave: Array.from({ length: 48 }, (_, i) => `${8 + Math.round(Math.abs(Math.sin(i * 1.7)) * 22)}px`),
+      styleCats: cats.map((c) => ({ label: c === "all" ? "All" : c.charAt(0).toUpperCase() + c.slice(1), onClick: this.set("cat", c), style: pill(s.cat === c) })),
+      styleScripts: scripts.map((x) => ({ label: x.label, onClick: this.set("scr", x.id), style: pill(s.scr === x.id) })),
+      styleCount: (s.cat === "all" ? styleCards.length : styleCards.filter((x) => x.cat === s.cat).length),
+      styleTiles: (s.cat === "all" ? styleCards : styleCards.filter((x) => x.cat === s.cat)).map((m) => ({
+        name: m.name,
+        cat: m.cat,
+        bg: m.bg,
+        sample: s.scr === "devanagari" ? "हिन्दी" : s.scr === "tamil" ? "தமிழ்" : m.sample,
+        style: "display:flex;flex-direction:column;padding:0;border:0;border-radius:10px;overflow:hidden;background:var(--color-surface);cursor:pointer;transition:box-shadow 160ms;box-shadow:0 0 0 1px var(--color-neutral-900)",
+        textStyle: `font-size:15px;font-weight:${m.weight};color:${m.colour};text-shadow:0 1px 6px rgba(0,0,0,.85)`,
+      })),
+      stages: [
+        { key: "upload", label: "Upload", note: "A YouTube link or a file from your drive", state: "done" },
+        { key: "analyse", label: "Analyse", note: "Transcript read, attention curve built", state: "done" },
+        { key: "select", label: "Select clips", note: "Nine moments scored, or type an exact range", state: "done" },
+        { key: "reframe", label: "Reframe", note: "Subject tracked into 9:16, 1:1 and 4:5", state: "active" },
+        { key: "captions", label: "Add captions", note: "Style, language and placement", state: "todo" },
+        { key: "versions", label: "Platform versions", note: "One cut per destination", state: "todo" },
+        { key: "review", label: "Review", note: "Watch every cut before it leaves the studio", state: "todo" },
+        { key: "schedule", label: "Schedule", note: "Slots per platform, in your timezone", state: "todo" },
+        { key: "publish", label: "Publish", note: "Posts through your connected accounts", state: "todo" },
+        { key: "measure", label: "Measure", note: "Views and retention per post", state: "todo" },
+      ].map((st, i) => ({
+        ...st,
+        dotStyle:
+          "display:flex;align-items:center;justify-content:center;width:22px;height:22px;flex-shrink:0;border-radius:50%;font-size:11px;" +
+          (st.state === "done"
+            ? "background:var(--color-accent-800);color:var(--color-accent-100)"
+            : st.state === "active"
+              ? `background:${accentTint(18)};color:var(--color-accent-200);box-shadow:inset 0 0 0 1px var(--color-accent)`
+              : "background:var(--color-neutral-900);color:var(--color-neutral-600)"),
+        rowStyle:
+          "display:flex;align-items:flex-start;gap:11px;padding:11px 12px;border-radius:10px;transition:background-color 160ms;" +
+          (st.state === "active" ? `background:${accentTint(8)}` : "background:transparent"),
+        icon: st.state === "done" ? "ph-fill ph-check" : st.state === "active" ? "ph-fill ph-circle" : "ph ph-circle",
+        n: String(i + 1).padStart(2, "0"),
+        onClick: this.set("stage", st.key),
+        pillStyle:
+          "display:flex;align-items:center;gap:7px;padding:6px 10px;border:1px solid " +
+          (s.stage === st.key ? "var(--color-accent)" : "var(--color-divider)") +
+          ";border-radius:8px;flex-shrink:0;white-space:nowrap;font-size:11.5px;transition:all 160ms;background:" +
+          (s.stage === st.key ? accentTint(12) : "transparent") + ";color:" +
+          (s.stage === st.key
+            ? "var(--color-accent-200)"
+            : st.state === "todo"
+              ? "var(--color-neutral-500)"
+              : "var(--color-neutral-300)"),
+      })),
+      clipsOut: [
+        { title: "Hook: the ten times claim", dur: "0:28", score: "92", thumb: "radial-gradient(120% 80% at 50% 25%,#3a2e4d,#12131f)" },
+        { title: "The timeline trick", dur: "0:41", score: "88", thumb: "radial-gradient(120% 80% at 50% 25%,#233245,#0c1015)" },
+        { title: "Spelling in Hinglish", dur: "0:33", score: "81", thumb: "radial-gradient(120% 80% at 50% 25%,#3d2b23,#14100e)" },
+      ],
+      stageTitle: (["Upload", "Analyse", "Select clips", "Reframe", "Add captions", "Platform versions", "Review", "Schedule", "Publish", "Measure"])[
+        ["upload", "analyse", "select", "reframe", "captions", "versions", "review", "schedule", "publish", "measure"].indexOf(s.stage)
+      ] || "Analyse",
+      stageNumber: String(["upload", "analyse", "select", "reframe", "captions", "versions", "review", "schedule", "publish", "measure"].indexOf(s.stage) + 1).padStart(2, "0"),
+      stageNote: {
+        upload: "Source ready",
+        analyse: "64 windows scored",
+        select: "3 of 9 moments chosen",
+        reframe: "3 sizes selected",
+        captions: "Hinglish, Punch Pop",
+        versions: "4 destinations on",
+        review: "3 clips waiting",
+        schedule: "5 slots this week",
+        publish: "4 accounts connected",
+        measure: "Last 7 days",
+      }[s.stage],
+      stageCta: {
+        upload: "Read the video",
+        analyse: "Take these four moments",
+        select: "Reframe 3 clips",
+        reframe: "Add captions",
+        captions: "Build platform versions",
+        versions: "Send to review",
+        review: "Approve all three",
+        schedule: "Confirm the schedule",
+        publish: "Publish 9 posts",
+        measure: "Start the next run",
+      }[s.stage],
+      stageCost: {
+        upload: "Reading a transcript costs 12 credits for this length",
+        analyse: "Already paid, part of the transcript pass",
+        select: "Free until you render",
+        reframe: "About 9 credits for 3 clips",
+        captions: "Included with the clip render",
+        versions: "About 27 credits for 9 posts",
+        review: "No credits to approve",
+        schedule: "No credits to schedule",
+        publish: "Posting is free on your plan",
+        measure: "Numbers refresh every hour",
+      }[s.stage],
+      stageAdvance: () => {
+        const order = ["upload", "analyse", "select", "reframe", "captions", "versions", "review", "schedule", "publish", "measure"];
+        const at = order.indexOf(s.stage);
+        this.setState({ stage: order[Math.min(order.length - 1, at + 1)] });
+      },
+      stIsUpload: s.stage === "upload",
+      stIsAnalyse: s.stage === "analyse",
+      stIsSelect: s.stage === "select",
+      stIsReframe: s.stage === "reframe",
+      stIsCaptions: s.stage === "captions",
+      stIsVersions: s.stage === "versions",
+      stIsReview: s.stage === "review",
+      stIsSchedule: s.stage === "schedule",
+      stIsPublish: s.stage === "publish",
+      stIsMeasure: s.stage === "measure",
+      attention: Array.from({ length: 64 }, (_, i) => {
+        const v = Math.abs(Math.sin(i * 0.41) * 0.55 + Math.sin(i * 0.13) * 0.45);
+        const hot = v > 0.72;
+        return {
+          style:
+            `flex:1;min-width:0;border-radius:2px 2px 0 0;height:${Math.max(8, Math.round(v * 62))}px;background:` +
+            (hot ? "var(--color-accent)" : v > 0.45 ? "var(--color-accent-700)" : "var(--color-neutral-800)"),
+        };
+      }),
+      peaks: [
+        { tc: "01:12", to: "01:41", label: "Excitement", score: "92", why: "Voice rises, the ten times claim lands" },
+        { tc: "05:30", to: "05:58", label: "Insight", score: "88", why: "The timeline trick, explained in one breath" },
+        { tc: "07:04", to: "07:33", label: "Humour", score: "81", why: "Laughter from both speakers, clean in and out" },
+        { tc: "09:48", to: "10:12", label: "Tension", score: "74", why: "Disagreement about spelling in Hinglish" },
+      ].map((p, i) => ({
+        ...p,
+        style:
+          "display:flex;align-items:flex-start;gap:10px;padding:9px 10px;border-radius:9px;border:1px solid " +
+          (i === 0 ? "var(--color-accent)" : "var(--color-divider)") + ";background:" + (i === 0 ? accentTint(9) : "transparent"),
+        tagStyle:
+          "flex-shrink:0;padding:1px 7px;border-radius:6px;font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;" +
+          (i === 0 ? "background:var(--color-accent-800);color:var(--color-accent-100)" : "background:var(--color-neutral-800);color:var(--color-neutral-200)"),
+      })),
+      emotionKeys: [
+        { l: "Attention peak", c: "var(--color-accent)" },
+        { l: "Warm", c: "var(--color-accent-700)" },
+        { l: "Flat", c: "var(--color-neutral-800)" },
+      ],
+      candidates: [
+        { range: "01:12 to 01:41", dur: "0:29", score: "92", label: "The ten times claim", on: true },
+        { range: "05:30 to 05:58", dur: "0:28", score: "88", label: "The timeline trick", on: true },
+        { range: "07:04 to 07:33", dur: "0:29", score: "81", label: "Both of them laughing", on: true },
+        { range: "09:48 to 10:12", dur: "0:24", score: "74", label: "Hinglish spelling argument", on: false },
+      ].map((c) => ({
+        ...c,
+        boxStyle:
+          "display:flex;align-items:center;justify-content:center;width:17px;height:17px;flex-shrink:0;border-radius:5px;font-size:10px;border:1px solid " +
+          (c.on ? "var(--color-accent)" : "var(--color-neutral-700)") + ";background:" + (c.on ? accentTint(20) : "transparent") +
+          ";color:var(--color-accent-200)",
+        check: c.on ? "ph-fill ph-check" : "",
+        rowStyle:
+          "display:flex;align-items:center;gap:11px;padding:10px 11px;border-radius:9px;border:1px solid " +
+          (c.on ? accentTint(45) : "var(--color-divider)") + ";background:" + (c.on ? accentTint(7) : "transparent"),
+      })),
+      aspects: [
+        { l: "9:16", note: "Reels, Shorts, TikTok", on: true, ratio: "9/16" },
+        { l: "1:1", note: "Feed and X", on: true, ratio: "1/1" },
+        { l: "4:5", note: "Instagram feed", on: false, ratio: "4/5" },
+        { l: "16:9", note: "LinkedIn and YouTube", on: true, ratio: "16/9" },
+      ].map((a) => ({
+        ...a,
+        style:
+          "display:flex;flex-direction:column;gap:7px;padding:11px;border-radius:10px;border:1px solid " +
+          (a.on ? "var(--color-accent)" : "var(--color-divider)") + ";background:" + (a.on ? accentTint(9) : "transparent") + ";text-align:left",
+        frameStyle:
+          `aspect-ratio:${a.ratio};width:100%;border-radius:6px;background:radial-gradient(120% 90% at 50% 25%,#3a2e4d,#12131f);position:relative`,
+        labelStyle: "font-size:12.5px;color:" + (a.on ? "var(--color-accent-200)" : "var(--color-neutral-300)"),
+      })),
+      capLangs: ["English", "हिन्दी", "Hinglish (Roman)"].map((l, i) => ({ label: l, style: pill(i === 2) })),
+      placements: ["Top left", "Top", "Top right", "Left", "Middle", "Right", "Bottom left", "Lower third", "Bottom right"].map((p, i) => ({
+        label: p,
+        style:
+          "aspect-ratio:1/1;display:flex;align-items:center;justify-content:center;border-radius:6px;border:1px solid " +
+          (i === 7 ? "var(--color-accent)" : "var(--color-divider)") + ";background:" + (i === 7 ? accentTint(16) : "transparent") +
+          ";font-size:8.5px;color:" + (i === 7 ? "var(--color-accent-200)" : "var(--color-neutral-600)"),
+      })),
+      platforms: [
+        { name: "Instagram Reels", icon: "ph ph-instagram-logo", frame: "9:16", cap: "Punch Pop, 96px", copy: "Ye trick timeline ke andar hi kaam karti hai", on: true },
+        { name: "YouTube Shorts", icon: "ph ph-youtube-logo", frame: "9:16", cap: "Punch Pop, 88px", copy: "Ten times faster edits, inside Premiere", on: true },
+        { name: "X", icon: "ph ph-x-logo", frame: "1:1", cap: "Minimal, 64px", copy: "One long podcast, nine posts. Here is clip 2 of 9.", on: true },
+        { name: "LinkedIn", icon: "ph ph-linkedin-logo", frame: "16:9", cap: "Minimal, 56px", copy: "How we cut a 12 minute episode into nine posts in one pass.", on: true },
+        { name: "TikTok", icon: "ph ph-tiktok-logo", frame: "9:16", cap: "Punch Pop, 96px", copy: "edits ko dus guna fast", on: false },
+      ].map((p) => ({
+        ...p,
+        trackStyle:
+          "position:relative;display:block;width:30px;height:17px;flex-shrink:0;border-radius:999px;background:" +
+          (p.on ? "var(--color-accent)" : "var(--color-neutral-800)"),
+        knobStyle:
+          "position:absolute;top:2px;left:" + (p.on ? "15px" : "2px") + ";width:13px;height:13px;border-radius:50%;background:var(--color-neutral-100)",
+      })),
+      slots: [
+        { day: "Tue 17", time: "08:30", what: "Reels, clip 1", plat: "Instagram" },
+        { day: "Tue 17", time: "18:00", what: "Shorts, clip 1", plat: "YouTube" },
+        { day: "Wed 18", time: "09:15", what: "Post, clip 2", plat: "LinkedIn" },
+        { day: "Wed 18", time: "19:30", what: "Thread, clip 2", plat: "X" },
+        { day: "Thu 19", time: "08:30", what: "Reels, clip 3", plat: "Instagram" },
+      ],
+      accounts: [
+        { name: "Instagram", handle: "@sethiedits", status: "Connected", ok: true },
+        { name: "YouTube", handle: "Sethi Edits", status: "Connected", ok: true },
+        { name: "X", handle: "@sethiedits", status: "Connected", ok: true },
+        { name: "LinkedIn", handle: "Ishaan Sethi", status: "Token expires in 6 days", ok: false },
+        { name: "TikTok", handle: "not linked", status: "Connect", ok: false },
+      ].map((a) => ({
+        ...a,
+        tagClass: a.ok ? "tag tag-accent" : "tag tag-neutral",
+      })),
+      metrics: [
+        { post: "Clip 1, the ten times claim", plat: "Reels", views: "48.2k", ret: "61%", saves: "1,204" },
+        { post: "Clip 1, the ten times claim", plat: "Shorts", views: "22.7k", ret: "55%", saves: "410" },
+        { post: "Clip 2, the timeline trick", plat: "X", views: "9.1k", ret: "48%", saves: "182" },
+        { post: "Clip 2, the timeline trick", plat: "LinkedIn", views: "6.4k", ret: "52%", saves: "96" },
+      ],
+      intervalMonth: this.set("interval", "month"),
+      intervalYear: this.set("interval", "year"),
+      monthStyle: seg(s.interval === "month"),
+      yearStyle: seg(s.interval === "year"),
+      plans: [
+        { name: "Starter", price: s.interval === "month" ? "₹299" : "₹2,988", credits: "150 credits a month", note: "No watermark, 1080p exports, English translation", cta: "Choose Starter", featured: false },
+        { name: "Creator", price: s.interval === "month" ? "₹699" : "₹6,984", credits: "500 credits a month", note: "4K exports, every language, autocut and reframe passes", cta: "Current plan", featured: true },
+        { name: "Studio", price: s.interval === "month" ? "₹1,999" : "₹19,992", credits: "1,800 credits a month", note: "Pro engine, SFX and music, three seats, API access", cta: "Choose Studio", featured: false },
+      ].map((p) => ({
+        ...p,
+        per: s.interval === "month" ? "a month" : "a year",
+        style:
+          "display:flex;flex-direction:column;gap:9px;padding:16px;border-radius:12px;background:var(--color-surface);" +
+          (p.featured ? "box-shadow:0 0 0 1px var(--color-accent)" : "box-shadow:var(--shadow-sm)"),
+        ctaClass: p.featured ? "btn btn-secondary" : "btn btn-primary",
+      })),
+      outcomes: [
+        { l: "Transcription", v: "8 hours" },
+        { l: "Reels at 40 seconds", v: "60" },
+        { l: "Podcast episodes", v: "12" },
+      ],
+      sources: ["A friend", "YouTube", "Instagram", "Search", "Another creator", "Somewhere else"].map((x, i) => ({
+        label: x,
+        style: pill(i === 2),
+      })),
+      ledger: [
+        { when: "14 Sep", what: "Transcribe · Podcast ep 14", amount: "18.4" },
+        { when: "13 Sep", what: "Audio clean · Bikaji ad v3", amount: "0.6" },
+        { when: "12 Sep", what: "Export 4K · Diwali skit", amount: "3.0" },
+        { when: "11 Sep", what: "Transcribe · Street food reel", amount: "0.8" },
+        { when: "9 Sep", what: "Top up 100 credits", amount: "+100" },
+      ],
+      sections: sections.map((x) => ({
+        label: x.label, icon: x.icon,
+        onClick: this.set("section", x.id),
+        style:
+          "display:flex;width:100%;align-items:center;gap:9px;padding:8px 10px;border:0;border-radius:8px;font-size:12.5px;text-align:left;transition:background-color 160ms;" +
+          (s.section === x.id ? `background:${accentTint(12)};color:var(--color-accent-200)` : "background:transparent;color:var(--color-neutral-300)"),
+      })),
+      sectionTitle: (sections.find((x) => x.id === s.section) || sections[0]).label,
+      sectionIsProfile: s.section === "profile",
+      sectionIsLanguages: s.section === "languages",
+      sectionIsMemory: s.section === "memory",
+      sectionIsOther: !["profile", "languages", "memory"].includes(s.section),
+      memoryRows: [
+        { term: "Bikaji", note: "Brand name, never corrected to Bikini", count: "14 fixes" },
+        { term: "Sadar", note: "Place name, capital S", count: "6 fixes" },
+        { term: "reel", note: "Lower case in captions", count: "31 fixes" },
+      ],
+      devices: [
+        { name: "MacBook Pro 14, Mumbai", note: "This device, last seen now" },
+        { name: "Premiere Pro 25.1, MacBook", note: "Plugin, last seen 2 hours ago" },
+        { name: "Pixel 8a, Chrome", note: "Last seen yesterday" },
+      ],
+      steps: [1, 2, 3, 4].map((i) => ({
+        n: String(i),
+        style:
+          "display:flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;font-size:11px;" +
+          (i < s.step
+            ? "background:var(--color-accent-800);color:var(--color-accent-100)"
+            : i === s.step
+              ? `background:${accentTint(18)};color:var(--color-accent-200);box-shadow:inset 0 0 0 1px var(--color-accent)`
+              : "background:var(--color-neutral-900);color:var(--color-neutral-600)"),
+      })),
+      stepNext: () => this.setState({ step: Math.min(4, s.step + 1) }),
+      stepBack: () => this.setState({ step: Math.max(1, s.step - 1) }),
+      stepIs1: s.step === 1,
+      stepIs2: s.step === 2,
+      stepIs3: s.step === 3,
+      stepIs4: s.step === 4,
+      stepLabel: ["What do you make?", "Which languages do you speak on camera?", "How did you find us?", "You are set"][s.step - 1],
+      makes: [
+        { id: "reels", label: "Reels and Shorts", icon: "ph ph-device-mobile", on: true },
+        { id: "youtube", label: "Long YouTube", icon: "ph ph-youtube-logo", on: false },
+        { id: "podcast", label: "Podcast clips", icon: "ph ph-microphone", on: true },
+        { id: "client", label: "Client work", icon: "ph ph-briefcase", on: false },
+        { id: "gaming", label: "Gaming highlights", icon: "ph ph-game-controller", on: false },
+      ].map((m) => ({
+        label: m.label, icon: m.icon,
+        style:
+          "display:flex;align-items:center;gap:9px;padding:11px 12px;border-radius:10px;border:1px solid " +
+          (m.on ? "var(--color-accent)" : "var(--color-divider)") + ";background:" + (m.on ? accentTint(10) : "transparent") +
+          ";color:" + (m.on ? "var(--color-accent-200)" : "var(--color-neutral-300)") + ";font-size:13px;text-align:left",
+      })),
+      langChips: ["Hinglish", "हिन्दी", "English", "தமிழ்", "తెలుగు", "বাংলা", "मराठी", "ગુજરાતી", "ਪੰਜਾਬੀ"].map((l, i) => ({
+        label: l,
+        style: pill(i < 3),
+      })),
+      localeEn: this.set("locale", "en"),
+      localeHi: this.set("locale", "hi"),
+      enStyle: seg(s.locale === "en"),
+      hiStyle: seg(s.locale === "hi"),
+      heroHead: s.locale === "hi" ? "कैप्शन जो आपकी असली बोलचाल समझते हैं।" : "Captions that get how you actually speak.",
+      heroSubs: s.locale === "hi"
+        ? ["Hinglish पर सटीक कैप्शन, हर शब्द एडिटेबल, Reels और Shorts के लिए बने तीस स्टाइल्स।", "Autocut और zoom, आपकी ही टाइमलाइन में, Premiere और Resolve के अंदर।", "वेब, डेस्कटॉप और हर प्लगइन के लिए एक ही प्लान, ₹ में।"]
+        : ["Hinglish accurate captions, every word editable, thirty styles built for Reels, Shorts and YouTube.", "Autocut and zoom passes you accept in one click, inside your own timeline in Premiere, After Effects and Resolve.", "One plan for web, desktop and every plugin, priced in rupees."],
+      proof: [
+        { v: "30+", l: "Caption styles shipped" },
+        { v: "22 + 90", l: "Indian and global languages routed" },
+        { v: "3 NLEs", l: "One credit pool across Premiere, After Effects, Resolve" },
+      ],
+      valueProps: [
+        { n: "01", t: "Measured accuracy on how India speaks", b: "We publish our code mixed word error rate on a named eval set. Each language goes to the model that scores best for it." },
+        { n: "02", t: "Every word is editable and force aligned", b: "Drag a word, split a line, recolour, emphasise, retime. Three scripts from one take, all keeping the same timing." },
+        { n: "03", t: "It edits, not just captions", b: "Autocut for silence and fillers, zoom that follows the subject. Every change is a proposal you accept or reject." },
+        { n: "04", t: "Your footage is yours", b: "Local mode never uploads. Cloud media is deleted on a published schedule, and nobody trains on your content." },
+      ],
+    };
+  }
+}
+</script>
+</body>
+</html>

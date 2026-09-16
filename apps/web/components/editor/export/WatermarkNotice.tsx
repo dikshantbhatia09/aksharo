@@ -25,7 +25,7 @@ export function WatermarkNotice({
   if (watermarked !== true) return null;
   return (
     <div
-      className="mt-3 rounded-md border border-white/10 bg-white/5 p-3 text-xs"
+      className="border-border bg-neutral-100/5 mt-3 rounded-md border p-3 text-xs"
       data-testid="export-watermark-notice"
     >
       <p className="text-fg-2 font-medium">This export carries the Aksharo watermark.</p>

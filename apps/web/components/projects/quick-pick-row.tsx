@@ -11,6 +11,7 @@
  * transcription lane and the credits are spent on whatever it says, so an
  * unanswered question stays visibly unanswered.
  */
+import { ChevronDown } from "lucide-react";
 import * as React from "react";
 
 import {
@@ -65,21 +66,18 @@ export function QuickPickRow({
 
   return (
     <div
-      className="flex flex-wrap items-center gap-2"
+      className="flex flex-wrap items-center gap-[7px]"
       role="group"
       aria-label="Language, style and aspect for what you upload next"
       data-testid="quick-pick-row"
     >
       <LanguagePicker
+        kicker="Spoken"
         value={value.language}
         onChange={(language) => {
           onChange({ ...value, language });
         }}
       />
-
-      <span className="text-fg-2" aria-hidden="true">
-        ·
-      </span>
 
       <StyleQuickPick
         styleId={value.styleId}
@@ -88,18 +86,16 @@ export function QuickPickRow({
         }}
       />
 
-      <span className="text-fg-2" aria-hidden="true">
-        ·
-      </span>
-
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button
             type="button"
-            className="border-border bg-bg-2 text-fg-1 hover:text-fg-0 rounded-full border px-3 py-1.5 text-sm"
+            className="border-border text-fg-0 hover:border-accent flex items-center gap-[7px] rounded-sm border px-2.5 py-1.5 text-[12.5px] transition-colors duration-[160ms] ease-[var(--ease-out-soft)]"
             data-testid="quick-pick-aspect"
           >
+            <span className="text-neutral-500 text-[9.5px] tracking-[0.1em] uppercase">Frame</span>
             {value.aspect}
+            <ChevronDown className="text-neutral-500 size-3" aria-hidden="true" />
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start">

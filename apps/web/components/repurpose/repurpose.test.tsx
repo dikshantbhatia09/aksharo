@@ -6,7 +6,6 @@ import { describe, expect, it, vi } from "vitest";
 import type { RepurposeRunView, RepurposeStageView } from "@montaj/api-client";
 
 import { SAFE_ERROR_COPY, STAGE_COPY, beginnerSafetyViolations, safeErrorCopy } from "./copy";
-import { RepurposeEntryCard } from "./RepurposeEntryCard";
 import { PersistentPreview, RunActionBar } from "./RunActionBar";
 import { RunStageRail } from "./RunStageRail";
 import {
@@ -19,7 +18,9 @@ import {
 } from "./SourceStartForm";
 import { StageErrorCard, StagePanel, StageSummary } from "./StagePanel";
 
+import { PipelineBanner } from "@/components/home/pipeline-banner";
 import { renderWithProviders } from "@/test/harness";
+import { routerMock } from "@/test/next-router";
 
 /** The entitlement snapshot shape the flag hook reads. */
 const ENTITLEMENT = {
@@ -428,11 +429,12 @@ describe("the copy dictionary", () => {
   });
 });
 
-describe("<RepurposeEntryCard />", () => {
+describe("<PipelineBanner /> — the studio's front door to the pipeline", () => {
   it("shows nothing when the flag is off for this workspace", async () => {
-    // The flag is targeted, so a workspace outside the cohort must see no link
-    // at all — a link whose every API route answers 404 is worse than none.
-    renderWithProviders(<RepurposeEntryCard />, {
+    // The flag is targeted, so a workspace outside the cohort must see no
+    // banner at all — a surface whose every API route answers 404 is worse
+    // than none.
+    renderWithProviders(<PipelineBanner />, {
       routes: { "/workspaces/01JWORKSPACE/entitlement": { ...ENTITLEMENT, entitlements: { flags: {} } } },
     });
     await waitFor(() => {
@@ -440,8 +442,8 @@ describe("<RepurposeEntryCard />", () => {
     });
   });
 
-  it("shows the front door when the flag is on", async () => {
-    renderWithProviders(<RepurposeEntryCard />, {
+  it("shows the pitch, a link field and the stage rail when the flag is on", async () => {
+    renderWithProviders(<PipelineBanner />, {
       routes: {
         "/workspaces/01JWORKSPACE/entitlement": {
           ...ENTITLEMENT,
@@ -449,15 +451,38 @@ describe("<RepurposeEntryCard />", () => {
         },
       },
     });
-    const link = await screen.findByTestId("repurpose-entry");
-    expect(link).toHaveAttribute("href", "/repurpose/new");
-    expect(link).toHaveTextContent("Create from a long video");
+    const banner = await screen.findByTestId("repurpose-entry");
+    expect(banner).toHaveTextContent("One long video, nine posts");
+    expect(screen.getByTestId("pipeline-url")).toBeInTheDocument();
+    // The rail draws the five stages the API actually has, not the canvas's
+    // ten — two of which (Schedule, Measure) have no endpoint behind them.
+    expect(screen.getByTestId("pipeline-stages").children).toHaveLength(5);
+  });
+
+  it("hands a pasted link to the start screen rather than posting a run", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<PipelineBanner />, {
+      routes: {
+        "/workspaces/01JWORKSPACE/entitlement": {
+          ...ENTITLEMENT,
+          entitlements: { flags: { repurpose_flow: true } },
+        },
+      },
+    });
+    await screen.findByTestId("repurpose-entry");
+    await user.type(screen.getByTestId("pipeline-url"), "https://youtu.be/dQw4w9WgXcQ");
+    await user.click(screen.getByTestId("pipeline-start"));
+    // A run needs the rights attestation, a language and a style. None of
+    // those can be answered from a one-line field, so the banner navigates.
+    expect(routerMock.push).toHaveBeenCalledWith(
+      "/repurpose/new?url=https%3A%2F%2Fyoutu.be%2FdQw4w9WgXcQ",
+    );
   });
 
   it("shows nothing while the entitlement is still loading", () => {
     // An entry point that flickers in and back out is worse than one that
     // appears a moment late, and a gated feature must never be briefly visible.
-    renderWithProviders(<RepurposeEntryCard />, { routes: {} });
+    renderWithProviders(<PipelineBanner />, { routes: {} });
     expect(screen.queryByTestId("repurpose-entry")).toBeNull();
   });
 });

@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { loadRepoEnv } from "./env";
-import { API_ORIGIN, expect, expectNoSeriousA11yViolations, gotoHydrated, test } from "./fixtures";
+import { expect, API_ORIGIN, expectNoSeriousA11yViolations, gotoHydrated, showProjectGrid, test } from "./fixtures";
 import { completeJobForTest } from "./internal-callback";
 
 import type { Page } from "@playwright/test";
@@ -243,6 +243,7 @@ test.describe("Gate A journey", () => {
     await expectUploadSettled(page);
 
     await gotoHydrated(page, "/projects");
+    await showProjectGrid(page);
     const card = page.getByTestId("project-card").first();
     await expect(card).toBeVisible({ timeout: 30_000 });
     const projectId = (await card.getAttribute("href")) ?? "";

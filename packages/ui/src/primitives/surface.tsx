@@ -23,7 +23,7 @@ export const badgeVariants = cva(
     variants: {
       tone: {
         neutral: "border-border bg-bg-2 text-fg-1",
-        accent: "border-lime-500/40 bg-lime-500/10 text-lime-500",
+        accent: "border-accent/40 bg-accent/10 text-accent-300",
         proposed: "border-proposed/40 bg-proposed/10 text-proposed",
         accepted: "border-accepted/40 bg-accepted/10 text-accepted",
         rejected: "border-rejected/40 bg-rejected/10 text-rejected",

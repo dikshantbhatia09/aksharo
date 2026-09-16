@@ -15,7 +15,7 @@ import {
   shortcutKeys,
 } from "@montaj/ui";
 
-import { PRIMARY_NAV, SETTINGS_NAV } from "@/lib/nav";
+import { ALL_NAV, SETTINGS_NAV } from "@/lib/nav";
 
 /**
  * Ctrl+K (⌘K on a Mac).
@@ -151,7 +151,14 @@ export function CommandPalette({
         </CommandGroup>
 
         <CommandGroup heading="Go to">
-          {PRIMARY_NAV.filter((item) => item.ready).map((item) => (
+          {/*
+            Every navigable destination, not just the rail's eight: the palette
+            has no width to run out of, so the routes the rail could not fit
+            (Academy, Plugins, Team, Refer & Earn, Help) stay one keystroke
+            away. `ready` still filters — an unbuilt page must never be a
+            one-keystroke path to a 404.
+          */}
+          {ALL_NAV.filter((item) => item.ready).map((item) => (
             <CommandItem
               key={item.key}
               value={`go ${item.label}`}

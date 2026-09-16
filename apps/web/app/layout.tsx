@@ -36,7 +36,9 @@ export const viewport: Viewport = {
   // The studio is dark-only in v1 (08 §1), so the browser paints its own chrome
   // dark too rather than flashing white before the CSS lands.
   colorScheme: "dark",
-  themeColor: "#0B0B0E",
+  // Nocturne's page ground (`--color-bg-0`), written out because a Next
+  // metadata export is JSON, not CSS, and cannot read the token.
+  themeColor: "#161826",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }): React.JSX.Element {

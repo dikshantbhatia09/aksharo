@@ -1,20 +1,13 @@
-import { StyleGallery } from "@/components/editor/panels/StyleGallery";
+import { StylesView } from "./styles-view";
 
 /**
  * The style catalogue, drawn by the real renderer.
  *
- * A15 mounts the same `RightPanel` beside the editor canvas and feeds it the
- * workspace catalogue from the API; this page mounts it against the system
- * styles, which is what makes the panel and the preview reviewable before the
- * editor exists.
+ * This used to mount `StyleGallery` — the right-panel dev harness, complete
+ * with its JSON op log — as a signed-in page. That harness is a development
+ * tool and still lives at `components/editor/panels/StyleGallery.tsx` for the
+ * editor work; what a user reaches from the rail is the catalogue.
  */
 export default function StylesPage(): React.JSX.Element {
-  return (
-    <main className="min-h-dvh bg-neutral-950 p-6 text-white">
-      <h1 className="mb-4 text-2xl font-semibold tracking-tight" data-testid="styles-heading">
-        Caption styles
-      </h1>
-      <StyleGallery />
-    </main>
-  );
+  return <StylesView />;
 }

@@ -96,7 +96,7 @@ describe("<CommandPalette />", () => {
     // "Templates" is not built yet, so it must not be a one-keystroke path to
     // a 404; "Projects" landed in A14 and is now offered.
     expect(screen.queryByText("Templates")).toBeNull();
-    expect(screen.getByText("Home")).toBeInTheDocument();
+    expect(screen.getByText("Studio")).toBeInTheDocument();
     expect(screen.getByText("Projects")).toBeInTheDocument();
   });
 

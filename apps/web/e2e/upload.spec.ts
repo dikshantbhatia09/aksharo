@@ -1,5 +1,5 @@
 import { signUpAndSkipOnboarding } from "./auth-helpers";
-import { API_ORIGIN, expect, expectNoSeriousA11yViolations, gotoHydrated, test } from "./fixtures";
+import { expect, API_ORIGIN, expectNoSeriousA11yViolations, gotoHydrated, showProjectGrid, test } from "./fixtures";
 import { generateWavFile } from "./fixtures-media";
 import { completeJobForTest } from "./internal-callback";
 
@@ -107,6 +107,7 @@ test("uploading a small real clip creates a project and completes the multipart 
 
   // The project is real and shows up in the Recent grid.
   await gotoHydrated(page, "/projects");
+  await showProjectGrid(page);
   await expect(page.getByTestId("project-card").first()).toContainText("hinglish clip");
 });
 
@@ -152,6 +153,7 @@ test("a project card's status updates when its job completes through the interna
   expect(projectId).toMatch(/^[0-9A-Z]{26}$/);
 
   await gotoHydrated(page, "/projects");
+  await showProjectGrid(page);
   const card = page.getByTestId("project-card").first();
   await expect(card).toBeVisible();
 

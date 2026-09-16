@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Bricolage+Grotesque:opsz,wght@12..96,400..700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.2/src/regular/style.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.2/src/fill/style.css">
+<style>
+:root{
+  --bg-0:#0d0d0d; --bg-1:#18181b; --bg-2:#27272a; --bg-3:#3f3f46;
+  --border:#303034; --border-hover:#45454d;
+  --fg-0:#e9e9ed; --fg-1:#d4d4d8; --fg-2:#a1a1aa; --fg-disabled:#71717a;
+  --ed-inspector:#1c1c1f; --ed-sunken:#141416; --ed-raised:#2f2f34; --ed-divider:#212124;
+  --ed-pill:#232326; --ed-pill-border:#2e2e33; --ed-emphasis:#6dc99e; --ed-emphasis-bg:#1d2725;
+  --ed-emphasis-border:#2f4a3c; --ed-selection:#b6aef5; --ed-selection-bg:#1d2130;
+  --ed-selection-border:#6d63c4; --ed-avatar:#6d5ad6; --ed-avatar-text:#f2f0ff;
+  --ed-track:#b0a76f; --ed-track-text:#17170f; --ed-ruler:#212126; --ed-muted:#8b8b93;
+  --mint:#49a781; --mint-hover:#57b88f; --gold:#f59e0b; --on-accent:#08120e;
+  --accepted:#22c55e; --rejected:#ef4444; --info:#3b82f6;
+  --ease:cubic-bezier(0.22,1,0.36,1);
+}
+body{margin:0;background:var(--bg-0);color:var(--fg-0);font-family:Inter,ui-sans-serif,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+button{font:inherit;cursor:pointer}
+a{color:var(--mint);text-decoration:none}
+a:hover{color:var(--mint-hover)}
+i.ph,i.ph-fill{display:inline-block;line-height:1}
+</style>
+</helmet>
+
+<div style="min-height:100vh;background:var(--bg-0)">
+
+  <div style="display:flex;align-items:center;gap:10px;height:30px;padding:0 12px;background:#000;border-bottom:1px solid var(--border);font-size:11px;color:var(--fg-disabled);letter-spacing:.04em;text-transform:uppercase">
+    <span>Recreation — current build, from source</span>
+    <div style="display:flex;gap:2px;margin-left:auto;padding:2px;border-radius:6px;background:var(--bg-1)">
+      <button type="button" onClick="{{ showEditor }}" style="border:0;background:transparent;color:var(--fg-2);font-size:11px;padding:3px 9px;border-radius:4px" style-hover="color:var(--fg-0)">/p/{id} editor</button>
+      <button type="button" onClick="{{ showHome }}" style="border:0;background:transparent;color:var(--fg-2);font-size:11px;padding:3px 9px;border-radius:4px" style-hover="color:var(--fg-0)">/ home</button>
+      <button type="button" onClick="{{ showProjects }}" style="border:0;background:transparent;color:var(--fg-2);font-size:11px;padding:3px 9px;border-radius:4px" style-hover="color:var(--fg-0)">/projects</button>
+    </div>
+  </div>
+
+  <sc-if value="{{ isEditor }}" hint-placeholder-val="{{ true }}">
+  <div style="display:flex;flex-direction:column;height:calc(100vh - 30px);min-height:0;overflow:hidden;background:var(--bg-0);color:var(--fg-0)">
+
+    <header style="display:flex;flex-shrink:0;align-items:center;gap:10px;height:42px;padding:0 12px;background:var(--bg-0)">
+      <a href="#" style="display:flex;flex-shrink:0;align-items:center;justify-content:center;width:28px;height:28px;border-radius:8px;background:var(--mint);color:var(--on-accent);font-size:15px" style-hover="background:var(--mint-hover)"><i class="ph ph-house"></i></a>
+      <button type="button" style="min-width:0;flex:1;text-align:left;border:0;background:transparent;color:var(--fg-0);font-size:15px;font-weight:500;letter-spacing:-0.01em;padding:2px 4px;border-radius:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" style-hover="background:var(--bg-2)">Diwali skit — final cut</button>
+      <a href="#" style="display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 14px;border-radius:8px;background:var(--mint);color:var(--on-accent);font-size:13px;font-weight:600" style-hover="background:var(--mint-hover)">Upgrade <i class="ph ph-arrow-up-right" style="font-size:13px"></i></a>
+      <button type="button" style="display:flex;align-items:center;gap:8px;height:34px;max-width:250px;padding:0 10px 0 4px;border-radius:18px;border:1px solid var(--bg-2);background:var(--bg-1);color:var(--fg-1)">
+        <span style="display:flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;background:var(--ed-avatar);color:var(--ed-avatar-text);font-size:12px;font-weight:500">IS</span>
+        <span style="font-size:13px">Ishaan Sethi</span>
+        <i class="ph ph-caret-down" style="font-size:12px;color:var(--fg-2)"></i>
+      </button>
+    </header>
+
+    <div style="display:flex;gap:16px;margin:8px 10px;width:calc(100% - 20px);flex:1;min-height:0;min-width:1000px">
+
+      <div style="display:flex;flex-direction:column;gap:8px;flex:0 0 79.55%;min-width:0">
+        <div style="display:flex;gap:16px;flex:1;min-height:0">
+
+          <div style="display:flex;flex-direction:column;gap:8px;flex:0 0 70.65%;min-width:0">
+
+            <div style="display:flex;flex:0 0 54.2%;min-height:0;overflow:hidden;border-radius:10px;background:var(--bg-1)">
+              <div role="tablist" style="display:flex;flex-direction:column;align-items:center;gap:4px;width:74px;flex-shrink:0;padding:6px 0">
+                <sc-for list="{{ railTabs }}" as="t" hint-placeholder-count="3">
+                  <button type="button" role="tab" onClick="{{ t.onClick }}" style="{{ t.style }}">
+                    <i class="{{ t.icon }}" style="font-size:19px"></i>
+                    <span style="font-size:10.5px;line-height:1.25">{{ t.label }}</span>
+                  </button>
+                </sc-for>
+              </div>
+
+              <div style="display:flex;flex-direction:column;min-width:0;flex:1;padding-left:14px;padding-right:10px">
+                <div style="display:flex;align-items:center;gap:10px;height:56px;flex-shrink:0">
+                  <h2 style="margin:0;margin-right:auto;font-size:21px;font-weight:600;letter-spacing:-0.02em;color:var(--fg-0)">Captions</h2>
+                  <button type="button" style="display:flex;align-items:center;justify-content:center;width:31px;height:31px;flex-shrink:0;border-radius:50%;border:1px solid var(--ed-pill-border);background:var(--ed-pill);color:var(--fg-1);font-size:14px" style-hover="background:var(--bg-2)"><i class="ph ph-magnifying-glass"></i></button>
+                  <button type="button" style="display:flex;align-items:center;gap:8px;height:31px;padding:0 12px;border-radius:999px;border:1px solid var(--ed-pill-border);background:var(--ed-pill);color:var(--fg-0);font-size:13px" style-hover="background:var(--bg-2)"><i class="ph ph-sliders" style="font-size:15px"></i> Caption Tools <i class="ph ph-caret-down" style="font-size:13px"></i></button>
+                </div>
+                <div style="flex:1;min-height:0;overflow-y:auto;scrollbar-width:thin">
+                  <sc-for list="{{ rows }}" as="r" hint-placeholder-count="6">
+                    <div onClick="{{ r.onClick }}" style="{{ r.style }}">
+                      <span style="width:22px;flex-shrink:0;font-size:12.5px;font-variant-numeric:tabular-nums;color:var(--fg-disabled)">{{ r.n }}</span>
+                      <div style="display:flex;min-width:0;flex:1;flex-wrap:wrap;align-items:center;gap:4px;padding-right:24px;font-size:15px;line-height:18px">
+                        <sc-for list="{{ r.words }}" as="w" hint-placeholder-count="5">
+                          <span style="{{ w.style }}">{{ w.t }}</span>
+                        </sc-for>
+                      </div>
+                      <div style="display:flex;flex-shrink:0;align-items:center;gap:8px;padding-right:16px">
+                        <span style="display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 8px;border-radius:999px;background:var(--bg-2);font-size:11px;color:var(--fg-1)"><span style="width:6px;height:6px;border-radius:50%;background:{{ r.spColor }}"></span>{{ r.speaker }}</span>
+                        <button type="button" style="display:flex;align-items:center;justify-content:center;width:24px;height:24px;border:0;border-radius:8px;background:transparent;color:var(--fg-2);font-size:15px" style-hover="color:var(--fg-0);background:var(--bg-2)"><i class="ph ph-squares-four"></i></button>
+                        <button type="button" style="display:flex;align-items:center;justify-content:center;width:24px;height:24px;border:0;border-radius:8px;background:transparent;color:var(--fg-2);font-size:14px" style-hover="color:var(--fg-0);background:var(--bg-2)"><i class="ph ph-eye"></i></button>
+                      </div>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+            </div>
+
+            <div style="position:relative;flex:1;min-height:0;overflow:hidden;border-radius:10px;background:var(--bg-1);padding-top:14px">
+              <div style="position:absolute;top:5px;left:calc(50% - 23px);width:46px;height:3px;border-radius:2px;background:var(--bg-3)"></div>
+              <div style="display:flex;flex-direction:column;height:100%">
+                <div style="display:flex;align-items:center;gap:12px;height:50px;flex-shrink:0;padding:0 14px 0 90px;font-size:12px;color:var(--fg-2)">
+                  <div style="display:flex;gap:2px;padding:3px;border-radius:8px;background:var(--ed-pill)">
+                    <button type="button" style="height:26px;padding:0 13px;border:0;border-radius:6px;background:var(--fg-1);color:var(--bg-1);font-size:11.5px;letter-spacing:.06em;text-transform:uppercase">Word</button>
+                    <button type="button" style="height:26px;padding:0 13px;border:0;border-radius:6px;background:transparent;color:var(--fg-2);font-size:11.5px;letter-spacing:.06em;text-transform:uppercase">Line</button>
+                  </div>
+                  <button type="button" style="display:flex;align-items:center;gap:5px;min-width:32px;height:30px;padding:0 10px;border:1px solid var(--border);border-radius:8px;background:transparent;color:var(--fg-1);font-size:12px"><i class="ph ph-plus" style="font-size:13px"></i> Word</button>
+                  <button type="button" style="display:flex;align-items:center;justify-content:center;width:32px;height:30px;border:1px solid var(--border);border-radius:8px;background:transparent;color:var(--fg-1);font-size:17px"><i class="ph ph-sliders-horizontal"></i></button>
+                  <span aria-hidden="true" style="width:1px;height:22px;margin:0 8px;background:var(--border)"></span>
+                  <div style="display:flex;align-items:center;gap:12px;margin-left:auto">
+                    <i class="ph ph-magnifying-glass-minus" style="font-size:14px"></i>
+                    <input type="range" min="0" max="100" value="45" style="width:104px;height:4px;appearance:none;border-radius:999px;background:linear-gradient(to right,var(--fg-disabled) 0%,var(--fg-disabled) 45%,var(--bg-3) 45%,var(--bg-3) 100%)">
+                    <i class="ph ph-magnifying-glass-plus" style="font-size:14px"></i>
+                  </div>
+                </div>
+                <div style="display:flex;flex:1;min-height:0;overflow:auto;background:var(--ed-sunken)">
+                  <div style="display:flex;flex-direction:column;width:90px;flex-shrink:0;font-size:11.5px;border-top:1px solid var(--ed-divider)">
+                    <div style="height:24px"></div>
+                    <div style="display:flex;align-items:center;gap:6px;height:45px;padding-left:12px;border-top:1px solid var(--ed-divider);color:var(--fg-2)"><i class="ph ph-text-italic" style="font-size:14px"></i> Captions</div>
+                    <div style="height:42px;border-top:1px solid var(--ed-divider)"></div>
+                    <div style="display:flex;align-items:center;gap:6px;height:45px;padding-left:12px;border-top:1px solid var(--ed-divider);color:var(--fg-2)"><i class="ph ph-video" style="font-size:14px;color:var(--ed-emphasis)"></i> Video 1</div>
+                    <div style="display:flex;align-items:center;gap:6px;height:56px;padding-left:12px;border-top:1px solid var(--ed-divider);color:var(--fg-2)"><i class="ph ph-waveform" style="font-size:14px;color:var(--mint)"></i> Audio 1</div>
+                    <div style="display:flex;align-items:center;gap:6px;height:20px;padding-left:12px;border-top:1px solid var(--ed-divider);color:var(--fg-2)">Cuts</div>
+                    <div style="display:flex;align-items:center;gap:6px;height:20px;padding-left:12px;border-top:1px solid var(--ed-divider);color:var(--fg-2)">Zoom</div>
+                  </div>
+                  <div style="position:relative;flex:1;min-width:0">
+                    <div style="display:flex;align-items:flex-end;height:24px;background:var(--ed-ruler);font-size:9px;color:var(--fg-disabled);font-family:'JetBrains Mono',monospace">
+                      <sc-for list="{{ ticks }}" as="tk" hint-placeholder-count="8">
+                        <span style="flex:1;border-left:1px solid var(--border);padding-left:3px;padding-bottom:2px">{{ tk }}</span>
+                      </sc-for>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:2px;height:45px;padding:4px 0">
+                      <sc-for list="{{ chips }}" as="c" hint-placeholder-count="9">
+                        <span style="{{ c.style }}">{{ c.t }}</span>
+                      </sc-for>
+                    </div>
+                    <div style="display:flex;gap:2px;height:42px;align-items:center">
+                      <span style="flex:3;height:34px;border-radius:3px;background:var(--ed-track);color:var(--ed-track-text);font-size:10px;padding:2px 5px;overflow:hidden">Namaste doston, aaj hum</span>
+                      <span style="flex:2;height:34px;border-radius:3px;background:var(--ed-track);color:var(--ed-track-text);font-size:10px;padding:2px 5px;overflow:hidden">baat karenge</span>
+                      <span style="flex:4;height:34px;border-radius:3px;background:var(--ed-track);color:var(--ed-track-text);font-size:10px;padding:2px 5px;overflow:hidden">ek chhoti si trick ke baare mein</span>
+                    </div>
+                    <div style="display:flex;gap:1px;height:45px;padding:3px 0">
+                      <sc-for list="{{ frames }}" as="f" hint-placeholder-count="10">
+                        <span style="flex:1;border-radius:2px;background:{{ f }}"></span>
+                      </sc-for>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:1px;height:56px;padding:3px 0">
+                      <sc-for list="{{ wave }}" as="h" hint-placeholder-count="40">
+                        <span style="flex:1;height:{{ h }};background:var(--mint);opacity:.8;border-radius:1px"></span>
+                      </sc-for>
+                    </div>
+                    <div style="height:20px;padding:3px 0"><span style="display:block;width:22%;margin-left:14%;height:14px;border-radius:2px;background:rgba(245,158,11,.25);border:1px dashed var(--gold)"></span></div>
+                    <div style="height:20px;padding:3px 0"><span style="display:block;width:16%;margin-left:44%;height:14px;border-radius:2px;background:rgba(34,197,94,.2);border:1px solid var(--accepted)"></span></div>
+                    <div style="position:absolute;top:0;bottom:0;left:31%;width:1px;background:var(--fg-0)"></div>
+                    <div style="position:absolute;top:0;left:calc(31% - 5px);width:11px;height:11px;border-radius:2px;background:var(--fg-0)"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:8px;flex:1;min-width:0;background:var(--bg-0)">
+            <div style="display:flex;flex:1;min-height:0;align-items:center;justify-content:center;overflow:hidden;border-radius:10px;background:var(--ed-sunken)">
+              <div style="position:relative;aspect-ratio:9/16;max-height:100%;max-width:100%;overflow:hidden;border-radius:10px;background:#000">
+                <div style="position:absolute;inset:0;background:linear-gradient(170deg,#2b2118 0%,#0f0d0c 60%,#000 100%)"></div>
+                <div style="position:absolute;inset:6% 5%;border:1px dashed rgba(233,233,237,.14)"></div>
+                <div style="position:absolute;left:0;right:0;bottom:14%;display:flex;justify-content:center">
+                  <p style="margin:0;max-width:86%;text-align:center;font-size:clamp(13px,3.1cqw,26px);font-weight:800;letter-spacing:-0.01em;color:#fff;text-shadow:0 2px 0 #000,0 0 14px rgba(0,0,0,.7)">aaj hum <span style="color:var(--gold)">baat</span> karenge</p>
+                </div>
+                <div style="position:absolute;top:8px;left:8px;right:8px;display:flex;align-items:center;gap:6px">
+                  <span style="padding:2px 7px;border-radius:6px;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--fg-1)">1080 × 1920</span>
+                  <button type="button" style="margin-left:auto;display:flex;align-items:center;gap:4px;padding:3px 8px;border:1px solid var(--ed-emphasis-border);border-radius:6px;background:var(--ed-emphasis-bg);color:var(--ed-emphasis);font-size:10px"><i class="ph ph-frame-corners" style="font-size:12px"></i> Safe zone</button>
+                  <button type="button" style="display:flex;align-items:center;justify-content:center;width:24px;height:22px;border:0;border-radius:6px;background:rgba(0,0,0,.6);color:var(--fg-1);font-size:12px"><i class="ph ph-arrows-clockwise"></i></button>
+                </div>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:14px;height:50px;flex-shrink:0;padding:0 2px">
+              <button type="button" onClick="{{ togglePlay }}" style="width:18px;height:26px;border:0;background:transparent;color:var(--fg-0);font-size:18px"><i class="{{ playIcon }}"></i></button>
+              <button type="button" style="width:18px;height:26px;border:0;background:transparent;color:var(--fg-0);font-size:18px"><i class="ph ph-speaker-high"></i></button>
+              <span style="font-size:12.5px;white-space:nowrap;color:var(--fg-1);font-variant-numeric:tabular-nums">0:12 / 0:38</span>
+              <div style="flex:1;height:3px;border-radius:999px;background:var(--bg-2);overflow:hidden"><span style="display:block;width:31%;height:100%;background:var(--fg-1)"></span></div>
+              <button type="button" style="width:18px;height:26px;border:0;background:transparent;color:var(--fg-0);font-size:18px"><i class="ph ph-corners-out"></i></button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;flex:0 0 20.45%;min-width:320px;min-height:0;overflow:hidden;border-radius:10px;background:var(--ed-inspector)">
+        <div role="radiogroup" style="display:flex;flex-shrink:0;gap:3px;margin:8px 10px 0;padding:3px;border-radius:8px;background:var(--ed-sunken)">
+          <button type="button" style="flex:1;padding:7px 0;border:0;border-radius:6px;background:var(--ed-raised);color:var(--fg-0);font-size:13px;line-height:16px;font-weight:500">Captions</button>
+          <button type="button" style="flex:1;padding:7px 0;border:0;border-radius:6px;background:transparent;color:var(--fg-2);font-size:13px;line-height:16px">Edit</button>
+        </div>
+        <div style="display:flex;flex-shrink:0;align-items:center;padding:0 16px;border-bottom:1px solid var(--bg-2)">
+          <div role="tablist" style="display:flex;min-width:0;flex:1;align-items:center;gap:26px;overflow-x:auto;scrollbar-width:thin">
+            <sc-for list="{{ panelTabs }}" as="p" hint-placeholder-count="4">
+              <button type="button" role="tab" onClick="{{ p.onClick }}" style="{{ p.style }}">{{ p.label }}</button>
+            </sc-for>
+          </div>
+          <a href="#" style="display:flex;align-items:center;justify-content:center;width:28px;height:28px;flex-shrink:0;border:1px solid var(--border);border-radius:8px;color:var(--fg-2);font-size:14px"><i class="ph ph-question"></i></a>
+        </div>
+        <div style="flex:1;min-height:0;overflow-y:auto;scrollbar-width:thin;padding:0 16px">
+          <div style="display:flex;align-items:center;justify-content:space-between;height:44px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--fg-2)">Fonts <i class="ph ph-caret-down" style="font-size:11px"></i></div>
+          <div style="display:flex;align-items:center;min-height:44px;gap:10px"><span style="flex:1;font-size:13.5px;color:var(--fg-1)">Family</span><span style="display:flex;align-items:center;justify-content:space-between;width:194px;height:32px;padding:0 9px;border-radius:6px;background:var(--bg-2);font-size:13px">Poppins <i class="ph ph-caret-down" style="font-size:11px;color:var(--ed-muted)"></i></span></div>
+          <div style="display:flex;align-items:center;min-height:44px;gap:10px"><span style="flex:1;font-size:13.5px;color:var(--fg-1)">Weight</span><span style="display:flex;align-items:center;justify-content:space-between;width:138px;height:32px;padding:0 9px;border-radius:6px;background:var(--bg-2);font-size:13px">ExtraBold <i class="ph ph-caret-down" style="font-size:11px;color:var(--ed-muted)"></i></span></div>
+          <div style="display:flex;align-items:center;min-height:44px;gap:10px"><span style="flex:1;font-size:13.5px;color:var(--fg-1)">Size</span><div style="display:flex;align-items:center;gap:10px"><input type="range" min="0" max="100" value="62" style="width:112px;height:4px;appearance:none;border-radius:999px;background:linear-gradient(to right,var(--fg-disabled) 0%,var(--fg-disabled) 62%,var(--bg-3) 62%,var(--bg-3) 100%)"><span style="display:flex;align-items:center;width:88px;height:32px;padding:0 8px;border-radius:6px;background:var(--bg-2);font-size:13px">96 px</span></div></div>
+          <div style="display:flex;align-items:center;justify-content:space-between;height:44px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--fg-2)">Format <i class="ph ph-caret-down" style="font-size:11px"></i></div>
+          <div style="display:flex;align-items:center;min-height:44px;gap:8px">
+            <span style="flex:1;font-size:13.5px;color:var(--fg-1)">Style</span>
+            <button type="button" style="width:36px;height:32px;border:1px solid var(--ed-selection-border);border-radius:6px;background:var(--ed-selection-bg);color:var(--ed-selection);font-size:13px"><i class="ph ph-text-b"></i></button>
+            <button type="button" style="width:36px;height:32px;border:1px solid var(--border);border-radius:6px;background:var(--bg-2);color:var(--fg-0);font-size:13px"><i class="ph ph-text-italic"></i></button>
+            <button type="button" style="width:36px;height:32px;border:1px solid var(--border);border-radius:6px;background:var(--bg-2);color:var(--fg-0);font-size:13px"><i class="ph ph-text-underline"></i></button>
+          </div>
+          <div style="display:flex;align-items:center;min-height:44px;gap:8px">
+            <span style="flex:1;font-size:13.5px;color:var(--fg-1)">Align</span>
+            <button type="button" style="width:36px;height:32px;border:1px solid var(--border);border-radius:6px;background:var(--bg-2);color:var(--fg-0);font-size:13px"><i class="ph ph-text-align-left"></i></button>
+            <button type="button" style="width:36px;height:32px;border:1px solid var(--ed-selection-border);border-radius:6px;background:var(--ed-selection-bg);color:var(--ed-selection);font-size:13px"><i class="ph ph-text-align-center"></i></button>
+            <button type="button" style="width:36px;height:32px;border:1px solid var(--border);border-radius:6px;background:var(--bg-2);color:var(--fg-0);font-size:13px"><i class="ph ph-text-align-right"></i></button>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;height:44px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--fg-2)">Color <i class="ph ph-caret-down" style="font-size:11px"></i></div>
+          <div style="display:flex;gap:3px;padding:3px;border-radius:8px;background:var(--ed-sunken)">
+            <button type="button" style="display:flex;flex:1;align-items:center;justify-content:center;gap:7px;height:30px;border:0;border-radius:6px;background:var(--ed-raised);color:var(--fg-0);font-size:13px">Solid</button>
+            <button type="button" style="display:flex;flex:1;align-items:center;justify-content:center;gap:7px;height:30px;border:0;border-radius:6px;background:transparent;color:var(--fg-2);font-size:13px">Gradient</button>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;height:52px"><label style="flex:1;font-size:13.5px;color:var(--fg-1)">Fill</label><span style="display:flex;align-items:center;gap:9px;width:218px;height:32px;padding:0 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg-2)"><span style="width:18px;height:18px;flex-shrink:0;border-radius:4px;background:#ffffff"></span><span style="font-size:13px;text-transform:uppercase;color:var(--fg-0)">FFFFFF</span></span></div>
+          <div style="display:flex;align-items:center;gap:10px;height:52px"><label style="flex:1;font-size:13.5px;color:var(--fg-1)">Highlight</label><span style="display:flex;align-items:center;gap:9px;width:218px;height:32px;padding:0 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg-2)"><span style="width:18px;height:18px;flex-shrink:0;border-radius:4px;background:#f59e0b"></span><span style="font-size:13px;text-transform:uppercase;color:var(--fg-0)">F59E0B</span></span></div>
+          <div style="display:flex;align-items:center;gap:10px;height:52px"><label style="flex:1;font-size:13.5px;color:var(--fg-1)">Stroke</label><span style="display:flex;align-items:center;gap:9px;width:218px;height:32px;padding:0 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg-2)"><span style="width:18px;height:18px;flex-shrink:0;border-radius:4px;background:#000000"></span><span style="font-size:13px;text-transform:uppercase;color:var(--fg-0)">000000</span></span></div>
+        </div>
+        <div style="margin-top:auto;padding:10px 16px 14px">
+          <button type="button" style="height:34px;padding:0 26px;border:0;border-radius:8px;background:var(--mint);color:var(--on-accent);font-size:14px;font-weight:600" style-hover="background:var(--mint-hover)">Export</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+
+  <sc-if value="{{ isDashboard }}">
+  <div style="display:grid;grid-template-columns:16rem 1fr;min-height:calc(100vh - 30px)">
+    <aside style="position:sticky;top:0;height:calc(100vh - 30px);border-right:1px solid var(--border);background:var(--bg-1)">
+      <div style="display:flex;flex-direction:column;gap:16px;height:100%;padding:12px">
+        <div style="padding:4px 8px 0"><a href="#" style="font-family:'Bricolage Grotesque',Inter,sans-serif;font-size:18px;font-weight:600;letter-spacing:-0.02em;color:var(--fg-0)">Aksharo</a></div>
+        <div style="display:flex;align-items:center;gap:8px;margin:0 4px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:14px;color:var(--fg-1)">Ishaan's workspace</div>
+        <nav style="flex:1">
+          <ul style="display:flex;flex-direction:column;gap:2px;margin:0;padding:0;list-style:none">
+            <sc-for list="{{ nav }}" as="n" hint-placeholder-count="9">
+              <li><a href="#" onClick="{{ n.onClick }}" style="{{ n.style }}"><i class="{{ n.icon }}" style="font-size:16px;flex-shrink:0"></i>{{ n.label }}<sc-if value="{{ n.soon }}"><span style="margin-left:auto;padding:2px 8px;border:1px solid var(--border);border-radius:999px;background:var(--bg-2);font-size:11px;color:var(--fg-1)">Soon</span></sc-if></a></li>
+            </sc-for>
+          </ul>
+        </nav>
+        <div style="display:flex;flex-direction:column;gap:12px;padding-top:12px;border-top:1px solid var(--border)">
+          <div style="display:flex;flex-direction:column;gap:8px;padding:0 8px">
+            <span style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:500;letter-spacing:.04em;text-transform:uppercase;color:var(--fg-2)"><i class="ph ph-lightning" style="font-size:14px"></i> Credits</span>
+            <p style="margin:0;font-size:14px;font-weight:500;color:var(--fg-0)">342.5 left <span style="font-weight:400;color:var(--fg-2)">· 342.5 min</span></p>
+            <div style="height:6px;width:100%;border-radius:999px;background:var(--bg-2);overflow:hidden"><span style="display:block;width:68%;height:100%;border-radius:999px;background:var(--mint)"></span></div>
+            <p style="margin:0;font-size:11px;color:var(--fg-2)">Resets 1 Oct</p>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px;padding:0 8px">
+            <span style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:500;letter-spacing:.04em;text-transform:uppercase;color:var(--fg-2)"><i class="ph ph-waveform" style="font-size:14px"></i> Audio Clean</span>
+            <p style="margin:0;font-size:14px;font-weight:500;color:var(--fg-0)">342.5 left <span style="font-weight:400;color:var(--fg-2)">· ≈ 34.3 min of audio clean</span></p>
+            <div style="height:6px;width:100%;border-radius:999px;background:var(--bg-2);overflow:hidden"><span style="display:block;width:68%;height:100%;border-radius:999px;background:var(--mint)"></span></div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:6px;padding:0 8px">
+            <span style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:500;letter-spacing:.04em;text-transform:uppercase;color:var(--fg-2)"><i class="ph ph-hard-drive" style="font-size:14px"></i> Storage</span>
+            <p style="margin:0;font-size:14px;font-weight:500;color:var(--fg-0)">1.8 GB used</p>
+          </div>
+          <button type="button" style="display:flex;align-items:center;gap:10px;margin:0 4px;padding:8px;border:0;border-radius:8px;background:transparent;color:var(--fg-1);font-size:14px" style-hover="background:var(--bg-2)"><span style="display:flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;background:var(--ed-avatar);color:var(--ed-avatar-text);font-size:11px">IS</span>Ishaan Sethi</button>
+        </div>
+      </div>
+    </aside>
+
+    <div style="display:flex;min-width:0;flex-direction:column">
+      <header style="position:sticky;top:0;z-index:30;display:flex;align-items:center;gap:8px;height:56px;padding:0 12px;border-bottom:1px solid var(--border);background:rgba(13,13,13,.95);backdrop-filter:blur(8px)">
+        <button type="button" style="display:flex;height:36px;max-width:28rem;flex:1;align-items:center;gap:8px;border:1px solid var(--border);border-radius:8px;background:var(--bg-1);padding:0 12px;font-size:14px;color:var(--fg-2)" style-hover="border-color:rgba(161,161,170,.6)"><i class="ph ph-magnifying-glass" style="font-size:15px"></i><span>Search projects and actions</span><span style="margin-left:auto;display:flex;gap:4px"><kbd style="border:1px solid var(--border);border-radius:4px;background:var(--bg-2);padding:2px 6px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--fg-2)">⌘</kbd><kbd style="border:1px solid var(--border);border-radius:4px;background:var(--bg-2);padding:2px 6px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--fg-2)">K</kbd></span></button>
+        <div style="margin-left:auto;display:flex;align-items:center;gap:8px">
+          <button type="button" style="display:inline-flex;align-items:center;gap:8px;height:32px;padding:0 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-2);color:var(--fg-0);font-size:12px;font-weight:500"><i class="ph ph-plus" style="font-size:14px"></i> New project</button>
+          <a href="#" style="display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-1);color:var(--fg-1);font-size:12px"><span style="color:#F59E0B;font-weight:700">✦</span> Aura</a>
+          <button type="button" style="display:flex;align-items:center;justify-content:center;width:36px;height:36px;border:0;border-radius:8px;background:transparent;color:var(--fg-1);font-size:17px"><i class="ph ph-sparkle"></i></button>
+          <button type="button" style="display:inline-flex;align-items:center;height:32px;padding:0 12px;border:0;border-radius:8px;background:var(--mint);color:var(--on-accent);font-size:12px;font-weight:500">Upgrade</button>
+        </div>
+      </header>
+
+      <main style="flex:1;padding:24px 24px">
+        <sc-if value="{{ isHome }}">
+        <div style="display:flex;flex-direction:column;gap:32px">
+          <h1 style="margin:0;font-family:'Bricolage Grotesque',Inter,sans-serif;font-size:28px;font-weight:600;letter-spacing:-0.02em;color:var(--fg-0)">Good to see you, Ishaan</h1>
+          <div style="display:flex;flex-direction:column;gap:12px">
+            <button type="button" style="display:flex;width:100%;height:240px;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:32px 24px;border:2px dashed var(--border);border-radius:12px;background:var(--bg-1);text-align:center;transition:all .2s" style-hover="border-color:var(--mint);background:rgba(73,167,129,.02)">
+              <span style="display:flex;align-items:center;justify-content:center;width:48px;height:48px;border-radius:50%;background:var(--bg-2)"><i class="ph ph-cloud-arrow-up" style="font-size:24px;color:var(--mint)"></i></span>
+              <span style="display:flex;flex-direction:column;align-items:center;gap:4px">
+                <span style="font-size:16px;font-weight:500;color:var(--fg-0)">Drop videos or audio here or click to upload</span>
+                <span style="font-size:12px;color:var(--fg-2)">Up to 4 GB / 3 h on Creator · MP4 MOV M4V AVI MPEG MPG 3GP MP3 WAV M4A AAC</span>
+                <span style="margin-top:4px;display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border:1px solid rgba(73,167,129,.4);border-radius:999px;background:rgba(73,167,129,.1);font-size:12px;font-weight:500;color:var(--mint)">Transcription usually takes a few minutes</span>
+              </span>
+            </button>
+            <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px">
+              <button type="button" style="border:1px solid var(--border);border-radius:999px;background:var(--bg-2);color:var(--fg-1);padding:6px 12px;font-size:14px">Hinglish (Roman)</button>
+              <span style="color:var(--fg-2)">·</span>
+              <button type="button" style="border:1px solid var(--border);border-radius:999px;background:var(--bg-2);color:var(--fg-1);padding:6px 12px;font-size:14px">Punch Pop</button>
+              <span style="color:var(--fg-2)">·</span>
+              <button type="button" style="border:1px solid var(--border);border-radius:999px;background:var(--bg-2);color:var(--fg-1);padding:6px 12px;font-size:14px">9:16</button>
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:12px">
+            <div style="display:flex;align-items:center;justify-content:space-between">
+              <h2 style="margin:0;font-size:18px;font-weight:600;color:var(--fg-0)">Recent projects</h2>
+              <button type="button" style="height:32px;padding:0 12px;border:1px solid var(--border);border-radius:8px;background:transparent;color:var(--fg-1);font-size:12px">Try a sample project</button>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:16px">
+              <sc-for list="{{ projects }}" as="p" hint-placeholder-count="6">
+                <a href="#" style="position:relative;display:flex;flex-direction:column;overflow:hidden;border:1px solid var(--border);border-radius:12px;background:var(--bg-1)" style-hover="border-color:rgba(73,167,129,.4)">
+                  <span style="position:relative;display:flex;aspect-ratio:9/16;width:100%;align-items:center;justify-content:center;overflow:hidden;background:var(--bg-2)">
+                    <span style="position:absolute;inset:0;background:{{ p.thumb }}"></span>
+                    <span style="position:absolute;bottom:36px;left:50%;transform:translateX(-50%);display:flex;width:80%;height:32px;align-items:center;justify-content:center;gap:6px;padding:0 8px;border:1px dashed #FFB800;border-radius:4px;background:rgba(255,184,0,.15)">
+                      <span style="height:6px;width:33%;border-radius:999px;background:rgba(255,184,0,.7)"></span>
+                      <span style="height:6px;width:50%;border-radius:999px;background:rgba(255,184,0,.9)"></span>
+                    </span>
+                    <span style="position:absolute;right:8px;bottom:8px;border-radius:4px;background:rgba(0,0,0,.75);padding:2px 6px;font-family:'JetBrains Mono',monospace;font-size:11px;color:#fff">{{ p.dur }}</span>
+                  </span>
+                  <span style="display:flex;flex:1;flex-direction:column;gap:8px;padding:12px">
+                    <span style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
+                      <span style="font-size:14px;font-weight:500;color:var(--fg-0)">{{ p.title }}</span>
+                      <i class="ph ph-dots-three-vertical" style="font-size:16px;color:var(--fg-2)"></i>
+                    </span>
+                    <span style="display:flex;flex-wrap:wrap;align-items:center;gap:6px">
+                      <span style="{{ p.statusStyle }}">{{ p.status }}</span>
+                      <span style="display:inline-flex;align-items:center;border:1px solid var(--border);border-radius:999px;background:var(--bg-2);padding:2px 8px;font-size:11px;color:var(--fg-1)">{{ p.lang }}</span>
+                    </span>
+                  </span>
+                </a>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+        </sc-if>
+
+        <sc-if value="{{ isProjects }}">
+        <div style="display:flex;flex-direction:column;gap:16px">
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <h1 style="margin:0;font-family:'Bricolage Grotesque',Inter,sans-serif;font-size:28px;font-weight:600;letter-spacing:-0.02em">Projects</h1>
+            <button type="button" style="height:32px;padding:0 12px;border:1px solid var(--border);border-radius:8px;background:transparent;color:var(--fg-1);font-size:12px">Select</button>
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+            <input placeholder="Search projects" style="width:240px;height:36px;padding:0 10px;border:1px solid var(--border);border-radius:8px;background:var(--bg-1);color:var(--fg-0);font-size:14px">
+            <button type="button" style="height:36px;padding:0 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-1);color:var(--fg-1);font-size:13px">Status <i class="ph ph-caret-down" style="font-size:11px"></i></button>
+            <button type="button" style="height:36px;padding:0 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-1);color:var(--fg-1);font-size:13px">Language <i class="ph ph-caret-down" style="font-size:11px"></i></button>
+            <button type="button" style="height:36px;padding:0 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-1);color:var(--fg-1);font-size:13px">Client tag <i class="ph ph-caret-down" style="font-size:11px"></i></button>
+            <button type="button" style="margin-left:auto;height:36px;padding:0 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-1);color:var(--fg-1);font-size:13px">Newest first <i class="ph ph-caret-down" style="font-size:11px"></i></button>
+          </div>
+          <div style="display:grid;grid-template-columns:14rem 1fr;gap:24px">
+            <div style="display:flex;flex-direction:column;gap:2px">
+              <p style="margin:0 0 6px;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--fg-2)">Folders</p>
+              <a href="#" style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;background:var(--bg-2);color:var(--mint);font-size:14px"><i class="ph ph-folder" style="font-size:15px"></i> All projects</a>
+              <a href="#" style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;color:var(--fg-1);font-size:14px"><i class="ph ph-folder" style="font-size:15px"></i> Client — Bikaji</a>
+              <a href="#" style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;color:var(--fg-1);font-size:14px"><i class="ph ph-folder" style="font-size:15px"></i> Podcast S2</a>
+              <a href="#" style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;color:var(--fg-1);font-size:14px"><i class="ph ph-folder" style="font-size:15px"></i> Shorts backlog</a>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:16px">
+              <sc-for list="{{ projects }}" as="p" hint-placeholder-count="6">
+                <a href="#" style="position:relative;display:flex;flex-direction:column;overflow:hidden;border:1px solid var(--border);border-radius:12px;background:var(--bg-1)" style-hover="border-color:rgba(73,167,129,.4)">
+                  <span style="position:relative;display:flex;aspect-ratio:9/16;width:100%;align-items:center;justify-content:center;overflow:hidden;background:var(--bg-2)">
+                    <span style="position:absolute;inset:0;background:{{ p.thumb }}"></span>
+                    <span style="position:absolute;right:8px;bottom:8px;border-radius:4px;background:rgba(0,0,0,.75);padding:2px 6px;font-family:'JetBrains Mono',monospace;font-size:11px;color:#fff">{{ p.dur }}</span>
+                  </span>
+                  <span style="display:flex;flex:1;flex-direction:column;gap:8px;padding:12px">
+                    <span style="font-size:14px;font-weight:500;color:var(--fg-0)">{{ p.title }}</span>
+                    <span style="display:flex;flex-wrap:wrap;align-items:center;gap:6px">
+                      <span style="{{ p.statusStyle }}">{{ p.status }}</span>
+                      <span style="display:inline-flex;align-items:center;border:1px solid var(--border);border-radius:999px;background:var(--bg-2);padding:2px 8px;font-size:11px;color:var(--fg-1)">{{ p.lang }}</span>
+                    </span>
+                  </span>
+                </a>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+        </sc-if>
+      </main>
+    </div>
+  </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { screen: "editor", sel: 2, tab: "look", rail: "captions", playing: false };
+
+  renderVals() {
+    const s = this.state;
+    const railDef = [
+      { id: "captions", label: "Captions", icon: "ph ph-subtitles" },
+      { id: "fonts", label: "Custom Fonts", icon: "ph ph-text-aa" },
+      { id: "library", label: "Library", icon: "ph ph-folder-open" },
+    ];
+    const tabDef = [
+      { id: "look", label: "Text" },
+      { id: "style", label: "Templates" },
+      { id: "anim", label: "Transitions" },
+      { id: "audio", label: "AI Audio" },
+    ];
+    const navDef = [
+      { label: "Home", icon: "ph ph-house", key: "home" },
+      { label: "Projects", icon: "ph ph-folder", key: "projects" },
+      { label: "Templates", icon: "ph ph-layout", key: "templates", soon: true },
+      { label: "Academy", icon: "ph ph-graduation-cap", key: "academy" },
+      { label: "Plugins", icon: "ph ph-plug", key: "plugins" },
+      { label: "Team", icon: "ph ph-users", key: "team" },
+      { label: "Subscription", icon: "ph ph-credit-card", key: "billing" },
+      { label: "Refer & Earn", icon: "ph ph-gift", key: "affiliate" },
+      { label: "Help", icon: "ph ph-lifebuoy", key: "help" },
+    ];
+    const lines = [
+      { n: 1, t: "Namaste doston, aaj hum baat karenge", sp: "Ishaan", c: "#6d5ad6", emph: 4 },
+      { n: 2, t: "ek chhoti si trick ke baare mein", sp: "Ishaan", c: "#6d5ad6", emph: 1 },
+      { n: 3, t: "jo aapke edits ko dus guna fast bana degi", sp: "Ishaan", c: "#6d5ad6", emph: 5 },
+      { n: 4, t: "seedha timeline ke andar, bina export kiye", sp: "Ishaan", c: "#6d5ad6", emph: -1 },
+      { n: 5, t: "toh chaliye shuru karte hain", sp: "Ishaan", c: "#6d5ad6", emph: -1 },
+      { n: 6, t: "pehle caption style select kijiye", sp: "Riya", c: "#b0a76f", emph: 2 },
+      { n: 7, t: "phir har word ko tweak kar sakte ho", sp: "Riya", c: "#b0a76f", emph: 4 },
+      { n: 8, t: "aur bas, export ready hai", sp: "Riya", c: "#b0a76f", emph: -1 },
+    ];
+    const rowBase =
+      "position:relative;display:flex;align-items:center;gap:14px;min-height:58px;padding:8px 0;border-bottom:1px solid var(--ed-divider);cursor:pointer;transition:background-color 160ms var(--ease);";
+    return {
+      isEditor: s.screen === "editor",
+      isDashboard: s.screen === "home" || s.screen === "projects",
+      isHome: s.screen === "home",
+      isProjects: s.screen === "projects",
+      showEditor: () => this.setState({ screen: "editor" }),
+      showHome: () => this.setState({ screen: "home" }),
+      showProjects: () => this.setState({ screen: "projects" }),
+      togglePlay: () => this.setState({ playing: !s.playing }),
+      playIcon: s.playing ? "ph-fill ph-pause" : "ph-fill ph-play",
+      railTabs: railDef.map((t) => ({
+        ...t,
+        onClick: () => this.setState({ rail: t.id }),
+        style:
+          "display:flex;width:62px;flex-direction:column;align-items:center;justify-content:center;gap:5px;padding:8px 8px 7px;border:0;border-radius:8px;transition:background-color 160ms var(--ease);" +
+          (s.rail === t.id ? "background:var(--bg-2);color:var(--fg-0)" : "background:transparent;color:var(--fg-2)"),
+      })),
+      panelTabs: tabDef.map((t) => ({
+        ...t,
+        onClick: () => this.setState({ tab: t.id }),
+        style:
+          "flex-shrink:0;border:0;border-bottom:2px solid " +
+          (s.tab === t.id ? "var(--fg-0)" : "transparent") +
+          ";background:transparent;padding:12px 0 9px;font-size:13.5px;line-height:16px;transition:color 160ms var(--ease);color:" +
+          (s.tab === t.id ? "var(--fg-0)" : "var(--fg-2)"),
+      })),
+      nav: navDef.map((n) => ({
+        ...n,
+        soon: n.soon === true,
+        onClick: n.key === "projects" ? () => this.setState({ screen: "projects" }) : n.key === "home" ? () => this.setState({ screen: "home" }) : () => {},
+        style:
+          "display:flex;width:100%;align-items:center;gap:10px;border-radius:8px;padding:8px 10px;font-size:14px;font-weight:500;transition:background-color 160ms var(--ease),color 160ms var(--ease);" +
+          (n.key === s.screen
+            ? "background:var(--bg-2);color:var(--mint)"
+            : n.soon === true
+              ? "color:var(--fg-disabled)"
+              : "color:var(--fg-1)"),
+      })),
+      rows: lines.map((l, i) => ({
+        n: l.n,
+        speaker: l.sp,
+        spColor: l.c,
+        onClick: () => this.setState({ sel: i }),
+        style: rowBase + (s.sel === i ? "background:color-mix(in srgb,var(--ed-emphasis-bg) 35%,transparent)" : "background:transparent"),
+        words: l.t.split(" ").map((w, wi) => ({
+          t: w,
+          style:
+            wi === l.emph
+              ? "padding:3px 8px;border-radius:6px;background:var(--ed-emphasis-bg);color:var(--ed-emphasis)"
+              : s.sel === i && wi === 0
+                ? "padding:3px 6px;border-radius:6px;background:var(--ed-selection-bg);border:1px solid var(--ed-selection-border);color:var(--ed-selection)"
+                : "padding:3px 2px;border-radius:6px;color:var(--fg-0)",
+        })),
+      })),
+      ticks: ["0:00", "0:05", "0:10", "0:15", "0:20", "0:25", "0:30", "0:35"],
+      chips: lines.flatMap((l) =>
+        l.t.split(" ").slice(0, 3).map((w) => ({
+          t: w,
+          style:
+            "flex:1;min-width:0;height:37px;display:flex;align-items:center;padding:0 5px;border-radius:4px;background:var(--ed-raised);color:var(--fg-1);font-size:10px;overflow:hidden;white-space:nowrap",
+        })),
+      ),
+      frames: ["#241c14", "#2e2318", "#1b1712", "#3a2b1c", "#241c14", "#2a2016", "#191410", "#33261a", "#221a12", "#2c2217", "#1d1813", "#332619"],
+      wave: Array.from({ length: 48 }, (_, i) => `${20 + Math.round(Math.abs(Math.sin(i * 1.7)) * 26)}px`),
+      projects: [
+        { title: "Diwali skit — final cut", dur: "0:38", status: "Ready", lang: "Hinglish", thumb: "linear-gradient(170deg,#2b2118,#0f0d0c)" },
+        { title: "Bikaji ad v3 (client review)", dur: "0:22", status: "Working", lang: "हिन्दी", thumb: "linear-gradient(160deg,#1b2430,#0c0f12)" },
+        { title: "Podcast ep 14 — hook", dur: "1:04", status: "Ready", lang: "English", thumb: "linear-gradient(200deg,#231a2b,#0d0b10)" },
+        { title: "Street food reel (raw)", dur: "0:47", status: "Queued", lang: "Hinglish", thumb: "linear-gradient(140deg,#2b1f1f,#100c0c)" },
+        { title: "Gaming highlight — clutch", dur: "0:31", status: "Failed", lang: "Hinglish", thumb: "linear-gradient(190deg,#152621,#0a0f0d)" },
+        { title: "Tamil recipe short", dur: "0:55", status: "Ready", lang: "தமிழ்", thumb: "linear-gradient(150deg,#26231a,#100f0b)" },
+      ].map((p) => {
+        const tone = {
+          Ready: "border:1px solid rgba(34,197,94,.4);background:rgba(34,197,94,.1);color:#22c55e",
+          Working: "border:1px solid rgba(245,158,11,.4);background:rgba(245,158,11,.1);color:#f59e0b",
+          Queued: "border:1px solid rgba(59,130,246,.4);background:rgba(59,130,246,.1);color:#3b82f6",
+          Failed: "border:1px solid rgba(239,68,68,.4);background:rgba(239,68,68,.1);color:#ef4444",
+        }[p.status];
+        return { ...p, statusStyle: "display:inline-flex;align-items:center;border-radius:999px;padding:2px 8px;font-size:11px;font-weight:500;" + tone };
+      }),
+    };
+  }
+}
+</script>
+</body>
+</html>

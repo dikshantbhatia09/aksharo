@@ -108,3 +108,6 @@ apps/desktop/release/
 scratch/extracted_fonts/
 scratch/all_frames/
 apps/web/test-results-wave0/
+# `e2e/nocturne-shots.spec.ts` writes here: a look at the rebuilt screens,
+# regenerated on demand and not something to keep in the history.
+apps/web/test-results-nocturne/

@@ -1,8 +1,22 @@
 "use client";
 
 /**
- * One card in the Recent grid (08 §Home) and in `/projects`' grid view:
- * thumbnail, title, duration, language/script chip, status chip, kebab.
+ * One tile in the studio's "Pick up where you left off" grid and in
+ * `/projects`' grid view, drawn as the premium canvas draws it: a portrait
+ * frame with the duration in a dark chip at its corner, then the title and a
+ * single status line — a coloured dot, the status word, and the language.
+ *
+ * What the canvas deliberately does not have, and what came out with it:
+ *
+ *  - a dashed gold "subtitle bounding box" painted over every thumbnail. It
+ *    was drawn from two hard-coded `#FFB800` values, showed a caption position
+ *    that had nothing to do with the project's actual caption placement, and
+ *    obscured the frame it sat on.
+ *  - a green circular play button on hover, in a hard-coded `#10B981` that is
+ *    not a colour in this palette and read as a second accent.
+ *  - a 1 px border on the tile. Nocturne separates a card from the page with
+ *    its own lighter surface; the outline appears on hover, in the accent, as
+ *    the selection affordance.
  *
  * Status is live: `useProjectJobs` polls every few seconds while any of the
  * project's jobs are still queued or running (`@montaj/api-client`'s
@@ -12,16 +26,16 @@
  * under exactly that prefix, so a card update from the WebSocket and a card
  * update from polling both land through the identical refetch path.
  */
-import { Clock, Film } from "lucide-react";
+import { Film } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
 
 import { useProjectJobs } from "@montaj/api-client";
-import type { Project } from "@montaj/api-client";
-import { Checkbox, LangChip, StatusChip } from "@montaj/ui";
+import type { Project, ProjectAspect } from "@montaj/api-client";
+import { Checkbox } from "@montaj/ui";
 
 import { ProjectKebabMenu } from "./project-kebab-menu";
-import { activeJobFor, projectCardStatus } from "./project-status";
+import { activeJobFor, projectCardStatus, STATUS_DOT, STATUS_WORD } from "./project-status";
 
 import { cn } from "@/lib/utils";
 
@@ -33,6 +47,23 @@ function formatDuration(ms: number | null): string | undefined {
   return `${String(minutes)}:${String(seconds).padStart(2, "0")}`;
 }
 
+/**
+ * FIX-05: the frame is the project's own aspect. A portrait project drawn in a
+ * 16:9 box was the grid's half of the audit's "chrome ignores correct data"
+ * finding, and the previous fix wrote the comment but left `aspect-[9/16]`
+ * hard-coded underneath it.
+ *
+ * 9:16 is drawn at the canvas's slightly squarer 9:13 so a row of tiles is not
+ * a row of slots; the ratio only decides the *frame*, and the thumbnail inside
+ * it is `object-cover` either way.
+ */
+const FRAME: Record<ProjectAspect, string> = {
+  "9:16": "aspect-[9/13]",
+  "4:5": "aspect-[4/5]",
+  "1:1": "aspect-square",
+  "16:9": "aspect-video",
+};
+
 export function ProjectCard({
   project,
   selectable = false,
@@ -41,7 +72,7 @@ export function ProjectCard({
   onViewDetails,
 }: {
   project: Project;
-  /** `/projects`' bulk-select mode; Home never turns this on. */
+  /** `/projects`' bulk-select mode; the studio never turns this on. */
   selectable?: boolean;
   selected?: boolean;
   onToggleSelect?: (projectId: string) => void;
@@ -62,19 +93,22 @@ export function ProjectCard({
           onToggleSelect?.(project.id);
         }
       }}
-      className="group border-border bg-bg-1 hover:border-lime-500/40 relative flex flex-col overflow-hidden rounded-md border transition-colors"
+      className={cn(
+        "group bg-surface relative flex flex-col overflow-hidden rounded-[10px]",
+        "transition-shadow duration-[160ms] ease-[var(--ease-out-soft)]",
+        selected
+          ? "shadow-[0_0_0_1px_var(--color-accent)]"
+          : "hover:shadow-[0_0_0_1px_var(--color-accent)]",
+      )}
       data-testid="project-card"
       data-project-id={project.id}
       data-status={status}
       data-selected={selected}
     >
-      {/* FIX-05: the frame is the project's own aspect, and the thumbnail the
-          pipeline already produced is finally shown. A portrait project drawn in
-          a 16:9 box was the grid's half of the audit's "chrome ignores correct
-          data" finding. */}
       <div
         className={cn(
-          "bg-bg-2 relative flex items-center justify-center overflow-hidden aspect-[9/16] w-full",
+          "bg-sunken relative flex w-full items-center justify-center overflow-hidden",
+          FRAME[project.aspect],
         )}
       >
         {selectable ? (
@@ -91,42 +125,18 @@ export function ProjectCard({
             data-testid="project-card-select"
           />
         ) : null}
+
         {project.thumbnailUrl === undefined ? (
-          <Film className="text-fg-2 size-8" aria-hidden="true" />
+          <Film className="text-neutral-700 size-7" aria-hidden="true" />
         ) : (
           // A plain <img>, as elsewhere in this folder: the src is a short-lived
           // presigned URL on an external origin, which next/image cannot optimise.
           <img src={project.thumbnailUrl} alt="" className="h-full w-full object-cover" />
         )}
 
-        {/* Subtitle Bounding Box Overlay (Kalakar Parity: orange/gold box in lower third) */}
-        <div
-          className="pointer-events-none absolute bottom-9 left-1/2 -translate-x-1/2 w-4/5 h-8 rounded border border-dashed border-[#FFB800] bg-[#FFB800]/15 flex items-center justify-center gap-1.5 px-2"
-          aria-hidden="true"
-        >
-          <div className="h-1.5 w-1/3 rounded-full bg-[#FFB800]/70" />
-          <div className="h-1.5 w-1/2 rounded-full bg-[#FFB800]/90" />
-        </div>
-
-        {/* Play Button Overlay on Hover */}
-        <div
-          className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition-opacity duration-200 group-hover:opacity-100"
-          aria-hidden="true"
-        >
-          <div className="flex size-11 items-center justify-center rounded-full bg-[#10B981] text-black shadow-lg">
-            <svg
-              className="size-5 fill-current ml-0.5"
-              viewBox="0 0 24 24"
-              aria-hidden="true"
-            >
-              <polygon points="5 3 19 12 5 21 5 3" />
-            </svg>
-          </div>
-        </div>
-
         {duration === undefined ? null : (
           <span
-            className="bg-black/75 absolute right-2 bottom-2 rounded px-1.5 py-0.5 font-mono text-[11px] text-white backdrop-blur-sm"
+            className="bg-ink/70 text-neutral-200 absolute right-1.5 bottom-1.5 rounded-[4px] px-1.5 py-px font-mono text-[10px]"
             data-testid="project-card-duration"
           >
             {duration}
@@ -134,26 +144,27 @@ export function ProjectCard({
         )}
       </div>
 
-      <div className="flex flex-1 flex-col gap-2 p-3">
-        <div className="flex items-start justify-between gap-2">
-          <h3 className="text-fg-0 line-clamp-2 text-sm font-medium">{project.title}</h3>
+      <div className="flex flex-1 flex-col gap-[5px] px-2.5 pt-[9px] pb-[11px]">
+        <div className="flex items-start justify-between gap-1.5">
+          <h3 className="text-fg-0 line-clamp-2 text-[12.5px] leading-[1.3]">{project.title}</h3>
           <ProjectKebabMenu
             project={project}
             {...(onViewDetails === undefined ? {} : { onViewDetails })}
           />
         </div>
 
-        <div className="flex flex-wrap items-center gap-1.5">
-          <StatusChip status={status} />
-          {project.sourceLanguage === null ? null : <LangChip language={project.sourceLanguage} />}
-        </div>
-
-        {active === undefined ? null : (
-          <p className="text-fg-2 flex items-center gap-1 text-xs" data-testid="project-card-eta">
-            <Clock className="size-3" aria-hidden="true" />
-            {active.etaMs === null ? "Working…" : formatEta(active.etaMs)}
-          </p>
-        )}
+        <span className="text-neutral-500 flex items-center gap-1.5 text-[10.5px]">
+          {/* eslint-disable-next-line security/detect-object-injection -- `status` is one of the six ChipStatus literals */}
+          <span className={cn("size-[5px] shrink-0 rounded-full", STATUS_DOT[status])} />
+          {/* eslint-disable-next-line security/detect-object-injection -- as above */}
+          {STATUS_WORD[status]}
+          {project.sourceLanguage === null ? null : ` · ${project.sourceLanguage}`}
+          {active?.etaMs == null ? null : (
+            <span className="ml-auto font-mono" data-testid="project-card-eta">
+              {formatEta(active.etaMs)}
+            </span>
+          )}
+        </span>
       </div>
     </Link>
   );
@@ -161,6 +172,6 @@ export function ProjectCard({
 
 function formatEta(etaMs: number): string {
   const seconds = Math.round(etaMs / 1000);
-  if (seconds < 60) return `about ${String(seconds)}s left`;
-  return `about ${String(Math.round(seconds / 60))} min left`;
+  if (seconds < 60) return `${String(seconds)}s`;
+  return `${String(Math.round(seconds / 60))}m`;
 }

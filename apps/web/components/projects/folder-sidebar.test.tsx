@@ -81,8 +81,13 @@ describe("<FolderSidebar />", () => {
       <FolderSidebar selectedFolderId="01JFOLDERA0000000000000A" onSelect={vi.fn()} />,
       { routes: FOLDERS_ROUTE },
     );
+    // Selected is the accent tint the whole shell uses for "this one",
+    // not a raised grey surface.
     await waitFor(() => {
-      expect(screen.getByTestId("folder-01JFOLDERA0000000000000A")).toHaveClass("text-fg-0");
+      expect(screen.getByTestId("folder-01JFOLDERA0000000000000A")).toHaveClass("text-accent-200");
     });
+    expect(screen.getByTestId("folder-01JFOLDERB0000000000000A")).not.toHaveClass(
+      "text-accent-200",
+    );
   });
 });

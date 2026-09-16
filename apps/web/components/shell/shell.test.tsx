@@ -2,13 +2,15 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
+import { BRAND } from "@montaj/config";
+
+import { NavRail } from "./nav-rail";
 import { initials, ProfileMenu } from "./profile-menu";
 import { formatStorageBytes, Sidebar, sumStorageBytes, UpgradeButton } from "./sidebar";
 import { TopBar } from "./top-bar";
 import { WorkspaceSwitcher } from "./workspace-switcher";
 
-import { BRAND } from "@montaj/config";
-import { PRIMARY_NAV } from "@/lib/nav";
+import { PRIMARY_NAV, SECONDARY_NAV } from "@/lib/nav";
 import { renderWithProviders, testAccessToken } from "@/test/harness";
 import { pathnameMock } from "@/test/next-router";
 
@@ -79,44 +81,116 @@ describe("<Sidebar />", () => {
     expect(screen.queryByTestId("desktop-download")).toBeNull();
   });
 
-  it("shows the credit meter with what the entitlement says", async () => {
+  it("shows the credit card with what the credit account says", async () => {
     renderWithProviders(<Sidebar />, { routes: ENTITLEMENT });
-    // `/entitlement` is A05's and is not in the API yet, so the meter renders
+    // `/entitlement` is A05's and is not in the API yet, so the card renders
     // the honest zero rather than an error state.
-    expect(await screen.findByTestId("credit-meter-balance")).toHaveTextContent("0 left");
+    expect(await screen.findByTestId("credits-card-balance")).toHaveTextContent("—");
   });
 
   it("keeps the streak badge behind its flag", async () => {
     renderWithProviders(<Sidebar />, { config: { flags: { "growth.streakWidget": false } } });
     await waitFor(() => {
-      expect(screen.getByTestId("credit-meter")).toBeInTheDocument();
+      expect(screen.getByTestId("credits-card")).toBeInTheDocument();
     });
     expect(screen.queryByTestId("credit-meter-streak")).toBeNull();
   });
 
-  // K04: Storage and Audio-Clean counters alongside the transcription meter.
-  describe("usage counters (K04)", () => {
-    it("shows an Audio Clean row drawing on the same credit balance as transcription", async () => {
-      renderWithProviders(<Sidebar />, { routes: ENTITLEMENT });
-      // Same "/entitlement" mismatch as the transcription meter's own test above
-      // (that route is not `useEntitlement`'s real one) — the honest zero, for
-      // both meters, since they read the very same balance.
-      expect(await screen.findByTestId("audio-clean-meter-balance")).toHaveTextContent("0 left");
-      expect(screen.getByText("Audio Clean")).toBeInTheDocument();
-      // No minute-equivalence clause from the transcription meter's own
-      // `formatMinutes` — this row's unit clause is audio-clean-specific.
-      expect(screen.getByTestId("audio-clean-meter-balance")).toHaveTextContent("audio clean");
-    });
-
-    it("shows a Storage row with no bar and no reset date (no plan quota exists to draw one against)", async () => {
+  /*
+   * K04 shipped three stacked meters — transcription credits, Audio Clean and
+   * Storage — because the reference screenshot of the time had three. The
+   * premium canvas has one credit card and no meter for anything without a
+   * cap, so Audio Clean is gone (it was the *same* credit balance relabelled:
+   * `packages/config/src/credits.ts` charges `audioClean` the identical rate
+   * as `transcribe`, so the row restated a number the card already showed),
+   * and Storage is a sentence rather than a bar.
+   */
+  describe("usage counters", () => {
+    it("states storage as a figure, with no invented quota to draw a bar against", async () => {
       renderWithProviders(<Sidebar />, { routes: ENTITLEMENT });
       await waitFor(() => {
-        expect(screen.getByTestId("storage-meter-balance")).toHaveTextContent("used");
+        expect(screen.getByTestId("storage-meter")).toHaveTextContent("of media");
       });
-      expect(screen.getByText("Storage")).toBeInTheDocument();
-      expect(screen.queryByTestId("storage-meter-reset")).toBeNull();
       expect(within(screen.getByTestId("storage-meter")).queryByRole("progressbar")).toBeNull();
     });
+
+    it("does not restate the credit balance a second time as Audio Clean", () => {
+      renderWithProviders(<Sidebar />, { routes: ENTITLEMENT });
+      expect(screen.queryByTestId("audio-clean-meter")).toBeNull();
+    });
+  });
+});
+
+describe("<NavRail />", () => {
+  it("carries the canvas's eight destinations and none of the secondary ones", () => {
+    renderWithProviders(<NavRail />);
+    for (const item of PRIMARY_NAV) {
+      expect(screen.getByTestId(`nav-${item.key}`)).toBeInTheDocument();
+    }
+    for (const item of SECONDARY_NAV) {
+      expect(screen.queryByTestId(`nav-${item.key}`)).toBeNull();
+    }
+  });
+
+  it("captions each icon, so the rail is readable without hovering", () => {
+    renderWithProviders(<NavRail />);
+    expect(screen.getByTestId("nav-projects")).toHaveTextContent("Files");
+    expect(screen.getByTestId("nav-repurpose")).toHaveTextContent("Clips");
+  });
+
+  it("marks the current page for assistive technology, not only with colour", () => {
+    pathnameMock.value = "/";
+    renderWithProviders(<NavRail />);
+    expect(screen.getByTestId("nav-home")).toHaveAttribute("aria-current", "page");
+  });
+
+  /*
+   * `repurpose_flow` is targeted at one workspace, and the canvas puts Clips
+   * FIRST in the rail. Ungated it would be the topmost button for every user
+   * outside the cohort, leading to a screen that only says "not on for you" —
+   * and it would be the single always-visible trace of the surface, since the
+   * studio's own banner renders nothing when the flag is off.
+   */
+  it("disables the Clips entry for a workspace the pipeline is not on for", async () => {
+    renderWithProviders(<NavRail />, {
+      routes: {
+        "/workspaces/01JWORKSPACE/entitlement": {
+          workspaceId: "01JWORKSPACE",
+          planKey: "free",
+          planName: "Free",
+          creditsPerMonthTenths: 200,
+          seatsIncluded: 1,
+          seatsUsed: 1,
+          computedAt: "2026-09-15T10:00:00.000Z",
+          entitlements: { flags: {} },
+        },
+      },
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("nav-repurpose")).toHaveAttribute("aria-disabled", "true");
+    });
+    expect(screen.getByTestId("nav-repurpose").tagName).not.toBe("A");
+  });
+
+  it("links the Clips entry once the pipeline is on for the workspace", async () => {
+    renderWithProviders(<NavRail />, {
+      routes: {
+        "/workspaces/01JWORKSPACE/entitlement": {
+          workspaceId: "01JWORKSPACE",
+          planKey: "free",
+          planName: "Free",
+          creditsPerMonthTenths: 200,
+          seatsIncluded: 1,
+          seatsUsed: 1,
+          computedAt: "2026-09-15T10:00:00.000Z",
+          entitlements: { flags: { repurpose_flow: true } },
+        },
+      },
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("nav-repurpose").tagName).toBe("A");
+    });
+    expect(screen.getByTestId("nav-repurpose")).toHaveAttribute("href", "/repurpose");
   });
 });
 
@@ -223,7 +297,7 @@ describe("<UpgradeButton />", () => {
 
 describe("<TopBar />", () => {
   it("offers search, New project and What's new", () => {
-    renderWithProviders(<TopBar onOpenPalette={vi.fn()} />);
+    renderWithProviders(<TopBar onOpenPalette={vi.fn()} navModel="rail" onNavModelChange={vi.fn()} />);
     expect(screen.getByTestId("open-palette")).toHaveTextContent("Search projects and actions");
     expect(screen.getByTestId("new-project")).toBeInTheDocument();
     // The changelog lives at /updates; /help/changelog has no article behind it.
@@ -231,21 +305,21 @@ describe("<TopBar />", () => {
   });
 
   it("marks the what's-new dot in the accessible name, not only as a colour", () => {
-    renderWithProviders(<TopBar onOpenPalette={vi.fn()} hasWhatsNew />);
+    renderWithProviders(<TopBar onOpenPalette={vi.fn()} hasWhatsNew navModel="rail" onNavModelChange={vi.fn()} />);
     expect(screen.getByRole("link", { name: "What's new (unread)" })).toBeInTheDocument();
   });
 
   it("opens the palette from the search box", async () => {
     const user = userEvent.setup();
     const onOpenPalette = vi.fn();
-    renderWithProviders(<TopBar onOpenPalette={onOpenPalette} />);
+    renderWithProviders(<TopBar onOpenPalette={onOpenPalette} navModel="rail" onNavModelChange={vi.fn()} />);
     await user.click(screen.getByTestId("open-palette"));
     expect(onOpenPalette).toHaveBeenCalledOnce();
   });
 
   it("opens the navigation drawer on a narrow viewport", async () => {
     const user = userEvent.setup();
-    renderWithProviders(<TopBar onOpenPalette={vi.fn()} />);
+    renderWithProviders(<TopBar onOpenPalette={vi.fn()} navModel="rail" onNavModelChange={vi.fn()} />);
     await user.click(screen.getByTestId("open-nav"));
     const drawer = await screen.findByRole("dialog", { name: "Navigation" });
     expect(within(drawer).getByTestId("nav-home")).toBeInTheDocument();
@@ -280,6 +354,49 @@ describe("<WorkspaceSwitcher />", () => {
 });
 
 describe("<ProfileMenu />", () => {
+  /*
+   * The 68 px rail is the default shell and has no room for the sidebar's
+   * workspace switcher; the sidebar's only other mount is a sheet whose
+   * trigger is `lg:hidden`. Between those two facts, a user with more than one
+   * workspace briefly had NO way to change workspace on a desktop. The
+   * switcher lives in this menu for that reason, and this is the test that
+   * stops it drifting back out.
+   */
+  it("offers workspace switching, because the rail has nowhere else to put it", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<ProfileMenu compact />, {
+      accessToken: testAccessToken({ role: "owner" }),
+      routes: {
+        "/workspaces": [
+          { id: "01JWORKSPACE", name: "Solo", slug: "solo", role: "owner", plan: "creator" },
+          { id: "01JOTHER", name: "Agency", slug: "agency", role: "editor", plan: "agency" },
+        ],
+      },
+    });
+    await user.click(screen.getByTestId("profile-menu"));
+    await waitFor(() => {
+      expect(screen.getByTestId("profile-workspace-01JOTHER")).toBeInTheDocument();
+    });
+    expect(screen.getByTestId("profile-workspace-01JWORKSPACE")).toBeInTheDocument();
+  });
+
+  it("does not offer a workspace group when there is nothing to switch to", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<ProfileMenu />, {
+      accessToken: testAccessToken({ role: "owner" }),
+      routes: {
+        "/workspaces": [
+          { id: "01JWORKSPACE", name: "Solo", slug: "solo", role: "owner", plan: "creator" },
+        ],
+      },
+    });
+    await user.click(screen.getByTestId("profile-menu"));
+    await waitFor(() => {
+      expect(screen.getByText("Profile")).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId("profile-workspace-01JWORKSPACE")).toBeNull();
+  });
+
   it("shows the account and the routes A13 owns", async () => {
     const user = userEvent.setup();
     renderWithProviders(<ProfileMenu />, { accessToken: testAccessToken({ role: "owner" }) });

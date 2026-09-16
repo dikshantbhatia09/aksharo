@@ -39,7 +39,7 @@ export default function AppError({
         The rest of the app is still running. Try again, and if it keeps happening tell support what
         you were doing.
       </p>
-      <pre className="text-fg-3 max-w-xl overflow-x-auto rounded border border-white/10 bg-black/30 p-3 text-left text-xs">
+      <pre className="text-neutral-400 border-border bg-sunken max-w-xl overflow-x-auto rounded border p-3 text-left text-xs">
         {error.message}
         {error.digest === undefined ? "" : `\n\ndigest: ${error.digest}`}
       </pre>
@@ -47,7 +47,7 @@ export default function AppError({
         <button
           type="button"
           onClick={reset}
-          className="rounded bg-white/10 px-3 py-1.5 text-sm font-medium hover:bg-white/15"
+          className="border-border hover:bg-neutral-100/7 rounded border px-3 py-1.5 text-sm font-medium"
           data-testid="app-error-retry"
         >
           Try again

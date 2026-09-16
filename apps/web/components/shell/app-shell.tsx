@@ -16,6 +16,8 @@ import type { RealtimeEvent } from "@montaj/api-client";
 import { toast } from "@montaj/ui";
 
 import { CommandPalette, useCommandPalette } from "./command-palette";
+import { useNavModel } from "./nav-model";
+import { NavRail } from "./nav-rail";
 import { Sidebar } from "./sidebar";
 import { TopBar } from "./top-bar";
 
@@ -48,6 +50,9 @@ export function AppShell({ children }: { children: React.ReactNode }): React.JSX
   const queryClient = useQueryClient();
   const { open, setOpen } = useCommandPalette();
   const [bootstrapped, setBootstrapped] = React.useState(false);
+  // The canvas's two shell widths: a 68 px icon rail (the default) and a
+  // 232 px sidebar, switched from the header and remembered per browser.
+  const [navModel, setNavModel] = useNavModel();
 
   // The palette's "Recent projects" group (A14): only the first page, and only
   // once the palette might actually open — there is no reason to hold a
@@ -290,21 +295,35 @@ export function AppShell({ children }: { children: React.ReactNode }): React.JSX
           {children}
         </main>
       ) : (
-        <div className="lg:grid lg:grid-cols-[16rem_1fr]">
-          <aside
-            className="border-border bg-bg-1 sticky top-0 hidden h-dvh border-r lg:block"
-            data-testid="sidebar"
-          >
-            <Sidebar />
+        <div
+          className={
+            navModel === "rail"
+              ? "lg:grid lg:grid-cols-[68px_1fr]"
+              : "lg:grid lg:grid-cols-[232px_1fr]"
+          }
+        >
+          <aside className="sticky top-0 hidden h-dvh lg:block" data-testid="sidebar">
+            {navModel === "rail" ? <NavRail /> : <Sidebar />}
           </aside>
 
           <div className="flex min-h-dvh min-w-0 flex-col">
             <TopBar
+              navModel={navModel}
+              onNavModelChange={setNavModel}
               onOpenPalette={() => {
                 setOpen(true);
               }}
             />
-            <main id="main" tabIndex={-1} className="flex-1 px-4 py-6 focus:outline-none sm:px-6">
+            {/*
+              The canvas's page padding: 18 px horizontal, 22 px down to the
+              first card and a deep 34 px tail so the last row never sits on
+              the viewport edge.
+            */}
+            <main
+              id="main"
+              tabIndex={-1}
+              className="flex min-w-0 flex-1 flex-col px-4 pt-[22px] pb-[34px] focus:outline-none sm:px-[18px]"
+            >
               {children}
             </main>
           </div>

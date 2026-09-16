@@ -43,10 +43,10 @@ export function RepurposeRunView({ runId }: { readonly runId: string }): React.J
 
   if (query.isPending) {
     return (
-      <main className="mx-auto w-full max-w-5xl px-4 py-8" data-testid="run-loading">
+      <div className="w-full" data-testid="run-loading">
         <Skeleton className="h-6 w-48" />
         <Skeleton className="mt-4 h-24 w-full" />
-      </main>
+      </div>
     );
   }
 
@@ -55,19 +55,19 @@ export function RepurposeRunView({ runId }: { readonly runId: string }): React.J
     // deliberately does not distinguish, and neither does this page.
     const notFound = isApiError(query.error) && query.error.status === 404;
     return (
-      <main className="mx-auto w-full max-w-2xl px-4 py-8" data-testid="run-missing">
-        <h1 className="text-lg text-fg-0">
+      <div className="w-full max-w-2xl" data-testid="run-missing">
+        <h1 className="font-display m-0 text-lg">
           {notFound ? "We could not find that video project" : "We could not load this just now"}
         </h1>
-        <p className="mt-2 text-sm text-fg-2">
+        <p className="text-neutral-400 mt-2 text-sm">
           {notFound
             ? "It may have been removed, or the link may belong to another workspace."
             : "Your work is safe. Please try again in a moment."}
         </p>
-        <Link href="/repurpose/new" className="mt-4 inline-block text-sm text-lime-500 underline">
+        <Link href="/repurpose/new" className="text-accent hover:text-accent-300 mt-4 inline-block text-sm underline">
           Start a new one
         </Link>
-      </main>
+      </div>
     );
   }
 
@@ -76,16 +76,23 @@ export function RepurposeRunView({ runId }: { readonly runId: string }): React.J
   const expanded = openStage ?? currentStage;
   const busy = !["draft", "published", "failed", "cancelled"].includes(run.status);
 
-  return (
-    <main className="mx-auto w-full max-w-5xl px-4 py-8" data-testid="repurpose-run">
-      <header className="flex flex-wrap items-baseline justify-between gap-2">
-        <h1 className="text-lg text-fg-0">Your video</h1>
-        <p className="text-xs text-fg-2" data-testid="run-status">
-          {run.message}
-        </p>
-      </header>
+  const stageIndex = run.stages.findIndex((entry) => entry.stage === expanded);
 
-      <div className="mt-6">
+  return (
+    <div
+      className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(220px,264px)]"
+      data-testid="repurpose-run"
+    >
+      <div className="flex min-w-0 flex-col gap-4">
+        <header className="max-w-[60ch]">
+          <h1 className="font-display m-0 mb-[5px] text-[23px] tracking-[-0.02em]">
+            One long video, nine posts
+          </h1>
+          <p className="text-neutral-400 m-0 text-[13px]" data-testid="run-status">
+            {run.message}
+          </p>
+        </header>
+
         <RunStageRail
           stages={run.stages}
           onOpenStage={(stage) => {
@@ -98,16 +105,14 @@ export function RepurposeRunView({ runId }: { readonly runId: string }): React.J
             setBlockedNote(reason);
           }}
         />
-      </div>
 
-      {blockedNote !== null && (
-        <p role="status" className="mt-2 text-xs text-fg-2" data-testid="stage-blocked-note">
-          {blockedNote}
-        </p>
-      )}
+        {blockedNote !== null && (
+          <p role="status" className="text-neutral-500 text-xs" data-testid="stage-blocked-note">
+            {blockedNote}
+          </p>
+        )}
 
-      <div className="mt-6 grid gap-4 md:grid-cols-[minmax(0,1fr)_280px]">
-        <div className="space-y-4">
+        <div className="flex flex-col gap-4">
           {run.status === "failed" ? (
             <StageErrorCard
               code={run.failureCode}
@@ -127,33 +132,43 @@ export function RepurposeRunView({ runId }: { readonly runId: string }): React.J
               }}
             />
           ) : (
-            <StagePanel stage={expanded} message={run.message} busy={busy && expanded === currentStage}>
-              <p className="text-xs text-fg-2" data-testid={`stage-note-${expanded}`}>
+            <StagePanel
+              stage={expanded}
+              index={stageIndex < 0 ? undefined : stageIndex + 1}
+              note={run.stages[stageIndex]?.label}
+              message={run.message}
+              busy={busy && expanded === currentStage}
+            >
+              <p className="text-neutral-400 text-[12.5px]" data-testid={`stage-note-${expanded}`}>
                 {/* eslint-disable-next-line security/detect-object-injection -- `expanded` is one of the five stage literals */}
                 {STAGE_WAITING_NOTE[expanded]}
               </p>
+
+              <RunActionBar
+                note={
+                  run.canCancel
+                    ? "Nothing is posted anywhere without your confirmation."
+                    : "This run has finished; nothing further will be spent."
+                }
+                {...(run.canCancel
+                  ? {
+                      secondary: {
+                        label: cancel.isPending ? "Stopping…" : "Stop this run",
+                        disabled: cancel.isPending,
+                        testId: "run-cancel",
+                        onClick: () => {
+                          cancel.mutate(run.id);
+                        },
+                      },
+                    }
+                  : {})}
+              />
             </StagePanel>
           )}
         </div>
-
-        <PersistentPreview run={run} />
       </div>
 
-      <RunActionBar
-        note={run.canCancel ? "Nothing is posted anywhere without your confirmation." : ""}
-        {...(run.canCancel
-          ? {
-              secondary: {
-                label: cancel.isPending ? "Stopping…" : "Stop this run",
-                disabled: cancel.isPending,
-                testId: "run-cancel",
-                onClick: () => {
-                  cancel.mutate(run.id);
-                },
-              },
-            }
-          : {})}
-      />
-    </main>
+      <PersistentPreview run={run} />
+    </div>
   );
 }

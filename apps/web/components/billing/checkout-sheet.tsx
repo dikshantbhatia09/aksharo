@@ -143,7 +143,9 @@ export function CheckoutSheet({
         : { subscription_id: response.providerSubscriptionId }),
       ...(response.prefill === undefined ? {} : { prefill: response.prefill }),
       ...(response.notes === undefined ? {} : { notes: response.notes }),
-      theme: { color: "#D8FF3D" },
+      // The gateway widget is Razorpay's own iframe: it takes a literal, not
+      // a CSS variable. This is `--color-accent` written out.
+      theme: { color: "#9184d9" },
     })
       .then((outcome) => {
         if (cancelled) return;

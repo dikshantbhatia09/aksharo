@@ -15,6 +15,10 @@ import { BACKGROUND_NOTE, STAGE_COPY, safeErrorCopy, type StageKey } from "@/com
 
 export interface StagePanelProps {
   readonly stage: StageKey;
+  /** 1-based position in the rail, shown as the canvas's monospace "02". */
+  readonly index?: number;
+  /** The short right-aligned status the canvas puts on the panel's header. */
+  readonly note?: string;
   /** Shown while the stage is doing something, under a live region. */
   readonly message?: string;
   readonly busy?: boolean;
@@ -24,6 +28,8 @@ export interface StagePanelProps {
 
 export function StagePanel({
   stage,
+  index,
+  note,
   message,
   busy = false,
   children,
@@ -35,12 +41,22 @@ export function StagePanel({
     <section
       aria-labelledby={`stage-heading-${stage}`}
       data-testid={`stage-panel-${stage}`}
-      className={cn("rounded-md border border-border bg-bg-1 p-4", className)}
+      className={cn("bg-surface flex flex-col gap-[13px] rounded-md p-4", className)}
     >
-      <h2 id={`stage-heading-${stage}`} className="text-sm text-fg-0">
-        {copy.title}
-      </h2>
-      <p className="mt-1 text-xs text-fg-2">{copy.helper}</p>
+      <span className="flex items-baseline gap-[9px]">
+        {index === undefined ? null : (
+          <span className="text-accent font-mono text-[11px]">
+            {String(index).padStart(2, "0")}
+          </span>
+        )}
+        <h2 id={`stage-heading-${stage}`} className="font-display m-0 text-[15px]">
+          {copy.title}
+        </h2>
+        {note === undefined ? null : (
+          <span className="text-neutral-500 ml-auto text-[11px]">{note}</span>
+        )}
+      </span>
+      <p className="text-neutral-400 m-0 text-[12.5px]">{copy.helper}</p>
 
       {message !== undefined && (
         <p
@@ -48,18 +64,18 @@ export function StagePanel({
           role="status"
           aria-live="polite"
           data-testid={`stage-status-${stage}`}
-          className="mt-3 text-sm text-fg-1"
+          className="text-fg-1 m-0 text-sm"
         >
           {message}
         </p>
       )}
       {busy && (
-        <p className="mt-1 text-xs text-fg-2" data-testid="background-note">
+        <p className="text-neutral-500 m-0 text-xs" data-testid="background-note">
           {BACKGROUND_NOTE}
         </p>
       )}
 
-      {children !== undefined && <div className="mt-4">{children}</div>}
+      {children !== undefined && <div>{children}</div>}
     </section>
   );
 }
@@ -77,9 +93,9 @@ export function StageSummary({
   return (
     <div
       data-testid={`stage-summary-${stage}`}
-      className="flex items-center justify-between gap-3 rounded-md border border-border bg-bg-2 px-3 py-2"
+      className="bg-sunken flex items-center justify-between gap-3 rounded-sm px-3 py-2"
     >
-      <span className="flex min-w-0 items-center gap-2 text-xs text-fg-1">
+      <span className="text-neutral-300 flex min-w-0 items-center gap-2 text-xs">
         <span aria-hidden="true">✓</span>
         <span className="truncate">{summary}</span>
       </span>
@@ -124,7 +140,7 @@ export function StageErrorCard({
       role="alert"
       data-testid="stage-error"
       data-error-code={code ?? "unknown"}
-      className="rounded-md border border-rejected bg-bg-2 p-4"
+      className="border-rejected bg-surface rounded-md border p-4"
     >
       <p className="flex items-center gap-2 text-sm text-fg-0">
         {/* Icon plus text, so the state does not depend on colour (§13.3). */}
@@ -151,7 +167,7 @@ export function StageErrorCard({
         )}
       </div>
 
-      <p className="mt-3 text-2xs text-fg-2" data-testid="support-code">
+      <p className="text-neutral-500 mt-3 text-2xs" data-testid="support-code">
         Support code: {supportCode}
       </p>
     </div>

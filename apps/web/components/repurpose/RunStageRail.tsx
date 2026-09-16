@@ -36,9 +36,9 @@ export interface RunStageRailProps {
 
 const STATE_ICON: Readonly<Record<RepurposeStageView["state"], string>> = Object.freeze({
   complete: "✓",
-  running: "•",
+  running: "●",
   failed: "!",
-  waiting: "",
+  waiting: "○",
 });
 
 /** Said out loud by a screen reader, so it must be a word, not a symbol. */
@@ -76,39 +76,41 @@ export function RunStageNode({
   };
 
   return (
-    <li
-      className="flex flex-1 items-center gap-2"
-      data-testid={`stage-node-${stage.stage}`}
-      data-state={stage.state}
-    >
+    <li data-testid={`stage-node-${stage.stage}`} data-state={stage.state}>
       <button
         type="button"
         onClick={activate}
         aria-current={stage.state === "running" ? "step" : undefined}
         aria-label={`Step ${String(index + 1)} of ${String(total)}: ${copy.title}. ${STATE_WORD[stage.state]}.`}
         className={cn(
-          "flex w-full flex-col gap-1 rounded-md border px-3 py-2 text-left transition-colors",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-500",
-          stage.state === "running" && "border-lime-500/45 bg-lime-500/12",
-          stage.state === "complete" && "border-border bg-bg-2",
-          stage.state === "failed" && "border-rejected bg-bg-2",
-          stage.state === "waiting" && "border-border bg-bg-1 text-fg-2",
+          // The canvas's stage pill: a 22 px state dot, then the title, on an
+          // 8 px outlined chip. Not a card — the rail is a row of ten-ish
+          // small things and a card each would be a wall.
+          "flex shrink-0 items-center gap-[7px] rounded-sm border px-2.5 py-1.5",
+          "text-[11.5px] whitespace-nowrap transition-colors duration-[160ms] ease-[var(--ease-out-soft)]",
+          stage.state === "running" && "border-accent bg-accent/12 text-accent-200",
+          stage.state === "complete" && "border-border text-neutral-300 hover:border-accent",
+          stage.state === "failed" && "border-rejected text-rejected",
+          stage.state === "waiting" && "border-border text-neutral-500",
         )}
       >
-        <span className="flex items-center gap-1.5 text-2xs uppercase tracking-wide text-fg-2">
-          <span aria-hidden="true" className="tabular-nums">
-            {index + 1}
-          </span>
-          {STATE_ICON[stage.state] !== "" && (
-            <span aria-hidden="true" data-testid={`stage-icon-${stage.stage}`}>
-              {STATE_ICON[stage.state]}
-            </span>
+        <span
+          aria-hidden="true"
+          className={cn(
+            "flex size-[22px] shrink-0 items-center justify-center rounded-full text-[11px]",
+            stage.state === "complete" && "bg-accent-800 text-accent-100",
+            stage.state === "running" &&
+              "bg-accent/18 text-accent-200 shadow-[inset_0_0_0_1px_var(--color-accent)]",
+            stage.state === "failed" && "bg-rejected/20 text-rejected",
+            stage.state === "waiting" && "bg-neutral-900 text-neutral-500",
           )}
-          {/* The word, not just the colour or the glyph. */}
-          <span>{STATE_WORD[stage.state]}</span>
+          data-testid={`stage-icon-${stage.stage}`}
+        >
+          {STATE_ICON[stage.state]}
         </span>
-        <span className="text-sm text-fg-0">{copy.title}</span>
-        <span className="text-xs text-fg-2">{stage.label}</span>
+        {copy.title}
+        {/* The word, not just the colour or the glyph (§13.3). */}
+        <span className="sr-only">{STATE_WORD[stage.state]}</span>
       </button>
     </li>
   );
@@ -122,14 +124,13 @@ export function RunStageRail({
 }: RunStageRailProps): React.JSX.Element {
   return (
     <nav aria-label="Your progress" data-testid="run-stage-rail" className={className}>
-      <ol
-        className={cn(
-          "flex flex-col gap-2",
-          // The horizontal rail is the desktop shape; the vertical stepper is
-          // the same list, not a second component (§3.1).
-          "md:flex-row md:items-stretch md:gap-3",
-        )}
-      >
+      {/*
+        The canvas's rail wraps rather than scrolling: every stage stays
+        visible at every width, which is the whole point of showing the shape
+        of the pipeline. It is still one ordered list, not a second mobile
+        component (§3.1).
+      */}
+      <ol className="flex flex-wrap gap-1.5">
         {stages.map((stage, index) => (
           <RunStageNode
             key={stage.stage}

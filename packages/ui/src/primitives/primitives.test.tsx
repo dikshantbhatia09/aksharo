@@ -54,9 +54,26 @@ describe("<Button />", () => {
     expect(link.className).toContain("inline-flex");
   });
 
-  it("paints lime for the primary action", () => {
+  /*
+   * Nocturne outlines the primary action instead of filling it: "Buttons are
+   * outlined (1px accent border on transparent), not solid-filled", and "do
+   * not flood large areas with the accent". A filled accent button is the
+   * largest block of pure accent a screen can have, so this asserts the
+   * *absence* of a fill as much as the presence of the outline — a future
+   * "make the primary pop" change has to come past this test.
+   */
+  it("outlines the primary action in the accent, and never fills it", () => {
     render(<Button variant="primary">Go</Button>);
-    expect(screen.getByRole("button").className).toContain("bg-lime-500");
+    const className = screen.getByRole("button").className;
+    expect(className).toContain("border-accent");
+    expect(className).toContain("text-accent");
+    expect(className).toContain("bg-transparent");
+    expect(className).not.toMatch(/bg-(accent|lime-500|mint)/);
+  });
+
+  it("keeps the destructive action filled, because it must not read as one more option", () => {
+    render(<Button variant="danger">Delete</Button>);
+    expect(screen.getByRole("button").className).toContain("bg-rejected");
   });
 });
 

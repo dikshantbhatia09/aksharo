@@ -56,6 +56,12 @@ export const queryKeys = {
    */
   projectJobs: (workspaceId: string, projectId: string) =>
     ["ws", workspaceId, "jobs", "byProject", projectId] as const,
+  /**
+   * Every job in the workspace, newest first — what the studio's "Working now"
+   * card reads. Under the same `jobs()` prefix as `projectJobs` and for the
+   * same reason: the shell's realtime invalidation has to reach it.
+   */
+  workspaceJobs: (workspaceId: string) => ["ws", workspaceId, "jobs", "all"] as const,
   projects: (workspaceId: string, query: Readonly<Record<string, unknown>> = {}) =>
     ["ws", workspaceId, "projects", query] as const,
   project: (workspaceId: string, projectId: string) =>

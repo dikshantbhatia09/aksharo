@@ -856,6 +856,34 @@ export function useProjectJobs(
   });
 }
 
+/**
+ * Every job in the workspace, newest first (`GET /jobs`).
+ *
+ * The studio's "Working now" card is the caller: it needs what is running
+ * across the whole workspace, not within one project, and `GET /jobs` scopes
+ * itself to the caller's workspace already. Polling follows the same rule as
+ * {@link useProjectJobs} — it runs only while something is still live, and
+ * stops on its own once every job the last page returned has settled.
+ */
+export function useWorkspaceJobs(options: { pollMs?: number } = {}): UseQueryResult<JobPage> {
+  const client = useApiClient();
+  const workspaceId = useWorkspaceId();
+  const pollMs = options.pollMs ?? 4_000;
+  return useQuery({
+    queryKey: queryKeys.workspaceJobs(workspaceId ?? "none"),
+    enabled: workspaceId !== null,
+    retry: retryPolicy,
+    queryFn: () => client.call(endpoints.jobs.list, {}),
+    refetchInterval: (query) => {
+      const page = query.state.data;
+      const stillLive = page?.items.some(
+        (job) => job.status === "queued" || job.status === "running",
+      );
+      return stillLive === true ? pollMs : false;
+    },
+  });
+}
+
 export function useCancelJob(): UseMutationResult<JobSummary, Error, string> {
   const client = useApiClient();
   return useMutation({

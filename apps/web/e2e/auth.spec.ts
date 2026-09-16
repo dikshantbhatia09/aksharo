@@ -49,7 +49,9 @@ test("sign up, confirm the address, finish onboarding and land in the shell", as
   await expect(page.getByTestId("home-view")).toBeVisible();
   await expect(page.getByTestId("sidebar")).toBeVisible();
   await expect(page.getByTestId("nav-home")).toBeVisible();
-  await expect(page.getByTestId("credit-meter")).toBeVisible();
+  // The sidebar's three stacked CreditMeters became the canvas's single
+  // credit card; the default 68 px rail shows the balance as `rail-credits`.
+  await expect(page.getByTestId("rail-credits")).toBeVisible();
 });
 
 test("sign-up answers the same way whether or not the address is taken", async ({ page }) => {

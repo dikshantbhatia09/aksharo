@@ -81,7 +81,7 @@ export function VideoTab({
         <select
           id="export-preset"
           data-testid="export-preset-select"
-          className="bg-bg-2 w-full rounded-md border border-white/10 px-2 py-1.5 text-sm"
+          className="bg-bg-2 border-border w-full rounded-md border px-2 py-1.5 text-sm"
           value={value.preset}
           disabled={disabled}
           onChange={(event) => onChange({ ...value, preset: event.target.value as RenderPreset })}

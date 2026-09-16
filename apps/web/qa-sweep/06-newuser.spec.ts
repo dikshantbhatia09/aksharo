@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
-import { gotoHydrated, waitForHydration } from "../e2e/fixtures";
 import { record, shot, watch } from "./diag";
+import { gotoHydrated, waitForHydration } from "../e2e/fixtures";
 
 import type { Page } from "@playwright/test";
 

@@ -29,3 +29,28 @@ export function activeJobFor(
     .filter((job) => job.status === "queued" || job.status === "running")
     .sort((a, b) => b.queuedAt.localeCompare(a.queuedAt))[0];
 }
+
+/**
+ * The canvas's status dot. Ready is the accent; anything still moving is one
+ * step lighter on the same ramp, so "working" reads as a weaker version of
+ * "done" rather than as a second colour. Failed is the one place a signal hue
+ * overrides the accent, because it has to be distinguishable from progress.
+ */
+export const STATUS_DOT: Readonly<Record<ChipStatus, string>> = Object.freeze({
+  ready: "bg-accent",
+  processing: "bg-accent-400",
+  queued: "bg-accent-700",
+  failed: "bg-rejected",
+  draft: "bg-neutral-600",
+  archived: "bg-neutral-700",
+});
+
+/** The word beside the dot — never the dot alone (08 §6). */
+export const STATUS_WORD: Readonly<Record<ChipStatus, string>> = Object.freeze({
+  ready: "Ready",
+  processing: "Working",
+  queued: "Queued",
+  failed: "Failed",
+  draft: "Draft",
+  archived: "Archived",
+});

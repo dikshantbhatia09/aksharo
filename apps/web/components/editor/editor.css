@@ -90,8 +90,12 @@
 .caption-editor .editor-caption-row {
   border-color: var(--color-editor-divider);
 }
+/* The canvas marks the selected caption with an accent tint AND a 2 px accent
+   bar down its leading edge — colour alone is never the signal (08 §6), and on
+   a dark ground a 10 % tint is easy to miss on its own. */
 .caption-editor .editor-caption-row.is-selected {
-  background: color-mix(in srgb, var(--color-editor-emphasis-bg) 35%, transparent);
+  background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+  box-shadow: inset 2px 0 0 var(--color-accent);
 }
 .caption-editor .editor-caption-timestamp {
   position: absolute;
@@ -217,7 +221,16 @@
   display: flex;
   flex-shrink: 0;
   padding: 0 16px;
-  border-bottom: 1px solid var(--color-bg-2);
+  /* A rule that fades at both ends rather than stopping at the panel edges —
+     the Nocturne signature, so a border-bottom will not do. */
+  background: linear-gradient(
+      to right,
+      transparent,
+      var(--color-divider) 24px,
+      var(--color-divider) calc(100% - 24px),
+      transparent
+    )
+    no-repeat bottom / 100% 1px;
 }
 .caption-editor .editor-inspector-tabs > a {
   display: none;

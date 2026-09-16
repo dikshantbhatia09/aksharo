@@ -29,7 +29,7 @@ describe("<DropZone />", () => {
   it("is a keyboard-reachable button that opens the file picker on Enter", async () => {
     const user = userEvent.setup();
     renderWithProviders(<DropZone onFiles={vi.fn()} />, { routes: {} });
-    const button = screen.getByRole("button", { name: /drop videos or audio here/i });
+    const button = screen.getByRole("button", { name: /drop video or audio here/i });
 
     const input = screen.getByTestId("drop-zone-input") as HTMLInputElement;
     // A real `<input type="file">` never opens from a scripted `.click()` in
@@ -43,7 +43,7 @@ describe("<DropZone />", () => {
 
   it("does not nest the file input inside the button (axe: nested-interactive)", () => {
     renderWithProviders(<DropZone onFiles={vi.fn()} />, { routes: {} });
-    const button = screen.getByRole("button", { name: /drop videos or audio here/i });
+    const button = screen.getByRole("button", { name: /drop video or audio here/i });
     const input = screen.getByTestId("drop-zone-input");
     expect(button.contains(input)).toBe(false);
     expect(input).toHaveAttribute("tabindex", "-1");
@@ -77,7 +77,8 @@ describe("<DropZone />", () => {
   });
 
   it("shows the transcription-time badge and the accepted formats", () => {
-    renderWithProviders(<DropZone onFiles={vi.fn()} />, { routes: {} });
+    // The badge belongs to the full-width variant; the canvas's panel omits it.
+    renderWithProviders(<DropZone onFiles={vi.fn()} variant="block" />, { routes: {} });
     // F07-E1: the badge no longer quotes a number the pipeline cannot keep.
     const badge = screen.getByTestId("drop-zone-eta-badge");
     expect(badge).toHaveTextContent("Transcription usually takes a few minutes");
@@ -153,7 +154,7 @@ describe("<DropZone />", () => {
   it("does nothing when disabled", async () => {
     const onFiles = vi.fn();
     renderWithProviders(<DropZone onFiles={onFiles} disabled />, { routes: {} });
-    expect(screen.getByRole("button", { name: /drop videos or audio here/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /drop video or audio here/i })).toBeDisabled();
     fireEvent.drop(screen.getByTestId("drop-zone"), { dataTransfer: { files: [file()] } });
     expect(onFiles).not.toHaveBeenCalled();
   });

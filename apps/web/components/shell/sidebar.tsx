@@ -1,7 +1,7 @@
 "use client";
 
 import { useQueries } from "@tanstack/react-query";
-import { ArrowUpRight, AudioLines, HardDrive, Monitor } from "lucide-react";
+import { ArrowUpRight, HardDrive, Monitor } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import * as React from "react";
@@ -12,27 +12,23 @@ import {
   useApiClient,
   useEntitlement,
   useProjects,
-  useWorkspaceCredits,
   useWorkspaceId,
 } from "@montaj/api-client";
 import { BRAND } from "@montaj/config";
-import {
-  Badge,
-  Button,
-  cn,
-  CreditMeter,
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@montaj/ui";
+import { Badge, Button, cn, Tooltip, TooltipContent, TooltipTrigger } from "@montaj/ui";
 
+import { BrandMark } from "./brand-mark";
+import { CreditsCard } from "./credits-card";
 import { ProfileMenu } from "./profile-menu";
+import { useNavItems } from "./use-nav-targets";
 import { WorkspaceSwitcher } from "./workspace-switcher";
 import { fontEndpoints, type WorkspaceFontView } from "../editor/rail/fonts-endpoints";
 
+import type { NavItem } from "@/lib/nav";
+
 import { useRuntimeConfig } from "@/components/providers";
 import { StreakChip } from "@/components/streak/streak-chip";
-import { isActivePath, PRIMARY_NAV } from "@/lib/nav";
+import { isActivePath } from "@/lib/nav";
 
 /**
  * K04: Storage used, best-effort and bounded.
@@ -116,170 +112,175 @@ function useStorageUsage(): { bytes: number; sampled: boolean; loading: boolean 
   };
 }
 
+/** One row of the expanded sidebar, in the canvas's `barStyle`. */
+function NavRow({
+  item,
+  badge,
+  onNavigate,
+}: {
+  item: NavItem;
+  badge?: string | undefined;
+  onNavigate?: (() => void) | undefined;
+}): React.JSX.Element {
+  const pathname = usePathname() ?? "/";
+  // A row nobody can click is never the current page, whatever the path
+  // says: the Editor entry falls back to `/projects` while the workspace
+  // is empty, and two accent-tinted rows is not a state the rail has.
+  const active = item.ready && isActivePath(pathname, item.href);
+  const Icon = item.icon;
+  const classes = cn(
+    "flex w-full items-center gap-[9px] rounded-sm px-2.5 py-2 text-[13px]",
+    "transition-colors duration-[160ms] ease-[var(--ease-out-soft)]",
+    active
+      ? "bg-accent/14 text-accent-200"
+      : "text-neutral-300 hover:bg-neutral-100/6 hover:text-fg-0",
+  );
+
+  if (!item.ready) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span
+            aria-disabled="true"
+            data-testid={`nav-${item.key}`}
+            className={cn(classes, "text-fg-disabled cursor-default hover:bg-transparent")}
+          >
+            <Icon className="size-4 shrink-0" aria-hidden="true" />
+            {item.label}
+            <Badge className="ml-auto">{item.disabledBadge ?? "Soon"}</Badge>
+          </span>
+        </TooltipTrigger>
+        <TooltipContent side="right">
+          {item.disabledNote ?? `${item.label} is on its way. Nothing to click yet.`}
+        </TooltipContent>
+      </Tooltip>
+    );
+  }
+
+  return (
+    <Link
+      href={item.href}
+      className={classes}
+      aria-current={active ? "page" : undefined}
+      data-testid={`nav-${item.key}`}
+      onClick={onNavigate}
+    >
+      <Icon className="size-4 shrink-0" aria-hidden="true" />
+      {item.label}
+      {badge === undefined ? null : (
+        <span className="text-neutral-500 ml-auto text-[10px] tabular-nums">{badge}</span>
+      )}
+    </Link>
+  );
+}
+
 /**
- * The sidebar of 08 §3.
+ * The canvas's 232 px sidebar: brand lockup over the eight primary
+ * destinations, then the shipped routes the rail has no room for, then — at
+ * the foot — the credit card and the profile row.
  *
- * It is a `<nav>` with a list, so a screen reader can jump the whole block and
- * count the items, and the active item is marked with `aria-current="page"`
- * rather than colour alone.
+ * The canvas shows a project count on Projects, and this shows the real one
+ * from the project list the shell already holds, or nothing when it has not
+ * loaded. A stale hard-coded "24" is worse than no badge.
  */
 export function Sidebar({ onNavigate }: { onNavigate?: () => void }): React.JSX.Element {
-  const pathname = usePathname();
   const config = useRuntimeConfig();
-  const entitlement = useEntitlement();
-  const credits = useWorkspaceCredits();
-  const included = entitlement.data?.creditsPerMonthTenths ?? 0;
+  const { primary, secondary } = useNavItems();
+  const projects = useProjects({ limit: 8 });
+  /*
+   * The canvas puts a count on the Projects row. `ProjectPage` carries items
+   * and a cursor but no total, so the only count this can state truthfully is
+   * the one from a page that *is* the whole list. Past that the badge is
+   * omitted rather than shown as a number that means "the first eight".
+   */
+  const firstPage = projects.data?.pages[0];
+  const projectCount =
+    firstPage !== undefined && firstPage.nextCursor === null ? firstPage.items.length : undefined;
   const isProductionOrigin = isBrandOrigin(config.webOrigin);
   const storage = useStorageUsage();
 
   return (
-    <div className="flex h-full flex-col gap-4 p-3">
-      <div className="px-2 pt-1">
+    <div className="bg-sunken flex h-full w-full flex-col gap-[18px] px-3 pt-4 pb-3.5 shadow-[inset_-1px_0_0_var(--color-neutral-900)]">
+      {/*
+        The canvas's lockup: the mark and the wordmark go home, and the
+        workspace name sits under them as a 10 px uppercase line. They are two
+        controls, not one — a switcher nested inside the home link would be a
+        button inside an anchor, which is invalid and unusable by keyboard.
+      */}
+      <div className="flex items-center gap-[9px] px-1.5">
         <Link
           href="/"
-          className="text-fg-0 rounded-sm font-display text-lg font-semibold tracking-tight"
+          className="flex items-center gap-[9px] rounded-sm"
           onClick={onNavigate}
+          data-testid="sidebar-brand"
+          aria-label={`${BRAND.name} home`}
         >
-          {BRAND.name}
+          <BrandMark size={30} />
         </Link>
+        <span className="flex min-w-0 flex-col leading-[1.15]">
+          <Link
+            href="/"
+            onClick={onNavigate}
+            className="font-display text-fg-0 rounded-sm text-base font-medium tracking-[-0.01em]"
+          >
+            {BRAND.name}
+          </Link>
+          <WorkspaceSwitcher compact />
+        </span>
       </div>
 
-      <WorkspaceSwitcher />
-
-      <nav aria-label="Main" className="flex-1">
-        <ul className="flex flex-col gap-0.5">
-          {PRIMARY_NAV.map((item) => {
-            const active = isActivePath(pathname, item.href);
-            const Icon = item.icon;
-            const classes = cn(
-              "flex w-full items-center gap-2.5 rounded-sm px-2.5 py-2 text-sm font-medium",
-              "transition-colors duration-[160ms] ease-[var(--ease-out-soft)]",
-              active ? "bg-bg-2 text-lime-500" : "text-fg-1 hover:bg-bg-2 hover:text-fg-0",
-            );
-
-            if (!item.ready) {
-              return (
-                <li key={item.key}>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span
-                        aria-disabled="true"
-                        data-testid={`nav-${item.key}`}
-                        className={cn(
-                          classes,
-                          "text-fg-disabled cursor-default hover:bg-transparent",
-                        )}
-                      >
-                        <Icon className="size-4 shrink-0" aria-hidden="true" />
-                        {item.label}
-                        <Badge className="ml-auto">Soon</Badge>
-                      </span>
-                    </TooltipTrigger>
-                    <TooltipContent side="right">
-                      {item.label} is on its way. Nothing to click yet.
-                    </TooltipContent>
-                  </Tooltip>
-                </li>
-              );
+      <nav aria-label="Main" className="flex flex-col gap-0.5">
+        {primary.map((item) => (
+          <NavRow
+            key={item.key}
+            item={item}
+            badge={
+              item.key === "projects" && projectCount !== undefined
+                ? String(projectCount)
+                : undefined
             }
-
-            return (
-              <li key={item.key}>
-                <Link
-                  href={item.href}
-                  className={classes}
-                  aria-current={active ? "page" : undefined}
-                  data-testid={`nav-${item.key}`}
-                  onClick={onNavigate}
-                >
-                  <Icon className="size-4 shrink-0" aria-hidden="true" />
-                  {item.label}
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
+            onNavigate={onNavigate}
+          />
+        ))}
       </nav>
 
-      <div className="border-border flex flex-col gap-3 border-t pt-3">
-        <div className="px-2">
-          {/*
-            The entitlement carries the plan's monthly **allowance** (A05); the
-            live balance and lots come from B02's real credit ledger
-            (`GET /workspaces/{id}/credits`). Burn rate and streak are not
-            computed by that endpoint yet, so the tooltip/streak badge stay
-            off rather than inventing numbers.
-          */}
-          <CreditMeter
-            remainingTenths={credits.data?.balanceTenths ?? included}
-            includedTenths={credits.data?.monthlyGrantTenths ?? included}
-            {...(credits.data?.grantResetAt == null ? {} : { resetsAt: credits.data.grantResetAt })}
-            showStreak={config.flags["growth.streakWidget"] === true}
-          />
-        </div>
+      <nav aria-label="More" className="flex flex-col gap-0.5">
+        <span className="text-neutral-500 px-2.5 pb-1 text-[9.5px] tracking-[0.12em] uppercase">
+          More
+        </span>
+        {secondary.map((item) => (
+          <NavRow key={item.key} item={item} onNavigate={onNavigate} />
+        ))}
+      </nav>
+
+      <div className="mt-auto flex flex-col gap-3">
+        <CreditsCard />
 
         {/*
-          K04: Storage and Audio-Clean-credits, alongside the transcription
-          meter above (README recon §1 — Kalakar's sidebar shows all three,
-          ours showed only one). Audio Clean draws from the SAME credit
-          ledger as transcription (`packages/config/src/credits.ts`:
-          `audioClean` costs exactly 1 credit per media minute, the identical
-          rate `transcribe` uses) — this app has one unified credit pool, not
-          a separate audio-clean balance, so relabelling the same numbers is
-          the honest answer, not a second (fictional) balance. Storage has no
-          real balance to draw from at all (see `useStorageUsage`'s doc
-          comment) — its meter shows a bytes figure with the bar and reset
-          row hidden rather than inventing a quota.
+          K04: Storage alongside the credit card. Storage has no real balance
+          to draw from (see `useStorageUsage`'s doc comment) so it is a
+          sentence with a number, not a meter — the canvas has no bar for a
+          quantity with no cap, and inventing a quota to fill one would be a
+          made-up number on a real screen.
         */}
-        <div className="px-2">
-          <CreditMeter
-            testId="audio-clean-meter"
-            label="Audio Clean"
-            icon={AudioLines}
-            remainingTenths={credits.data?.balanceTenths ?? included}
-            includedTenths={credits.data?.monthlyGrantTenths ?? included}
-            valueSuffix="left"
-            formatUnit={(tenths) => `≈ ${(tenths / 10).toFixed(1)} min of audio clean`}
-            {...(credits.data?.grantResetAt == null ? {} : { resetsAt: credits.data.grantResetAt })}
-          />
-        </div>
-
-        <div className="px-2" data-testid="storage-meter-wrapper">
-          {storage.sampled ? (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div tabIndex={0}>
-                  <CreditMeter
-                    testId="storage-meter"
-                    label="Storage"
-                    icon={HardDrive}
-                    remainingTenths={storage.bytes}
-                    includedTenths={storage.bytes}
-                    formatValue={() => (storage.loading ? "…" : formatStorageBytes(storage.bytes))}
-                    valueSuffix="used"
-                    formatUnit={null}
-                    showProgress={false}
-                  />
-                </div>
-              </TooltipTrigger>
-              <TooltipContent side="right">
-                Estimated from your most recently active {PROJECT_SAMPLE_LIMIT} projects, plus your
-                custom fonts.
-              </TooltipContent>
-            </Tooltip>
-          ) : (
-            <CreditMeter
-              testId="storage-meter"
-              label="Storage"
-              icon={HardDrive}
-              remainingTenths={storage.bytes}
-              includedTenths={storage.bytes}
-              formatValue={() => (storage.loading ? "…" : formatStorageBytes(storage.bytes))}
-              valueSuffix="used"
-              formatUnit={null}
-              showProgress={false}
-            />
-          )}
+        <div className="px-1.5" data-testid="storage-meter-wrapper">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div
+                tabIndex={0}
+                className="text-neutral-500 flex items-center gap-2 rounded-sm text-[11px]"
+                data-testid="storage-meter"
+              >
+                <HardDrive className="size-3.5 shrink-0" aria-hidden="true" />
+                <span>{storage.loading ? "…" : formatStorageBytes(storage.bytes)} of media</span>
+              </div>
+            </TooltipTrigger>
+            <TooltipContent side="right">
+              {storage.sampled
+                ? `Estimated from your most recently active ${PROJECT_SAMPLE_LIMIT} projects, plus your custom fonts.`
+                : "Every project's media, plus your custom fonts."}
+            </TooltipContent>
+          </Tooltip>
         </div>
 
         <StreakChip />
@@ -305,13 +306,15 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }): React.JSX.
         {isProductionOrigin && config.flags["desktop.download"] === true ? (
           <a
             href={`https://${BRAND.domain}/download`}
-            className="text-fg-1 hover:bg-bg-2 hover:text-fg-0 mx-1 flex items-center gap-2.5 rounded-sm px-2 py-2 text-xs"
+            className="text-neutral-300 hover:bg-neutral-100/6 hover:text-fg-0 mx-1 flex items-center gap-2.5 rounded-sm px-2 py-2 text-xs"
             data-testid="desktop-download"
           >
             <Monitor className="size-4 shrink-0" aria-hidden="true" />
             <span>
               Get the desktop app
-              <span className="text-fg-2 block">Local mode, watch folders, offline queue</span>
+              <span className="text-neutral-500 block">
+                Local mode, watch folders, offline queue
+              </span>
             </span>
           </a>
         ) : null}

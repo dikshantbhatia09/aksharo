@@ -4,9 +4,9 @@ import { resolve } from "node:path";
 import { expect, test } from "@playwright/test";
 import { Client as PgClient } from "pg";
 
+import { overflow, record, shot, watch } from "./diag";
 import { seedEditorProject } from "../e2e/editor-fixtures";
 import { signUpAndVerify } from "../e2e/fixtures";
-import { overflow, record, shot, watch } from "./diag";
 
 import type { Page } from "@playwright/test";
 

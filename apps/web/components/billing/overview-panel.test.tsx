@@ -130,7 +130,12 @@ describe("<OverviewPanel />", () => {
         "/billing/mandates": [],
       },
     });
-    expect(await screen.findByText("Free plan")).toBeInTheDocument();
+    // The canvas names the plan on its own line under a "Your plan" kicker,
+    // so the heading is the plan's name and nothing else.
+    await waitFor(() => {
+      expect(screen.getByTestId("plan-card")).toHaveTextContent("Your plan");
+    });
+    expect(screen.getByTestId("plan-card")).toHaveTextContent("Free");
   });
 
   it("shows the credit lots with their expiry", async () => {

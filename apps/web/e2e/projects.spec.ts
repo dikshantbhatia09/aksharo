@@ -1,5 +1,5 @@
 import { signUpAndSkipOnboarding } from "./auth-helpers";
-import { expect, expectNoSeriousA11yViolations, gotoHydrated, test } from "./fixtures";
+import { expect, expectNoSeriousA11yViolations, gotoHydrated, showProjectGrid, test } from "./fixtures";
 
 import type { Page } from "@playwright/test";
 
@@ -28,6 +28,7 @@ test("a created project shows up in the list and is searchable by title", async 
   await createSampleProject(page);
 
   await gotoHydrated(page, "/projects");
+  await showProjectGrid(page);
   await expect(page.getByTestId("project-card").first()).toBeVisible();
 
   await page.getByTestId("project-search").fill("Welcome to Aksharo");
@@ -41,6 +42,7 @@ test("the status filter shows the archive view", async ({ page }) => {
   await signUpAndSkipOnboarding(page, "projects");
   await createSampleProject(page);
   await gotoHydrated(page, "/projects");
+  await showProjectGrid(page);
 
   const card = page.getByTestId("project-card").first();
   await card.getByTestId(/project-kebab-/).click();
@@ -76,6 +78,7 @@ test("bulk select archives more than one project at once", async ({ page }) => {
   await createSampleProject(page);
   await createSampleProject(page);
   await gotoHydrated(page, "/projects");
+  await showProjectGrid(page);
 
   await expect(page.getByTestId("project-card")).toHaveCount(2);
   await page.getByTestId("toggle-select-mode").click();
@@ -92,6 +95,7 @@ test("opens the detail sheet with retention and job history", async ({ page }) =
   await signUpAndSkipOnboarding(page, "projects");
   await createSampleProject(page);
   await gotoHydrated(page, "/projects");
+  await showProjectGrid(page);
 
   await page
     .getByTestId("project-card")
@@ -110,6 +114,7 @@ test("/projects is axe-clean, empty and populated", async ({ page }) => {
 
   await createSampleProject(page);
   await gotoHydrated(page, "/projects");
+  await showProjectGrid(page);
   await expect(page.getByTestId("project-card").first()).toBeVisible();
   await expectNoSeriousA11yViolations(page, "/projects (populated)");
 });

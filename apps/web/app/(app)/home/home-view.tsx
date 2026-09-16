@@ -1,9 +1,12 @@
 "use client";
 
 /**
- * Home (08 §Home, F-101, F-102): greeting, drop zone with the quick-pick row,
- * the upload tray, and the Recent projects grid. `/` is the URL a signed-in
- * visitor sees this at — `middleware.ts` rewrites an authenticated request
+ * The studio, rebuilt to the premium canvas's four bands: the clips-pipeline
+ * banner, the "New project" card (pitch and quick picks on the left, the drop
+ * well on the right), a "Working now" / "This month" pair, and "Pick up where
+ * you left off".
+ *
+ * `/` is the URL a signed-in visitor sees this at — `middleware.ts` rewrites an authenticated request
  * for "/" here invisibly, because `(site)/page.tsx` already owns "/" for the
  * signed-out marketing page and Next.js refuses two page files that resolve
  * the same path.
@@ -16,6 +19,8 @@
  * job create its own project. A single file dropped keeps the original path
  * unchanged.
  */
+import { ArrowRight } from "lucide-react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import * as React from "react";
 
@@ -28,6 +33,9 @@ import type { UploadQuickPick } from "@/lib/upload/types";
 
 import { BatchApplyToAllSheet, type BatchConfirmed } from "@/components/batch/BatchApplyToAllSheet";
 import { BatchProgressView } from "@/components/batch/BatchProgressView";
+import { PipelineBanner } from "@/components/home/pipeline-banner";
+import { ThisMonthCard } from "@/components/home/this-month-card";
+import { WorkingNowCard } from "@/components/home/working-now-card";
 import { DropZone } from "@/components/projects/drop-zone";
 import { rememberedLanguage, rememberLanguage } from "@/components/projects/language-picker";
 import { PrepareMediaModal } from "@/components/projects/prepare-media-modal";
@@ -38,7 +46,6 @@ import {
   rememberedWritingScript,
   rememberWritingScript,
 } from "@/components/projects/writing-script-picker";
-import { RepurposeEntryCard } from "@/components/repurpose/RepurposeEntryCard";
 import { useUploadQueue } from "@/lib/upload/use-upload-queue";
 
 function firstName(fullName: string | null): string | undefined {
@@ -186,15 +193,59 @@ export function HomeView(): React.JSX.Element {
       : queue.items.find((candidate) => candidate.id === pendingMedia.localId);
 
   return (
-    <div className="flex flex-col gap-8" data-testid="home-view">
-      <div>
-        <h1 className="font-display text-fg-0 text-2xl font-semibold tracking-tight">
-          {name === undefined ? "Good to see you" : `Good to see you, ${name}`}
-        </h1>
-      </div>
+    <div className="flex flex-col gap-5" data-testid="home-view">
+      {/*
+        Band 1 — the clips pipeline. First on the canvas because it is the
+        product's biggest job; renders nothing outside the `repurpose_flow`
+        cohort, where every route behind it answers 404.
+      */}
+      <PipelineBanner />
 
+      {/*
+        Band 2 — "New project". The canvas splits this card: the pitch, the
+        quick picks and the two buttons on the left, the drop well on the
+        right. The whole card is the drop target, so a file dragged anywhere
+        over it lands, not only onto the well.
+      */}
       {pendingBatchFiles === undefined ? (
-        <div className="flex flex-col gap-3" ref={dropZoneRef} tabIndex={-1}>
+        <section
+          className="bg-surface grid overflow-hidden rounded-lg shadow-[var(--shadow-sm)] lg:grid-cols-[minmax(0,1.25fr)_minmax(220px,0.75fr)]"
+          ref={dropZoneRef}
+          tabIndex={-1}
+          aria-labelledby="new-project-heading"
+        >
+          <div className="flex flex-col gap-[13px] p-[22px]">
+            <span className="text-accent text-[10px] tracking-[0.12em] uppercase">New project</span>
+            <div>
+              <h1
+                id="new-project-heading"
+                className="font-display m-0 mb-1.5 text-[26px] tracking-[-0.02em]"
+              >
+                {name === undefined
+                  ? "Drop footage. Get captions that match how you talk."
+                  : `${name}, drop footage. Get captions that match how you talk.`}
+              </h1>
+              <p className="text-neutral-400 m-0 max-w-[48ch] text-[13.5px]">
+                Pick the language you actually spoke and your credits go to the engine that scores
+                best on it.
+              </p>
+            </div>
+
+            <QuickPickRow
+              value={quickPick}
+              onChange={(next) => {
+                setLanguageTouched(true);
+                // FIX-04: an explicit pick is remembered per browser, so the next
+                // visit opens on the answer this user already gave (scale note:
+                // per-device, no migration, cannot leak between workspace members).
+                if (next.language !== undefined && next.language !== quickPick.language) {
+                  rememberLanguage(next.language);
+                }
+                setQuickPick(next);
+              }}
+            />
+          </div>
+
           <DropZone
             onFiles={(files) => {
               if (files.length >= 2) {
@@ -212,24 +263,7 @@ export function HomeView(): React.JSX.Element {
               setPendingMedia({ file, localId: undefined });
             }}
           />
-          <QuickPickRow
-            value={quickPick}
-            onChange={(next) => {
-              setLanguageTouched(true);
-              // FIX-04: an explicit pick is remembered per browser, so the next
-              // visit opens on the answer this user already gave (scale note:
-              // per-device, no migration, cannot leak between workspace members).
-              if (next.language !== undefined && next.language !== quickPick.language) {
-                rememberLanguage(next.language);
-              }
-              setQuickPick(next);
-            }}
-          />
-          {/* Renders only when `repurpose_flow` is on for this workspace; the
-              flag is targeted, so a workspace outside the cohort sees nothing
-              here rather than a link to a surface that would answer 404. */}
-          <RepurposeEntryCard className="mt-4" />
-        </div>
+        </section>
       ) : (
         <BatchApplyToAllSheet
           files={pendingBatchFiles}
@@ -269,13 +303,33 @@ export function HomeView(): React.JSX.Element {
         dismiss={queue.dismiss}
       />
 
-      <div className="flex flex-col gap-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-fg-0 text-lg font-semibold">Recent projects</h2>
+      {/*
+        Band 3 — what is happening and what it costs. "Working now" hides
+        itself when nothing is running, which is why the grid is `auto-fit`
+        rather than two fixed columns: with no jobs, the credit card takes the
+        full width instead of leaving a hole.
+      */}
+      <div className="grid gap-3.5 [grid-template-columns:repeat(auto-fit,minmax(280px,1fr))]">
+        <WorkingNowCard projects={projects} />
+        <ThisMonthCard />
+      </div>
+
+      {/* Band 4 — the library, newest first. */}
+      <section className="flex flex-col gap-3">
+        <div className="flex items-baseline gap-3">
+          <h2 className="font-display m-0 text-[17px] tracking-[-0.01em]">
+            Pick up where you left off
+          </h2>
           {projects.length === 0 ? null : <SampleProjectButton variant="outline" />}
+          <Link
+            href="/projects"
+            className="text-accent hover:text-accent-300 ml-auto flex items-center gap-1.5 text-[12.5px]"
+          >
+            All projects <ArrowRight className="size-3" aria-hidden="true" />
+          </Link>
         </div>
         <ProjectGrid projects={projects} loading={recent.isPending} />
-      </div>
+      </section>
 
       <LocalProjectsSection />
     </div>

@@ -12,7 +12,7 @@
  * button, a flaky connection and a retried request must all land on the same run
  * rather than starting a second transcription.
  */
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
 
 import { isApiError, useCreateRepurposeRun } from "@montaj/api-client";
@@ -33,6 +33,16 @@ function newIdempotencyKey(): string {
 
 export function RepurposeNewView(): React.JSX.Element {
   const router = useRouter();
+  /*
+   * The studio's pipeline banner and `/repurpose` both carry a pasted link
+   * here rather than posting a run themselves: a run needs the rights
+   * attestation, a spoken language and a style, and none of those can be
+   * answered from a one-line field. `?url=` pre-fills the first box; the rest
+   * of the form is still the user's to complete, and `rightsAttested` is
+   * deliberately NOT pre-filled — a URL in a query string is not consent.
+   */
+  const searchParams = useSearchParams();
+  const presetUrl = searchParams.get("url") ?? "";
   const create = useCreateRepurposeRun();
   // The SAME queue the home drop zone uses. It hashes, initialises, PUTs every
   // part, completes, and lets the existing probe/proxy/transcribe chain take
@@ -42,6 +52,7 @@ export function RepurposeNewView(): React.JSX.Element {
   const idempotencyKey = React.useRef(newIdempotencyKey());
   const [value, setValue] = React.useState<StartFormValue>(() => ({
     ...EMPTY_START_FORM,
+    url: presetUrl,
     // The last language they used, the way every other entry point remembers it.
     sourceLanguage: rememberedLanguage(),
   }));

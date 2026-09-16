@@ -1,95 +1,180 @@
 /*
- * Aksharo design tokens — 03-architecture/08-ux-design-system.md §1.
+ * Aksharo design tokens — the **Nocturne** system.
+ *
+ * Source of truth for the look: the premium design canvas
+ * (`Aksharo Studio (premium).dc.html`) and its design system,
+ * `_ds/nocturne-*\/`. Nocturne is a quiet, compact dark interface: a
+ * near-neutral blue-grey ground, Inter at medium weight, soft 8 px radii, and
+ * a single blurple accent used as a line and a glow rather than a flood.
  *
  * Tailwind v4 is configured in CSS, so this file *is* the preset: importing it
  * after `@import "tailwindcss"` registers every colour, radius, font, spacing and
  * motion token as a Tailwind utility namespace (`bg-bg-1`, `text-fg-2`,
  * `border-border`, `rounded-md`, `duration-base`, …).
  *
- * The studio is dark-only in v1 (08 §1): there is one palette, defined on
- * `:root`, and no light override. The marketing site (A24) may add one.
+ * The studio is dark-only (08 §1): there is one palette, defined on `:root`,
+ * and no light override.
+ *
+ * Two naming schemes live here on purpose and they are the same colours:
+ *   - the app's own roles (`bg-0…bg-3`, `fg-0…fg-2`, `border`, `lime-500`),
+ *     which 80-odd existing files already consume, and
+ *   - Nocturne's own names (`surface`, `sunken`, `ink`, `divider`, and the
+ *     100–900 `neutral-*` / `accent-*` tonal ramps), which the screens rebuilt
+ *     against the canvas use directly.
+ * Retuning a value in one scheme must retune it in the other.
  *
  * Font families come from the app: `next/font` mints the `--font-sans`,
- * `--font-display` and `--font-mono` variables (Inter, Bricolage Grotesque,
- * JetBrains Mono) and this file only consumes them, with a system fallback so a
- * package rendered outside Next still has type.
+ * `--font-display` and `--font-mono` variables and this file only consumes
+ * them, with a system fallback so a package rendered outside Next still has
+ * type. Nocturne pairs Inter with Inter, so `--font-display` resolves to Inter
+ * as well — headings are distinguished by size and space, not by a second face.
  */
 
 @theme {
-  /* --- Surfaces -----------------------------------------------------------
-   * Kalakar's own chrome is Tailwind's stock zinc ramp, not a blue-tinted
-   * navy one — confirmed by pixel-sampling the reference screenshot
-   * (`Caption Editor.dc.html`'s companion export, 2026-09-12) at several
-   * flat-fill regions: page canvas #0d0d0d, panel surfaces #18181b
-   * (zinc-900), control wells #27272a (zinc-800), a raised "selected chip"
-   * fill #3f3f46 (zinc-700). bg-3 is new for that fourth, lightest step. */
-  --color-bg-0: #0d0d0d;
-  --color-bg-1: #18181b;
-  --color-bg-2: #27272a;
-  --color-bg-3: #3f3f46;
-  --color-border: #303034;
-  --color-border-hover: #45454d;
-  --color-overlay: rgb(0 0 0 / 0.7);
+  /* --- Nocturne grounds ---------------------------------------------------
+   * `bg` #161826 is the page; `surface` #232532 is every card and panel;
+   * `sunken` #101220 is the nav rail, timeline bed and inset wells; `ink`
+   * #0a0b12 is the video canvas — the one near-black, and the only place the
+   * ramps are allowed to bottom out. */
+  --color-bg-0: #161826;
+  --color-bg-1: #232532;
+  --color-bg-2: #2c2f3e;
+  --color-bg-3: #3a3d4f;
+  --color-border: #383946;
+  --color-border-hover: #4a4c5c;
+  --color-overlay: rgb(10 11 18 / 0.72);
+
+  /* Nocturne's own names for the same three grounds, plus the fading-rule
+   * divider. `--color-divider` is translucent by design: a rule painted from
+   * it fades to transparent at its ends over 48 px a side (the Nocturne
+   * signature), which only works if the colour carries alpha. */
+  --color-surface: #232532;
+  --color-sunken: #101220;
+  --color-ink: #0a0b12;
+  --color-divider: color-mix(in srgb, #e9e9ed 16%, transparent);
 
   /* --- Text --------------------------------------------------------------
-   * Also zinc, sampled the same way: primary text #e9e9ed (not pure white),
-   * row labels #d4d4d8, secondary/inactive #a1a1aa, most-muted #71717a. */
+   * The ramp's light steps. Contrast comes from the tonal ramp, not from
+   * saturation, so no text colour is pure white. */
   --color-fg-0: #e9e9ed;
-  --color-fg-1: #d4d4d8;
-  --color-fg-2: #a1a1aa;
-  --color-fg-disabled: #71717a;
+  --color-fg-1: #cfd3e5;
+  --color-fg-2: #9397ab;
+  --color-fg-disabled: #75798c;
 
-  /* Caption editor reference: Caption Editor.dc.html (1919 × 900). */
-  --color-editor-inspector: #1c1c1f;
-  --color-editor-sunken: #141416;
-  --color-editor-raised: #2f2f34;
-  --color-editor-divider: #212124;
-  --color-editor-pill: #232326;
-  --color-editor-pill-border: #2e2e33;
-  --color-editor-emphasis: #6dc99e;
-  --color-editor-emphasis-bg: #1d2725;
-  --color-editor-emphasis-border: #2f4a3c;
-  --color-editor-selection: #b6aef5;
-  --color-editor-selection-bg: #1d2130;
-  --color-editor-selection-border: #6d63c4;
-  --color-editor-avatar: #6d5ad6;
-  --color-editor-avatar-text: #f2f0ff;
-  --color-editor-track: #b0a76f;
-  --color-editor-track-text: #17170f;
-  --color-editor-ruler: #212126;
-  --color-editor-muted: #8b8b93;
+  /* --- Tonal ramps -------------------------------------------------------
+   * Generated in OKLCH on one shared perceptual lightness scale, so the same
+   * step of any role carries the same visual weight. On this dark ground use
+   * the dark steps (700–900) for tinted fills, hovers and subtle borders, 500
+   * as the role's base, and the light steps (100–300) for text on those tints.
+   * Prefer a ramp step over an ad-hoc `color-mix()`.
+   *
+   * These deliberately shadow Tailwind's stock `neutral-*` ramp. The direction
+   * is the same (100 lightest, 900 darkest) and the dozen existing
+   * `text-neutral-400`-style usages want exactly this blue-tinted version, so
+   * the override is the point rather than a collision to work around. */
+  --color-neutral-100: #f3f5fe;
+  --color-neutral-200: #e4e7f5;
+  --color-neutral-300: #cfd3e5;
+  --color-neutral-400: #b2b6ca;
+  --color-neutral-500: #9397ab;
+  --color-neutral-600: #75798c;
+  --color-neutral-700: #595d6c;
+  --color-neutral-800: #3f424d;
+  --color-neutral-900: #292b31;
+  --color-neutral-950: #0a0b12;
 
-  /* --- Brand Accents: Mint & Gold ---------------------------------------- */
-  --color-mint: #49a781;
-  --color-mint-hover: #57b88f;
-  --color-emerald: #10b981;
-  --color-mint-glow: rgba(73, 167, 129, 0.2);
-  --color-gold: #f59e0b;
-  --color-lime-500: #49a781;
-  --color-lime-600: #57b88f;
-  --color-on-accent: #08120e;
+  --color-accent-100: #f5f4ff;
+  --color-accent-200: #e7e5fe;
+  --color-accent-300: #d2cefd;
+  --color-accent-400: #b5abfc;
+  --color-accent-500: #968ae0;
+  --color-accent-600: #796cbf;
+  --color-accent-700: #5d5294;
+  --color-accent-800: #423a6a;
+  --color-accent-900: #2b2741;
 
-  /* --- Signals ----------------------------------------------------------- */
-  --color-proposed: #f59e0b;
-  --color-accepted: #22c55e;
-  --color-rejected: #ef4444;
-  --color-info: #3b82f6;
-  --color-warning: #f59e0b;
+  /* The one full-bleed saturated field the system allows: the marketing
+   * page's stat band. Deck- and page-scale only, never interface chrome. */
+  --color-section: #262a60;
+  --color-section-glow: #353b80;
+  --color-section-ghost: #4c5397;
 
-  /* --- Caption defaults (rendered content, not chrome) ------------------- */
+  /* --- The accent --------------------------------------------------------
+   * #9184d9, a blurple at OKLCH hue 289.2. One accent, no second: it is a
+   * line, a glow, an outline and a 10–20 % tint, never a flood.
+   *
+   * The `lime-*` and `mint*` names are historical — 80-odd files consume them
+   * and renaming every call site would be a much larger and much riskier diff
+   * than repointing the value. They are the accent; there is no lime and no
+   * mint in this palette. */
+  --color-accent: #9184d9;
+  --color-accent-hover: #b5abfc;
+  --color-lime-500: #9184d9;
+  --color-lime-600: #b5abfc;
+  --color-mint: #9184d9;
+  --color-mint-hover: #b5abfc;
+  --color-emerald: #968ae0;
+  --color-mint-glow: rgb(145 132 217 / 0.2);
+  --color-gold: #e6cf97;
+  /* Nocturne outlines its primary action rather than filling it, so this is
+   * only reached where a fill is unavoidable (a switch that is ON, a filled
+   * meter track). Ink, so the pair clears 8:1. */
+  --color-on-accent: #0a0b12;
+
+  /* --- Editor chrome ------------------------------------------------------
+   * The caption editor's own surfaces, retuned onto the Nocturne ramps. The
+   * emphasis and selection pairs are the canvas's transcript rows: an
+   * accent-800 tint carrying accent-100 text. */
+  --color-editor-inspector: #1e2030;
+  --color-editor-sunken: #101220;
+  --color-editor-raised: #2f3243;
+  --color-editor-divider: #242636;
+  --color-editor-pill: #232532;
+  --color-editor-pill-border: #313449;
+  --color-editor-emphasis: #d2cefd;
+  --color-editor-emphasis-bg: #423a6a;
+  --color-editor-emphasis-border: #5d5294;
+  --color-editor-selection: #d2cefd;
+  --color-editor-selection-bg: #221f3a;
+  --color-editor-selection-border: #5d5294;
+  --color-editor-avatar: #423a6a;
+  --color-editor-avatar-text: #f5f4ff;
+  --color-editor-track: #5d5294;
+  --color-editor-track-text: #f5f4ff;
+  --color-editor-ruler: #22242f;
+  --color-editor-muted: #9397ab;
+
+  /* --- Signals -----------------------------------------------------------
+   * Semantic, not decorative: these say accepted/rejected/warning and must
+   * stay distinguishable from the accent, so they keep their own hues —
+   * desaturated to sit inside Nocturne's low-chroma world. */
+  --color-proposed: #e6b45c;
+  --color-accepted: #6dc99e;
+  --color-rejected: #e8776f;
+  --color-info: #7aa2f7;
+  --color-warning: #e6b45c;
+
+  /* --- Caption defaults (rendered content, not chrome) -------------------
+   * Deliberately NOT the Nocturne palette. These burn into exported video and
+   * are governed by legibility over arbitrary footage, not by the app's
+   * chrome; the render tests assert them. Never use the brand accent here. */
   --color-caption-fill: #ffffff;
-  --color-caption-highlight: #f59e0b;
+  --color-caption-highlight: #ffd400;
   --color-caption-stroke: #000000;
 
-  /* --- Radii: 8 / 12 / 16 ------------------------------------------------ */
+  /* --- Radii: Nocturne's 8 px control radius, 12 / 14 for cards ---------- */
   --radius-sm: 8px;
   --radius-md: 12px;
-  --radius-lg: 16px;
+  --radius-lg: 14px;
 
-  /* --- Type -------------------------------------------------------------- */
+  /* --- Type --------------------------------------------------------------
+   * Inter over Inter. `--font-display` keeps a system chain behind Inter so a
+   * page that still asks for it degrades sensibly, but nothing in this system
+   * should be reaching for a second face. */
   --font-sans:
     var(--font-inter), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --font-display: var(--font-bricolage), var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-display:
+    var(--font-inter), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-mono: var(--font-jetbrains-mono), ui-monospace, "SFMono-Regular", Menlo, monospace;
 
   --text-2xs: 0.6875rem; /* 11px — meter captions, shortcut hints */
@@ -118,9 +203,15 @@
 
 @layer theme {
   :root {
-    /* Elevation is a 1 px border plus a soft shadow, never a heavy blur (08 §1). */
-    --shadow-panel: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px rgb(0 0 0 / 0.32);
-    --focus-ring: 0 0 0 2px var(--color-bg-0), 0 0 0 4px var(--color-mint);
+    /*
+     * Elevation on a dark ground is a hairline edge plus ambient darkness,
+     * never a heavy blur and never stacked (Nocturne readme, Don't).
+     */
+    --shadow-sm: 0 0 0 1px #3f424d;
+    --shadow-md: 0 0 0 1px #595d6c, 0 6px 18px rgb(0 0 0 / 0.55);
+    --shadow-lg: 0 0 0 1px #9397ab, 0 16px 40px rgb(0 0 0 / 0.65);
+    --shadow-panel: var(--shadow-md);
+    --focus-ring: 0 0 0 2px var(--color-bg-0), 0 0 0 4px var(--color-accent);
     color-scheme: dark;
   }
 }
@@ -137,6 +228,16 @@
     -webkit-font-smoothing: antialiased;
   }
 
+  /*
+   * Do not bolden headings past their 500 weight — hierarchy here is size and
+   * space (Nocturne readme). Utilities still win, so a heading that genuinely
+   * needs more can ask; this only changes what an unstyled h1–h6 does.
+   */
+  :is(h1, h2, h3, h4, h5, h6) {
+    font-weight: 500;
+    letter-spacing: -0.015em;
+  }
+
   *,
   ::before,
   ::after {
@@ -144,8 +245,9 @@
   }
 
   /*
-   * One focus ring for the whole product: lime, two rings so it stays visible on
-   * any surface, and never suppressed (08 §6 — contrast AA, visible focus).
+   * One focus ring for the whole product: the accent, two rings so it stays
+   * visible on any surface, and never suppressed (08 §6 — contrast AA,
+   * visible focus).
    */
   :focus-visible {
     outline: none;
@@ -155,10 +257,10 @@
 
   /*
    * A link inside a sentence must be distinguishable without colour (WCAG 1.4.1,
-   * and axe's `link-in-text-block`). Lime on near-black is legible but colour is
-   * all it is, so prose links are underlined; standalone links — nav items,
-   * buttons wearing `asChild` — are not inside a text block and keep their own
-   * styling.
+   * and axe's `link-in-text-block`). The accent on this ground is legible but
+   * colour is all it is, so prose links are underlined; standalone links — nav
+   * items, buttons wearing `asChild` — are not inside a text block and keep
+   * their own styling.
    */
   :is(p, li, dd, dt, figcaption, blockquote) a {
     text-decoration: underline;
@@ -167,8 +269,8 @@
   }
 
   ::selection {
-    background-color: var(--color-lime-500);
-    color: var(--color-on-accent);
+    background-color: color-mix(in srgb, var(--color-accent) 30%, transparent);
+    color: var(--color-fg-0);
   }
 
   /*
@@ -190,4 +292,38 @@
 @utility scrollbar-thin {
   scrollbar-width: thin;
   scrollbar-color: var(--color-bg-2) transparent;
+}
+
+/*
+ * A freestanding rule fades to transparent 48 px from each end rather than
+ * stopping cleanly — the Nocturne signature. Box outlines, in-control
+ * separators and short accent marks stay solid, so this is opt-in.
+ */
+@utility rule-fade {
+  height: 1px;
+  border: 0;
+  background: linear-gradient(
+    to right,
+    transparent,
+    var(--color-divider) 48px,
+    var(--color-divider) calc(100% - 48px),
+    transparent
+  );
+}
+
+/*
+ * The same rule painted along the bottom edge of an element that has its own
+ * content — a header, a list row — instead of as a separate element.
+ */
+@utility rule-fade-b {
+  background-image: linear-gradient(
+    to right,
+    transparent,
+    var(--color-divider) 48px,
+    var(--color-divider) calc(100% - 48px),
+    transparent
+  );
+  background-repeat: no-repeat;
+  background-position: bottom;
+  background-size: 100% 1px;
 }

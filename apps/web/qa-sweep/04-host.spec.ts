@@ -4,10 +4,10 @@ import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { expect, test } from "@playwright/test";
 import { Client as PgClient } from "pg";
 
+import { overflow, record, shot, watch } from "./diag";
 import { seedEditorProject } from "../e2e/editor-fixtures";
 import { loadRepoEnv } from "../e2e/env";
 import { gotoHydrated, waitForHydration } from "../e2e/fixtures";
-import { overflow, record, shot, watch } from "./diag";
 
 import type { Account } from "../e2e/fixtures";
 import type { Page } from "@playwright/test";

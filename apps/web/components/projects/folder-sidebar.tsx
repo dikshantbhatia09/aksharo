@@ -8,13 +8,23 @@
  * folders needs, and every folder still carries its own `parentId` for when
  * a deeper view is worth building.
  */
-import { FolderPlus, Pencil } from "lucide-react";
+import { Folder, FolderPlus, Folders, Pencil } from "lucide-react";
 import * as React from "react";
 
 import { useCreateFolder, useFolders, useUpdateFolder } from "@montaj/api-client";
 import { Button, cn, Input, toast } from "@montaj/ui";
 
 import { messageForError } from "@/lib/errors";
+
+/**
+ * The canvas's folder row: a 14 px icon, the name, and — pushed right — the
+ * count. Selected is an accent tint rather than a raised grey, which is how
+ * Nocturne marks "this one" everywhere else in the shell.
+ */
+const ROW =
+  "flex items-center gap-2 rounded-sm px-2.5 py-[7px] text-left text-[12.5px] transition-colors duration-[160ms] ease-[var(--ease-out-soft)]";
+const ROW_ON = "bg-accent/12 text-accent-200";
+const ROW_OFF = "text-neutral-300 hover:bg-neutral-100/6 hover:text-fg-0";
 
 export function FolderSidebar({
   selectedFolderId,
@@ -35,18 +45,19 @@ export function FolderSidebar({
   const items = [...(folders.data ?? [])].sort((a, b) => a.name.localeCompare(b.name));
 
   return (
-    <nav aria-label="Folders" className="flex flex-col gap-1" data-testid="folder-sidebar">
+    <nav aria-label="Folders" className="flex flex-col gap-0.5" data-testid="folder-sidebar">
+      <span className="text-neutral-500 px-2.5 pb-1.5 text-[9.5px] tracking-[0.12em] uppercase">
+        Folders
+      </span>
       <button
         type="button"
         onClick={() => {
           onSelect(undefined);
         }}
-        className={cn(
-          "rounded-sm px-2.5 py-1.5 text-left text-sm",
-          selectedFolderId === undefined ? "bg-bg-2 text-fg-0" : "text-fg-1 hover:bg-bg-2",
-        )}
+        className={cn(ROW, selectedFolderId === undefined ? ROW_ON : ROW_OFF)}
         data-testid="folder-all"
       >
+        <Folders className="size-3.5 shrink-0" aria-hidden="true" />
         All projects
       </button>
       <button
@@ -54,12 +65,10 @@ export function FolderSidebar({
         onClick={() => {
           onSelect("root");
         }}
-        className={cn(
-          "rounded-sm px-2.5 py-1.5 text-left text-sm",
-          selectedFolderId === "root" ? "bg-bg-2 text-fg-0" : "text-fg-1 hover:bg-bg-2",
-        )}
+        className={cn(ROW, selectedFolderId === "root" ? ROW_ON : ROW_OFF)}
         data-testid="folder-root"
       >
+        <Folder className="size-3.5 shrink-0" aria-hidden="true" />
         No folder
       </button>
 
@@ -107,15 +116,17 @@ export function FolderSidebar({
                 onSelect(folder.id);
               }}
               className={cn(
-                "flex-1 truncate rounded-sm px-2.5 py-1.5 text-left text-sm",
-                selectedFolderId === folder.id ? "bg-bg-2 text-fg-0" : "text-fg-1 hover:bg-bg-2",
+                ROW,
+                "flex-1 truncate",
+                selectedFolderId === folder.id ? ROW_ON : ROW_OFF,
               )}
               data-testid={`folder-${folder.id}`}
             >
-              {folder.name}
+              <Folder className="size-3.5 shrink-0" aria-hidden="true" />
+              <span className="truncate">{folder.name}</span>
               {/* A real separator, not just a margin: without it the accessible
                   name reads "Client work0" (F07-E2). */}
-              <span className="text-fg-2 text-2xs">{` · ${String(folder.projectCount)}`}</span>
+              <span className="text-neutral-500 ml-auto text-[10px]">{` · ${String(folder.projectCount)}`}</span>
             </button>
             <button
               type="button"

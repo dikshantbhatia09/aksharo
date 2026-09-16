@@ -22,7 +22,6 @@
 import { Lock, Unlock } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
-import type { Surface } from "canvaskit-wasm";
 
 import type { StyleDoc } from "@montaj/caption-styles";
 import { layoutFrame, renderFrame } from "@montaj/render-core";
@@ -42,6 +41,8 @@ import {
 } from "./stage-geometry";
 import { useRenderer } from "./use-canvaskit";
 import { setSegmentPosition, type SetSegmentPositionOp } from "../panels/ops";
+
+import type { Surface } from "canvaskit-wasm";
 
 import { cn } from "@/lib/utils";
 
@@ -462,7 +463,7 @@ export function CaptionStage({
         <div
           className={cn(
             "pointer-events-none absolute rounded-sm border transition-colors",
-            isLocked ? "border-white/30 bg-transparent" : "border-[#10B981] bg-[#10B981]/10",
+            isLocked ? "border-neutral-100/30 bg-transparent" : "border-accent bg-accent/10",
           )}
           style={handle}
           data-testid="caption-stage-box"
@@ -470,7 +471,7 @@ export function CaptionStage({
           {/* Lock / Unlock Drag Guard */}
           <button
             type="button"
-            className="pointer-events-auto absolute -top-8 left-1/2 -translate-x-1/2 flex items-center gap-1 rounded-full bg-[#181D21] border border-[#252D33] px-2.5 py-0.5 shadow-md cursor-pointer text-xs text-white hover:bg-[#252D33] transition-colors"
+            className="pointer-events-auto bg-surface border-border text-fg-0 hover:bg-bg-2 absolute -top-8 left-1/2 flex -translate-x-1/2 cursor-pointer items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs shadow-md transition-colors"
             onClick={(e) => {
               e.stopPropagation();
               setIsLocked((locked) => !locked);
@@ -485,8 +486,8 @@ export function CaptionStage({
               </>
             ) : (
               <>
-                <Unlock className="size-3 text-[#10B981]" />
-                <span className="text-[10px] font-medium text-[#10B981]">Unlocked</span>
+                <Unlock className="text-accent size-3" />
+                <span className="text-accent text-[10px] font-medium">Unlocked</span>
               </>
             )}
           </button>

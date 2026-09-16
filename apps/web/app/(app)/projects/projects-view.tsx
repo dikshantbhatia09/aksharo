@@ -1,9 +1,19 @@
 "use client";
 
 /**
- * `/projects` (08 §Home; F-102): search, filters, sort, folders, an archive
- * view (Status → Archived is that view — no separate route for it), bulk
- * select, infinite scroll, and the detail sheet.
+ * The library, in the premium canvas's shape: a filter bar across the top, a
+ * narrow folder column, and the projects as a **table** — thumbnail, project,
+ * status, language, length, credits, updated.
+ *
+ * The canvas has one view and it is the table, so that is the default. The
+ * card grid is still here behind a Table/Grid toggle, because it is the right
+ * shape for judging thumbnails and because `/projects` is where someone goes
+ * to *find* something — a list they can scan by name, and a wall they can scan
+ * by picture, are two different jobs.
+ *
+ * Everything the screen already did survives the reshape: search, filters,
+ * sort, folders, the archive view (Status → Archived is that view — no
+ * separate route for it), bulk select, infinite scroll, and the detail sheet.
  */
 import * as React from "react";
 
@@ -16,6 +26,7 @@ import { BulkActionBar } from "@/components/projects/bulk-action-bar";
 import { FolderSidebar } from "@/components/projects/folder-sidebar";
 import { ProjectDetailSheet } from "@/components/projects/project-detail-sheet";
 import { ProjectGrid } from "@/components/projects/project-grid";
+import { ProjectTable } from "@/components/projects/project-table";
 import { EMPTY_FILTERS, ProjectToolbar, sortProjects } from "@/components/projects/project-toolbar";
 
 export function ProjectsView(): React.JSX.Element {
@@ -24,6 +35,7 @@ export function ProjectsView(): React.JSX.Element {
   const [selecting, setSelecting] = React.useState(false);
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set());
   const [detailProjectId, setDetailProjectId] = React.useState<string | undefined>(undefined);
+  const [view, setView] = React.useState<"table" | "grid">("table");
   const loadMoreRef = React.useRef<HTMLDivElement>(null);
 
   const query = useProjects({
@@ -90,13 +102,75 @@ export function ProjectsView(): React.JSX.Element {
     });
   };
 
+  const listProps = {
+    projects,
+    loading: query.isPending,
+    emptyTitle: filtersActive ? "No projects match these filters" : "Nothing here yet",
+    emptyDescription: filtersActive
+      ? "Nothing in this workspace matches what you have selected."
+      : "Drop a video or audio file on the studio, or start from a ready-made sample.",
+    ...(filtersActive
+      ? {
+          emptyAction: (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={clearFilters}
+              data-testid="clear-filters"
+            >
+              Clear filters
+            </Button>
+          ),
+        }
+      : {}),
+    selectable: selecting,
+    selectedIds,
+    onToggleSelect: toggleSelect,
+    onViewDetails: setDetailProjectId,
+  };
+
+  const viewToggle = (on: boolean): string =>
+    cn(
+      "rounded-[6px] px-2.5 py-1 text-[11.5px] transition-colors duration-[160ms]",
+      on ? "bg-accent/16 text-accent-200" : "text-neutral-500 hover:text-neutral-300",
+    );
+
   return (
-    <div className="flex flex-col gap-4" data-testid="projects-view">
-      <div className="flex items-center justify-between">
-        <h1 className="font-display text-fg-0 text-2xl font-semibold tracking-tight">Projects</h1>
+    <div className="flex flex-col gap-3.5" data-testid="projects-view">
+      {/*
+        The canvas's filter bar: search, three filters, and — pushed right —
+        the sort label and the primary action. Select mode and the view
+        toggle sit with them rather than above, so the screen opens on the
+        table instead of on a heading.
+      */}
+      <ProjectToolbar filters={filters} onChange={setFilters}>
+        <span className="border-border flex items-center gap-1 rounded-sm border p-[3px]">
+          <button
+            type="button"
+            className={viewToggle(view === "table")}
+            aria-pressed={view === "table"}
+            onClick={() => {
+              setView("table");
+            }}
+            data-testid="view-table"
+          >
+            Table
+          </button>
+          <button
+            type="button"
+            className={viewToggle(view === "grid")}
+            aria-pressed={view === "grid"}
+            onClick={() => {
+              setView("grid");
+            }}
+            data-testid="view-grid"
+          >
+            Grid
+          </button>
+        </span>
         <Button
           type="button"
-          variant={selecting ? "secondary" : "outline"}
+          variant={selecting ? "primary" : "secondary"}
           size="sm"
           onClick={() => {
             setSelecting((value) => !value);
@@ -106,48 +180,19 @@ export function ProjectsView(): React.JSX.Element {
         >
           {selecting ? "Done" : "Select"}
         </Button>
-      </div>
+      </ProjectToolbar>
 
-      <ProjectToolbar filters={filters} onChange={setFilters} />
-
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-[14rem_1fr]">
+      <div className="grid grid-cols-1 gap-5 md:grid-cols-[minmax(0,150px)_minmax(0,1fr)]">
         <FolderSidebar selectedFolderId={folderId} onSelect={setFolderId} />
 
-        <div className={cn("flex flex-col gap-4", selecting && "pb-20")}>
-          <ProjectGrid
-            projects={projects}
-            loading={query.isPending}
-            emptyTitle={filtersActive ? "No projects match these filters" : "Nothing here yet"}
-            emptyDescription={
-              filtersActive
-                ? "Nothing in this workspace matches what you have selected."
-                : "Drop a video or audio file on Home, or start from a ready-made sample."
-            }
-            {...(filtersActive
-              ? {
-                  emptyAction: (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={clearFilters}
-                      data-testid="clear-filters"
-                    >
-                      Clear filters
-                    </Button>
-                  ),
-                }
-              : {})}
-            selectable={selecting}
-            selectedIds={selectedIds}
-            onToggleSelect={toggleSelect}
-            onViewDetails={setDetailProjectId}
-          />
+        <div className={cn("flex min-w-0 flex-col gap-4", selecting && "pb-20")}>
+          {view === "table" ? <ProjectTable {...listProps} /> : <ProjectGrid {...listProps} />}
 
           <div ref={loadMoreRef} />
           {query.hasNextPage === true ? (
             <Button
               type="button"
-              variant="outline"
+              variant="secondary"
               onClick={() => {
                 void query.fetchNextPage();
               }}

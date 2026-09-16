@@ -1,6 +1,14 @@
 "use client";
 
-import { Check } from "lucide-react";
+import {
+  Briefcase,
+  Check,
+  Gamepad2,
+  Mic,
+  Smartphone,
+  MonitorPlay,
+  type LucideIcon,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import * as React from "react";
 
@@ -11,7 +19,7 @@ import {
   useSaveOnboarding,
 } from "@montaj/api-client";
 import { BRAND } from "@montaj/config";
-import { Button, Card, cn, Field, Input, ProgressBar, toast } from "@montaj/ui";
+import { Button, cn, Field, Input, toast } from "@montaj/ui";
 
 import { ALL_LANGUAGES } from "@/components/projects/languages";
 import { SampleProjectButton } from "@/components/projects/project-grid";
@@ -50,6 +58,16 @@ const MAKE_DEFAULTS: Record<
 };
 
 const MAKES = ["reels", "youtube", "podcast", "client", "gaming"] as const;
+
+/** The canvas puts an icon on each "what do you make" row. Lucide, per `lib/nav.ts`. */
+const MAKE_ICONS: Record<(typeof MAKES)[number], LucideIcon> = {
+  reels: Smartphone,
+  // Lucide dropped its brand marks; MonitorPlay is the generic long-form one.
+  youtube: MonitorPlay,
+  podcast: Mic,
+  client: Briefcase,
+  gaming: Gamepad2,
+};
 
 /**
  * K02: this used to be its own hand-kept copy of the language list — the
@@ -197,19 +215,42 @@ export function OnboardingFlow(): React.JSX.Element {
           : t("onboarding.step.finish.title");
 
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col gap-6" data-testid="onboarding">
-      <div className="flex flex-col gap-2">
-        <p className="text-fg-2 text-xs">
-          {t("onboarding.stepOf", { step: step + 1, total: TOTAL_STEPS })}
-        </p>
-        <h1 className="font-display text-2xl font-semibold tracking-tight">{stepTitle}</h1>
-        <ProgressBar
-          value={((step + 1) / TOTAL_STEPS) * 100}
-          label={t("onboarding.progressLabel", { step: step + 1, total: TOTAL_STEPS })}
-        />
+    <div
+      className="mx-auto flex w-full max-w-[560px] flex-col gap-[18px] pt-3"
+      data-testid="onboarding"
+    >
+      {/*
+        The canvas's progress is four dots, not a bar: four steps is a
+        countable number, and a dot that is filled/ringed/empty says which one
+        you are on without needing a percentage. The "N of 4" sentence stays
+        as the accessible name, so nothing is lost for a screen reader.
+      */}
+      <div
+        className="flex items-center gap-2"
+        role="group"
+        aria-label={t("onboarding.progressLabel", { step: step + 1, total: TOTAL_STEPS })}
+      >
+        {Array.from({ length: TOTAL_STEPS }, (_, index) => (
+          <span
+            key={index}
+            aria-hidden="true"
+            data-state={index < step ? "done" : index === step ? "current" : "todo"}
+            className={cn(
+              "flex size-6 items-center justify-center rounded-full text-[11px]",
+              index < step && "bg-accent-800 text-accent-100",
+              index === step &&
+                "bg-accent/18 text-accent-200 shadow-[inset_0_0_0_1px_var(--color-accent)]",
+              index > step && "bg-neutral-900 text-neutral-500",
+            )}
+          >
+            {index + 1}
+          </span>
+        ))}
+        <span className="text-neutral-500 ml-auto text-[11px]">Takes under a minute</span>
       </div>
 
-      <Card className="flex flex-col gap-5">
+      <div className="bg-surface flex flex-col gap-4 rounded-lg p-[22px] shadow-[var(--shadow-sm)]">
+        <h1 className="font-display m-0 text-[23px] tracking-[-0.02em]">{stepTitle}</h1>
         {step === 0 ? (
           <ChoiceGrid
             name="makes"
@@ -217,6 +258,8 @@ export function OnboardingFlow(): React.JSX.Element {
               key,
               label: t(`onboarding.make.${key}`),
               hint: t(`onboarding.make.${key}.hint`),
+              // eslint-disable-next-line security/detect-object-injection -- `key` is one of the five MAKES literals
+              icon: MAKE_ICONS[key],
             }))}
             selected={draft.makes}
             onToggle={(key) => {
@@ -232,6 +275,7 @@ export function OnboardingFlow(): React.JSX.Element {
             </p>
             <ChoiceGrid
               name="languages"
+              variant="chip"
               options={LANGUAGES}
               selected={draft.languages}
               onToggle={(key) => {
@@ -245,6 +289,7 @@ export function OnboardingFlow(): React.JSX.Element {
           <>
             <ChoiceGrid
               name="source"
+              variant="chip"
               options={SOURCES.map((key) => ({ key, label: t(`onboarding.source.${key}`) }))}
               selected={draft.source === "" ? [] : [draft.source]}
               single
@@ -274,39 +319,41 @@ export function OnboardingFlow(): React.JSX.Element {
         ) : null}
 
         {step === 3 ? (
-          <div className="flex flex-col items-center gap-4 py-4 text-center">
-            <p className="text-fg-1 text-sm">{t("onboarding.step.finish.body")}</p>
-            <SampleProjectButton />
+          <div className="flex flex-col gap-3">
+            <p className="text-neutral-300 m-0 text-[13px]">{t("onboarding.step.finish.body")}</p>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="primary"
+                data-testid="onboarding-done"
+                onClick={() => {
+                  router.replace("/");
+                }}
+              >
+                Open the studio
+              </Button>
+              <SampleProjectButton variant="outline" />
+            </div>
           </div>
         ) : null}
-      </Card>
 
-      {step === 3 ? (
-        <div className="flex justify-end">
-          <Button
-            variant="ghost"
-            data-testid="onboarding-done"
-            onClick={() => {
-              router.replace("/");
-            }}
-          >
-            {t("onboarding.skip")}
-          </Button>
-        </div>
-      ) : (
-        <div className="flex items-center gap-2">
-          {step > 0 ? (
-            <Button
-              variant="ghost"
-              onClick={() => {
-                setStep(step - 1);
-              }}
-            >
-              {t("onboarding.back")}
-            </Button>
-          ) : null}
-
-          <div className="ml-auto flex items-center gap-2">
+        {/*
+          The canvas keeps the step controls inside the card, Back on the left
+          and Continue pushed right. Skip sits with Back rather than beside
+          Continue: they are both "not this", and putting an escape next to
+          the primary is how people miss the primary.
+        */}
+        {step === 3 ? null : (
+          <div className="flex items-center gap-[9px] pt-0.5">
+            {step > 0 ? (
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setStep(step - 1);
+                }}
+              >
+                {t("onboarding.back")}
+              </Button>
+            ) : null}
             <Button
               variant="ghost"
               onClick={() => {
@@ -318,6 +365,7 @@ export function OnboardingFlow(): React.JSX.Element {
             </Button>
             <Button
               variant="primary"
+              className="ml-auto"
               disabled={!canContinue || save.isPending || finished}
               data-testid="onboarding-next"
               onClick={() => {
@@ -335,8 +383,8 @@ export function OnboardingFlow(): React.JSX.Element {
                   : t("onboarding.finish")}
             </Button>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
@@ -345,27 +393,66 @@ function toggle(values: string[], key: string): string[] {
   return values.includes(key) ? values.filter((value) => value !== key) : [...values, key];
 }
 
+/**
+ * The two shapes the canvas uses for a set of answers.
+ *
+ * `"row"` is the first step: one full-width row per option, with its icon —
+ * five long labels read better stacked than shoulder to shoulder. `"chip"` is
+ * the language and source steps: small pills that wrap, because there are
+ * nine to fifteen of them and each is one or two words.
+ *
+ * Both are `role="checkbox"`/`"radio"` with `aria-checked`, so neither depends
+ * on colour to say what is selected.
+ */
 function ChoiceGrid({
   name,
   options,
   selected,
   onToggle,
   single = false,
+  variant = "row",
 }: {
   name: string;
-  options: readonly { key: string; label: string; hint?: string }[];
+  options: readonly { key: string; label: string; hint?: string; icon?: LucideIcon }[];
   selected: readonly string[];
   onToggle: (key: string) => void;
   single?: boolean;
+  variant?: "row" | "chip";
 }): React.JSX.Element {
   return (
     <div
       role={single ? "radiogroup" : "group"}
       aria-label={name}
-      className="grid gap-2 sm:grid-cols-2"
+      className={variant === "chip" ? "flex flex-wrap gap-1.5" : "flex flex-col gap-2"}
     >
       {options.map((option) => {
         const active = selected.includes(option.key);
+        const Icon = option.icon;
+
+        if (variant === "chip") {
+          return (
+            <button
+              key={option.key}
+              type="button"
+              role={single ? "radio" : "checkbox"}
+              aria-checked={active}
+              data-testid={`choice-${option.key}`}
+              onClick={() => {
+                onToggle(option.key);
+              }}
+              className={cn(
+                "rounded-sm border px-2.5 py-[5px] text-[11.5px]",
+                "transition-colors duration-[160ms] ease-[var(--ease-out-soft)]",
+                active
+                  ? "border-accent bg-accent/14 text-accent-200"
+                  : "border-border text-neutral-400 hover:border-accent hover:text-neutral-200",
+              )}
+            >
+              {option.label}
+            </button>
+          );
+        }
+
         return (
           <button
             key={option.key}
@@ -377,26 +464,30 @@ function ChoiceGrid({
               onToggle(option.key);
             }}
             className={cn(
-              "flex items-start gap-2.5 rounded-sm border px-3 py-2.5 text-left text-sm",
+              "flex items-center gap-[9px] rounded-md border px-3 py-[11px] text-left text-[13px]",
               "transition-colors duration-[160ms] ease-[var(--ease-out-soft)]",
               active
-                ? "border-lime-500 bg-lime-500/10 text-fg-0"
-                : "border-border text-fg-1 hover:border-fg-2/60",
+                ? "border-accent bg-accent/10 text-accent-200"
+                : "border-border text-neutral-300 hover:border-accent",
             )}
           >
-            <span
-              aria-hidden="true"
-              className={cn(
-                "mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-[4px] border",
-                active ? "border-lime-500 bg-lime-500 text-on-accent" : "border-border",
-              )}
-            >
-              {active ? <Check className="size-3" /> : null}
-            </span>
+            {Icon === undefined ? (
+              <span
+                aria-hidden="true"
+                className={cn(
+                  "flex size-4 shrink-0 items-center justify-center rounded-[4px] border",
+                  active ? "border-accent bg-accent text-on-accent" : "border-border",
+                )}
+              >
+                {active ? <Check className="size-3" /> : null}
+              </span>
+            ) : (
+              <Icon className="size-4 shrink-0" aria-hidden="true" />
+            )}
             <span>
               {option.label}
               {option.hint === undefined ? null : (
-                <span className="text-fg-2 block text-xs">{option.hint}</span>
+                <span className="text-neutral-500 block text-xs">{option.hint}</span>
               )}
             </span>
           </button>

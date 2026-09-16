@@ -14,10 +14,11 @@ test.describe("style preview canvas", () => {
     "CanvasKit is exercised on chromium here",
   );
 
-  // `/studio/styles` is in the `(app)` route group, which A13 put behind a
-  // session: a signed-out visitor is redirected before any HTML is sent.
+  // `/ui-kit/style-gallery` is behind a session the same way the product is:
+  // a signed-out visitor is redirected before any HTML is sent. The harness
+  // moved off `/studio/styles` when that route became the real catalogue.
   test.beforeEach(async ({ page, sharedAccount }) => {
-    await signIn(page, sharedAccount, "/studio/styles");
+    await signIn(page, sharedAccount, "/ui-kit/style-gallery");
     await expect(page.getByTestId("styles-heading")).toBeVisible();
   });
 

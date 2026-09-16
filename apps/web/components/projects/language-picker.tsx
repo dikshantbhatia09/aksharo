@@ -82,6 +82,13 @@ export interface LanguagePickerProps {
   readonly value: string | undefined;
   readonly onChange: (tag: string) => void;
   readonly className?: string;
+  /**
+   * The canvas labels each quick pick with its role ("SPOKEN Hinglish
+   * (Roman)"), so the row reads without having to decode three icons. Absent
+   * elsewhere — the waiting screen mounts this same control with its own
+   * `<label>` above it, and a second label inside the button would repeat it.
+   */
+  readonly kicker?: string;
   /** Overrides the trigger's placeholder text when nothing is chosen. */
   readonly placeholder?: string;
   /** A full-width field (the "Prepare Your Media" modal) instead of the compact pill (the quick-pick row). */
@@ -96,6 +103,7 @@ export function LanguagePicker({
   value,
   onChange,
   className,
+  kicker,
   placeholder = "Choose spoken language",
   fullWidth = false,
 }: LanguagePickerProps): React.JSX.Element {
@@ -149,21 +157,30 @@ export function LanguagePicker({
           setOpen((current) => !current);
         }}
         className={cn(
-          "flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm",
-          fullWidth && "w-full justify-between rounded-md",
+          // The canvas's quick-pick chip: a key in 9.5 px uppercase, the value
+          // beside it, a caret, and an 8 px radius — not a pill.
+          "flex items-center gap-[7px] rounded-sm border px-2.5 py-1.5 text-[12.5px]",
+          "transition-colors duration-[160ms] ease-[var(--ease-out-soft)]",
+          fullWidth && "w-full justify-between",
           value !== undefined
-            ? "border-lime-500 bg-lime-500/10 text-fg-0"
-            : "border-border bg-bg-2 text-fg-1 hover:text-fg-0",
+            ? "border-accent/45 bg-accent/12 text-accent-200"
+            : "border-border text-fg-0 hover:border-accent",
         )}
         data-testid="quick-pick-language-trigger"
       >
-        <span className="flex min-w-0 items-center gap-1.5">
-          <LanguagesIcon className="size-3.5 shrink-0" aria-hidden="true" />
+        <span className="flex min-w-0 items-center gap-[7px]">
+          {kicker === undefined ? (
+            <LanguagesIcon className="size-3.5 shrink-0" aria-hidden="true" />
+          ) : (
+            <span className="text-neutral-500 shrink-0 text-[9.5px] tracking-[0.1em] uppercase">
+              {kicker}
+            </span>
+          )}
           <span className={cn("truncate", fullWidth ? "max-w-none" : "max-w-40")}>
             {currentLabel}
           </span>
         </span>
-        <ChevronDown className="size-3.5 shrink-0" aria-hidden="true" />
+        <ChevronDown className="text-neutral-500 size-3 shrink-0" aria-hidden="true" />
       </button>
 
       {open ? (

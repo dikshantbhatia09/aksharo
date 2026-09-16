@@ -49,7 +49,8 @@ cd apps/api && node --env-file=../../.env.local-run dist/main.js
 # if dist/ is missing: pnpm --filter @montaj/api exec nest build
 
 # Web on 3914 (production build; NODE_ENV must be production for `next start`)
-cd apps/web && NEXT_DIST_DIR=.next-live-20260915c NODE_ENV=production node --env-file=../../.env.local-run node_modules/next/dist/bin/next start --port 3914
+# NEXT_DIST_DIR comes from _orchestration/release/web-dist.txt -- do not guess it
+cd apps/web && NEXT_DIST_DIR=$(tr -d '\r\n' < "../../../_orchestration/release/web-dist.txt") NODE_ENV=production node --env-file=../../.env.local-run node_modules/next/dist/bin/next start --port 3914
 ```
 
 **Three worker processes** also run detached, none of them on a port. Two are
@@ -86,10 +87,50 @@ Why each of those is there, since removing one looks harmless and is not:
 - **`YT_DLP_PATH`** must be the `.exe`. The digest check reads the file, and the
   bare name `yt-dlp` on PATH is a bash shim Node cannot spawn on Windows.
 
-The **current release runs from `apps/web/.next-live-20260915c`**
-(build `BW5EXx1_ZNWmleSPfNRYL`), published 2026-09-15. Set `NEXT_DIST_DIR` to
-that directory when restarting the web service, or the restore command brings
-back an older build.
+The **current release runs from `apps/web/.next-live-20260916c`**
+(build `6fMUXvjIqwUGBhH1D8xFV`), published 2026-09-16 — the Nocturne front-end
+(§5, `docs/NOCTURNE-FRONTEND-2026-09-16.md`).
+
+**The release directory is now recorded in exactly one place:**
+`_orchestration/release/web-dist.txt`. `start-production-stack.ps1` reads it
+and passes it as `NEXT_DIST_DIR`, and **throws** if it is missing, empty, says
+`.next`, or names a directory with no `BUILD_ID`. A deploy must update that
+file, or the change is live only until the next reboot. See
+`_orchestration/release/README.md`.
+
+> **Check what is live; do not trust this paragraph.** On 2026-09-16 it claimed
+> `.next-live-20260915c` was serving and it was wrong — the process had been
+> started with **no `NEXT_DIST_DIR` at all**, so it was serving the default
+> `.next`. A routine `pnpm --filter @montaj/web build` then overwrote `.next`
+> underneath the running process: `next start` holds its manifests in memory,
+> so the live HTML kept asking for chunk and CSS filenames that no longer
+> existed on disk, and **the public site served its stylesheet as a 400 for
+> about two hours, unstyled.**
+>
+> It then happened a second time the same day for the other reason: the 19:23
+> reboot ran `start-production-stack.ps1`, which also set no `NEXT_DIST_DIR`,
+> so the stack came back on `.next` rather than on the release deployed at
+> 11:26. That script now reads `_orchestration/release/web-dist.txt` and
+> throws rather than falling back — but the two rules still apply, because a
+> hand restart can still get it wrong.
+>
+> 1. **Always build into a NEW directory** — `NEXT_DIST_DIR=.next-live-<date>`
+>    — never into `.next`, even for a throwaway check. `.next` may be what
+>    production is serving.
+> 2. **Verify which build is actually live before you touch anything**, because
+>    a running process cannot be asked for its `NEXT_DIST_DIR`. Compare a
+>    served asset against the candidate directories:
+>
+> ```bash
+> # the CSS the live server is serving right now
+> curl -s http://127.0.0.1:3914/ | grep -o '/_next/static/css/[a-f0-9]*\.css' | sort -u
+> # which dist dir contains it (and therefore which one booted)
+> cd apps/web && for d in .next*/; do \
+>   [ -f "$d/static/css/<hash>.css" ] && echo "$d ($(cat $d/BUILD_ID))"; done
+> ```
+>
+> If that asset 400s or 404s, the process is already orphaned from its build
+> directory and the site is degraded — restart it onto a complete build.
 
 The repurposing surface is **no longer inert**. `repurpose_flow` and
 `source_youtube_acquire` are both enabled, targeted at workspace
@@ -102,7 +143,16 @@ point a downloader running on this machine at any address that ends in `.mp4` �
 including addresses only this machine can reach. That needs an egress policy
 before it is switched on.
 
-Retained for rollback, newest first: `.next-live-20260915b` (build
+Retained for rollback, newest first: `.next-live-20260916b` (build
+`CQ3rQW6qp4-AwmacgVdBt`, Nocturne before the contrast fixes — its outlined
+primary button drops to 3.4:1 when pressed — and before the workspace
+switcher moved into the profile menu, so on that build a user with two
+workspaces cannot switch), `.next-live-20260916a` (build
+`Gb_mWFi6_ZKNyVQ4Iv5kT`, as 16b plus four stale lime/zinc literals in the
+marketing hero tile, the OG card, the `themeColor` and the Razorpay widget),
+`.next-live-20260915c` (build
+`BW5EXx1_ZNWmleSPfNRYL`, the last pre-Nocturne build — note it was built but,
+as above, never actually served), `.next-live-20260915b` (build
 `xJsfGwIkxLyIIJWuKbQ9V`, the same code with links refused),
 `.next-repurpose-live-20260915` (build `-XBuUUyZGlEQjidK9pSc7`, no home entry
 point and no upload wiring), `.next-typography-live-20260913` (build
@@ -289,25 +339,70 @@ record in `docs/LAUNCH-READINESS-IMPLEMENTATION-2026-09-14.md`.
   also emitting CommonJS. This silently killed every render worker thread. Put
   the data in a `.ts` module.
 
-## 5. Design system
+## 5. Design system — **Nocturne** (changed 2026-09-16)
 
-Tokens live in `packages/ui/src/styles/tokens.css` (Tailwind v4 `@theme`), and
-are the ONLY legal source of colour/size. Use the utilities, never raw hex and
-never `white/NN`:
+The look is **Nocturne**, from the premium design canvas in
+`New folder/Premium software frontend design/`: `Aksharo Studio (premium).dc.html`
+is the screen-by-screen source and `_ds/nocturne-*/readme.md` is the written
+system. If a screen and this file disagree, the canvas wins.
 
-`bg-bg-0 #0b0b0e` · `bg-bg-1 #131318` · `bg-bg-2 #1b1b22` · `border-border #2a2a33`
-`text-fg-0 #f5f5f7` · `text-fg-1 #c9c9d1` · `text-fg-2 #8b8b96` · `text-fg-disabled #5c5c66`
-accent `lime-500 #d8ff3d` (hover `lime-600`), `text-on-accent`
-signals `proposed / accepted / rejected / info / warning`
-radii `rounded-sm` 8px · `rounded-md` 12px · type `text-2xs` 11 / `text-xs` 12 / `text-sm` 14
+**This replaced a zinc-and-lime palette (and, before a partial pass, a
+zinc-and-mint one). There is no lime and no mint in this product any more.**
+The `lime-*`/`mint*` CSS variables still exist because 80-odd files consume
+them; they resolve to the accent. Do not reintroduce `#d8ff3d` or `#49a781`,
+and do not "fix" a `lime-500` class name — renaming them is a separate,
+mechanical diff.
+
+Tokens live in `packages/ui/src/styles/tokens.css` (Tailwind v4 `@theme`) with a
+data copy in `packages/ui/src/tokens.ts`; `tokens.test.ts` pins the two together
+and fails on a pure black or pure white anywhere outside the caption defaults.
+They are the ONLY legal source of colour/size — never a raw hex, never
+`white/NN`:
+
+`bg-bg-0 #161826` (page) · `bg-surface #232532` (cards) · `bg-sunken #101220` (rails,
+timelines) · `bg-ink #0a0b12` (the video canvas, the one near-black)
+`text-fg-0 #e9e9ed` · `text-fg-1 #cfd3e5` · `text-fg-2 #9397ab` · `text-fg-disabled #75798c`
+accent `#9184d9` — `text-accent` / `border-accent`, hover one step *lighter*
+(`accent-400`), plus the 100–900 ramps `accent-*` and `neutral-*`
+signals `proposed / accepted / rejected / info / warning` (their own hues, on purpose)
+radii `rounded-sm` 8 · `rounded-md` 12 · `rounded-lg` 14 · type `text-2xs` 11 / `text-xs` 12 / `text-sm` 14
 
 Caption colours are a **different palette** from chrome: fill `#ffffff`,
-highlight `#ffd400`, stroke `#000000`. Never use the brand lime as a caption colour.
+highlight `#ffd400`, stroke `#000000`. Never use the brand accent as a caption
+colour — these burn into exported video over footage nobody controls.
 
-**Accent discipline:** lime is only for the active tab underline, a switch that
-is ON, a slider's filled track, the tinted accent tone on an active toggle
-(`border-lime-500/45 bg-lime-500/12 text-lime-500`), a selected card's ring, and
-at most one primary button per surface.
+**Accent discipline.** Nocturne spends the accent on *lines, glows and tints*,
+never as a flood: "do not flood large areas with the accent". So
+
+- **the primary button is an accent outline on transparent, not a fill**
+  (`Button variant="primary"`; `primitives.test.tsx` asserts the absence of a
+  fill). `danger` keeps its fill — destruction has to be unmistakable.
+- the accent is otherwise for: an active nav row (`bg-accent/12-16` +
+  `text-accent-200`), an active tab's underline, a switch that is ON, a filled
+  meter track, a selected card's ring (`shadow-[0_0_0_1px_var(--color-accent)]`),
+  a kicker over a card, and at most one primary action per surface.
+- the ONE exception to "no saturated fields" is the marketing page's stat band,
+  which uses `bg-section`. Nothing else may.
+
+**Rules fade at their ends.** A freestanding rule uses the `rule-fade` utility,
+and a rule along an element's bottom edge uses `rule-fade-b`, not `border-b` —
+both paint the divider fading to transparent 48 px from each end. Box outlines,
+in-control separators and short accent marks stay solid.
+
+**Headings are weight 500.** Size and space carry the hierarchy; `tokens.css`
+sets this on bare `h1`–`h6`. Inter for both headings and body.
+
+**A link inside an `<li>` that is navigation, not prose, needs `no-underline`.**
+The base stylesheet underlines any `<a>` inside a text block for WCAG 1.4.1;
+that is right for a link in a sentence and wrong for a section list or a row of
+stage pills.
+
+**Shell.** Two widths, switched from the header and remembered per browser
+(`components/shell/nav-model.ts`): a 68 px `NavRail` (the default) and the
+232 px `Sidebar`. `PRIMARY_NAV` is the canvas's eight destinations; the routes
+it had no room for live in `SECONDARY_NAV`, which the sidebar shows under
+"More" and the command palette offers in full. A disabled nav row is never
+"active", whatever the path says.
 
 The editor panel's row recipes live in
 `apps/web/components/editor/panels/controls.tsx` — copy them rather than
@@ -317,6 +412,12 @@ pseudo-elements; they must stay native elements because tests drive them with
 `toHaveValue()` and `fill()`.
 
 **Never remove a `data-testid`.** Unit tests and Playwright specs assert on them.
+
+**Seeing the screens.** `apps/web/e2e/nocturne-shots.spec.ts` captures every
+rebuilt screen at the canvas's own 1440 × 900 into `test-results-nocturne/`. It
+is a verification aid, not a gate, and it must run against a scratch stack —
+its header comment has the exact command, and §1's warning about
+`.env.local-run` applies: it signs up an account.
 
 ---
 

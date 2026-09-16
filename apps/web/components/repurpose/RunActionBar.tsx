@@ -37,35 +37,40 @@ export function RunActionBar({
     <div
       data-testid="run-action-bar"
       className={cn(
-        "sticky bottom-0 flex flex-wrap items-center justify-between gap-3",
-        "border-t border-border bg-bg-1/95 px-4 py-3 backdrop-blur",
+        // The canvas puts the run's actions inside the stage card, reading
+        // left to right: the primary, the way out, then the sentence saying
+        // what the primary will cost. Not a sticky footer bar — the stage
+        // panel is short enough that a bar pinned to the viewport spent most
+        // of its time floating over nothing.
+        "flex flex-wrap items-center gap-[9px] pt-1",
         className,
       )}
     >
-      <p className="text-xs text-fg-2">{note ?? ""}</p>
-      <div className="flex items-center gap-2">
-        {secondary !== undefined && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={secondary.onClick}
-            disabled={secondary.disabled ?? false}
-            data-testid={secondary.testId}
-          >
-            {secondary.label}
-          </Button>
-        )}
-        {primary !== undefined && (
-          <Button
-            size="sm"
-            onClick={primary.onClick}
-            disabled={primary.disabled ?? false}
-            data-testid={primary.testId}
-          >
-            {primary.label}
-          </Button>
-        )}
-      </div>
+      {primary !== undefined && (
+        <Button
+          variant="primary"
+          size="sm"
+          className="h-8"
+          onClick={primary.onClick}
+          disabled={primary.disabled ?? false}
+          data-testid={primary.testId}
+        >
+          {primary.label}
+        </Button>
+      )}
+      {secondary !== undefined && (
+        <Button
+          variant="secondary"
+          size="sm"
+          className="h-8"
+          onClick={secondary.onClick}
+          disabled={secondary.disabled ?? false}
+          data-testid={secondary.testId}
+        >
+          {secondary.label}
+        </Button>
+      )}
+      <p className="text-neutral-500 m-0 text-[11px]">{note ?? ""}</p>
     </div>
   );
 }
@@ -88,10 +93,12 @@ export function PersistentPreview({
     <aside
       aria-label="This video"
       data-testid="persistent-preview"
-      className={cn("rounded-md border border-border bg-bg-1 p-4", className)}
+      className={cn("bg-surface flex flex-col gap-[11px] self-start rounded-md p-3.5", className)}
     >
+      <span className="text-neutral-500 text-[9.5px] tracking-[0.12em] uppercase">Source</span>
+
       <div
-        className="flex aspect-video items-center justify-center rounded-sm border border-border bg-bg-2 text-xs text-fg-2"
+        className="text-neutral-500 flex aspect-video items-center justify-center rounded-sm bg-[radial-gradient(120%_90%_at_50%_20%,var(--color-accent-900),var(--color-ink))] px-3 text-center text-[11px]"
         data-testid="preview-placeholder"
       >
         {/* A poster arrives with the media; until then the box holds its shape so
@@ -99,33 +106,38 @@ export function PersistentPreview({
         Preview appears once your video is ready
       </div>
 
-      <dl className="mt-3 space-y-1.5 text-xs">
+      <dl className="m-0 flex flex-col gap-1.5 text-xs">
         <div className="flex justify-between gap-2">
-          <dt className="text-fg-2">Source</dt>
-          <dd className="truncate text-fg-1" data-testid="preview-source">
+          <dt className="text-neutral-500">Source</dt>
+          <dd className="text-neutral-300 m-0 truncate" data-testid="preview-source">
             {run.sourceDisplay ?? (run.sourceKind === "upload" ? "Your upload" : "Link")}
           </dd>
         </div>
         <div className="flex justify-between gap-2">
-          <dt className="text-fg-2">Suggested moments</dt>
-          <dd className="text-fg-1" data-testid="preview-candidates">
+          <dt className="text-neutral-500">Suggested moments</dt>
+          <dd className="text-neutral-300 m-0" data-testid="preview-candidates">
             {run.candidateCount}
           </dd>
         </div>
         <div className="flex justify-between gap-2">
-          <dt className="text-fg-2">Videos being made</dt>
-          <dd className="text-fg-1" data-testid="preview-variants">
+          <dt className="text-neutral-500">Videos being made</dt>
+          <dd className="text-neutral-300 m-0" data-testid="preview-variants">
             {run.variantCount}
           </dd>
         </div>
       </dl>
 
-      <div className="mt-3">
+      <div>
         <ProgressBar value={run.progress} label="How far along your video is" />
-        <p className="mt-1 text-2xs text-fg-2" data-testid="preview-progress">
+        <p className="text-neutral-500 mt-1 text-2xs" data-testid="preview-progress">
           {run.progress}% complete
         </p>
       </div>
+
+      <span className="rule-fade" aria-hidden="true" />
+      <span className="text-neutral-400 text-[11.5px]">
+        Nothing is posted anywhere without your confirmation.
+      </span>
     </aside>
   );
 }

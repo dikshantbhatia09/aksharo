@@ -1,8 +1,8 @@
 "use client";
 
 /**
- * The Home drop zone (08 §Home): "Drop videos or audio here · up to 4 GB / 3 h
- * on Creator", the formats accepted, and the transcription-time badge.
+ * The studio's drop target, in the premium canvas's shape: "Drop video or
+ * audio here" over the formats accepted and the plan's real caps.
  *
  * The format line is derived from `@montaj/config`'s allow-list rather than
  * written out, so the copy, the `accept` attribute and the API's own validation
@@ -15,7 +15,7 @@
  * mouse gives everyone else — `tabIndex`, `role="button"` and an Enter/Space
  * handler, not a bare `<input>` hidden behind a decoration.
  */
-import { UploadCloud } from "lucide-react";
+import { ClapperboardIcon } from "lucide-react";
 import * as React from "react";
 
 import { useEntitlement } from "@montaj/api-client";
@@ -43,8 +43,18 @@ export const ACCEPT_ATTRIBUTE = MEDIA_ACCEPT_ATTRIBUTE;
 /**
  * The formats named under the drop zone, derived so the copy cannot promise
  * less (or more) than the picker actually accepts.
+ *
+ * The canvas names four and counts the rest ("MP4, MOV, MP3, WAV and eight
+ * more") rather than printing a wall of extensions, and the count is computed
+ * from the same list, so it cannot drift when a format is added.
  */
-const FORMAT_SUMMARY = ACCEPTED_EXTENSIONS.map((extension) => extension.toUpperCase()).join(" ");
+const FORMAT_SUMMARY = ((): string => {
+  const all = ACCEPTED_EXTENSIONS.map((extension) => extension.replace(/^\./, "").toUpperCase());
+  const named = all.slice(0, 4);
+  const rest = all.length - named.length;
+  if (rest <= 0) return named.join(", ");
+  return `${named.join(", ")} and ${String(rest)} more`;
+})();
 
 function formatBytes(bytes: number): string {
   if (!Number.isFinite(bytes) || bytes <= 0) return "0 B";
@@ -64,9 +74,20 @@ function formatDuration(ms: number): string {
 export function DropZone({
   onFiles,
   disabled = false,
+  variant = "panel",
 }: {
   onFiles: (files: File[]) => void;
   disabled?: boolean;
+  /**
+   * `"panel"` is the premium canvas's shape: the right-hand half of the "New
+   * project" card — a sunken well with a dashed accent rectangle inset 14 px,
+   * a film icon, one line of instruction and one of formats. It is the one the
+   * studio uses.
+   *
+   * `"block"` is the original full-width 240 px box, kept for the onboarding
+   * screen and anywhere the drop target *is* the page rather than half a card.
+   */
+  variant?: "panel" | "block";
 }): React.JSX.Element {
   const entitlement = useEntitlement();
   const inputRef = React.useRef<HTMLInputElement>(null);
@@ -156,32 +177,52 @@ export function DropZone({
         disabled={disabled}
         onClick={openPicker}
         className={cn(
-          "border-border bg-bg-1 flex w-full flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed",
-          "h-[240px] px-6 py-8 text-center transition-all duration-200",
-          dragging && "border-mint bg-mint/5 ring-4 ring-mint/10",
+          "relative flex w-full flex-col items-center justify-center text-center",
+          "transition-colors duration-[160ms] ease-[var(--ease-out-soft)]",
+          variant === "panel"
+            ? "bg-sunken min-h-[186px] gap-[9px] p-4"
+            : "bg-surface h-[240px] gap-3 rounded-lg px-6 py-8",
           disabled && "cursor-not-allowed opacity-60",
-          !disabled && "cursor-pointer hover:border-mint hover:bg-mint/[0.02]",
+          !disabled && "cursor-pointer",
+          dragging && "bg-accent/8",
         )}
       >
-        <div className="bg-bg-2 text-fg-2 flex size-12 items-center justify-center rounded-full">
-          <UploadCloud className="size-6 text-mint" aria-hidden="true" />
-        </div>
-        <div className="flex flex-col items-center gap-1">
-          <p className="text-fg-0 text-base font-medium">Drop videos or audio here or click to upload</p>
-          <p className="text-fg-2 text-xs" data-testid="drop-zone-limits">
-            {maxFileBytes === undefined || maxDurationMs === undefined
-              ? "Max: 2:00 minutes, 1GB · MP4 MOV"
-              : `Up to ${formatBytes(Number(maxFileBytes))} / ${formatDuration(Number(maxDurationMs))}${
-                  planKey === undefined ? "" : ` on ${planKey}`
-                } · ${FORMAT_SUMMARY}`}
-          </p>
+        {/*
+          The dashed rectangle is inset rather than being the element's own
+          border, which is what gives the canvas's well its margin of dark
+          around the invitation.
+        */}
+        <span
+          aria-hidden="true"
+          className={cn(
+            "pointer-events-none absolute inset-3.5 rounded-[10px] border border-dashed transition-colors",
+            dragging ? "border-accent" : "border-accent/45",
+          )}
+        />
+        <ClapperboardIcon className="text-accent size-[26px]" aria-hidden="true" />
+        <span className="text-fg-0 text-[13px]">Drop video or audio here</span>
+        <span className="text-neutral-500 text-[11px]" data-testid="drop-zone-limits">
+          {maxFileBytes === undefined || maxDurationMs === undefined
+            ? FORMAT_SUMMARY
+            : `${FORMAT_SUMMARY} · up to ${formatBytes(Number(maxFileBytes))} and ${formatDuration(
+                Number(maxDurationMs),
+              )}${planKey === undefined ? "" : ` on ${planKey}`}`}
+        </span>
+        {/*
+          F07-E1: the badge quotes no number, because the free-stack pipeline
+          (local Whisper on CPU) cannot hold a 60-second promise and UI never
+          quotes a number the pipeline does not enforce. It belongs to the
+          full-width variant only — the canvas's panel is a well with four
+          lines in it and a fifth would crowd the frame.
+        */}
+        {variant === "block" ? (
           <span
-            className="border-mint/40 bg-mint/10 text-mint inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium mt-1"
+            className="border-accent/40 bg-accent/10 text-accent-300 mt-1 inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs"
             data-testid="drop-zone-eta-badge"
           >
             Transcription usually takes a few minutes
           </span>
-        </div>
+        ) : null}
       </button>
 
       <input

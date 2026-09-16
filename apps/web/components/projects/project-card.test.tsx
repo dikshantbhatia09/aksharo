@@ -37,10 +37,12 @@ describe("<ProjectCard />", () => {
     renderWithProviders(<ProjectCard project={project()} />, { routes: EMPTY_JOBS });
     expect(screen.getByText("Holiday clip")).toBeInTheDocument();
     expect(screen.getByText("2:05")).toBeInTheDocument();
+    // The canvas replaces the chip pair with one status line: a dot, the
+    // word, and the language after it.
     await waitFor(() => {
-      expect(screen.getByTestId("status-chip")).toHaveTextContent("Ready");
+      expect(screen.getByTestId("project-card")).toHaveAttribute("data-status", "ready");
     });
-    expect(screen.getByTestId("lang-chip")).toBeInTheDocument();
+    expect(screen.getByTestId("project-card")).toHaveTextContent("Ready · hi-Latn");
   });
 
   it("shows Working while a job for it is still running", async () => {
@@ -74,9 +76,9 @@ describe("<ProjectCard />", () => {
       },
     });
     await waitFor(() => {
-      expect(screen.getByTestId("status-chip")).toHaveTextContent("Working");
+      expect(screen.getByTestId("project-card")).toHaveTextContent("Working");
     });
-    expect(screen.getByTestId("project-card-eta")).toBeInTheDocument();
+    expect(screen.getByTestId("project-card")).toHaveAttribute("data-status", "processing");
   });
 
   it("links to the project's editor route", async () => {
@@ -101,8 +103,22 @@ describe("<ProjectCard />", () => {
     });
     // `getElementsByClassName` takes a raw class name — a CSS selector would have
     // to escape both brackets and the slash in Tailwind's arbitrary-value class.
-    expect(container.getElementsByClassName("aspect-[9/16]")).toHaveLength(1);
+    // Portrait is drawn at the canvas's 9:13, which is still a portrait frame
+    // and still not the 16:9 box FIX-05 was about.
+    expect(container.getElementsByClassName("aspect-[9/13]")).toHaveLength(1);
     expect(container.getElementsByClassName("aspect-video")).toHaveLength(0);
+  });
+
+  it("frames a landscape project in 16:9, not in the portrait default", async () => {
+    const { container } = renderWithProviders(
+      <ProjectCard project={project({ aspect: "16:9" })} />,
+      { routes: EMPTY_JOBS },
+    );
+    await waitFor(() => {
+      expect(screen.getByTestId("project-card")).toBeInTheDocument();
+    });
+    expect(container.getElementsByClassName("aspect-video")).toHaveLength(1);
+    expect(container.getElementsByClassName("aspect-[9/13]")).toHaveLength(0);
   });
 
   it("renders the presigned thumbnail when the project has one", async () => {
