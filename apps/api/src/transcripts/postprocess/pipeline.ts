@@ -164,6 +164,10 @@ export async function postProcess(
 
   const corrections: Correction[] = [...speakers.corrections];
   const out: TranscriptChunk[] = [];
+  // Set inside the Hinglish branch below, once any word actually carries a
+  // genuine Devanagari form — see that branch's comment for why this can no
+  // longer be assumed true of every Hinglish transcript.
+  let hasGenuineNative = false;
 
   for (const chunk of relabelled) {
     let words: readonly Word[] = mergeSplitTokens(chunk.words);
@@ -196,19 +200,36 @@ export async function postProcess(
 
     if (isHinglish) {
       words = words.map((w) => {
-        const rawSource =
+        // `native` is only genuine when a real Devanagari string backs it --
+        // either a script slot the provider already set, or the word's own
+        // primary text. Falling back to `w.t`/`w.scripts.roman` unconditionally
+        // (the previous behaviour) meant a provider like `local-whisper`, which
+        // transcribes Hindi speech straight into Hinglish/Latin text with no
+        // Devanagari signal at all, got a `native` slot that was just a copy of
+        // `roman` -- reported as "available" by `ScriptsService.availableScripts`
+        // and indistinguishable from Roman in the editor no matter which tab a
+        // user picked (the audit's "Native/EN tabs never change the caption
+        // text"). Leaving `native` unset here is the honest answer: there is no
+        // native-script form to show yet, and the script strip's own "click an
+        // unavailable tab" path already runs the real (bidirectional) rule-table
+        // transliterator on demand (`ai.transliterate`,
+        // `worker_ai/transliterate/provider.py`) to produce one.
+        const devanagariSource =
           w.scripts?.native && /[\u0900-\u097F]/u.test(w.scripts.native)
             ? w.scripts.native
-            : (w.scripts?.roman ?? w.t);
+            : /[\u0900-\u097F]/u.test(w.t)
+              ? w.t
+              : undefined;
+        const rawSource = devanagariSource ?? (w.scripts?.roman ?? w.t);
         const roman = devanagariToHinglish(rawSource);
-        const native = w.scripts?.native ?? w.t;
+        if (devanagariSource !== undefined) hasGenuineNative = true;
         return {
           ...w,
           t: roman,
           scripts: {
             ...w.scripts,
             roman,
-            native,
+            ...(devanagariSource === undefined ? {} : { native: devanagariSource }),
           },
         };
       });
@@ -227,7 +248,9 @@ export async function postProcess(
     options.providerLanguage?.toLowerCase() === "hi-latn";
 
   const scripts = isHinglish
-    ? (["roman", "native"] as const)
+    ? hasGenuineNative
+      ? (["roman", "native"] as const)
+      : (["roman"] as const)
     : verdict.scripts;
 
   const steps = [...new Set(corrections.map((correction) => correction.step))];

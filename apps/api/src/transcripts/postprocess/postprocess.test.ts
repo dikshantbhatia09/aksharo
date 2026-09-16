@@ -769,6 +769,44 @@ describe("the pipeline", () => {
     expect(result.corrections.every((correction) => correction.wordId !== "")).toBe(true);
   });
 
+  it("never claims a native script when the ASR gave no Devanagari at all", async () => {
+    // `local-whisper` transcribing spoken Hindi can hand back words already in
+    // Latin script (exactly this table's "matlab"/"Akshara"/... above) with no
+    // Devanagari signal anywhere. There is then no genuine native-script form
+    // to show, and the pipeline must not fabricate one by copying the Latin
+    // text into `scripts.native` -- that is what let the editor's Native tab
+    // silently render the same Roman text no matter what a user clicked
+    // (confirmed live on project `01M2AT48M2ERZ8J1AX2DS3H667`).
+    const result = await postProcess(
+      [chunk(words([{ t: "matlab" }, { t: "Akshara" }, { t: "ke" }, { t: "paas" }]))],
+      { providerLanguage: "hi", workspaceId: "ws" },
+    );
+
+    expect(result.language).toBe("hi-Latn");
+    // No word carries a real Devanagari form, so `native` is not on offer --
+    // the script strip's own "click an unavailable tab" path is what should
+    // produce one (via the real, bidirectional rule-table transliterator),
+    // not this pipeline pretending it already has.
+    expect(result.scripts).toEqual(["roman"]);
+    for (const word of result.chunks[0]?.words ?? []) {
+      expect(word.scripts?.native).toBeUndefined();
+    }
+  });
+
+  it("keeps a genuine Devanagari native form when the ASR actually gave one", async () => {
+    const result = await postProcess([chunk(words([{ t: "बारिश" }, { t: "हो" }]))], {
+      providerLanguage: "hi",
+      hint: "hi-Latn",
+      workspaceId: "ws",
+    });
+
+    expect(result.scripts).toEqual(["roman", "native"]);
+    const [first, second] = result.chunks[0]?.words ?? [];
+    expect(first?.scripts?.native).toBe("बारिश");
+    expect(first?.t).toBe("baarish");
+    expect(second?.scripts?.native).toBe("हो");
+  });
+
   it("keeps chunk boundaries and word ids intact across chunks", async () => {
     const first = words([
       { t: "pehla", s: 0, e: 400 },
