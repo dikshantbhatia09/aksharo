@@ -100,9 +100,13 @@ Why each env var is there, since removing one looks harmless and is not:
 - **`YT_DLP_PATH`** must be the `.exe`. The digest check reads the file, and the
   bare name `yt-dlp` on PATH is a bash shim Node cannot spawn on Windows.
 
-The **current release runs from `apps/web/.next-live-20260916f`**
-(build `892eaAltvsd5sT1njM0Rn`), published 2026-09-16 — the Nocturne front-end
-(§5, `docs/NOCTURNE-FRONTEND-2026-09-16.md`) plus the QA-pass fixes in §8.
+The **current release runs from `apps/web/.next-live-20260917b`**
+(build `FWCTJud6kCHKxtH4ES4WV`), published 2026-09-17 — Nocturne (§5) plus
+every QA-pass fix through §11, including the four §11 fixes merged from
+parallel isolated worktrees and reviewed before merge, and the fifth (the
+split-caption cache key) fixed and added straight after. `api` (3913) was
+also restarted the same day, for the Hinglish-native-script fix (§11's
+fourth bug, backend-only).
 
 **The release directory is now recorded in exactly one place:**
 `_orchestration/release/web-dist.txt`. `start-production-stack.ps1` reads it
@@ -156,7 +160,11 @@ point a downloader running on this machine at any address that ends in `.mp4` �
 including addresses only this machine can reach. That needs an egress policy
 before it is switched on.
 
-Retained for rollback, newest first: `.next-live-20260916e` (build
+Retained for rollback, newest first: `.next-live-20260917a` (build
+`-6VACLt3sN0HjP2_1-qrc`, the first four §11 fixes but still with the
+split-caption word-duplication bug), `.next-live-20260916f` (build
+`892eaAltvsd5sT1njM0Rn`, the §8 QA-pass fixes but none of §9/§11),
+`.next-live-20260916e` (build
 `vxl0CO0wrlkRPKLQlmH83`, the credits-label and export-dialog-tab fixes from
 §8, but still freezing a cancelled run's stage at "Add video" regardless of
 how far it had gotten, and still losing a failed upload back into an
@@ -699,3 +707,107 @@ it) always worked and is unaffected by either scaling frame. When a click
 (or another concrete DOM signal) before concluding it is a product bug —
 and prefer a JS-dispatched `.click()` over coordinate or `ref` clicks for
 small targets.
+
+---
+
+## 11. FIXED 2026-09-17 — five bugs from a parallel QA sweep
+
+Five independent QA agents, each in its own browser tab, swept upload/
+new-project, YouTube repurpose, settings/billing, nav/command-palette/
+responsive, and caption-editor-tools. Five confirmed bugs came back; four
+were fixed immediately in isolated git worktrees by parallel fix agents and
+merged after review, the fifth (the split-caption one) was fixed by hand
+right after. All five are deployed as of `.next-live-20260917b` (API
+restarted on the same code for the fourth one; web rebuilt twice the same
+day, `a` then `b`).
+
+- **An audio-only project's canvas preview said "Preview is preparing…"
+  forever.** `apps/worker-media/src/processors/proxy.ts` intentionally never
+  encodes a 540p proxy for a source with no video track
+  (`if (facts.hasVideo)`), so `proxy` never appears on
+  `GET /media/{id}/urls` for that project — not "not yet," never.
+  `CaptionStage.tsx`'s own doc comment already admitted `src` is `undefined`
+  for three different causes (audio-only / still transcoding / the fetch
+  failed) but rendered one placeholder for all three, so an audio-only
+  project (including "Try with a sample," which is exactly that) looked
+  stuck loading for its entire life. Fixed with a `noMediaReason` prop
+  (`"processing" | "audio-only" | "error"`, default `"processing"`) derived
+  in `editor-client.tsx` from signals already on hand — no `width` on the
+  primary media means the probe found no video track, a `urls` fetch error
+  takes precedence over both — each with its own, honest copy. Tests in
+  `caption-stage-transport.test.tsx` and `editor-client.test.ts`.
+- **A brand-new, untouched project immediately nagged to "Reflow captions"**
+  — the exact false positive `caption-budgets.ts`'s own doc comment says must
+  never happen on first load. Not a logic bug: the real cause was
+  `use-canvaskit.ts`'s `DEFAULT_FONTS` still naming Inter's old, pre-pack
+  placeholder files (`Inter-Medium.ttf` etc., weights 400/500/900 only)
+  instead of the real bundled pack's `inter-<weight>.ttf` faces (300–900,
+  `packages/fonts/pack/`) that the *server's* budget measurement already
+  uses. `vertical-clean` — the default style every fresh project opens on —
+  asks for weight 600, which the browser had no exact face for, so
+  `FontRegistry.resolve` silently substituted a different weight, measured a
+  genuinely different fit, and disagreed with the server every time — not
+  the ~1-character shaper noise `MAX_CHARS_TOLERANCE` exists to absorb.
+  Fixed by correcting `DEFAULT_FONTS`' six Inter entries and adding them to
+  `copy-render-assets.mjs`'s copy list (they were never being provisioned
+  into `public/fonts/` at all). A sibling instance of the same stale-naming
+  bug for Playfair Display/EB Garamond/Helvetica was found in the same file
+  but left out of scope (follow-up task `task_efbfbb1e`).
+- **The "N of {grant} left" broken-counter label** (originally fixed 2026-09-16
+  on the Home page's `ThisMonthCard` only) **was never fixed in two sibling
+  components** that render the same balance-vs-grant data: `/billing`'s
+  Overview panel and the persistent sidebar credits widget
+  (`components/shell/credits-card.tsx`). Same fix, same guard
+  (`balance <= grant` before showing the denominator), applied to both.
+- **The Native/EN script tabs in the caption transcript panel never changed
+  the displayed text.** The frontend plumbing was already correct end to
+  end — the bug was that `apps/api/src/transcripts/postprocess/pipeline.ts`'s
+  Hinglish branch set `scripts.native = w.t` (the Latin text) whenever no
+  genuine Devanagari source existed, which is exactly what happens when
+  `local-whisper` transcribes Hindi speech straight into Hinglish/Latin text.
+  `ScriptsService` then honestly reported "native" as available, and the
+  editor rendered it — byte-identical to Roman, so the tab's own selected
+  state visibly changed but the caption text never did, with no error
+  anywhere because nothing failed. Fixed to only populate `scripts.native`
+  (and only list "native" as available) when a real Devanagari string
+  actually backs it; the script strip's existing on-demand transliterator
+  (`ai.transliterate`) still produces a genuine one when a user clicks an
+  unavailable tab. "EN" is a separate, pre-existing gap — there is no
+  producer anywhere for word-level `scripts.en` (translation only writes
+  segment-level `textOverrides.translated`), and `ScriptTabs.tsx` renders
+  the EN tab as clickable regardless. Not folded into this fix; follow-up
+  task `task_dba044f0`.
+- **Splitting a caption briefly showed the split word duplicated in both the
+  original and the new line, until the page was reloaded.**
+  `TranscriptList.tsx`'s per-segment word cache was keyed on `segment.id`
+  alone, invalidated only when the `wordsOf` callback's own identity
+  changed. But `wordsOf` (`editor-client.tsx`) is memoized on `state.words`
+  alone, and `SplitSegment`/`MergeSegments`/`Resegment` change a segment's
+  `startWordId`/`endWordId` without touching the word index at all — so
+  after a split, the just-trimmed segment's stale word list kept being
+  served from cache, showing the split-off word(s) in both rows until a full
+  remount rebuilt the cache from nothing. Fixed by keying the cache on
+  segment id *and* its boundary ids, so a boundary change is a fresh key on
+  its own without losing the cache's whole point (an unrelated segment
+  mid-scroll still hits its existing entry). Test in the new
+  `TranscriptList.test.tsx`, which fails against the pre-fix code and passes
+  after.
+
+**Not fixed, not a defect either — three unconfirmed observations from the
+same sweep**, recorded so they are not re-investigated from scratch: (1) the
+Home page's Spoken-language picker showed "English" while "Try with a
+sample" produced an `hi-Latn` project — plausibly the sample clip is a fixed
+demo regardless of the picker, not confirmed either way; (2) submitting the
+YouTube-repurpose form with an (accidentally) empty link field coincided
+with an unrelated toast and a credit-tick that could not be confidently
+attributed to this session's own concurrent QA agents versus a real
+validation gap — not reproduced in isolation; (3) a ~1–2s "Signed Out / 0
+credits" flash on a fresh `/home` navigation, self-correcting with no
+re-authentication needed — could not isolate a reliable trigger.
+
+**The browser session signing itself out happened again** (see §8's "also
+observed, not resolved" — this is the second time), this time in the main
+session's own tab, immediately after the API process restart used to deploy
+the Hinglish-native-script fix above — plausibly (not confirmed) related to
+the restart itself rather than the earlier, unexplained mid-session
+occurrence. Still not chased down; still open.
