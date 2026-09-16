@@ -55,7 +55,19 @@ export function CreditsCard({ className }: { className?: string }): React.JSX.El
           className="text-neutral-400 text-[11px] tracking-normal normal-case tabular-nums"
           data-testid="credits-card-balance"
         >
-          {grant > 0 ? `${Math.round(balance / 10)} / ${Math.round(grant / 10)}` : "—"}
+          {
+            // A workspace can carry an admin "adjustment" lot on top of its
+            // monthly grant, and `balance` sums every lot -- so once one of
+            // those exists the balance can exceed the grant, and "N / grant"
+            // reads as a broken/overflowing counter the moment N > grant.
+            // Same fix as `this-month-card.tsx` and the billing overview:
+            // drop the denominator rather than let the balance appear to lie.
+            grant <= 0
+              ? "—"
+              : balance <= grant
+                ? `${Math.round(balance / 10)} / ${Math.round(grant / 10)}`
+                : `${Math.round(balance / 10)}`
+          }
         </span>
       </span>
 
