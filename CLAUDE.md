@@ -100,13 +100,13 @@ Why each env var is there, since removing one looks harmless and is not:
 - **`YT_DLP_PATH`** must be the `.exe`. The digest check reads the file, and the
   bare name `yt-dlp` on PATH is a bash shim Node cannot spawn on Windows.
 
-The **current release runs from `apps/web/.next-live-20260917b`**
-(build `FWCTJud6kCHKxtH4ES4WV`), published 2026-09-17 — Nocturne (§5) plus
-every QA-pass fix through §11, including the four §11 fixes merged from
-parallel isolated worktrees and reviewed before merge, and the fifth (the
-split-caption cache key) fixed and added straight after. `api` (3913) was
-also restarted the same day, for the Hinglish-native-script fix (§11's
-fourth bug, backend-only).
+The **current release runs from `apps/web/.next-live-20260917c`**
+(build `5mBDerBJ9_WM-HrxB7YE0`), published 2026-09-17 — Nocturne (§5) plus
+every QA-pass fix through §12, including the four §11 fixes merged from
+parallel isolated worktrees and reviewed before merge, the fifth (the
+split-caption cache key) fixed straight after, and §12's session-refresh
+fix on top of that. `api` (3913) was also restarted the same day, for the
+Hinglish-native-script fix (§11's fourth bug, backend-only).
 
 **The release directory is now recorded in exactly one place:**
 `_orchestration/release/web-dist.txt`. `start-production-stack.ps1` reads it
@@ -160,7 +160,9 @@ point a downloader running on this machine at any address that ends in `.mp4` �
 including addresses only this machine can reach. That needs an egress policy
 before it is switched on.
 
-Retained for rollback, newest first: `.next-live-20260917a` (build
+Retained for rollback, newest first: `.next-live-20260917b` (build
+`FWCTJud6kCHKxtH4ES4WV`, all five §11 fixes but still with §12's
+session-refresh cookie bug), `.next-live-20260917a` (build
 `-6VACLt3sN0HjP2_1-qrc`, the first four §11 fixes but still with the
 split-caption word-duplication bug), `.next-live-20260916f` (build
 `892eaAltvsd5sT1njM0Rn`, the §8 QA-pass fixes but none of §9/§11),
@@ -581,20 +583,19 @@ consistent and every job settles correctly against it — so it was left alone.
 If it was not deliberate, the fix is a new ledger entry, never touching or
 deleting the existing rows.
 
-**Also observed, not resolved:** partway through this pass the browser
-session signed itself out with "Your session ended" (the `?reason=expired`
-copy `apps/web/app/(site)/login/login-form.tsx` shows when `refreshSession()`
-returns null on mount). This looked at first like the refresh-token reuse
-detector (`SessionService.refresh`, `apps/api/src/auth/session.service.ts`)
-firing — the mechanism a second, out-of-band caller hammering
-`/api/session/refresh` would plausibly trip. It was not: `audit_log` has no
-`auth.refresh.reuse_detected` row anywhere near the time, and the session's
-own row in `sessions` was neither revoked nor near its (month-out) expiry.
-So the refresh cookie itself was gone or stopped matching, for a reason this
-pass never pinned down. Whether that is specific to the built-in browser tool
-used for this QA pass or a real gap in cookie handling is still open — worth
-someone's attention if it recurs for a real user, but not chased further
-here because it cannot be reproduced without also risking a real sign-in.
+**Also observed, not resolved at the time:** partway through this pass the
+browser session signed itself out with "Your session ended" (the
+`?reason=expired` copy `apps/web/app/(site)/login/login-form.tsx` shows when
+`refreshSession()` returns null on mount). This looked at first like the
+refresh-token reuse detector (`SessionService.refresh`,
+`apps/api/src/auth/session.service.ts`) firing — the mechanism a second,
+out-of-band caller hammering `/api/session/refresh` would plausibly trip. It
+was not: `audit_log` has no `auth.refresh.reuse_detected` row anywhere near
+the time, and the session's own row in `sessions` was neither revoked nor
+near its (month-out) expiry. So the refresh cookie itself was gone or
+stopped matching, for a reason this pass never pinned down. **Root-caused
+and fixed 2026-09-17, see §12** — nothing to do with this browser tool
+specifically; a real, user-facing bug in `app/api/session/refresh/route.ts`.
 
 ---
 
@@ -808,6 +809,62 @@ re-authentication needed — could not isolate a reliable trigger.
 **The browser session signing itself out happened again** (see §8's "also
 observed, not resolved" — this is the second time), this time in the main
 session's own tab, immediately after the API process restart used to deploy
-the Hinglish-native-script fix above — plausibly (not confirmed) related to
-the restart itself rather than the earlier, unexplained mid-session
-occurrence. Still not chased down; still open.
+the Hinglish-native-script fix above. This time it was chased down — see
+§12: the API restart briefly made `/auth/refresh` unreachable/erroring, and
+`app/api/session/refresh/route.ts` treated that as proof the token was
+dead.
+
+---
+
+## 12. FIXED 2026-09-17 — a transient `/auth/refresh` failure permanently
+signed the user out
+
+The single most severe bug found this session, and the third recurrence of
+"the browser session signed itself out" (§8, then twice more in §11) —
+except this time a fresh occurrence gave a hard data point (a live `401
+auth/expired` from `/api/session/refresh` itself, not just a UI redirect)
+that made it possible to actually root-cause instead of shrugging at it
+again.
+
+**The bug.** `apps/web/app/api/session/refresh/route.ts` — the Next.js
+route the page calls because the refresh token is `httpOnly` and the
+browser cannot read it — forwarded to the real API's `POST /auth/refresh`
+and, on **any** `!upstream.ok`, cleared the 30-day session cookie and told
+the client "Your session has ended." That is correct for a genuine `401`
+(`SessionService.refresh` throws one, mapped to `HttpStatus.UNAUTHORIZED`,
+for an unknown token, a revoked family, or a family past its absolute
+lifetime — CONTRACTS §5) and wrong for everything else `/auth/refresh` can
+answer with a non-2xx that has nothing to do with the token's validity:
+
+- **A `429`** from this exact route's own IP rate limit
+  (`auth:refresh:ip`, capacity 60, refills 1/sec — `auth.constants.ts`),
+  tripped by ordinary concurrent traffic: several tabs (or, this session,
+  several QA agents sharing one signed-in browser) each refreshing around
+  the same time from the same apparent IP.
+- **A `5xx`**, or a Cloudflare error page returned while `api` (3913) is
+  mid-restart — `API_ORIGIN` is the public tunnelled hostname
+  (`https://aksharo-api.crestmondtechnologies.com`), not a direct
+  `127.0.0.1` call, so *any* restart of the API is a window where this
+  round-trip can come back non-2xx for a reason with zero bearing on the
+  refresh token.
+
+Confirmed live, not guessed: the `sessions` row for the account this
+happened to had `revoked_at` null and `expires_at` weeks out — the token
+was never actually invalid. Only the one HTTP round-trip that checked it
+was.
+
+**The fix.** Only clear the cookie when `upstream.status === 401`. Every
+other non-2xx now falls into the same branch the network-unreachable
+`catch` already used: keep the cookie, answer `503
+network/unreachable`, let the client retry. Test in the new
+`app/api/session/refresh/route.test.ts` — the two new cases (`429`, `5xx`)
+fail against the pre-fix code (both got turned into a cookie-clearing
+`401`) and pass after.
+
+**Why this matters beyond this session's own QA tooling.** Nothing about
+the trigger is specific to browser automation: a real user behind a NAT
+sharing an IP with other devices on the same refresh-heavy household or
+office network, multiple tabs open at once, or simply refreshing during
+the minute or two a deploy takes, would all have hit the exact same
+permanent, unrecoverable sign-out — for a condition that resolves itself
+within seconds if only the cookie had been left alone.
