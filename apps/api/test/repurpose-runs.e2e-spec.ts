@@ -748,6 +748,35 @@ describe.skipIf(!CAN_RUN)("repurpose run CRUD (REP-006)", () => {
       expect(stored.status).toBe("draft");
     });
 
+    it("shows the same derived stage on the list as on the run's own page", async () => {
+      // The home page pipeline banner reads `list()`, not `get()`. Before this
+      // test existed, `list()` returned the raw stored `status` — always
+      // "draft" here — so the banner said "Add a video to get started" for a
+      // run whose transcript had already landed, while the run's own page
+      // (which does derive it) said "Finding promising moments." Two surfaces
+      // disagreeing about the same run is exactly what §4.2 warns against.
+      const run = await service.create(WORKSPACE_A, USER_A, {
+        source: UPLOAD_SOURCE,
+        setup: SETUP,
+      });
+      const projectId = created[0]?.projectId ?? "";
+
+      await attachMedia(projectId, "ready", "03");
+      await prisma.transcript.create({
+        data: { id: id("TR3"), projectId, language: "hi-Latn" },
+      });
+
+      const detail = await service.get(WORKSPACE_A, run.run.id);
+      expect(detail.status).toBe("analyzing");
+      expect(detail.currentStage).toBe("finding_clips");
+
+      const listed = await service.list(WORKSPACE_A, { limit: 20 });
+      const item = listed.items.find((entry) => entry.id === run.run.id);
+      expect(item?.status).toBe("analyzing");
+      expect(item?.currentStage).toBe("finding_clips");
+      expect(item?.message).toBe("Finding promising moments.");
+    });
+
     it("never walks a cancelled or failed run forwards", async () => {
       const run = await service.create(WORKSPACE_A, USER_A, {
         source: UPLOAD_SOURCE,

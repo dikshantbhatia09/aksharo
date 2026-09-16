@@ -53,30 +53,43 @@ cd apps/api && node --env-file=../../.env.local-run dist/main.js
 cd apps/web && NEXT_DIST_DIR=$(tr -d '\r\n' < "../../../_orchestration/release/web-dist.txt") NODE_ENV=production node --env-file=../../.env.local-run node_modules/next/dist/bin/next start --port 3914
 ```
 
-**Three worker processes** also run detached, none of them on a port. Two are
-long-standing (`worker-media` on probe/proxy, `worker-render`), both started from
-`apps/*/dist/index.js`; `worker-ai` runs from `scripts/py.mjs -m worker_ai`. The
-third arrived on 2026-09-15 and needs its environment spelled out, because the
-defaults are deliberately unsafe to assume:
+**Four worker processes** now run detached, none of them on a port:
+`render` and `worker-ai` (started from `apps/render/dist/index.js` and
+`scripts/py.mjs -m worker_ai`), and **two** `worker-media` processes that split
+the three media queues between them — this split is now baked into
+`start-production-stack.ps1` itself, not a command you run by hand:
 
-```bash
-# worker-media, pinned to the acquisition queue only
-cd apps/worker-media
-WORKER_MEDIA_QUEUES=media.acquire \
-YT_DLP_PATH='C:\Users\diksh\AppData\Local\Programs\Python\Python312\Scripts\yt-dlp.exe' \
-WORKER_MEDIA_YT_DLP_VERIFY=0 \
-WORKER_MEDIA_CONCURRENCY=1 \
-node --env-file=../../.env.local-run dist/index.js
-# log: C:\Users\diksh\AppData\Local\Temp\worker-media-acquire.log
+```powershell
+# the plain one: probe + proxy ONLY, never touches the yt-dlp digest check
+WORKER_MEDIA_QUEUES=media.probe,media.proxy   node dist/index.js   # apps/worker-media
+
+# the acquisition one: pinned to the acquisition queue, digest check disabled
+# for this machine's build (yt-dlp came from pip, so it is a launcher stub --
+# hashing it would be theatre)
+WORKER_MEDIA_QUEUES=media.acquire
+YT_DLP_PATH=C:\Users\diksh\AppData\Local\Programs\Python\Python312\Scripts\yt-dlp.exe
+WORKER_MEDIA_YT_DLP_VERIFY=0
+WORKER_MEDIA_CONCURRENCY=1                    node dist/index.js   # apps/worker-media
 ```
 
-Why each of those is there, since removing one looks harmless and is not:
+**Found broken 2026-09-16, fixed the same day (§8).** Before this, the boot
+script started ONE `worker-media` with its default queue list, which is all
+three queues including `media.acquire` — and acquire refuses to boot at all
+without a pinned downloader digest (`apps/worker-media/src/yt-dlp.ts`,
+`EXPECTED_SHA256` is null on purpose). The whole process died at every boot,
+silently, and took `media.probe` and `media.proxy` down with it: any newly
+uploaded or repurposed video just sat at "queued" forever, while every health
+check stayed green because nothing was listening on a port to fail. Logs:
+`_orchestration/run-logs/production/worker-media.out.log` and
+`worker-media-acquire.out.log`; pids in the matching `.pid` files next to them.
 
-- **`WORKER_MEDIA_QUEUES=media.acquire`** keeps it off probe and proxy, which the
-  older worker already serves. Conversely, anything that starts `worker-media`
-  with the default queue list now also asks for the acquisition queue — and that
-  refuses to boot without a pinned downloader digest. `media-pipeline.e2e-spec.ts`
-  names its two queues for exactly this reason.
+Why each env var is there, since removing one looks harmless and is not:
+
+- **`WORKER_MEDIA_QUEUES`** is what makes the split work at all: the plain
+  process never asks for the acquisition queue, so it never runs the digest
+  check; the acquisition process asks for nothing else, so a probe/proxy job
+  can never land on it. `media-pipeline.e2e-spec.ts` names its two queues for
+  exactly this reason.
 - **`WORKER_MEDIA_YT_DLP_VERIFY=0`** is the documented opt-out for a
   package-manager build, which is what this machine has: yt-dlp came from pip, so
   `yt-dlp.exe` is a ~108 KB launcher stub and the code lives in site-packages.
@@ -87,9 +100,10 @@ Why each of those is there, since removing one looks harmless and is not:
 - **`YT_DLP_PATH`** must be the `.exe`. The digest check reads the file, and the
   bare name `yt-dlp` on PATH is a bash shim Node cannot spawn on Windows.
 
-The **current release runs from `apps/web/.next-live-20260916c`**
-(build `6fMUXvjIqwUGBhH1D8xFV`), published 2026-09-16 — the Nocturne front-end
-(§5, `docs/NOCTURNE-FRONTEND-2026-09-16.md`).
+The **current release runs from `apps/web/.next-live-20260916d`**
+(build `6NPCBIaJf1JUxoJOUr6ZU`), published 2026-09-16 — the Nocturne front-end
+(§5, `docs/NOCTURNE-FRONTEND-2026-09-16.md`) plus the realtime-reconnect fix
+in §8.
 
 **The release directory is now recorded in exactly one place:**
 `_orchestration/release/web-dist.txt`. `start-production-stack.ps1` reads it
@@ -143,7 +157,10 @@ point a downloader running on this machine at any address that ends in `.mp4` �
 including addresses only this machine can reach. That needs an egress policy
 before it is switched on.
 
-Retained for rollback, newest first: `.next-live-20260916b` (build
+Retained for rollback, newest first: `.next-live-20260916c` (build
+`6fMUXvjIqwUGBhH1D8xFV`, Nocturne with the contrast fixes and the workspace
+switcher, but the realtime WebSocket client had no way to recover from an
+expired access token — see §8), `.next-live-20260916b` (build
 `CQ3rQW6qp4-AwmacgVdBt`, Nocturne before the contrast fixes — its outlined
 primary button drops to 3.4:1 when pressed — and before the workspace
 switcher moved into the profile menu, so on that build a user with two
@@ -444,3 +461,55 @@ State plainly which surfaces a change covers. A design mockup covering the whole
 editor is not the same as implementing it: restyling the right panel does not
 change the top bar, transcript column, canvas or timeline, and the user WILL
 compare against the mockup. Say what was and was not built.
+
+---
+
+## 8. Found and fixed 2026-09-16 (a QA pass, clicking through the live site)
+
+Three bugs, found by using the product end to end as a logged-in user rather
+than by reading the code. None of them showed up in a health check.
+
+- **The home page pipeline banner showed a stage that was a full day stale.**
+  `RepurposeService.get()` derives the visible stage from the source project's
+  media and transcript, because nothing writes the run's own `status` column
+  past `draft` for the early stages (§4.2's comment on `observedStatus` in
+  `apps/api/src/repurpose/repurpose.service.ts`). `list()` — what the home page
+  banner actually reads — never did that derivation, so it just showed the raw
+  stored `status` forever. A run whose transcript had already landed still said
+  "Add a video to get started" on the home page while its own detail page
+  correctly said "Finding promising moments." Fixed by giving `list()` the same
+  `observedStatus` pass `get()` already had; test in
+  `apps/api/test/repurpose-runs.e2e-spec.ts` ("shows the same derived stage on
+  the list as on the run's own page").
+- **`worker-media` died at every boot, taking probe and proxy down with it.**
+  Covered above in §1's worker-media block — the boot script started one
+  process with the default queue list, which includes `media.acquire`, and
+  acquire refuses to boot without a pinned downloader digest. Fixed by
+  splitting into the two processes §1 now documents, baked into
+  `start-production-stack.ps1` and `stop-production-stack.ps1` so a reboot
+  cannot regress it.
+- **The realtime WebSocket client could not recover from an expired access
+  token.** `RealtimeClient.handleClose` (`packages/api-client/src/realtime.ts`)
+  only refreshed the token on a post-handshake `4401` application close code.
+  But a browser never sees the server's actual HTTP status when a WebSocket
+  upgrade is refused outright — `realtime.gateway.ts` sends a plain 401 and
+  destroys the socket for "no token" or "bad token" before the protocol ever
+  completes, and the browser reports that as a generic abnormal closure, not
+  4401. So a token that expired while a tab sat open retried unchanged on every
+  backoff tick, forever, 401 after 401, because nothing ever asked for a new
+  one. Fixed by also refreshing (best effort, not fatal if it fails — that
+  branch does not know whether the real cause was an expired token or the
+  server being briefly unreachable) whenever a connection attempt closes
+  without `onopen` ever having fired. Tests in
+  `packages/api-client/src/realtime.test.ts`.
+
+All three were live in production before this pass and are fixed and deployed
+as of `.next-live-20260916d` / API restart at the same time. One more thing
+found and deliberately **not** touched: workspace `01M1KFX35NJRD5N58H0J6YGAPC`
+(Dikshant Bhatia's) carries a balance of ~10,000,178 credits against a 200/mo
+plan, from a single `kind: adjust, ref_type: grant` ledger row for
+`+100,000,000` tenths on 2026-09-06. That reads like a deliberate "never run
+out of credits while testing" grant, not corruption — the ledger is
+consistent and every job settles correctly against it — so it was left alone.
+If it was not deliberate, the fix is a new ledger entry, never touching or
+deleting the existing rows.

@@ -221,6 +221,38 @@ describe("RealtimeClient", () => {
     expect(timers).toHaveLength(0);
   });
 
+  it("also refreshes when the handshake itself is refused, not just a post-open 4401", async () => {
+    // A browser never sees the server's real HTTP status on a rejected WebSocket
+    // upgrade -- it reports a generic abnormal closure (1006), not 4401 -- and
+    // this gateway's only handshake-time rejection is a 401 for a missing or
+    // expired token (`realtime.gateway.ts`, "no token, no socket"). Without this,
+    // a token that expired between page load and the connection attempt would
+    // retry unchanged forever: `onopen` never fires, so the 4401 branch is never
+    // reached, and nothing ever asks for a new token.
+    const refresh = vi.fn().mockResolvedValue("fresh-token");
+    const { client, sockets, timers } = harness({ refresh });
+    client.connect();
+    // No `welcome()`: `onopen` never fires, exactly like a handshake the server
+    // refused before completing the upgrade.
+    (sockets[0] as FakeSocket).onclose?.({ code: 1006 });
+    await vi.waitFor(() => expect(refresh).toHaveBeenCalledOnce());
+    // Unlike a real 4401, this is best effort: the client keeps its normal
+    // backoff regardless of what the refresh returns.
+    expect(timers).toHaveLength(1);
+  });
+
+  it("keeps retrying with backoff even when that best-effort refresh fails", async () => {
+    const refresh = vi.fn().mockResolvedValue(null);
+    const { client, sockets, timers } = harness({ refresh });
+    client.connect();
+    (sockets[0] as FakeSocket).onclose?.({ code: 1006 });
+    await vi.waitFor(() => expect(refresh).toHaveBeenCalledOnce());
+    // A failed refresh here is not proof of a revoked session -- it could just
+    // as easily be the server briefly unreachable -- so this must not stop the
+    // client the way a genuine 4401 does.
+    expect(timers).toHaveLength(1);
+  });
+
   it("does not reconnect after an explicit disconnect", () => {
     const { client, sockets, timers } = harness();
     client.connect();

@@ -184,10 +184,12 @@ export class RealtimeClient {
       ((url, protocols) => new WebSocket(url, protocols) as unknown as WebSocketLike);
     const socket = factory(this.options.url, [REALTIME_PROTOCOL, `bearer.${token}`]);
     this.socket = socket;
+    let opened = false;
 
     socket.onopen = () => {
       // `welcome` is what actually confirms the handshake; `open` only means the
       // upgrade succeeded, so nothing is sent until the server speaks first.
+      opened = true;
       this.attempt = 0;
     };
 
@@ -204,11 +206,11 @@ export class RealtimeClient {
       this.socket = null;
       this.setStatus("closed");
       if (this.stopped) return;
-      void this.handleClose(event.code);
+      void this.handleClose(event.code, opened);
     };
   }
 
-  private async handleClose(code: number): Promise<void> {
+  private async handleClose(code: number, opened: boolean): Promise<void> {
     if (code === CLOSE_CODES.unauthenticated && this.options.refreshAccessToken !== undefined) {
       // "Refresh the access token first" (README §Reconnection). One attempt: if
       // the family is revoked, the shell has already been told to sign out.
@@ -218,6 +220,19 @@ export class RealtimeClient {
         this.stopped = true;
         return;
       }
+    } else if (!opened && this.options.refreshAccessToken !== undefined) {
+      // The handshake itself was refused, before the protocol ever completed.
+      // A browser reports that as a generic abnormal closure, never as the
+      // server's actual HTTP status (`realtime.gateway.ts` sends a plain 401 and
+      // destroys the socket for "no token" or "bad token" -- "no token, no
+      // socket" -- and that is the only way this gateway ever refuses a
+      // handshake). Without this branch, a token that expired between page load
+      // and this connection attempt retries unchanged on every backoff tick,
+      // forever, because nothing ever reads a new one. Best effort, and not
+      // fatal if it fails: unlike the 4401 branch above, the failure could just
+      // as easily be the server being briefly unreachable, which the backoff
+      // below already recovers from on its own.
+      await this.options.refreshAccessToken();
     }
     this.scheduleReconnect();
   }

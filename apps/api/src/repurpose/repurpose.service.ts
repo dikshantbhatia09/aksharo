@@ -455,13 +455,23 @@ export class RepurposeService {
     });
 
     const page = runs.slice(0, input.limit);
+    // Same derivation `get()` uses, and for the same reason: without it, a run
+    // whose transcript already exists still reads "Add a video to get started"
+    // on any list view, because nothing writes `status` past `draft` for these
+    // early stages (see `observedStatus`). The home page pipeline banner is a
+    // list view, so it needs this exactly as much as the run's own detail page.
+    const observed = await Promise.all(page.map((run) => this.observedStatus(run)));
     return {
-      items: page.map((run) =>
-        this.toView(run, {
-          candidateCount: run._count.candidates,
-          clipCount: run._count.clips,
-          variantCount: 0,
-        }),
+      items: page.map((run, index) =>
+        this.toView(
+          run,
+          {
+            candidateCount: run._count.candidates,
+            clipCount: run._count.clips,
+            variantCount: 0,
+          },
+          observed[index],
+        ),
       ),
       nextCursor: runs.length > input.limit ? (page.at(-1)?.id ?? null) : null,
     };
