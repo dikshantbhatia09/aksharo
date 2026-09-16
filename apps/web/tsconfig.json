@@ -31,13 +31,14 @@
     ".next-live-20260916d/types/**/*.ts",
     ".next-live-20260916e/types/**/*.ts",
     ".next-live-20260916f/types/**/*.ts",
+    ".next-live-20260917a/types/**/*.ts",
     ".next-p0-verify/types/**/*.ts",
     ".next-repurpose-live-20260915/types/**/*.ts",
     ".next-repurpose-verify-20260915/types/**/*.ts",
     ".next-typography-live-20260913/types/**/*.ts",
     ".next/types/**/*.ts",
     "next-env.d.ts",
-    ".next-live-20260917a/types/**/*.ts"
+    ".next-live-20260917b/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",
