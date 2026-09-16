@@ -75,6 +75,16 @@ export interface CaptionStageProps {
    * still transcoding, or the media request failed). Never pass `""` — an empty
    * src resolves to the page URL and the element "loads" the editor's own HTML. */
   readonly src: string | undefined;
+  /**
+   * Why `src` is undefined, so the placeholder can say something true. The
+   * three causes are not the same shape: "processing" resolves on its own,
+   * "error" resolves on a retry, and "audio-only" never resolves — there is
+   * no proxy video coming, ever (`apps/worker-media/src/processors/proxy.ts`
+   * skips the whole video half for a source with no video track). Defaults
+   * to "processing" so an existing caller that has not been updated keeps
+   * today's wording instead of silently claiming a source is audio-only.
+   */
+  readonly noMediaReason?: "processing" | "audio-only" | "error";
   readonly projection: EdgProjection;
   readonly catalogue: ReadonlyMap<string, StyleDoc>;
   /** The surface the overlay is drawn at; the proxy's own size by default. */
@@ -132,6 +142,7 @@ interface DragState {
 
 export function CaptionStage({
   src,
+  noMediaReason = "processing",
   projection,
   catalogue,
   canvas,
@@ -424,11 +435,12 @@ export function CaptionStage({
     >
       {src === undefined ? (
         <div
-          className="bg-bg-2 text-fg-2 absolute flex items-center justify-center overflow-hidden rounded-md text-xs"
+          className="bg-bg-2 text-fg-2 absolute flex items-center justify-center overflow-hidden rounded-md p-4 text-center text-xs"
           style={{ left: fit.left, top: fit.top, width: fit.width, height: fit.height }}
           data-testid="caption-stage-no-media"
+          data-reason={noMediaReason}
         >
-          Preview is preparing…
+          {noMediaMessage(noMediaReason)}
         </div>
       ) : (
         <video
@@ -506,6 +518,24 @@ export function CaptionStage({
       {typeof children === "function" ? children({ fit, canvas: surfaceCanvas }) : children}
     </div>
   );
+}
+
+/**
+ * The three reasons `src` can be undefined read very differently to a user:
+ * two are "hang on," one is "this is how it is." Collapsing them into one
+ * "Preview is preparing…" told every audio-only project that a video was on
+ * its way, forever — it never is, `proxy.ts` never encodes one for a source
+ * with no video track.
+ */
+function noMediaMessage(reason: "processing" | "audio-only" | "error"): string {
+  switch (reason) {
+    case "audio-only":
+      return "This source has no video, so there's no picture to preview here — your captions still apply, and the transcript and export are unaffected.";
+    case "error":
+      return "Couldn't load the preview. Try reloading the page.";
+    case "processing":
+      return "Preview is preparing…";
+  }
 }
 
 /**

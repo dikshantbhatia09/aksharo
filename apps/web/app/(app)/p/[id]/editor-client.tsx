@@ -165,6 +165,35 @@ export function timelineMenuState(selectedSegmentId: string | undefined): {
     : { disabled: false };
 }
 
+/**
+ * Why `CaptionStage` has no proxy `src` yet, so its placeholder can say
+ * something that is actually true. Three causes look identical from here
+ * (no `src`) but are not the same shape:
+ *
+ * - "error": the `/media/{id}/urls` fetch itself failed — a retry might work.
+ * - "audio-only": the EDG document's own media entry has no `width` at all,
+ *   which `EdgService.buildFromTranscript` only omits when the probe found no
+ *   video track (`edg.service.ts`: `...(asset.width === null ? {} : { width:
+ *   asset.width })`). `media.proxy` then skips the video half entirely for
+ *   exactly that source (`apps/worker-media/src/processors/proxy.ts`'s
+ *   `if (facts.hasVideo)` gate) — no proxy is ever coming, reloading will not
+ *   change that.
+ * - "processing": everything else — the proxy encode has not finished yet,
+ *   and it will resolve once it does.
+ *
+ * Exported as a pure predicate for the same reason `shouldRecordSpellingFix`
+ * and `timelineMenuState` above are: this component's tree is canvas-heavy
+ * and belongs to the Playwright lane.
+ */
+export function noMediaReasonFor(
+  primaryMedia: { readonly width?: number } | undefined,
+  mediaUrlsError: string | undefined,
+): "processing" | "audio-only" | "error" {
+  if (mediaUrlsError !== undefined) return "error";
+  if (primaryMedia !== undefined && primaryMedia.width === undefined) return "audio-only";
+  return "processing";
+}
+
 const DEFAULT_RESEGMENT_PARAMS: ResegmentParams = {
   maxChars: 32,
   maxLines: 2,
@@ -494,6 +523,7 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
   // --- Timeline (A17) ---------------------------------------------------
   const primaryMedia = state.hot.media.find((media) => media.role === "primary");
   const timelineMedia = useTimelineMedia(projectId, primaryMedia?.mediaId);
+  const noMediaReason = noMediaReasonFor(primaryMedia, timelineMedia.error);
   const passItems = useMemo(() => [...state.items.values()], [state.items]);
   const timeMap: TimeMap | undefined = useMemo(() => {
     if (primaryMedia === undefined) return undefined;
@@ -1257,6 +1287,7 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
                   >
                     <CaptionStage
                       src={timelineMedia.proxyUrl}
+                      noMediaReason={noMediaReason}
                       playing={playheadSnapshot.playing}
                       muted={playerMuted}
                       seekMs={playheadSnapshot.ms}

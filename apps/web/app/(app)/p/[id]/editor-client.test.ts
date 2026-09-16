@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { shouldRecordSpellingFix, timelineMenuState } from "./editor-client";
+import { noMediaReasonFor, shouldRecordSpellingFix, timelineMenuState } from "./editor-client";
 
 /**
  * B09b: `onFixSpellingEverywhere`'s decision to post
@@ -49,5 +49,37 @@ describe("timelineMenuState", () => {
       disabled: true,
       hint: "Right-click a transcript card for word-level actions",
     });
+  });
+});
+
+/**
+ * The confirmed QA finding: `CaptionStage`'s canvas preview told an
+ * audio-only project "Preview is preparing…" forever, because the one
+ * "no `src`" placeholder spoke for three different causes. This is the
+ * predicate that now tells them apart — a proxy that has not finished yet
+ * (`primaryMedia.width` present, no error), a source with no video track at
+ * all (`primaryMedia.width` absent — `edg.service.ts` only omits it then),
+ * and a failed `/media/{id}/urls` fetch, which takes priority since a media
+ * fetch that itself failed cannot be trusted to say the source has no video.
+ */
+describe("noMediaReasonFor", () => {
+  it("a still-encoding video (width known, no error): processing", () => {
+    expect(noMediaReasonFor({ width: 1920 }, undefined)).toBe("processing");
+  });
+
+  it("no media on the document yet (brand-new project): processing", () => {
+    expect(noMediaReasonFor(undefined, undefined)).toBe("processing");
+  });
+
+  it("a probed source with no video track: audio-only, not 'preparing'", () => {
+    expect(noMediaReasonFor({ width: undefined }, undefined)).toBe("audio-only");
+  });
+
+  it("the media-urls fetch failed: error, even with a width on record", () => {
+    expect(noMediaReasonFor({ width: 1920 }, "network error")).toBe("error");
+  });
+
+  it("a failed fetch beats audio-only when both are true", () => {
+    expect(noMediaReasonFor({ width: undefined }, "network error")).toBe("error");
   });
 });
