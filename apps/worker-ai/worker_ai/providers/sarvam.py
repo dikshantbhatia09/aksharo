@@ -417,8 +417,27 @@ def _segments(payload: dict[str, Any], offset_ms: int) -> tuple[tuple[int, int, 
         text = str(item.get("text") or item.get("transcript") or "").strip()
         if not text:
             continue
-        start = _seconds(item, ("start_time_seconds", "start_time", "start"))
-        end = _seconds(item, ("end_time_seconds", "end_time", "end"))
+        start, start_found = _seconds(item, ("start_time_seconds", "start_time", "start"))
+        end, end_found = _seconds(item, ("end_time_seconds", "end_time", "end"))
+        if not start_found and not end_found:
+            # Every documented key name missed on this chunk. That is not "the
+            # vendor answered 0.0" (a real first chunk legitimately can) -- it
+            # is "none of start_time_seconds/start_time/start/end_time_seconds/
+            # end_time/end exist on this object at all", which downstream is
+            # indistinguishable from a real zero and silently collapses every
+            # word in the chunk onto (0, 0) once ProportionalAligner sees a
+            # zero-length span (found live 2026-09-16: real Hindi/Hinglish
+            # projects routed to Sarvam, transcript text correct, every word's
+            # s/e exactly 0). `start_time_seconds` was "verified live
+            # 2026-09-14" (this file's own docstring) against a plain request;
+            # this job's mode was codemix -- never independently checked. Log
+            # the chunk's own keys, not its content, so the next occurrence
+            # comes with actual evidence instead of another guess.
+            _log.warning(
+                "Sarvam chunk has no recognised timestamp field; check whether "
+                "codemix mode names them differently",
+                extra={"provider": "sarvam", "chunkKeys": sorted(item.keys())},
+            )
         segments.append(
             (offset_ms + round(start * 1000), offset_ms + round(max(end, start) * 1000), text)
         )
@@ -430,7 +449,13 @@ def _segments(payload: dict[str, Any], offset_ms: int) -> tuple[tuple[int, int, 
     transcript = str(payload.get("transcript") or "").strip()
     if not transcript:
         return ()
-    duration = _seconds(payload, ("duration_seconds", "audio_duration", "duration"))
+    duration, duration_found = _seconds(payload, ("duration_seconds", "audio_duration", "duration"))
+    if not duration_found:
+        _log.warning(
+            "Sarvam response has no recognised duration field; falling back "
+            "to a zero-length whole-file segment",
+            extra={"provider": "sarvam", "payloadKeys": sorted(payload.keys())},
+        )
     return ((offset_ms, offset_ms + round(duration * 1000), transcript),)
 
 
@@ -446,12 +471,13 @@ def _chunk_list(payload: dict[str, Any]) -> list[Any]:
     return []
 
 
-def _seconds(item: dict[str, Any], keys: tuple[str, ...]) -> float:
+def _seconds(item: dict[str, Any], keys: tuple[str, ...]) -> tuple[float, bool]:
+    """The value at the first matching key, and whether any key matched at all."""
     for key in keys:
         value = item.get(key)
         if isinstance(value, int | float):
-            return float(value)
-    return 0.0
+            return float(value), True
+    return 0.0, False
 
 
 def _probability(payload: dict[str, Any]) -> float | None:

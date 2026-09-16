@@ -378,6 +378,73 @@ async def test_saaras_degrades_to_one_segment_when_only_a_transcript_comes_back(
     assert result.segments == ((0, 3_000, "toh aaj hum"),)
 
 
+async def test_saaras_warns_when_a_chunk_has_no_recognised_timestamp_field(
+    audio: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Found live 2026-09-16: real Hindi/Hinglish projects routed to Sarvam came
+    back with correct text but every word's s/e exactly 0 -- ProportionalAligner
+    collapses to (0, 0) the moment a chunk's span is zero-length, and a chunk
+    with none of start_time_seconds/start_time/start is indistinguishable from
+    one that legitimately answered 0.0. `start_time_seconds` was "verified live
+    2026-09-14" (this module's docstring) against a plain request, not codemix
+    -- this pins that a chunk shaped that way at least gets logged with its own
+    keys, so the next occurrence arrives with real evidence instead of a guess.
+    """
+
+    async def handler(request: httpx2.Request) -> httpx2.Response:
+        if request.url.path.endswith("/upload-files"):
+            return httpx2.Response(
+                200, json={"upload_urls": {"chunk-0000.wav": {"file_url": "https://blob.test/j"}}}
+            )
+        if request.url.path.endswith("/job/v1"):
+            return httpx2.Response(200, json={"job_id": "j", "job_state": "Accepted"})
+        if request.method == "PUT":
+            return httpx2.Response(201)
+        if request.url.path.endswith("/status"):
+            return httpx2.Response(
+                200,
+                json={
+                    "job_state": "Completed",
+                    "job_details": [{"outputs": [{"file_name": "j.json"}]}],
+                },
+            )
+        if request.url.path.endswith("/download-files"):
+            return httpx2.Response(
+                200, json={"download_urls": {"j.json": {"file_url": "https://blob.test/o.json"}}}
+            )
+        if request.url.path.endswith(".json"):
+            return httpx2.Response(
+                200,
+                json={
+                    "language_code": "hi-IN",
+                    "transcript": "toh aaj hum",
+                    "timestamps": {
+                        "chunks": [{"text": "toh aaj hum", "offset_seconds": 0.0, "dur": 2.1}]
+                    },
+                },
+            )
+        return httpx2.Response(200, json={})
+
+    provider = SarvamSaarasProvider(
+        "k",
+        base_url="https://api.sarvam.test",
+        poll_interval_s=0.0,
+        client=httpx2.AsyncClient(transport=httpx2.MockTransport(handler)),
+    )
+    with caplog.at_level("WARNING", logger="worker_ai.providers.sarvam"):
+        result = await provider.transcribe(TranscriptionRequest(audio_uri=str(audio)))
+    await provider.aclose()
+
+    # The bug as it stands today: no recognised field means (0, 0), same as a
+    # real zero-length chunk would. This test is not the fix for that -- it is
+    # what makes the next occurrence diagnosable instead of silent.
+    assert result.segments == ((0, 0, "toh aaj hum"),)
+    warnings = [record for record in caplog.records if record.levelname == "WARNING"]
+    assert len(warnings) == 1
+    assert "no recognised timestamp field" in warnings[0].getMessage()
+    assert sorted(warnings[0].chunkKeys) == ["dur", "offset_seconds", "text"]
+
+
 # ---------------------------------------------------------------------------
 # AssemblyAI Universal-2
 # ---------------------------------------------------------------------------

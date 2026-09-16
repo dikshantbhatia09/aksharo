@@ -587,3 +587,67 @@ pass never pinned down. Whether that is specific to the built-in browser tool
 used for this QA pass or a real gap in cookie handling is still open — worth
 someone's attention if it recurs for a real user, but not chased further
 here because it cannot be reproduced without also risking a real sign-in.
+
+---
+
+## 9. OPEN, HIGH SEVERITY — Sarvam-routed transcripts have no real word timing
+
+Found the same day as §8, kept separate because it is **not fixed**, only
+instrumented — guessing at the actual fix without seeing a real vendor
+response risked planting a second wrong shape on top of the first (this
+adapter's own docstring already admits to doing exactly that once: "guessed
+this shape from stale documentation without ever calling the vendor... every
+real call 400'd on the very first request").
+
+**The bug.** Every word in every transcript this pass could find that was
+routed to Sarvam (`provider: "sarvam"`, model `saaras-v4` — the Hindi/Hinglish
+lane, `apps/worker-ai/worker_ai/routing.yaml`) has `s: 0, e: 0`. Not
+approximately zero — every single word, including the last one in an 8m58s
+file. Checked three independent occurrences, two of them real pre-existing
+projects this session never touched:
+
+- `01M2K1R52AANE4TH9RS5VH167D` ("Air India Phuket Turbulence Incident," a real
+  project, transcribed 2026-09-14) — 300+ words, all `s:0,e:0`.
+- `01M2NMY6R8298F0NSQD0SHC124` (this pass's own test upload) — same.
+- For contrast: `01M2AT48M2ERZ8J1AX2DS3H667` ("vidssave.com..." — also real,
+  also Hindi/Hinglish, but routed to `local-whisper` instead) has completely
+  normal, correctly increasing timestamps. **The bug is specific to the Sarvam
+  path, not to Hindi/Hinglish content or to this session's test data.**
+
+Since captions, the timeline, word-highlighting and export all key off these
+timestamps, this is not a cosmetic gap — every Sarvam-routed project's
+captions are effectively unusable for anything timing-dependent, and nothing
+about the project ever says so: it sits at "Ready" like any other.
+
+**Where, and why no blind fix.** `providers/sarvam.py`'s `_segments()` /
+`_seconds()` read `start_time_seconds` / `end_time_seconds` (plus two
+alternate spellings each) off Sarvam's response chunks. That shape carries a
+comment claiming it was "verified live 2026-09-14 against a real account" —
+but the verification call in that same docstring does not show `mode:
+codemix`, and every real call this product makes does (`default_mode =
+"codemix"`, always, per D12). If Sarvam's codemix responses shape timestamps
+differently — a different key, a nested location, or genuinely not
+populating them for auto-detected code-mixed audio — that would explain
+exactly this, and only a real call proves which. Renaming the expected keys
+without that evidence would trade one unverified guess for another, and the
+first guess is on record for having 400'd in production once already.
+
+**What this pass did instead:** made the failure mode loud rather than silent.
+`_segments()` now logs a warning with the chunk's own key names (never its
+text) whenever none of the recognised timestamp or duration keys match —
+`sarvam.py`, tests in `test_vendor_adapters.py`
+(`test_saaras_warns_when_a_chunk_has_no_recognised_timestamp_field`). Restarted
+`worker-ai` to deploy it. It has not fired yet in production because every
+test transcription after the redeploy replayed the 30-day result cache
+(`worker_ai/cache.py`, keyed on audio content + language + provider + model)
+from before the fix existed — a fresh, uncached Sarvam call for content this
+workspace has never transcribed before is what will actually exercise it, and
+its log line will carry the real key names.
+
+**The fastest way to actually resolve this:** `apps/worker-ai/tests/test_vendor_smoke.py`
+calls the real Sarvam account and costs real money — gated behind
+`RUN_VENDOR_SMOKE=1` for exactly that reason, and this pass did not set it
+without asking. Running it once, or just transcribing one new Hindi/Hinglish
+clip in production and reading `worker-ai.out.log` for either the new warning
+or (if it doesn't fire) the actual `timestamps` shape in a debug-level dump,
+is what turns this from "instrumented" into "fixed."
