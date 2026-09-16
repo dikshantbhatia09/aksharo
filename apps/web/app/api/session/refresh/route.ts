@@ -18,8 +18,19 @@ import {
  * makes the 60 s grace of CONTRACTS §5 behave — two tabs racing both get the
  * same replayed pair rather than one of them tripping reuse detection.
  *
- * A failed refresh clears the cookie: the family has been revoked (or never
- * existed), and keeping a dead token only produces a second failure later.
+ * Only a genuine `401` from upstream clears the cookie: that is the one status
+ * `SessionService.refresh` (`apps/api/src/auth/session.service.ts`) uses for
+ * "this refresh token is unknown, revoked, or past its absolute lifetime" --
+ * every one of its thrown exceptions maps to `HttpStatus.UNAUTHORIZED`. Any
+ * other non-2xx (`429` from this same route's own IP rate limit tripping
+ * under concurrent tabs, a `5xx` blip, or a Cloudflare error page returned
+ * while the API process is mid-restart) says nothing about whether the token
+ * is still good, so the cookie survives it, exactly like the network-
+ * unreachable branch below. Clearing it on *any* `!upstream.ok` used to throw
+ * away a perfectly live 30-day session over a transient failure that had
+ * nothing to do with the token -- confirmed live: a `sessions` row this
+ * happened to had no `revokedAt` and an `expiresAt` weeks out, so the token
+ * was never actually invalid, only the one HTTP round-trip that checked it.
  */
 
 export const runtime = "nodejs";
@@ -69,13 +80,22 @@ export async function POST(request: Request): Promise<NextResponse> {
     );
   }
 
-  if (!upstream.ok) {
+  if (upstream.status === 401) {
     const failure = new NextResponse(
       JSON.stringify({ error: { code: "auth/expired", message: "Your session has ended." } }),
       { status: 401, headers: { "content-type": "application/json" } },
     );
     clearSessionCookie(failure, isSecureRequest(request));
     return failure;
+  }
+
+  if (!upstream.ok) {
+    // Not proof the token is dead -- a rate limit, a 5xx, or a gateway error
+    // while the API restarts. Keep the cookie and let the client retry.
+    return NextResponse.json(
+      { error: { code: "network/unreachable", message: "We could not reach the server." } },
+      { status: 503 },
+    );
   }
 
   const tokens = (await upstream.json()) as TokenResponseBody;
