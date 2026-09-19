@@ -6,6 +6,7 @@ import {
   HttpCode,
   HttpStatus,
   Inject,
+  NotFoundException,
   Param,
   Post,
   UseGuards,
@@ -20,7 +21,7 @@ import {
 } from "@nestjs/swagger";
 import { z } from "zod";
 
-import type { Env } from "@montaj/config";
+import { type Env, surfaceEnabled } from "@montaj/config";
 
 import { ShareLinksService, type ShareLinkView } from "./share-links.service.js";
 import { SHARE_RATE_LIMITS } from "./share.constants.js";
@@ -60,6 +61,14 @@ export class ShareLinksController {
     @Inject(ENV) private readonly env: Env,
   ) {}
 
+  private assertSurfaceEnabled(): void {
+    if (!surfaceEnabled("publicShares", this.env.FEATURE_FLAGS_JSON)) {
+      throw new NotFoundException({
+        error: { code: "common/not_found", message: "Not found." },
+      });
+    }
+  }
+
   @Post()
   @Roles("editor")
   @UseGuards(RateLimitGuard)
@@ -73,6 +82,7 @@ export class ShareLinksController {
     @Param("projectId") projectId: string,
     @Body() body: CreateShareLinkDto,
   ): Promise<ShareLinkView> {
+    this.assertSurfaceEnabled();
     ulidSchema.parse(projectId);
     return this.shareLinks.create(workspaceId, userId, projectId, body, this.env.WEB_ORIGIN);
   }
@@ -85,6 +95,7 @@ export class ShareLinksController {
     @CurrentWorkspace() workspaceId: string,
     @Param("projectId") projectId: string,
   ): Promise<ShareLinkView[]> {
+    this.assertSurfaceEnabled();
     return this.shareLinks.list(workspaceId, projectId, this.env.WEB_ORIGIN);
   }
 
@@ -98,6 +109,7 @@ export class ShareLinksController {
     @Param("projectId") projectId: string,
     @Param("shareLinkId") shareLinkId: string,
   ): Promise<void> {
+    this.assertSurfaceEnabled();
     await this.shareLinks.revoke(workspaceId, userId, projectId, shareLinkId);
   }
 }

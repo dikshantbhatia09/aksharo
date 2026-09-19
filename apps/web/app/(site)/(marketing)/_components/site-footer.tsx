@@ -53,7 +53,7 @@ export function SiteFooter(): React.JSX.Element {
         <div className="col-span-2 md:col-span-1">
           <p className="font-display text-fg-0 text-lg font-semibold">{BRAND.name}</p>
           <p className="text-fg-2 mt-2 text-sm">
-            Captions, cuts and polish — done inside your timeline.
+            Captions, cuts and polish for Indian video creators.
           </p>
           <p className="text-fg-2 mt-4 text-sm">
             <a href={`mailto:${BRAND.supportEmail}`} className="hover:text-fg-0">
@@ -63,7 +63,9 @@ export function SiteFooter(): React.JSX.Element {
         </div>
 
         <FooterColumn title="Product" items={visibleNav(FOOTER_PRODUCT_NAV, flags)} />
-        <FooterColumn title="Compare" items={FOOTER_COMPARE_NAV} />
+        {FOOTER_COMPARE_NAV.length > 0 ? (
+          <FooterColumn title="Compare" items={FOOTER_COMPARE_NAV} />
+        ) : null}
         <FooterColumn title="Legal" items={FOOTER_LEGAL_NAV} />
       </div>
 

@@ -4,6 +4,7 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Inject,
   NotFoundException,
   Param,
   Post,
@@ -12,6 +13,8 @@ import {
 } from "@nestjs/common";
 import { ApiBearerAuth, ApiBody, ApiOkResponse, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { z } from "zod";
+
+import { type Env, surfaceEnabled } from "@montaj/config";
 
 import {
   affiliateStatsSchema,
@@ -33,6 +36,7 @@ import { AdminRoles } from "../admin/admin-roles.decorator.js";
 import { AdminGuard, adminOf } from "../admin/admin.guard.js";
 import { zodBody, zodResponse } from "../auth/dto/openapi.js";
 import { CurrentUser, JwtAuthGuard, Public } from "../common/guards/index.js";
+import { ENV } from "../config/config.module.js";
 
 import type { AuthPrincipal } from "../common/guards/index.js";
 import type { AuthenticatedRequest } from "../common/guards/principal.js";
@@ -55,7 +59,16 @@ export class AffiliatesController {
     private readonly attribution: AttributionService,
     private readonly stats: StatsService,
     private readonly fraud: FraudService,
+    @Inject(ENV) private readonly env: Env,
   ) {}
+
+  private assertSurfaceEnabled(): void {
+    if (!surfaceEnabled("affiliates", this.env.FEATURE_FLAGS_JSON)) {
+      throw new NotFoundException({
+        error: { code: "common/not_found", message: "Not found." },
+      });
+    }
+  }
 
   @Post("apply")
   @UseGuards(JwtAuthGuard)
@@ -71,6 +84,7 @@ export class AffiliatesController {
     @Body() body: ApplyAffiliateDto,
     @Req() req: Request,
   ) {
+    this.assertSurfaceEnabled();
     return this.affiliates.apply(principal.userId, body, { ip: req.ip });
   }
 
@@ -88,6 +102,7 @@ export class AffiliatesController {
     ),
   )
   async me(@CurrentUser() principal: AuthPrincipal): Promise<{ affiliate: AffiliateView | null }> {
+    this.assertSurfaceEnabled();
     // Wrapped, never a bare `null` body: Nest's Express adapter treats a nil
     // handler return value as "send nothing" (`isNil(body)` →
     // `response.send()`), which the client's `readJson` then reads back as
@@ -109,6 +124,7 @@ export class AffiliatesController {
     zodResponse(affiliateStatsSchema, "Clicks, sign-ups, pending/available/paid, FY TDS."),
   )
   async myStats(@CurrentUser() principal: AuthPrincipal) {
+    this.assertSurfaceEnabled();
     const affiliate = await this.affiliates.getForUser(principal.userId);
     if (affiliate === null) throw new NotFoundException("affiliate/not_found");
     return this.stats.forAffiliate(affiliate.id);
@@ -123,6 +139,7 @@ export class AffiliatesController {
   })
   @ApiBody(zodBody(recordClickSchema))
   async recordClick(@Body() body: RecordClickDto) {
+    this.assertSurfaceEnabled();
     const result = await this.attribution.recordClick(body);
     return {
       attributed: result !== null,
@@ -139,6 +156,7 @@ export class AffiliatesController {
   })
   @ApiBody(zodBody(attachCodeSchema))
   async attach(@Body() body: AttachCodeDto) {
+    this.assertSurfaceEnabled();
     const result = await this.attribution.attach({
       referredWorkspaceId: body.referredWorkspaceId,
       referredUserId: body.referredUserId,
@@ -165,6 +183,7 @@ export class AffiliatesController {
   })
   @ApiOkResponse(zodResponse(affiliateViewSchema, "The approved affiliate."))
   async adminApprove(@Param("affiliateId") affiliateId: string, @Req() req: AuthenticatedRequest) {
+    this.assertSurfaceEnabled();
     return this.affiliates.adminApprove(affiliateId, adminOf(req).userId);
   }
 
@@ -179,6 +198,7 @@ export class AffiliatesController {
     @Body() body: AdminAffiliateActionDto,
     @Req() req: AuthenticatedRequest,
   ) {
+    this.assertSurfaceEnabled();
     return this.affiliates.adminSuspend(affiliateId, adminOf(req).userId, body.reason);
   }
 
@@ -196,6 +216,7 @@ export class AffiliatesController {
     @Body() body: AdminAffiliateActionDto,
     @Req() req: AuthenticatedRequest,
   ) {
+    this.assertSurfaceEnabled();
     return this.affiliates.adminReject(affiliateId, adminOf(req).userId, body.reason);
   }
 
@@ -212,6 +233,7 @@ export class AffiliatesController {
     @Param("affiliateId") affiliateId: string,
     @Req() req: AuthenticatedRequest,
   ) {
+    this.assertSurfaceEnabled();
     return this.affiliates.adminRevokeCode(affiliateId, adminOf(req).userId);
   }
 }

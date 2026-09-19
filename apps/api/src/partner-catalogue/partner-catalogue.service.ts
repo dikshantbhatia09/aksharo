@@ -1,7 +1,7 @@
 import { HttpStatus, Inject, Injectable } from "@nestjs/common";
 import { ulid } from "ulid";
 
-import type { Env } from "@montaj/config";
+import { type Env, surfaceEnabled } from "@montaj/config";
 
 import { EpidemicPartnerCatalogue } from "./epidemic-partner-catalogue.js";
 import { buildLicenceSnapshot } from "./licence-snapshot.js";
@@ -9,7 +9,6 @@ import { MockPartnerCatalogue } from "./mock-partner-catalogue.js";
 import {
   DEFAULT_GRANT_TERM_DAYS,
   PARTNER_CATALOGUE_ERRORS,
-  PARTNER_CATALOGUE_FLAG,
   PARTNER_CATALOGUE_PROVIDER_FLAG,
 } from "./partner-catalogue.constants.js";
 import { AppException } from "../common/errors/error-codes.js";
@@ -45,10 +44,9 @@ export class PartnerCatalogueService {
     private readonly prisma: PrismaService,
   ) {}
 
-  /** `assets.partnerCatalogue` — off by default. */
+  /** `assets.partnerCatalogue` — off by default (RLS-006). */
   get enabled(): boolean {
-    // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled
-    return this.env.FEATURE_FLAGS_JSON[PARTNER_CATALOGUE_FLAG] === true;
+    return surfaceEnabled("partnerCatalogue", this.env.FEATURE_FLAGS_JSON);
   }
 
   /** `assets.partnerCatalogueProvider` — `"mock"` once the flag is on, unless set to `"epidemic"`. */

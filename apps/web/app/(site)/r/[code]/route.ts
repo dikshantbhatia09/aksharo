@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 
 import { NextResponse } from "next/server";
 
+import { isServerSurfaceEnabled } from "@/content/site/launch-surfaces";
 import { readRuntimeConfig } from "@/lib/runtime-config";
 
 /**
@@ -29,6 +30,10 @@ export async function GET(
   request: Request,
   context: { params: Promise<{ code: string }> },
 ): Promise<NextResponse> {
+  if (!isServerSurfaceEnabled("affiliates")) {
+    return new NextResponse(null, { status: 404 });
+  }
+
   const { code: rawCode } = await context.params;
   const code = rawCode.trim().toUpperCase();
   const url = new URL(request.url);

@@ -18,8 +18,13 @@ const HELP_ARTICLES: readonly HelpArticle[] = [
 ];
 
 describe("buildDocsNav", () => {
-  it("has exactly the four sections in a stable order", () => {
-    const nav = buildDocsNav(HELP_ARTICLES);
+  it("omits plugins section by default when plugins launch surface is disabled", () => {
+    const nav = buildDocsNav(HELP_ARTICLES, { includePlugins: false });
+    expect(nav.map((section) => section.id)).toEqual(["guides", "developers", "legal"]);
+  });
+
+  it("has exactly the four sections in a stable order when plugins are enabled", () => {
+    const nav = buildDocsNav(HELP_ARTICLES, { includePlugins: true });
     expect(nav.map((section) => section.id)).toEqual(["guides", "plugins", "developers", "legal"]);
   });
 
@@ -31,8 +36,8 @@ describe("buildDocsNav", () => {
     ]);
   });
 
-  it("lists every plugin guide and every API group under their sections", () => {
-    const nav = buildDocsNav(HELP_ARTICLES);
+  it("lists every plugin guide and every API group under their sections when plugins enabled", () => {
+    const nav = buildDocsNav(HELP_ARTICLES, { includePlugins: true });
     const plugins = nav.find((section) => section.id === "plugins")!;
     expect(plugins.items.length).toBe(loadPluginGuides().length);
     const developers = nav.find((section) => section.id === "developers")!;

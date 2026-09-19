@@ -3,6 +3,8 @@ import {
   Controller,
   Get,
   Headers,
+  Inject,
+  NotFoundException,
   Param,
   Patch,
   Post,
@@ -11,6 +13,8 @@ import {
 } from "@nestjs/common";
 import { ApiBearerAuth, ApiBody, ApiOkResponse, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { z } from "zod";
+
+import { type Env, surfaceEnabled } from "@montaj/config";
 
 import { CommentsService, type CommentView } from "./comments.service.js";
 import { zodBody, zodResponse } from "../auth/dto/openapi.js";
@@ -23,6 +27,7 @@ import {
   Roles,
   RolesGuard,
 } from "../common/guards/index.js";
+import { ENV } from "../config/config.module.js";
 import { ShareLinksService } from "../share/share-links.service.js";
 import { SHARE_RATE_LIMITS, SHARE_SESSION_HEADER } from "../share/share.constants.js";
 import {
@@ -54,7 +59,16 @@ export class CommentsController {
   constructor(
     private readonly comments: CommentsService,
     private readonly shareLinks: ShareLinksService,
+    @Inject(ENV) private readonly env: Env,
   ) {}
+
+  private assertPublicSharesEnabled(): void {
+    if (!surfaceEnabled("publicShares", this.env.FEATURE_FLAGS_JSON)) {
+      throw new NotFoundException({
+        error: { code: "common/not_found", message: "Not found." },
+      });
+    }
+  }
 
   @Get("projects/:projectId/comments")
   @ApiBearerAuth("access-token")
@@ -104,6 +118,7 @@ export class CommentsController {
     @Param("token") token: string,
     @Headers(SHARE_SESSION_HEADER) session: string | undefined,
   ): Promise<CommentView[]> {
+    this.assertPublicSharesEnabled();
     const { shareLink } = await this.shareLinks.resolve(token, session);
     return this.comments.list(shareLink.projectId, {});
   }
@@ -119,6 +134,7 @@ export class CommentsController {
     @Headers(SHARE_SESSION_HEADER) session: string | undefined,
     @Body() body: CreateCommentDto,
   ): Promise<CommentView> {
+    this.assertPublicSharesEnabled();
     const { shareLink } = await this.shareLinks.resolve(token, session);
     this.shareLinks.assertScope(shareLink.scope, "comment");
     return this.comments.add({

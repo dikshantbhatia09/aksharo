@@ -40,31 +40,73 @@ describe("middleware", () => {
     expect(middleware(request("/", SIGNED_IN)).headers.get("location")).toBeNull();
   });
 
-  it("leaves the marketing plugins page alone for a signed-out visitor (C11)", () => {
-    const response = middleware(request("/plugins"));
-    expect(response.headers.get("location")).toBeNull();
-    expect(response.headers.get("x-middleware-rewrite")).toBeNull();
-  });
-
-  it("rewrites /plugins to the signed-in activation-card screen (C11)", () => {
-    const response = middleware(request("/plugins", SIGNED_IN));
-    const rewrite = new URL(response.headers.get("x-middleware-rewrite") ?? "");
-    expect(rewrite.pathname).toBe("/plugins-app");
-  });
-
-  it("leaves /plugins/keys alone in both directions (C11, no marketing page there)", () => {
-    expect(middleware(request("/plugins/keys")).headers.get("x-middleware-rewrite")).toBeNull();
-    expect(
-      middleware(request("/plugins/keys", SIGNED_IN)).headers.get("x-middleware-rewrite"),
-    ).toBeNull();
-  });
-
   it("never intercepts the session route handlers", () => {
-    // They are how a browser with a cookie and no access token gets one; a
-    // redirect here would make signing in impossible.
     for (const path of config.matcher) {
       expect(path.startsWith("/api")).toBe(false);
     }
     expect(middleware(request("/api/session/refresh")).headers.get("location")).toBeNull();
+  });
+});
+
+describe("middleware launch-surface edge enforcement (RLS-006)", () => {
+  it("fails closed (404) on unavailable surfaces when flags are empty", () => {
+    const prev = process.env["FEATURE_FLAGS_JSON"];
+    try {
+      process.env["FEATURE_FLAGS_JSON"] = "{}";
+
+      expect(middleware(request("/download")).status).toBe(404);
+      expect(middleware(request("/download/mac")).status).toBe(404);
+
+      expect(middleware(request("/plugins")).status).toBe(404);
+      expect(middleware(request("/plugins", SIGNED_IN)).status).toBe(404);
+      expect(middleware(request("/plugins/keys", SIGNED_IN)).status).toBe(404);
+      expect(middleware(request("/plugins-app", SIGNED_IN)).status).toBe(404);
+      expect(middleware(request("/docs/plugins")).status).toBe(404);
+
+      expect(middleware(request("/affiliate")).status).toBe(404);
+      expect(middleware(request("/r/REFCODE")).status).toBe(404);
+
+      expect(middleware(request("/share")).status).toBe(404);
+      expect(middleware(request("/share/some-token-abc")).status).toBe(404);
+    } finally {
+      process.env["FEATURE_FLAGS_JSON"] = prev;
+    }
+  });
+
+  it("admits routes when matching launch surfaces are enabled", () => {
+    const prev = process.env["FEATURE_FLAGS_JSON"];
+    try {
+      process.env["FEATURE_FLAGS_JSON"] = JSON.stringify({
+        "desktop.download": true,
+        "plugins.enabled": true,
+        "affiliates.enabled": true,
+        "shares.public": true,
+      });
+
+      // Desktop
+      const downloadRes = middleware(request("/download"));
+      expect(downloadRes.status).toBe(200);
+
+      // Plugins signed-out marketing
+      const pluginsOut = middleware(request("/plugins"));
+      expect(pluginsOut.headers.get("x-middleware-rewrite")).toBeNull();
+
+      // Plugins signed-in rewrite
+      const pluginsIn = middleware(request("/plugins", SIGNED_IN));
+      const rewrite = new URL(pluginsIn.headers.get("x-middleware-rewrite") ?? "");
+      expect(rewrite.pathname).toBe("/plugins-app");
+
+      // Plugins keys
+      expect(middleware(request("/plugins/keys", SIGNED_IN)).status).toBe(200);
+
+      // Affiliates
+      expect(middleware(request("/affiliate", SIGNED_IN)).status).toBe(200);
+      expect(middleware(request("/r/REFCODE")).status).toBe(200);
+
+      // Public shares
+      expect(middleware(request("/share/some-token-abc")).status).toBe(200);
+    } finally {
+      process.env["FEATURE_FLAGS_JSON"] = prev;
+    }
   });
 });

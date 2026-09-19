@@ -45,7 +45,7 @@ describe("checkDocsLinks", () => {
   });
 
   it("every plugin guide's own markdown body only links to real docs/legal pages", () => {
-    const nav = buildDocsNav(HELP_ARTICLES);
+    const nav = buildDocsNav(HELP_ARTICLES, { includePlugins: true });
     for (const guide of loadPluginGuides()) {
       const links = extractInternalLinks(guide.body).filter((link) => link.startsWith("/docs"));
       const result = checkDocsLinks(nav, links);

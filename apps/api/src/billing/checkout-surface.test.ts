@@ -6,7 +6,7 @@ import { type Env } from "@montaj/config";
 import { BILLING_ERRORS } from "./billing.constants.js";
 import { CheckoutService } from "./checkout.service.js";
 
-function createService(flags: Record<string, unknown> = {}) {
+function createService(flags: Record<string, unknown> = { "billing.checkout": false }) {
   const env: Env = {
     FEATURE_FLAGS_JSON: flags,
   } as unknown as Env;
@@ -42,7 +42,7 @@ function createService(flags: Record<string, unknown> = {}) {
 
 describe("Checkout Surface Availability (RLS-006)", () => {
   it("fails closed when checkout is disabled by default (empty flags)", async () => {
-    const { service } = createService({});
+    const { service } = createService({ "billing.checkout": false });
 
     await expect(service.requireConfirmedWorkspace("ws-1")).rejects.toThrowError(
       expect.objectContaining({
@@ -64,10 +64,10 @@ describe("Checkout Surface Availability (RLS-006)", () => {
   });
 
   it("fails closed on checkout() when flag is absent or false", async () => {
-    const { service } = createService({});
+    const { service } = createService({ "billing.checkout": false });
 
     await expect(
-      service.checkout("ws-1", "user-1", { planKey: "creator", interval: "monthly" }, {}),
+      service.checkout("ws-1", "user-1", { planKey: "creator", interval: "month" }, {}),
     ).rejects.toThrowError(
       expect.objectContaining({
         code: BILLING_ERRORS.checkoutDisabled,

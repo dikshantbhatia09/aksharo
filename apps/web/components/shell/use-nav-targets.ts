@@ -3,10 +3,12 @@
 import * as React from "react";
 
 import { useFeatureFlag, useProjects } from "@montaj/api-client";
+import { surfaceEnabled } from "@montaj/config";
 
 import type { NavItem } from "@/lib/nav";
 
 import { REPURPOSE_FLOW_FLAG } from "@/components/home/pipeline-banner";
+import { useRuntimeConfig } from "@/components/providers";
 import { PRIMARY_NAV, SECONDARY_NAV } from "@/lib/nav";
 
 /**
@@ -75,5 +77,19 @@ export function useNavItems(): {
     [newest, repurposeEnabled],
   );
 
-  return { primary, secondary: SECONDARY_NAV };
+  const config = useRuntimeConfig();
+  const pluginsEnabled = surfaceEnabled("plugins", config.flags);
+  const affiliatesEnabled = surfaceEnabled("affiliates", config.flags);
+
+  const secondary = React.useMemo(
+    () =>
+      SECONDARY_NAV.filter((item) => {
+        if (item.key === "plugins" && !pluginsEnabled) return false;
+        if (item.key === "affiliate" && !affiliatesEnabled) return false;
+        return true;
+      }),
+    [pluginsEnabled, affiliatesEnabled],
+  );
+
+  return { primary, secondary };
 }

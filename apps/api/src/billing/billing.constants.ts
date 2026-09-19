@@ -27,6 +27,7 @@ export const BILLING_ERRORS = {
   providerRejected: "billing/provider_rejected",
   passPurchaseNotFound: "billing/pass_purchase_not_found",
   alreadyRefunded: "billing/already_refunded",
+  checkoutDisabled: "billing/checkout_disabled",
 } as const;
 
 export type BillingErrorCode = (typeof BILLING_ERRORS)[keyof typeof BILLING_ERRORS];

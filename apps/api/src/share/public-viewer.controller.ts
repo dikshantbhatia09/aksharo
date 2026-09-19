@@ -5,11 +5,15 @@ import {
   Headers,
   HttpCode,
   HttpStatus,
+  Inject,
+  NotFoundException,
   Param,
   Post,
   UseGuards,
 } from "@nestjs/common";
 import { ApiBody, ApiOkResponse, ApiOperation, ApiTags } from "@nestjs/swagger";
+
+import { type Env, surfaceEnabled } from "@montaj/config";
 
 import { ShareLinksService } from "./share-links.service.js";
 import { SHARE_RATE_LIMITS, SHARE_SESSION_HEADER } from "./share.constants.js";
@@ -24,6 +28,7 @@ import {
 } from "./share.dto.js";
 import { zodBody, zodResponse } from "../auth/dto/openapi.js";
 import { Public, RateLimit, RateLimitGuard } from "../common/guards/index.js";
+import { ENV } from "../config/config.module.js";
 
 export interface ShareResolveResponse {
   readonly projectId: string;
@@ -54,7 +59,18 @@ export interface ShareResolveResponse {
 @ApiTags("share-public")
 @Controller("s")
 export class PublicViewerController {
-  constructor(private readonly shareLinks: ShareLinksService) {}
+  constructor(
+    private readonly shareLinks: ShareLinksService,
+    @Inject(ENV) private readonly env: Env,
+  ) {}
+
+  private assertSurfaceEnabled(): void {
+    if (!surfaceEnabled("publicShares", this.env.FEATURE_FLAGS_JSON)) {
+      throw new NotFoundException({
+        error: { code: "common/not_found", message: "Not found." },
+      });
+    }
+  }
 
   @Get(":token")
   @Public()
@@ -66,6 +82,7 @@ export class PublicViewerController {
     @Param("token") token: string,
     @Headers(SHARE_SESSION_HEADER) session: string | undefined,
   ): Promise<ShareResolveResponse> {
+    this.assertSurfaceEnabled();
     const { shareLink, project, requiresPassword, unlocked } = await this.shareLinks.resolve(
       token,
       session,
@@ -95,6 +112,7 @@ export class PublicViewerController {
     @Param("token") token: string,
     @Body() body: UnlockShareLinkDto,
   ): Promise<{ session: string }> {
+    this.assertSurfaceEnabled();
     const session = await this.shareLinks.unlock(token, body.password);
     return { session };
   }
@@ -113,6 +131,7 @@ export class PublicViewerController {
     @Param("token") token: string,
     @Body() body: ReportAbuseDto,
   ): Promise<{ id: string; dueAt: string }> {
+    this.assertSurfaceEnabled();
     return this.shareLinks.report(token, body);
   }
 
@@ -129,6 +148,7 @@ export class PublicViewerController {
     @Param("token") token: string,
     @Body() body: ShareDecisionDto,
   ): Promise<{ projectId: string; reviewStatus: string }> {
+    this.assertSurfaceEnabled();
     return this.shareLinks.decide(token, body.decision);
   }
 
@@ -149,6 +169,7 @@ export class PublicViewerController {
     aspect: string;
     projection: unknown;
   }> {
+    this.assertSurfaceEnabled();
     return this.shareLinks.preview(token, session);
   }
 }

@@ -1,6 +1,8 @@
 import { HttpStatus, Inject, Injectable } from "@nestjs/common";
 import { ulid } from "ulid";
 
+import { type Env, surfaceEnabled } from "@montaj/config";
+
 import { B01_AUDIT_ACTIONS, BILLING_ERRORS, UPI_AUTOPAY_CAP_MINOR } from "./billing.constants.js";
 import { type CheckoutAlternative, type CheckoutResponse, CheckoutDto } from "./billing.dto.js";
 import { decideMandate, quotePrice } from "./money.js";
@@ -8,6 +10,7 @@ import { PlansService, toPricingPlan } from "./plans.service.js";
 import { BILLING_PROVIDER, type BillingProvider } from "./provider.js";
 import { periodEnd, renewalInitiateAt } from "./schedule.js";
 import { AppException, ERROR_CODES, PrismaService } from "../common/index.js";
+import { ENV } from "../config/config.module.js";
 import { AuditService } from "../users/audit.service.js";
 
 import type { RequestContextInfo } from "../users/profile.service.js";
@@ -25,6 +28,7 @@ export class CheckoutService {
     @Inject(BILLING_PROVIDER) private readonly provider: BillingProvider,
     private readonly plans: PlansService,
     private readonly audit: AuditService,
+    @Inject(ENV) private readonly env: Env,
   ) {}
 
   async checkout(
@@ -317,8 +321,16 @@ export class CheckoutService {
     return alternatives;
   }
 
-  /** Refuses `billing/tax_profile_required` while the country is unconfirmed (orchestrator addendum, after A04). */
+  /** Refuses `billing/checkout_disabled` if checkout surface is not enabled, and `billing/tax_profile_required` while the country is unconfirmed. */
   async requireConfirmedWorkspace(workspaceId: string): Promise<WorkspaceWithOwner> {
+    if (!surfaceEnabled("checkout", this.env.FEATURE_FLAGS_JSON)) {
+      throw new AppException(
+        BILLING_ERRORS.checkoutDisabled,
+        "Checkout is not available in this release.",
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
+    }
+
     const workspace = await this.prisma.workspace.findFirst({
       where: { id: workspaceId, deletedAt: null },
       include: { owner: { select: { email: true, name: true } } },

@@ -14,7 +14,7 @@ import {
   useProjects,
   useWorkspaceId,
 } from "@montaj/api-client";
-import { BRAND } from "@montaj/config";
+import { BRAND, surfaceEnabled } from "@montaj/config";
 import { Badge, Button, cn, Tooltip, TooltipContent, TooltipTrigger } from "@montaj/ui";
 
 import { BrandMark } from "./brand-mark";
@@ -303,7 +303,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }): React.JSX.
           for a surface whose artefacts do not exist yet: turn it on in the same
           change that restores and signs the build.
         */}
-        {isProductionOrigin && config.flags["desktop.download"] === true ? (
+        {isProductionOrigin && surfaceEnabled("desktop", config.flags) ? (
           <a
             href={`https://${BRAND.domain}/download`}
             className="text-neutral-300 hover:bg-neutral-100/6 hover:text-fg-0 mx-1 flex items-center gap-2.5 rounded-sm px-2 py-2 text-xs"

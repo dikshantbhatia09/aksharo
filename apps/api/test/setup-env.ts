@@ -54,7 +54,11 @@ const TEST_ENV: Record<string, string> = {
   API_ORIGIN: "http://localhost:3001",
   LLM_PROVIDER: "mock",
   GPU_PROVIDER: "none",
-  FEATURE_FLAGS_JSON: "{}",
+  FEATURE_FLAGS_JSON: JSON.stringify({
+    "billing.checkout": true,
+    "affiliates.enabled": true,
+    "shares.public": true,
+  }),
 };
 
 for (const [key, value] of Object.entries(TEST_ENV)) {
