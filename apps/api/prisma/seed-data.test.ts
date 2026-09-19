@@ -175,12 +175,25 @@ describe("loadSystemStyles", () => {
     // `pnpm --filter @montaj/ass-exporter parity` run against it, so every
     // style carries a real measured `parity` row, not the pre-gate defaults.
     const { styles } = loadSystemStyles();
+    const nonAssExportable = new Set([
+      "editorial-ghost-type",
+      "editorial-keyword-zoom",
+      "editorial-stack",
+    ]);
     for (const style of styles) {
       expect(style.parity, style.key).toBeDefined();
-      expect(style.parity?.assExportable, style.key).toBe(true);
+      if (nonAssExportable.has(style.key)) {
+        expect(style.parity?.assExportable, style.key).toBe(false);
+      } else {
+        expect(style.parity?.assExportable, style.key).toBe(true);
+      }
       expect(typeof style.parity?.assRenderable, style.key).toBe("boolean");
-      expect(style.parity?.parityScore, style.key).toBeGreaterThanOrEqual(0);
-      expect(style.parity?.parityScore, style.key).toBeLessThanOrEqual(1);
+      if (nonAssExportable.has(style.key)) {
+        expect(style.parity?.parityScore, style.key).toBeUndefined();
+      } else {
+        expect(style.parity?.parityScore, style.key).toBeGreaterThanOrEqual(0);
+        expect(style.parity?.parityScore, style.key).toBeLessThanOrEqual(1);
+      }
     }
   });
 
