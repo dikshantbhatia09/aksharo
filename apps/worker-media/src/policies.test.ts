@@ -138,10 +138,11 @@ describe("policy table (mirrors apps/api/src/jobs/jobs.config.ts)", () => {
 });
 
 describe("the resolved media policies", () => {
-  it("gives both media queues a ten-minute lock and three attempts", () => {
+  it("gives media queues appropriate lock duration and three attempts", () => {
     for (const queue of MEDIA_QUEUES) {
       const policy = queuePolicyFor(queue);
-      expect(policy.lockDurationMs, queue).toBe(600_000);
+      const expectedLock = queue === "media.clip" ? 300_000 : 600_000;
+      expect(policy.lockDurationMs, queue).toBe(expectedLock);
       expect(policy.stalledIntervalMs, queue).toBe(60_000);
       expect(policy.attempts, queue).toBe(3);
       expect(policy.maxStalledCount, queue).toBe(1);

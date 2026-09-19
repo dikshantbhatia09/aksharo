@@ -5,7 +5,6 @@ import { describe, expect, it } from "vitest";
 
 import {
   MEDIA_PROBE_QUEUE,
-  MEDIA_PROXY_QUEUE,
   MEDIA_QUEUES,
   QUEUE_NAMES,
   isJobEnvelope,
@@ -48,13 +47,14 @@ describe("queue contract (CONTRACTS §3)", () => {
 
   it("consumes exactly the media queues it has processors for", () => {
     expect(MEDIA_PROBE_QUEUE).toBe("media.probe");
-    expect(MEDIA_PROXY_QUEUE).toBe("media.proxy");
-    // Three since REP-010 added `media.acquire`. `media.clip` is deliberately
-    // NOT here: it is a registered name in QUEUE_NAMES with no processor until
-    // Wave 6, and consuming a queue nothing can process is worse than not
-    // consuming it — the job would be claimed and then fail.
-    expect(MEDIA_QUEUES).toEqual(["media.acquire", "media.probe", "media.proxy"]);
-    expect(MEDIA_QUEUES).not.toContain("media.clip");
+    // Four media queues now that media.clip processor is wired
+    expect(MEDIA_QUEUES).toEqual([
+      "media.acquire",
+      "media.probe",
+      "media.proxy",
+      "media.clip",
+    ]);
+    expect(MEDIA_QUEUES).toContain("media.clip");
   });
 });
 

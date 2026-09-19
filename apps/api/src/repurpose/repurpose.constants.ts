@@ -35,7 +35,20 @@ export const REPURPOSE_ERRORS = {
   notCancellable: "repurpose/not_cancellable",
   notRetryable: "repurpose/not_retryable",
   styleUnknown: "repurpose/style_unknown",
+  stageTimeout: "repurpose/stage_timeout",
 } as const;
+
+/** Per-stage timeout deadlines (CORE-023). Moving a run past its deadline to failed. */
+export const DEFAULT_STAGE_DEADLINES_MS: Readonly<Record<string, number>> = Object.freeze({
+  getting_video: 40 * 60 * 1000,
+  finding_clips: 30 * 60 * 1000,
+  styles_formats: 30 * 60 * 1000,
+  review: 0,
+  publish: 15 * 60 * 1000,
+});
+
+export const STAGE_TIMEOUT_CUSTOMER_MESSAGE =
+  "This stage took longer than expected. Your work is safe.";
 
 /**
  * Rate limits. Creating a run starts a download and a transcription, so it is

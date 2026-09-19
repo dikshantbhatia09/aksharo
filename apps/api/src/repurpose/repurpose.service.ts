@@ -17,8 +17,10 @@ import {
   ACQUIRE_TIMEOUT_MS,
   ACQUIRED_FILENAME,
   ACQUIRED_MIME,
+  DEFAULT_STAGE_DEADLINES_MS,
   REPURPOSE_ERRORS,
   REPURPOSE_FLAGS,
+  STAGE_TIMEOUT_CUSTOMER_MESSAGE,
 } from "./repurpose.constants.js";
 import { isCancellable, isRetryable, projectRun, stageForStatus } from "./repurpose.projection.js";
 import { SOURCE_REJECTION_MESSAGES, parseSourceUrl } from "./source-url.js";
@@ -26,6 +28,7 @@ import { CommonAuditService } from "../common/audit/audit.service.js";
 import { AppException, PrismaService } from "../common/index.js";
 import { DERIVED_STORE, type ObjectStore } from "../common/storage/index.js";
 import { ENV } from "../config/config.module.js";
+import { CREDITS_FACADE, type CreditsFacade } from "../credits/credits.facade.js";
 import { newestChunkRows } from "../edg/chunk-rows.js";
 import { toChunk } from "../edg/edg.rows.js";
 import { JobsService } from "../jobs/jobs.service.js";
@@ -79,6 +82,7 @@ export class RepurposeService {
     private readonly realtime: RealtimePublisher,
     private readonly jobs: JobsService,
     @Inject(ENV) private readonly env: Env,
+    @Inject(CREDITS_FACADE) private readonly credits: CreditsFacade,
     @Optional() @Inject(DERIVED_STORE) private readonly derivedStore?: ObjectStore,
   ) {}
 
@@ -1047,4 +1051,336 @@ export class RepurposeService {
       previewUrl,
     };
   }
+
+  async sweepStuckRuns(
+    now: Date = new Date(),
+    customDeadlines?: Record<string, number>,
+  ): Promise<StuckRunsSweepReport> {
+    const deadlines: Record<string, number> = {
+      ...DEFAULT_STAGE_DEADLINES_MS,
+      ...customDeadlines,
+    };
+
+    const inFlightStatuses: $Enums.RepurposeRunStatus[] = [
+      "draft",
+      "acquiring",
+      "preparing_media",
+      "transcribing",
+      "analyzing",
+      "materializing",
+      "rendering",
+      "publishing",
+    ];
+
+    const runs = await this.prisma.repurposeRun.findMany({
+      where: {
+        status: { in: inFlightStatuses },
+      },
+    });
+
+    const failedRuns: string[] = [];
+    const releasedHolds: string[] = [];
+
+    for (const run of runs) {
+      // 1. Derive current stage the same way get()/list() do
+      const observed = await this.observedStatus(run);
+      const effectiveStatus = observed ?? run.status;
+
+      // Skip terminal runs
+      if (
+        ["failed", "cancelled", "published", "partially_published"].includes(effectiveStatus) ||
+        ["failed", "cancelled", "published"].includes(run.status)
+      ) {
+        continue;
+      }
+
+      // 2. Never time out a run that is waiting on the customer:
+      // - a draft with no media uploaded yet
+      // - candidates_ready
+      // - review_ready / review
+      if (effectiveStatus === "candidates_ready" || run.status === "candidates_ready") {
+        continue;
+      }
+
+      const currentStage = stageForStatus(effectiveStatus);
+      if (
+        currentStage === "review" ||
+        ["review_ready", "changes_requested", "approved"].includes(effectiveStatus) ||
+        ["review_ready", "changes_requested", "approved"].includes(run.status)
+      ) {
+        continue;
+      }
+
+      if (run.sourceKind === "upload" && (run.status === "draft" || effectiveStatus === "draft")) {
+        const primaryMedia = await this.prisma.mediaAsset.findFirst({
+          where: { projectId: run.sourceProjectId, role: "primary" },
+          orderBy: { createdAt: "desc" },
+          select: { status: true },
+        });
+        if (
+          primaryMedia === null ||
+          primaryMedia.status === "pending" ||
+          primaryMedia.status === "uploading"
+        ) {
+          continue;
+        }
+      }
+
+      const deadlineMs = getStageDeadline(deadlines, currentStage);
+      if (deadlineMs <= 0) continue;
+
+      // 3. Find only jobs belonging to this run (media.acquire, ai.highlights, media.clip)
+      const candidateJobs = await this.prisma.job.findMany({
+        where: {
+          workspaceId: run.workspaceId,
+          type: { in: ["media.acquire", "ai.highlights", "media.clip"] },
+        },
+        include: {
+          events: {
+            orderBy: { at: "desc" },
+            take: 1,
+            select: { at: true },
+          },
+          creditHold: {
+            select: { id: true, status: true },
+          },
+        },
+      });
+
+      const runJobs = candidateJobs.filter((job) => {
+        const params =
+          typeof job.params === "object" && job.params !== null
+            ? (job.params as Record<string, unknown>)
+            : {};
+        if (params["runId"] === run.id) return true;
+        if (job.jobKey.startsWith(`media.acquire:${run.id}`)) return true;
+        if (job.jobKey.startsWith(`ai.highlights:${run.id}`)) return true;
+        if (job.jobKey.startsWith(`media.clip:${run.id}`)) return true;
+        return false;
+      });
+
+      // 4. Measure elapsed time from real progress signals:
+      // source media, transcript (and its chunks / transcription jobs), and the run's own jobs
+      const timestamps: number[] = [run.createdAt.getTime()];
+
+      const mediaAssets = await this.prisma.mediaAsset.findMany({
+        where: { projectId: run.sourceProjectId },
+        select: { createdAt: true, uploadedAt: true },
+      });
+      for (const m of mediaAssets) {
+        timestamps.push(m.createdAt.getTime());
+        if (m.uploadedAt) timestamps.push(m.uploadedAt.getTime());
+      }
+
+      const transcripts = await this.prisma.transcript.findMany({
+        where: { projectId: run.sourceProjectId },
+        select: { id: true, createdAt: true },
+      });
+      for (const t of transcripts) {
+        timestamps.push(t.createdAt.getTime());
+      }
+
+      if (transcripts.length > 0) {
+        const latestChunk = await this.prisma.transcriptChunk.findFirst({
+          where: { transcriptId: { in: transcripts.map((t) => t.id) } },
+          orderBy: { createdAt: "desc" },
+          select: { createdAt: true },
+        });
+        if (latestChunk) {
+          timestamps.push(latestChunk.createdAt.getTime());
+        }
+      }
+
+      const transcribeJobs = await this.prisma.job.findMany({
+        where: {
+          projectId: run.sourceProjectId,
+          type: { in: ["ai.transcribe", "ai.align"] },
+        },
+        select: { queuedAt: true, startedAt: true, finishedAt: true },
+      });
+      for (const tj of transcribeJobs) {
+        timestamps.push(tj.queuedAt.getTime());
+        if (tj.startedAt) timestamps.push(tj.startedAt.getTime());
+        if (tj.finishedAt) timestamps.push(tj.finishedAt.getTime());
+      }
+
+      for (const rj of runJobs) {
+        timestamps.push(rj.queuedAt.getTime());
+        if (rj.startedAt) timestamps.push(rj.startedAt.getTime());
+        if (rj.finishedAt) timestamps.push(rj.finishedAt.getTime());
+        if (rj.events.length > 0 && rj.events[0]) {
+          timestamps.push(rj.events[0].at.getTime());
+        }
+      }
+
+      const [latestCandidate, latestClip] = await Promise.all([
+        this.prisma.clipCandidate.findFirst({
+          where: { runId: run.id },
+          orderBy: { createdAt: "desc" },
+          select: { createdAt: true },
+        }),
+        this.prisma.repurposeClip.findFirst({
+          where: { runId: run.id },
+          orderBy: { updatedAt: "desc" },
+          select: { createdAt: true, updatedAt: true },
+        }),
+      ]);
+      if (latestCandidate) timestamps.push(latestCandidate.createdAt.getTime());
+      if (latestClip) {
+        timestamps.push(latestClip.createdAt.getTime());
+        timestamps.push(latestClip.updatedAt.getTime());
+      }
+
+      const lastProgressAtMs = Math.max(...timestamps);
+      const elapsedMs = now.getTime() - lastProgressAtMs;
+
+      if (elapsedMs < deadlineMs) {
+        continue;
+      }
+
+      this.logger.warn(
+        {
+          runId: run.id,
+          stage: currentStage,
+          status: run.status,
+          effectiveStatus,
+          elapsedMs,
+          deadlineMs,
+        },
+        "Repurpose run exceeded stage deadline; moving to failed state and releasing holds",
+      );
+
+      // 1. Move run to terminal failed state
+      await this.prisma.repurposeRun.update({
+        where: { id: run.id },
+        data: {
+          status: "failed",
+          failureCode: REPURPOSE_ERRORS.stageTimeout,
+          currentStage,
+        },
+      });
+
+      // 2. Publish realtime event with customer-readable message
+      await this.realtime.publish(workspaceRoom(run.workspaceId), "repurpose.stage.changed", {
+        runId: run.id,
+        status: "failed",
+        stage: currentStage,
+        progress: run.progress,
+        message: STAGE_TIMEOUT_CUSTOMER_MESSAGE,
+        at: now.toISOString(),
+      });
+
+      // 3. Record audit event
+      await this.audit.record({
+        action: "repurpose.run.timed_out",
+        resource: "repurpose_run",
+        resourceId: run.id,
+        actorId: "system",
+        workspaceId: run.workspaceId,
+        data: {
+          reason: "stage_timeout",
+          stage: currentStage,
+          fromStatus: run.status,
+          elapsedMs,
+          deadlineMs,
+        },
+      });
+
+      failedRuns.push(run.id);
+
+      // 4. Release only holds with status "held" that belong to this run's jobs
+      const runJobIds = runJobs.map((j) => j.id);
+      if (runJobIds.length > 0) {
+        const heldHolds = await this.prisma.creditHold.findMany({
+          where: {
+            jobId: { in: runJobIds },
+            status: "held",
+          },
+          select: { id: true },
+        });
+
+        for (const hold of heldHolds) {
+          try {
+            await this.credits.release({ holdId: hold.id });
+            releasedHolds.push(hold.id);
+          } catch (err) {
+            this.logger.warn(
+              { holdId: hold.id, runId: run.id, err },
+              "failed to release credit hold for stuck run",
+            );
+          }
+        }
+
+        // Direct holds from job.creditHoldId if not present in credit_holds table (or if status is held)
+        const directHoldIds = runJobs
+          .map((j) => j.creditHoldId)
+          .filter((id): id is string => typeof id === "string" && !releasedHolds.includes(id));
+
+        for (const holdId of directHoldIds) {
+          const existingHold = await this.prisma.creditHold.findUnique({
+            where: { id: holdId },
+            select: { status: true },
+          });
+          if (!existingHold || existingHold.status === "held") {
+            try {
+              await this.credits.release({ holdId });
+              releasedHolds.push(holdId);
+            } catch (err) {
+              this.logger.warn(
+                { holdId, runId: run.id, err },
+                "failed to release credit hold for stuck run",
+              );
+            }
+          }
+        }
+      }
+
+      // 5. Cancel in-flight jobs that belong to this run only
+      const inFlightRunJobIds = runJobs
+        .filter((j) => j.status === "queued" || j.status === "running")
+        .map((j) => j.id);
+
+      if (inFlightRunJobIds.length > 0) {
+        await this.prisma.job.updateMany({
+          where: {
+            id: { in: inFlightRunJobIds },
+            status: { in: ["queued", "running"] },
+          },
+          data: {
+            status: "cancelled",
+            finishedAt: now,
+          },
+        });
+      }
+    }
+
+    return {
+      examined: runs.length,
+      failedRuns,
+      releasedHolds,
+    };
+  }
+}
+
+function getStageDeadline(deadlines: Record<string, number>, stage: string): number {
+  switch (stage) {
+    case "getting_video":
+      return deadlines.getting_video ?? (30 * 60 * 1000);
+    case "finding_clips":
+      return deadlines.finding_clips ?? (30 * 60 * 1000);
+    case "styles_formats":
+      return deadlines.styles_formats ?? (30 * 60 * 1000);
+    case "review":
+      return deadlines.review ?? (30 * 60 * 1000);
+    case "publish":
+      return deadlines.publish ?? (30 * 60 * 1000);
+    default:
+      return 30 * 60 * 1000;
+  }
+}
+
+export interface StuckRunsSweepReport {
+  readonly examined: number;
+  readonly failedRuns: string[];
+  readonly releasedHolds: string[];
 }

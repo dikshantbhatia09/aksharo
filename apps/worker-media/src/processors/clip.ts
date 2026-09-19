@@ -53,8 +53,25 @@ export async function processClip(context: JobContext): Promise<ProcessorOutcome
   const { settings } = context;
   const payload = context.envelope.payload as unknown as ClipPayload;
 
-  if (!payload || !payload.clipId || !payload.destination?.key) {
+  if (
+    !payload ||
+    !payload.clipId ||
+    !payload.destination?.key ||
+    !payload.source?.key
+  ) {
     throw unreadableMedia("Invalid media.clip payload", "media/unsupported");
+  }
+
+  if (
+    typeof payload.startMs !== "number" ||
+    typeof payload.endMs !== "number" ||
+    payload.startMs < 0 ||
+    payload.endMs <= payload.startMs
+  ) {
+    throw unreadableMedia(
+      `Invalid time range for clip [${String(payload.startMs)}, ${String(payload.endMs)}]`,
+      "media/unsupported",
+    );
   }
 
   // Get presigned URL for the source (try raw first, fallback to derived)
@@ -62,7 +79,24 @@ export async function processClip(context: JobContext): Promise<ProcessorOutcome
   try {
     sourceUrl = await context.raw.presignGet(payload.source.key, settings.sourceUrlTtlSeconds);
   } catch {
-    sourceUrl = await context.derived.presignGet(payload.source.key, settings.sourceUrlTtlSeconds);
+    try {
+      sourceUrl = await context.derived.presignGet(payload.source.key, settings.sourceUrlTtlSeconds);
+    } catch {
+      throw unreadableMedia(
+        `Source object not found: ${payload.source.key}`,
+        "media/unsupported",
+      );
+    }
+  }
+
+  if (!sourceUrl.startsWith("http://") && !sourceUrl.startsWith("https://")) {
+    const { existsSync } = await import("node:fs");
+    if (!existsSync(sourceUrl)) {
+      throw unreadableMedia(
+        `Source object not found: ${payload.source.key}`,
+        "media/unsupported",
+      );
+    }
   }
 
   context.report(10, "preparing clip workspace");

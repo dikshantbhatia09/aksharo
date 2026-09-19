@@ -51,9 +51,15 @@ export type QueueName = (typeof QUEUE_NAMES)[number];
 export const MEDIA_PROBE_QUEUE = "media.probe" satisfies QueueName;
 export const MEDIA_PROXY_QUEUE = "media.proxy" satisfies QueueName;
 export const MEDIA_ACQUIRE_QUEUE = "media.acquire" satisfies QueueName;
+export const MEDIA_CLIP_QUEUE = "media.clip" satisfies QueueName;
 
-/** The three, in the order a pipeline runs them. */
-export const MEDIA_QUEUES = [MEDIA_ACQUIRE_QUEUE, MEDIA_PROBE_QUEUE, MEDIA_PROXY_QUEUE] as const;
+/** The media queues consumed by this worker. */
+export const MEDIA_QUEUES = [
+  MEDIA_ACQUIRE_QUEUE,
+  MEDIA_PROBE_QUEUE,
+  MEDIA_PROXY_QUEUE,
+  MEDIA_CLIP_QUEUE,
+] as const;
 
 export type MediaQueue = (typeof MEDIA_QUEUES)[number];
 
@@ -79,7 +85,8 @@ export interface JobEnvelope<TPayload = unknown> {
  * to its own payload type, which is where the real shape is asserted.
  */
 export interface MediaJobPayload {
-  readonly mediaId: string;
+  readonly mediaId?: string;
+  readonly clipId?: string;
   readonly projectId?: string | null;
   /** Present on the queues that READ an object. */
   readonly key?: string;
@@ -153,7 +160,10 @@ export function isJobEnvelope(value: unknown): value is JobEnvelope {
 export function isMediaPayload(value: unknown): value is MediaJobPayload {
   if (typeof value !== "object" || value === null) return false;
   const candidate = value as Record<string, unknown>;
-  if (typeof candidate["mediaId"] !== "string" || candidate["mediaId"] === "") return false;
+  const hasId =
+    (typeof candidate["mediaId"] === "string" && candidate["mediaId"] !== "") ||
+    (typeof candidate["clipId"] === "string" && candidate["clipId"] !== "");
+  if (!hasId) return false;
   if (typeof candidate["key"] === "string" && candidate["key"] !== "") return true;
 
   const destination = candidate["destination"];

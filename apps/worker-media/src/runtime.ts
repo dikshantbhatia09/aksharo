@@ -187,11 +187,15 @@ export function makeHandler(
     const { jobId, attemptId } = envelope;
     const started = Date.now();
 
+    const targetId =
+      payload.mediaId ??
+      ((payload as unknown as Record<string, unknown>)["clipId"] as string) ??
+      "";
     const log = {
       jobId,
       attemptId,
       queue: queueName,
-      mediaId: payload.mediaId,
+      mediaId: targetId,
       workspaceId: envelope.workspaceId,
       bullJobId: job.id,
       attempt: job.attemptsMade + 1,
@@ -210,7 +214,7 @@ export function makeHandler(
           { retryable: false, reason: "media/probe_failed" },
         );
       }
-      const derivedPrefix = mediaPrefix(envelope.workspaceId, envelope.projectId, payload.mediaId);
+      const derivedPrefix = mediaPrefix(envelope.workspaceId, envelope.projectId, targetId);
 
       await heartbeat.postNow(0, `${queueName} started`);
       heartbeat.start();
@@ -233,7 +237,7 @@ export function makeHandler(
 
       // The measured facts go in BEFORE the completion, so the row is already
       // right when the completion handler enqueues the next job off it.
-      if (outcome.mediaPatch !== undefined) {
+      if (outcome.mediaPatch !== undefined && payload.mediaId !== undefined) {
         await services.callbacks.patchMedia(payload.mediaId, attemptId, outcome.mediaPatch);
       }
 

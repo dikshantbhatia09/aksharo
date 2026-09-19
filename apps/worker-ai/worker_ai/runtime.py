@@ -59,6 +59,7 @@ from worker_ai.processors import (
     Services,
     process_align,
     process_diarise,
+    process_highlights,
     process_llm,
     process_not_implemented,
     process_pass,
@@ -114,6 +115,7 @@ PROCESSORS: dict[str, Processor] = {
     "ai.llm": process_llm,
     "ai.pass": process_pass,
     "ai.clean": process_clean,
+    "ai.highlights": process_highlights,
 }
 
 

@@ -5,9 +5,15 @@ import { logger } from "./logger.js";
 import { assertMediaToolsAvailable } from "./media-tools.js";
 import { workerOptions } from "./policies.js";
 import { processAcquire } from "./processors/acquire.js";
+import { processClip } from "./processors/clip.js";
 import { processProbe } from "./processors/probe.js";
 import { processProxy } from "./processors/proxy.js";
-import { MEDIA_ACQUIRE_QUEUE, MEDIA_PROBE_QUEUE, MEDIA_PROXY_QUEUE } from "./queues.js";
+import {
+  MEDIA_ACQUIRE_QUEUE,
+  MEDIA_CLIP_QUEUE,
+  MEDIA_PROBE_QUEUE,
+  MEDIA_PROXY_QUEUE,
+} from "./queues.js";
 import { buildServices, makeHandler } from "./runtime.js";
 import { loadRepoDotenv, resolveSettings } from "./settings.js";
 import { assertYtDlpUsable } from "./yt-dlp.js";
@@ -41,6 +47,7 @@ const PROCESSORS: Readonly<Record<MediaQueue, Processor>> = {
   [MEDIA_ACQUIRE_QUEUE]: processAcquire,
   [MEDIA_PROBE_QUEUE]: processProbe,
   [MEDIA_PROXY_QUEUE]: processProxy,
+  [MEDIA_CLIP_QUEUE]: processClip,
 };
 
 function startWorkers(

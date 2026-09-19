@@ -38,6 +38,37 @@ export class RepurposeHighlightsCompletionHandler implements JobCompletionHandle
   }
 
   async handle(context: JobCompletionContext): Promise<JobCompletionOutcome> {
+    const rawResult =
+      typeof context.result === "object" && context.result !== null
+        ? (context.result as Record<string, unknown>)
+        : {};
+    const rawJobParams =
+      context.job && typeof context.job.params === "object" && context.job.params !== null
+        ? (context.job.params as Record<string, unknown>)
+        : {};
+    const runId =
+      (rawResult["runId"] as string | undefined) ??
+      (rawJobParams["runId"] as string | undefined);
+
+    if (runId) {
+      const run = await this.prisma.repurposeRun.findUnique({
+        where: { id: runId },
+      });
+
+      if (!run) {
+        this.logger.warn({ runId }, "ai.highlights completed for a run that no longer exists");
+        return { actualTenths: 0, data: { applied: false, reason: "run_not_found" } };
+      }
+
+      if (run.status === "failed" || run.status === "cancelled") {
+        this.logger.warn(
+          { runId: run.id, status: run.status },
+          "ai.highlights completed for a run that is already failed or cancelled; ignoring completion",
+        );
+        return { actualTenths: 0, data: { applied: false, reason: `run_${run.status}` } };
+      }
+    }
+
     const parsed = HighlightsResultSchema.safeParse(context.result);
     if (!parsed.success) {
       throw new Error(
@@ -57,7 +88,15 @@ export class RepurposeHighlightsCompletionHandler implements JobCompletionHandle
         { runId: result.runId },
         "ai.highlights completed for a run that no longer exists",
       );
-      return { data: { applied: false, reason: "run_not_found" } };
+      return { actualTenths: 0, data: { applied: false, reason: "run_not_found" } };
+    }
+
+    if (run.status === "failed" || run.status === "cancelled") {
+      this.logger.warn(
+        { runId: run.id, status: run.status },
+        "ai.highlights completed for a run that is already failed or cancelled; ignoring completion",
+      );
+      return { actualTenths: 0, data: { applied: false, reason: `run_${run.status}` } };
     }
 
     // Insert candidates

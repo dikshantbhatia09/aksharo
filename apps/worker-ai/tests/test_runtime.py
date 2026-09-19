@@ -52,7 +52,7 @@ def test_a_registered_queue_without_a_processor_is_declared_not_implemented() ->
     rather than an oversight.
     """
     unimplemented = set(AI_QUEUES) - set(IMPLEMENTED_AI_QUEUES)
-    assert unimplemented == {"ai.highlights"}
+    assert unimplemented == set()
     assert not any(name in PROCESSORS for name in unimplemented)
 
 

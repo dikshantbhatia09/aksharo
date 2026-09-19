@@ -63,7 +63,18 @@ export class RepurposeClipCompletionHandler implements JobCompletionHandler, OnM
         { clipId: result.clipId },
         "media.clip completed for a clip that no longer exists",
       );
-      return { data: { applied: false, reason: "clip_not_found" } };
+      return { actualTenths: 0, data: { applied: false, reason: "clip_not_found" } };
+    }
+
+    if (!clip.run || clip.run.status === "failed" || clip.run.status === "cancelled") {
+      this.logger.warn(
+        { clipId: clip.id, runId: clip.runId, runStatus: clip.run?.status },
+        "media.clip completed for a run that is already failed or cancelled; ignoring completion",
+      );
+      return {
+        actualTenths: 0,
+        data: { applied: false, reason: `run_${clip.run?.status ?? "not_found"}` },
+      };
     }
 
     // 1. Update clip mezzanine facts

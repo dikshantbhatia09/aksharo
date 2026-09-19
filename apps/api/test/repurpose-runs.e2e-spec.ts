@@ -33,6 +33,7 @@ import { isRedisAvailable, redisSkipReason, testRedisUrl } from "./redis-harness
 import { PLAN_SEEDS } from "../prisma/seed-data.js";
 import { IdempotencyService } from "../src/public-api/v1/idempotency.service.js";
 import { withIdempotency } from "../src/public-api/v1/idempotent.helper.js";
+import { RepurposeHighlightsCompletionHandler } from "../src/repurpose/highlights-completion.handler.js";
 import { beginnerSafetyViolations } from "../src/repurpose/repurpose.projection.js";
 import { RepurposeService } from "../src/repurpose/repurpose.service.js";
 import { EntitlementService } from "../src/workspaces/entitlement.service.js";
@@ -42,12 +43,14 @@ import type { TestDatabase } from "./db-harness.js";
 import type { CommonAuditService } from "../src/common/audit/audit.service.js";
 import type { PrismaService } from "../src/common/prisma/prisma.service.js";
 import type { RedisService } from "../src/common/redis/redis.service.js";
+import type { CreditsFacade } from "../src/credits/credits.facade.js";
+import type { JobCompletionContext, JobCompletionRegistry } from "../src/jobs/completion-handlers.js";
 import type { JobsService } from "../src/jobs/jobs.service.js";
 import type { MediaService } from "../src/media/media.service.js";
 import type { ProjectsService } from "../src/projects/projects.service.js";
 import type { RealtimePublisher } from "../src/realtime/realtime.publisher.js";
 import type { StylesService } from "../src/styles/styles.service.js";
-import type { PrismaClient } from "@prisma/client";
+import type { Job, PrismaClient } from "@prisma/client";
 import type { Request } from "express";
 
 const DB_READY = isDatabaseAvailable();
@@ -102,6 +105,7 @@ let created: { projectId: string; workspaceId: string }[] = [];
 let published: { event: string; data: Record<string, unknown> }[] = [];
 let audited: { action: string; data: Record<string, unknown> }[] = [];
 let enqueued: { type: string; jobKey: string; params: Record<string, unknown> }[] = [];
+let releasedCreditHolds: string[] = [];
 /** Set to a thrower to simulate admission control refusing the acquisition. */
 let enqueueFailure: Error | null = null;
 
@@ -188,6 +192,18 @@ function fakeJobs(): JobsService {
   } as unknown as JobsService;
 }
 
+function fakeCredits(): CreditsFacade {
+  return {
+    release: async ({ holdId }) => {
+      releasedCreditHolds.push(holdId);
+    },
+    reserve: async () => ({ holdId: id("HOLD") }),
+    settle: async () => ({ settledTenths: 0 }),
+    grantLot: async () => ({ lotId: id("LOT"), grantedTenths: 0, expiresAt: undefined }),
+    revokeLot: async () => ({ revokedTenths: 0, shortfallTenths: 0 }),
+  };
+}
+
 async function makeService(): Promise<RepurposeService> {
   const entitlements = new EntitlementService(
     prisma as unknown as PrismaService,
@@ -203,6 +219,7 @@ async function makeService(): Promise<RepurposeService> {
       published.push({ event, data });
     },
   } as unknown as RealtimePublisher;
+
   const env = { FEATURE_FLAGS_JSON: {} } as unknown as Env;
 
   return new RepurposeService(
@@ -215,6 +232,8 @@ async function makeService(): Promise<RepurposeService> {
     realtime,
     fakeJobs(),
     env,
+    fakeCredits(),
+    undefined,
   );
 }
 
@@ -293,6 +312,7 @@ describe.skipIf(!CAN_RUN)("repurpose run CRUD (REP-006)", () => {
     audited = [];
     uploadFailure = null;
     enqueued = [];
+    releasedCreditHolds = [];
     enqueueFailure = null;
     await prisma.repurposeRun.deleteMany({});
     await prisma.idempotencyRecord.deleteMany({});
@@ -334,6 +354,7 @@ describe.skipIf(!CAN_RUN)("repurpose run CRUD (REP-006)", () => {
         { publish: async () => undefined } as unknown as RealtimePublisher,
         fakeJobs(),
         { FEATURE_FLAGS_JSON: { repurpose_flow: false } } as unknown as Env,
+        fakeCredits(),
       );
 
       await expect(killed.list(WORKSPACE_A, { limit: 20 })).rejects.toMatchObject({
@@ -1024,6 +1045,387 @@ describe.skipIf(!CAN_RUN)("repurpose run CRUD (REP-006)", () => {
       expect(detail.candidateCount).toBe(0);
       expect(detail.clipCount).toBe(0);
       expect(detail.variantCount).toBe(0);
+    });
+  });
+
+  describe("stuck runs scheduled sweep (CORE-023)", () => {
+    it("(a) a run truly stuck in finding_clips past its deadline is failed and only its own hold is released", async () => {
+      const run = await service.create(WORKSPACE_A, USER_A, {
+        source: UPLOAD_SOURCE,
+        setup: SETUP,
+      });
+
+      const fortyFiveMinutesAgo = new Date(Date.now() - 45 * 60 * 1000);
+
+      // Simulate the run being on "Finding promising moments" (analyzing) past the deadline
+      await prisma.repurposeRun.update({
+        where: { id: run.run.id },
+        data: {
+          status: "analyzing",
+          currentStage: "finding_clips",
+          createdAt: fortyFiveMinutesAgo,
+          updatedAt: fortyFiveMinutesAgo,
+        },
+      });
+      await prisma.mediaAsset.updateMany({
+        where: { projectId: run.run.sourceProjectId },
+        data: {
+          status: "ready",
+          createdAt: fortyFiveMinutesAgo,
+          uploadedAt: fortyFiveMinutesAgo,
+        },
+      });
+
+      // Simulate a job with a credit hold owned by this run
+      const jobId = id("JOBHOLD");
+      const holdId = id("HOLD01");
+      await prisma.job.create({
+        data: {
+          id: jobId,
+          workspaceId: WORKSPACE_A,
+          projectId: run.run.sourceProjectId,
+          type: "ai.highlights",
+          status: "running",
+          priority: 3,
+          jobKey: `ai.highlights:${run.run.id}`,
+          params: { runId: run.run.id },
+          attemptId: id("ATT01"),
+          attemptNo: 1,
+          creditHoldId: holdId,
+          creditsChargedTenths: 10,
+          queuedAt: fortyFiveMinutesAgo,
+          startedAt: fortyFiveMinutesAgo,
+        },
+      });
+
+      await prisma.creditAccount.upsert({
+        where: { workspaceId: WORKSPACE_A },
+        create: { id: id("ACC01"), workspaceId: WORKSPACE_A, balanceTenths: 1000 },
+        update: {},
+      });
+      await prisma.creditHold.create({
+        data: {
+          id: holdId,
+          accountId: id("ACC01"),
+          jobId,
+          amountTenths: 10,
+          status: "held",
+          at: fortyFiveMinutesAgo,
+        },
+      });
+
+      // Run the sweep
+      const report = await service.sweepStuckRuns(new Date());
+
+      expect(report.failedRuns).toContain(run.run.id);
+      expect(report.releasedHolds).toContain(holdId);
+      expect(releasedCreditHolds).toContain(holdId);
+
+      // Verify the run moved to terminal failed state with customer-readable reason
+      const updatedRun = await service.get(WORKSPACE_A, run.run.id);
+      expect(updatedRun.status).toBe("failed");
+      expect(updatedRun.failureCode).toBe("repurpose/stage_timeout");
+      expect(updatedRun.currentStage).toBe("finding_clips");
+      expect(updatedRun.message).toBe("Something went wrong. Your work is safe.");
+      expect(beginnerSafetyViolations(updatedRun.message)).toEqual([]);
+
+      // Verify realtime event was published with customer-readable message
+      const stageEvent = [...published]
+        .reverse()
+        .find(
+          (e) => e.event === "repurpose.stage.changed" && e.data["runId"] === run.run.id,
+        );
+      expect(stageEvent).toBeDefined();
+      expect(stageEvent?.data["status"]).toBe("failed");
+      expect(stageEvent?.data["message"]).toBe(
+        "This stage took longer than expected. Your work is safe.",
+      );
+      expect(beginnerSafetyViolations(String(stageEvent?.data["message"]))).toEqual([]);
+
+      // Verify in-flight job was cancelled
+      const job = await prisma.job.findUnique({ where: { id: jobId } });
+      expect(job?.status).toBe("cancelled");
+    });
+
+    it("(b) a draft waiting 2 hours for an upload is NOT failed", async () => {
+      const run = await service.create(WORKSPACE_A, USER_A, {
+        source: UPLOAD_SOURCE,
+        setup: SETUP,
+      });
+
+      const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
+
+      await prisma.repurposeRun.update({
+        where: { id: run.run.id },
+        data: {
+          createdAt: twoHoursAgo,
+          updatedAt: twoHoursAgo,
+        },
+      });
+      await prisma.mediaAsset.updateMany({
+        where: { projectId: run.run.sourceProjectId },
+        data: {
+          status: "pending",
+          createdAt: twoHoursAgo,
+        },
+      });
+
+      const report = await service.sweepStuckRuns(new Date());
+
+      expect(report.failedRuns).not.toContain(run.run.id);
+
+      const currentRun = await service.get(WORKSPACE_A, run.run.id);
+      expect(currentRun.status).toBe("draft");
+      expect(currentRun.failureCode).toBeNull();
+    });
+
+    it("(c) a run whose transcription is still progressing is NOT failed", async () => {
+      const run = await service.create(WORKSPACE_A, USER_A, {
+        source: UPLOAD_SOURCE,
+        setup: SETUP,
+      });
+
+      const fiftyMinutesAgo = new Date(Date.now() - 50 * 60 * 1000);
+      const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000);
+
+      await prisma.repurposeRun.update({
+        where: { id: run.run.id },
+        data: {
+          createdAt: fiftyMinutesAgo,
+          updatedAt: fiftyMinutesAgo,
+        },
+      });
+      await prisma.mediaAsset.updateMany({
+        where: { projectId: run.run.sourceProjectId },
+        data: {
+          status: "ready",
+          createdAt: fiftyMinutesAgo,
+          uploadedAt: new Date(Date.now() - 45 * 60 * 1000),
+        },
+      });
+
+      const transcriptId = id("TR01");
+      await prisma.transcript.create({
+        data: {
+          id: transcriptId,
+          projectId: run.run.sourceProjectId,
+          language: "hi",
+          createdAt: new Date(Date.now() - 35 * 60 * 1000),
+        },
+      });
+      await prisma.transcriptChunk.create({
+        data: {
+          id: id("TC01"),
+          transcriptId,
+          revision: 1,
+          chunkIdx: 0,
+          startMs: 0,
+          endMs: 5000,
+          createdAt: twoMinutesAgo,
+        },
+      });
+
+      const report = await service.sweepStuckRuns(new Date());
+
+      expect(report.failedRuns).not.toContain(run.run.id);
+
+      const currentRun = await service.get(WORKSPACE_A, run.run.id);
+      expect(currentRun.status).not.toBe("failed");
+      expect(currentRun.failureCode).toBeNull();
+    });
+
+    it("(d) an unrelated export job with a held credit hold on the same project is untouched", async () => {
+      const run = await service.create(WORKSPACE_A, USER_A, {
+        source: UPLOAD_SOURCE,
+        setup: SETUP,
+      });
+
+      const fortyFiveMinutesAgo = new Date(Date.now() - 45 * 60 * 1000);
+
+      await prisma.repurposeRun.update({
+        where: { id: run.run.id },
+        data: {
+          status: "analyzing",
+          currentStage: "finding_clips",
+          createdAt: fortyFiveMinutesAgo,
+          updatedAt: fortyFiveMinutesAgo,
+        },
+      });
+      await prisma.mediaAsset.updateMany({
+        where: { projectId: run.run.sourceProjectId },
+        data: {
+          status: "ready",
+          createdAt: fortyFiveMinutesAgo,
+          uploadedAt: fortyFiveMinutesAgo,
+        },
+      });
+
+      // Run's own job with a held credit hold
+      const runJobId = id("RJ01");
+      const runHoldId = id("RHOLD1");
+      await prisma.job.create({
+        data: {
+          id: runJobId,
+          workspaceId: WORKSPACE_A,
+          projectId: run.run.sourceProjectId,
+          type: "ai.highlights",
+          status: "running",
+          priority: 3,
+          jobKey: `ai.highlights:${run.run.id}`,
+          params: { runId: run.run.id },
+          attemptId: id("ATT03"),
+          attemptNo: 1,
+          creditHoldId: runHoldId,
+          creditsChargedTenths: 10,
+          queuedAt: fortyFiveMinutesAgo,
+          startedAt: fortyFiveMinutesAgo,
+        },
+      });
+
+      await prisma.creditAccount.upsert({
+        where: { workspaceId: WORKSPACE_A },
+        create: { id: id("ACC01"), workspaceId: WORKSPACE_A, balanceTenths: 1000 },
+        update: {},
+      });
+      await prisma.creditHold.create({
+        data: {
+          id: runHoldId,
+          accountId: id("ACC01"),
+          jobId: runJobId,
+          amountTenths: 10,
+          status: "held",
+          at: fortyFiveMinutesAgo,
+        },
+      });
+
+      // Unrelated export job on the SAME project with a held credit hold
+      const exportJobId = id("EXPJ01");
+      const exportHoldId = id("EXPH01");
+      await prisma.job.create({
+        data: {
+          id: exportJobId,
+          workspaceId: WORKSPACE_A,
+          projectId: run.run.sourceProjectId,
+          type: "export.cloud",
+          status: "running",
+          priority: 2,
+          jobKey: `export:${run.run.sourceProjectId}:cloud`,
+          params: { exportId: id("EXP01") },
+          attemptId: id("ATTEXP"),
+          attemptNo: 1,
+          creditHoldId: exportHoldId,
+          creditsChargedTenths: 50,
+          queuedAt: fortyFiveMinutesAgo,
+          startedAt: fortyFiveMinutesAgo,
+        },
+      });
+      await prisma.creditHold.create({
+        data: {
+          id: exportHoldId,
+          accountId: id("ACC01"),
+          jobId: exportJobId,
+          amountTenths: 50,
+          status: "held",
+          at: fortyFiveMinutesAgo,
+        },
+      });
+
+      const report = await service.sweepStuckRuns(new Date());
+
+      // The stuck run failed
+      expect(report.failedRuns).toContain(run.run.id);
+
+      // ONLY the run's own hold was released
+      expect(report.releasedHolds).toContain(runHoldId);
+      expect(report.releasedHolds).not.toContain(exportHoldId);
+      expect(releasedCreditHolds).not.toContain(exportHoldId);
+
+      // Unrelated export job is still running and untouched
+      const exportJob = await prisma.job.findUnique({ where: { id: exportJobId } });
+      expect(exportJob?.status).toBe("running");
+
+      // Unrelated export hold is still "held"
+      const exportHold = await prisma.creditHold.findUnique({ where: { id: exportHoldId } });
+      expect(exportHold?.status).toBe("held");
+    });
+
+    it("(e) a late highlights completion for a failed run changes nothing", async () => {
+      const run = await service.create(WORKSPACE_A, USER_A, {
+        source: UPLOAD_SOURCE,
+        setup: SETUP,
+      });
+
+      // Mark the run failed
+      await prisma.repurposeRun.update({
+        where: { id: run.run.id },
+        data: {
+          status: "failed",
+          failureCode: "repurpose/stage_timeout",
+        },
+      });
+
+      const highlightsHandler = new RepurposeHighlightsCompletionHandler(
+        prisma as unknown as PrismaService,
+        service,
+        { register: () => {} } as unknown as JobCompletionRegistry,
+        { publish: async () => {} } as unknown as RealtimePublisher,
+      );
+
+      const outcome = await highlightsHandler.handle({
+        job: {
+          id: id("JHLA01"),
+          workspaceId: WORKSPACE_A,
+          projectId: run.run.sourceProjectId,
+          type: "ai.highlights",
+          params: { runId: run.run.id },
+          creditHoldId: id("HOLD99"),
+        } as unknown as Job,
+        attemptId: id("ATTHL"),
+        result: {
+          schemaVersion: 1,
+          runId: run.run.id,
+          transcriptId: id("TR01"),
+          transcriptRevision: 1,
+          promptVersion: "highlights-v1",
+          featureVersion: "features-v1",
+          model: "test-model",
+          windowsConsidered: 10,
+          proposals: [
+            {
+              windowId: "w-01",
+              startMs: 1000,
+              endMs: 15000,
+              startWordId: "0:0",
+              endWordId: "0:10",
+              title: "Late Proposal",
+              transcriptExcerpt: "excerpt",
+              potentialScore: 85,
+              scoreBreakdown: {
+                hook: 80,
+                clarity: 80,
+                emotion: 80,
+                visualActivity: 80,
+                novelty: 80,
+                standaloneValue: 80,
+                safety: 100,
+              },
+              reasons: [{ label: "hook", explanation: "Great hook" }],
+            },
+          ],
+        },
+        usage: undefined,
+      } as unknown as JobCompletionContext);
+
+      expect(outcome.actualTenths).toBe(0);
+      expect((outcome.data as { applied: boolean })?.applied).toBe(false);
+
+      // Verify run status was NOT updated to candidates_ready
+      const currentRun = await prisma.repurposeRun.findUnique({ where: { id: run.run.id } });
+      expect(currentRun?.status).toBe("failed");
+
+      // Verify no candidates were inserted
+      const candidateCount = await prisma.clipCandidate.count({ where: { runId: run.run.id } });
+      expect(candidateCount).toBe(0);
     });
   });
 });

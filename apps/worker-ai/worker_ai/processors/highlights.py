@@ -81,14 +81,16 @@ def _score_window(
     )
     potential = max(50, min(99, potential))
 
-    breakdown = ScoreBreakdown(
-        hook=hook_score,
-        clarity=clarity_score,
-        emotion=emotion_score,
-        visual_activity=visual_score,
-        novelty=novelty_score,
-        standalone_value=standalone_score,
-        safety=safety_score,
+    breakdown = ScoreBreakdown.model_validate(
+        {
+            "hook": hook_score,
+            "clarity": clarity_score,
+            "emotion": emotion_score,
+            "visualActivity": visual_score,
+            "novelty": novelty_score,
+            "standaloneValue": standalone_score,
+            "safety": safety_score,
+        }
     )
 
     reasons: list[ProposalReason] = []
@@ -234,17 +236,19 @@ async def process_highlights(context: JobContext) -> ProcessorOutcome:
             )
 
             proposals.append(
-                HighlightProposal(
-                    window_id=f"w-{win_idx + 1:04d}",
-                    start_ms=start_ms,
-                    end_ms=end_ms,
-                    start_word_id=start_word_id,
-                    end_word_id=end_word_id,
-                    title=title,
-                    transcript_excerpt=excerpt[:1900],
-                    potential_score=potential,
-                    score_breakdown=score_breakdown,
-                    reasons=tuple(reasons),
+                HighlightProposal.model_validate(
+                    {
+                        "windowId": f"w-{win_idx + 1:04d}",
+                        "startMs": start_ms,
+                        "endMs": end_ms,
+                        "startWordId": start_word_id,
+                        "endWordId": end_word_id,
+                        "title": title,
+                        "transcriptExcerpt": excerpt[:1900],
+                        "potentialScore": potential,
+                        "scoreBreakdown": score_breakdown,
+                        "reasons": reasons,
+                    }
                 )
             )
     else:
@@ -252,32 +256,36 @@ async def process_highlights(context: JobContext) -> ProcessorOutcome:
         dur = max(MIN_DURATION_MS, min(total_duration_ms or 30_000, 60_000))
         potential, breakdown, reasons = _score_window("Main Highlight Moment", dur, True)
         proposals.append(
-            HighlightProposal(
-                window_id="w-0001",
-                start_ms=0,
-                end_ms=dur,
-                start_word_id="w-0001-s",
-                end_word_id="w-0001-e",
-                title="Key Video Highlight",
-                transcript_excerpt="Key highlight segment ready for vertical repurposing.",
-                potential_score=potential,
-                score_breakdown=breakdown,
-                reasons=tuple(reasons),
+            HighlightProposal.model_validate(
+                {
+                    "windowId": "w-0001",
+                    "startMs": 0,
+                    "endMs": dur,
+                    "startWordId": "w-0001-s",
+                    "endWordId": "w-0001-e",
+                    "title": "Key Video Highlight",
+                    "transcriptExcerpt": "Key highlight segment ready for vertical repurposing.",
+                    "potentialScore": potential,
+                    "scoreBreakdown": breakdown,
+                    "reasons": reasons,
+                }
             )
         )
 
     await context.progress(90, message=f"Generated {len(proposals)} highlight proposals")
 
-    result = HighlightsResult(
-        schema_version=HIGHLIGHTS_SCHEMA_VERSION,
-        run_id=payload.run_id,
-        transcript_id=payload.transcript_id,
-        transcript_revision=payload.transcript_revision,
-        proposals=tuple(proposals),
-        feature_version=payload.feature_version,
-        prompt_version=payload.prompt_version,
-        model="montaj-highlight-v1",
-        windows_considered=windows_considered,
+    result = HighlightsResult.model_validate(
+        {
+            "schemaVersion": HIGHLIGHTS_SCHEMA_VERSION,
+            "runId": payload.run_id,
+            "transcriptId": payload.transcript_id,
+            "transcriptRevision": payload.transcript_revision,
+            "proposals": proposals,
+            "featureVersion": payload.feature_version,
+            "promptVersion": payload.prompt_version,
+            "model": "montaj-highlight-v1",
+            "windowsConsidered": windows_considered,
+        }
     )
 
     await context.progress(100, message="Highlight discovery complete")
