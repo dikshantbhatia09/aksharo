@@ -623,7 +623,9 @@ def _cache_key(
 ) -> str | None:
     if context.services.cache.name == "none":
         return None
-    if bool(context.envelope.payload.get("retranscribe")) or bool(context.envelope.payload.get("force")):
+    if bool(context.envelope.payload.get("retranscribe")) or bool(
+        context.envelope.payload.get("force")
+    ):
         return None
     digest = context.payload_str("contentHash")
     if not digest:

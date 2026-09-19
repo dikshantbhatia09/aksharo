@@ -15,6 +15,7 @@ still fully testable because the model factory is injectable.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import os
 import shutil
 import subprocess
@@ -126,7 +127,7 @@ def _prepare_cleaned_audio(audio_uri: str) -> tuple[str, bool]:
             "pcm_s16le",
             clean_path,
         ]
-        proc = subprocess.run(
+        proc = subprocess.run(  # noqa: S603
             cmd,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
@@ -219,7 +220,7 @@ def _resolve_compute_type(requested: str, device: str) -> str:
 
 
 class LocalWhisperProvider(Provider):
-    """Local Whisper provider: runs official openai-whisper (default) or faster-whisper off the event loop."""
+    """Local Whisper provider: runs official openai-whisper or faster-whisper off the loop."""
 
     name = "local-whisper"
 
@@ -330,7 +331,9 @@ class LocalWhisperProvider(Provider):
                 try:
                     result_dict = await asyncio.to_thread(model.transcribe, audio_path, **options)
                     segments = result_dict.get("segments", [])
-                    words = await asyncio.to_thread(words_from_segments, segments, request.offset_ms)
+                    words = await asyncio.to_thread(
+                        words_from_segments, segments, request.offset_ms
+                    )
                 except ProviderError:
                     raise
                 except Exception as error:
@@ -374,8 +377,12 @@ class LocalWhisperProvider(Provider):
                     options["initial_prompt"] = prompt
 
                 try:
-                    segments, info = await asyncio.to_thread(model.transcribe, audio_path, **options)
-                    words = await asyncio.to_thread(words_from_segments, segments, request.offset_ms)
+                    segments, info = await asyncio.to_thread(
+                        model.transcribe, audio_path, **options
+                    )
+                    words = await asyncio.to_thread(
+                        words_from_segments, segments, request.offset_ms
+                    )
                 except ProviderError:
                     raise
                 except Exception as error:
@@ -389,7 +396,9 @@ class LocalWhisperProvider(Provider):
                 return TranscriptionResult(
                     words=words,
                     language=language,
-                    language_confidence=(round(float(probability), 4) if probability is not None else None),
+                    language_confidence=(
+                        round(float(probability), 4) if probability is not None else None
+                    ),
                     usage=ProviderUsage(
                         media_seconds=seconds,
                         provider=self.name,
@@ -409,11 +418,9 @@ class LocalWhisperProvider(Provider):
                     raw={"model": self.model_name, "device": self.device, "engine": self.engine},
                 )
         finally:
-            if is_temp and os.path.exists(audio_path):
-                try:
+            if is_temp:
+                with contextlib.suppress(OSError):
                     os.remove(audio_path)
-                except OSError:
-                    pass
 
     async def align(self, request: AlignmentRequest) -> TranscriptionResult:
         raise NotImplementedError("local-whisper does not do forced alignment")

@@ -526,7 +526,7 @@ async def test_saaras_warns_when_a_chunk_has_no_recognised_timestamp_field(
     warnings = [record for record in caplog.records if record.levelname == "WARNING"]
     assert len(warnings) == 1
     assert "no recognised timestamp field" in warnings[0].getMessage()
-    assert sorted(warnings[0].chunkKeys) == ["dur", "offset_seconds", "text"]
+    assert sorted(getattr(warnings[0], "chunkKeys", [])) == ["dur", "offset_seconds", "text"]
 
 
 # ---------------------------------------------------------------------------
