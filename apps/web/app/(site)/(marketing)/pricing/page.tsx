@@ -20,11 +20,11 @@ import { readRuntimeConfig } from "@/lib/runtime-config";
 export const metadata: Metadata = {
   title: "Pricing",
   description:
-    "One credit pool for web, desktop and every plugin. INR by default with a USD toggle, a free clean export on signup, and a full breakdown of credits, burn rates and offers.",
+    "One unified credit pool for your web studio. INR by default with a USD toggle, a free clean export on signup, and a full breakdown of credits, burn rates and offers.",
   alternates: { canonical: "/pricing" },
   openGraph: {
     title: `Pricing — ${BRAND.name}`,
-    description: "One credit pool, every surface. INR by default, USD toggle.",
+    description: "One unified credit pool. INR by default, USD toggle.",
     url: "/pricing",
     type: "website",
   },

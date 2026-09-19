@@ -71,14 +71,14 @@ describe("RLS-007 Public Claim Crawl: Product Promises", () => {
     expect(enHero.subheads.some((s) => s.includes("inside your timeline"))).toBe(false);
   });
 
-  it("truthfully gates timeline integration in value props to subtitle exports and waitlist", () => {
+  it("truthfully gates timeline integration in value props to subtitle exports and not available yet", () => {
     const timelineProp = VALUE_PROPS.find((p) => p.id === "timeline");
     expect(timelineProp).toBeDefined();
-    expect(timelineProp?.body).toContain("waitlist");
+    expect(timelineProp?.body).toContain("not available yet");
     expect(timelineProp?.body).toContain("SRT, VTT and ASS");
   });
 
-  it("truthfully marks unreleased surfaces in PLAN_MATRIX as in development / waitlist", () => {
+  it("truthfully marks unreleased surfaces in PLAN_MATRIX as in development / not available yet", () => {
     const pluginsRow = PLAN_MATRIX.find((row) => row.label.toLowerCase().includes("plugins"));
     const localModeRow = PLAN_MATRIX.find((row) => row.label.toLowerCase().includes("local mode"));
 
@@ -86,9 +86,9 @@ describe("RLS-007 Public Claim Crawl: Product Promises", () => {
     expect(localModeRow).toBeDefined();
 
     for (const plan of FALLBACK_PLAN_CATALOGUE) {
-      expect(pluginsRow?.values[plan.key]).toContain("Waitlist");
+      expect(pluginsRow?.values[plan.key]).toContain("Not available yet");
       if (plan.key !== "free") {
-        expect(localModeRow?.values[plan.key]).toContain("Waitlist");
+        expect(localModeRow?.values[plan.key]).toContain("Not available yet");
       }
     }
   });

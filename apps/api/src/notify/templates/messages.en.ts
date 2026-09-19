@@ -118,7 +118,7 @@ export const EN_MESSAGES: MessageCatalogue = {
         "Top up now and nothing in the queue stops halfway.",
       ],
       cta: "Top up",
-      footnotes: ["Local exports and browser-native exports never use processing minutes."],
+      footnotes: ["Browser-native exports never use processing minutes."],
     },
 
     "export-ready": {

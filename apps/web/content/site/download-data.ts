@@ -3,7 +3,7 @@
  * first-run notes with screenshots placeholders, publisher name field from
  * brand config").
  *
- * No installer exists yet (C10 builds and signs it), so every download link is
+ * No installer exists yet, so every download link is
  * a clearly labelled placeholder rather than a dead link to a file that isn't
  * there.
  */
@@ -27,7 +27,7 @@ export const PLATFORM_BUILDS: readonly PlatformBuild[] = [
   {
     platform: "windows",
     label: "Windows",
-    fileNote: "Signed .exe installer (pending C10) — 64-bit, Windows 10 and later.",
+    fileNote: "Signed .exe installer (in preview) — 64-bit, Windows 10 and later.",
     firstRunTitle: "The first time you run it: Windows SmartScreen",
     firstRunSteps: [
       `Windows may show "Windows protected your PC" the first time — this is normal for a newly released installer.`,
@@ -38,7 +38,7 @@ export const PLATFORM_BUILDS: readonly PlatformBuild[] = [
   {
     platform: "macos",
     label: "macOS",
-    fileNote: "Notarised .dmg (pending C10) — Apple Silicon and Intel.",
+    fileNote: "Notarised .dmg (in preview) — Apple Silicon and Intel.",
     firstRunTitle: "The first time you run it: Gatekeeper",
     firstRunSteps: [
       `macOS may show "Apple could not verify [app] is free of malware" on a very first run before notarisation propagates.`,
@@ -49,7 +49,7 @@ export const PLATFORM_BUILDS: readonly PlatformBuild[] = [
   {
     platform: "linux",
     label: "Linux",
-    fileNote: "AppImage (pending C10) — for the local bridge and local-mode features.",
+    fileNote: "AppImage (in preview) — for the local bridge and local-mode features.",
     firstRunTitle: "The first time you run it",
     firstRunSteps: [
       "Mark the AppImage executable (`chmod +x`) and run it directly, or through your distribution's AppImage integration.",

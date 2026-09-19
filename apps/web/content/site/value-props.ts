@@ -30,17 +30,17 @@ export const VALUE_PROPS: readonly ValueProp[] = [
   {
     id: "editing",
     title: "It edits, not just captions",
-    body: "Autocut (silence, fillers, retakes) and zoom/reframe that follows the subject, with SFX, music and designed text on the way. Every change is a reviewable proposal you accept or reject — never a silent mutation.",
+    body: "Autocut (silence, fillers, retakes) and zoom/reframe that follows the subject, with customizable text styling. Every change is a reviewable proposal you accept or reject — never a silent mutation.",
   },
   {
     id: "timeline",
-    title: "Inside your timeline",
-    body: "Premiere Pro, After Effects and DaVinci Resolve get the same brain as real, editable timeline items — no export/import loop. Your transcript shows up directly in Premiere's own Text-Based Editing panel.",
+    title: "Timeline exports and integrations",
+    body: "Export industry-standard SRT, VTT and ASS subtitles directly into your video workflow. Native panel integrations for Premiere Pro, After Effects and DaVinci Resolve are not available yet.",
   },
   {
     id: "one-plan",
-    title: "One plan, every surface",
-    body: "Web, desktop and every plugin draw from the same credit pool. No per-plugin subscription, and Agency seats for editors working across a team.",
+    title: "One transparent credit pool",
+    body: "Your web studio runs on one clear credit balance with no hidden caps. Start free, and scale with seats for editors working across a team.",
   },
   {
     id: "pricing",
@@ -50,7 +50,7 @@ export const VALUE_PROPS: readonly ValueProp[] = [
   {
     id: "privacy",
     title: "Your footage is yours",
-    body: "Local mode never uploads; plugins upload audio only unless a video pass is requested; cloud media is deleted on a published schedule. No training on your content by us or by the providers we route to — only providers with signed no-training, zero-retention terms are used in production. We remember your spellings and preferences only if you switch that on, and you can view, edit or clear them any time.",
+    body: "Browser exports render locally via WebCodecs with zero video upload when you choose in-browser export; cloud media is deleted on a published schedule. No training on your content by us or by the providers we route to — only providers with signed no-training, zero-retention terms are used in production. We remember your spellings and preferences only if you switch that on, and you can view, edit or clear them any time.",
   },
 ];
 

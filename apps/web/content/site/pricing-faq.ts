@@ -23,17 +23,17 @@ export const PAUSE_OBJECTIONS: readonly FaqEntry[] = [
   {
     question: "Does my footage ever leave my computer?",
     answer:
-      "Only if you ask it to. Desktop local mode never uploads. Browser export renders in your own browser with WebCodecs — zero upload. Plugins upload audio only, unless you explicitly request a video-dependent pass. Cloud media is deleted on a published retention schedule, and nothing you send us — locally or to the cloud — trains a model, ours or a provider's; we only route to providers with signed no-training, zero-retention terms.",
+      "Only if you ask it to. Browser export renders in your own browser with WebCodecs — zero video upload. Cloud media is deleted on a published retention schedule, and nothing you send us trains a model, ours or a provider's; we only route to providers with signed no-training, zero-retention terms. Desktop local mode and timeline plugins are currently in development.",
   },
   {
     question: "How long does processing take?",
     answer:
-      "Target: p50 under 60 seconds for a 5-minute clip, cloud or local on recent hardware. You will see live stage progress — uploading, transcribing, aligning, ready — never a spinner with no explanation.",
+      "Target: p50 under 60 seconds for a 5-minute clip in the cloud. You will see live stage progress — uploading, transcribing, aligning, ready — never a spinner with no explanation.",
   },
   {
     question: "Can I tweak the edit afterward?",
     answer:
-      "Every word is editable and force-aligned: drag a word, split a line, recolour, retime. Every autocut, zoom, SFX or music decision is a reviewable proposal with a confidence score — accept, reject or edit it individually, or bulk-accept above a confidence threshold. Nothing an AI pass does is a silent, unreviewable mutation.",
+      "Every word is editable and force-aligned: drag a word, split a line, recolour, retime. Every autocut or zoom decision is a reviewable proposal with a confidence score — accept, reject or edit it individually, or bulk-accept above a confidence threshold. Nothing an AI pass does is a silent, unreviewable mutation.",
   },
   {
     question: "Will it touch my original footage?",
@@ -48,7 +48,7 @@ export const PAUSE_OBJECTIONS: readonly FaqEntry[] = [
   {
     question: "What will it actually cost me?",
     answer:
-      "One credit pool for web, desktop and every plugin — no per-plugin subscription, no per-video length cap on a paid plan. Start free with one clean export on us, or try a single ₹9 export or a ₹59 week pass before committing to a monthly plan. See the credits-to-outcomes table above for what a plan's monthly allowance actually gets you.",
+      "One transparent credit pool for your web studio — no per-feature surcharge, no per-video length cap on a paid plan. Start free with one clean export on us, or try a single ₹9 export or a ₹59 week pass before committing to a monthly plan. See the credits-to-outcomes table above for what a plan's monthly allowance actually gets you.",
   },
 ];
 

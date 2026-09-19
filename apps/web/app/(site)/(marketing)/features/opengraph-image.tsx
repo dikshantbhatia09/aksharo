@@ -7,6 +7,6 @@ export const contentType = "image/png";
 export default function Image(): ReturnType<typeof renderOgImage> {
   return renderOgImage(
     "What Aksharo actually does.",
-    "Measured Hinglish accuracy, word-level editing, autocut and zoom, in-timeline plugins.",
+    "Measured Hinglish accuracy, word-level editing, autocut and zoom, subtitle exports.",
   );
 }

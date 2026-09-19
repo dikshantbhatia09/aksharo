@@ -46,23 +46,23 @@ export function formatIcuLite(template: string, values: Record<string, string>):
 
 const HERO_TEMPLATES: Record<HeroLocale, HeroCopy> = {
   en: {
-    kicker: "{brand} — captions, cuts and polish, done inside your timeline",
+    kicker: "{brand} — captions, cuts and polish for Indian video creators",
     headline: "Captions that get how you actually speak.",
     subheads: [
       "Hinglish-accurate captions, every word editable, thirty styles built for Reels, Shorts and YouTube.",
-      "Autocut, zoom and polish — proposals you accept in one click, inside your own timeline in Premiere, After Effects and Resolve.",
-      "One plan for web, desktop and every plugin, priced in ₹, with a free clean export on us.",
+      "Autocut, zoom and polish — proposals you accept in one click, with editable text and instant subtitle exports.",
+      "One unified credit pool, priced in ₹, with a free clean export on us.",
     ],
     cta: "Start free — one clean export on us",
     ctaNote: "No card required. Your footage is never used to train anyone's AI.",
   },
   hi: {
-    kicker: "{brand} — कैप्शन, कट और पॉलिश, आपकी टाइमलाइन के अंदर ही",
+    kicker: "{brand} — भारतीय वीडियो क्रिएटर्स के लिए सटीक कैप्शन, कट और पॉलिश",
     headline: "कैप्शन जो आपकी असली बोलचाल समझते हैं।",
     subheads: [
       "Hinglish पर सटीक कैप्शन, हर शब्द एडिटेबल, Reels, Shorts और YouTube के लिए बने तीस स्टाइल्स।",
-      "Autocut, zoom और पॉलिश — एक क्लिक में स्वीकार करें, अपनी ही टाइमलाइन में — Premiere, After Effects और Resolve में।",
-      "वेब, डेस्कटॉप और हर प्लगइन के लिए एक ही प्लान, ₹ में, पहला क्लीन एक्सपोर्ट हमारी तरफ से फ्री।",
+      "Autocut, zoom और पॉलिश — एक क्लिक में स्वीकार करें, एडिटेबल टेक्स्ट और तुरंत सबटाइटल एक्सपोर्ट के साथ।",
+      "एक ही क्रेडिट पूल, ₹ में, पहला क्लीन एक्सपोर्ट हमारी तरफ से फ्री।",
     ],
     cta: "फ्री शुरू करें — पहला क्लीन एक्सपोर्ट हमारी तरफ से",
     ctaNote: "कार्ड की ज़रूरत नहीं। आपकी फुटेज से कभी कोई AI ट्रेन नहीं होता।",

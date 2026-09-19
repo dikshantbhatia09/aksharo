@@ -13,14 +13,14 @@ import { SOCIAL_PROOF_NOTE, SOCIAL_PROOF_STATS } from "@/content/site/social-pro
 import { VALUE_PROPS } from "@/content/site/value-props";
 
 export const metadata: Metadata = {
-  title: "Aksharo — captions, cuts and polish, done inside your timeline",
+  title: `${BRAND.name} — captions, cuts and polish for Indian video creators`,
   description:
-    "Hinglish-accurate captions, every word editable, 30+ styles, autocut and zoom passes, and one plan for web, desktop, Premiere Pro, After Effects and DaVinci Resolve.",
+    "Hinglish-accurate captions, every word editable, 30+ styles, autocut and zoom passes, and one transparent plan for creators.",
   alternates: { canonical: "/" },
   openGraph: {
-    title: `${BRAND.name} — captions, cuts and polish, done inside your timeline`,
+    title: `${BRAND.name} — captions, cuts and polish for Indian video creators`,
     description:
-      "Hinglish-accurate captions, every word editable, 30+ styles, and one plan for web, desktop and every plugin.",
+      "Hinglish-accurate captions, every word editable, 30+ styles, and one transparent plan for creators.",
     url: "/",
     type: "website",
   },
@@ -119,7 +119,10 @@ export default function HomePage(): React.JSX.Element {
 
       <section className="mx-auto max-w-6xl px-4 pb-16 sm:px-6" aria-labelledby="cta-heading">
         <div className="bg-surface flex flex-col gap-3 rounded-lg p-[26px]">
-          <h2 id="cta-heading" className="font-display text-fg-0 m-0 text-[23px] tracking-[-0.02em]">
+          <h2
+            id="cta-heading"
+            className="font-display text-fg-0 m-0 text-[23px] tracking-[-0.02em]"
+          >
             Bring your first clip. It is free.
           </h2>
           <p className="text-neutral-400 m-0 max-w-[52ch] text-[13.5px]">

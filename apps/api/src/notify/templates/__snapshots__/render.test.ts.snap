@@ -188,7 +188,7 @@ Top up now and nothing in the queue stops halfway.
 Top up:
 https://app.example.test/billing/top-up
 
-Local exports and browser-native exports never use processing minutes.
+Browser-native exports never use processing minutes.
 
 Sent by Aksharo. Questions? Reply to this message or write to support@aksharo.ai.
 Turn off these emails: https://app.example.test/settings/notifications
@@ -210,7 +210,7 @@ exports[`rendering > renders low-credits in Hindi 1`] = `
 टॉप-अप करें:
 https://app.example.test/billing/top-up
 
-लोकल और ब्राउज़र एक्सपोर्ट में प्रोसेसिंग मिनट कभी नहीं लगते।
+ब्राउज़र एक्सपोर्ट में प्रोसेसिंग मिनट कभी नहीं लगते।
 
 Aksharo की ओर से भेजा गया। कोई सवाल? इसी मेल का जवाब दें या support@aksharo.ai पर लिखें।
 ये ईमेल बंद करें: https://app.example.test/settings/notifications

@@ -9,6 +9,8 @@ import { CurrencyToggle, useCurrency } from "./currency-toggle";
 import { PlanCard } from "./plan-card";
 import { PlanMatrix } from "./plan-matrix";
 
+import { useRuntimeConfig } from "@/components/providers";
+import { surfaceEnabled } from "@/content/site/launch-surfaces";
 import { CREDITS_TO_OUTCOMES, OFFERS, type PlanCatalogueEntry } from "@/content/site/pricing-data";
 import { OUR_OBJECTIONS, PAUSE_OBJECTIONS, type FaqEntry } from "@/content/site/pricing-faq";
 
@@ -44,6 +46,7 @@ export interface PricingContentProps {
 }
 
 export function PricingContent({ plans, source }: PricingContentProps): React.JSX.Element {
+  const { flags } = useRuntimeConfig();
   const [currency, setCurrency] = useCurrency();
   const [interval, setInterval] = useState<"month" | "year">("month");
 
@@ -51,12 +54,26 @@ export function PricingContent({ plans, source }: PricingContentProps): React.JS
     <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6" data-plan-source={source}>
       <header className="mx-auto max-w-2xl text-center">
         <h1 className="font-display text-fg-0 text-4xl font-semibold tracking-tight sm:text-5xl">
-          One credit pool. Every surface.
+          Simple, transparent credits
         </h1>
         <p className="text-fg-1 mt-4 text-lg">
-          Web, desktop and every plugin draw from the same minutes. No per-plugin subscription —
-          start free and upgrade from inside the product.
+          Your creative projects draw from one unified pool of minutes. Start free with one clean
+          export on us.
         </p>
+        {!surfaceEnabled("checkout", flags) && (
+          <div
+            className="border-border bg-surface text-fg-1 mx-auto mt-6 max-w-2xl rounded-md border p-4 text-center text-sm"
+            data-testid="billing-pilot-notice"
+          >
+            <p className="font-semibold text-fg-0">
+              Direct checkout is currently in private pilot.
+            </p>
+            <p className="mt-1 text-xs text-fg-2">
+              All plans start with free sign-up and include your first clean export. Upgrades are
+              available inside your workspace.
+            </p>
+          </div>
+        )}
       </header>
 
       <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
@@ -120,8 +137,8 @@ export function PricingContent({ plans, source }: PricingContentProps): React.JS
           Credits to outcomes
         </h2>
         <p className="text-fg-1 mt-2 max-w-2xl text-sm">
-          1 credit = transcribing 1 minute of media in the cloud. Local desktop transcription costs
-          0 credits on Starter and up.
+          1 credit = transcribing 1 minute of media in the cloud. Browser-native exports cost 0
+          credits on all plans.
         </p>
         <div className="mt-6 overflow-x-auto">
           <table

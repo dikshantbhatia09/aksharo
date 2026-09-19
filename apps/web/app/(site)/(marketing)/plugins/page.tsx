@@ -102,7 +102,7 @@ export default async function PluginsPage(): Promise<React.JSX.Element> {
                   className="text-fg-2 border-border rounded-md border px-3 py-2 text-xs"
                   data-testid={`plugin-download-placeholder-${surface.id}`}
                 >
-                  Download link placeholder — the signed, distributable build ships with C10.
+                  Not available yet.
                 </p>
               )}
             </Card>

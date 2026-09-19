@@ -12,12 +12,12 @@ import { VALUE_PROPS } from "@/content/site/value-props";
 export const metadata: Metadata = {
   title: "Features",
   description:
-    "Every value proposition, explained: measured Hinglish accuracy, word-level editing, 30+ styles, autocut and zoom passes, in-timeline plugins and India-first pricing.",
+    "Every value proposition, explained: measured Hinglish accuracy, word-level editing, 30+ styles, autocut and zoom passes, subtitle exports and India-first pricing.",
   alternates: { canonical: "/features" },
   openGraph: {
     title: `Features — ${BRAND.name}`,
     description:
-      "Measured Hinglish accuracy, word-level editing, autocut and zoom, in-timeline plugins.",
+      "Measured Hinglish accuracy, word-level editing, autocut and zoom, and subtitle exports.",
     url: "/features",
     type: "website",
   },

@@ -57,7 +57,7 @@ export const FALLBACK_PLAN_CATALOGUE: readonly PlanCatalogueEntry[] = [
       "20 credits a month",
       "One watermark-free 1080p browser export on signup",
       "All 30+ styles, Google Fonts",
-      "Plugin preview + 3 watermark-free renders to try",
+      "Browser-native export with zero upload",
     ],
     ctaLabel: "Start free",
   },
@@ -75,15 +75,15 @@ export const FALLBACK_PLAN_CATALOGUE: readonly PlanCatalogueEntry[] = [
     highlights: [
       "150 credits a month",
       "No watermark, 1080p exports",
-      "English translation, local desktop mode",
-      "Plugin burn-in & SRT",
+      "English translation",
+      "SRT, VTT and ASS subtitle exports",
     ],
     ctaLabel: "Get Starter",
   },
   {
     key: "creator",
     name: "Creator",
-    tagline: "Editing passes, 4K and every plugin, full access.",
+    tagline: "Editing passes, 4K export and full style access.",
     mostPopular: true,
     prices: {
       INR: { month: 69_900, year: 698_400 },
@@ -95,14 +95,14 @@ export const FALLBACK_PLAN_CATALOGUE: readonly PlanCatalogueEntry[] = [
       "500 credits a month",
       "4K exports, all languages translated",
       "Autocut and Reframe & Zoom passes, audio clean",
-      "Chapters, hook and full plugin access",
+      "Chapters, hook analysis and priority rendering",
     ],
     ctaLabel: "Get Creator",
   },
   {
     key: "studio",
     name: "Studio",
-    tagline: "The Pro engine, SFX/music and a team of three.",
+    tagline: "The Pro styling engine, client folders and a team of three.",
     mostPopular: false,
     prices: {
       INR: { month: 199_900, year: 1_999_200, halfyear: 999_600 },
@@ -112,7 +112,7 @@ export const FALLBACK_PLAN_CATALOGUE: readonly PlanCatalogueEntry[] = [
     creditsPerMonth: 1_800,
     highlights: [
       "1,800 credits a month",
-      "Pro engine, SFX/Music, Text FX, Prompted edit",
+      "Pro styling engine, Text FX, Prompted edit",
       "3 seats included, client folders",
       "API access, highest queue priority",
     ],
@@ -249,8 +249,8 @@ export const PLAN_MATRIX: readonly PlanMatrixRow[] = [
       free: "—",
       starter: "—",
       creator: "Autocut, Reframe/Zoom (Flash)",
-      studio: "+ Pro engine, SFX/Music, Text FX, Prompted",
-      agency: "+ Pro engine, SFX/Music, Text FX, Prompted",
+      studio: "+ Pro styling engine, Text FX, Prompted",
+      agency: "+ Pro styling engine, Text FX, Prompted",
     },
   },
   {
@@ -260,16 +260,22 @@ export const PLAN_MATRIX: readonly PlanMatrixRow[] = [
   {
     label: "Plugins (Premiere, After Effects, Resolve)",
     values: {
-      free: "Preview + 3 watermark-free renders to try",
-      starter: "Burn-in & SRT",
-      creator: "Full",
-      studio: "Full",
-      agency: "Full",
+      free: "Not available yet",
+      starter: "Not available yet",
+      creator: "Not available yet",
+      studio: "Not available yet",
+      agency: "Not available yet",
     },
   },
   {
     label: "Local mode (desktop)",
-    values: { free: "—", starter: "Yes", creator: "Yes", studio: "Yes", agency: "Yes" },
+    values: {
+      free: "—",
+      starter: "Not available yet",
+      creator: "Not available yet",
+      studio: "Not available yet",
+      agency: "Not available yet",
+    },
   },
   {
     label: "Active devices",

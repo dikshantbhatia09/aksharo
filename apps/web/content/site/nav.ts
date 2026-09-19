@@ -54,12 +54,7 @@ export const FOOTER_PRODUCT_NAV: readonly SiteNavItem[] = [
   { label: "Changelog", href: "/changelog" },
 ];
 
-export const FOOTER_COMPARE_NAV: readonly SiteNavItem[] = [
-  { label: "Aksharo vs Kalakar", href: "/vs/kalakar" },
-  { label: "Aksharo vs Captik", href: "/vs/captik" },
-  { label: "Aksharo vs Submagic", href: "/vs/submagic" },
-  { label: "Aksharo vs AutoCut", href: "/vs/autocut" },
-];
+export const FOOTER_COMPARE_NAV: readonly SiteNavItem[] = [];
 
 export const FOOTER_LEGAL_NAV: readonly SiteNavItem[] = [
   { label: "Privacy notice", href: "/legal/privacy" },

@@ -27,7 +27,7 @@ export function generateMetadata(): Metadata {
 
 /** Which `manifest.desktop.downloadUrl` key a `download-data.ts` platform maps to (Linux has
  * no per-OS key in the manifest yet -- the API's `desktop` schema is win/mac/linux, but no
- * channel manifest publishes a Linux artifact until an AppImage build exists, C10 scope). */
+ * channel manifest publishes a Linux artifact until an AppImage build exists). */
 function manifestKeyFor(platform: DesktopPlatform): "win" | "mac" | "linux" | undefined {
   if (platform === "windows") return "win";
   if (platform === "macos") return "mac";
@@ -89,7 +89,7 @@ export default async function DownloadPage(): Promise<React.JSX.Element> {
                   className="border-border text-fg-2 rounded-md border px-3 py-2 text-xs"
                   data-testid={`download-placeholder-${build.platform}`}
                 >
-                  Download link placeholder — the signed installer ships with C10.
+                  Not available yet.
                 </p>
               )}
               <div>
