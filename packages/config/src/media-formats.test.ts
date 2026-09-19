@@ -26,6 +26,7 @@ describe("media format allow-list", () => {
 
   it("maps every MIME type to an extension that is itself allowed", () => {
     for (const mime of ALLOWED_MEDIA_MIME_TYPES) {
+      // eslint-disable-next-line security/detect-object-injection -- internal MIME mapping
       const extension = MIME_FALLBACK_EXTENSIONS[mime];
       expect(extension, `${mime} has no fallback extension`).toBeDefined();
       expect(ALLOWED_MEDIA_EXTENSIONS).toContain(extension);

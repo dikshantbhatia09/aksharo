@@ -2,9 +2,9 @@ import { describe, expect, it, vi } from "vitest";
 
 import { CANARY_PREFIX, HealthService } from "./health.service.js";
 
-import type { ObjectStore } from "../common/storage/object-store.js";
 import type { PrismaService } from "../common/prisma/prisma.service.js";
 import type { RedisService } from "../common/redis/redis.service.js";
+import type { ObjectStore } from "../common/storage/object-store.js";
 
 interface StoreBehaviour {
   /** Throw from the signed `head` the readiness probe makes. */
@@ -99,7 +99,7 @@ describe("the object-store canary", () => {
     const { raw } = await booted();
     const key = (raw.store.put as unknown as { mock: { calls: [{ key: string }][] } }).mock
       .calls[0]?.[0].key;
-    expect(key).toMatch(new RegExp(`^${CANARY_PREFIX}`));
+    expect(key?.startsWith(CANARY_PREFIX)).toBe(true);
   });
 
   it("uses a different key per process so two replicas cannot race", async () => {

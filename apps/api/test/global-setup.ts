@@ -36,8 +36,8 @@ import Redis from "ioredis";
 import { Client } from "pg";
 
 import { databasePrefix, databaseUrlFor, redisDbPool, runStartedAt } from "./test-run.js";
-import { applySql, listSqlFiles } from "../scripts/apply-sql.js";
 import { PLAN_SEEDS, seedUlid } from "../prisma/seed-data.js";
+import { applySql, listSqlFiles } from "../scripts/apply-sql.js";
 
 import type { TestRunDatabase, TestRunInfo, TestRunRedis } from "./test-run.js";
 import type { TestProject } from "vitest/node";

@@ -1,8 +1,10 @@
 import type { Word } from "@montaj/edg/schemas";
+
 import { withText } from "./corrections.js";
 import { editDistance, phoneticKey } from "./phonetic.js";
-import type { Correction, StepResult } from "./corrections.js";
 import { ROMAN_COLLOQUIAL_REPLACEMENTS } from "./transliterate.js";
+
+import type { Correction, StepResult } from "./corrections.js";
 
 /**
  * High-frequency canonical Hinglish vocabulary across major video creator domains:
@@ -101,8 +103,9 @@ export function repairHinglishWord(text: string): string | undefined {
   const lower = core.toLowerCase();
 
   // 1. Direct colloquial / corrupted Roman replacement lookup
-  if (ROMAN_COLLOQUIAL_REPLACEMENTS[lower] !== undefined) {
-    const rep = ROMAN_COLLOQUIAL_REPLACEMENTS[lower]!;
+  // eslint-disable-next-line security/detect-object-injection -- internal dictionary lookup
+  const rep = (ROMAN_COLLOQUIAL_REPLACEMENTS as Record<string, string | undefined>)[lower];
+  if (rep !== undefined) {
     const isCapitalised = /^\p{Lu}/u.test(core);
     const formatted = isCapitalised ? rep.charAt(0).toUpperCase() + rep.slice(1) : rep;
     return prefix + formatted + suffix;

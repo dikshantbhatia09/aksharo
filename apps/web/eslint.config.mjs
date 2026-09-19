@@ -8,5 +8,13 @@ export default montajEslintConfig({
       files: ["e2e/**/*.ts", "playwright.config.ts"],
       rules: { "no-console": "off" },
     },
+    {
+      files: ["qa-sweep/**/*.ts"],
+      rules: {
+        "no-console": "off",
+        "security/detect-non-literal-fs-filename": "off",
+        "security/detect-object-injection": "off",
+      },
+    },
   ],
 });

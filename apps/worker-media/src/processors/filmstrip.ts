@@ -1,6 +1,5 @@
 import { spawn } from "node:child_process";
-import { existsSync, promises as fs } from "node:fs";
-import { join } from "node:path";
+import { existsSync } from "node:fs";
 
 export interface FilmstripMetadata {
   readonly frameWidth: number;
@@ -54,6 +53,7 @@ export async function generateFilmstripSprite(options: FilmstripOptions): Promis
   await new Promise<void>((resolve, reject) => {
     const proc = spawn(ffmpeg, args, { stdio: "ignore" });
     proc.on("close", (code) => {
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- internal temp path
       if (code === 0 && existsSync(options.outputPath)) {
         resolve();
       } else {

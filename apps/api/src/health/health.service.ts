@@ -1,9 +1,10 @@
-import { Inject, Injectable, Logger, type OnApplicationBootstrap } from "@nestjs/common";
 import { randomBytes } from "node:crypto";
 
-import { DERIVED_STORE, RAW_STORE } from "../common/storage/object-store.js";
+import { Inject, Injectable, Logger, type OnApplicationBootstrap } from "@nestjs/common";
+
 import { PrismaService } from "../common/prisma/prisma.service.js";
 import { RedisService } from "../common/redis/redis.service.js";
+import { DERIVED_STORE, RAW_STORE } from "../common/storage/object-store.js";
 
 import type { ObjectStore } from "../common/storage/object-store.js";
 

@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
+
 import type { TranscriptChunk, Word } from "@montaj/edg/schemas";
-import { devanagariToHinglish } from "./transliterate.js";
-import { repairHinglishWord } from "./repair.js";
+
 import { postProcess } from "./pipeline.js";
+import { repairHinglishWord } from "./repair.js";
+import { devanagariToHinglish } from "./transliterate.js";
 
 describe("Hinglish Transliteration & Lexicon", () => {
   it("correctly transliterates conversational Hindi words without schwa corruption", () => {

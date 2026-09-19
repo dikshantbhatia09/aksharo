@@ -5,10 +5,10 @@ import { REPURPOSE_SCHEMA_VERSION } from "@montaj/repurpose-contracts";
 import { RepurposeAcquireCompletionHandler } from "./acquire-completion.handler.js";
 import { JobCompletionRegistry } from "../jobs/completion-handlers.js";
 
+import type { RepurposeService } from "./repurpose.service.js";
 import type { PrismaService } from "../common/prisma/prisma.service.js";
 import type { JobCompletionContext } from "../jobs/completion-handlers.js";
 import type { MediaService } from "../media/media.service.js";
-import type { RepurposeService } from "./repurpose.service.js";
 import type { Job } from "@prisma/client";
 
 const WS = "01JCWS0000000000000000000A";

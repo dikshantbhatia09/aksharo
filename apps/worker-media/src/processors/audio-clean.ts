@@ -42,6 +42,7 @@ export async function cleanAudio(options: AudioCleanOptions): Promise<void> {
   await new Promise<void>((resolve, reject) => {
     const proc = spawn(ffmpeg, args, { stdio: "ignore" });
     proc.on("close", (code) => {
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- internal temp path
       if (code === 0 && existsSync(options.outputPath)) {
         resolve();
       } else {

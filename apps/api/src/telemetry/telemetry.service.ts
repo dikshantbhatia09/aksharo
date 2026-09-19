@@ -2,7 +2,6 @@ import { HttpStatus, Inject, Injectable, Logger } from "@nestjs/common";
 import { ulid } from "ulid";
 
 import { redactConfig, redactText, tailAndRedact } from "./redact.js";
-
 import { TelemetryForwarderService } from "./telemetry-forwarder.service.js";
 import { MAX_DIAGNOSTICS_BUNDLE_BYTES } from "./telemetry.dto.js";
 import { TELEMETRY_CONSENT_ERROR } from "./telemetry.errors.js";

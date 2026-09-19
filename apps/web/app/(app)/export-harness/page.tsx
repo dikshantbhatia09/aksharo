@@ -61,7 +61,10 @@ function Harness({ projectId }: { readonly projectId: string }): React.JSX.Eleme
       registry: renderer.engine.registry,
       shaper: renderer.engine.shaper,
       backend: renderer.backend,
-      loadRenderer: async () => ({ backend: renderer.backend! }),
+      loadRenderer: async () => {
+        if (!renderer.backend) throw new Error("renderer backend not ready");
+        return { backend: renderer.backend };
+      },
       ready: true,
     };
   }, [client, load.status, load.store, load.snapshot, renderer.engine, renderer.backend]);

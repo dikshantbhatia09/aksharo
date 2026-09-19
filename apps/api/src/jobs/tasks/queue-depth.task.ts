@@ -1,10 +1,10 @@
 import { Injectable, Logger, type OnModuleInit } from "@nestjs/common";
 
+import { MetricsService } from "../../common/metrics/metrics.service.js";
+import { ScheduledTasksService } from "../../common/scheduler/scheduled-tasks.service.js";
 import { QUEUE_NAMES } from "../contracts/queue-names.js";
 import { QUEUE_DEPTH_INTERVAL_MS } from "../jobs.config.js";
 import { QueueRegistry } from "../queue.registry.js";
-import { MetricsService } from "../../common/metrics/metrics.service.js";
-import { ScheduledTasksService } from "../../common/scheduler/scheduled-tasks.service.js";
 
 /** The scheduled task's name; also its BullMQ scheduler key. */
 export const QUEUE_DEPTH_TASK = "jobs.queue-depth";

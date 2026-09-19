@@ -378,7 +378,7 @@ export class WorkspacesService {
       where: { workspaceId: { in: [...workspaceIds] }, status: "active" },
       _count: { _all: true },
     });
-    return new Map(rows.map((row: any) => [row.workspaceId, row._count._all]));
+    return new Map(rows.map((row) => [row.workspaceId, row._count._all]));
   }
 
   /**

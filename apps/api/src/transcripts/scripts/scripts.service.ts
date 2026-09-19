@@ -2,10 +2,9 @@ import { HttpStatus, Injectable, Logger } from "@nestjs/common";
 
 import { creditCostTenths, formatCredits } from "@montaj/config";
 import type { Segment, TranscriptChunk } from "@montaj/edg/schemas";
-
-import { MAX_TRANSLATE_TARGETS, SCRIPTS_ERROR_CODES } from "./scripts.errors.js";
 import { dominantScript } from "@montaj/edg/segmenter";
 
+import { MAX_TRANSLATE_TARGETS, SCRIPTS_ERROR_CODES } from "./scripts.errors.js";
 import { ScriptsRepository, TranscriptNotFoundError } from "./scripts.repository.js";
 import { AppException, ERROR_CODES } from "../../common/errors/error-codes.js";
 import { PrismaService } from "../../common/prisma/prisma.service.js";

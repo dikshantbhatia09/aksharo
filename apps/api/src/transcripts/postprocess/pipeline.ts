@@ -5,9 +5,9 @@ import { buildGlossaryIndex, applyGlossary, EMPTY_GLOSSARY_SOURCE } from "./glos
 import { identifyLanguage } from "./lid.js";
 import { defaultNumeralParams, normaliseNumerals } from "./numerals.js";
 import { defaultPunctuationParams, punctuate } from "./punctuation.js";
+import { repairTranscriptWords } from "./repair.js";
 import { normaliseSpeakers } from "./speakers.js";
 import { devanagariToHinglish } from "./transliterate.js";
-import { repairTranscriptWords } from "./repair.js";
 
 
 import type { Correction, PostProcessStep } from "./corrections.js";
@@ -105,7 +105,9 @@ export function normaliseTimings(chunk: TranscriptChunk): TranscriptChunk {
 function mergeSplitTokens(words: readonly Word[]): Word[] {
   const merged: Word[] = [];
   for (let i = 0; i < words.length; i += 1) {
-    const curr = words[i]!;
+    // eslint-disable-next-line security/detect-object-injection -- loop bounded index
+    const curr = words[i];
+    if (!curr) continue;
     const next = words[i + 1];
     // Merge split numerals like ["3", ",000"] -> "3,000" or ["2", ".5"] -> "2.5"
     if (next && /^\d+$/.test(curr.t) && /^[,.]\d+/.test(next.t)) {

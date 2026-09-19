@@ -127,6 +127,7 @@ export class PasswordService {
     if (rejection === undefined) return;
     throw new AppException(
       AUTH_ERRORS.weakPassword,
+      // eslint-disable-next-line security/detect-object-injection -- rejection is typed enum PasswordRejectionReason
       PASSWORD_REJECTION_MESSAGES[rejection],
       HttpStatus.BAD_REQUEST,
       { reason: rejection, minLength: PASSWORD_MIN_LENGTH, maxLength: PASSWORD_MAX_LENGTH },

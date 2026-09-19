@@ -1,3 +1,4 @@
+/* eslint-disable security/detect-object-injection, @typescript-eslint/no-non-null-assertion */
 /**
  * Devanagari -> Hinglish (Roman) transliteration for post-processing (hi-Latn).
  *

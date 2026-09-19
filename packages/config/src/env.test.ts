@@ -535,6 +535,7 @@ describe("loadServiceEnv", () => {
 
   it("gives every service a required set drawn from the frozen contract", () => {
     for (const service of SERVICE_NAMES) {
+      // eslint-disable-next-line security/detect-object-injection -- internal enumerated service name
       const required = SERVICE_REQUIRED_ENV_VARS[service];
       expect(required.length, service).toBeGreaterThan(0);
       for (const name of required) {
@@ -549,6 +550,7 @@ describe("loadServiceEnv", () => {
     const forbidden = ["DATABASE_URL", "JWT_PRIVATE_KEY", "JWT_PUBLIC_KEY"];
     for (const service of ["worker-media", "worker-ai", "render"] as const) {
       for (const name of forbidden) {
+        // eslint-disable-next-line security/detect-object-injection -- internal enumerated service name
         expect(SERVICE_REQUIRED_ENV_VARS[service], `${service}/${name}`).not.toContain(name);
       }
     }

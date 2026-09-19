@@ -393,6 +393,7 @@ export type ServiceEnv<S extends ServiceName> = Omit<Env, RelaxedFor<S>> &
  * making those optional would drop defaults the cross-field rules read.
  */
 function serviceSchema(service: ServiceName) {
+  // eslint-disable-next-line security/detect-object-injection -- internal enumerated key, not attacker-controlled
   const needed = new Set<string>(SERVICE_REQUIRED_ENV_VARS[service]);
   const relaxed: Record<string, z.ZodTypeAny> = {};
   for (const name of REQUIRED_ENV_VARS) {
@@ -593,7 +594,6 @@ function productionProblems(
     );
   }
 
-  // eslint-disable-next-line security/detect-object-injection -- bracket access on an internal enumerated key, not attacker-controlled
   if (flags[PRODUCTION_GATE_FLAGS.checkout] === true) {
     const razorpay = [env.RAZORPAY_KEY_ID, env.RAZORPAY_KEY_SECRET, env.RAZORPAY_WEBHOOK_SECRET];
     if (razorpay.some((value) => value === undefined || value === "")) {
@@ -606,7 +606,6 @@ function productionProblems(
     }
   }
 
-  // eslint-disable-next-line security/detect-object-injection -- bracket access on an internal enumerated key, not attacker-controlled
   if (flags[PRODUCTION_GATE_FLAGS.partnerCatalogue] === true) {
     problems.push(
       `${PRODUCTION_GATE_FLAGS.partnerCatalogue}=true is not valid under ` +
@@ -617,7 +616,6 @@ function productionProblems(
   }
 
   if (env.SENTRY_DSN === undefined || env.SENTRY_DSN === "") {
-    // eslint-disable-next-line security/detect-object-injection -- bracket access on an internal enumerated key, not attacker-controlled
     if (flags[PRODUCTION_GATE_FLAGS.errorTrackingOptOut] !== true) {
       problems.push(
         "SENTRY_DSN is empty under NODE_ENV=production: nothing would report an " +

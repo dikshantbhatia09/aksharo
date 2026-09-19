@@ -2,10 +2,10 @@ import { Injectable, Logger, type OnModuleInit } from "@nestjs/common";
 
 import { MediaAcquirePayloadSchema, MediaAcquireResultSchema } from "@montaj/repurpose-contracts";
 
+import { RepurposeService } from "./repurpose.service.js";
 import { PrismaService } from "../common/prisma/prisma.service.js";
 import { JobCompletionRegistry } from "../jobs/completion-handlers.js";
 import { MediaService } from "../media/media.service.js";
-import { RepurposeService } from "./repurpose.service.js";
 
 import type {
   JobCompletionContext,

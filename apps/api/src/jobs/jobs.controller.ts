@@ -1,5 +1,4 @@
 import { Controller, Get, Param, Post, Query, Sse, UseGuards } from "@nestjs/common";
-import { from, interval, map, switchMap, takeWhile, type Observable } from "rxjs";
 import {
   ApiBearerAuth,
   ApiConflictResponse,
@@ -9,6 +8,7 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from "@nestjs/swagger";
+import { from, interval, switchMap, takeWhile, type Observable } from "rxjs";
 
 import {
   JobDto,
