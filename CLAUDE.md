@@ -7,6 +7,38 @@ Read this before touching anything. The most important section is
 
 ## 1. Production runs on THIS machine
 
+> **Changed 2026-09-19 — production no longer runs from this folder.** It runs
+> from `05-build/montaj-release`, a git worktree **detached at a verified commit
+> of `main`** (deployed: `fd1c24b6`, web build `.next-live-20260919c` /
+> `2dC4yWeSgyxfWtKU2LMny`). Until then it ran whatever uncommitted files sat in
+> `montaj`, which coding agents edit. Rules:
+>
+> - **Never build into or restart from `montaj`.** Verify a change in the clean
+>   worktree `05-build/montaj-verify`, commit there, move `main`, push.
+> - **Deploy** = `git -C ../montaj-release checkout --detach <sha>`, rebuild
+>   there (`pnpm -r --no-bail --filter "./packages/**" build` — `@montaj/db`
+>   always fails and nothing in production uses it — then api, worker-media,
+>   render, and web with `NEXT_DIST_DIR=.next-live-<date>`), then run a deploy
+>   script modelled on `_orchestration/tools/deploy-20260919c.ps1` (it stops
+>   production by process tree, repoints `start-production-stack.ps1` and
+>   `web-dist.txt`, starts, and health-checks). Rollback:
+>   `rollback-20260919c.ps1`. `next build` rewrites `apps/web/next-env.d.ts` and
+>   `tsconfig.json` in the release copy; that is expected, do not commit it.
+> - `montaj-release/.env.local-run` is a **hard link** to `montaj/.env.local-run`
+>   (one file, one set of secrets). Edit it in place (`WriteAllText` /
+>   `r+`), never by writing a new file and renaming, or the link splits.
+>   `montaj-release/apps/worker-ai/.venv` is a junction to montaj's venv.
+> - Production feature flags (owner decision 2026-09-19): public shares and
+>   affiliates ON, checkout and every other launch surface OFF.
+>   `RAZORPAY_WEBHOOK_SECRET` is now a random value — with it empty, the fake
+>   billing provider accepted webhooks signed with its public default secret.
+> - Production still runs `NODE_ENV=development`, `MAIL_PROVIDER=dev` (no email
+>   is sent) and `MONTAJ_SCHEDULER_DISABLED=1` (no scheduled task runs: no status
+>   snapshots, retention, stuck-run sweep). Switching NODE_ENV to production
+>   needs a real mail provider and a SENTRY_DSN or its opt-out flag first.
+> - The paragraphs below that name `montaj` paths, `.next-live-20260917c`, or
+>   "no git remote" describe the setup before this change.
+
 There is no cloud deploy. The public site is served by **processes on this
 laptop**, exposed through a **Cloudflare Tunnel**.
 
@@ -212,8 +244,9 @@ curl -o /dev/null -w "%{http_code}\n" https://aksharo.crestmondtechnologies.com/
 
 ## 2. "Deploying" means rebuild + restart locally
 
-There is **no git remote** on this checkout and no reachable CI. `git push` is
-not a deploy and cannot work. `docs/runbooks/deploy.md` describes an AWS EKS/ECR
+There is no reachable CI, and `git push` is not a deploy. Since 2026-09-19
+`origin` is `github.com/dikshantbhatia09/aksharo`; verified batches of `main`
+are pushed there (owner decision), after a secret scan of the commits. `docs/runbooks/deploy.md` describes an AWS EKS/ECR
 setup that does **not** exist on this machine (`aws`, `helm`, `terraform` are not
 installed; `kubectl` has no context). Ignore it.
 
