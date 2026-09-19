@@ -29,12 +29,30 @@ export interface StatusSnapshot {
   readonly incidents: readonly StatusIncident[];
 }
 
-const FALLBACK_SNAPSHOT: StatusSnapshot = {
-  generatedAt: new Date(0).toISOString(),
-  overall: "degraded",
-  components: [],
-  incidents: [],
-};
+export const STALE_THRESHOLD_MS = 15 * 60 * 1000;
+
+/**
+ * Returns true if components is empty, generatedAt is unparseable ("unknown"),
+ * or generatedAt is older than 15 minutes.
+ */
+export function isStatusUnknown(
+  snapshot: StatusSnapshot,
+  now: number = Date.now(),
+): boolean {
+  if (snapshot.components.length === 0) return true;
+  const generatedTime = new Date(snapshot.generatedAt).getTime();
+  if (Number.isNaN(generatedTime)) return true;
+  return now - generatedTime > STALE_THRESHOLD_MS;
+}
+
+export function createFallbackSnapshot(): StatusSnapshot {
+  return {
+    generatedAt: "unknown",
+    overall: "degraded",
+    components: [],
+    incidents: [],
+  };
+}
 
 /**
  * Fetch the API's published `status.json` (`apps/api/src/ops/status.controller.ts`).
@@ -49,7 +67,10 @@ const FALLBACK_SNAPSHOT: StatusSnapshot = {
 export async function loadStatusSnapshot(): Promise<StatusSnapshot> {
   const { apiOrigin } = readRuntimeConfig();
   try {
-    const response = await fetch(`${apiOrigin}/ops/status.json`, { cache: "no-store" });
+    const response = await fetch(`${apiOrigin}/ops/status.json`, {
+      cache: "no-store",
+      signal: AbortSignal.timeout(2500),
+    });
     if (!response.ok) return unreachableSnapshot();
     return (await response.json()) as StatusSnapshot;
   } catch {
@@ -59,8 +80,8 @@ export async function loadStatusSnapshot(): Promise<StatusSnapshot> {
 
 function unreachableSnapshot(): StatusSnapshot {
   return {
-    ...FALLBACK_SNAPSHOT,
-    generatedAt: new Date().toISOString(),
+    generatedAt: "unknown",
+    overall: "degraded",
     components: [
       {
         id: "status-page",
@@ -69,5 +90,6 @@ function unreachableSnapshot(): StatusSnapshot {
         detail: "Could not reach the status API.",
       },
     ],
+    incidents: [],
   };
 }

@@ -6,12 +6,14 @@ import { zodResponse } from "../auth/dto/openapi.js";
 import { Public } from "../common/guards/index.js";
 import { PrismaService } from "../common/prisma/prisma.service.js";
 
-const EMPTY_SNAPSHOT: StatusSnapshotPayload = {
-  generatedAt: new Date(0).toISOString(),
-  overall: "operational",
-  components: [],
-  incidents: [],
-};
+export function unknownSnapshot(): StatusSnapshotPayload {
+  return {
+    generatedAt: "unknown",
+    overall: "degraded",
+    components: [],
+    incidents: [],
+  };
+}
 
 /**
  * The public status surface (X04 §1) — `status.json` and its RSS mirror.
@@ -31,9 +33,9 @@ export class StatusController {
   @ApiOperation({
     summary: "The latest published status snapshot",
     description:
-      "Written every 5 minutes by the `status-publish` scheduler task. Before the first " +
-      "tick (a brand-new environment) this returns an empty, all-operational snapshot " +
-      "dated the Unix epoch, never a 404 — a status page must never itself be the outage.",
+      "Written every 5 minutes by the `status-publish` scheduler task. When no snapshot " +
+      "has been published, returns an explicit unknown snapshot with no components, " +
+      "never an invented operational state.",
     operationId: "getStatusSnapshot",
   })
   @ApiOkResponse(zodResponse(StatusSnapshotSchema, "The current status snapshot."))
@@ -41,7 +43,7 @@ export class StatusController {
     const latest = await this.prisma.opsStatusSnapshot.findFirst({
       orderBy: { publishedAt: "desc" },
     });
-    return latest === null ? EMPTY_SNAPSHOT : (latest.payload as StatusSnapshotPayload);
+    return latest === null ? unknownSnapshot() : (latest.payload as StatusSnapshotPayload);
   }
 
   @Get("status/rss.xml")
@@ -56,7 +58,8 @@ export class StatusController {
     const latest = await this.prisma.opsStatusSnapshot.findFirst({
       orderBy: { publishedAt: "desc" },
     });
-    const snapshot = latest === null ? EMPTY_SNAPSHOT : (latest.payload as StatusSnapshotPayload);
+    const snapshot =
+      latest === null ? unknownSnapshot() : (latest.payload as StatusSnapshotPayload);
     return renderRss(snapshot);
   }
 }
@@ -70,6 +73,10 @@ function xmlEscape(value: string): string {
 }
 
 function renderRss(snapshot: StatusSnapshotPayload): string {
+  const generated = new Date(snapshot.generatedAt);
+  const lastBuildDate = Number.isNaN(generated.getTime())
+    ? new Date(0).toUTCString()
+    : generated.toUTCString();
   const items = snapshot.incidents
     .map(
       (incident) => `    <item>
@@ -87,7 +94,7 @@ function renderRss(snapshot: StatusSnapshotPayload): string {
     <title>Aksharo status</title>
     <description>Incident history for api, worker, render and the job queue.</description>
     <link>https://aksharo.ai/status</link>
-    <lastBuildDate>${new Date(snapshot.generatedAt).toUTCString()}</lastBuildDate>
+    <lastBuildDate>${lastBuildDate}</lastBuildDate>
 ${items}
   </channel>
 </rss>

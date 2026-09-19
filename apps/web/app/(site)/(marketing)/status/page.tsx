@@ -1,6 +1,6 @@
 import { BRAND } from "@montaj/config";
 
-import { loadStatusSnapshot } from "./status-data";
+import { isStatusUnknown, loadStatusSnapshot } from "./status-data";
 
 import type { StatusComponentStatus } from "./status-data";
 import type { Metadata } from "next";
@@ -26,16 +26,23 @@ const STATUS_DOT: Record<StatusComponentStatus, string> = {
 export default async function StatusPage(): Promise<React.JSX.Element> {
   const snapshot = await loadStatusSnapshot();
   const generated = new Date(snapshot.generatedAt);
+  const isUnknown = isStatusUnknown(snapshot);
+
+  const headline = isUnknown
+    ? "Status data isn't available right now"
+    : STATUS_COPY[snapshot.overall];
+
+  const dotClass = isUnknown ? "bg-amber-500" : STATUS_DOT[snapshot.overall];
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-16 sm:px-6">
       <div className="flex items-center gap-3">
         <span
           aria-hidden="true"
-          className={`h-3 w-3 rounded-full ${STATUS_DOT[snapshot.overall]}`}
+          className={`h-3 w-3 rounded-full ${dotClass}`}
         />
         <h1 className="font-display text-fg-0 text-3xl font-semibold tracking-tight sm:text-4xl">
-          {STATUS_COPY[snapshot.overall]}
+          {headline}
         </h1>
       </div>
       <p className="text-fg-2 mt-3 text-sm" data-testid="status-generated-at">
