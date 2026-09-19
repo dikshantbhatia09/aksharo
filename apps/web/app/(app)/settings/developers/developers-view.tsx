@@ -72,7 +72,7 @@ export function DevelopersView(): React.JSX.Element {
       >
         <p className="text-fg-2 -mt-2 text-sm">
           See the{" "}
-          <Link href="/developers" className="text-lime-500 underline" target="_blank">
+          <Link href="/docs/developers" className="text-lime-500 underline" target="_blank">
             API docs
           </Link>{" "}
           for endpoints, scopes and quick-starts in curl, Node and Python.
