@@ -69,6 +69,8 @@ const PROJECT_ON = id("PRJ1");
 const MEDIA_ON = id("MDA1");
 const PROJECT_OFF = id("PRJ2");
 const MEDIA_OFF = id("MDA2");
+const PROJECT_NO_HINTS = id("PRJ3");
+const MEDIA_NO_HINTS = id("MDA3");
 
 const DURATION_MS = 90_000;
 
@@ -103,6 +105,7 @@ async function seed(): Promise<void> {
   for (const [projectId, mediaId] of [
     [PROJECT_ON, MEDIA_ON],
     [PROJECT_OFF, MEDIA_OFF],
+    [PROJECT_NO_HINTS, MEDIA_NO_HINTS],
   ] as const) {
     await prisma.project.create({
       data: { id: projectId, workspaceId: WORKSPACE, title: `B09b ${projectId}`, aspect: "r9x16" },
@@ -231,6 +234,20 @@ describe.skipIf(!CAN_RUN)("transcribe enqueue merges memory glossary into hints"
     });
     const hints = (job.params as { hints?: string[] }).hints ?? [];
     expect(hints).toEqual(["OnlyMine"]);
+  });
+
+  it("consent withheld: Hinglish request with no hints and no consented memory sends no hints at all", async () => {
+    const response = await request(app.getHttpServer())
+      .post(`/projects/${PROJECT_NO_HINTS}/transcribe`)
+      .set("Authorization", `Bearer ${accessToken()}`)
+      .send({ languages: ["hi-Latn"] })
+      .expect(202);
+
+    const job = await prisma.job.findUniqueOrThrow({
+      where: { id: response.body.jobId as string },
+    });
+    const hints = (job.params as { hints?: string[] }).hints ?? [];
+    expect(hints).toEqual([]);
   });
 
   it("consent granted: request-time hints first, then the stored glossary term, deduplicated", async () => {

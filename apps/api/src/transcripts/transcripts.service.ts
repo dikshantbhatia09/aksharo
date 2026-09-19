@@ -55,23 +55,6 @@ import type { MediaAsset, Project, Transcript } from "@prisma/client";
 /** Cap on merged transcribe hints (request-time + memory glossary), brief §2. */
 export const MAX_TRANSCRIBE_HINTS = 200;
 
-/** Domain vocabulary and Hinglish terms to guide Whisper away from phonetic English mangling. */
-export const DEFAULT_HINGLISH_HINTS: readonly string[] = [
-  "bedroom",
-  "bathroom",
-  "villa",
-  "bungalow",
-  "private pool",
-  "Western Ghats",
-  "luxury property",
-  "garden area",
-  "square feet",
-  "crore",
-  "Lonavala",
-  "bheeg",
-  "baarish",
-];
-
 export interface TranscribeRequest {
   readonly projectId: string;
   readonly workspaceId: string;
@@ -244,22 +227,16 @@ export class TranscriptsService {
    */
   private async buildHints(
     request: TranscribeRequest,
-    sourceLanguage?: string | null,
+    _sourceLanguage?: string | null,
   ): Promise<readonly string[]> {
     const requested = (request.hints ?? [])
       .map((hint) => hint.trim())
       .filter((hint) => hint !== "");
     const memoryTerms = await this.memory.glossaryTermsFor(request.workspaceId, request.userId);
 
-    const isHinglish =
-      Boolean(request.languages?.some((lang) => /hi-latn/i.test(lang))) ||
-      Boolean(sourceLanguage && /hi-latn/i.test(sourceLanguage));
-
-    const defaultHints = isHinglish ? DEFAULT_HINGLISH_HINTS : [];
-
     const seen = new Set<string>();
     const merged: string[] = [];
-    for (const hint of [...requested, ...memoryTerms, ...defaultHints]) {
+    for (const hint of [...requested, ...memoryTerms]) {
       const key = hint.toLowerCase();
       if (seen.has(key)) continue;
       seen.add(key);
