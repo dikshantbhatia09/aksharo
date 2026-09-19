@@ -163,4 +163,43 @@ export class RepurposeController {
       async () => this.repurpose.retry(workspaceId, userId, runId),
     );
   }
+
+  @Get(":runId/candidates")
+  @Roles("viewer")
+  @ApiOperation({
+    summary: "List highlight candidates for a run",
+    operationId: "listRepurposeCandidates",
+  })
+  async candidates(@CurrentWorkspace() workspaceId: string, @Param("runId") runId: string) {
+    return this.repurpose.listCandidates(workspaceId, runId);
+  }
+
+  @Get(":runId/preview")
+  @Roles("viewer")
+  @ApiOperation({ summary: "Get preview media URL for a run", operationId: "getRepurposePreview" })
+  async preview(@CurrentWorkspace() workspaceId: string, @Param("runId") runId: string) {
+    return this.repurpose.getPreview(workspaceId, runId);
+  }
+
+  @Post(":runId/clips")
+  @Roles("editor")
+  @ApiOperation({
+    summary: "Select a candidate and create a clip",
+    operationId: "createRepurposeClip",
+  })
+  async createClip(
+    @CurrentWorkspace() workspaceId: string,
+    @CurrentUser("userId") userId: string,
+    @Param("runId") runId: string,
+    @Body() body: { candidateId: string },
+  ) {
+    return this.repurpose.createClip(workspaceId, userId, runId, body.candidateId);
+  }
+
+  @Get(":runId/clips")
+  @Roles("viewer")
+  @ApiOperation({ summary: "List clips and variants for a run", operationId: "listRepurposeClips" })
+  async listClips(@CurrentWorkspace() workspaceId: string, @Param("runId") runId: string) {
+    return this.repurpose.listClips(workspaceId, runId);
+  }
 }

@@ -7,19 +7,23 @@ import type { DesktopPlatform } from "@/content/site/download-data";
 import type { Metadata } from "next";
 
 import { PLATFORM_BUILDS, PUBLISHER_NAME } from "@/content/site/download-data";
+import { assertServerSurfaceEnabled } from "@/content/site/launch-surfaces";
 import { fetchPluginManifest } from "@/lib/plugin-manifest";
 
-export const metadata: Metadata = {
-  title: "Download",
-  description: `Download ${BRAND.name} Desktop for Windows, macOS and Linux.`,
-  alternates: { canonical: "/download" },
-  openGraph: {
-    title: `Download — ${BRAND.name}`,
-    description: `${BRAND.name} Desktop for Windows, macOS and Linux.`,
-    url: "/download",
-    type: "website",
-  },
-};
+export function generateMetadata(): Metadata {
+  assertServerSurfaceEnabled("desktop");
+  return {
+    title: "Download",
+    description: `Download ${BRAND.name} Desktop for Windows, macOS and Linux.`,
+    alternates: { canonical: "/download" },
+    openGraph: {
+      title: `Download — ${BRAND.name}`,
+      description: `${BRAND.name} Desktop for Windows, macOS and Linux.`,
+      url: "/download",
+      type: "website",
+    },
+  };
+}
 
 /** Which `manifest.desktop.downloadUrl` key a `download-data.ts` platform maps to (Linux has
  * no per-OS key in the manifest yet -- the API's `desktop` schema is win/mac/linux, but no
@@ -32,6 +36,7 @@ function manifestKeyFor(platform: DesktopPlatform): "win" | "mac" | "linux" | un
 }
 
 export default async function DownloadPage(): Promise<React.JSX.Element> {
+  assertServerSurfaceEnabled("desktop");
   const manifest = await fetchPluginManifest();
   const desktop = manifest?.desktop;
 

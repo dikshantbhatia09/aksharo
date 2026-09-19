@@ -131,6 +131,15 @@ export const MediaClipPayloadSchema = z
       maxHeight: z.int().positive().max(2160),
     }),
     profileVersion: z.string().trim().min(1).max(100),
+    subtitles: z
+      .array(
+        z.strictObject({
+          startMs: z.number(),
+          endMs: z.number(),
+          text: z.string(),
+        }),
+      )
+      .optional(),
   })
   .superRefine((value, context) => {
     if (value.endMs <= value.startMs) {

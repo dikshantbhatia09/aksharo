@@ -13548,7 +13548,7 @@
     },
     "/ops/status.json": {
       "get": {
-        "description": "Written every 5 minutes by the `status-publish` scheduler task. Before the first tick (a brand-new environment) this returns an empty, all-operational snapshot dated the Unix epoch, never a 404 — a status page must never itself be the outage.",
+        "description": "Written every 5 minutes by the `status-publish` scheduler task. When no snapshot has been published, returns an explicit unknown snapshot with no components, never an invented operational state.",
         "operationId": "getStatusSnapshot",
         "parameters": [],
         "responses": {
@@ -24203,6 +24203,10 @@
                           "contentHash": {
                             "type": "string",
                             "pattern": "^[a-f0-9]{64}$"
+                          },
+                          "issueUploadTicket": {
+                            "default": true,
+                            "type": "boolean"
                           }
                         },
                         "required": [
@@ -25301,6 +25305,120 @@
           }
         ],
         "summary": "Try a failed run again",
+        "tags": [
+          "repurpose"
+        ]
+      }
+    },
+    "/repurpose/runs/{runId}/candidates": {
+      "get": {
+        "operationId": "listRepurposeCandidates",
+        "parameters": [
+          {
+            "name": "runId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "List highlight candidates for a run",
+        "tags": [
+          "repurpose"
+        ]
+      }
+    },
+    "/repurpose/runs/{runId}/preview": {
+      "get": {
+        "operationId": "getRepurposePreview",
+        "parameters": [
+          {
+            "name": "runId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Get preview media URL for a run",
+        "tags": [
+          "repurpose"
+        ]
+      }
+    },
+    "/repurpose/runs/{runId}/clips": {
+      "post": {
+        "operationId": "createRepurposeClip",
+        "parameters": [
+          {
+            "name": "runId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Select a candidate and create a clip",
+        "tags": [
+          "repurpose"
+        ]
+      },
+      "get": {
+        "operationId": "listRepurposeClips",
+        "parameters": [
+          {
+            "name": "runId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "List clips and variants for a run",
         "tags": [
           "repurpose"
         ]

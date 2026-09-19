@@ -670,6 +670,13 @@ export const API_OPERATIONS = [
     summary: "Generate a prompted-edit plan from a free-text instruction",
   },
   {
+    operationId: "createRepurposeClip",
+    method: "POST",
+    path: "/repurpose/runs/{runId}/clips",
+    tags: ["repurpose"],
+    summary: "Select a candidate and create a clip",
+  },
+  {
     operationId: "createRepurposeRun",
     method: "POST",
     path: "/repurpose/runs",
@@ -1097,6 +1104,13 @@ export const API_OPERATIONS = [
     summary: "This workspace's referral code and reward counts",
   },
   {
+    operationId: "getRepurposePreview",
+    method: "GET",
+    path: "/repurpose/runs/{runId}/preview",
+    tags: ["repurpose"],
+    summary: "Get preview media URL for a run",
+  },
+  {
     operationId: "getRepurposeRun",
     method: "GET",
     path: "/repurpose/runs/{runId}",
@@ -1494,6 +1508,20 @@ export const API_OPERATIONS = [
     path: "/workspaces/{id}/client-tags/{tag}/projects",
     tags: ["workspaces"],
     summary: "Projects carrying a client tag",
+  },
+  {
+    operationId: "listRepurposeCandidates",
+    method: "GET",
+    path: "/repurpose/runs/{runId}/candidates",
+    tags: ["repurpose"],
+    summary: "List highlight candidates for a run",
+  },
+  {
+    operationId: "listRepurposeClips",
+    method: "GET",
+    path: "/repurpose/runs/{runId}/clips",
+    tags: ["repurpose"],
+    summary: "List clips and variants for a run",
   },
   {
     operationId: "listRepurposeRuns",

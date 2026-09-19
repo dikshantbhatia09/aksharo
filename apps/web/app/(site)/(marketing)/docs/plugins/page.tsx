@@ -4,19 +4,24 @@ import { Card } from "@montaj/ui";
 
 import type { Metadata } from "next";
 
+import { assertServerSurfaceEnabled } from "@/content/site/launch-surfaces";
 import { loadPluginGuides } from "@/lib/docs/plugin-guides";
 
-export const metadata: Metadata = {
-  title: "Plugin guides",
-  description:
-    "Install and use the Aksharo panel inside Premiere Pro, After Effects and DaVinci Resolve.",
-  alternates: { canonical: "/docs/plugins" },
-};
+export function generateMetadata(): Metadata {
+  assertServerSurfaceEnabled("plugins");
+  return {
+    title: "Plugin guides",
+    description:
+      "Install and use the Aksharo panel inside Premiere Pro, After Effects and DaVinci Resolve.",
+    alternates: { canonical: "/docs/plugins" },
+  };
+}
 
 /** `/docs/plugins`: one guide per host-app plugin, generated from each
  * package's own README (brief §2). See `/plugins` for the marketing/download
  * page — this is the technical install-and-use documentation. */
 export default function DocsPluginsPage(): React.JSX.Element {
+  assertServerSurfaceEnabled("plugins");
   const guides = loadPluginGuides();
 
   return (

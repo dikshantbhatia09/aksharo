@@ -30,6 +30,10 @@
       "types": "./dist/env.d.ts",
       "default": "./dist/env.js"
     },
+    "./launch-surfaces": {
+      "types": "./dist/launch-surfaces.d.ts",
+      "default": "./dist/launch-surfaces.js"
+    },
     "./eslint": "./eslint.config.base.mjs",
     "./prettier": "./prettier.config.mjs",
     "./vitest": "./vitest.base.mjs",

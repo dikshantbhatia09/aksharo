@@ -222,6 +222,8 @@ export type {
   RenameDeviceRequest,
   CreateRepurposeRunRequest,
   CreateRepurposeRunResponse,
+  RepurposeCandidateItem,
+  RepurposeClipItem,
   RepurposeRunPage,
   RepurposeRunView,
   RepurposeStage,

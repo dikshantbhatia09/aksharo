@@ -5,6 +5,7 @@ import { Button, Card } from "@montaj/ui";
 
 import type { Metadata } from "next";
 
+import { assertServerSurfaceEnabled } from "@/content/site/launch-surfaces";
 import { AUTH_NAV } from "@/content/site/nav";
 import { ACTIVATION_STEPS, ATTRIBUTION_LINE, HOST_SURFACES } from "@/content/site/plugins-data";
 import { fetchPluginManifest, type PluginManifestChannelView } from "@/lib/plugin-manifest";
@@ -16,20 +17,24 @@ function manifestChannelFor(surfaceId: string): "premiere-uxp" | "ae-cep" | "res
   return surfaceId === "resolve" ? "resolve-script" : "premiere-uxp";
 }
 
-export const metadata: Metadata = {
-  title: "Plugins",
-  description:
-    "Aksharo Panel — works with Adobe Premiere Pro and Adobe After Effects. Aksharo — works with DaVinci Resolve. One credit pool, real timeline items, no per-plugin subscription.",
-  alternates: { canonical: "/plugins" },
-  openGraph: {
-    title: `Plugins — ${BRAND.name}`,
-    description: "Aksharo Panel for Premiere Pro and After Effects; Aksharo for DaVinci Resolve.",
-    url: "/plugins",
-    type: "website",
-  },
-};
+export function generateMetadata(): Metadata {
+  assertServerSurfaceEnabled("plugins");
+  return {
+    title: "Plugins",
+    description:
+      "Aksharo Panel — works with Adobe Premiere Pro and Adobe After Effects. Aksharo — works with DaVinci Resolve. One credit pool, real timeline items, no per-plugin subscription.",
+    alternates: { canonical: "/plugins" },
+    openGraph: {
+      title: `Plugins — ${BRAND.name}`,
+      description: "Aksharo Panel for Premiere Pro and After Effects; Aksharo for DaVinci Resolve.",
+      url: "/plugins",
+      type: "website",
+    },
+  };
+}
 
 export default async function PluginsPage(): Promise<React.JSX.Element> {
+  assertServerSurfaceEnabled("plugins");
   const manifest = await fetchPluginManifest();
 
   return (

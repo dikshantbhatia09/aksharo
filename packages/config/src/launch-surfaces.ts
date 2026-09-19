@@ -65,7 +65,7 @@ export const ALL_LAUNCH_SURFACES = Object.keys(LAUNCH_SURFACE_FLAGS) as readonly
  */
 export function surfaceEnabled(
   surface: LaunchSurface,
-  flags?: Readonly<Record<string, boolean | undefined>> | null,
+  flags?: Readonly<Record<string, unknown>> | null,
 ): boolean {
   if (flags === null || flags === undefined || typeof flags !== "object") {
     // eslint-disable-next-line security/detect-object-injection -- enumerated key

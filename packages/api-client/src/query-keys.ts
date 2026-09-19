@@ -33,6 +33,12 @@ export const queryKeys = {
   repurposeRuns: (workspaceId: string) => ["ws", workspaceId, "repurpose", "runs"] as const,
   repurposeRun: (workspaceId: string, runId: string) =>
     ["ws", workspaceId, "repurpose", "runs", runId] as const,
+  repurposeCandidates: (workspaceId: string, runId: string) =>
+    ["ws", workspaceId, "repurpose", "runs", runId, "candidates"] as const,
+  repurposeClips: (workspaceId: string, runId: string) =>
+    ["ws", workspaceId, "repurpose", "runs", runId, "clips"] as const,
+  repurposePreview: (workspaceId: string, runId: string) =>
+    ["ws", workspaceId, "repurpose", "runs", runId, "preview"] as const,
   job: (workspaceId: string, jobId: string) => ["ws", workspaceId, "jobs", jobId] as const,
   subscription: (workspaceId: string) => ["ws", workspaceId, "subscription"] as const,
   streak: (workspaceId: string) => ["ws", workspaceId, "streak"] as const,
