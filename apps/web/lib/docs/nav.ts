@@ -4,14 +4,26 @@ import { loadPluginGuides } from "./plugin-guides";
 import type { DocsNavSection } from "./schema";
 import type { HelpArticle } from "@/lib/content/schema";
 
+import { isServerSurfaceEnabled } from "@/content/site/launch-surfaces";
+
+export interface DocsNavOptions {
+  readonly includePlugins?: boolean;
+}
+
 /**
  * The `/docs` sidebar (brief §1: "navigation, search, version switcher").
  * Built from the same generators the pages render from, so a new plugin
  * guide, API group or help article appears in the nav without a second,
  * hand-maintained list — and so `link-check.ts`'s broken-link test walks
  * exactly what a visitor can click.
+ *
+ * Excludes plugins section when plugins launch surface is disabled (RLS-006 / RLS-007).
  */
-export function buildDocsNav(helpArticles: readonly HelpArticle[]): readonly DocsNavSection[] {
+export function buildDocsNav(
+  helpArticles: readonly HelpArticle[],
+  options?: DocsNavOptions,
+): readonly DocsNavSection[] {
+  const pluginsEnabled = options?.includePlugins ?? isServerSurfaceEnabled("plugins");
   const guides: DocsNavSection = {
     id: "guides",
     label: "Guides",
@@ -53,5 +65,5 @@ export function buildDocsNav(helpArticles: readonly HelpArticle[]): readonly Doc
     items: [{ label: "Legal centre", href: "/legal" }],
   };
 
-  return [guides, plugins, developers, legal];
+  return [guides, ...(pluginsEnabled ? [plugins] : []), developers, legal];
 }

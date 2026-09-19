@@ -2,6 +2,8 @@ import { ShareViewer } from "./share-viewer";
 
 import type { Metadata } from "next";
 
+import { assertServerSurfaceEnabled } from "@/content/site/launch-surfaces";
+
 /**
  * The public review surface (B15 brief §1, §3): `/share/:token`.
  *
@@ -11,6 +13,7 @@ import type { Metadata } from "next";
  * archive) still carries the instruction.
  */
 export function generateMetadata(): Metadata {
+  assertServerSurfaceEnabled("publicShares");
   return {
     title: "Shared review",
     robots: { index: false, follow: false, nocache: true },
@@ -26,6 +29,7 @@ export default async function SharePage({
 }: {
   params: Promise<{ token: string }>;
 }): Promise<React.JSX.Element> {
+  assertServerSurfaceEnabled("publicShares");
   const { token } = await params;
   return <ShareViewer token={token} />;
 }

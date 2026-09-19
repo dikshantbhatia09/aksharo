@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
 
+import { surfaceEnabled } from "@montaj/config";
+
+import { parseFlags } from "./lib/flags";
+
 import type { NextRequest } from "next/server";
 
 /**
@@ -63,6 +67,33 @@ function isUnderPath(pathname: string, prefix: string): boolean {
 export function middleware(request: NextRequest): NextResponse {
   const { pathname, search } = request.nextUrl;
   const authenticated = request.cookies.get(SESSION_COOKIE) !== undefined;
+
+  const flags = parseFlags(process.env["FEATURE_FLAGS_JSON"] ?? null);
+
+  // Surface availability edge enforcement (RLS-006 fail-closed guardrail)
+  if (isUnderPath(pathname, "/download") && !surfaceEnabled("desktop", flags)) {
+    return new NextResponse(null, { status: 404 });
+  }
+
+  if (
+    (isUnderPath(pathname, "/plugins") ||
+      isUnderPath(pathname, "/plugins-app") ||
+      isUnderPath(pathname, "/docs/plugins")) &&
+    !surfaceEnabled("plugins", flags)
+  ) {
+    return new NextResponse(null, { status: 404 });
+  }
+
+  if (
+    (isUnderPath(pathname, "/affiliate") || isUnderPath(pathname, "/r")) &&
+    !surfaceEnabled("affiliates", flags)
+  ) {
+    return new NextResponse(null, { status: 404 });
+  }
+
+  if (isUnderPath(pathname, "/share") && !surfaceEnabled("publicShares", flags)) {
+    return new NextResponse(null, { status: 404 });
+  }
 
   if (
     isUnderPath(pathname, "/admin") &&
@@ -136,6 +167,18 @@ export const config = {
     "/projects/:path*",
     "/p/:path*",
     "/plugins",
+    "/plugins/:path*",
+    "/plugins-app",
+    "/plugins-app/:path*",
+    "/docs/plugins",
+    "/docs/plugins/:path*",
+    "/download",
+    "/download/:path*",
+    "/affiliate",
+    "/affiliate/:path*",
+    "/r/:path*",
+    "/share",
+    "/share/:path*",
     "/login",
     "/signup",
     "/magic",
