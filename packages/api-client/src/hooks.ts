@@ -31,6 +31,8 @@ import type { ApiClient } from "./http.js";
 import type {
   CreateRepurposeRunRequest,
   CreateRepurposeRunResponse,
+  RepurposeCandidateItem,
+  RepurposeClipItem,
   RepurposeRunPage,
   RepurposeRunView,
   AcademyProgressResponse,
@@ -1979,6 +1981,75 @@ export function useCancelRepurposeRun(): UseMutationResult<RepurposeRunView, Err
 
 export function useRetryRepurposeRun(): UseMutationResult<RepurposeRunView, Error, string> {
   return useRunCommand(endpoints.repurpose.retry);
+}
+
+export function useRepurposeCandidates(
+  runId: string | null,
+): UseQueryResult<{ runId: string; candidates: RepurposeCandidateItem[] }> {
+  const client = useApiClient();
+  const workspaceId = useWorkspaceId();
+  return useQuery({
+    queryKey: queryKeys.repurposeCandidates(workspaceId ?? "none", runId ?? "none"),
+    enabled: workspaceId !== null && runId !== null,
+    retry: retryPolicy,
+    queryFn: () => client.call(endpoints.repurpose.candidates, { params: { runId: runId ?? "" } }),
+  });
+}
+
+export function useRepurposeClips(
+  runId: string | null,
+): UseQueryResult<{ runId: string; clips: RepurposeClipItem[] }> {
+  const client = useApiClient();
+  const workspaceId = useWorkspaceId();
+  return useQuery({
+    queryKey: queryKeys.repurposeClips(workspaceId ?? "none", runId ?? "none"),
+    enabled: workspaceId !== null && runId !== null,
+    retry: retryPolicy,
+    refetchInterval: 3000,
+    queryFn: () => client.call(endpoints.repurpose.clips, { params: { runId: runId ?? "" } }),
+  });
+}
+
+export function useRepurposePreview(runId: string | null): UseQueryResult<{
+  runId: string;
+  projectId: string;
+  durationMs: number;
+  previewUrl: string | null;
+}> {
+  const client = useApiClient();
+  const workspaceId = useWorkspaceId();
+  return useQuery({
+    queryKey: queryKeys.repurposePreview(workspaceId ?? "none", runId ?? "none"),
+    enabled: workspaceId !== null && runId !== null,
+    retry: retryPolicy,
+    queryFn: () => client.call(endpoints.repurpose.preview, { params: { runId: runId ?? "" } }),
+  });
+}
+
+export function useCreateRepurposeClip(): UseMutationResult<
+  { clipId: string; jobId: string; status: string },
+  Error,
+  { readonly runId: string; readonly candidateId: string; readonly aspect?: string }
+> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  const workspaceId = useWorkspaceId();
+  return useMutation({
+    mutationFn: (input) =>
+      client.call(endpoints.repurpose.createClip, {
+        params: { runId: input.runId },
+        body: { candidateId: input.candidateId, aspect: input.aspect },
+      }),
+    onSuccess: (_, input) => {
+      if (workspaceId === null) return;
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.repurposeClips(workspaceId, input.runId),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.repurposeRun(workspaceId, input.runId),
+      });
+    },
+  });
 }
 
 /**

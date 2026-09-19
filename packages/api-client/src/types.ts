@@ -1275,11 +1275,7 @@ export interface PackAssetUrl {
 
 /** The five visible stages, in the fixed order the rail draws them. */
 export type RepurposeStage =
-  | "getting_video"
-  | "finding_clips"
-  | "styles_formats"
-  | "review"
-  | "publish";
+  "getting_video" | "finding_clips" | "styles_formats" | "review" | "publish";
 
 export interface RepurposeStageView {
   stage: RepurposeStage;
@@ -1344,4 +1340,31 @@ export interface CreateRepurposeRunResponse {
   /** The ordinary multipart ticket; `null` for a link, which has nothing to PUT. */
   upload: UploadTicket | null;
   next: { rel: "run"; href: string };
+}
+
+export interface RepurposeCandidateItem {
+  id: string;
+  startMs: number;
+  endMs: number;
+  rank?: number | null;
+  potentialScore?: number | null;
+  score?: number | null;
+  title?: string;
+  headline?: string;
+  transcriptExcerpt?: string;
+  reason?: string;
+  reasons?: Array<{ label: string; explanation: string }>;
+  [key: string]: unknown;
+}
+
+export interface RepurposeClipItem {
+  id: string;
+  candidateId?: string;
+  title?: string;
+  sourceStartMs?: number;
+  sourceEndMs?: number;
+  mezzanineKey?: string | null;
+  mezzanineUrl?: string | null;
+  status?: string;
+  [key: string]: unknown;
 }

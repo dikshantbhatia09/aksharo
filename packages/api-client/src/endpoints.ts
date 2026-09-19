@@ -16,6 +16,8 @@ import { defineEndpoint } from "./http.js";
 import type {
   CreateRepurposeRunRequest,
   CreateRepurposeRunResponse,
+  RepurposeCandidateItem,
+  RepurposeClipItem,
   RepurposeRunPage,
   RepurposeRunView,
   AcademyProgressResponse,
@@ -490,6 +492,36 @@ export const repurposeEndpoints = {
     path: "/repurpose/runs/{runId}/retry",
     auth: "bearer",
     operationId: "retryRepurposeRun",
+  }),
+  candidates: defineEndpoint<void, { runId: string; candidates: RepurposeCandidateItem[] }>({
+    method: "GET",
+    path: "/repurpose/runs/{runId}/candidates",
+    auth: "bearer",
+    operationId: "listRepurposeCandidates",
+  }),
+  createClip: defineEndpoint<
+    { candidateId: string; aspect?: string },
+    { clipId: string; jobId: string; status: string }
+  >({
+    method: "POST",
+    path: "/repurpose/runs/{runId}/clips",
+    auth: "bearer",
+    operationId: "createRepurposeClip",
+  }),
+  clips: defineEndpoint<void, { runId: string; clips: RepurposeClipItem[] }>({
+    method: "GET",
+    path: "/repurpose/runs/{runId}/clips",
+    auth: "bearer",
+    operationId: "listRepurposeClips",
+  }),
+  preview: defineEndpoint<
+    void,
+    { runId: string; projectId: string; durationMs: number; previewUrl: string | null }
+  >({
+    method: "GET",
+    path: "/repurpose/runs/{runId}/preview",
+    auth: "bearer",
+    operationId: "getRepurposePreview",
   }),
 } as const;
 
