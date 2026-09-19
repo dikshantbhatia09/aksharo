@@ -1,12 +1,15 @@
-import { HttpStatus, Inject, Injectable, Logger } from "@nestjs/common";
+import { HttpStatus, Inject, Injectable, Logger, Optional } from "@nestjs/common";
 import { ulid } from "ulid";
 
 import type { Env } from "@montaj/config";
-
 import {
+  type HighlightsPayload,
   MediaAcquirePayloadSchema,
+  type MediaClipPayload,
   REPURPOSE_SCHEMA_VERSION,
+  highlightsJobKey,
   mediaAcquireJobKey,
+  mediaClipJobKey,
 } from "@montaj/repurpose-contracts";
 
 import {
@@ -21,7 +24,10 @@ import { isCancellable, isRetryable, projectRun, stageForStatus } from "./repurp
 import { SOURCE_REJECTION_MESSAGES, parseSourceUrl } from "./source-url.js";
 import { CommonAuditService } from "../common/audit/audit.service.js";
 import { AppException, PrismaService } from "../common/index.js";
+import { DERIVED_STORE, type ObjectStore } from "../common/storage/index.js";
 import { ENV } from "../config/config.module.js";
+import { newestChunkRows } from "../edg/chunk-rows.js";
+import { toChunk } from "../edg/edg.rows.js";
 import { JobsService } from "../jobs/jobs.service.js";
 import { MediaService } from "../media/media.service.js";
 import { mediaLimitsFor } from "../projects/plan-limits.js";
@@ -31,8 +37,14 @@ import { RealtimePublisher } from "../realtime/realtime.publisher.js";
 import { StylesService } from "../styles/styles.service.js";
 import { EntitlementService } from "../workspaces/entitlement.service.js";
 
+import type {
+  CreateRunInput,
+  CreateRunResponse,
+  ListRunsInput,
+  RunPage,
+  RunView,
+} from "./repurpose.dto.js";
 import type { AcquisitionProject } from "../media/media.service.js";
-import type { CreateRunInput, CreateRunResponse, ListRunsInput, RunPage, RunView } from "./repurpose.dto.js";
 import type { $Enums, RepurposeRun } from "@prisma/client";
 
 /**
@@ -67,6 +79,7 @@ export class RepurposeService {
     private readonly realtime: RealtimePublisher,
     private readonly jobs: JobsService,
     @Inject(ENV) private readonly env: Env,
+    @Optional() @Inject(DERIVED_STORE) private readonly derivedStore?: ObjectStore,
   ) {}
 
   /**
@@ -226,14 +239,14 @@ export class RepurposeService {
       // create that answered with an error must not also leave a dead run in the
       // person's list — from their side it never started.
       if (run !== undefined) {
-        await this.prisma.repurposeRun.delete({ where: { id: run.id } }).catch(
-          (cleanupError: unknown) => {
+        await this.prisma.repurposeRun
+          .delete({ where: { id: run.id } })
+          .catch((cleanupError: unknown) => {
             this.logger.warn(
               { runId, err: cleanupError },
               "could not remove the run after a failed run create",
             );
-          },
-        );
+          });
       }
       await this.projects.softDelete(workspaceId, project.id).catch((cleanupError: unknown) => {
         this.logger.warn(
@@ -470,6 +483,7 @@ export class RepurposeService {
             clipCount: run._count.clips,
             variantCount: 0,
           },
+          // eslint-disable-next-line security/detect-object-injection -- index bounded by page.map
           observed[index],
         ),
       ),
@@ -725,6 +739,312 @@ export class RepurposeService {
       ...counts,
       createdAt: run.createdAt.toISOString(),
       updatedAt: run.updatedAt.toISOString(),
+    };
+  }
+
+  async startHighlightDiscovery(run: RepurposeRun, transcriptId: string): Promise<string> {
+    const transcript = await this.prisma.transcript.findUnique({
+      where: { id: transcriptId },
+      select: { id: true, currentRevision: true },
+    });
+    const revision = transcript?.currentRevision ?? 1;
+
+    const media = await this.prisma.mediaAsset.findFirst({
+      where: { projectId: run.sourceProjectId, role: "primary" },
+      orderBy: { createdAt: "desc" },
+    });
+
+    const config = (run.config as Record<string, unknown>) ?? {};
+    const discovery = (config["discovery"] as Record<string, unknown>) ?? {};
+    const sourceLanguage =
+      typeof config["sourceLanguage"] === "string" ? config["sourceLanguage"] : "en";
+
+    const proxyKey = media?.storageKey
+      ? media.storageKey.replace(/raw\.[^.]+$/, "proxy540.mp4")
+      : `ws/${run.workspaceId}/p/${run.sourceProjectId}/media/${media?.id ?? "unknown"}/proxy540.mp4`;
+
+    const payload: HighlightsPayload = {
+      schemaVersion: 1,
+      runId: run.id,
+      projectId: run.sourceProjectId,
+      transcriptId,
+      transcriptRevision: revision,
+      proxy: {
+        bucket: "s3",
+        key: proxyKey,
+      },
+      waveform: null,
+      options: {
+        count: run.requestedCandidates || (discovery["requestedCandidates"] as number) || 5,
+        minDurationMs: (discovery["minDurationMs"] as number) || 15_000,
+        maxDurationMs: (discovery["maxDurationMs"] as number) || 60_000,
+        contentGoal:
+          (discovery["contentGoal"] as "reach" | "education" | "authority" | "engagement") ||
+          "reach",
+        language: sourceLanguage || "hi-Latn",
+      },
+      promptVersion: "highlights-v1",
+      featureVersion: "features-v1",
+    };
+
+    const enqueued = await this.jobs.enqueue({
+      type: "ai.highlights",
+      workspaceId: run.workspaceId,
+      projectId: run.sourceProjectId,
+      params: payload,
+      jobKey: highlightsJobKey(run.id, transcriptId, revision, "default"),
+      worstCaseTenths: 0,
+      reason: `ai.highlights · ${run.id}`,
+    });
+
+    const updated = await this.prisma.repurposeRun.update({
+      where: { id: run.id },
+      data: {
+        status: "analyzing",
+        currentStage: "finding_clips",
+        progress: 45,
+      },
+    });
+    await this.publishStage(updated);
+
+    return enqueued.job.id;
+  }
+
+  async listCandidates(workspaceId: string, runId: string) {
+    await this.assertAvailable(workspaceId);
+    const run = await this.require(workspaceId, runId);
+    const candidates = await this.prisma.clipCandidate.findMany({
+      where: { runId: run.id },
+      orderBy: [{ rank: "asc" }, { potentialScore: "desc" }],
+    });
+    return {
+      runId: run.id,
+      candidates,
+    };
+  }
+
+  async createClip(workspaceId: string, userId: string, runId: string, candidateId: string) {
+    await this.assertAvailable(workspaceId);
+    const run = await this.require(workspaceId, runId);
+    const candidate = await this.prisma.clipCandidate.findFirst({
+      where: { id: candidateId, runId: run.id },
+    });
+    if (!candidate) {
+      throw new AppException(
+        REPURPOSE_ERRORS.notFound,
+        "Clip candidate not found",
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
+    let clip = await this.prisma.repurposeClip.findUnique({
+      where: { candidateId: candidate.id },
+    });
+
+    if (!clip) {
+      clip = await this.prisma.repurposeClip.create({
+        data: {
+          id: ulid(),
+          runId: run.id,
+          candidateId: candidate.id,
+          title: candidate.title,
+          sourceStartMs: candidate.startMs,
+          sourceEndMs: candidate.endMs,
+        },
+      });
+    }
+
+    const media = await this.prisma.mediaAsset.findFirst({
+      where: { projectId: run.sourceProjectId, role: "primary" },
+      orderBy: { createdAt: "desc" },
+    });
+
+    if (!media || !media.storageKey) {
+      throw new AppException(
+        REPURPOSE_ERRORS.sourceUnsupported,
+        "Source media asset is not ready",
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    const destKey = `ws/${workspaceId}/p/${run.sourceProjectId}/repurpose/${run.id}/clips/${candidate.id}/master.mp4`;
+
+    const subtitles: Array<{ startMs: number; endMs: number; text: string }> = [];
+    try {
+      const transcript = await this.prisma.transcript.findFirst({
+        where: { projectId: run.sourceProjectId },
+        orderBy: { createdAt: "desc" },
+      });
+      if (transcript) {
+        const rows = await newestChunkRows(this.prisma, transcript.id);
+        const words: Array<{ text: string; startMs: number; endMs: number }> = [];
+        for (const c of rows) {
+          const chunk = toChunk(c);
+          for (const w of chunk.words) {
+            if (!w.deleted && w.s >= candidate.startMs - 500 && w.e <= candidate.endMs + 500) {
+              words.push({ text: w.t, startMs: w.s, endMs: w.e });
+            }
+          }
+        }
+        const GROUP_SIZE = 5;
+        for (let i = 0; i < words.length; i += GROUP_SIZE) {
+          const group = words.slice(i, i + GROUP_SIZE);
+          const first = group[0];
+          const last = group[group.length - 1];
+          if (first && last) {
+            subtitles.push({
+              startMs: first.startMs,
+              endMs: last.endMs,
+              text: group.map((w) => w.text).join(" "),
+            });
+          }
+        }
+      }
+    } catch {
+      // ignore
+    }
+
+    if (subtitles.length === 0 && candidate.transcriptExcerpt) {
+      const words = candidate.transcriptExcerpt.split(/\s+/);
+      const totalDuration = candidate.endMs - candidate.startMs;
+      const GROUP_SIZE = 5;
+      const numGroups = Math.ceil(words.length / GROUP_SIZE);
+      const groupDuration = totalDuration / Math.max(1, numGroups);
+      for (let i = 0; i < words.length; i += GROUP_SIZE) {
+        const groupIdx = Math.floor(i / GROUP_SIZE);
+        subtitles.push({
+          startMs: Math.round(candidate.startMs + groupIdx * groupDuration),
+          endMs: Math.round(candidate.startMs + (groupIdx + 1) * groupDuration),
+          text: words.slice(i, i + GROUP_SIZE).join(" "),
+        });
+      }
+    }
+
+    const payload: MediaClipPayload = {
+      schemaVersion: 1,
+      runId: run.id,
+      candidateId: candidate.id,
+      clipId: clip.id,
+      source: {
+        bucket: "s3",
+        key: media.storageKey,
+      },
+      sourceDurationMs: media.durationMs ?? candidate.endMs + 5000,
+      startMs: candidate.startMs,
+      endMs: candidate.endMs,
+      handleMs: 500,
+      destination: {
+        bucket: "s3",
+        key: destKey,
+      },
+      profile: {
+        container: "mp4",
+        videoCodec: "h264",
+        audioCodec: "aac",
+        maxHeight: 1080,
+      },
+      profileVersion: "1",
+      subtitles: subtitles.length > 0 ? subtitles : undefined,
+    };
+
+    const enqueued = await this.jobs.enqueue({
+      type: "media.clip",
+      workspaceId,
+      projectId: run.sourceProjectId,
+      params: payload,
+      jobKey: mediaClipJobKey(candidate.id, `${candidate.startMs}-${candidate.endMs}`, "1"),
+      worstCaseTenths: 0,
+      reason: `media.clip · ${clip.id}`,
+    });
+
+    const updated = await this.prisma.repurposeRun.update({
+      where: { id: run.id },
+      data: {
+        status: "materializing",
+        currentStage: "styles_formats",
+        progress: 65,
+      },
+    });
+    await this.publishStage(updated);
+
+    return {
+      clipId: clip.id,
+      jobId: enqueued.job.id,
+      status: "materializing",
+    };
+  }
+
+  async listClips(workspaceId: string, runId: string) {
+    await this.assertAvailable(workspaceId);
+    const run = await this.require(workspaceId, runId);
+    const clips = await this.prisma.repurposeClip.findMany({
+      where: { runId: run.id },
+      include: {
+        candidate: true,
+        variants: {
+          include: {
+            project: {
+              include: {
+                mediaAssets: true,
+                exports: { orderBy: { createdAt: "desc" } },
+              },
+            },
+          },
+        },
+      },
+      orderBy: { createdAt: "asc" },
+    });
+
+    const enriched = await Promise.all(
+      clips.map(async (clip) => {
+        let mezzanineUrl: string | null = null;
+        if (clip.mezzanineKey && this.derivedStore) {
+          try {
+            mezzanineUrl = await this.derivedStore.presignGet(clip.mezzanineKey, 3600);
+          } catch {
+            // ignore
+          }
+        }
+        return {
+          ...clip,
+          mezzanineUrl,
+        };
+      }),
+    );
+
+    const serialized = JSON.parse(
+      JSON.stringify(enriched, (_, v) => (typeof v === "bigint" ? v.toString() : v)),
+    );
+
+    return { runId: run.id, clips: serialized };
+  }
+
+  async getPreview(workspaceId: string, runId: string) {
+    await this.assertAvailable(workspaceId);
+    const run = await this.require(workspaceId, runId);
+    const media = await this.prisma.mediaAsset.findFirst({
+      where: { projectId: run.sourceProjectId, role: "primary" },
+      orderBy: { createdAt: "desc" },
+    });
+
+    let previewUrl: string | null = null;
+    let durationMs = 0;
+    if (media) {
+      durationMs = media.durationMs ?? 0;
+      const key = media.proxyKey ?? media.storageKey;
+      if (key && this.derivedStore) {
+        try {
+          previewUrl = await this.derivedStore.presignGet(key, 3600);
+        } catch {
+          // ignore
+        }
+      }
+    }
+    return {
+      runId: run.id,
+      projectId: run.sourceProjectId,
+      durationMs,
+      previewUrl,
     };
   }
 }
