@@ -302,6 +302,34 @@ class CallbackClient:
         """
         return await self._post(f"/internal/projects/{project_id}/edg/ops", attempt_id, payload)
 
+    async def get_transcript_words(
+        self, transcript_id: str, attempt_id: str, revision: int | None = None
+    ) -> dict[str, Any]:
+        """Fetch transcript words from ``POST /internal/transcripts/{id}/words``."""
+        payload = {"revision": revision} if revision is not None else {}
+        body = encode_body(payload)
+        url = f"{self._origin}/internal/transcripts/{transcript_id}/words"
+        for attempt in range(1, self._max_attempts + 1):
+            headers = signature_headers(secret=self._secret, attempt_id=attempt_id, body=body)
+            try:
+                response = await self._client.post(url, content=body, headers=headers)
+                if response.status_code < 400:
+                    data = response.json()
+                    return data if isinstance(data, dict) else {}
+                if response.status_code < 500 and response.status_code != 429:
+                    raise CallbackError(
+                        f"get_transcript_words rejected with {response.status_code}",
+                        status_code=response.status_code,
+                    )
+            except httpx2.HTTPError as error:
+                _log.warning(
+                    "get_transcript_words transport failure",
+                    extra={"attempt": attempt, "reason": str(error)},
+                )
+            if attempt < self._max_attempts:
+                await asyncio.sleep(self._delay_for(attempt))
+        raise CallbackError(f"get_transcript_words failed after {self._max_attempts} attempts")
+
     async def _post(self, path: str, attempt_id: str, payload: dict[str, Any]) -> CallbackAck:
         body = encode_body(payload)
         url = f"{self._origin}{path}"
