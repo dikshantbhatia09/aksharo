@@ -1,6 +1,7 @@
 "use client";
 
 import { Captions, Loader2, ScanSearch } from "lucide-react";
+import Link from "next/link";
 import * as React from "react";
 
 import {
@@ -10,7 +11,7 @@ import {
   useRawApiClient,
   useTranscribe,
 } from "@montaj/api-client";
-import { Button, toast } from "@montaj/ui";
+import { Button, PageHeader, toast } from "@montaj/ui";
 
 import { ImportSubtitles } from "@/components/editor/ImportSubtitles";
 import { LanguagePicker, rememberLanguage } from "@/components/projects/language-picker";
@@ -218,6 +219,7 @@ export function NeedsTranscription({ projectId }: { projectId: string }): React.
   const startButton = (label: string, disabled: boolean): React.JSX.Element => (
     <Button
       type="button"
+      variant="primary"
       onClick={() => void start()}
       disabled={disabled || transcribe.isPending}
       data-testid="editor-start-transcription"
@@ -234,7 +236,7 @@ export function NeedsTranscription({ projectId }: { projectId: string }): React.
    */
   const importOffer = (note: string): React.JSX.Element => (
     <>
-      <p className="text-fg-3 text-xs">{note}</p>
+      <p className="text-fg-2 text-xs">{note}</p>
       <ImportSubtitles
         projectId={projectId}
         onQueued={() => {
@@ -267,21 +269,21 @@ export function NeedsTranscription({ projectId }: { projectId: string }): React.
     extra?: React.JSX.Element,
   ): React.JSX.Element => (
     <>
-      <h2 className="text-fg-0 text-lg font-semibold">{title}</h2>
-      <p className="text-fg-2 max-w-md text-sm">{message}</p>
-      {startButton(primaryLabel, false)}
-      {extra}
+      <PageHeader title={title} description={message} />
+      <div className="flex flex-wrap items-center gap-2">
+        {startButton(primaryLabel, false)}
+        {extra}
+      </div>
     </>
   );
 
   /** The default offer, also where "Try another file" lands. */
   const offerPanel = (
     <>
-      <h2 className="text-fg-0 text-lg font-semibold">This project has not been transcribed yet</h2>
-      <p className="text-fg-2 max-w-md text-sm">
-        Captions, the timeline and every edit are built from the transcript, so that has to run
-        first.
-      </p>
+      <PageHeader
+        title="This project has not been transcribed yet"
+        description="Captions, the timeline and every edit are built from the transcript, so it has to run before the editor opens."
+      />
       {startButton("Start transcription", false)}
       {importOffer(CREDIT_FREE_NOTE)}
     </>
@@ -314,22 +316,21 @@ export function NeedsTranscription({ projectId }: { projectId: string }): React.
     content = (
       <>
         {spinner}
-        <h2 className="text-fg-0 text-lg font-semibold">Aligning your subtitles…</h2>
-        <p className="text-fg-2 max-w-md text-sm">
-          Your cues are being timed to the audio. This page updates by itself.
-        </p>
+        <PageHeader
+          title="Aligning your subtitles…"
+          description="Your cues are being timed to the audio. This page updates by itself."
+        />
       </>
     );
   } else if (dismissedAlignment) {
     content = offerPanel;
   } else if (blocked) {
     content = (
-      <div className="flex flex-col items-center gap-3" data-testid="transcription-blocked-credits">
-        <h2 className="text-fg-0 text-lg font-semibold">This workspace is out of credits</h2>
-        <p className="text-fg-2 max-w-md text-sm">
-          Transcription needs credits. Ask an administrator to grant more, then come back — this
-          screen will pick it up.
-        </p>
+      <div className="flex flex-col items-start gap-4" data-testid="transcription-blocked-credits">
+        <PageHeader
+          title="This workspace is out of credits"
+          description="Transcription needs credits. Ask an administrator to grant more, then try again. This screen picks it up."
+        />
         {startButton("Try again", false)}
         {importOffer(
           "You do not have to wait for credits: importing an SRT/VTT you already " +
@@ -384,18 +385,11 @@ export function NeedsTranscription({ projectId }: { projectId: string }): React.
   } else if (status === "awaiting_language") {
     content = (
       <>
-        <h2 className="text-fg-0 text-lg font-semibold">
-          Choose the spoken language to transcribe
-        </h2>
-        <p className="text-fg-2 max-w-md text-sm">
-          Transcription is not started without one — a wrong guess routes the wrong lane for
-          code-mixed speech.
-        </p>
-        <LanguagePicker
-          value={chosenLanguage}
-          onChange={(tag) => void chooseLanguage(tag)}
-          className="justify-center"
+        <PageHeader
+          title="Choose the spoken language"
+          description="Transcription starts once you pick one. A wrong guess sends code-mixed speech to the wrong model."
         />
+        <LanguagePicker value={chosenLanguage} onChange={(tag) => void chooseLanguage(tag)} />
         {choosing || transcribe.isPending ? (
           <p className="text-fg-2 text-sm" data-testid="awaiting-language-starting">
             Starting transcription…
@@ -407,8 +401,13 @@ export function NeedsTranscription({ projectId }: { projectId: string }): React.
   } else if (status === "no_media") {
     content = (
       <>
-        <h2 className="text-fg-0 text-lg font-semibold">There is nothing to transcribe yet</h2>
-        <p className="text-fg-2 max-w-md text-sm">Upload a video to this project first.</p>
+        <PageHeader
+          title="There is nothing to transcribe yet"
+          description="This project has no video or audio. Add a file to it first."
+        />
+        <Button asChild variant="secondary">
+          <Link href="/projects">Back to projects</Link>
+        </Button>
       </>
     );
   } else {
@@ -417,7 +416,7 @@ export function NeedsTranscription({ projectId }: { projectId: string }): React.
 
   return (
     <div
-      className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center"
+      className="mx-auto flex h-full min-h-dvh w-full max-w-xl flex-col items-start justify-center gap-4 px-4 py-6 sm:px-6"
       data-testid="editor-needs-transcription"
     >
       {content}

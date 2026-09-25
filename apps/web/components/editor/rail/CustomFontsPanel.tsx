@@ -210,7 +210,8 @@ export function CustomFontsPanel({
           <div className="flex gap-2">
             <Button
               type="button"
-              variant="primary"
+              // Secondary: Export stays the editor's one filled primary.
+              variant="secondary"
               size="sm"
               disabled={!attested || stage.kind !== "attest"}
               onClick={() => void onConfirmAttestation()}

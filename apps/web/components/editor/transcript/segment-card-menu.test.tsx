@@ -85,7 +85,7 @@ describe("SegmentCard context menu", () => {
     openOnCard();
     const del = await screen.findByTestId("segment-menu-delete-word");
     expect(del).toHaveAttribute("data-disabled");
-    expect(del.className).toContain("text-red-400");
+    expect(del.className).toContain("text-rejected");
 
     await user.click(del);
     expect(onRequestAction).not.toHaveBeenCalled();

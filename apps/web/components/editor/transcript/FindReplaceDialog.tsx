@@ -58,7 +58,7 @@ export function FindReplaceDialog({
           type="button"
           data-testid="find-replace-close"
           aria-label="Close"
-          className="text-fg-2 hover:text-fg-0 flex size-7 items-center justify-center rounded-sm transition-colors duration-[160ms]"
+          className="text-fg-2 hover:text-fg-0 flex size-8 items-center justify-center rounded-sm transition-colors duration-[160ms]"
           onClick={onClose}
         >
           <X className="size-3.5" aria-hidden="true" />
@@ -125,7 +125,7 @@ export function FindReplaceDialog({
         data-testid="find-replace-apply"
         disabled={matches.length === 0}
         className={cn(
-          "bg-lime-500 hover:bg-lime-600 text-on-accent flex h-8 items-center justify-center gap-2 rounded-sm px-4 text-sm font-medium transition-colors duration-[160ms]",
+          "bg-accent hover:bg-accent-400 active:bg-accent-300 text-on-accent flex h-8 items-center justify-center gap-2 rounded-sm px-4 text-sm font-semibold transition-colors duration-[160ms]",
           matches.length === 0 && "cursor-not-allowed opacity-40",
         )}
         onClick={() => {

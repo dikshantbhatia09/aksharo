@@ -15,8 +15,8 @@ import {
   type PluginActivationState,
 } from "@/components/plugins/plugin-status";
 
-const STATE_TONE: Record<PluginActivationState, "accent" | "neutral" | "warning"> = {
-  signed_in: "accent",
+const STATE_TONE: Record<PluginActivationState, "accepted" | "neutral" | "warning"> = {
+  signed_in: "accepted",
   not_installed: "neutral",
   limit_reached: "warning",
 };
@@ -57,7 +57,10 @@ export function PluginActivationCue({
       {/* eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up */}
       <Badge tone={STATE_TONE[state]}>{ACTIVATION_STATE_LABEL[state]}</Badge>
       {state === "signed_in" ? null : (
-        <Link href="/plugins" className="text-lime-500 rounded-sm hover:underline">
+        <Link
+          href="/plugins"
+          className="text-accent-300 hover:text-accent-200 rounded-sm underline underline-offset-2"
+        >
           Set up
         </Link>
       )}

@@ -43,7 +43,7 @@ export interface PlayerToolbarProps {
 }
 
 const PILL =
-  "flex h-[27px] items-center gap-1.5 rounded-full bg-[rgba(20,20,22,0.72)] px-3 text-xs text-fg-0 backdrop-blur-[6px] transition-colors duration-[160ms] hover:bg-[rgba(30,30,34,0.85)]";
+  "flex h-8 items-center gap-1.5 rounded-full bg-overlay px-3 text-xs text-fg-0 backdrop-blur-[6px] transition-colors duration-[160ms] hover:bg-ink/90";
 
 export function PlayerToolbar({
   canvas,
@@ -93,13 +93,11 @@ export function PlayerToolbar({
           data-testid="resolution-indicator"
           title={`${String(canvas.width)}×${String(canvas.height)} · ${canvas.aspect}`}
         >
-          <span className="size-[7px] shrink-0 rounded-full bg-[#d8b44a]" aria-hidden="true" />
-          Res
-          {/* The reference shows only "Res" — the project's actual geometry
-              (what this field used to show in full) stays in the DOM for
-              the existing test's assertion and for anyone inspecting via
-              the accessibility tree, just not spelled out visually. */}
-          <span className="sr-only">
+          {/* Shirorekha pass: the pill used to read "Res" beside a gold dot,
+              with the real geometry only in an sr-only span. A label that
+              names nothing is not a label (HIG › Writing), so the pill now
+              shows the geometry itself. */}
+          <span className="font-mono tabular-nums">
             {canvas.width}×{canvas.height} · {canvas.aspect}
           </span>
         </span>

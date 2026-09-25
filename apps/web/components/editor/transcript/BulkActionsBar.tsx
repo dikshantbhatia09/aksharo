@@ -149,7 +149,7 @@ export function BulkActionsBar({
             <button
               type="button"
               data-testid="resegment-confirm"
-              className="bg-lime-500 hover:bg-lime-600 text-on-accent flex h-8 items-center justify-center gap-2 rounded-sm px-4 text-sm font-medium transition-colors duration-[160ms]"
+              className="bg-accent hover:bg-accent-400 active:bg-accent-300 text-on-accent flex h-8 items-center justify-center gap-2 rounded-sm px-4 text-sm font-semibold transition-colors duration-[160ms]"
               onClick={() => {
                 setDialogOpen(false);
                 onResegment(params);

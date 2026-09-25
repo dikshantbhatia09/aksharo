@@ -243,7 +243,7 @@ export function ExportDialog(props: ExportDialogProps): React.JSX.Element {
               reasons={cloudOfferShown ? undefined : reasons}
             />
             {state.response?.quote !== undefined ? (
-              <p className="text-fg-3 mt-2 text-xs" data-testid="export-quote">
+              <p className="text-fg-2 mt-2 text-xs" data-testid="export-quote">
                 {state.response.quote.tenths === 0
                   ? "No credit cost — this browser renders it."
                   : `${state.response.quote.credits} credits`}
@@ -266,7 +266,7 @@ export function ExportDialog(props: ExportDialogProps): React.JSX.Element {
               value={Math.round(state.progress.ratio * 100)}
               label={`${String(Math.round(state.progress.ratio * 100))}%`}
             />
-            <p className="text-fg-3 text-xs">
+            <p className="text-fg-2 text-xs">
               {state.progress.phase} — {state.progress.framesDone}/{state.progress.framesTotal}{" "}
               frames
             </p>
@@ -291,16 +291,16 @@ export function ExportDialog(props: ExportDialogProps): React.JSX.Element {
             {state.cloudJob?.status === "running" ? (
               <>
                 <ProgressBar value={state.cloudJob.progress ?? 0} label="Cloud render progress" />
-                <p className="text-fg-3 text-xs">
+                <p className="text-fg-2 text-xs">
                   {state.cloudJob.progress === null
                     ? "In progress"
                     : `In progress — ${String(state.cloudJob.progress)}%`}
                 </p>
               </>
             ) : (
-              <p className="text-fg-3 text-xs">Waiting for a render worker…</p>
+              <p className="text-fg-2 text-xs">Waiting for a render worker…</p>
             )}
-            <p className="text-fg-3 text-xs">You can close this dialog — the render continues.</p>
+            <p className="text-fg-2 text-xs">You can close this dialog — the render continues.</p>
           </div>
         ) : null}
 
@@ -308,12 +308,12 @@ export function ExportDialog(props: ExportDialogProps): React.JSX.Element {
           <div className="mt-4 flex flex-col gap-2" data-testid="export-cloud-download">
             <p className="text-fg-1 text-sm font-medium">Your export is ready.</p>
             {state.downloadUrl === null ? (
-              <p className="text-fg-3 text-xs">
+              <p className="text-fg-2 text-xs">
                 The file rendered, but no download link came back — find it under the project&apos;s
                 exports.
               </p>
             ) : (
-              <Button asChild data-testid="export-download">
+              <Button asChild variant="primary" data-testid="export-download">
                 <a href={state.downloadUrl} target="_blank" rel="noreferrer">
                   Download file
                 </a>
@@ -324,19 +324,19 @@ export function ExportDialog(props: ExportDialogProps): React.JSX.Element {
 
         {cloudOfferShown ? (
           <div
-            className="mt-4 flex items-start gap-2 rounded-md bg-amber-400/10 p-3 text-xs text-amber-200"
+            className="border-warning/40 bg-warning/10 text-fg-1 mt-4 flex items-start gap-2 rounded-md border p-3 text-xs"
             data-testid="export-cloud-offer"
           >
-            <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+            <AlertTriangle className="text-warning mt-0.5 size-4 shrink-0" aria-hidden="true" />
             <div>
-              <p className="font-medium">This export renders in the cloud.</p>
+              <p className="text-fg-0 font-medium">This export renders in the cloud.</p>
               {reasons?.map((reason, index) => (
                 <p key={index}>{reason}</p>
               ))}
               {state.error !== null ? <p>{state.error}</p> : null}
               {softwareEncoderCloudDefault ? (
                 <div className="mt-2">
-                  <p className="text-amber-200/80">
+                  <p className="text-fg-2">
                     Export directly in this browser instead — no upload to {BRAND.name}&apos;s cloud
                     renderer, but without a hardware video encoder it may be slow.
                   </p>
@@ -356,19 +356,19 @@ export function ExportDialog(props: ExportDialogProps): React.JSX.Element {
         ) : null}
 
         {state.phase === "cancelled" ? (
-          <p className="text-fg-3 mt-4 text-xs" data-testid="export-cancelled">
+          <p className="text-fg-2 mt-4 text-xs" data-testid="export-cancelled">
             Export cancelled.
           </p>
         ) : null}
 
         {state.phase === "error" ? (
-          <p className="mt-4 text-xs text-red-400" data-testid="export-error">
+          <p className="text-rejected mt-4 text-xs" role="alert" data-testid="export-error">
             {state.error}
           </p>
         ) : null}
 
         {state.phase === "done" && state.result !== null ? (
-          <p className="mt-4 text-xs text-emerald-400" data-testid="export-done">
+          <p className="text-accepted mt-4 text-xs" role="status" data-testid="export-done">
             Export finished — {(state.result.sizeBytes / (1024 * 1024)).toFixed(1)} MB,{" "}
             {(state.result.durationMs / 1000).toFixed(1)} s.
           </p>
@@ -377,7 +377,7 @@ export function ExportDialog(props: ExportDialogProps): React.JSX.Element {
         <ExportHistory projectId={props.projectId} onActiveChange={setRenderInFlight} />
 
         {renderInFlight && state.phase !== "cloud-rendering" ? (
-          <p className="text-fg-3 mt-3 text-xs" data-testid="export-render-in-flight">
+          <p className="text-fg-2 mt-3 text-xs" data-testid="export-render-in-flight">
             A render is already running — see Previous exports.
           </p>
         ) : null}
@@ -389,6 +389,9 @@ export function ExportDialog(props: ExportDialogProps): React.JSX.Element {
             </Button>
           ) : (
             <Button
+              // One filled primary per surface: once a cloud render is ready,
+              // Download is the next step and takes the fill.
+              variant={state.phase === "cloud-done" ? "secondary" : "primary"}
               onClick={tab === "video" ? onExportVideo : onExportSubtitles}
               disabled={
                 busy ||
@@ -398,8 +401,12 @@ export function ExportDialog(props: ExportDialogProps): React.JSX.Element {
               }
               data-testid="export-start"
             >
-              {busy ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
-              Export
+              {busy ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : null}
+              {tab === "subtitles"
+                ? "Export subtitles"
+                : tab === "video"
+                  ? "Export video"
+                  : "Export"}
             </Button>
           )}
         </DialogFooter>

@@ -51,7 +51,7 @@ export function CaptionsPanelHeader({
       className={cn("editor-captions-header flex h-14 shrink-0 items-center gap-2.5", className)}
       data-testid="captions-panel-header"
     >
-      <h2 className="text-fg-0 mr-auto text-[21px] font-semibold tracking-[-0.02em]">Captions</h2>
+      <h2 className="text-fg-0 mr-auto text-xl font-semibold tracking-[-0.02em]">Captions</h2>
 
       <button
         type="button"
@@ -59,7 +59,7 @@ export function CaptionsPanelHeader({
         aria-label="Find and replace"
         title="Find and replace"
         data-testid="captions-panel-search"
-        className="editor-pill text-fg-1 flex size-[31px] shrink-0 items-center justify-center rounded-full border transition-colors duration-[160ms]"
+        className="editor-pill text-fg-1 flex size-8 shrink-0 items-center justify-center rounded-full border transition-colors duration-[160ms]"
       >
         <Search className="size-3.5" aria-hidden="true" />
       </button>
@@ -73,14 +73,14 @@ export function CaptionsPanelHeader({
           onClick={() => {
             setOpen((current) => !current);
           }}
-          className="editor-pill text-fg-0 flex h-[31px] items-center gap-2 rounded-full border px-3 text-[13px] transition-colors duration-[160ms]"
+          className="editor-pill text-fg-0 flex h-8 items-center gap-2 rounded-full border px-3 text-sm transition-colors duration-[160ms]"
         >
-          <Settings className="size-[15px]" aria-hidden="true" /> Caption Tools
+          <Settings className="size-4" aria-hidden="true" /> Caption tools
           <ChevronDown className="size-3.5" aria-hidden="true" />
         </button>
         <div
           hidden={!open}
-          aria-label="Caption Tools"
+          aria-label="Caption tools"
           data-testid="captions-panel-tools-menu"
           className="editor-tools-popover border-border bg-bg-1 absolute top-full right-0 z-40 mt-2 flex max-h-[70vh] w-max max-w-[calc(100vw-120px)] flex-col gap-3 overflow-auto rounded-sm border p-3 shadow-xl"
         >

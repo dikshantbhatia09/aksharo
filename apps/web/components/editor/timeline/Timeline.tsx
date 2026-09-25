@@ -101,17 +101,44 @@ import { resolvePassItemDrag, type PassItemNeighbour } from "@/lib/timeline/pass
 import { resolveSegmentDrag, resolveWordEdgeDrag, type Neighbour } from "@/lib/timeline/snapping";
 import { useMemoryNudgeSink } from "@/lib/timeline/use-memory-nudge-sink";
 /**
- * Canvas colours.
+ * Canvas colours (Shirorekha, docs/redesign/DESIGN.md).
  *
  * A 2D canvas takes a resolved colour, not a CSS variable and not a Tailwind
- * class, so these are the only two places in the app where a palette value is
- * written out by hand. They are `--color-accent` and `--color-proposed` from
- * `packages/ui/src/styles/tokens.css`; changing a token means changing these
- * with it, which is why they are named constants at the top of the file
- * rather than string literals buried in the draw loop.
+ * class, so this is the one place in the editor where palette values are
+ * written out by hand. Every entry names the token in
+ * `packages/ui/src/styles/tokens.css` it copies; changing a token means
+ * changing it here too.
+ *
+ * Accent discipline applies on the canvas as well: the rani accent marks only
+ * the word under the playhead and the selection's edges. Word chips and the
+ * waveform are warm neutrals, so the footage and the words stay the subject.
+ * Label text on every chip clears 4.5:1: ink on the accent is 5.5:1, fg-0 on
+ * neutral-700 is 6.4:1, fg-1 on neutral-800 is 7.5:1, ink on fg-0 is 16:1.
  */
-const ACCENT = "#9184d9";
-const PROPOSED = "#e6b45c";
+const CANVAS = {
+  accent: "#f0508a", // --color-accent
+  accentTintStrong: "rgba(240,80,138,0.45)", // accent, selected segment band
+  accentTint: "rgba(240,80,138,0.22)", // accent, unselected segment band
+  accentEdge: "rgba(240,80,138,0.6)",
+  proposed: "#e8b04a", // --color-proposed (low confidence, search match)
+  ink: "#0b0a0c", // --color-ink
+  fg0: "#f1ece6", // --color-fg-0
+  fg1: "#d6cfc8", // --color-fg-1
+  fg2: "#a39a93", // --color-fg-2
+  neutral200: "#ebe5df", // --color-neutral-200
+  chip: "#5a534f", // --color-neutral-700
+  chipFiller: "#3d3739", // --color-neutral-800
+  waveBed: "#262227", // --color-neutral-900
+  wavePeak: "#7c746e", // --color-neutral-600
+  waveEnergy: "#bcb3ac", // --color-neutral-400
+  ruler: "#201d23", // --color-editor-ruler
+  sunken: "#0e0c10", // --color-sunken
+  tick: "rgba(241,236,230,0.14)", // --color-divider
+  wash: "rgba(241,236,230,0.06)",
+  hatch: "rgba(241,236,230,0.3)",
+  seam: "rgba(11,10,12,0.4)",
+  info: "#7fa6f5", // --color-info
+} as const;
 import {
   reduceWaveform,
   waveformDrawWindow,
@@ -173,12 +200,12 @@ const CAPTION_DELAY_STEP_MS = 50;
 // state that is actually *on*.
 // ---------------------------------------------------------------------------
 
-/** 28 px ghost icon button — the toolbar's default tool affordance. */
+/** 32 px ghost icon button — the toolbar's default tool affordance. */
 const TOOL_BUTTON =
-  "text-fg-2 hover:text-fg-0 flex size-7 shrink-0 items-center justify-center rounded-sm transition-colors duration-[160ms]";
+  "text-fg-2 hover:text-fg-0 flex size-8 shrink-0 items-center justify-center rounded-sm transition-colors duration-[160ms]";
 /** A labelled toolbar button: bordered, on `bg-2`, never the accent. */
 const TOOLBAR_BUTTON =
-  "bg-bg-2 border-border text-fg-1 hover:text-fg-0 flex h-7 shrink-0 items-center gap-1.5 rounded-sm border px-2.5 text-xs font-medium transition-colors duration-[160ms]";
+  "bg-bg-2 border-border text-fg-1 hover:text-fg-0 flex h-8 shrink-0 items-center gap-1.5 rounded-sm border px-2.5 text-xs font-medium transition-colors duration-[160ms]";
 const SEGMENTED_TRACK = "flex gap-0.5 rounded-sm border border-border bg-bg-0 p-0.5";
 const TOOLBAR_DIVIDER = "bg-border h-5 w-px shrink-0";
 const SECTION_LABEL = "text-2xs font-medium tracking-wide uppercase text-fg-2";
@@ -198,7 +225,7 @@ const MENU_ACTION =
  */
 function segmentedItem(active: boolean): string {
   return cn(
-    "text-2xs h-[26px] rounded-[6px] border px-2.5 font-medium tracking-wide uppercase transition-colors duration-[160ms]",
+    "text-2xs h-7 rounded-[6px] border px-2.5 font-medium tracking-wide uppercase transition-colors duration-[160ms]",
     active
       ? "border-transparent bg-fg-0 text-bg-1"
       : "text-fg-2 hover:text-fg-0 border-transparent bg-transparent",
@@ -343,8 +370,8 @@ function wordIdWithin(wid: string, startWordId: string, endWordId: string): bool
 
 /**
  * Kalakar's persistent left track-name column (pixel-sampled from the
- * reference, 2026-09-12: a gold italic-T icon for Captions, a blue camera
- * for Video, a mint waveform for Audio, in that top-to-bottom order). Stacks
+ * reference, 2026-09-12; Shirorekha keeps all three icons neutral fg-2: an italic-T for Captions, a camera
+ * for Video, a waveform for Audio, in that top-to-bottom order). Stacks
  * the same fixed lane heights `laneTops` itself now assigns them in — see
  * that `useMemo`'s own comment — rather than reading `laneTops` directly, so
  * the two can't silently disagree about which row is which. The segment/pass
@@ -387,11 +414,11 @@ function TrackLabels({
         className="flex items-center gap-1.5 pr-1"
         style={{ height: THUMB_LANE_HEIGHT, marginBottom: LANE_GAP }}
       >
-        <Video className="size-3.5 shrink-0 text-editor-emphasis" aria-hidden="true" />
+        <Video className="size-3.5 shrink-0 text-fg-2" aria-hidden="true" />
         <span className="text-fg-2 truncate">Video 1</span>
       </div>
       <div className="flex items-center gap-1.5 pr-1" style={{ height: WAVEFORM_HEIGHT }}>
-        <AudioWaveform className="text-lime-500 size-3.5 shrink-0" aria-hidden="true" />
+        <AudioWaveform className="text-fg-2 size-3.5 shrink-0" aria-hidden="true" />
         <span className="text-fg-2 truncate">Audio 1</span>
       </div>
       <div style={{ height: tailHeight }} />
@@ -470,7 +497,7 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
   // resolved against the DOM, since a Canvas2D `fillStyle` cannot read a CSS
   // custom property itself. Falls back to the token's own default so a test
   // environment with no stylesheet still draws something legible.
-  const [protectedColor, setProtectedColor] = useState("#4ea1ff");
+  const [protectedColor, setProtectedColor] = useState<string>(CANVAS.info);
   const [selectedEdge, setSelectedEdge] = useState<"start" | "end" | undefined>(undefined);
   const [selectedWordEdge, setSelectedWordEdge] = useState<"start" | "end" | undefined>(undefined);
   const [hoveredPassItemId, setHoveredPassItemId] = useState<string | undefined>(undefined);
@@ -671,11 +698,11 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
     const { startMs, endMs } = visibleRange(viewport, 50);
 
     // Ruler
-    ctx.fillStyle = "#212126";
+    ctx.fillStyle = CANVAS.ruler;
     ctx.fillRect(0, 0, widthPx, RULER_HEIGHT);
-    ctx.strokeStyle = "rgba(255,255,255,0.15)";
-    ctx.fillStyle = "#8b8b93";
-    ctx.font = "10px sans-serif";
+    ctx.strokeStyle = CANVAS.tick;
+    ctx.fillStyle = CANVAS.fg2;
+    ctx.font = "11px Inter, sans-serif";
     // The ruler is drawn across the whole canvas, whose span is `widthPx *
     // msPerPx` and owes nothing to the media: a 20.2 s clip at the default
     // 30 ms/px on a ~1170 px timeline labelled ticks out to 00:35 (FIX-02 step
@@ -724,7 +751,7 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
     // skipped, so drawing never costs more than the (at most ten) slices
     // actually on screen, regardless of zoom.
     if (thumbnails !== undefined && thumbnails.length > 0) {
-      ctx.fillStyle = "#141416";
+      ctx.fillStyle = CANVAS.sunken;
       ctx.fillRect(0, laneTops.thumbTop, widthPx, THUMB_LANE_HEIGHT);
       const count = thumbnails.length;
       for (const [index, url] of thumbnails.entries()) {
@@ -738,11 +765,11 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
         if (img.complete && img.naturalWidth > 0) {
           ctx.drawImage(img, x0, laneTops.thumbTop + 3, w, THUMB_LANE_HEIGHT - 7);
         } else {
-          ctx.fillStyle = "rgba(255,255,255,0.06)";
+          ctx.fillStyle = CANVAS.wash;
           ctx.fillRect(x0, laneTops.thumbTop, w, THUMB_LANE_HEIGHT);
         }
         if (index > 0) {
-          ctx.strokeStyle = "rgba(0,0,0,0.4)";
+          ctx.strokeStyle = CANVAS.seam;
           ctx.beginPath();
           ctx.moveTo(x0 + 0.5, laneTops.thumbTop);
           ctx.lineTo(x0 + 0.5, laneTops.thumbTop + THUMB_LANE_HEIGHT);
@@ -767,15 +794,15 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
         waveformWindow.widthPx,
       );
       const midY = laneTops.waveformTop + WAVEFORM_HEIGHT / 2;
-      ctx.fillStyle = "#214a3c";
+      ctx.fillStyle = CANVAS.waveBed;
       ctx.fillRect(
         waveformWindow.pxStart,
         laneTops.waveformTop + 3,
         waveformWindow.widthPx,
         WAVEFORM_HEIGHT - 6,
       );
-      ctx.fillStyle = ACCENT;
-      ctx.strokeStyle = "#6dc99e";
+      ctx.fillStyle = CANVAS.wavePeak;
+      ctx.strokeStyle = CANVAS.waveEnergy;
       for (let i = 0; i < buckets.length; i++) {
         // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
         const bucket = buckets[i];
@@ -787,7 +814,7 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
         const energyH = bucket.energy * (WAVEFORM_HEIGHT / 2);
         ctx.globalAlpha = cutAway ? 0.25 : 1;
         ctx.fillRect(px, midY - peakH, 1, peakH * 2);
-        ctx.strokeStyle = "#6dc99e";
+        ctx.strokeStyle = CANVAS.waveEnergy;
         ctx.strokeRect(px, midY - energyH, 1, energyH * 2);
         ctx.globalAlpha = 1;
       }
@@ -816,54 +843,53 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
         const w = Math.max(1, x1 - x0);
         const selected = word.wid === selectedWordId;
         // design/07 §3.1: the word currently under the playhead illuminates
-        // solid mint, distinct from `selected` (an editing click, indigo edge
+        // in the accent, distinct from `selected` (an editing click, indigo edge
         // marks below) — compared against the same shifted `wordStartMs`/
         // `wordEndMs` the chip is positioned with, so it never drifts out of
         // sync with a live Caption Delay preview or an in-progress edge drag.
         const playing = wordStartMs <= playheadMs && playheadMs < wordEndMs;
         const lowConfidence = word.c !== undefined && word.c < 0.6;
-        // Unselected word chips are a muted gold (pixel-sampled from the
-        // reference, 2026-09-12: solid ~#9c9464 chips, not translucent
-        // white) — `playing`/`selected` stay their existing functional
-        // colours, which the reference's static frame never shows a state
-        // for.
+        // Unselected word chips are a warm neutral (Shirorekha: the accent is
+        // spent on the playing word and the selection only). The earlier gold
+        // chip read as the `proposed` signal hue, which is a status colour.
         ctx.fillStyle = playing
-          ? ACCENT
+          ? CANVAS.accent
           : selected
-            ? "#ffffff"
+            ? CANVAS.fg0
             : word.filler === true
-              ? "rgba(197,184,130,0.35)"
-              : "#b0a76f";
+              ? CANVAS.chipFiller
+              : CANVAS.chip;
         ctx.beginPath();
         ctx.roundRect(x0, laneTops.wordTop + 4, w, WORD_LANE_HEIGHT - 8, Math.min(4, w / 2));
         ctx.fill();
         if (lowConfidence) {
-          ctx.fillStyle = PROPOSED;
+          ctx.fillStyle = CANVAS.proposed;
           ctx.fillRect(x0, laneTops.wordTop + WORD_LANE_HEIGHT - 2, w, 2);
         }
         if (selected) {
-          ctx.fillStyle = "#7c8ff0";
+          ctx.fillStyle = CANVAS.accent;
           ctx.fillRect(x0 - 1, laneTops.wordTop, 2, WORD_LANE_HEIGHT);
           ctx.fillRect(x1 - 1, laneTops.wordTop, 2, WORD_LANE_HEIGHT);
         }
         if (searchMatchWordIds.has(word.wid)) {
-          ctx.strokeStyle = "#facc15";
+          ctx.strokeStyle = CANVAS.proposed;
           ctx.lineWidth = 2;
           ctx.strokeRect(x0 + 1, laneTops.wordTop + 1, Math.max(0, w - 2), WORD_LANE_HEIGHT - 2);
           ctx.lineWidth = 1;
         }
         if (w >= MIN_PX_PER_WORD_LABEL) {
-          // Dark label text reads on the gold chip; `playing`/`selected` keep
-          // their own high-contrast colours (mint and white respectively).
-          ctx.fillStyle = playing ? "#ffffff" : selected ? "#0b0b12" : "rgba(32,28,16,0.85)";
+          // Ink on the accent (5.5:1) and on the fg-0 selection; light text
+          // on the neutral chips. White on the accent was 3.4:1.
+          ctx.fillStyle =
+            playing || selected ? CANVAS.ink : word.filler === true ? CANVAS.fg1 : CANVAS.fg0;
           ctx.save();
           ctx.beginPath();
           ctx.rect(x0 + 4, laneTops.wordTop + 4, Math.max(1, w - 8), WORD_LANE_HEIGHT - 9);
           ctx.clip();
-          ctx.font = "10.5px Inter, sans-serif";
+          // 11 px: the meta-text floor (DESIGN.md › Type). The old 8.5 px
+          // "T Text" sub-label under it named nothing and was removed (L-2).
+          ctx.font = "11px Inter, sans-serif";
           ctx.fillText(word.t, x0 + 5, laneTops.wordTop + 16);
-          ctx.font = "8.5px Inter, sans-serif";
-          ctx.fillText("𝑇 Text", x0 + 5, laneTops.wordTop + 28);
           ctx.restore();
         }
       }
@@ -883,32 +909,32 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
             word.e <= segment.endMs + 1 &&
             searchMatchWordIds.has(word.wid),
         );
-        ctx.fillStyle = selected ? "#ffffff" : "#b0a76f";
+        ctx.fillStyle = selected ? CANVAS.fg0 : CANVAS.chip;
         ctx.beginPath();
         ctx.roundRect(x0, laneTops.wordTop + 4, w, WORD_LANE_HEIGHT - 8, Math.min(4, w / 2));
         ctx.fill();
         if (selected) {
-          ctx.fillStyle = "#7c8ff0";
+          ctx.fillStyle = CANVAS.accent;
           ctx.fillRect(x0 - 1, laneTops.wordTop, 2, WORD_LANE_HEIGHT);
           ctx.fillRect(x1 - 1, laneTops.wordTop, 2, WORD_LANE_HEIGHT);
         }
         if (hasMatch) {
-          ctx.strokeStyle = "#facc15";
+          ctx.strokeStyle = CANVAS.proposed;
           ctx.lineWidth = 2;
           ctx.strokeRect(x0 + 1, laneTops.wordTop + 1, Math.max(0, w - 2), WORD_LANE_HEIGHT - 2);
           ctx.lineWidth = 1;
         }
         if (w >= MIN_PX_PER_LINE_LABEL) {
           const text = segmentTextById.get(segment.id) ?? "";
-          ctx.fillStyle = selected ? "#0b0b12" : "rgba(32,28,16,0.85)";
+          ctx.fillStyle = selected ? CANVAS.ink : CANVAS.fg0;
           ctx.save();
           ctx.beginPath();
           ctx.rect(x0 + 4, laneTops.wordTop + 4, Math.max(1, w - 8), WORD_LANE_HEIGHT - 9);
           ctx.clip();
-          ctx.font = "10.5px Inter, sans-serif";
+          // 11 px: the meta-text floor (DESIGN.md › Type). The old 8.5 px
+          // "T Text" sub-label under it named nothing and was removed (L-2).
+          ctx.font = "11px Inter, sans-serif";
           ctx.fillText(text, x0 + 5, laneTops.wordTop + 16);
-          ctx.font = "8.5px Inter, sans-serif";
-          ctx.fillText("𝑇 Text", x0 + 5, laneTops.wordTop + 28);
           ctx.restore();
         }
       }
@@ -934,13 +960,13 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
       if (!selected && segment.hidden !== true) continue;
       ctx.fillStyle =
         segment.hidden === true
-          ? "rgba(255,255,255,0.06)"
+          ? CANVAS.wash
           : selected
-            ? "rgba(124,143,240,0.5)"
-            : "rgba(124,143,240,0.25)";
+            ? CANVAS.accentTintStrong
+            : CANVAS.accentTint;
       ctx.fillRect(x0, laneTops.segmentTop, w, SEGMENT_LANE_HEIGHT);
       if (segment.hidden === true) {
-        ctx.strokeStyle = "rgba(255,255,255,0.3)";
+        ctx.strokeStyle = CANVAS.hatch;
         for (let hx = x0; hx < x1; hx += 6) {
           ctx.beginPath();
           ctx.moveTo(hx, laneTops.segmentTop);
@@ -948,7 +974,7 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
           ctx.stroke();
         }
       }
-      ctx.strokeStyle = selected ? "#ffffff" : "rgba(124,143,240,0.6)";
+      ctx.strokeStyle = selected ? CANVAS.fg0 : CANVAS.accentEdge;
       ctx.strokeRect(
         x0 + 0.5,
         laneTops.segmentTop + 0.5,
@@ -956,7 +982,7 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
         SEGMENT_LANE_HEIGHT - 1,
       );
       if (selected) {
-        ctx.fillStyle = "#ffffff";
+        ctx.fillStyle = CANVAS.fg0;
         ctx.fillRect(x0 - 1, laneTops.segmentTop, 2, SEGMENT_LANE_HEIGHT);
         ctx.fillRect(x1 - 1, laneTops.segmentTop, 2, SEGMENT_LANE_HEIGHT);
       }
@@ -967,8 +993,8 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
       // appears on the timeline.
       if (segment.hidden !== true && w >= MIN_PX_PER_LINE_LABEL) {
         const text = segmentTextById.get(segment.id) ?? "";
-        ctx.fillStyle = selected ? "#0b0b12" : "rgba(255,255,255,0.9)";
-        ctx.font = "11px sans-serif";
+        ctx.fillStyle = CANVAS.fg0;
+        ctx.font = "11px Inter, sans-serif";
         ctx.fillText(text, x0 + 2, laneTops.segmentTop + SEGMENT_LANE_HEIGHT - 9, w - 4);
       }
     }
@@ -1004,7 +1030,7 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
           ctx.restore();
         }
         if (style.struckThrough) {
-          ctx.strokeStyle = "#0a0a0a";
+          ctx.strokeStyle = CANVAS.ink;
           ctx.globalAlpha = 0.6;
           ctx.beginPath();
           ctx.moveTo(x0, top + PASS_LANE_HEIGHT / 2);
@@ -1013,7 +1039,7 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
         }
         ctx.globalAlpha = 1;
         if (hoveredPassItemId === item.itemId) {
-          ctx.strokeStyle = "#ffffff";
+          ctx.strokeStyle = CANVAS.fg0;
           ctx.lineWidth = 2;
           ctx.strokeRect(x0, top, w, PASS_LANE_HEIGHT);
           ctx.lineWidth = 1;
@@ -1034,7 +1060,7 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
               { widthPx: w, heightPx: plotHeight },
             );
             if (points.length > 0) {
-              ctx.strokeStyle = "#e0e7ff";
+              ctx.strokeStyle = CANVAS.neutral200;
               ctx.lineWidth = 1;
               ctx.beginPath();
               points.forEach((point, index) => {
@@ -1044,7 +1070,7 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
                 else ctx.lineTo(px, py);
               });
               ctx.stroke();
-              ctx.fillStyle = "#ffffff";
+              ctx.fillStyle = CANVAS.fg0;
               for (const point of points) {
                 ctx.fillRect(x0 + point.x - 1, plotTop - 1, 2, plotHeight + 2);
               }
@@ -1058,13 +1084,13 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
     const playheadSourceMs = playheadMs;
     if (playheadSourceMs >= startMs && playheadSourceMs <= endMs) {
       const px = msToPx(playheadSourceMs, viewport);
-      ctx.strokeStyle = "#d4d4d8";
+      ctx.strokeStyle = CANVAS.fg0;
       ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.moveTo(px, 0);
       ctx.lineTo(px, laneTops.totalHeight);
       ctx.stroke();
-      ctx.fillStyle = "#d4d4d8";
+      ctx.fillStyle = CANVAS.fg0;
       ctx.beginPath();
       ctx.roundRect(px - 4, 0, 9, 9, 2);
       ctx.fill();
@@ -1921,8 +1947,8 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
               aria-haspopup="true"
               aria-expanded={captionToolsOpen}
               className={TOOL_BUTTON}
-              aria-label="Caption Tools"
-              title="Caption Tools"
+              aria-label="Caption tools"
+              title="Caption tools"
               onClick={() => setCaptionToolsOpen((open) => !open)}
             >
               <SlidersHorizontal className="size-[17px]" aria-hidden="true" />
@@ -1930,7 +1956,7 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
             {captionToolsOpen ? (
               <div
                 role="menu"
-                aria-label="Caption Tools"
+                aria-label="Caption tools"
                 data-testid="timeline-caption-tools-menu"
                 className="border-border bg-bg-1 scrollbar-thin absolute top-full left-0 z-40 mt-1 flex max-h-[75vh] w-72 flex-col gap-3 overflow-y-auto rounded-md border p-3 text-left shadow-xl"
               >
@@ -1975,7 +2001,7 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
                       aria-label="Search captions"
                       value={searchQuery}
                       onChange={(event) => setSearchQuery(event.target.value)}
-                      className="border-border bg-bg-0 text-fg-0 placeholder:text-fg-2 focus:border-lime-500/45 h-7 w-36 rounded-sm border pr-2 pl-7 text-xs transition-colors duration-[160ms] focus:outline-none"
+                      className="border-border bg-bg-0 text-fg-0 placeholder:text-fg-2 focus:border-border-hover h-8 w-36 rounded-sm border pr-2 pl-7 text-xs transition-colors duration-[160ms] focus:outline-none"
                     />
                     {searchQuery !== "" ? (
                       <>
@@ -2036,7 +2062,7 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
                 ) : null}
 
                 <div data-testid="caption-tools-display-settings" className="flex flex-col gap-1.5">
-                  <div className={SECTION_LABEL}>Display Settings</div>
+                  <div className={SECTION_LABEL}>Display settings</div>
                   <label className={MENU_ROW}>
                     Words
                     <select
@@ -2050,7 +2076,7 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
                     </select>
                   </label>
                   <label className={MENU_ROW}>
-                    Max Chars
+                    Max characters
                     <input
                       type="number"
                       min={8}
@@ -2102,7 +2128,7 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
                     className={MENU_ACTION}
                     onClick={runRemovePunctuation}
                   >
-                    Remove Punctuation
+                    Remove punctuation
                   </button>
                   <button
                     type="button"
@@ -2111,7 +2137,7 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
                     className={MENU_ACTION}
                     onClick={runRemoveEmphasis}
                   >
-                    Remove Emphasis
+                    Remove emphasis
                   </button>
                   <button
                     type="button"
@@ -2120,7 +2146,7 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
                     className={MENU_ACTION}
                     onClick={runRemoveGaps}
                   >
-                    Remove Gaps in Captions
+                    Remove gaps in captions
                   </button>
                   <button
                     type="button"
@@ -2129,7 +2155,7 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
                     className={MENU_ACTION}
                     onClick={runRemoveEmojis}
                   >
-                    Remove Emojis
+                    Remove emojis
                   </button>
                 </div>
 
@@ -2137,7 +2163,7 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
                   <div className={SECTION_LABEL}>Timing</div>
                   <label className="text-fg-1 flex flex-col gap-2 text-sm">
                     <span className="flex items-center justify-between">
-                      Caption Delay
+                      Caption delay
                       <span
                         data-testid="caption-tools-delay-value"
                         className="text-fg-2 font-mono text-xs tabular-nums"
@@ -2176,7 +2202,7 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
                       type="button"
                       data-testid="caption-tools-delay-apply"
                       disabled={delayPreviewMs === 0 || onCaptionToolsAction === undefined}
-                      className="bg-lime-500 hover:bg-lime-600 text-on-accent disabled:bg-bg-2 disabled:text-fg-disabled flex h-8 items-center justify-center rounded-sm px-4 text-xs font-medium transition-colors duration-[160ms] disabled:cursor-not-allowed"
+                      className="border-border text-fg-0 hover:bg-neutral-100/7 active:bg-neutral-100/14 disabled:text-fg-disabled flex h-8 items-center justify-center rounded-sm border px-4 text-xs font-medium transition-colors duration-[160ms] disabled:cursor-not-allowed disabled:hover:bg-transparent"
                       onClick={applyCaptionDelay}
                     >
                       Apply

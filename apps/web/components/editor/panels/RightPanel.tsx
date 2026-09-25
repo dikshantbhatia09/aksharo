@@ -258,8 +258,8 @@ export function RightPanel({
                 setTab(entry.id);
               }}
               className={cn(
-                "text-fg-2 hover:text-fg-0 shrink-0 border-b-2 border-transparent pt-3 pb-[9px] text-[13.5px] transition-colors duration-[160ms]",
-                tab === entry.id ? "border-fg-0 text-fg-0" : "",
+                "text-fg-2 hover:text-fg-0 shrink-0 border-b-2 border-transparent pt-3 pb-[9px] text-sm transition-colors duration-[160ms]",
+                tab === entry.id ? "border-accent text-fg-0" : "",
               )}
               data-testid={`right-panel-tab-${entry.id}`}
             >
@@ -415,23 +415,27 @@ function Section({
   const [open, setOpen] = useState(defaultOpen);
   return (
     <div className="editor-inspector-section flex shrink-0 flex-col">
-      <button
-        type="button"
-        onClick={() => {
-          setOpen((prior) => !prior);
-        }}
-        aria-expanded={open}
-        className="editor-section-heading text-fg-2 hover:text-fg-1 flex h-12 shrink-0 items-center gap-2 text-left transition-colors duration-[160ms]"
-      >
-        <ChevronDown
-          className={cn(
-            "size-3.5 shrink-0 transition-transform duration-[160ms]",
-            open ? "" : "-rotate-90",
-          )}
-          aria-hidden="true"
-        />
-        <h3 className="text-[11px] font-semibold tracking-[0.11em] uppercase">{title}</h3>
-      </button>
+      {/* The heading wraps the disclosure button, not the other way round: a
+          heading is not phrasing content, so it cannot sit inside a button. */}
+      <h3 className="m-0">
+        <button
+          type="button"
+          onClick={() => {
+            setOpen((prior) => !prior);
+          }}
+          aria-expanded={open}
+          className="editor-section-heading text-fg-2 hover:text-fg-1 flex h-12 w-full shrink-0 items-center gap-2 text-left transition-colors duration-[160ms]"
+        >
+          <ChevronDown
+            className={cn(
+              "size-3.5 shrink-0 transition-transform duration-[160ms]",
+              open ? "" : "-rotate-90",
+            )}
+            aria-hidden="true"
+          />
+          <span className="text-2xs font-semibold tracking-[0.08em] uppercase">{title}</span>
+        </button>
+      </h3>
       {open ? <div className="editor-section-fields flex flex-col">{children}</div> : null}
     </div>
   );
@@ -486,7 +490,7 @@ function EmphasisField({ style, scope, onOp }: TabProps): React.JSX.Element | nu
               );
             }}
             className={cn(
-              "h-[26px] flex-1 rounded-[6px] border px-2.5 text-xs font-medium transition-colors duration-[160ms]",
+              "h-7 flex-1 rounded-[6px] border px-2.5 text-xs font-medium transition-colors duration-[160ms]",
               current === option.value
                 ? "border-transparent bg-bg-3 text-fg-0"
                 : "text-fg-2 hover:text-fg-0 border-transparent bg-transparent",
@@ -570,7 +574,7 @@ function EmphasisTypographyFields({ style, scope, onOp }: TabProps): React.JSX.E
         className="flex min-h-8 items-center justify-between gap-3"
         htmlFor={EMPHASIS_FONT_WEIGHT_ID}
       >
-        <span className="text-sm text-fg-1">Font Face</span>
+        <span className="text-sm text-fg-1">Font face</span>
         <div className="relative">
           <select
             id={EMPHASIS_FONT_WEIGHT_ID}
@@ -790,7 +794,7 @@ function WeightField({ style, scope, onOp, base }: TabProps): React.JSX.Element 
   return (
     <div className="editor-field-row flex min-h-8 items-center justify-between gap-3">
       <label htmlFor={id} className="text-sm text-fg-1">
-        Font Face
+        Font face
       </label>
       <div className="editor-field-cluster flex items-center gap-2.5">
         <select
@@ -809,13 +813,13 @@ function WeightField({ style, scope, onOp, base }: TabProps): React.JSX.Element 
           ))}
         </select>
         <FieldStepper
-          label="Font Face"
+          label="Font face"
           onPrevious={() => stepWeight(-1)}
           onNext={() => stepWeight(1)}
         />
         <ResetButton
           id={id}
-          label="Font Face"
+          label="Font face"
           disabled={style.typography.weight === (base?.typography.weight ?? 500)}
           onReset={() =>
             onOp(setStyleField(scope, "typography.weight", base?.typography.weight ?? 500))
@@ -850,7 +854,7 @@ const ALIGN_OPTIONS = [
 function TextAlignRow({ style, scope, onOp }: TabProps): React.JSX.Element {
   return (
     <div className="flex min-h-8 items-center justify-between gap-3">
-      <span className="text-fg-1 text-sm">Text Alignment</span>
+      <span className="text-fg-1 text-sm">Text alignment</span>
       <div
         className="editor-format-buttons flex items-center gap-1"
         role="radiogroup"
@@ -1086,7 +1090,7 @@ export function LookPanel({
     <div className="flex shrink-0 flex-col" data-testid="look-panel">
       <Section title="Fonts">
         <SearchSelectField
-          label="Font Family"
+          label="Font family"
           path="typography.fontFamily"
           value={style.typography.fontFamily}
           options={FONT_FAMILY_OPTIONS}
@@ -1102,7 +1106,7 @@ export function LookPanel({
           {...(base === undefined ? {} : { base })}
         />
         <SliderField
-          label="Font Size"
+          label="Font size"
           path="typography.sizePct"
           value={style.typography.sizePct}
           min={800 / canvas.height}
@@ -1375,7 +1379,7 @@ export function EffectsPanel({ style, scope, onOp, base }: TabProps): React.JSX.
           from the old Colors tab's combined "Stroke & background" section
           (same fields, same testids, just filed under Effects' own five
           modules instead) now that Colors and Effects share one Text tab. */}
-      <Section title="Text Stroke">
+      <Section title="Text stroke">
         <ToggleField
           label="Stroke"
           path="stroke.enabled"
@@ -1460,10 +1464,10 @@ const CUE_OPTIONS = [
   { value: "typewriter", label: "Typewriter", icon: Keyboard },
   { value: "bounce", label: "Bounce", icon: Activity },
   { value: "blur", label: "Blur", icon: Droplets },
-  { value: "kinetic-flow", label: "Kinetic Flow", icon: Wind },
+  { value: "kinetic-flow", label: "Kinetic flow", icon: Wind },
 ] as const;
 
-/** design/11 §3: one 88×78px tile, mint-bordered when it is the active `In` transition. */
+/** design/11 §3: one 88×78px tile, ringed in the accent (a selected card) when it is the active `In` transition. */
 function TransitionTile({
   option,
   active,
@@ -1484,7 +1488,7 @@ function TransitionTile({
       className={cn(
         "flex h-[78px] flex-col items-center justify-center gap-1.5 rounded-md border transition-colors duration-[160ms]",
         active
-          ? "border-lime-500 bg-lime-500/10 text-lime-500"
+          ? "border-accent bg-bg-0 text-fg-0 ring-1 ring-accent"
           : "border-border bg-bg-0 text-fg-1 hover:border-fg-2/60 hover:bg-bg-2",
       )}
     >
@@ -1509,9 +1513,9 @@ export function AnimPanel({ style, scope, onOp, base }: TabProps): React.JSX.Ele
           path="animation.typographyMotion.mode"
           value={motion.mode}
           options={[
-            { value: "focus", label: "Keyword Zoom" },
-            { value: "stack", label: "Editorial Stack" },
-            { value: "echo", label: "Ghost Type" },
+            { value: "focus", label: "Keyword zoom" },
+            { value: "stack", label: "Editorial stack" },
+            { value: "echo", label: "Ghost type" },
           ]}
           scope={scope}
           onOp={onOp}
@@ -1578,7 +1582,7 @@ export function AnimPanel({ style, scope, onOp, base }: TabProps): React.JSX.Ele
                 onOp(setStyleField(scope, "animation.cueScope", value));
               }}
               className={cn(
-                "h-[26px] flex-1 rounded-[6px] border px-2.5 text-xs font-medium capitalize transition-colors duration-[160ms]",
+                "h-7 flex-1 rounded-[6px] border px-2.5 text-xs font-medium capitalize transition-colors duration-[160ms]",
                 cueScope === value
                   ? "border-transparent bg-bg-3 text-fg-0"
                   : "text-fg-2 hover:text-fg-0 border-transparent bg-transparent",
@@ -1590,8 +1594,7 @@ export function AnimPanel({ style, scope, onOp, base }: TabProps): React.JSX.Ele
           ))}
         </div>
         <p className="text-fg-2 text-2xs">
-          Transitions will be Applied on{" "}
-          <span className="text-lime-500 font-semibold capitalize">{cueScope}</span>
+          Transitions play on each <span className="text-fg-0 font-semibold">{cueScope}</span>.
         </p>
       </div>
 
@@ -1637,7 +1640,7 @@ export function AnimPanel({ style, scope, onOp, base }: TabProps): React.JSX.Ele
         behaves exactly as before this WP.
       */}
       <ToggleField
-        label="Speed Mode: Dynamic"
+        label="Speed mode: dynamic"
         path="animation.dynamicSpeed"
         value={style.animation.dynamicSpeed === true}
         scope={scope}

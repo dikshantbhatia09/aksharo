@@ -10,6 +10,7 @@
  * pages (`StyleGallery`, `/studio/styles`) use.
  */
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
@@ -22,6 +23,7 @@ import type { FontRegistry, Shaper } from "@montaj/render-core";
 import { fromAcceptedItems } from "@montaj/timemap";
 import type { TimeMap } from "@montaj/timemap";
 import {
+  Button,
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
@@ -34,6 +36,7 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  PageHeader,
   toast,
 } from "@montaj/ui";
 
@@ -284,8 +287,13 @@ export function EditorClient({
 
   if (load.status === "loading") {
     return (
-      <div className="flex h-full items-center justify-center" data-testid="editor-loading">
-        <p className="text-fg-2 text-sm">Loading the editor…</p>
+      <div
+        className="flex h-dvh items-center justify-center"
+        data-testid="editor-loading"
+        role="status"
+        aria-live="polite"
+      >
+        <p className="text-fg-2 text-sm">Opening the project…</p>
       </div>
     );
   }
@@ -296,10 +304,26 @@ export function EditorClient({
       return <NeedsTranscription projectId={projectId} />;
     }
     return (
-      <div className="flex h-full items-center justify-center" data-testid="editor-error">
-        <p className="text-rejected text-sm">
-          {load.error?.message ?? "This project could not be opened."}
-        </p>
+      <div
+        className="mx-auto flex h-dvh max-w-xl flex-col justify-center gap-6 px-4 sm:px-6"
+        data-testid="editor-error"
+        role="alert"
+      >
+        <PageHeader
+          title="This project could not be opened"
+          description={
+            load.error?.message ??
+            "Something stopped the editor loading it. Check your connection and try again."
+          }
+        />
+        <div className="flex flex-wrap gap-2">
+          <Button variant="primary" onClick={() => window.location.reload()}>
+            Try again
+          </Button>
+          <Button asChild variant="ghost">
+            <Link href="/projects">Back to projects</Link>
+          </Button>
+        </div>
       </div>
     );
   }
@@ -943,25 +967,34 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
         {snapshot.pendingCount}
       </span>
       {snapshot.offline ? (
-        <div data-testid="editor-offline" className="text-proposed px-3 text-xs">
-          Offline — retrying…
+        <div
+          data-testid="editor-offline"
+          role="status"
+          className="border-warning/40 bg-warning/10 text-fg-1 border-b px-4 py-1.5 text-xs"
+        >
+          <span className="text-warning font-medium">Offline.</span> Retrying. Keep this tab open so
+          your latest edits can sync.
         </div>
       ) : null}
 
       {snapshot.tooStale ? (
         <div
+          role="alert"
           className="border-rejected/30 bg-rejected/10 text-fg-1 flex items-center justify-between gap-3 border-b px-4 py-2 text-sm"
           data-testid="editor-too-stale"
         >
-          <span>This editor fell too far behind to catch up automatically.</span>
-          <button
-            type="button"
+          <span>
+            This editor fell too far behind to catch up automatically. Reload to get the latest
+            version.
+          </span>
+          <Button
+            variant="secondary"
+            size="sm"
             data-testid="editor-reload"
-            className="border-lime-500/45 bg-lime-500/12 text-lime-500 h-8 rounded-sm border px-2.5 text-sm font-medium transition-colors duration-[160ms]"
             onClick={() => void store.reload()}
           >
             Reload
-          </button>
+          </Button>
         </div>
       ) : null}
 

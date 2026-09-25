@@ -30,7 +30,7 @@ export function WatermarkNotice({
     >
       <p className="text-fg-2 font-medium">This export carries the Aksharo watermark.</p>
       {reasons?.map((reason, index) => (
-        <p key={index} className="text-fg-3 mt-1">
+        <p key={index} className="text-fg-2 mt-1">
           {reason}
         </p>
       ))}

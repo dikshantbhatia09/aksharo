@@ -141,7 +141,7 @@ function relativeTime(iso: string, now: number): string {
   return RELATIVE.format(-Math.round(elapsed / step.inMs), step.unit);
 }
 
-type ChipTone = "neutral" | "warning" | "accent" | "rejected";
+type ChipTone = "neutral" | "warning" | "accepted" | "rejected";
 
 /**
  * Every `ExportStatus` the list can hand back, and nothing else — the row IS
@@ -152,7 +152,7 @@ type ChipTone = "neutral" | "warning" | "accent" | "rejected";
 const CHIPS: Record<string, { readonly chip: string; readonly tone: ChipTone }> = {
   pending_browser: { chip: "In browser", tone: "neutral" },
   rendering: { chip: "Rendering…", tone: "warning" },
-  succeeded: { chip: "Succeeded", tone: "accent" },
+  succeeded: { chip: "Succeeded", tone: "accepted" },
   // The row carries no error text, so this says what happened and no more.
   failed: { chip: "Render failed", tone: "rejected" },
 };
@@ -269,7 +269,7 @@ export function ExportHistory({
       <h3 className="text-fg-2 text-xs font-medium">Previous exports</h3>
 
       {snapshot.loaded && rows.length === 0 ? (
-        <p className="text-fg-3 mt-2 text-xs">No exports yet.</p>
+        <p className="text-fg-2 mt-2 text-xs">No exports yet.</p>
       ) : null}
 
       <ul className="mt-2 flex flex-col gap-2">
@@ -279,7 +279,7 @@ export function ExportHistory({
             className="flex items-center gap-2 text-xs"
             data-testid="export-history-row"
           >
-            <span className="text-fg-3 shrink-0">{relativeTime(row.at, now)}</span>
+            <span className="text-fg-2 shrink-0">{relativeTime(row.at, now)}</span>
             <span className="text-fg-1 truncate">{row.label}</span>
             <Badge tone={row.tone}>{row.chip}</Badge>
             {row.watermarked ? <Badge tone="neutral">Watermarked</Badge> : null}
@@ -291,7 +291,11 @@ export function ExportHistory({
               />
             ) : null}
             {row.downloadId !== null && failedDownload === row.downloadId ? (
-              <span className="text-red-400" data-testid="export-history-download-error">
+              <span
+                className="text-rejected"
+                role="alert"
+                data-testid="export-history-download-error"
+              >
                 No link — try again.
               </span>
             ) : null}

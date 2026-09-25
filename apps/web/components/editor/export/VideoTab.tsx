@@ -100,7 +100,7 @@ export function VideoTab({
         >
           <span>Caption opacity</span>
           <span
-            className="text-fg-3 tabular-nums font-normal"
+            className="text-fg-2 tabular-nums font-normal"
             data-testid="export-caption-opacity-value"
           >
             {opacityPct}%
@@ -121,7 +121,7 @@ export function VideoTab({
           className="w-full"
         />
       </div>
-      <label className="text-fg-3 flex items-center gap-1.5 text-xs">
+      <label className="text-fg-2 flex items-center gap-1.5 text-xs">
         <input
           type="checkbox"
           checked={value.dropFillers}

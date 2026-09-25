@@ -119,12 +119,14 @@ function WordChipImpl({
       className={cn(
         "editor-word-chip text-fg-0 inline-block cursor-text rounded-[6px] px-0.5 py-0.5 text-[15px] outline-none transition-colors duration-[160ms]",
         "hover:bg-bg-2 hover:text-fg-0",
-        "focus-visible:ring-2 focus-visible:ring-lime-500",
+        "focus-visible:ring-2 focus-visible:ring-accent",
         active &&
-          "bg-lime-500/20 text-lime-500 hover:bg-lime-500/20 hover:text-lime-500 ring-1 ring-lime-500",
-        selected && !active && "ring-1 ring-lime-500",
+          "bg-accent-900 text-accent-200 hover:bg-accent-900 hover:text-accent-200 ring-1 ring-accent",
+        selected && !active && "ring-1 ring-accent",
         emphasized && "editor-word-emphasis",
-        word.filler === true && "text-fg-disabled",
+        // Fillers are content, not disabled controls: fg-2 (6.1:1) plus italics,
+        // so they read as quieter without falling under 4.5:1.
+        word.filler === true && "text-fg-2 italic",
         lowConfidence &&
           "text-proposed underline decoration-proposed decoration-dotted underline-offset-2",
       )}

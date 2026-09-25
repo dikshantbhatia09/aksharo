@@ -97,7 +97,7 @@ export function EditorCommandPalette({ ctx }: EditorCommandPaletteProps): React.
                     setOpen(false);
                     action.run(ctx);
                   }}
-                  className={action.destructive === true ? "text-red-400" : undefined}
+                  className={action.destructive === true ? "text-rejected" : undefined}
                 >
                   {action.label}
                   {action.shortcut === undefined ? null : (

@@ -281,7 +281,7 @@ export function ExportUpsellPanel({
       {razorpayEnabled ? (
         <a
           href="/pricing"
-          className="text-lime-500 flex items-center gap-1 self-start text-sm hover:underline"
+          className="text-accent-300 hover:text-accent-200 flex items-center gap-1 self-start rounded-sm text-sm underline underline-offset-2"
           data-testid="export-upsell-see-plans"
         >
           <CreditCard className="size-4" aria-hidden="true" />

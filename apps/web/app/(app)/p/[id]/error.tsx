@@ -1,6 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import * as React from "react";
+
+import { Button, PageHeader } from "@montaj/ui";
 
 /**
  * The editor's own error boundary.
@@ -28,34 +31,32 @@ export default function EditorError({
 
   return (
     <div
-      className="flex h-[calc(100dvh-3.5rem)] flex-col items-center justify-center gap-3 p-8 text-center"
+      className="mx-auto flex h-dvh w-full max-w-xl flex-col justify-center gap-6 px-4 sm:px-6"
       data-testid="editor-error-boundary"
       role="alert"
     >
-      <h2 className="text-fg-0 text-lg font-semibold">The editor hit a problem</h2>
-      <p className="text-fg-2 max-w-md text-sm">
-        Your edits are saved — every change is written to the server as you make it. Reloading the
-        editor is safe.
-      </p>
-      <pre className="text-fg-3 max-w-xl overflow-x-auto rounded border border-white/10 bg-black/30 p-3 text-left text-xs">
-        {error.message}
-        {error.digest === undefined ? "" : `\n\ndigest: ${error.digest}`}
-      </pre>
-      <div className="flex gap-2">
-        <button
-          type="button"
-          onClick={reset}
-          className="rounded bg-white/10 px-3 py-1.5 text-sm font-medium hover:bg-white/15"
-          data-testid="editor-error-retry"
-        >
+      <PageHeader
+        title="The editor hit a problem"
+        description="Your edits are saved: every change is written to the server as you make it, so reloading the editor is safe."
+      />
+      <details className="border-border bg-sunken rounded-md border p-3 text-xs">
+        <summary className="text-fg-2 cursor-pointer rounded-sm">Technical details</summary>
+        <pre className="text-fg-1 mt-2 overflow-x-auto font-mono whitespace-pre-wrap">
+          {error.message}
+          {error.digest === undefined
+            ? ""
+            : `
+
+digest: ${error.digest}`}
+        </pre>
+      </details>
+      <div className="flex flex-wrap gap-2">
+        <Button variant="primary" onClick={reset} data-testid="editor-error-retry">
           Reload the editor
-        </button>
-        <a
-          href="/projects"
-          className="text-fg-2 hover:text-fg-0 rounded px-3 py-1.5 text-sm font-medium underline"
-        >
-          Back to projects
-        </a>
+        </Button>
+        <Button asChild variant="ghost">
+          <Link href="/projects">Back to projects</Link>
+        </Button>
       </div>
     </div>
   );

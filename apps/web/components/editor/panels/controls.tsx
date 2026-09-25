@@ -81,7 +81,7 @@ export function ResetButton({
       disabled={disabled}
       aria-label={`Reset ${label}`}
       title={`Reset ${label}`}
-      className="editor-reset text-fg-2 hover:text-fg-0 flex size-[22px] shrink-0 items-center justify-center rounded-[6px] transition-colors duration-[160ms]"
+      className="editor-reset text-fg-2 hover:text-fg-0 flex size-6 shrink-0 items-center justify-center rounded-[6px] transition-colors duration-[160ms]"
       data-testid={`${id}-reset`}
     >
       <RotateCcw className="size-3.5" aria-hidden="true" />
@@ -203,7 +203,7 @@ function fillStyle(value: number, min: number, max: number): React.CSSProperties
  */
 function segmentedItem(active: boolean): string {
   return cn(
-    "h-[26px] rounded-[6px] border px-2.5 text-xs font-medium transition-colors duration-[160ms]",
+    "h-7 rounded-[6px] border px-2.5 text-xs font-medium transition-colors duration-[160ms]",
     active
       ? "border-transparent bg-bg-3 text-fg-0"
       : "text-fg-2 hover:text-fg-0 border-transparent bg-transparent",
@@ -414,7 +414,7 @@ export function ColorOrGradientField({
                   removeStop(index);
                 }}
                 disabled={value.stops.length <= 2}
-                className="text-fg-2 hover:text-fg-0 disabled:text-fg-disabled flex size-[22px] shrink-0 items-center justify-center rounded-[6px] text-xs transition-colors disabled:cursor-not-allowed disabled:hover:text-fg-disabled"
+                className="text-fg-2 hover:text-fg-0 disabled:text-fg-disabled flex size-6 shrink-0 items-center justify-center rounded-[6px] text-xs transition-colors disabled:cursor-not-allowed disabled:hover:text-fg-disabled"
                 data-testid={`${idPrefix}-stop-${String(index)}-remove`}
                 aria-label={`Remove stop ${String(index + 1)}`}
               >

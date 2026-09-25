@@ -22,7 +22,6 @@
 import { Lock, Unlock } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
-
 import type { StyleDoc } from "@montaj/caption-styles";
 import { layoutFrame, renderFrame } from "@montaj/render-core";
 import type { DisplayScript, EdgProjection } from "@montaj/render-core";
@@ -425,7 +424,7 @@ export function CaptionStage({
   return (
     <div
       ref={containerRef}
-      className={cn("bg-bg-0 relative h-full w-full touch-none select-none", className)}
+      className={cn("bg-ink relative h-full w-full touch-none select-none", className)}
       data-testid="caption-stage"
       data-state={error !== undefined ? "error" : loading ? "loading" : "ready"}
       onPointerDown={onPointerDown}
@@ -483,36 +482,65 @@ export function CaptionStage({
           {/* Lock / Unlock Drag Guard */}
           <button
             type="button"
-            className="pointer-events-auto bg-surface border-border text-fg-0 hover:bg-bg-2 absolute -top-8 left-1/2 flex -translate-x-1/2 cursor-pointer items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs shadow-md transition-colors"
+            className="pointer-events-auto bg-surface border-border text-fg-0 hover:bg-bg-2 absolute -top-9 left-1/2 flex h-7 -translate-x-1/2 cursor-pointer items-center gap-1.5 rounded-full border px-3 text-xs shadow-md transition-colors"
             onClick={(e) => {
               e.stopPropagation();
               setIsLocked((locked) => !locked);
             }}
-            title="Unlock to move lines or words"
+            title={isLocked ? "Unlock to move lines or words" : "Lock the caption position"}
+            aria-label={
+              isLocked
+                ? "Caption position locked. Unlock to move it"
+                : "Caption position unlocked. Lock it"
+            }
             data-testid="caption-stage-lock-guard"
           >
             {isLocked ? (
               <>
-                <Lock className="size-3 text-amber-400" />
-                <span className="text-[10px] font-medium text-fg-2">Locked</span>
+                <Lock className="text-fg-2 size-3.5" aria-hidden="true" />
+                <span className="text-fg-1 font-medium">Locked</span>
               </>
             ) : (
               <>
-                <Unlock className="text-accent size-3" />
-                <span className="text-accent text-[10px] font-medium">Unlocked</span>
+                <Unlock className="text-fg-0 size-3.5" aria-hidden="true" />
+                <span className="text-fg-0 font-medium">Unlocked</span>
               </>
             )}
           </button>
 
           {/* 8-point handles */}
-          <div className="absolute -top-1 -left-1 size-2 rounded-full bg-white border border-black shadow" />
-          <div className="absolute -top-1 left-1/2 -translate-x-1/2 size-2 rounded-full bg-white border border-black shadow" />
-          <div className="absolute -top-1 -right-1 size-2 rounded-full bg-white border border-black shadow" />
-          <div className="absolute top-1/2 -left-1 -translate-y-1/2 size-2 rounded-full bg-white border border-black shadow" />
-          <div className="absolute top-1/2 -right-1 -translate-y-1/2 size-2 rounded-full bg-white border border-black shadow" />
-          <div className="absolute -bottom-1 -left-1 size-2 rounded-full bg-white border border-black shadow" />
-          <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 size-2 rounded-full bg-white border border-black shadow" />
-          <div className="absolute -bottom-1 -right-1 size-2 rounded-full bg-white border border-black shadow" />
+          <div
+            className="absolute -top-1 -left-1 size-2 rounded-full border border-ink bg-fg-0 shadow"
+            aria-hidden="true"
+          />
+          <div
+            className="absolute -top-1 left-1/2 -translate-x-1/2 size-2 rounded-full border border-ink bg-fg-0 shadow"
+            aria-hidden="true"
+          />
+          <div
+            className="absolute -top-1 -right-1 size-2 rounded-full border border-ink bg-fg-0 shadow"
+            aria-hidden="true"
+          />
+          <div
+            className="absolute top-1/2 -left-1 -translate-y-1/2 size-2 rounded-full border border-ink bg-fg-0 shadow"
+            aria-hidden="true"
+          />
+          <div
+            className="absolute top-1/2 -right-1 -translate-y-1/2 size-2 rounded-full border border-ink bg-fg-0 shadow"
+            aria-hidden="true"
+          />
+          <div
+            className="absolute -bottom-1 -left-1 size-2 rounded-full border border-ink bg-fg-0 shadow"
+            aria-hidden="true"
+          />
+          <div
+            className="absolute -bottom-1 left-1/2 -translate-x-1/2 size-2 rounded-full border border-ink bg-fg-0 shadow"
+            aria-hidden="true"
+          />
+          <div
+            className="absolute -bottom-1 -right-1 size-2 rounded-full border border-ink bg-fg-0 shadow"
+            aria-hidden="true"
+          />
         </div>
       ) : null}
       {typeof children === "function" ? children({ fit, canvas: surfaceCanvas }) : children}

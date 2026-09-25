@@ -42,7 +42,7 @@ export function CropWindowOverlay(props: CropWindowOverlayProps): React.JSX.Elem
   return (
     <div
       data-testid="crop-window-overlay"
-      className={`pointer-events-none absolute rounded-sm border-2 border-lime-500 ${className ?? ""}`}
+      className={`pointer-events-none absolute rounded-sm border-2 border-accent ${className ?? ""}`}
       style={{
         left,
         top,
@@ -55,19 +55,19 @@ export function CropWindowOverlay(props: CropWindowOverlayProps): React.JSX.Elem
       }}
     >
       <span
-        className="absolute -top-1 -left-1 size-1.5 rounded-full bg-lime-500"
+        className="absolute -top-1 -left-1 size-1.5 rounded-full bg-accent"
         aria-hidden="true"
       />
       <span
-        className="absolute -top-1 -right-1 size-1.5 rounded-full bg-lime-500"
+        className="absolute -top-1 -right-1 size-1.5 rounded-full bg-accent"
         aria-hidden="true"
       />
       <span
-        className="absolute -bottom-1 -left-1 size-1.5 rounded-full bg-lime-500"
+        className="absolute -bottom-1 -left-1 size-1.5 rounded-full bg-accent"
         aria-hidden="true"
       />
       <span
-        className="absolute -right-1 -bottom-1 size-1.5 rounded-full bg-lime-500"
+        className="absolute -right-1 -bottom-1 size-1.5 rounded-full bg-accent"
         aria-hidden="true"
       />
     </div>

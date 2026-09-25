@@ -107,7 +107,7 @@ export function FirstRunCoachMarks(): React.JSX.Element | null {
         className="pointer-events-auto mt-3 flex items-center justify-between"
         style={{ pointerEvents: "auto" }}
       >
-        <span className="text-fg-3 text-2xs">
+        <span className="text-fg-2 text-2xs">
           {index + 1} / {STEPS.length}
         </span>
         <div className="flex gap-2">

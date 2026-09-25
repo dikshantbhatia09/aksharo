@@ -63,7 +63,9 @@ export function ExportButton(props: ExportButtonProps): React.JSX.Element {
     <>
       <Button
         type="button"
-        variant="secondary"
+        // The editor's one filled primary: Export is what the whole screen is
+        // for. Everything else in the chrome is secondary or ghost.
+        variant="primary"
         size="sm"
         data-testid="editor-export-open"
         onClick={() => setOpen(true)}

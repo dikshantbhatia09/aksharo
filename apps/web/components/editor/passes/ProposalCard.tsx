@@ -147,7 +147,7 @@ export function ProposalCard({
       aria-current={focused}
       className={cn(
         "bg-bg-0 flex flex-col gap-2 rounded-sm border p-2.5 transition-colors duration-[160ms]",
-        focused ? "border-lime-500/45 ring-1 ring-lime-500/45" : "border-border",
+        focused ? "border-accent ring-1 ring-accent" : "border-border",
         className,
       )}
     >
@@ -171,7 +171,7 @@ export function ProposalCard({
           >
             <span className="bg-bg-2 h-1.5 w-10 overflow-hidden rounded-full" aria-hidden="true">
               <span
-                className="bg-lime-500 block h-full rounded-full"
+                className="bg-accent block h-full rounded-full"
                 style={{ width: `${String(Math.round(item.confidence * 100))}%` }}
               />
             </span>

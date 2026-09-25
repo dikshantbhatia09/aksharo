@@ -12,8 +12,16 @@
  * reused as-is rather than forked — both are already self-contained (they
  * fetch their own data) and layout-agnostic enough to sit in a slim bar
  * instead of a sidebar footer.
+ *
+ * Shirorekha (docs/redesign/DESIGN.md): the project title is this page's
+ * title, so it is the page's one `h1`, set in the display face and hung from
+ * the shirorekha bar, the same signature `PageHeader` draws on every other
+ * page. `PageHeader` itself is not used here: its 28 px title and wrapping
+ * description would cost the footage vertical space in a 48 px tool bar. The
+ * back link is a neutral ghost icon button; it used to be an accent-filled
+ * tile, which spent the accent on navigation rather than on Export.
  */
-import { Home } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -52,54 +60,53 @@ export function EditorTopBar({
 
   return (
     <header
-      className={cn(
-        "editor-top-bar bg-bg-0 flex h-[42px] shrink-0 items-center gap-2.5 px-3",
-        className,
-      )}
+      className={cn("editor-top-bar bg-bg-0 flex h-12 shrink-0 items-center gap-3 px-3", className)}
       data-testid="editor-top-bar"
     >
       <Link
         href="/"
         aria-label="Back to projects"
         title="Back to projects"
-        className="bg-mint text-on-accent hover:bg-mint-hover flex size-7 shrink-0 items-center justify-center rounded-sm transition-colors duration-[160ms]"
+        className="text-fg-2 hover:bg-neutral-100/7 hover:text-fg-0 active:bg-neutral-100/14 flex size-8 shrink-0 items-center justify-center rounded-sm transition-colors duration-[160ms]"
         data-testid="editor-back-link"
       >
-        <Home className="size-4" aria-hidden="true" />
+        <ArrowLeft className="size-4" strokeWidth={1.75} aria-hidden="true" />
       </Link>
 
-      {editing ? (
-        <input
-          autoFocus
-          value={draft}
-          data-testid="editor-title-input"
-          aria-label="Project title"
-          onChange={(event) => {
-            setDraft(event.target.value);
-          }}
-          onBlur={commit}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") {
-              event.preventDefault();
-              commit();
-            } else if (event.key === "Escape") {
-              event.preventDefault();
-              setEditing(false);
-            }
-          }}
-          className="text-fg-0 border-lime-500/60 bg-bg-0 min-w-0 flex-1 rounded-sm border px-1.5 py-0.5 text-sm font-medium outline-none"
-        />
-      ) : (
-        <button
-          type="button"
-          onClick={startEditing}
-          title="Rename project"
-          data-testid="editor-title-button"
-          className="text-fg-0 hover:bg-bg-2 min-w-0 flex-1 truncate rounded-sm py-0.5 text-left text-[15px] font-medium tracking-[-0.01em] transition-colors duration-[160ms]"
-        >
-          {title}
-        </button>
-      )}
+      <h1 className="shirorekha m-0 flex min-w-0 flex-1 items-center">
+        {editing ? (
+          <input
+            autoFocus
+            value={draft}
+            data-testid="editor-title-input"
+            aria-label="Project title"
+            onChange={(event) => {
+              setDraft(event.target.value);
+            }}
+            onBlur={commit}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                commit();
+              } else if (event.key === "Escape") {
+                event.preventDefault();
+                setEditing(false);
+              }
+            }}
+            className="text-fg-0 border-border-hover bg-sunken font-display min-w-0 flex-1 rounded-sm border px-1.5 py-0.5 text-lg font-semibold [font-stretch:92%]"
+          />
+        ) : (
+          <button
+            type="button"
+            onClick={startEditing}
+            title="Rename project"
+            data-testid="editor-title-button"
+            className="text-fg-0 hover:bg-neutral-100/7 font-display min-w-0 max-w-full truncate rounded-sm px-1 py-0.5 text-left text-lg font-semibold tracking-[-0.01em] [font-stretch:92%] transition-colors duration-[160ms]"
+          >
+            {title}
+          </button>
+        )}
+      </h1>
 
       <UpgradeButton editor />
       <ProfileMenu editor />

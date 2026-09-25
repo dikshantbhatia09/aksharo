@@ -179,7 +179,7 @@ export function ScriptTabs({
               >
                 {SCRIPT_LABELS[row.script] ?? row.script}
                 {!row.available && inFlight ? (
-                  <span className="text-fg-3 ml-1 text-xs">…</span>
+                  <span className="text-fg-2 ml-1 text-xs">…</span>
                 ) : null}
               </TabsTrigger>
             );

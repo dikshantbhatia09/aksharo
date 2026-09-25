@@ -43,7 +43,7 @@ export function SubtitlesTab({
   return (
     <div className="space-y-2 py-2" data-testid="export-subtitles-tab">
       {CLIENT_FORMATS.map((format) => (
-        <label key={format.value} className="text-fg-3 flex items-center gap-1.5 text-xs">
+        <label key={format.value} className="text-fg-2 flex items-center gap-1.5 text-xs">
           <input
             type="checkbox"
             checked={value.formats.includes(format.value)}
@@ -54,7 +54,7 @@ export function SubtitlesTab({
           {format.label}
         </label>
       ))}
-      <p className="text-fg-3 text-[11px] opacity-70" title={assExportUnavailableReason()}>
+      <p className="text-fg-2 text-[11px] opacity-70" title={assExportUnavailableReason()}>
         ASS export ships once @montaj/ass-exporter lands.
       </p>
     </div>

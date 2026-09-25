@@ -29,7 +29,7 @@ export function ChaptersPanel({ row, onSeek }: ChaptersPanelProps): React.JSX.El
 
   if (chapters.length === 0) {
     return (
-      <p className="text-fg-3 text-sm" data-testid="chapters-empty">
+      <p className="text-fg-2 text-sm" data-testid="chapters-empty">
         No chapters yet.
       </p>
     );
@@ -38,7 +38,7 @@ export function ChaptersPanel({ row, onSeek }: ChaptersPanelProps): React.JSX.El
   return (
     <div className="flex flex-col gap-3" data-testid="chapters-panel">
       <div className="flex items-center justify-between">
-        <span className="text-fg-3 text-xs">{chapters.length} chapters</span>
+        <span className="text-fg-2 text-xs">{chapters.length} chapters</span>
         <CopyButton value={description} label="Chapters (YouTube description)" />
       </div>
       <ul className="flex flex-col gap-1">
@@ -50,7 +50,7 @@ export function ChaptersPanel({ row, onSeek }: ChaptersPanelProps): React.JSX.El
               className="hover:bg-bg-2 flex w-full items-center gap-2 rounded px-2 py-1 text-left text-sm"
               onClick={() => onSeek?.(chapter.startMs)}
             >
-              <span className="text-fg-3 shrink-0 font-mono text-xs">
+              <span className="text-fg-2 shrink-0 font-mono text-xs">
                 {formatChapterTimestamp(chapter.startMs)}
               </span>
               <span className="truncate">{chapter.title}</span>

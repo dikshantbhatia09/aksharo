@@ -28,7 +28,7 @@ const TABS: readonly {
   readonly icon: LucideIcon;
 }[] = [
   { id: "captions", label: "Captions", icon: Captions },
-  { id: "fonts", label: "Custom Fonts", icon: Type },
+  { id: "fonts", label: "Custom fonts", icon: Type },
   { id: "library", label: "Library", icon: FolderOpen },
 ];
 
@@ -72,13 +72,18 @@ export function EditorRail({
                   data-testid={`editor-rail-tab-${tab.id}`}
                   onClick={() => onActiveChange(tab.id)}
                   className={cn(
-                    "flex w-[62px] flex-col items-center justify-center gap-[5px] rounded-sm px-2 pt-2 pb-[7px]",
+                    "relative flex w-[62px] flex-col items-center justify-center gap-[5px] rounded-sm px-2 pt-2 pb-[7px]",
                     "transition-colors duration-[160ms] ease-[var(--ease-out-soft)]",
-                    isActive ? "bg-bg-2 text-fg-0" : "text-fg-2 hover:bg-bg-2 hover:text-fg-0",
+                    // Active: fg-0 on a raised well plus a 2 px accent bar on the
+                    // leading edge (DESIGN.md › Accent budget), so the state is
+                    // not carried by a background shade alone.
+                    isActive
+                      ? "bg-bg-2 text-fg-0 before:bg-accent before:absolute before:inset-y-2 before:left-0 before:w-0.5 before:rounded-full"
+                      : "text-fg-2 hover:bg-neutral-100/7 hover:text-fg-0",
                   )}
                 >
-                  <Icon className="size-[19px]" aria-hidden="true" />
-                  <span className="text-[10.5px] leading-[1.25]">{tab.label}</span>
+                  <Icon className="size-5" strokeWidth={1.75} aria-hidden="true" />
+                  <span className="text-2xs leading-[1.25]">{tab.label}</span>
                 </button>
               </TooltipTrigger>
               <TooltipContent side="right">{tab.label}</TooltipContent>

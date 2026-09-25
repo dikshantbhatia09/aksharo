@@ -91,7 +91,7 @@ export function LocalModeNotice(props: LocalModeNoticeProps): React.JSX.Element 
       className="border-border bg-bg-2 flex items-center gap-3 rounded-md border p-3 text-sm"
       data-testid="local-mode-notice"
     >
-      <CloudUpload className="text-fg-3 size-4 shrink-0" />
+      <CloudUpload className="text-fg-2 size-4 shrink-0" />
       <p className="text-fg-2 flex-1">
         This is a local project — upload to cloud to use {props.feature}.
       </p>

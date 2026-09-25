@@ -32,7 +32,7 @@ export function HooksPanel({ row }: HooksPanelProps): React.JSX.Element {
 
   if (variant === undefined) {
     return (
-      <p className="text-fg-3 text-sm" data-testid="hooks-empty">
+      <p className="text-fg-2 text-sm" data-testid="hooks-empty">
         No hooks yet.
       </p>
     );

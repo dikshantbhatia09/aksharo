@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, Wand2, Zap } from "lucide-react";
+import { ChevronDown, Wand2 } from "lucide-react";
 import * as React from "react";
 
 import { Button, ProgressBar, Switch } from "@montaj/ui";
@@ -44,12 +44,16 @@ const SELECT = `${WELL} hover:border-fg-2/60 w-[132px] appearance-none pr-7 pl-2
 const SEGMENTED_TRACK = "flex gap-0.5 rounded-sm border border-border bg-bg-0 p-0.5";
 const CHEVRON = "text-fg-2 pointer-events-none absolute top-1/2 right-2 size-3.5 -translate-y-1/2";
 
-/** The panel's one-of-N control: lime only for the item that is actually on. */
+/**
+ * The panel's one-of-N control. Shirorekha keeps segmented controls neutral
+ * (a raised well and fg-0 text for the chosen item); the accent is not spent
+ * on them.
+ */
 function segmentedItem(active: boolean): string {
   return [
-    "h-[26px] rounded-[6px] border px-2.5 text-xs font-medium transition-colors duration-[160ms]",
+    "h-7 rounded-[6px] border px-2.5 text-xs font-medium transition-colors duration-[160ms]",
     active
-      ? "border-lime-500/45 bg-lime-500/12 text-lime-500"
+      ? "border-transparent bg-bg-3 text-fg-0"
       : "text-fg-2 hover:text-fg-0 border-transparent bg-transparent",
   ].join(" ");
 }
@@ -108,14 +112,10 @@ export function AudioPanel(props: AudioPanelProps): React.JSX.Element {
 
   return (
     <section aria-label="Audio clean" className="flex flex-col gap-3 p-3">
-      {/* Kalakar Header & AI Badge */}
-      <div className="flex flex-col items-center gap-1.5 text-center pt-1 pb-1">
-        <span className="inline-flex items-center gap-1 rounded-full border-accent/40 bg-accent/12 text-accent-300 border px-3 py-0.5 text-[11px]">
-          ✦ AI-Powered
-        </span>
-        <h3 className="font-display text-fg-0 m-0 text-base">Audio Enhancement</h3>
-        <p className="text-xs text-fg-2 max-w-[280px]">
-          Clean up your audio, Remove Background Noise & Enhance Overall Audio Quality.
+      <div className="flex flex-col gap-1 pt-1 pb-1">
+        <h3 className="text-fg-0 m-0 text-sm font-semibold">Audio enhancement</h3>
+        <p className="text-fg-2 text-xs">
+          Remove background noise and even out the voice. Preview before and after, then apply.
         </p>
       </div>
       <div className={SEGMENTED_TRACK} role="radiogroup" aria-label="Clean tier">
@@ -195,12 +195,13 @@ export function AudioPanel(props: AudioPanelProps): React.JSX.Element {
         />
       ) : null}
 
+      {/* Secondary: Export in the panel footer is the editor's one primary. */}
       <Button
         type="button"
-        variant="primary"
+        variant="secondary"
+        size="sm"
         onClick={handleRun}
         disabled={starting || props.isLocalProject === true}
-        className="bg-lime-500 hover:bg-lime-600 text-on-accent disabled:bg-bg-2 disabled:text-fg-disabled flex h-8 items-center justify-center gap-2 rounded-sm px-4 text-sm font-medium transition-colors duration-[160ms]"
       >
         <Wand2 className="size-4" aria-hidden="true" />
         {starting ? "Starting…" : "Clean audio"}
@@ -271,38 +272,13 @@ export function AudioPanel(props: AudioPanelProps): React.JSX.Element {
       ) : (
         <p className="text-2xs text-fg-2">No clean run yet.</p>
       )}
-      {/* Feature Checklist */}
-      <div className="border-border bg-bg-2/40 grid grid-cols-2 gap-2 rounded-md border p-2.5 text-xs text-fg-1">
-        <div className="flex items-center gap-1.5">
-          <span className="size-1.5 rounded-full bg-accent" />
-          <span>Noise Reduction</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className="size-1.5 rounded-full bg-accent" />
-          <span>Voice Enhancement</span>
-        </div>
-        <div className="col-span-2 flex items-center justify-center gap-1.5 pt-1">
-          <span className="size-1.5 rounded-full bg-accent" />
-          <span>Real-time Processing</span>
-        </div>
-      </div>
-
-      {/* Remaining Credits Card */}
-      <div className="border-border bg-bg-2/60 flex items-center justify-between rounded-lg border p-3">
-        <div className="flex items-center gap-2.5">
-          <Zap className="size-5 text-accent fill-accent" />
-          <div>
-            <p className="text-fg-2 text-[11px] font-medium">Remaining Credits</p>
-            <p className="text-fg-0 text-sm font-semibold">3 credits available</p>
-          </div>
-        </div>
-        <a
-          href="/billing"
-          className="text-accent hover:text-accent-300 text-xs hover:underline"
-        >
-          Get More ↗
-        </a>
-      </div>
+      {/*
+        Removed 2026-09-25 (Shirorekha pass): a hard-coded "3 credits available"
+        card and a "Real-time Processing" feature checklist. Neither read any
+        data — the credit figure was the same for every workspace — so they
+        told people something untrue about their account. The workspace's real
+        balance lives in the shell's credits widget and on /billing.
+      */}
     </section>
   );
 }

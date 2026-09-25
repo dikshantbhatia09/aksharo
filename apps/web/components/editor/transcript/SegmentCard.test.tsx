@@ -91,6 +91,6 @@ describe("SegmentCard", () => {
 
   it("a hidden segment is visually de-emphasised", () => {
     render(<SegmentCard {...baseProps()} segment={segment({ hidden: true })} />);
-    expect(screen.getByTestId("segment-card-s1").className).toMatch(/opacity-40/);
+    expect(screen.getByTestId("segment-card-s1").className).toMatch(/opacity-60/);
   });
 });

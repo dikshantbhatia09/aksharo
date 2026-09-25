@@ -72,7 +72,7 @@ export function InsightsTab({ projectId, onSeek, className }: InsightsTabProps):
       </Tabs>
 
       {data?.disclosure !== undefined ? (
-        <p className="text-fg-3 mt-4 text-xs italic" data-testid="insights-disclosure">
+        <p className="text-fg-2 mt-4 text-xs italic" data-testid="insights-disclosure">
           {data.disclosure}
         </p>
       ) : null}

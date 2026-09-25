@@ -198,7 +198,7 @@ export function RetranscribeDialog({
           type="button"
           variant="ghost"
           size="sm"
-          className="text-fg-3 text-xs"
+          className="text-fg-2 text-xs"
           onClick={() => setOpen(true)}
           data-testid="retranscribe-open"
         >
@@ -207,7 +207,7 @@ export function RetranscribeDialog({
       )}
       {retranscribing ? (
         <span
-          className="text-fg-3 flex items-center gap-1.5 text-xs"
+          className="text-fg-2 flex items-center gap-1.5 text-xs"
           role="status"
           data-testid="retranscribing-indicator"
         >
@@ -235,7 +235,7 @@ export function RetranscribeDialog({
           </p>
 
           {confirmingEdits ? (
-            <p className="text-amber-200 text-sm" role="alert" data-testid="retranscribe-has-edits">
+            <p className="text-warning text-sm" role="alert" data-testid="retranscribe-has-edits">
               This project already has caption edits. Continuing discards them.
             </p>
           ) : null}
@@ -247,7 +247,8 @@ export function RetranscribeDialog({
             {confirmingEdits ? (
               <Button
                 type="button"
-                variant="primary"
+                // Destructive: this discards the user's manual edits.
+                variant="danger"
                 disabled={busy || language === undefined}
                 onClick={() => void submit(true)}
                 data-testid="retranscribe-force"

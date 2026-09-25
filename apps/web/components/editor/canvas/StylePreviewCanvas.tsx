@@ -50,10 +50,10 @@ export function StylePreviewCanvas({
   tMs,
   script = "latin",
   /*
-   * Nocturne's sunken well. A literal rather than a token because this is a
+   * The Shirorekha sunken well. A literal rather than a token because this is a
    * CanvasKit clear colour, not CSS — keep it in step with `--color-sunken`.
    */
-  background = "#101220ff",
+  background = "#0e0c10ff",
   className,
   label,
 }: StylePreviewCanvasProps): React.JSX.Element {

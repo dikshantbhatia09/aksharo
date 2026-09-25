@@ -181,14 +181,15 @@ function SegmentCardImpl({
           className={cn(
             "editor-caption-row group relative flex min-h-[58px] items-center gap-3.5 border-b py-2 transition-colors duration-[160ms]",
             selected ? "is-selected" : "",
-            segment.hidden === true && "opacity-40",
+            // Dimmed, not faded out: at 60 % the words still clear 4.5:1 on the panel.
+            segment.hidden === true && "opacity-60",
           )}
           onClick={() => onSelect?.(segment.id)}
         >
           {/* design/06 §3.1 item 1: the row's line index, muted gray. */}
           <span
             aria-hidden="true"
-            className="text-fg-disabled w-[22px] shrink-0 text-[12.5px] tabular-nums"
+            className="text-fg-2 w-[22px] shrink-0 text-xs tabular-nums"
           >
             {index}
           </span>

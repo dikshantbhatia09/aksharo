@@ -32,12 +32,12 @@ export function ReflowBanner({
       role="status"
       data-testid="reflow-banner"
       className={cn(
-        "border-proposed/40 bg-proposed/10 text-proposed flex items-center justify-between gap-3 rounded-sm border px-3 py-2 text-sm",
+        "border-proposed/40 bg-proposed/10 text-fg-1 flex items-center justify-between gap-3 rounded-sm border px-3 py-2 text-sm",
         className,
       )}
     >
       <span className="flex items-center gap-2">
-        <TriangleAlert className="size-3.5 shrink-0" aria-hidden="true" />
+        <TriangleAlert className="text-proposed size-4 shrink-0" aria-hidden="true" />
         This style fits captions differently now. Reflow to re-cut lines for it?
       </span>
       <span className="flex shrink-0 gap-2">
@@ -46,7 +46,7 @@ export function ReflowBanner({
           data-testid="reflow-banner-apply"
           disabled={busy}
           className={cn(
-            "bg-proposed text-on-accent flex h-8 items-center rounded-sm px-3 text-xs font-medium transition-colors duration-[160ms]",
+            "border-border text-fg-0 hover:bg-neutral-100/7 active:bg-neutral-100/14 flex h-8 items-center rounded-sm border px-3 text-xs font-medium transition-colors duration-[160ms]",
             busy && "cursor-wait opacity-60",
           )}
           onClick={onReflow}

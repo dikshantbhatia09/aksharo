@@ -31,13 +31,14 @@ export const DEFAULT_PREVIEW_CANVAS: CanvasSize = { width: 1080, height: 1920 };
 /**
  * The panel's one-of-N control, copied from `controls.tsx` so the Style tab's
  * source sub-nav and category shelf read as the same family as every other
- * segmented control in the right panel (08 §1: lime only for state that is on).
+ * segmented control in the right panel (a raised neutral for the chosen item;
+ * Shirorekha does not spend the accent on segmented controls).
  */
 function segmentedItem(active: boolean): string {
   return cn(
-    "h-[26px] rounded-[6px] border px-2.5 text-xs font-medium transition-colors duration-[160ms]",
+    "h-7 rounded-[6px] border px-2.5 text-xs font-medium transition-colors duration-[160ms]",
     active
-      ? "border-lime-500/45 bg-lime-500/12 text-lime-500"
+      ? "border-transparent bg-bg-3 text-fg-0"
       : "text-fg-2 hover:text-fg-0 border-transparent bg-transparent",
   );
 }
@@ -231,7 +232,7 @@ export function StylePicker({
               className={cn(
                 "bg-bg-0 w-full overflow-hidden rounded-sm border text-left transition-colors duration-[160ms]",
                 style.id === selectedStyleId
-                  ? "border-lime-500 ring-1 ring-lime-500"
+                  ? "border-accent ring-1 ring-accent"
                   : "border-border hover:border-fg-2/60",
               )}
               data-testid={`style-picker-tile-${style.id}`}
@@ -262,7 +263,7 @@ export function StylePicker({
                   event.stopPropagation();
                   onDeletePreset(style.id);
                 }}
-                className="text-fg-2 hover:text-rejected bg-bg-1/90 absolute top-1 right-1 flex size-[22px] items-center justify-center rounded-[6px] transition-colors"
+                className="text-fg-2 hover:text-rejected bg-bg-1/90 absolute top-1 right-1 flex size-7 items-center justify-center rounded-[6px] transition-colors"
                 data-testid={`style-picker-delete-${style.id}`}
               >
                 <Trash2 className="size-3.5" aria-hidden="true" />
@@ -276,7 +277,7 @@ export function StylePicker({
         <button
           type="button"
           onClick={onSaveTemplate}
-          className="bg-lime-500 hover:bg-lime-600 text-on-accent flex h-8 w-full items-center justify-center gap-2 rounded-sm text-sm font-medium transition-colors duration-[160ms]"
+          className="border-border text-fg-0 hover:bg-neutral-100/7 active:bg-neutral-100/14 flex h-8 w-full items-center justify-center gap-2 rounded-sm border text-sm font-medium transition-colors duration-[160ms]"
           data-testid="style-picker-save-template"
         >
           <BookmarkPlus className="size-3.5" aria-hidden="true" />
