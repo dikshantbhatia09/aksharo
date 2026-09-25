@@ -1236,6 +1236,8 @@ model MediaAsset {
   audio16kKey     String?       @map("audio16k_key")
   audio48kKey     String?       @map("audio48k_key")
   waveformKey     String?       @map("waveform_key")
+  /// `faces.json` from `ai.faces`: where faces are over time, so captions keep off them.
+  facesKey        String?       @map("faces_key")
   /// `thumb-{n}.jpg` keys in index order (CONTRACTS section 6); A07 writes them.
   thumbKeys       String[]      @default([]) @map("thumb_keys")
   status          MediaStatus   @default(pending)

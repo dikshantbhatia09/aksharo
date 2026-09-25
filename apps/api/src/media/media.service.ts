@@ -119,6 +119,8 @@ export interface MediaUrls {
   readonly audio16k?: string;
   readonly audio48k?: string;
   readonly waveform?: string;
+  /** `faces.json`: face boxes over time, for caption placement (`ai.faces`). */
+  readonly faces?: string;
   readonly thumbs: readonly string[];
   readonly expiresAt: string;
 }
@@ -661,6 +663,7 @@ export class MediaService {
       ["audio16k", media.audio16kKey],
       ["audio48k", media.audio48kKey],
       ["waveform", media.waveformKey],
+      ["faces", media.facesKey],
     ];
 
     const signed: Record<string, string> = {};

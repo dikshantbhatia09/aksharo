@@ -14,7 +14,7 @@ import * as React from "react";
 import { useCurrentUser } from "@montaj/api-client";
 import type { StyleDoc } from "@montaj/caption-styles";
 import { BRAND } from "@montaj/config";
-import type { EdgProjection, FontRegistry, Shaper } from "@montaj/render-core";
+import type { CanvasFaceTrack, EdgProjection, FontRegistry, Shaper } from "@montaj/render-core";
 import {
   Button,
   Dialog,
@@ -45,6 +45,8 @@ export interface ExportDialogProps {
   readonly onOpenChange: (open: boolean) => void;
   readonly projectId: string;
   readonly projection: EdgProjection;
+  /** The media's face track on the canvas; the export keeps captions off faces. */
+  readonly faces?: CanvasFaceTrack;
   readonly catalogue: ReadonlyMap<string, StyleDoc>;
   readonly registry: FontRegistry | undefined;
   readonly shaper: Shaper | undefined;
@@ -100,6 +102,7 @@ export function ExportDialog(props: ExportDialogProps): React.JSX.Element {
   const { state, startExport, cancel, reset } = useExportDialog({
     projectId: props.projectId,
     projection: props.projection,
+    ...(props.faces === undefined ? {} : { faces: props.faces }),
     catalogue: props.catalogue,
     registry: props.registry,
     shaper: props.shaper,

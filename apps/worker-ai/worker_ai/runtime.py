@@ -68,6 +68,7 @@ from worker_ai.processors import (
     process_transliterate,
     process_vad,
 )
+from worker_ai.processors.faces import process_faces
 from worker_ai.providers.registry import build_registry
 from worker_ai.queues import AI_QUEUES, parse_envelope
 from worker_ai.routing import RoutingTable, load_overrides, load_routing_table
@@ -116,6 +117,7 @@ PROCESSORS: dict[str, Processor] = {
     "ai.pass": process_pass,
     "ai.clean": process_clean,
     "ai.highlights": process_highlights,
+    "ai.faces": process_faces,
 }
 
 

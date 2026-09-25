@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 
+import { FacesTrigger, MediaFacesCompletionHandler } from "./faces.js";
 import { SubtitleImportService } from "./import/subtitle-import.service.js";
 import { MediaController, MediaUploadsController } from "./media.controller.js";
 import { MediaService } from "./media.service.js";
@@ -55,7 +56,9 @@ import { WorkspacesModule } from "../workspaces/workspaces.module.js";
     ReplaceMediaAlignTrigger,
     AutoTranscribeTrigger,
     AlignCompletionHandler,
+    FacesTrigger,
+    MediaFacesCompletionHandler,
   ],
-  exports: [MediaService, SubtitleImportService, RetentionService],
+  exports: [MediaService, SubtitleImportService, RetentionService, FacesTrigger],
 })
 export class MediaModule {}

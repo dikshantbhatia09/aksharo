@@ -150,6 +150,8 @@ export const mediaUrlsSchema = z.object({
   audio16k: z.string().optional(),
   audio48k: z.string().optional(),
   waveform: z.string().optional(),
+  /** `faces.json` (`ai.faces`): face boxes over time, for caption placement. */
+  faces: z.string().optional(),
   thumbs: z.array(z.string()),
   /** ISO-8601; every URL above stops working then (5 minutes). */
   expiresAt: z.string(),

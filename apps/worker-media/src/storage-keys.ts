@@ -34,6 +34,8 @@ export const DERIVED_ARTEFACTS = [
   "audio48k.wav",
   "proxy540.mp4",
   "waveform.json",
+  /** Written by `ai.faces` (worker-ai), not by this worker; listed so the two lists match. */
+  "faces.json",
 ] as const;
 
 export type DerivedArtefact = (typeof DERIVED_ARTEFACTS)[number];

@@ -40,12 +40,13 @@ describe("mediaPrefix", () => {
 });
 
 describe("derivedKey", () => {
-  it("names exactly the four CONTRACTS §6 artefacts", () => {
+  it("names exactly the five CONTRACTS §6 artefacts", () => {
     expect([...DERIVED_ARTEFACTS]).toEqual([
       "audio16k.wav",
       "audio48k.wav",
       "proxy540.mp4",
       "waveform.json",
+      "faces.json",
     ]);
     expect(derivedKey(PREFIX, "proxy540.mp4")).toBe(`${PREFIX}/proxy540.mp4`);
     expect(derivedKey(PREFIX, "audio16k.wav")).toBe(`${PREFIX}/audio16k.wav`);
@@ -83,12 +84,12 @@ describe("thumbKey", () => {
 describe("allDerivedKeys", () => {
   it("lists everything one asset can have", () => {
     const keys = allDerivedKeys(PREFIX, 10);
-    expect(keys).toHaveLength(14);
+    expect(keys).toHaveLength(15);
     expect(keys.every((key) => key.startsWith(`${PREFIX}/`))).toBe(true);
     expect(keys).toContain(`${PREFIX}/thumb-9.jpg`);
   });
 
-  it("lists only the four artefacts for an audio-only asset", () => {
-    expect(allDerivedKeys(PREFIX, 0)).toHaveLength(4);
+  it("lists only the five artefacts for an audio-only asset", () => {
+    expect(allDerivedKeys(PREFIX, 0)).toHaveLength(5);
   });
 });

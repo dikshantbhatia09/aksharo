@@ -90,6 +90,10 @@ WORKER_ENV_VARS: tuple[str, ...] = (
     # YuNet ONNX weights are not provisioned in this work package (H-22).
     "PASS_FACE_DETECTOR",
     "PASS_FACE_DETECTOR_WEIGHTS",
+    # `ai.faces`: the YuNet ONNX weights (face_detection_yunet_2023mar.onnx),
+    # an operator-provisioned local file. Unset makes `ai.faces` fail
+    # non-retryably; captions then keep their style's own position.
+    "YUNET_MODEL_PATH",
 )
 
 
@@ -239,6 +243,8 @@ class Settings:
     queues: tuple[str, ...] = ()
     routing_file: str = ""
     vad_model_path: str = ""
+    #: YuNet weights for `ai.faces`; empty means face detection is unavailable.
+    face_model_path: str = ""
     whisper_engine: str = "faster-whisper"
     whisper_model: str = "small"
     #: ``cpu``, ``cuda`` or ``auto`` (probe for a GPU, fall back to CPU).
@@ -468,6 +474,7 @@ def load_settings(source: dict[str, str] | None = None) -> Settings:
         ),
         routing_file=env.get("WORKER_AI_ROUTING_FILE", "").strip(),
         vad_model_path=env.get("WORKER_AI_VAD_MODEL", "").strip(),
+        face_model_path=env.get("YUNET_MODEL_PATH", "").strip(),
         whisper_engine=env.get("WORKER_AI_WHISPER_ENGINE", "").strip() or "faster-whisper",
         whisper_model=env.get("WORKER_AI_WHISPER_MODEL", "").strip() or "small",
         whisper_device=whisper_device or "auto",

@@ -45,6 +45,8 @@ export const DERIVED_ARTEFACTS = [
   "audio48k.wav",
   "proxy540.mp4",
   "waveform.json",
+  /** `ai.faces`: face boxes over time, for caption placement. */
+  "faces.json",
 ] as const;
 
 export type DerivedArtefact = (typeof DERIVED_ARTEFACTS)[number];

@@ -1,5 +1,6 @@
 import { Injectable, Logger, type OnModuleInit } from "@nestjs/common";
 
+import { FacesTrigger } from "./faces.js";
 import { MEDIA_FAILURE_REASONS } from "./media.constants.js";
 import { PrismaService } from "../common/prisma/prisma.service.js";
 import { JobCompletionRegistry } from "../jobs/completion-handlers.js";
@@ -53,6 +54,7 @@ export class MediaProxyCompletionHandler implements JobCompletionHandler, OnModu
     private readonly prisma: PrismaService,
     private readonly registry: JobCompletionRegistry,
     private readonly autoTranscribe: AutoTranscribeTrigger,
+    private readonly faces: FacesTrigger,
   ) {}
 
   onModuleInit(): void {
@@ -94,11 +96,15 @@ export class MediaProxyCompletionHandler implements JobCompletionHandler, OnModu
     // asset, refuses a project that already has a document or transcript, and
     // enqueues under a jobKey that dedupes.
     const transcribe = await this.autoTranscribe.maybeEnqueue(mediaId);
+    // Where the faces are, so captions can keep off them. Free, uncapped, and
+    // never fails this completion (`FacesTrigger`).
+    const faces = await this.faces.maybeEnqueue(mediaId);
     return {
       data: {
         mediaId,
         applied,
         ...(transcribe === undefined ? {} : { transcribeJobId: transcribe.jobId }),
+        ...(faces === undefined ? {} : { facesJobId: faces.jobId }),
       },
     };
   }

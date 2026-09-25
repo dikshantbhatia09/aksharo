@@ -131,6 +131,7 @@ export class RetentionService {
         audio16kKey: true,
         audio48kKey: true,
         waveformKey: true,
+        facesKey: true,
         thumbKeys: true,
       },
       orderBy: { derivedPurgeAt: "asc" },
@@ -146,6 +147,7 @@ export class RetentionService {
         media.audio16kKey,
         media.audio48kKey,
         media.waveformKey,
+        media.facesKey,
         ...media.thumbKeys,
         // An imported subtitle IS its own derived object: the row points straight
         // at the sidecar rather than at a raw upload.
@@ -162,6 +164,7 @@ export class RetentionService {
             audio16kKey: null,
             audio48kKey: null,
             waveformKey: null,
+            facesKey: null,
             thumbKeys: [],
             // The bytes are gone in both stores now, so the row can say so.
             ...(media.bucket === "r2" ? { status: "purged" as const } : {}),

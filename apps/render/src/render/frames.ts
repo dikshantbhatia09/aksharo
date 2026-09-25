@@ -33,9 +33,11 @@
 
 import type { StyleDoc } from "@montaj/caption-styles";
 import {
+  type CanvasFaceTrack,
   captionBoxFromLayouts,
   hashCommands,
   layoutFrame,
+  PlacementCache,
   renderFrame,
   renderTitleFrame,
   type DrawCommand,
@@ -66,6 +68,12 @@ export interface FrameCommandOptions {
   readonly titles?: readonly TitleFxTrack[];
   /** The render's default caption style; a title borrows its ink and family. Required whenever `titles` is non-empty. */
   readonly titleStyle?: StyleDoc;
+  /**
+   * The source's face track on the canvas (`manifest.source.facesKey`), so the
+   * render keeps captions off faces exactly as the editor and the browser
+   * export do.
+   */
+  readonly faces?: CanvasFaceTrack;
 }
 
 export interface FrameSourceOptions extends FrameCommandOptions {
@@ -123,8 +131,14 @@ export function frameTimeMs(index: number, fps: number): number {
 /** The `renderFrame` call both sources make, with the watermark on top. */
 function commandBuilder(options: FrameCommandOptions): (outputMs: number) => DrawCommand[] {
   const titles = options.titles ?? [];
+  // One placement per caption for the whole render.
+  const placement =
+    options.faces === undefined
+      ? {}
+      : { faces: options.faces, placementCache: new PlacementCache() };
   return (outputMs: number) => {
     const frameOptions = {
+      ...placement,
       projection: options.projection,
       timemap: options.timemap,
       catalogue: options.catalogue,

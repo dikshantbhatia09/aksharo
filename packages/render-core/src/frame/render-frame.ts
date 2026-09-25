@@ -13,6 +13,13 @@
 import { type StyleDoc } from "@montaj/caption-styles";
 import { type TimeQuery } from "@montaj/timemap";
 
+import {
+  type CanvasFaceTrack,
+  combineShrink,
+  PlacementCache,
+  placeCaption,
+  placementKey,
+} from "./placement.js";
 import { type EdgProjection, visibleSegments, wordsBetween } from "./projection.js";
 import { type DisplayScript, resolveStyle, resolveWords } from "./resolve.js";
 import { type TrackShrink, trackShrinkFor } from "./track-shrink.js";
@@ -55,7 +62,18 @@ export interface RenderFrameOptions {
    * as before: `animate` defaults it to fully opaque.
    */
   readonly captionOpacity?: number;
+  /**
+   * Where the faces are (`faceTrackOnCanvas` over the media's `faces.json`).
+   * With it, a caption that would cover a face moves off it, and shrinks if it
+   * must (`placement.ts`); without it, every caption sits where its style says.
+   */
+  readonly faces?: CanvasFaceTrack;
+  /** Re-used across frames so each caption is placed once, not thirty times a second. */
+  readonly placementCache?: PlacementCache;
 }
+
+/** Used when a caller passes faces but no cache: still once per caption per module. */
+const SHARED_PLACEMENTS = new PlacementCache();
 
 /** The layouts that make up one frame; `renderFrame` is this plus `animate`. */
 export function layoutFrame(options: RenderFrameOptions): { layout: Layout; style: StyleDoc }[] {
@@ -80,19 +98,41 @@ export function layoutFrame(options: RenderFrameOptions): { layout: Layout; styl
       ...(options.dropFillers === undefined ? {} : { dropFillers: options.dropFillers }),
     });
     if (words.length === 0) continue;
+    // Resolved after the layout knows which script it is drawing, because the
+    // track keeps a separate size per script.
+    const trackShrink = (script: Parameters<typeof trackShrinkFor>[2]) =>
+      trackShrinkFor(options.trackShrink, style.id, script);
+    const faces = options.faces;
+    const placement =
+      faces === undefined
+        ? undefined
+        : (options.placementCache ?? SHARED_PLACEMENTS).get(
+            style,
+            placementKey(segment, words, canvas, faces),
+            () =>
+              placeCaption({
+                style,
+                segment,
+                words,
+                canvas,
+                registry,
+                shaper,
+                faces,
+                shrinkOverride: trackShrink,
+              }),
+          );
     results.push({
       style,
       layout: layoutSegment({
         style,
-        segment,
+        segment:
+          placement === undefined ? segment : { ...segment, position: placement.position },
         words,
         canvas,
         registry,
         shaper,
         tMs: sourceMs,
-        // Resolved after the layout knows which script it is drawing, because
-        // the track keeps a separate size per script.
-        shrinkOverride: (script) => trackShrinkFor(options.trackShrink, style.id, script),
+        shrinkOverride: (script) => combineShrink(trackShrink(script), placement?.shrink),
       }),
     });
   }

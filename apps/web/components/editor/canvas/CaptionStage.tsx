@@ -23,8 +23,8 @@ import { Lock, Unlock } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import type { StyleDoc } from "@montaj/caption-styles";
-import { layoutFrame, renderFrame } from "@montaj/render-core";
-import type { DisplayScript, EdgProjection } from "@montaj/render-core";
+import { layoutFrame, PlacementCache, renderFrame } from "@montaj/render-core";
+import type { CanvasFaceTrack, DisplayScript, EdgProjection } from "@montaj/render-core";
 
 import {
   type Anchor,
@@ -85,6 +85,12 @@ export interface CaptionStageProps {
    */
   readonly noMediaReason?: "processing" | "audio-only" | "error";
   readonly projection: EdgProjection;
+  /**
+   * Where the faces are (`ai.faces`), mapped onto the canvas. With it, a caption
+   * that would cover a face is drawn off it — here and in every export, which
+   * pass the same track to the same `layoutFrame`.
+   */
+  readonly faces?: CanvasFaceTrack;
   readonly catalogue: ReadonlyMap<string, StyleDoc>;
   /** The surface the overlay is drawn at; the proxy's own size by default. */
   readonly canvas?: { readonly width: number; readonly height: number };
@@ -143,6 +149,7 @@ export function CaptionStage({
   src,
   noMediaReason = "processing",
   projection,
+  faces,
   catalogue,
   canvas,
   onOp,
@@ -286,6 +293,8 @@ export function CaptionStage({
   // churn like that exhausts driver memory fast, well before any single
   // frame's draw would.
   const surfaceRef = useRef<Surface | undefined>(undefined);
+  // Each caption is placed once, not once per presented frame.
+  const placementCache = useRef(new PlacementCache());
 
   useEffect(() => {
     const element = overlayRef.current;
@@ -316,6 +325,7 @@ export function CaptionStage({
       canvas: surfaceCanvas,
       outputMs,
       script: displayScript,
+      ...(faces === undefined ? {} : { faces, placementCache: placementCache.current }),
     } as const;
 
     backend.drawFrame(surface.getCanvas(), renderFrame(options), { background: "#00000000" });
@@ -338,6 +348,7 @@ export function CaptionStage({
     selectedSegmentId,
     dragPreview,
     displayScript,
+    faces,
   ]);
 
   const styleOf = useCallback(

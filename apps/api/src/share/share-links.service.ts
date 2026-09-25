@@ -411,6 +411,8 @@ export class ShareLinksService {
     sessionValue: string | undefined,
   ): Promise<{
     readonly proxyUrl: string;
+    /** `faces.json`, so the viewer keeps captions off faces as the export does. */
+    readonly facesUrl?: string;
     readonly durationMs: number | null;
     readonly aspect: string;
     readonly projection: EdgProjection | null;
@@ -457,6 +459,16 @@ export class ShareLinksService {
       };
     }
 
-    return { proxyUrl, durationMs: media.durationMs, aspect: project.aspect, projection };
+    const facesUrl =
+      media.facesKey === null
+        ? undefined
+        : await this.derivedStore.presignGet(media.facesKey, DOWNLOAD_URL_TTL_SECONDS);
+    return {
+      proxyUrl,
+      ...(facesUrl === undefined ? {} : { facesUrl }),
+      durationMs: media.durationMs,
+      aspect: project.aspect,
+      projection,
+    };
   }
 }

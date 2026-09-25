@@ -1025,3 +1025,34 @@ presets are unaffected) all read it, and new projects default to it
 id, because existing projects use them (`vertical-clean` backed 119 live
 projects). **Do not delete a style JSON** while a document references it;
 offering a style again is adding its id to that list.
+
+---
+
+## 15. 2026-09-25 — captions keep off faces
+
+A caption that would cover a face moves off it, and shrinks if it must, in the
+editor preview, the browser export, the cloud render and the share viewer
+alike.
+
+- **Detection:** `ai.faces` (worker-ai, `worker_ai/passes/faces.py`) runs YuNet
+  (`YUNET_MODEL_PATH`, `05-build/_models/yunet/face_detection_yunet_2023mar.onnx`)
+  through onnxruntime over the 540p proxy, 4 samples/s, and writes `faces.json`
+  (`media_assets.faces_key`, migration `20260925180000_media_faces_key`). Free
+  (`worstCaseTenths: 0`), outside the plan cap (`skipAdmission`), one at a time
+  (`concurrency=1` in `__main__.py`). Queued on `media.proxy` success, and — for
+  videos from before this — the first time `GET .../media/{id}/urls` is called
+  for a video without one (once per media: `onlyIfNeverTried`). The editor
+  re-checks `/urls` every 15 s (8 times) until the track appears.
+- **Placement:** `packages/render-core/src/frame/placement.ts`, applied inside
+  `layoutFrame` when a `faces` track is passed. Per caption, over its whole
+  life: a caption the user dragged (`segment.position`) is never moved; one
+  already clear stays put; otherwise it moves the least distance into the band
+  below the faces, else above, else shrinks (to `MIN_PLACEMENT_SCALE` 0.6 of its
+  own size) into the bigger band. Faces are padded (35 % above for hair, 5 %
+  below the chin) plus a 1.5 %-of-height gap. Faces are mapped through a
+  centred **cover** fit, which is how every surface draws the source.
+- **Not covered:** zoom/reframe crop windows (the face track is not transformed
+  by a punch-in, so a caption may touch a zoomed face), and ASS/SRT/VTT
+  subtitle files (no positions to move). Face positions are personal data:
+  `faces.json` is deleted by retention and by the erasure cascade with the
+  other derived objects.

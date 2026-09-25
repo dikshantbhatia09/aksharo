@@ -24,6 +24,7 @@ const CONTRACT_QUEUES = [
   "ai.pass",
   "ai.llm",
   "ai.highlights",
+  "ai.faces",
   "render.video",
   "render.subtitle",
   "publish.dispatch",

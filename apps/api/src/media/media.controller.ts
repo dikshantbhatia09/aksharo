@@ -12,6 +12,7 @@ import {
   ApiUnprocessableEntityResponse,
 } from "@nestjs/swagger";
 
+import { FacesTrigger } from "./faces.js";
 import { SubtitleImportService } from "./import/subtitle-import.service.js";
 import {
   completedUploadSchema,
@@ -68,6 +69,7 @@ export class MediaController {
   constructor(
     private readonly media: MediaService,
     private readonly imports: SubtitleImportService,
+    private readonly faces: FacesTrigger,
   ) {}
 
   @Get("media")
@@ -177,7 +179,13 @@ export class MediaController {
     @Param("projectId") projectId: string,
     @Param("mediaId") mediaId: string,
   ): Promise<MediaUrls> {
-    return this.media.urls(workspaceId, projectId, mediaId);
+    const urls = await this.media.urls(workspaceId, projectId, mediaId);
+    // A video from before `ai.faces` existed gets its face track the first
+    // time its editor opens: once per media, free, never failing this read.
+    if (urls.faces === undefined && urls.proxy !== undefined) {
+      void this.faces.maybeEnqueue(mediaId, { onlyIfNeverTried: true });
+    }
+    return urls;
   }
 
   @Post("import")

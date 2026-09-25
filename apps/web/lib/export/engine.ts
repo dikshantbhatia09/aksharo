@@ -71,11 +71,13 @@ import {
 import type { StyleDoc } from "@montaj/caption-styles";
 import { CanvasKitBackend, createExportSurface } from "@montaj/render-canvaskit";
 import {
+  type CanvasFaceTrack,
   captionBoxFromLayouts,
   computeTrackShrink,
   createFontRegistry,
   createHarfBuzzShaper,
   layoutFrame,
+  PlacementCache,
   renderFrame,
   renderTitleFrame,
   sampleCropWindow,
@@ -115,6 +117,11 @@ export interface RunExportOptions {
   /** Required when `manifest.audio.strategy === "replace"`. */
   readonly cleanAudioSource?: string | Blob;
   readonly projection: EdgProjection;
+  /**
+   * The media's face track on the output canvas (`faceTrackOnCanvas`), so the
+   * export keeps captions off faces exactly as the editor preview does.
+   */
+  readonly faces?: CanvasFaceTrack;
   readonly catalogue: ReadonlyMap<string, StyleDoc>;
   readonly registry: FontRegistry;
   readonly shaper: Shaper;
@@ -498,6 +505,12 @@ export async function runExport(options: RunExportOptions): Promise<EngineResult
     backend.registerImage(manifest.watermark.assetId, bytes);
   }
 
+  // One placement per caption for the whole export, not one per frame.
+  const placement =
+    options.faces === undefined
+      ? {}
+      : { faces: options.faces, placementCache: new PlacementCache() };
+
   const trackShrink = computeTrackShrink({
     projection,
     catalogue: options.catalogue,
@@ -792,6 +805,7 @@ export async function runExport(options: RunExportOptions): Promise<EngineResult
       canvas: manifest.output,
       outputMs,
       trackShrink,
+      ...placement,
       ...(options.script === undefined ? {} : { script: options.script }),
       ...(options.dropFillers === undefined ? {} : { dropFillers: options.dropFillers }),
       ...(options.captionOpacity === undefined ? {} : { captionOpacity: options.captionOpacity }),
@@ -812,6 +826,7 @@ export async function runExport(options: RunExportOptions): Promise<EngineResult
           canvas: manifest.output,
           outputMs,
           trackShrink,
+          ...placement,
           ...(options.script === undefined ? {} : { script: options.script }),
           ...(options.dropFillers === undefined ? {} : { dropFillers: options.dropFillers }),
         }),

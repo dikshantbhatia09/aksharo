@@ -20,7 +20,13 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { createHarfBuzzShaper, outputCropKeyframesFromTracks } from "@montaj/render-core";
+import {
+  type CanvasFaceTrack,
+  createHarfBuzzShaper,
+  faceTrackOnCanvas,
+  outputCropKeyframesFromTracks,
+  parseFaceTrack,
+} from "@montaj/render-core";
 import { assertWithinCaps, verifyRenderManifest } from "@montaj/render-manifest";
 import type { RenderManifest } from "@montaj/render-manifest";
 import { SkiaNodeBackend } from "@montaj/render-skia-node";
@@ -267,6 +273,23 @@ export async function renderVideo(
         ? undefined
         : styleCatalogue.get(projectionForFrames.styles.defaultStyleId);
 
+    // Where the faces are, so captions keep off them. Best effort: a render
+    // without the track draws every caption where its style puts it.
+    let faces: CanvasFaceTrack | undefined;
+    if (manifest.source.facesKey !== undefined) {
+      try {
+        const bytes = await dependencies.derivedStore.getBytes(manifest.source.facesKey);
+        const track = parseFaceTrack(JSON.parse(Buffer.from(bytes).toString("utf8")));
+        if (track !== undefined) faces = faceTrackOnCanvas(track, projectionForFrames.canvas);
+      } catch (error) {
+        dependencies.onWarning?.(
+          `the face track could not be read, so captions keep their style's position: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+    }
+
     const commandOptions = {
       projection: projectionForFrames,
       timemap,
@@ -282,6 +305,7 @@ export async function renderVideo(
       dropFillers: payload.dropFillers,
       titles,
       ...(titleStyle === undefined ? {} : { titleStyle }),
+      ...(faces === undefined ? {} : { faces }),
     };
 
     const wantedWorkers = dependencies.rasterWorkers ?? defaultPoolSize();

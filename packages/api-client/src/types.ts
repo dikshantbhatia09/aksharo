@@ -467,6 +467,8 @@ export interface MediaUrls {
   audio16k?: string;
   audio48k?: string;
   waveform?: string;
+  /** `faces.json`: face boxes over time, for caption placement (`ai.faces`). */
+  faces?: string;
   thumbs: string[];
   expiresAt: string;
 }

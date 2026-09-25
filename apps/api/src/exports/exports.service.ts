@@ -277,6 +277,7 @@ export class ExportsService {
         ...(media.width === null || media.width === undefined ? {} : { width: media.width }),
         ...(media.height === null || media.height === undefined ? {} : { height: media.height }),
         ...(media.fps === null || media.fps === undefined ? {} : { fps: media.fps }),
+        ...(media.facesKey === null ? {} : { facesKey: media.facesKey }),
       },
       timemapEdits: [...timeMap.edits],
       ...(keyframeTracks.length === 0 ? {} : { keyframeTracks }),

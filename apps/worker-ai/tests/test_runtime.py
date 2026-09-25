@@ -36,7 +36,7 @@ def test_the_worker_owns_every_ai_queue_and_nothing_else() -> None:
     assert all(name.startswith("ai.") for name in AI_QUEUES)
     # Ten since REP-005 added `ai.highlights`. The worker CONSUMES all ten and
     # implements nine; the tenth answers `worker/not_implemented` until Wave 4.
-    assert len(AI_QUEUES) == 10
+    assert len(AI_QUEUES) == 11
 
 
 def test_every_implemented_queue_has_a_processor() -> None:

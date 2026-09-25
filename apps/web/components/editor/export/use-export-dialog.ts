@@ -15,7 +15,7 @@ import * as React from "react";
 import { defineEndpoint, endpoints, useApiClient } from "@montaj/api-client";
 import type { ApiClient, JobStatus, JobSummary } from "@montaj/api-client";
 import type { StyleDoc } from "@montaj/caption-styles";
-import type { EdgProjection, FontRegistry, Shaper } from "@montaj/render-core";
+import type { CanvasFaceTrack, EdgProjection, FontRegistry, Shaper } from "@montaj/render-core";
 import type { RenderManifest } from "@montaj/render-manifest";
 
 import { loadLayoutEngine, loadRenderer } from "@/components/editor/canvas/use-canvaskit";
@@ -39,6 +39,8 @@ import { runExport } from "@/lib/export/engine";
 export interface ExportDialogDeps {
   readonly projectId: string;
   readonly projection: EdgProjection;
+  /** The media's face track on the canvas; the export keeps captions off faces. */
+  readonly faces?: CanvasFaceTrack;
   readonly catalogue: ReadonlyMap<string, StyleDoc>;
   readonly registry: FontRegistry | undefined;
   readonly shaper: Shaper | undefined;
@@ -479,6 +481,7 @@ export function useExportDialog(deps: ExportDialogDeps): {
             source: sourceUrl,
             ...(cleanAudioSource === undefined ? {} : { cleanAudioSource }),
             projection: deps.projection,
+            ...(deps.faces === undefined ? {} : { faces: deps.faces }),
             catalogue: deps.catalogue,
             registry,
             shaper,

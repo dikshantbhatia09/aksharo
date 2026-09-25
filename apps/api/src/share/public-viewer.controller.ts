@@ -165,6 +165,7 @@ export class PublicViewerController {
     @Headers(SHARE_SESSION_HEADER) session: string | undefined,
   ): Promise<{
     proxyUrl: string;
+    facesUrl?: string;
     durationMs: number | null;
     aspect: string;
     projection: unknown;

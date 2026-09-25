@@ -270,6 +270,7 @@ export const QUEUE_POLICY_OVERRIDES: Readonly<Record<string, Partial<QueuePolicy
     "media.acquire": { lockDurationMs: 600_000, stalledIntervalMs: 60_000 },
     "media.clip": { lockDurationMs: 300_000, stalledIntervalMs: 60_000 },
     "ai.highlights": { lockDurationMs: 600_000, stalledIntervalMs: 60_000 },
+    "ai.faces": { lockDurationMs: 600_000, stalledIntervalMs: 60_000 },
     "ai.transcribe": { lockDurationMs: 600_000, stalledIntervalMs: 60_000 },
     "ai.diarise": { lockDurationMs: 600_000, stalledIntervalMs: 60_000 },
     "ai.align": { lockDurationMs: 300_000, stalledIntervalMs: 60_000 },

@@ -21,6 +21,7 @@ interface DueDerived {
   audio16kKey: string | null;
   audio48kKey: string | null;
   waveformKey: string | null;
+  facesKey: string | null;
   thumbKeys: string[];
 }
 
@@ -65,6 +66,7 @@ const DERIVED_DUE: DueDerived[] = [
     audio16kKey: "ws/a/p/b/media/m3/audio16k.wav",
     audio48kKey: null,
     waveformKey: "ws/a/p/b/media/m3/waveform.json",
+    facesKey: "ws/a/p/b/media/m3/faces.json",
     thumbKeys: ["ws/a/p/b/media/m3/thumb-0.jpg"],
   },
 ];
@@ -126,10 +128,11 @@ describe("purgeDueMedia — derived", () => {
       "ws/a/p/b/media/m3/proxy540.mp4",
       "ws/a/p/b/media/m3/audio16k.wav",
       "ws/a/p/b/media/m3/waveform.json",
+      "ws/a/p/b/media/m3/faces.json",
       "ws/a/p/b/media/m3/thumb-0.jpg",
     ]);
     expect(report.derivedPurged).toBe(1);
-    expect(report.derivedObjects).toBe(4);
+    expect(report.derivedObjects).toBe(5);
 
     const data = callArg(prisma.mediaAsset.update, 0, 0).data as Record<string, unknown>;
     expect(data).toMatchObject({
@@ -137,6 +140,7 @@ describe("purgeDueMedia — derived", () => {
       proxyKey: null,
       audio16kKey: null,
       waveformKey: null,
+      facesKey: null,
       thumbKeys: [],
     });
     // A raw-bucket row is not marked purged: its original may still be there.
@@ -152,6 +156,7 @@ describe("purgeDueMedia — derived", () => {
       audio16kKey: null,
       audio48kKey: null,
       waveformKey: null,
+      facesKey: null,
       thumbKeys: [],
     };
     const { service, derived, prisma } = makeService({ derived: [sidecar] });

@@ -46,13 +46,17 @@ __all__ = [
 _log = get_logger(__name__)
 
 #: The derived artefacts CONTRACTS section 6 names, minus the numbered thumbnails.
-DerivedArtefact = Literal["audio16k.wav", "audio48k.wav", "proxy540.mp4", "waveform.json"]
+DerivedArtefact = Literal[
+    "audio16k.wav", "audio48k.wav", "proxy540.mp4", "waveform.json", "faces.json"
+]
 
 DERIVED_ARTEFACTS: tuple[DerivedArtefact, ...] = (
     "audio16k.wav",
     "audio48k.wav",
     "proxy540.mp4",
     "waveform.json",
+    #: `ai.faces`: where faces are, over time, for face-aware caption placement.
+    "faces.json",
 )
 
 #: ULIDs are Crockford base32, 26 characters. Ids reach this module from a job

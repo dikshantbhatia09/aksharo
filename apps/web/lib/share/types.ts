@@ -50,6 +50,8 @@ export interface ShareResolveResponse {
 
 export interface SharePreviewResponse {
   readonly proxyUrl: string;
+  /** `faces.json`, when the media has one: captions keep off faces. */
+  readonly facesUrl?: string;
   readonly durationMs: number | null;
   readonly aspect: string;
   /** `EdgProjection` (`@montaj/render-core`) — opaque here, passed straight to `CaptionStage`. */

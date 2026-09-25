@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { FacesTrigger } from "./faces.js";
 import { MediaProxyCompletionHandler } from "./proxy.handler.js";
 import { JobCompletionRegistry } from "../jobs/completion-handlers.js";
 import { AutoTranscribeTrigger } from "../transcripts/auto-transcribe.trigger.js";
@@ -60,6 +61,7 @@ interface Harness {
   projectUpdate: ReturnType<typeof vi.fn>;
   registry: JobCompletionRegistry;
   autoTranscribe: ReturnType<typeof vi.fn>;
+  faces: ReturnType<typeof vi.fn>;
 }
 
 /**
@@ -86,10 +88,14 @@ function harness(
 
   const registry = new JobCompletionRegistry();
   const autoTranscribe = vi.fn(async () => undefined);
-  const handler = new MediaProxyCompletionHandler(prisma, registry, {
-    maybeEnqueue: autoTranscribe,
-  } as unknown as AutoTranscribeTrigger);
-  return { handler, findUnique, updateMany, projectUpdate, registry, autoTranscribe };
+  const faces = vi.fn(async () => undefined);
+  const handler = new MediaProxyCompletionHandler(
+    prisma,
+    registry,
+    { maybeEnqueue: autoTranscribe } as unknown as AutoTranscribeTrigger,
+    { maybeEnqueue: faces } as unknown as FacesTrigger,
+  );
+  return { handler, findUnique, updateMany, projectUpdate, registry, autoTranscribe, faces };
 }
 
 let h: Harness;

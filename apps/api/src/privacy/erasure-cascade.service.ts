@@ -206,6 +206,7 @@ export class ErasureCascadeService {
         audio16kKey: true,
         audio48kKey: true,
         waveformKey: true,
+        facesKey: true,
         thumbKeys: true,
       },
     });
@@ -225,6 +226,7 @@ export class ErasureCascadeService {
         asset.audio16kKey,
         asset.audio48kKey,
         asset.waveformKey,
+        asset.facesKey,
         ...asset.thumbKeys,
         ...(asset.bucket === "r2" ? [asset.storageKey] : []),
       ].filter((key): key is string => key !== null && key !== "");

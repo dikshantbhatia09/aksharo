@@ -25,6 +25,7 @@ export const QUEUE_NAMES = [
   "ai.pass",
   "ai.llm",
   "ai.highlights",
+  "ai.faces",
   "render.video",
   "render.subtitle",
   "publish.dispatch",

@@ -562,6 +562,7 @@ deliberately _not_ in CONTRACTS §1 — the same precedent the API set for
 | `FFMPEG_BIN` `FFPROBE_BIN`             | on `PATH`                       | explicit binary paths                                                                                                                                 |
 | `PASS_FACE_DETECTOR`                   | unset (`BrightBlobDetector`)    | B19b: `yunet` selects a real face detector for `zoom`/`reframe` frame sampling; unimplemented this WP (needs `PASS_FACE_DETECTOR_WEIGHTS` too — H-22) |
 | `PASS_FACE_DETECTOR_WEIGHTS`           | —                               | B19b: weights path for the above, provisioned at image build, not a repo checkout                                                                     |
+| `YUNET_MODEL_PATH`                     | unset (`ai.faces` fails)        | `ai.faces`: path to `face_detection_yunet_2023mar.onnx`, run through onnxruntime; captions keep their style's own position without it                  |
 
 `GPU_PROVIDER_URL` is a **raise for the orchestrator**: CONTRACTS §1 freezes
 `GPU_PROVIDER` but not its endpoint, and A09 may not edit that file. It is

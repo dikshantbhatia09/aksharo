@@ -24,6 +24,7 @@ import { CaptionStage } from "@/components/editor/canvas/CaptionStage";
 import { aspectRatioOf, containWidth } from "@/components/editor/canvas/stage-fit";
 import { SYSTEM_STYLE_MAP } from "@/components/editor/panels/system-styles";
 import { ATTRIBUTION_LINE, GRIEVANCE_OFFICER } from "@/content/site/legal";
+import { useFaceTrack } from "@/lib/edg/use-face-track";
 import {
   useAddShareComment,
   useDecideShareLink,
@@ -448,6 +449,11 @@ export function ShareViewer({ token }: { token: string }): React.JSX.Element {
   const unlocked = resolve.data?.unlocked === true;
   const preview = useSharePreview(token, unlocked);
   usePlaybackControls(stageRef);
+  // Captions keep off faces here exactly as they do in the export.
+  const faces = useFaceTrack(
+    preview.data?.facesUrl,
+    (preview.data?.projection as EdgProjection | null | undefined)?.canvas,
+  );
 
   if (resolve.isPending) {
     return (
@@ -525,6 +531,7 @@ export function ShareViewer({ token }: { token: string }): React.JSX.Element {
           <CaptionStage
             src={preview.data.proxyUrl}
             projection={projection}
+            {...(faces === undefined ? {} : { faces })}
             catalogue={SYSTEM_STYLE_MAP}
             showSafeZones={false}
           />

@@ -262,6 +262,12 @@ export const SourceMediaSchema = z.object({
   width: z.number().int().positive().optional(),
   height: z.number().int().positive().optional(),
   fps: z.number().positive().finite().optional(),
+  /**
+   * R2 key of this media's `faces.json` (`ai.faces`), when one exists. The
+   * renderer keeps captions off the faces it lists. Optional, so every manifest
+   * built before it existed stays valid.
+   */
+  facesKey: z.string().min(1).max(1024).optional(),
 });
 export type SourceMedia = z.infer<typeof SourceMediaSchema>;
 

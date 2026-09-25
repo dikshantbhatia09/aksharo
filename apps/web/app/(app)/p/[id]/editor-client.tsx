@@ -18,7 +18,7 @@ import { ApiError, useProject, useRecordSpellingFixMemory } from "@montaj/api-cl
 import type { StyleDoc } from "@montaj/caption-styles";
 import { newId, orderedSegments, wordsBetween } from "@montaj/edg";
 import type { Segment } from "@montaj/edg";
-import { resolveStyle } from "@montaj/render-core";
+import { faceTrackOnCanvas, resolveStyle } from "@montaj/render-core";
 import type { FontRegistry, Shaper } from "@montaj/render-core";
 import { fromAcceptedItems } from "@montaj/timemap";
 import type { TimeMap } from "@montaj/timemap";
@@ -547,6 +547,15 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
   // --- Timeline (A17) ---------------------------------------------------
   const primaryMedia = state.hot.media.find((media) => media.role === "primary");
   const timelineMedia = useTimelineMedia(projectId, primaryMedia?.mediaId);
+  // Captions keep off faces (`ai.faces` + render-core's `placement.ts`); the
+  // exporters map the same track onto the same canvas.
+  const faceTrack = useMemo(
+    () =>
+      timelineMedia.faces === undefined
+        ? undefined
+        : faceTrackOnCanvas(timelineMedia.faces, projection.canvas),
+    [timelineMedia.faces, projection.canvas],
+  );
   const noMediaReason = noMediaReasonFor(primaryMedia, timelineMedia.error);
   const passItems = useMemo(() => [...state.items.values()], [state.items]);
   const timeMap: TimeMap | undefined = useMemo(() => {
@@ -1333,6 +1342,7 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
                       }}
                       onMediaError={() => timelineMedia.refresh()}
                       projection={projection}
+                      {...(faceTrack === undefined ? {} : { faces: faceTrack })}
                       catalogue={SYSTEM_STYLE_MAP}
                       script={script}
                       showSafeZones={safeZonesOn}
@@ -1448,6 +1458,7 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
                       state.hot.media.find((media) => media.role === "primary")?.mediaId
                     }
                     projection={toRenderProjection(state)}
+                    {...(faceTrack === undefined ? {} : { faces: faceTrack })}
                     catalogue={SYSTEM_STYLE_MAP}
                     registry={registry}
                     shaper={shaper}

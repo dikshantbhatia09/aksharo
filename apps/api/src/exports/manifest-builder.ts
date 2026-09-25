@@ -77,6 +77,8 @@ export interface BuildManifestInput {
     readonly width?: number;
     readonly height?: number;
     readonly fps?: number;
+    /** The media's `faces.json` (`ai.faces`), so the render keeps captions off faces. */
+    readonly facesKey?: string;
   };
   readonly timemapEdits: readonly TimemapEdit[];
   /**
@@ -205,6 +207,7 @@ export function buildRenderManifest(input: BuildManifestInput): BuiltManifest {
       ...(input.source.width === undefined ? {} : { width: input.source.width }),
       ...(input.source.height === undefined ? {} : { height: input.source.height }),
       ...(input.source.fps === undefined ? {} : { fps: input.source.fps }),
+      ...(input.source.facesKey === undefined ? {} : { facesKey: input.source.facesKey }),
     },
     timemap: {
       sourceDurationMs: input.source.durationMs,

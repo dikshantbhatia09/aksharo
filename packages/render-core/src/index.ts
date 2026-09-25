@@ -117,6 +117,21 @@ export {
   withAlpha,
 } from "./colour.js";
 
+export {
+  type CanvasFaceTrack,
+  combineShrink,
+  FACE_TRACK_VERSION,
+  facesDuring,
+  type FaceTrackDocument,
+  faceTrackOnCanvas,
+  MIN_PLACEMENT_SCALE,
+  parseFaceTrack,
+  type Placement,
+  PlacementCache,
+  placeCaption,
+  placementKey,
+} from "./frame/placement.js";
+
 export { isRenderError, RenderError, type RenderErrorCode } from "./errors.js";
 
 export {

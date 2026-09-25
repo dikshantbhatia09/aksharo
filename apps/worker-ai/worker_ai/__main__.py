@@ -56,7 +56,9 @@ async def main() -> int:
             worker_options(
                 queue,
                 redis_url=settings.redis_url,
-                concurrency=settings.concurrency,
+                # `ai.faces` is background preparation (CPU decode + ONNX):
+                # one at a time, so a backfill never crowds out transcription.
+                concurrency=1 if queue == "ai.faces" else settings.concurrency,
                 prefix=settings.queue_prefix,
             ),
         )
