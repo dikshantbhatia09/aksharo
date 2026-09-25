@@ -1,4 +1,5 @@
 import { BRAND } from "@montaj/config";
+import { PageHeader } from "@montaj/ui";
 
 import { LegalDraftBanner } from "../_components/legal-draft-banner";
 
@@ -15,20 +16,21 @@ export const metadata: Metadata = {
 
 export default function GrievancePage(): React.JSX.Element {
   return (
-    <div className="mx-auto max-w-2xl px-4 py-16 sm:px-6">
-      <h1 className="font-display text-fg-0 text-4xl font-semibold tracking-tight">
-        Grievance Officer
-      </h1>
-      <p className="text-fg-1 mt-4 text-lg">
-        Published under the Information Technology (Intermediary Guidelines and Digital Media Ethics
-        Code) Rules.
-      </p>
+    <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6 lg:py-16">
+      <PageHeader
+        eyebrow="Legal"
+        title="Grievance Officer"
+        description="Published under the Information Technology (Intermediary Guidelines and Digital Media Ethics Code) Rules."
+      />
 
       <div className="mt-6">
         <LegalDraftBanner />
       </div>
 
-      <dl className="mt-10 flex flex-col gap-4 text-sm" data-testid="grievance-details">
+      <dl
+        className="border-border bg-surface mt-8 grid gap-x-6 gap-y-4 rounded-md border p-5 text-sm sm:grid-cols-[14rem_1fr] [&>div]:contents"
+        data-testid="grievance-details"
+      >
         <div>
           <dt className="text-fg-2">Name</dt>
           <dd className="text-fg-0">{GRIEVANCE_OFFICER.name}</dd>
@@ -36,9 +38,7 @@ export default function GrievancePage(): React.JSX.Element {
         <div>
           <dt className="text-fg-2">Email</dt>
           <dd className="text-fg-0">
-            <a href={`mailto:${GRIEVANCE_OFFICER.email}`} className="underline">
-              {GRIEVANCE_OFFICER.email}
-            </a>
+            <a href={`mailto:${GRIEVANCE_OFFICER.email}`}>{GRIEVANCE_OFFICER.email}</a>
           </dd>
         </div>
         <div>
@@ -64,7 +64,7 @@ export default function GrievancePage(): React.JSX.Element {
         </div>
       </dl>
 
-      <p className="text-fg-2 mt-10 text-xs">{GRIEVANCE_OFFICER.note}</p>
+      <p className="text-fg-2 mt-8 text-xs">{GRIEVANCE_OFFICER.note}</p>
     </div>
   );
 }

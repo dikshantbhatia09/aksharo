@@ -58,7 +58,7 @@ export function CurrencyToggle({
     <div
       role="group"
       aria-label="Currency"
-      className="border-border inline-flex rounded-full border p-0.5"
+      className="border-border inline-flex gap-0.5 rounded-sm border p-0.5"
       data-testid="currency-toggle"
     >
       {(["INR", "USD"] as const).map((option) => (
@@ -71,9 +71,11 @@ export function CurrencyToggle({
           }}
           data-testid={`currency-toggle-${option}`}
           className={
+            // A neutral selected segment, not an accent fill: the accent is
+            // spent on the page's one primary (DESIGN.md › Accent budget).
             currency === option
-              ? "bg-lime-500 text-on-accent rounded-full px-3 py-1 text-xs font-semibold"
-              : "text-fg-1 rounded-full px-3 py-1 text-xs font-semibold"
+              ? "bg-neutral-100/14 text-fg-0 h-8 min-w-16 rounded-[4px] px-3 text-xs font-medium"
+              : "text-fg-2 hover:bg-neutral-100/7 hover:text-fg-0 h-8 min-w-16 rounded-[4px] px-3 text-xs font-medium"
           }
         >
           {option === "INR" ? "₹ INR" : "$ USD"}

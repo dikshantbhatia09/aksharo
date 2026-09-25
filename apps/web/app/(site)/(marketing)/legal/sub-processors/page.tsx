@@ -1,4 +1,5 @@
 import { BRAND } from "@montaj/config";
+import { PageHeader } from "@montaj/ui";
 
 import { LegalDraftBanner } from "../_components/legal-draft-banner";
 
@@ -24,14 +25,12 @@ export const metadata: Metadata = {
  */
 export default function SubProcessorsPage(): React.JSX.Element {
   return (
-    <div className="mx-auto max-w-3xl px-4 py-16 sm:px-6">
-      <h1 className="font-display text-fg-0 text-4xl font-semibold tracking-tight">
-        Sub-processors
-      </h1>
-      <p className="text-fg-1 mt-4 text-lg">
-        Every third party that processes personal data on {BRAND.name}&apos;s behalf, the purpose,
-        and where it is processed. Referenced by the Data Processing Addendum.
-      </p>
+    <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6 lg:py-16">
+      <PageHeader
+        eyebrow="Legal"
+        title="Sub-processors"
+        description={`Every third party that processes personal data on ${BRAND.name}'s behalf, the purpose, and where it is processed. Referenced by the Data Processing Addendum.`}
+      />
 
       <div className="mt-6">
         <LegalDraftBanner />
@@ -39,17 +38,17 @@ export default function SubProcessorsPage(): React.JSX.Element {
 
       <p className="text-fg-2 mt-8 text-xs">List version {subProcessors.version}.</p>
 
-      <div className="mt-4 overflow-x-auto">
+      <div className="border-border bg-surface mt-3 overflow-x-auto rounded-md border px-5">
         <table className="w-full min-w-[32rem] text-left text-sm" data-testid="sub-processor-table">
           <thead>
             <tr className="border-border border-b">
-              <th scope="col" className="text-fg-0 py-2 pr-4 font-semibold">
+              <th scope="col" className="text-fg-2 py-3 pr-4 font-medium">
                 Processor
               </th>
-              <th scope="col" className="text-fg-0 py-2 pr-4 font-semibold">
+              <th scope="col" className="text-fg-2 py-3 pr-4 font-medium">
                 Purpose
               </th>
-              <th scope="col" className="text-fg-0 py-2 font-semibold">
+              <th scope="col" className="text-fg-2 py-3 font-medium">
                 Region
               </th>
             </tr>
@@ -57,7 +56,9 @@ export default function SubProcessorsPage(): React.JSX.Element {
           <tbody>
             {subProcessors.processors.map((processor) => (
               <tr key={processor.name} className="border-border border-b last:border-0">
-                <td className="text-fg-0 py-3 pr-4 align-top font-medium">{processor.name}</td>
+                <th scope="row" className="text-fg-0 py-3 pr-4 align-top font-medium">
+                  {processor.name}
+                </th>
                 <td className="text-fg-1 py-3 pr-4 align-top">{processor.purpose}</td>
                 <td className="text-fg-1 py-3 align-top">{processor.region}</td>
               </tr>

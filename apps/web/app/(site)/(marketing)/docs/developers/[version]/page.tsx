@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { Card } from "@montaj/ui";
+import { PageHeader } from "@montaj/ui";
 
 import type { Metadata } from "next";
 
@@ -12,7 +12,11 @@ export function generateStaticParams(): { version: string }[] {
   return API_VERSIONS.map((version) => ({ version }));
 }
 
-export async function generateMetadata({ params: pendingParams }: { params: Promise<{ version: string }> }): Promise<Metadata> {
+export async function generateMetadata({
+  params: pendingParams,
+}: {
+  params: Promise<{ version: string }>;
+}): Promise<Metadata> {
   const params = await pendingParams;
   if (!isApiVersion(params.version)) return {};
   return {
@@ -28,32 +32,35 @@ function isApiVersion(value: string): value is ApiVersion {
 
 /** `/docs/developers/v1`: the version index — one card per resource group,
  * generated straight off `openapi.json` (brief §2). */
-export default async function DocsApiVersionPage({ params: pendingParams }: { params: Promise<{ version: string }> }): Promise<React.JSX.Element> {
+export default async function DocsApiVersionPage({
+  params: pendingParams,
+}: {
+  params: Promise<{ version: string }>;
+}): Promise<React.JSX.Element> {
   const params = await pendingParams;
   if (!isApiVersion(params.version)) notFound();
   const groups = loadApiGroups();
 
   return (
     <div className="flex flex-col gap-6" data-testid="docs-developers-version">
-      <div className="flex flex-col gap-1">
-        <h1 className="font-display text-fg-0 text-2xl font-semibold tracking-tight">
-          API reference — {params.version}
-        </h1>
-        <p className="text-fg-2 text-sm">Endpoints, grouped by resource.</p>
-      </div>
+      <PageHeader
+        title={<>API reference — {params.version}</>}
+        description="Endpoints, grouped by resource."
+      />
       <div className="grid gap-3 sm:grid-cols-2">
         {groups.map((group) => (
           <Link
             key={group.tag}
             href={`/docs/developers/${params.version}/${group.tag}`}
+            className="block h-full rounded-md no-underline"
             data-testid={`docs-api-group-${group.tag}`}
           >
-            <Card className="flex h-full flex-col gap-1 p-4 transition hover:shadow-sm">
-              <p className="text-fg-0 text-sm font-medium">{group.label}</p>
-              <p className="text-fg-2 text-xs">
+            <div className="border-border bg-surface hover:border-neutral-600 flex h-full flex-col gap-1 rounded-md border p-5 transition-colors">
+              <span className="text-fg-0 text-sm font-medium">{group.label}</span>
+              <span className="text-fg-2 text-xs">
                 {group.endpoints.length} endpoint{group.endpoints.length === 1 ? "" : "s"}
-              </p>
-            </Card>
+              </span>
+            </div>
           </Link>
         ))}
       </div>

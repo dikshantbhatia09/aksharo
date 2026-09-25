@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import { BRAND } from "@montaj/config";
-import { Button } from "@montaj/ui";
+import { Button, PageHeader } from "@montaj/ui";
 
 import type { Metadata } from "next";
 
@@ -25,36 +25,51 @@ export const metadata: Metadata = {
 
 export default function FeaturesPage(): React.JSX.Element {
   return (
-    <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
-      <header className="mx-auto max-w-2xl text-center">
-        <h1 className="font-display text-fg-0 text-4xl font-semibold tracking-tight sm:text-5xl">
-          What {BRAND.name} actually does
-        </h1>
-        <p className="text-fg-1 mt-4 text-lg">
-          Every value proposition in the order we make them, with the detail behind each one.
-        </p>
-      </header>
+    <div className="mx-auto max-w-5xl px-4 py-12 sm:px-6 lg:py-16">
+      <PageHeader
+        size="lg"
+        title={<>What {BRAND.name} actually does</>}
+        description="Every value proposition in the order we make them, with the detail behind each one."
+      />
 
-      <div className="mt-16 flex flex-col gap-16">
+      <nav aria-label="On this page" className="mt-8">
+        <ol className="flex list-none flex-wrap gap-2 p-0">
+          {VALUE_PROPS.map((prop) => (
+            <li key={prop.id}>
+              <a
+                href={`#${prop.id}`}
+                className="border-border text-fg-1 hover:bg-neutral-100/7 hover:text-fg-0 inline-flex h-8 items-center rounded-full border px-3 text-xs font-medium no-underline"
+              >
+                {prop.title}
+              </a>
+            </li>
+          ))}
+        </ol>
+      </nav>
+
+      <div className="mt-12 flex flex-col">
         {VALUE_PROPS.map((prop, index) => (
           <section
             key={prop.id}
             id={prop.id}
             aria-labelledby={`${prop.id}-heading`}
             data-testid={`feature-section-${prop.id}`}
-            className="border-border grid gap-4 border-t pt-10 sm:grid-cols-[auto_1fr]"
+            className="border-border grid scroll-mt-24 gap-3 border-t py-10 sm:grid-cols-[3rem_1fr] sm:gap-6"
           >
-            <span className="text-lime-500 font-mono text-2xl">
+            <span className="text-fg-2 font-mono text-sm sm:pt-1.5" aria-hidden="true">
               {String(index + 1).padStart(2, "0")}
             </span>
             <div>
-              <h2 id={`${prop.id}-heading`} className="text-fg-0 text-2xl font-semibold">
+              <h2 id={`${prop.id}-heading`} className="text-fg-0 text-xl">
                 {prop.title}
               </h2>
-              <p className="text-fg-1 mt-3 max-w-2xl leading-relaxed">{prop.body}</p>
+              <p className="text-fg-1 mt-3 max-w-2xl text-base leading-relaxed">{prop.body}</p>
 
               {prop.id === "accuracy" ? (
-                <div className="mt-6 overflow-x-auto" data-testid="wer-table">
+                <div
+                  className="border-border bg-surface mt-6 overflow-x-auto rounded-md border px-5 py-3"
+                  data-testid="wer-table"
+                >
                   <table className="w-full min-w-[420px] border-collapse text-left text-sm">
                     <thead>
                       <tr className="border-border border-b">
@@ -76,7 +91,7 @@ export default function FeaturesPage(): React.JSX.Element {
                             {row.language}
                           </th>
                           <td className="text-fg-1 px-4 py-2">{row.targetWer}</td>
-                          <td className="text-fg-2 px-4 py-2 italic">
+                          <td className="text-fg-2 px-4 py-2">
                             {row.measuredWer ?? "measured on our public eval set — publishing soon"}
                           </td>
                         </tr>
@@ -91,11 +106,11 @@ export default function FeaturesPage(): React.JSX.Element {
         ))}
       </div>
 
-      <div className="mt-16 flex justify-center gap-3">
+      <div className="border-border flex flex-col items-start gap-3 border-t pt-10 sm:flex-row sm:items-center">
         <Button variant="primary" size="lg" asChild>
           <Link href={AUTH_NAV.getStarted.href}>Start free — one clean export on us</Link>
         </Button>
-        <Button variant="outline" size="lg" asChild>
+        <Button variant="secondary" size="lg" asChild>
           <Link href="/styles">See the styles gallery</Link>
         </Button>
       </div>

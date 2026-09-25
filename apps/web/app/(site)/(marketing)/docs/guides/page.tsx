@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { Card } from "@montaj/ui";
+import { PageHeader } from "@montaj/ui";
 
 import type { Metadata } from "next";
 
@@ -36,29 +36,29 @@ export default function DocsGuidesPage(): React.JSX.Element {
 
   return (
     <div className="flex flex-col gap-8" data-testid="docs-guides-index">
-      <div className="flex flex-col gap-1">
-        <h1 className="font-display text-fg-0 text-2xl font-semibold tracking-tight">Guides</h1>
-        <p className="text-fg-2 text-sm">Creator how-tos, grouped by category.</p>
-      </div>
+      <PageHeader title="Guides" description="Creator how-tos, grouped by category." />
       {byCategory.map(({ category, articles: categoryArticles }) => (
-        <div key={category}>
-          {/* eslint-disable-next-line security/detect-object-injection -- bracket access on `category`, a typed enum value, not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion */}
-          <h2 className="text-fg-0 mb-3 text-sm font-semibold">{CATEGORY_LABEL[category]}</h2>
+        <section key={category} aria-labelledby={`guides-${category}`}>
+          <h2 id={`guides-${category}`} className="text-fg-0 mb-3 text-base">
+            {/* eslint-disable-next-line security/detect-object-injection -- bracket access on `category`, a typed enum value, not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion */}
+            {CATEGORY_LABEL[category]}
+          </h2>
           <div className="grid gap-3 sm:grid-cols-2">
             {categoryArticles.map((article) => (
               <Link
                 key={article.slug}
                 href={`/docs/guides/${article.slug}`}
+                className="block h-full rounded-md no-underline"
                 data-testid={`docs-guide-${article.slug}`}
               >
-                <Card className="flex h-full flex-col gap-1 p-4 transition hover:shadow-sm">
-                  <p className="text-fg-0 text-sm font-medium">{article.title}</p>
-                  <p className="text-fg-2 text-xs">{article.summary}</p>
-                </Card>
+                <div className="border-border bg-surface hover:border-neutral-600 flex h-full flex-col gap-1 rounded-md border p-5 transition-colors">
+                  <span className="text-fg-0 text-sm font-medium">{article.title}</span>
+                  <span className="text-fg-2 text-sm">{article.summary}</span>
+                </div>
               </Link>
             ))}
           </div>
-        </div>
+        </section>
       ))}
     </div>
   );

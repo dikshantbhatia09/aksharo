@@ -27,6 +27,7 @@
  * plain DOM with no wasm dependency.
  */
 
+import { Pause, Play } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { animate, layoutSegment, type WordScript } from "@montaj/render-core";
@@ -149,8 +150,10 @@ function RendererCanvas({
         shaper: engine.shaper,
         tMs,
       });
+      // The canvas API takes a literal: this is `--color-neutral-900`, the
+      // same flat placeholder frame the DOM draws behind the canvas.
       backend.drawFrame(surface.getCanvas(), animate({ layout, style, tMs }), {
-        background: "#15151cff",
+        background: "#262227ff",
       });
       surface.flush();
       if (playing) frame = requestAnimationFrame(draw);
@@ -200,14 +203,13 @@ export function LiveCaptionDemo(): React.JSX.Element {
   return (
     <div className="flex flex-col items-center gap-4" data-testid="live-caption-demo">
       <div
-        className="bg-ink relative overflow-hidden rounded-lg shadow-[var(--shadow-md)]"
+        className="bg-ink border-border relative overflow-hidden rounded-lg border shadow-[var(--shadow-md)]"
         style={{ width: TILE_WIDTH, height: TILE_HEIGHT }}
       >
-        {/* A placeholder frame stands in for real footage — see the file header. */}
-        <div
-          aria-hidden="true"
-          className="absolute inset-0 bg-[radial-gradient(120%_80%_at_50%_18%,var(--color-accent-900),var(--color-bg-0)_55%,var(--color-ink))]"
-        />
+        {/* A flat placeholder frame stands in for real footage — see the file
+            header. Flat, not a gradient: the footage is the subject and the
+            frame around it stays quiet (DESIGN.md › Accent budget). */}
+        <div aria-hidden="true" className="bg-neutral-900 absolute inset-0" />
         {idle ? (
           <RendererCanvas
             styleId={styleId}
@@ -225,56 +227,69 @@ export function LiveCaptionDemo(): React.JSX.Element {
           />
         )}
         {stage === "transcribing" || rendererState !== "ready" ? (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+          <div className="bg-bg-0/60 absolute inset-0 flex flex-col items-center justify-center gap-3">
             <span
-              className="border-fg-2 border-t-lime-500 size-8 animate-spin rounded-full border-2"
+              className="border-neutral-700 border-t-fg-0 size-7 animate-spin rounded-full border-2"
               aria-hidden="true"
             />
-            <span className="sr-only">Transcribing the sample clip…</span>
+            <span className="text-fg-1 text-xs" role="status">
+              Transcribing the sample clip…
+            </span>
           </div>
         ) : null}
-        <span className="text-fg-2 bg-bg-0/70 absolute top-2 right-2 rounded-full px-2 py-0.5 text-2xs">
+        <span className="text-fg-1 bg-bg-0/80 absolute top-2 right-2 rounded-full px-2 py-0.5 text-2xs">
           Sample clip · no upload
         </span>
       </div>
 
-      <div
-        className="flex flex-wrap justify-center gap-2"
-        role="group"
-        aria-label="Caption style"
-        data-testid="live-caption-demo-switcher"
-      >
-        {DEMO_STYLE_IDS.map((id) => {
-          const style = SYSTEM_STYLE_MAP.get(id);
-          if (style === undefined) return null;
-          return (
-            <button
-              key={id}
-              type="button"
-              aria-pressed={styleId === id}
-              onClick={() => {
-                setStyleId(id);
-              }}
-              data-testid={`live-caption-demo-style-${id}`}
-              className={cn(
-                "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
-                styleId === id
-                  ? "border-lime-500 bg-lime-500/10 text-lime-500"
-                  : "border-border text-fg-1 hover:text-fg-0 hover:bg-bg-2",
-              )}
-            >
-              {style.name}
-            </button>
-          );
-        })}
+      <div className="flex max-w-[22rem] flex-wrap items-center justify-center gap-2">
+        <div
+          className="flex flex-wrap justify-center gap-1.5"
+          role="group"
+          aria-label="Caption style"
+          data-testid="live-caption-demo-switcher"
+        >
+          {DEMO_STYLE_IDS.map((id) => {
+            const style = SYSTEM_STYLE_MAP.get(id);
+            if (style === undefined) return null;
+            return (
+              <button
+                key={id}
+                type="button"
+                aria-pressed={styleId === id}
+                onClick={() => {
+                  setStyleId(id);
+                }}
+                data-testid={`live-caption-demo-style-${id}`}
+                className={cn(
+                  "h-8 rounded-full border px-3 text-xs font-medium transition-colors",
+                  styleId === id
+                    ? "border-fg-2 bg-neutral-100/14 text-fg-0"
+                    : "border-border text-fg-2 hover:bg-neutral-100/7 hover:text-fg-0",
+                )}
+              >
+                {style.name}
+              </button>
+            );
+          })}
+        </div>
+        {/* An action, so it sits outside the style group rather than as one
+            more segment of a selection control (HIG segmented-controls.md ›
+            Best practices). */}
         <button
           type="button"
           onClick={() => {
             setPlaying((value) => !value);
           }}
+          aria-label={playing ? "Pause the caption preview" : "Play the caption preview"}
           data-testid="live-caption-demo-toggle-play"
-          className="border-border text-fg-1 hover:text-fg-0 hover:bg-bg-2 rounded-full border px-3 py-1.5 text-xs font-medium"
+          className="text-fg-1 hover:bg-neutral-100/7 hover:text-fg-0 inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-xs font-medium"
         >
+          {playing ? (
+            <Pause aria-hidden="true" className="size-3.5" strokeWidth={1.75} />
+          ) : (
+            <Play aria-hidden="true" className="size-3.5" strokeWidth={1.75} />
+          )}
           {playing ? "Pause" : "Play"}
         </button>
       </div>

@@ -9,6 +9,12 @@
  * (`(site)/login`, `/signup`, …) — those keep their own minimal chrome, and
  * this header only wraps the nested `(marketing)` group.
  *
+ * Shirorekha: the header is chrome, so its "Start free" is `secondary`. Each
+ * page body owns its one filled primary (DESIGN.md › Accent budget; HIG
+ * buttons.md › Style: "keep the number of prominent buttons to one or two per
+ * view"). The wordmark is Inter, not the display face, which is reserved for
+ * page titles and stat figures.
+ *
  * `data-testid="home-heading"` on the wordmark, not the hero `<h1>`: A13's
  * `apps/web/e2e/smoke.spec.ts` asserts `getByTestId("home-heading")` reads
  * exactly the brand name, so the hero's actual headline copy carries a
@@ -37,19 +43,19 @@ export function SiteHeader(): React.JSX.Element {
   const nav = visibleNav(PRIMARY_NAV, useRuntimeConfig().flags);
 
   return (
-    <header className="bg-bg-0/95 rule-fade-b sticky top-0 z-40 backdrop-blur">
+    <header className="bg-bg-0 rule-fade-b sticky top-0 z-40">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
         <Link
           href="/"
           data-testid="home-heading"
-          className="font-display text-fg-0 flex items-center gap-2.5 rounded-sm text-lg font-medium tracking-tight"
+          className="text-fg-0 flex min-h-11 items-center gap-2.5 rounded-sm text-lg font-semibold tracking-tight no-underline"
         >
           <BrandMark size={28} />
           {BRAND.name}
         </Link>
 
         <nav
-          className="hidden items-center gap-6 md:flex"
+          className="hidden items-center gap-1 md:flex"
           aria-label="Primary"
           data-testid="site-nav"
         >
@@ -61,8 +67,10 @@ export function SiteHeader(): React.JSX.Element {
                 href={item.href}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "text-sm font-medium transition-colors",
-                  active ? "text-fg-0" : "text-fg-2 hover:text-fg-0",
+                  "relative inline-flex h-9 items-center rounded-sm px-3 text-sm font-medium no-underline transition-colors",
+                  active
+                    ? "text-fg-0 after:bg-accent after:absolute after:inset-x-3 after:-bottom-[14px] after:h-0.5 after:rounded-full"
+                    : "text-fg-2 hover:bg-neutral-100/7 hover:text-fg-0",
                 )}
               >
                 {item.label}
@@ -75,14 +83,14 @@ export function SiteHeader(): React.JSX.Element {
           <Button variant="ghost" size="sm" asChild>
             <Link href={AUTH_NAV.signIn.href}>{AUTH_NAV.signIn.label}</Link>
           </Button>
-          <Button variant="primary" size="sm" asChild>
+          <Button variant="secondary" size="sm" asChild>
             <Link href={AUTH_NAV.getStarted.href}>{AUTH_NAV.getStarted.label}</Link>
           </Button>
         </div>
 
         <button
           type="button"
-          className="text-fg-1 -mr-2 inline-flex size-10 items-center justify-center rounded-sm md:hidden"
+          className="text-fg-1 hover:bg-neutral-100/7 -mr-2 inline-flex size-11 items-center justify-center rounded-sm md:hidden"
           aria-expanded={open}
           aria-controls="mobile-nav"
           aria-label={open ? "Close menu" : "Open menu"}
@@ -90,7 +98,11 @@ export function SiteHeader(): React.JSX.Element {
             setOpen((value) => !value);
           }}
         >
-          {open ? <X aria-hidden="true" /> : <Menu aria-hidden="true" />}
+          {open ? (
+            <X aria-hidden="true" className="size-5" strokeWidth={1.75} />
+          ) : (
+            <Menu aria-hidden="true" className="size-5" strokeWidth={1.75} />
+          )}
         </button>
       </div>
 
@@ -104,7 +116,10 @@ export function SiteHeader(): React.JSX.Element {
             <Link
               key={item.href}
               href={item.href}
-              className="text-fg-1 hover:text-fg-0 rounded-sm px-2 py-2 text-sm font-medium"
+              aria-current={
+                pathname === item.href || pathname.startsWith(`${item.href}/`) ? "page" : undefined
+              }
+              className="text-fg-1 hover:bg-neutral-100/7 hover:text-fg-0 aria-[current=page]:text-fg-0 flex min-h-11 items-center rounded-sm px-2 text-sm font-medium no-underline"
               onClick={() => {
                 setOpen(false);
               }}
@@ -113,10 +128,11 @@ export function SiteHeader(): React.JSX.Element {
             </Link>
           ))}
           <div className="mt-2 flex gap-2">
-            <Button variant="outline" size="sm" asChild className="flex-1">
+            <Button variant="secondary" asChild className="h-11 flex-1">
               <Link href={AUTH_NAV.signIn.href}>{AUTH_NAV.signIn.label}</Link>
             </Button>
-            <Button variant="primary" size="sm" asChild className="flex-1">
+            {/* The menu sheet is its own surface; its one primary is sign-up. */}
+            <Button variant="primary" asChild className="h-11 flex-1">
               <Link href={AUTH_NAV.getStarted.href}>{AUTH_NAV.getStarted.label}</Link>
             </Button>
           </div>

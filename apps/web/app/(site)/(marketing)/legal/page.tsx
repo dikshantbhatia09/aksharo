@@ -1,6 +1,8 @@
+import { ChevronRight } from "lucide-react";
 import Link from "next/link";
 
 import { BRAND } from "@montaj/config";
+import { PageHeader } from "@montaj/ui";
 
 import { LegalDraftBanner } from "./_components/legal-draft-banner";
 
@@ -15,46 +17,65 @@ export const metadata: Metadata = {
   robots: { index: false, follow: true },
 };
 
+const EXTRA_LEGAL_LINKS: readonly { href: string; title: string; summary: string }[] = [
+  {
+    href: "/legal/grievance",
+    title: "Grievance Officer",
+    summary: "Who to contact, and how quickly we respond, under the IT Rules.",
+  },
+  {
+    href: "/legal/sub-processors",
+    title: "Sub-processors",
+    summary: "Every third party we share personal data with, and why.",
+  },
+];
+
 export default function LegalIndexPage(): React.JSX.Element {
+  const entries = [
+    ...LEGAL_DOCS.map((doc) => ({
+      href: `/legal/${doc.slug}`,
+      title: doc.title,
+      summary: doc.summary,
+    })),
+    ...EXTRA_LEGAL_LINKS,
+  ];
+
   return (
-    <div className="mx-auto max-w-3xl px-4 py-16 sm:px-6">
-      <h1 className="font-display text-fg-0 text-4xl font-semibold tracking-tight">Legal</h1>
-      <p className="text-fg-1 mt-4 text-lg">
-        Every published legal document for {BRAND.name}, in one place.
-      </p>
+    <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6 lg:py-16">
+      <PageHeader
+        title="Legal"
+        description={`Every published legal document for ${BRAND.name}, in one place.`}
+      />
 
       <div className="mt-6">
         <LegalDraftBanner />
       </div>
 
-      <ul className="mt-10 flex flex-col gap-4" data-testid="legal-index-list">
-        {LEGAL_DOCS.map((doc) => (
-          <li key={doc.slug} className="border-border border-b pb-4">
-            <Link href={`/legal/${doc.slug}`} className="text-fg-0 font-semibold hover:underline">
-              {doc.title}
+      <ul
+        className="border-border bg-surface mt-8 flex flex-col rounded-md border"
+        data-testid="legal-index-list"
+      >
+        {entries.map((entry) => (
+          <li key={entry.href} className="border-border border-b last:border-0">
+            <Link
+              href={entry.href}
+              className="group flex items-center gap-4 px-5 py-4 no-underline hover:bg-neutral-100/5"
+            >
+              <span className="min-w-0 flex-1">
+                <span className="text-fg-0 block font-semibold">{entry.title}</span>
+                <span className="text-fg-2 mt-1 block text-sm">{entry.summary}</span>
+              </span>
+              <ChevronRight
+                aria-hidden="true"
+                className="text-fg-2 group-hover:text-fg-0 size-4 shrink-0"
+                strokeWidth={1.75}
+              />
             </Link>
-            <p className="text-fg-2 mt-1 text-sm">{doc.summary}</p>
           </li>
         ))}
-        <li className="border-border border-b pb-4">
-          <Link href="/legal/grievance" className="text-fg-0 font-semibold hover:underline">
-            Grievance Officer
-          </Link>
-          <p className="text-fg-2 mt-1 text-sm">
-            Who to contact, and how quickly we respond, under the IT Rules.
-          </p>
-        </li>
-        <li className="border-border border-b pb-4">
-          <Link href="/legal/sub-processors" className="text-fg-0 font-semibold hover:underline">
-            Sub-processors
-          </Link>
-          <p className="text-fg-2 mt-1 text-sm">
-            Every third party we share personal data with, and why.
-          </p>
-        </li>
       </ul>
 
-      <p className="text-fg-2 mt-10 text-xs">{ATTRIBUTION_LINE}</p>
+      <p className="text-fg-2 mt-8 text-xs">{ATTRIBUTION_LINE}</p>
     </div>
   );
 }

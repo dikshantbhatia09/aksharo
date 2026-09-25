@@ -29,11 +29,14 @@ function FooterColumn({
 }): React.JSX.Element {
   return (
     <div>
-      <h2 className="text-fg-2 text-xs font-semibold tracking-wide uppercase">{title}</h2>
-      <ul className="mt-3 flex flex-col gap-2">
+      <h2 className="text-fg-2 text-xs font-medium">{title}</h2>
+      <ul className="mt-2 flex flex-col">
         {items.map((item) => (
           <li key={item.href}>
-            <Link href={item.href} className="text-fg-1 hover:text-fg-0 text-sm">
+            <Link
+              href={item.href}
+              className="text-fg-1 hover:text-fg-0 inline-flex min-h-8 items-center text-sm no-underline"
+            >
               {item.label}
             </Link>
           </li>
@@ -48,15 +51,15 @@ export function SiteFooter(): React.JSX.Element {
   const { flags } = useRuntimeConfig();
 
   return (
-    <footer className="border-border border-t" data-testid="site-footer">
-      <div className="mx-auto grid max-w-6xl grid-cols-2 gap-8 px-4 py-12 sm:px-6 md:grid-cols-4">
+    <footer className="border-border bg-sunken border-t" data-testid="site-footer">
+      <div className="mx-auto grid max-w-6xl grid-cols-2 gap-8 px-4 py-10 sm:px-6 md:grid-cols-4">
         <div className="col-span-2 md:col-span-1">
-          <p className="font-display text-fg-0 text-lg font-semibold">{BRAND.name}</p>
+          <p className="text-fg-0 text-lg font-semibold">{BRAND.name}</p>
           <p className="text-fg-2 mt-2 text-sm">
             Captions, cuts and polish for Indian video creators.
           </p>
           <p className="text-fg-2 mt-4 text-sm">
-            <a href={`mailto:${BRAND.supportEmail}`} className="hover:text-fg-0">
+            <a href={`mailto:${BRAND.supportEmail}`} className="text-fg-1 hover:text-fg-0">
               {BRAND.supportEmail}
             </a>
           </p>
@@ -74,11 +77,11 @@ export function SiteFooter(): React.JSX.Element {
           <p className="text-fg-2 text-xs">{ATTRIBUTION_LINE}</p>
           <p className="text-fg-2 text-xs">
             Grievance Officer:{" "}
-            <a href={`mailto:${GRIEVANCE_OFFICER.email}`} className="hover:text-fg-0 underline">
+            <a href={`mailto:${GRIEVANCE_OFFICER.email}`} className="text-fg-1 hover:text-fg-0">
               {GRIEVANCE_OFFICER.email}
             </a>{" "}
             — see the{" "}
-            <Link href="/legal/grievance" className="hover:text-fg-0 underline">
+            <Link href="/legal/grievance" className="text-fg-1 hover:text-fg-0">
               Grievance Officer page
             </Link>{" "}
             for our published response timelines.

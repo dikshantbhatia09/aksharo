@@ -14,6 +14,7 @@ import { useMemo, useState } from "react";
 
 import type { StyleCategory, StyleDoc } from "@montaj/caption-styles";
 import type { WordScript } from "@montaj/render-core";
+import { Button, Input } from "@montaj/ui";
 
 import { StylePreviewCanvas } from "@/components/editor/canvas/StylePreviewCanvas";
 import { categoriesOf, matchesQuery } from "@/components/editor/panels/StylePicker";
@@ -48,7 +49,7 @@ export function StylesGalleryGrid({
   return (
     <div data-testid="styles-gallery">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <input
+        <Input
           type="search"
           value={query}
           placeholder="Search styles"
@@ -56,13 +57,13 @@ export function StylesGalleryGrid({
           onChange={(event) => {
             setQuery(event.target.value);
           }}
-          className="border-border bg-bg-1 text-fg-0 w-full rounded-md border px-3 py-2 text-sm sm:w-64"
+          className="bg-sunken sm:w-64"
           data-testid="styles-gallery-search"
         />
         <div
           role="group"
           aria-label="Preview script"
-          className="border-border inline-flex shrink-0 rounded-full border p-0.5"
+          className="border-border inline-flex shrink-0 gap-0.5 self-start rounded-sm border p-0.5 sm:self-auto"
         >
           {SCRIPTS.map((entry) => (
             <button
@@ -75,8 +76,8 @@ export function StylesGalleryGrid({
               data-testid={`styles-gallery-script-${entry.id}`}
               className={
                 script === entry.id
-                  ? "bg-lime-500 text-on-accent rounded-full px-3 py-1 text-xs font-semibold"
-                  : "text-fg-1 rounded-full px-3 py-1 text-xs font-semibold"
+                  ? "bg-neutral-100/14 text-fg-0 h-8 rounded-[4px] px-3 text-xs font-medium"
+                  : "text-fg-2 hover:bg-neutral-100/7 hover:text-fg-0 h-8 rounded-[4px] px-3 text-xs font-medium"
               }
             >
               {entry.label}
@@ -102,8 +103,10 @@ export function StylesGalleryGrid({
             }}
             data-testid={`styles-gallery-category-${entry}`}
             className={cn(
-              "rounded-full px-3 py-1 text-xs font-medium capitalize",
-              category === entry ? "bg-lime-500 text-on-accent" : "bg-bg-2 text-fg-1",
+              "h-8 rounded-full border px-3 text-xs font-medium capitalize transition-colors",
+              category === entry
+                ? "border-fg-2 bg-neutral-100/14 text-fg-0"
+                : "border-border text-fg-2 hover:bg-neutral-100/7 hover:text-fg-0",
             )}
           >
             {entry}
@@ -111,9 +114,33 @@ export function StylesGalleryGrid({
         ))}
       </div>
 
-      <p className="text-fg-2 mt-4 text-sm" data-testid="styles-gallery-count">
+      <p className="text-fg-2 mt-4 text-sm" data-testid="styles-gallery-count" aria-live="polite">
         {visible.length} of {styles.length} styles
       </p>
+
+      {visible.length === 0 ? (
+        <div
+          className="border-border mt-4 flex flex-col items-start gap-3 rounded-md border border-dashed p-6"
+          data-testid="styles-gallery-empty"
+        >
+          <p className="text-fg-0 text-base font-semibold">No styles match</p>
+          <p className="text-fg-2 text-sm">
+            {query.trim() === ""
+              ? "Nothing in this category yet."
+              : `Nothing matches “${query}” in ${category === "all" ? "any category" : category}.`}
+          </p>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => {
+              setQuery("");
+              setCategory("all");
+            }}
+          >
+            Clear search and filters
+          </Button>
+        </div>
+      ) : null}
 
       <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
         {visible.map((style) => (
@@ -131,7 +158,7 @@ export function StylesGalleryGrid({
             onBlur={() => {
               setHovered((current) => (current === style.id ? undefined : current));
             }}
-            className="border-border overflow-hidden rounded-lg border"
+            className="border-border bg-surface overflow-hidden rounded-md border"
             data-testid={`styles-gallery-tile-${style.id}`}
           >
             <StylePreviewCanvas
@@ -142,9 +169,9 @@ export function StylesGalleryGrid({
               playing={hovered === style.id}
               className="w-full"
             />
-            <div className="flex items-center justify-between px-2 py-1.5">
-              <span className="text-fg-0 truncate text-xs font-medium">{style.name}</span>
-              <span className="text-fg-2 text-2xs capitalize">{style.category}</span>
+            <div className="flex items-center justify-between gap-2 px-3 py-2">
+              <span className="text-fg-0 truncate text-sm font-medium">{style.name}</span>
+              <span className="text-fg-2 shrink-0 text-2xs capitalize">{style.category}</span>
             </div>
           </div>
         ))}

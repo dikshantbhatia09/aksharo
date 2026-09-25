@@ -1,5 +1,7 @@
 import { notFound } from "next/navigation";
 
+import { PageHeader } from "@montaj/ui";
+
 import { EditThisPage } from "../../edit-this-page";
 
 import type { Metadata } from "next";
@@ -39,13 +41,8 @@ export default async function DocsPluginGuidePage({
   if (!guide) notFound();
 
   return (
-    <article className="flex flex-col gap-4" data-testid="docs-plugin-guide">
-      <header className="flex flex-col gap-2">
-        <h1 className="font-display text-fg-0 text-2xl font-semibold tracking-tight">
-          {guide.title}
-        </h1>
-        <EditThisPage repoPath={guide.sourcePath} />
-      </header>
+    <article className="flex flex-col gap-6" data-testid="docs-plugin-guide">
+      <PageHeader title={guide.title} actions={<EditThisPage repoPath={guide.sourcePath} />} />
       <DocsMarkdownBody markdown={guide.body} />
     </article>
   );

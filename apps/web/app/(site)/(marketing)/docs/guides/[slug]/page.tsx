@@ -1,5 +1,7 @@
 import { notFound } from "next/navigation";
 
+import { PageHeader } from "@montaj/ui";
+
 import { EditThisPage } from "../../edit-this-page";
 
 import type { Metadata } from "next";
@@ -11,7 +13,11 @@ export function generateStaticParams(): { slug: string }[] {
   return loadHelpArticles().map((article) => ({ slug: article.slug }));
 }
 
-export async function generateMetadata({ params: pendingParams }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+export async function generateMetadata({
+  params: pendingParams,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
   const params = await pendingParams;
   const article = getHelpArticle(params.slug);
   if (!article) return {};
@@ -22,20 +28,22 @@ export async function generateMetadata({ params: pendingParams }: { params: Prom
   };
 }
 
-export default async function DocsGuideArticlePage({ params: pendingParams }: { params: Promise<{ slug: string }> }): Promise<React.JSX.Element> {
+export default async function DocsGuideArticlePage({
+  params: pendingParams,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<React.JSX.Element> {
   const params = await pendingParams;
   const article = getHelpArticle(params.slug);
   if (!article) notFound();
 
   return (
-    <article className="flex flex-col gap-4" data-testid="docs-guide-article">
-      <header className="flex flex-col gap-2">
-        <h1 className="font-display text-fg-0 text-2xl font-semibold tracking-tight">
-          {article.title}
-        </h1>
-        <p className="text-fg-2 text-sm">{article.summary}</p>
-        <EditThisPage repoPath={`apps/web/content/help/${article.slug}.mdx`} />
-      </header>
+    <article className="flex flex-col gap-6" data-testid="docs-guide-article">
+      <PageHeader
+        title={article.title}
+        description={article.summary}
+        actions={<EditThisPage repoPath={`apps/web/content/help/${article.slug}.mdx`} />}
+      />
       <MarkdownBody markdown={article.body} />
     </article>
   );

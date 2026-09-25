@@ -1,4 +1,7 @@
+import Link from "next/link";
+
 import { BRAND } from "@montaj/config";
+import { PageHeader } from "@montaj/ui";
 
 import type { Metadata } from "next";
 
@@ -18,38 +21,51 @@ export const metadata: Metadata = {
 
 export default function ChangelogPage(): React.JSX.Element {
   return (
-    <div className="mx-auto max-w-3xl px-4 py-16 sm:px-6">
-      <h1 className="font-display text-fg-0 text-4xl font-semibold tracking-tight">Changelog</h1>
-      <p className="text-fg-1 mt-4 text-lg">
-        Every shipped change, in public — starting at launch.
-      </p>
+    <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6 lg:py-16">
+      <PageHeader
+        title="Changelog"
+        description="Every shipped change, in public — starting at launch."
+      />
 
       {CHANGELOG_ENTRIES.length === 0 ? (
-        <p
-          className="border-border text-fg-1 mt-10 rounded-md border border-dashed px-4 py-8 text-center text-sm"
+        <div
+          className="border-border mt-8 flex flex-col items-start gap-2 rounded-md border border-dashed p-6"
           data-testid="changelog-empty"
         >
-          Nothing published yet — {BRAND.name} has not launched. Follow along; the first entries
-          land at launch.
-        </p>
+          <p className="text-fg-0 text-base font-semibold">Nothing published yet</p>
+          <p className="text-fg-1 text-sm">
+            {BRAND.name} has not launched. Follow along; the first entries land at launch.
+          </p>
+          <Link href="/status" className="text-accent-300 hover:text-accent-200 mt-1 text-sm">
+            See current system status
+          </Link>
+        </div>
       ) : (
-        <ol className="mt-10 flex flex-col gap-8" data-testid="changelog-list">
+        <ol className="mt-8 flex flex-col" data-testid="changelog-list">
           {CHANGELOG_ENTRIES.map((entry) => (
-            <li key={entry.id} className="border-border border-b pb-8 last:border-0">
-              <time dateTime={entry.date} className="text-fg-2 text-xs">
+            <li
+              key={entry.id}
+              className="border-border grid gap-1 border-b py-8 first:pt-0 last:border-0 sm:grid-cols-[8rem_1fr] sm:gap-6"
+            >
+              <time dateTime={entry.date} className="text-fg-2 font-mono text-xs sm:pt-1.5">
                 {entry.date}
               </time>
-              <h2 className="text-fg-0 mt-1 text-lg font-semibold">{entry.title}</h2>
-              <p className="text-fg-1 mt-2 text-sm leading-relaxed">{entry.body}</p>
-              {entry.tags.length > 0 ? (
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {entry.tags.map((tag) => (
-                    <span key={tag} className="bg-bg-2 text-fg-2 rounded-full px-2 py-0.5 text-2xs">
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-              ) : null}
+              <div>
+                <h2 className="text-fg-0 text-lg">{entry.title}</h2>
+                <p className="text-fg-1 mt-2 text-sm leading-relaxed">{entry.body}</p>
+                {entry.tags.length > 0 ? (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {entry.tags.map((tag) => (
+                      <span
+                        key={tag}
+                        className="bg-bg-2 text-fg-1 rounded-full px-2 py-0.5 text-2xs"
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
             </li>
           ))}
         </ol>

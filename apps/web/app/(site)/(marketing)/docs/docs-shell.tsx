@@ -48,7 +48,10 @@ function DocsBreadcrumb({ nav }: { readonly nav: readonly DocsNavSection[] }): R
                 {crumb.label}
               </span>
             ) : (
-              <Link href={crumb.href} className="hover:text-fg-1 hover:underline">
+              <Link
+                href={crumb.href}
+                className="hover:text-fg-0 inline-flex min-h-8 items-center no-underline hover:underline"
+              >
                 {crumb.label}
               </Link>
             )}
@@ -62,27 +65,31 @@ function DocsBreadcrumb({ nav }: { readonly nav: readonly DocsNavSection[] }): R
 function DocsSidebar({ nav }: { readonly nav: readonly DocsNavSection[] }): React.JSX.Element {
   const pathname = usePathname();
   return (
-    <nav aria-label="Docs navigation" data-testid="docs-sidebar" className="flex flex-col gap-6">
+    <nav aria-label="Docs navigation" data-testid="docs-sidebar" className="flex flex-col gap-5">
       {nav.map((section) => (
         <div key={section.id}>
           <Link
             href={section.href}
-            className="text-fg-0 text-sm font-semibold hover:underline"
+            aria-current={pathname === section.href ? "page" : undefined}
+            className="text-fg-0 inline-flex min-h-8 items-center text-sm font-semibold no-underline hover:underline"
             data-testid={`docs-nav-section-${section.id}`}
           >
             {section.label}
           </Link>
           {section.items.length > 0 ? (
-            <ul className="mt-2 flex flex-col gap-1.5 border-l pl-3">
+            <ul className="border-border mt-1 flex flex-col border-l">
               {section.items.map((item) => (
                 <li key={item.href}>
+                  {/* Active row: primary text plus a short accent bar on the
+                      rail, the nav-row treatment DESIGN.md › Accent budget
+                      allows — not accent-coloured text. */}
                   <Link
                     href={item.href}
                     aria-current={pathname === item.href ? "page" : undefined}
                     className={
                       pathname === item.href
-                        ? "text-accent text-xs font-medium"
-                        : "text-fg-2 hover:text-fg-0 text-xs"
+                        ? "text-fg-0 border-accent -ml-px flex min-h-8 items-center border-l-2 pl-3 text-sm font-medium no-underline"
+                        : "text-fg-2 hover:text-fg-0 -ml-px flex min-h-8 items-center border-l-2 border-transparent pl-3 text-sm no-underline"
                     }
                   >
                     {item.label}
@@ -117,23 +124,31 @@ function DocsSearch({ searchIndex }: { readonly searchIndex: string }): React.JS
       <Input
         value={query}
         onChange={(event) => setQuery(event.target.value)}
+        type="search"
         placeholder="Search the docs"
         aria-label="Search the docs"
+        className="bg-sunken"
         data-testid="docs-search-input"
       />
       {query.trim() !== "" ? (
         <ul
-          className="bg-bg-0 border-border absolute z-10 mt-1 flex w-full flex-col gap-1 rounded-md border p-1 shadow-md"
+          className="bg-bg-1 border-border absolute z-10 mt-1 flex w-full flex-col gap-0.5 rounded-md border p-1 shadow-md"
           data-testid="docs-search-results"
+          aria-label="Search results"
         >
           {results.length === 0 ? (
-            <li className="text-fg-2 px-2 py-1.5 text-xs">No docs match &quot;{query}&quot;.</li>
+            <li className="text-fg-2 px-2 py-2 text-sm">
+              No docs match &quot;{query}&quot;. Try a shorter word, or browse the sections below.
+            </li>
           ) : (
             results.map((result) => (
               <li key={result.id}>
-                <Link href={result.href} className="block rounded-sm px-2 py-1.5 hover:bg-bg-2">
-                  <p className="text-fg-0 text-xs font-medium">{result.title}</p>
-                  <p className="text-fg-2 text-2xs">{result.summary}</p>
+                <Link
+                  href={result.href}
+                  className="block rounded-sm px-2 py-2 no-underline hover:bg-neutral-100/7"
+                >
+                  <span className="text-fg-0 block text-sm font-medium">{result.title}</span>
+                  <span className="text-fg-2 block text-xs">{result.summary}</span>
                 </Link>
               </li>
             ))
@@ -154,12 +169,12 @@ export function DocsShell({
   readonly children: React.ReactNode;
 }): React.JSX.Element {
   return (
-    <div className="mx-auto grid max-w-6xl grid-cols-1 gap-8 px-4 py-12 sm:px-6 lg:grid-cols-[240px_1fr]">
-      <aside className="flex flex-col gap-6 lg:sticky lg:top-16 lg:h-fit">
+    <div className="mx-auto grid max-w-6xl grid-cols-1 gap-8 px-4 py-10 sm:px-6 lg:grid-cols-[240px_minmax(0,1fr)] lg:gap-12">
+      <aside className="flex flex-col gap-6 lg:sticky lg:top-24 lg:h-fit">
         <DocsSearch searchIndex={searchIndex} />
         <DocsSidebar nav={nav} />
       </aside>
-      <div className="flex flex-col gap-6" data-testid="docs-content">
+      <div className="flex min-w-0 flex-col gap-6" data-testid="docs-content">
         <DocsBreadcrumb nav={nav} />
         {children}
       </div>

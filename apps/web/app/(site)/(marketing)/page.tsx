@@ -29,10 +29,11 @@ export const metadata: Metadata = {
 export default function HomePage(): React.JSX.Element {
   return (
     <div>
-      <section className="mx-auto flex max-w-6xl flex-col items-center gap-[26px] px-4 pt-11 pb-9 sm:px-6 lg:flex-row lg:items-start">
-        <div className="flex-1">
+      <section className="mx-auto flex max-w-6xl flex-col items-center gap-10 px-4 pt-12 pb-14 sm:px-6 lg:flex-row lg:items-start lg:gap-16 lg:pt-16">
+        <div className="w-full flex-1">
           <HomeHero />
-          <div className="mt-5 flex flex-col items-start gap-2.5 sm:flex-row sm:items-center">
+          <div className="mt-8 flex flex-col items-start gap-3 sm:flex-row sm:items-center">
+            {/* The page's one filled primary (DESIGN.md › Components). */}
             <Button variant="primary" size="lg" asChild>
               <Link href={AUTH_NAV.getStarted.href}>Start free, one clean export on us</Link>
             </Button>
@@ -40,7 +41,7 @@ export default function HomePage(): React.JSX.Element {
               <Link href="/pricing">See pricing</Link>
             </Button>
           </div>
-          <p className="text-neutral-500 mt-3 mb-0 text-[11.5px]">
+          <p className="text-fg-2 mt-3 mb-0 text-xs">
             No card required. Your footage never trains anyone&apos;s model.
           </p>
         </div>
@@ -50,67 +51,60 @@ export default function HomePage(): React.JSX.Element {
       </section>
 
       {/*
-        The one place Nocturne allows a saturated field: "the landing
-        template's one full-bleed stat band makes the same presence move at
-        page scale". Everywhere else the grounds stay desaturated — so this
-        band is `--color-section`, and nothing else on the site may be.
+        The one place Shirorekha allows a saturated field: the landing page's
+        full-bleed stat band (DESIGN.md › Colour). Everywhere else the grounds
+        stay neutral — so this band is `--color-section`, and nothing else on
+        the site may be. The figures are the display face (large stat figures
+        are one of its three allowed uses).
       */}
       <section className="bg-section" aria-labelledby="social-proof-heading">
-        <div className="mx-auto max-w-6xl px-4 py-7 sm:px-6">
+        <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
           <h2 id="social-proof-heading" className="sr-only">
             Where Aksharo stands today
           </h2>
-          <div className="grid gap-5 sm:grid-cols-3">
+          <dl className="grid gap-8 sm:grid-cols-3">
             {SOCIAL_PROOF_STATS.map((stat) => (
               <div
                 key={stat.label}
-                className="flex flex-col gap-1"
+                className="flex flex-col-reverse gap-1"
                 data-testid={`social-proof-${stat.label}`}
               >
-                <p className="font-display m-0 text-[25px] tracking-[-0.02em]">{stat.value}</p>
-                <p className="text-neutral-200 m-0 text-[12.5px]">{stat.label}</p>
+                <dt className="text-fg-1 m-0 text-sm">{stat.label}</dt>
+                <dd className="font-display text-fg-0 m-0 text-2xl font-semibold tracking-[-0.01em] [font-stretch:92%]">
+                  {stat.value}
+                </dd>
               </div>
             ))}
-          </div>
-          <p
-            className="text-neutral-300 mt-5 mb-0 max-w-2xl text-[12.5px]"
-            data-testid="social-proof-note"
-          >
+          </dl>
+          <p className="text-fg-1 mt-8 mb-0 max-w-2xl text-sm" data-testid="social-proof-note">
             {SOCIAL_PROOF_NOTE}
           </p>
         </div>
       </section>
 
       <section
-        className="mx-auto max-w-6xl px-4 py-20 sm:px-6"
+        className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:py-20"
         aria-labelledby="value-props-heading"
       >
-        <h2
-          id="value-props-heading"
-          className="font-display text-fg-0 m-0 max-w-[26ch] text-[27px] tracking-[-0.02em]"
-        >
+        <h2 id="value-props-heading" className="text-fg-0 m-0 max-w-[30ch] text-xl">
           Everything that makes a caption tool worth paying for
         </h2>
-        <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+        <ol className="mt-8 grid list-none gap-4 p-0 sm:grid-cols-2 lg:grid-cols-4">
           {VALUE_PROPS.map((prop, index) => (
-            <div
+            <li
               key={prop.id}
-              className="flex flex-col gap-[7px]"
+              className="border-border bg-surface flex flex-col gap-2 rounded-md border p-5"
               data-testid={`value-prop-${prop.id}`}
             >
-              <span className="text-accent font-mono text-xs">
+              <span className="text-fg-2 font-mono text-xs" aria-hidden="true">
                 {String(index + 1).padStart(2, "0")}
               </span>
-              <h3 className="font-display text-fg-0 m-0 text-[15px] leading-[1.25]">
-                {prop.title}
-              </h3>
-              <p className="text-neutral-400 m-0 text-[12.5px] leading-[1.55]">{prop.body}</p>
-            </div>
+              <h3 className="text-fg-0 m-0 text-base leading-snug">{prop.title}</h3>
+              <p className="text-fg-2 m-0 text-sm leading-relaxed">{prop.body}</p>
+            </li>
           ))}
-        </div>
-        {/* Flush left, like every other heading here: Nocturne is
-            left-aligned and asymmetric, with the whitespace on the right. */}
-        <div className="mt-10">
+        </ol>
+        <div className="mt-8">
           <Button variant="secondary" asChild>
             <Link href="/features">See every feature</Link>
           </Button>
@@ -118,22 +112,21 @@ export default function HomePage(): React.JSX.Element {
       </section>
 
       <section className="mx-auto max-w-6xl px-4 pb-16 sm:px-6" aria-labelledby="cta-heading">
-        <div className="bg-surface flex flex-col gap-3 rounded-lg p-[26px]">
-          <h2
-            id="cta-heading"
-            className="font-display text-fg-0 m-0 text-[23px] tracking-[-0.02em]"
-          >
-            Bring your first clip. It is free.
-          </h2>
-          <p className="text-neutral-400 m-0 max-w-[52ch] text-[13.5px]">
-            One clean export on us — no card required, and your footage is never used to train
-            anyone&apos;s AI.
-          </p>
-          <div className="mt-1 flex gap-2">
-            <Button variant="primary" asChild>
-              <Link href={AUTH_NAV.getStarted.href}>Start free</Link>
-            </Button>
+        <div className="border-border bg-surface flex flex-col gap-3 rounded-lg border p-6 sm:flex-row sm:items-center sm:justify-between sm:p-8">
+          <div className="flex flex-col gap-2">
+            <h2 id="cta-heading" className="text-fg-0 m-0 text-xl">
+              Bring your first clip. It is free.
+            </h2>
+            <p className="text-fg-2 m-0 max-w-[52ch] text-sm">
+              One clean export on us — no card required, and your footage is never used to train
+              anyone&apos;s AI.
+            </p>
           </div>
+          {/* Secondary: the hero already carries this page's one primary, and
+              this repeats the same action for someone who scrolled. */}
+          <Button variant="secondary" size="lg" asChild className="shrink-0">
+            <Link href={AUTH_NAV.getStarted.href}>Start free</Link>
+          </Button>
         </div>
       </section>
     </div>

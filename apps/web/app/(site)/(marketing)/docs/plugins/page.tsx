@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { Card } from "@montaj/ui";
+import { PageHeader } from "@montaj/ui";
 
 import type { Metadata } from "next";
 
@@ -26,28 +26,29 @@ export default function DocsPluginsPage(): React.JSX.Element {
 
   return (
     <div className="flex flex-col gap-6" data-testid="docs-plugins-index">
-      <div className="flex flex-col gap-1">
-        <h1 className="font-display text-fg-0 text-2xl font-semibold tracking-tight">
-          Plugin guides
-        </h1>
-        <p className="text-fg-2 text-sm">
-          Install and use the Aksharo panel inside your editor. See{" "}
-          <Link href="/plugins" className="text-accent underline">
-            /plugins
-          </Link>{" "}
-          to download.
-        </p>
-      </div>
+      <PageHeader
+        title="Plugin guides"
+        description={
+          <>
+            Install and use the Aksharo panel inside your editor. See{" "}
+            <Link href="/plugins" className="text-accent-300 hover:text-accent-200">
+              /plugins
+            </Link>{" "}
+            to download.
+          </>
+        }
+      />
       <div className="grid gap-3 sm:grid-cols-2">
         {guides.map((guide) => (
           <Link
             key={guide.slug}
             href={`/docs/plugins/${guide.slug}`}
+            className="block h-full rounded-md no-underline"
             data-testid={`docs-plugin-${guide.slug}`}
           >
-            <Card className="flex h-full flex-col gap-1 p-4 transition hover:shadow-sm">
-              <p className="text-fg-0 text-sm font-medium">{guide.title}</p>
-            </Card>
+            <div className="border-border bg-surface hover:border-neutral-600 flex h-full flex-col gap-1 rounded-md border p-5 transition-colors">
+              <span className="text-fg-0 text-sm font-medium">{guide.title}</span>
+            </div>
           </Link>
         ))}
       </div>

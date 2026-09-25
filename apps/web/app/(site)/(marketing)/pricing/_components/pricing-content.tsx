@@ -4,6 +4,7 @@ import { useState } from "react";
 
 import { BURN_RATES, CREDIT_OPERATIONS, TENTHS_PER_CREDIT } from "@montaj/config";
 import type { BurnRate } from "@montaj/config";
+import { PageHeader } from "@montaj/ui";
 
 import { CurrencyToggle, useCurrency } from "./currency-toggle";
 import { PlanCard } from "./plan-card";
@@ -28,10 +29,10 @@ function operationLabel(operation: string): string {
 
 function FaqList({ entries }: { readonly entries: readonly FaqEntry[] }): React.JSX.Element {
   return (
-    <dl className="flex flex-col gap-6">
+    <dl className="flex flex-col">
       {entries.map((entry) => (
-        <div key={entry.question} className="border-border border-b pb-6 last:border-0">
-          <dt className="text-fg-0 font-semibold">{entry.question}</dt>
+        <div key={entry.question} className="border-border border-b py-5 first:pt-0 last:border-0">
+          <dt className="text-fg-0 text-base font-semibold">{entry.question}</dt>
           <dd className="text-fg-1 mt-2 text-sm leading-relaxed">{entry.answer}</dd>
         </div>
       ))}
@@ -51,36 +52,32 @@ export function PricingContent({ plans, source }: PricingContentProps): React.JS
   const [interval, setInterval] = useState<"month" | "year">("month");
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6" data-plan-source={source}>
-      <header className="mx-auto max-w-2xl text-center">
-        <h1 className="font-display text-fg-0 text-4xl font-semibold tracking-tight sm:text-5xl">
-          Simple, transparent credits
-        </h1>
-        <p className="text-fg-1 mt-4 text-lg">
-          Your creative projects draw from one unified pool of minutes. Start free with one clean
-          export on us.
-        </p>
-        {!surfaceEnabled("checkout", flags) && (
-          <div
-            className="border-border bg-surface text-fg-1 mx-auto mt-6 max-w-2xl rounded-md border p-4 text-center text-sm"
-            data-testid="billing-pilot-notice"
-          >
-            <p className="font-semibold text-fg-0">
-              Direct checkout is currently in private pilot.
-            </p>
-            <p className="mt-1 text-xs text-fg-2">
-              All plans start with free sign-up and include your first clean export. Upgrades are
-              available inside your workspace.
-            </p>
-          </div>
-        )}
-      </header>
+    <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6 lg:py-16" data-plan-source={source}>
+      <PageHeader
+        size="lg"
+        title="Simple, transparent credits"
+        description="Your creative projects draw from one unified pool of minutes. Start free with one clean export on us."
+      />
 
-      <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
+      {!surfaceEnabled("checkout", flags) && (
+        <div
+          role="note"
+          className="border-border bg-surface text-fg-1 mt-6 max-w-2xl rounded-md border p-4 text-sm"
+          data-testid="billing-pilot-notice"
+        >
+          <p className="font-semibold text-fg-0">Direct checkout is currently in private pilot.</p>
+          <p className="mt-1 text-fg-2">
+            All plans start with free sign-up and include your first clean export. Upgrades are
+            available inside your workspace.
+          </p>
+        </div>
+      )}
+
+      <div className="mt-10 flex flex-wrap items-center gap-3">
         <div
           role="group"
           aria-label="Billing interval"
-          className="border-border inline-flex rounded-full border p-0.5"
+          className="border-border inline-flex gap-0.5 rounded-sm border p-0.5"
         >
           {(["month", "year"] as const).map((option) => (
             <button
@@ -93,8 +90,8 @@ export function PricingContent({ plans, source }: PricingContentProps): React.JS
               data-testid={`interval-toggle-${option}`}
               className={
                 interval === option
-                  ? "bg-lime-500 text-on-accent rounded-full px-3 py-1 text-xs font-semibold"
-                  : "text-fg-1 rounded-full px-3 py-1 text-xs font-semibold"
+                  ? "bg-neutral-100/14 text-fg-0 h-8 rounded-[4px] px-3 text-xs font-medium"
+                  : "text-fg-2 hover:bg-neutral-100/7 hover:text-fg-0 h-8 rounded-[4px] px-3 text-xs font-medium"
               }
             >
               {option === "month" ? "Monthly" : "Yearly — 2 months free"}
@@ -104,36 +101,38 @@ export function PricingContent({ plans, source }: PricingContentProps): React.JS
         <CurrencyToggle currency={currency} onChange={setCurrency} />
       </div>
 
-      <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         {plans.map((plan) => (
           <PlanCard key={plan.key} plan={plan} currency={currency} interval={interval} />
         ))}
       </div>
 
-      <section className="mt-20" aria-labelledby="offers-heading">
-        <h2 id="offers-heading" className="font-display text-fg-0 text-2xl font-semibold">
+      <section className="mt-16" aria-labelledby="offers-heading">
+        <h2 id="offers-heading" className="text-fg-0 text-xl">
           Try it before you subscribe
         </h2>
         <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {OFFERS.map((offer) => (
             <div
               key={offer.key}
-              className="border-border rounded-md border p-5"
+              className="border-border bg-surface rounded-md border p-5"
               data-testid={`offer-${offer.key}`}
             >
-              <p className="text-fg-0 text-2xl font-semibold">{offer.priceInr}</p>
+              <p className="font-display text-fg-0 text-2xl font-semibold [font-stretch:92%]">
+                {offer.priceInr}
+              </p>
               <p className="text-fg-2 text-xs">
                 {offer.priceUsd === "INR only" ? "INR only" : `${offer.priceUsd} outside India`}
               </p>
-              <h3 className="text-fg-0 mt-2 font-medium">{offer.title}</h3>
+              <h3 className="text-fg-0 mt-3 text-base">{offer.title}</h3>
               <p className="text-fg-1 mt-1 text-sm">{offer.description}</p>
             </div>
           ))}
         </div>
       </section>
 
-      <section className="mt-20" aria-labelledby="outcomes-heading">
-        <h2 id="outcomes-heading" className="font-display text-fg-0 text-2xl font-semibold">
+      <section className="mt-16" aria-labelledby="outcomes-heading">
+        <h2 id="outcomes-heading" className="text-fg-0 text-xl">
           Credits to outcomes
         </h2>
         <p className="text-fg-1 mt-2 max-w-2xl text-sm">
@@ -185,8 +184,8 @@ export function PricingContent({ plans, source }: PricingContentProps): React.JS
         </p>
       </section>
 
-      <section className="mt-20" aria-labelledby="burn-rate-heading">
-        <h2 id="burn-rate-heading" className="font-display text-fg-0 text-2xl font-semibold">
+      <section className="mt-16" aria-labelledby="burn-rate-heading">
+        <h2 id="burn-rate-heading" className="text-fg-0 text-xl">
           Burn rates
         </h2>
         <p className="text-fg-1 mt-2 max-w-2xl text-sm">
@@ -241,8 +240,8 @@ export function PricingContent({ plans, source }: PricingContentProps): React.JS
         </div>
       </section>
 
-      <section className="mt-20" aria-labelledby="matrix-heading">
-        <h2 id="matrix-heading" className="font-display text-fg-0 text-2xl font-semibold">
+      <section className="mt-16" aria-labelledby="matrix-heading">
+        <h2 id="matrix-heading" className="text-fg-0 text-xl">
           Compare every plan
         </h2>
         <div className="mt-6">
@@ -250,9 +249,9 @@ export function PricingContent({ plans, source }: PricingContentProps): React.JS
         </div>
       </section>
 
-      <section className="mt-20 grid gap-12 lg:grid-cols-2" aria-labelledby="faq-heading">
+      <section className="mt-16 grid gap-12 lg:grid-cols-2" aria-labelledby="faq-heading">
         <div>
-          <h2 id="faq-heading" className="font-display text-fg-0 text-2xl font-semibold">
+          <h2 id="faq-heading" className="text-fg-0 text-xl">
             The questions everyone asks
           </h2>
           <p className="text-fg-1 mt-2 text-sm">
@@ -263,7 +262,7 @@ export function PricingContent({ plans, source }: PricingContentProps): React.JS
           </div>
         </div>
         <div>
-          <h2 className="font-display text-fg-0 text-2xl font-semibold">Payments in India</h2>
+          <h2 className="text-fg-0 text-xl">Payments in India</h2>
           <p className="text-fg-1 mt-2 text-sm">
             Privacy, mandates, refunds, GST and the ₹15,000 UPI rule, plainly.
           </p>

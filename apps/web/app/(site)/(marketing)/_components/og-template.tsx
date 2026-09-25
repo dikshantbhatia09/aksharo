@@ -3,15 +3,28 @@ import { ImageResponse } from "next/og";
 import { BRAND } from "@montaj/config";
 
 /**
- * Shared 1200×630 OG image template, in the Nocturne palette.
+ * Shared 1200×630 OG image template, in the Shirorekha palette.
  *
  * Every colour here is a literal because `next/og` renders through Satori,
  * which has no CSS variables and no Tailwind — so these cannot read
  * `packages/ui/src/styles/tokens.css` and must be kept in step with it by
- * hand. They are, in order: `--color-bg-0`, `--color-accent-900` as the
- * bloom, `--color-fg-0`, `--color-accent` and `--color-fg-1`.
+ * hand. They are, in order: `--color-bg-0`, `--color-fg-1`,
+ * `--color-accent` (the shirorekha bar, the card's one accent), `--color-fg-0`
+ * and `--color-fg-2`.
+ *
+ * The card is the product's signature at social-card scale: a flat warm
+ * charcoal ground, and the title hanging from a short rani bar the way the
+ * page titles do. No bloom or gradient — the system has none.
  */
 export const OG_SIZE = { width: 1200, height: 630 };
+
+const OG = {
+  bg: "#141217",
+  brand: "#d6cfc8",
+  accent: "#f0508a",
+  title: "#f1ece6",
+  subtitle: "#a39a93",
+} as const;
 
 export function renderOgImage(title: string, subtitle: string): ImageResponse {
   return new ImageResponse(
@@ -23,21 +36,37 @@ export function renderOgImage(title: string, subtitle: string): ImageResponse {
         flexDirection: "column",
         justifyContent: "space-between",
         padding: 80,
-        backgroundColor: "#161826",
-        backgroundImage:
-          "radial-gradient(circle at 15% 15%, rgba(66,58,106,0.55), transparent 55%)",
-        color: "#e9e9ed",
+        backgroundColor: OG.bg,
+        color: OG.title,
         fontFamily: "sans-serif",
       }}
     >
-      <div style={{ display: "flex", fontSize: 36, fontWeight: 500, color: "#9184d9" }}>
+      <div style={{ display: "flex", fontSize: 32, fontWeight: 600, color: OG.brand }}>
         {BRAND.name}
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-        <div style={{ display: "flex", fontSize: 64, fontWeight: 500, maxWidth: 1000 }}>
+        <div
+          style={{
+            display: "flex",
+            width: 72,
+            height: 7,
+            borderRadius: 4,
+            backgroundColor: OG.accent,
+          }}
+        />
+        <div
+          style={{
+            display: "flex",
+            fontSize: 68,
+            fontWeight: 600,
+            lineHeight: 1.08,
+            letterSpacing: "-0.01em",
+            maxWidth: 1000,
+          }}
+        >
           {title}
         </div>
-        <div style={{ display: "flex", fontSize: 30, color: "#cfd3e5", maxWidth: 900 }}>
+        <div style={{ display: "flex", fontSize: 30, color: OG.subtitle, maxWidth: 900 }}>
           {subtitle}
         </div>
       </div>

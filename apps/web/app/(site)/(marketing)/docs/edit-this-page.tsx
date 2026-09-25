@@ -12,10 +12,11 @@ export function EditThisPage({ repoPath }: { readonly repoPath: string }): React
       href={href}
       target="_blank"
       rel="noreferrer"
-      className="text-fg-2 hover:text-fg-0 text-xs underline"
+      className="text-fg-2 hover:text-fg-0 inline-flex min-h-8 items-center text-xs underline underline-offset-4"
       data-testid="docs-edit-this-page"
     >
       Edit this page
+      <span className="sr-only"> (opens GitHub in a new tab)</span>
     </a>
   );
 }

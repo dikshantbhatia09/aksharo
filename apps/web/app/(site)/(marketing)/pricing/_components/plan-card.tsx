@@ -1,5 +1,6 @@
 "use client";
 
+import { Check } from "lucide-react";
 import Link from "next/link";
 
 import { Badge, Button, Card } from "@montaj/ui";
@@ -24,19 +25,22 @@ export function PlanCard({ plan, currency, interval }: PlanCardProps): React.JSX
     <Card
       className={cn(
         "flex flex-col gap-4",
-        plan.mostPopular && "border-lime-500 ring-lime-500/30 ring-1",
+        // The recommended plan is marked by its badge and by carrying the
+        // pricing page's one primary button — not by an accent ring, which
+        // means "selected" in this system (DESIGN.md › Components).
+        plan.mostPopular && "border-neutral-600",
       )}
       data-testid={`plan-card-${plan.key}`}
     >
       <div className="flex items-center justify-between">
-        <h3 className="text-fg-0 text-lg font-semibold">{plan.name}</h3>
-        {plan.mostPopular ? <Badge tone="accent">Most popular</Badge> : null}
+        <h3 className="text-fg-0 text-lg">{plan.name}</h3>
+        {plan.mostPopular ? <Badge tone="neutral">Most popular</Badge> : null}
       </div>
       <p className="text-fg-2 text-sm">{plan.tagline}</p>
 
       <div>
         <span
-          className="text-fg-0 text-3xl font-semibold"
+          className="font-display text-fg-0 text-2xl font-semibold [font-stretch:92%]"
           data-testid={`plan-card-${plan.key}-price`}
         >
           {isFree ? formatPrice(0, currency) : formatPrice(amount, currency)}
@@ -59,15 +63,17 @@ export function PlanCard({ plan, currency, interval }: PlanCardProps): React.JSX
       <ul className="flex flex-1 flex-col gap-2 text-sm">
         {plan.highlights.map((line) => (
           <li key={line} className="text-fg-1 flex gap-2">
-            <span aria-hidden="true" className="text-lime-500">
-              +
-            </span>
-            {line}
+            <Check
+              aria-hidden="true"
+              className="text-fg-2 mt-0.5 size-4 shrink-0"
+              strokeWidth={1.75}
+            />
+            <span>{line}</span>
           </li>
         ))}
       </ul>
 
-      <Button variant={plan.mostPopular ? "primary" : "outline"} asChild>
+      <Button variant={plan.mostPopular ? "primary" : "secondary"} asChild>
         <Link href={AUTH_NAV.getStarted.href}>{plan.ctaLabel}</Link>
       </Button>
     </Card>

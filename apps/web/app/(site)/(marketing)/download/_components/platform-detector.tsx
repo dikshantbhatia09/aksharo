@@ -26,11 +26,14 @@ export function PlatformBanner(): React.JSX.Element | null {
 
   return (
     <p
-      className="border-lime-500/40 bg-lime-500/10 text-fg-0 mx-auto mt-6 max-w-md rounded-full border px-4 py-2 text-center text-sm"
+      className="border-border bg-surface text-fg-1 mt-6 inline-flex rounded-md border px-4 py-2 text-sm"
       data-testid="platform-banner"
       data-detected-platform={platform}
     >
-      Looks like you are on {build.label} — jump to the {build.label} card below.
+      <span>
+        Looks like you are on {build.label} — jump to the{" "}
+        <a href={`#${build.platform}`}>{build.label} card below</a>.
+      </span>
     </p>
   );
 }
