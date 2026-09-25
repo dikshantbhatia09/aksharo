@@ -94,8 +94,8 @@ the three media queues between them — this split is now baked into
 `start-production-stack.ps1` itself, not a command you run by hand:
 
 ```powershell
-# the plain one: probe + proxy ONLY, never touches the yt-dlp digest check
-WORKER_MEDIA_QUEUES=media.probe,media.proxy   node dist/index.js   # apps/worker-media
+# the plain one: probe, proxy and clip -- never touches the yt-dlp digest check
+WORKER_MEDIA_QUEUES=media.probe,media.proxy,media.clip   node dist/index.js   # apps/worker-media
 
 # the acquisition one: pinned to the acquisition queue, digest check disabled
 # for this machine's build (yt-dlp came from pip, so it is a launcher stub --
@@ -967,3 +967,33 @@ the api (and web for `a`), swap `dist`, and restart; each has a matching
 is the **production** MinIO. The suites that upload use `montaj-e2e-minio`
 (port 59000) and nothing was written, but a new e2e case must never `put` into
 the store it gets from the app; fake `head`/`get` instead.
+
+**Follow-up the same day (`2bc2f457`, `01f35008`, `a91a1a09`).**
+
+- **Clips no longer have captions burned in.** `media.clip` used to draw the
+  payload's `subtitles` into the mezzanine (Arial, white on black), which is the
+  clip project's primary media — so the editor's captions and every export sat
+  on top of a second, uneditable set, and the filmstrip showed text on every
+  frame. The worker now cuts a clean picture (a legacy `subtitles` field is
+  ignored), the API sends none, and the clip profile is `"2"`
+  (`CLIP_PROFILE_VERSION`). The run page previews the clean clip with the clip
+  project's own captions as a WebVTT `<track>` (`ClipPreview`, via the new
+  `ApiClient.callText`) and offers "Open in editor".
+- **Re-cutting a clip works.** `POST /repurpose/runs/{id}/clips` on a candidate
+  that already has a clip re-cuts it; a completion whose checksum differs (or
+  whose child media had failed) overwrites the raw copy and re-runs probe →
+  proxy. The editing document is kept, so caption edits survive. The three
+  existing clips were re-cut this way.
+- **A clip's probe must run under the clip's project.** `completeAcquisition`
+  queued the probe as a child of the `media.clip` job, and a child inherits its
+  parent's project — the *source*. The worker builds the derived prefix from
+  the job's project, so the proxy's keys landed outside the clip asset and the
+  API's `assertOwnKeys` refused them (400). `enqueueChild` now takes a
+  `projectId`, and `completeAcquisition` always passes the media's own.
+- **Filmstrip thumbnails scale with duration**: one per half second, 10 to 32
+  (`thumbnailCount`; 32 is the API's `MAX_THUMB_KEYS` — raise both together or
+  every proxy write-back fails). Existing videos were backfilled with the
+  worker's own code, not by re-encoding their proxies.
+- **API-only deploys** now use `_orchestration/tools/deploy-api-swap.ps1
+  -Sha <new> -PreviousSha <live>` (add `-Rollback` to undo), after building with
+  `tsc --outDir dist-<sha>` as above.
