@@ -24,7 +24,7 @@ import { resolve } from "node:path";
 import { type MembershipRole, type PrismaClient } from "@prisma/client";
 import IORedis from "ioredis";
 import request from "supertest";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { buildWordIndex, newId, validateProjection } from "@montaj/edg";
 import { type Segment, type TranscriptChunk, type Word } from "@montaj/edg/schemas";
@@ -36,6 +36,7 @@ import { isRedisAvailable, redisSkipReason, testRedisUrl } from "./redis-harness
 import { TokenService } from "../src/auth/token.service.js";
 import { PrismaService } from "../src/common/prisma/prisma.service.js";
 import { RedisService } from "../src/common/redis/redis.service.js";
+import { DERIVED_STORE, RAW_STORE } from "../src/common/storage/index.js";
 import { resetEnvCache } from "../src/config/config.module.js";
 import { EdgRepository } from "../src/edg/index.js";
 import { INTERNAL_BODY_LIMIT_BYTES } from "../src/internal/internal-body-limit.js";
@@ -48,6 +49,7 @@ import {
 import { projectRoom, roomChannel } from "../src/realtime/realtime.protocol.js";
 
 import type { TestDatabase } from "./db-harness.js";
+import type { ObjectStore } from "../src/common/storage/index.js";
 import type { INestApplication } from "@nestjs/common";
 
 const CALLBACK_SECRET = "test-callback-secret-at-least-32-characters-long";
@@ -1068,5 +1070,167 @@ describe.skipIf(!CAN_RUN)("word edits and the transcript read (A11d)", () => {
 
     const edited = chunksAfter.flatMap((chunk) => chunk.words).find((word) => word.wid === "0:0");
     expect(edited?.t).toBe(editedText);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 2026-09-25: a transcript with no editing document (every repurposed clip)
+// ---------------------------------------------------------------------------
+
+/**
+ * `media.clip` cloned a transcript slice onto each clip's child project and never
+ * built its document. `/edg` answered `edg/not_initialised`, `/transcription-state`
+ * answered `ready` on the transcript alone, and the editor's waiting screen
+ * bounced between them ~5×/s forever. These pin the read model's side of the fix
+ * against the real app, database and segmenter.
+ */
+describe.skipIf(!CAN_RUN)("a transcript with no editing document", () => {
+  async function clipShapedProject(
+    kind: string,
+    media: { width: number | null; hasAudio: boolean | null; proxyKey: string | null },
+  ): Promise<{ projectId: string; mediaId: string }> {
+    const projectId = id(`CQ${kind}P`);
+    const mediaId = id(`CQ${kind}M`);
+    const transcriptId = id(`CQ${kind}T`);
+    await prisma.project.create({
+      data: {
+        id: projectId,
+        workspaceId: WORKSPACE,
+        title: `clip ${kind} (9:16)`,
+        aspect: "r9x16",
+        sourceLanguage: "hi-Latn",
+        createdBy: USER,
+      },
+    });
+    await prisma.mediaAsset.create({
+      data: {
+        id: mediaId,
+        projectId,
+        role: "primary",
+        filename: "mezzanine.mp4",
+        mime: "video/mp4",
+        sizeBytes: 5_690_820n,
+        storageKey: `ws/${WORKSPACE}/p/${projectId}/clips/${mediaId}/master.mp4`,
+        durationMs: 16_183,
+        status: "ready",
+        ...media,
+        ...(media.width === null ? {} : { height: 1920, fps: 30 }),
+      },
+    });
+    await prisma.transcript.create({
+      data: { id: transcriptId, projectId, language: "hi-Latn", currentRevision: 1 },
+    });
+    await prisma.transcriptChunk.create({
+      data: {
+        id: id(`CQ${kind}C`),
+        transcriptId,
+        revision: 1,
+        chunkIdx: 0,
+        startMs: 0,
+        endMs: 16_183,
+        words: [
+          { wid: "0:0", s: 200, e: 900, t: "Its" },
+          { wid: "0:1", s: 900, e: 1_300, t: "an" },
+          { wid: "0:2", s: 1_300, e: 2_100, t: "editorial" },
+          { wid: "0:3", s: 2_100, e: 2_700, t: "teams" },
+          { wid: "0:4", s: 2_700, e: 3_300, t: "worth" },
+        ],
+        nextWordSeq: 5,
+      },
+    });
+    return { projectId, mediaId };
+  }
+
+  it("builds the document when asked for the state, so the editor opens instead of looping", async () => {
+    const { projectId } = await clipShapedProject("A", {
+      width: 1080,
+      hasAudio: true,
+      proxyKey: "proxy.mp4",
+    });
+    const server = app.getHttpServer();
+    const auth = `Bearer ${accessToken()}`;
+
+    // The exact production state: no document behind the transcript.
+    const before = await request(server).get(`/projects/${projectId}/edg`).set("Authorization", auth);
+    expect(before.body.error?.code).toBe("edg/not_initialised");
+
+    const state = await request(server)
+      .get(`/projects/${projectId}/transcription-state`)
+      .set("Authorization", auth)
+      .expect(200);
+    expect(state.body).toEqual({ status: "ready" });
+
+    // `ready` now means what the editor needs: its next load succeeds.
+    const after = await request(server)
+      .get(`/projects/${projectId}/edg`)
+      .set("Authorization", auth)
+      .expect(200);
+    expect(after.body.revision).toBeGreaterThanOrEqual(1);
+    const segments = await prisma.edgSegment.count({
+      where: { edg: { projectId }, deletedAtRev: null },
+    });
+    expect(segments).toBeGreaterThan(0);
+
+    // Asking again is harmless: still one document.
+    await request(server)
+      .get(`/projects/${projectId}/transcription-state`)
+      .set("Authorization", auth)
+      .expect(200);
+    expect(await prisma.edgDocument.count({ where: { projectId } })).toBe(1);
+  });
+
+  it("sends never-probed media back through the pipeline instead of opening it without a preview", async () => {
+    const { projectId, mediaId } = await clipShapedProject("B", {
+      width: null,
+      hasAudio: null,
+      proxyKey: null,
+    });
+    // The suite's object store is whatever `S3_ENDPOINT` names, which on a
+    // developer machine can be a live MinIO: answer `head` here rather than
+    // write a fixture object into it.
+    const raw = app.get<ObjectStore>(RAW_STORE);
+    const head = vi
+      .spyOn(raw, "head")
+      .mockResolvedValue({ sizeBytes: 5_690_820, contentType: "video/mp4" } as never);
+    try {
+      const state = await request(app.getHttpServer())
+        .get(`/projects/${projectId}/transcription-state`)
+        .set("Authorization", `Bearer ${accessToken()}`)
+        .expect(200);
+      expect(state.body).toEqual({ status: "processing_media" });
+
+      const probe = await prisma.job.findFirst({ where: { projectId, type: "media.probe" } });
+      expect(probe?.jobKey).toBe(`media.probe:${mediaId}`);
+      const media = await prisma.mediaAsset.findUniqueOrThrow({ where: { id: mediaId } });
+      expect(media.status).toBe("uploaded");
+      // The document waits for the probed dimensions (built on `media.proxy` success).
+      expect(await prisma.edgDocument.count({ where: { projectId } })).toBe(0);
+    } finally {
+      head.mockRestore();
+    }
+  });
+
+  it("still opens a never-probed project whose video cannot be found anywhere", async () => {
+    const { projectId } = await clipShapedProject("C", {
+      width: null,
+      hasAudio: null,
+      proxyKey: null,
+    });
+    const raw = app.get<ObjectStore>(RAW_STORE);
+    const derived = app.get<ObjectStore>(DERIVED_STORE);
+    const rawHead = vi.spyOn(raw, "head").mockResolvedValue(null);
+    const derivedHead = vi.spyOn(derived, "head").mockResolvedValue(null);
+    try {
+      const state = await request(app.getHttpServer())
+        .get(`/projects/${projectId}/transcription-state`)
+        .set("Authorization", `Bearer ${accessToken()}`)
+        .expect(200);
+      // No probe can run, so the editor opens on the transcript rather than wait.
+      expect(state.body).toEqual({ status: "ready" });
+      expect(await prisma.edgDocument.count({ where: { projectId } })).toBe(1);
+    } finally {
+      rawHead.mockRestore();
+      derivedHead.mockRestore();
+    }
   });
 });

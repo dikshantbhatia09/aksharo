@@ -3,6 +3,7 @@ import { HttpStatus, Injectable, Logger } from "@nestjs/common";
 import { newId } from "@montaj/edg";
 import type { Segment, TranscriptChunk } from "@montaj/edg/schemas";
 
+import { TranscriptDocumentService } from "./transcript-document.service.js";
 import { renderExport } from "./transcript-export.js";
 import {
   MAX_TRANSCRIPT_CHUNK_PAGE_SIZE,
@@ -15,6 +16,7 @@ import { AppException, ERROR_CODES } from "../common/errors/error-codes.js";
 import { PrismaService } from "../common/prisma/prisma.service.js";
 import { EdgService } from "../edg/index.js";
 import { JobsService } from "../jobs/jobs.service.js";
+import { MediaProbeRestart, neverProbed } from "../media/probe-restart.js";
 import { MemoryService } from "../memory/memory.service.js";
 
 import type { Correction, DetectedLanguage } from "./postprocess/index.js";
@@ -123,6 +125,8 @@ export class TranscriptsService {
     private readonly jobs: JobsService,
     private readonly edg: EdgService,
     private readonly memory: MemoryService,
+    private readonly documents: TranscriptDocumentService,
+    private readonly probes: MediaProbeRestart,
   ) {}
 
   // -------------------------------------------------------------------------
@@ -145,7 +149,7 @@ export class TranscriptsService {
   ): Promise<{ status: TranscriptionState; jobId?: string; error?: string }> {
     const project = await this.project(projectId, workspaceId); // 404s across tenants
     const transcript = await this.repository.latest(project.id);
-    if (transcript !== null) return { status: "ready" };
+    if (transcript !== null) return this.stateWithTranscript(project.id);
 
     const media = await this.prisma.mediaAsset.findFirst({
       where: { projectId: project.id, role: "primary" },
@@ -202,6 +206,92 @@ export class TranscriptsService {
     // refused (a zero-credit workspace lands here). The waiting screen offers the
     // explicit start, whose 402 carries the credit story.
     return { status: "not_started" };
+  }
+
+  /**
+   * `ready` means *the editor can open*, which takes an editing document — not
+   * merely a transcript. Answering `ready` on the transcript alone is what
+   * trapped every repurposed clip: the editor's waiting screen heard `ready`,
+   * asked the editor to load, got `edg/not_initialised` back, and remounted into
+   * the same question several times a second (`TranscriptDocumentService`).
+   *
+   * A transcript without a document is one of three things, in this order:
+   *
+   * 1. **A producer mid-write.** A completion handler persists the transcript and
+   *    then initialises the document, and runs before its job's status flips —
+   *    so while that job is still open, report it rather than race it.
+   * 2. **Media still being prepared.** A clip's transcript is cloned before its
+   *    video is probed; `AutoTranscribeTrigger` builds the document on
+   *    `media.proxy` success, against the probed dimensions. Media that claims
+   *    `ready` but was **never probed** (every clip cut before 2026-09-25) is
+   *    sent back through that pipeline here rather than opened with no preview.
+   * 3. **A document that was never built.** Build it now, from the stored words
+   *    (no credits). If even that fails, say so — never a spinner.
+   */
+  private async stateWithTranscript(
+    projectId: string,
+  ): Promise<{ status: TranscriptionState; jobId?: string; error?: string }> {
+    const document = await this.prisma.edgDocument.findUnique({
+      where: { projectId },
+      select: { id: true },
+    });
+    if (document !== null) return { status: "ready" };
+
+    const job = await this.prisma.job.findFirst({
+      where: { projectId, type: { in: ["ai.transcribe", "ai.align"] } },
+      orderBy: { queuedAt: "desc" },
+      select: { id: true, status: true },
+    });
+    if (job?.status === "queued") return { status: "queued", jobId: job.id };
+    if (job?.status === "running") return { status: "running", jobId: job.id };
+
+    const media = await this.prisma.mediaAsset.findFirst({
+      where: { projectId, role: "primary" },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        projectId: true,
+        status: true,
+        storageKey: true,
+        mime: true,
+        sizeBytes: true,
+        hasAudio: true,
+        width: true,
+        proxyKey: true,
+        project: { select: { workspaceId: true } },
+      },
+    });
+    if (media !== null && media.status !== "ready" && media.status !== "failed") {
+      return { status: "processing_media" };
+    }
+    if (media !== null && neverProbed(media)) {
+      // `busy` (the plan's lane is full) is waited out — the screen polls again
+      // — rather than opened with no preview; only a video that cannot be
+      // probed at all falls through to building the document without one.
+      const restarted = await this.probes.restart(media, media.project.workspaceId);
+      if (restarted !== "failed") return { status: "processing_media" };
+    }
+
+    try {
+      const outcome = await this.documents.ensure(projectId);
+      if (outcome.status !== "no_transcript") return { status: "ready" };
+    } catch (error) {
+      // Two tabs polling at once both try to build it; the loser trips the
+      // unique `edg_documents.project_id` — which means it now exists.
+      const built = await this.prisma.edgDocument.findUnique({
+        where: { projectId },
+        select: { id: true },
+      });
+      if (built !== null) return { status: "ready" };
+      this.logger.error(
+        { projectId, err: error instanceof Error ? error.message : String(error) },
+        "a transcript exists but its editing document could not be built",
+      );
+    }
+    return {
+      status: "failed",
+      error: "This project's transcript is saved, but the editor could not be prepared from it.",
+    };
   }
 
   /**

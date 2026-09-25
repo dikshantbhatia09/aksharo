@@ -35,6 +35,38 @@ export function announceTranscriptReady(projectId: string): void {
   window.dispatchEvent(new CustomEvent(TRANSCRIPT_READY_EVENT, { detail: { projectId } }));
 }
 
+/**
+ * How soon a second "ready" for the same project counts as a loop rather than
+ * progress. Announcing makes the editor reload its document; if that reload
+ * comes back "no document" the waiting screen remounts and polls straight into
+ * `ready` again. On 2026-09-25 that cycle ran ~5×/s for every repurposed clip
+ * (the server said `ready` on a transcript alone) and the only thing a person saw
+ * was "Checking this project…". The server no longer says `ready` without a
+ * document; this is the client's own guarantee that a disagreement between the
+ * two answers ends on a message, not a spin.
+ */
+export const READY_REANNOUNCE_WINDOW_MS = 15_000;
+
+const lastReadyAnnouncement = new Map<string, number>();
+
+/**
+ * Take the right to announce `ready` for this project from a waiting screen.
+ * Refused when one already did within {@link READY_REANNOUNCE_WINDOW_MS} — a
+ * remounted screen is then looking at the same unopenable project again.
+ * Module state, on purpose: it has to outlive the component that asks.
+ */
+export function claimReadyAnnouncement(projectId: string, now: number = Date.now()): boolean {
+  const last = lastReadyAnnouncement.get(projectId);
+  if (last !== undefined && now - last < READY_REANNOUNCE_WINDOW_MS) return false;
+  lastReadyAnnouncement.set(projectId, now);
+  return true;
+}
+
+/** A person asked to try again: the next announcement is theirs to make. */
+export function releaseReadyAnnouncement(projectId: string): void {
+  lastReadyAnnouncement.delete(projectId);
+}
+
 export function onTranscriptReady(projectId: string, handler: () => void): () => void {
   const listener = (event: Event): void => {
     if ((event as CustomEvent<{ projectId?: string }>).detail?.projectId === projectId) handler();

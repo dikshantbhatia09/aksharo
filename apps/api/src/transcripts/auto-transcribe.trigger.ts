@@ -1,5 +1,6 @@
 import { Injectable, Logger } from "@nestjs/common";
 
+import { TranscriptDocumentService } from "./transcript-document.service.js";
 import { TranscriptsService } from "./transcripts.service.js";
 import { PrismaService } from "../common/prisma/prisma.service.js";
 
@@ -23,9 +24,15 @@ import { PrismaService } from "../common/prisma/prisma.service.js";
  * Safe to call on every `media.proxy` success:
  *
  * - It only acts on the project's **primary** media, once it is genuinely `ready`.
- * - A project that already has an editing document or a transcript is left alone,
- *   which is what keeps replace-media (B15 §5) and re-transcription on their own
- *   paths rather than through here.
+ * - A project that already has an editing document is left alone, which is what
+ *   keeps replace-media (B15 §5) and re-transcription on their own paths rather
+ *   than through here.
+ * - A project that already has a **transcript but no document** is not
+ *   transcribed again — its words exist — but its document is built now, from
+ *   those words (`TranscriptDocumentService`). That is a repurposed clip: its
+ *   transcript is a slice cloned from the source before its video was probed,
+ *   and this is the first moment the probed dimensions that pick the document's
+ *   canvas exist. Without it the clip never became editable.
  * - `TranscriptsService.transcribe` dedupes on `transcribe:{projectId}:{mediaId}`,
  *   so the browser's eager attempt and this one collapse to a single job and a
  *   single credit hold, whichever lands first.
@@ -40,6 +47,7 @@ export class AutoTranscribeTrigger {
   constructor(
     private readonly prisma: PrismaService,
     private readonly transcripts: TranscriptsService,
+    private readonly documents: TranscriptDocumentService,
   ) {}
 
   /** @returns the enqueued job id, or `undefined` when this media is not a first transcription. */
@@ -64,7 +72,10 @@ export class AutoTranscribeTrigger {
     if (project === null || project.edgDocument !== null) return undefined;
 
     const transcripts = await this.prisma.transcript.count({ where: { projectId: project.id } });
-    if (transcripts > 0) return undefined;
+    if (transcripts > 0) {
+      await this.buildDocument(project.id, media.id);
+      return undefined;
+    }
 
     // `createdBy` is nullable, and the credit hold has to be attributable to a
     // person; without one there is nobody to charge, so leave it to the editor.
@@ -104,6 +115,26 @@ export class AutoTranscribeTrigger {
         "could not auto-start transcription; the project opens without one",
       );
       return undefined;
+    }
+  }
+
+  /** Same contract as the transcription start: nothing here may fail the proxy job. */
+  private async buildDocument(projectId: string, mediaId: string): Promise<void> {
+    try {
+      const outcome = await this.documents.ensure(projectId);
+      if (outcome.status === "created") {
+        this.logger.log(
+          { projectId, mediaId, edgId: outcome.edgId },
+          "built the editing document from the transcript the project already had",
+        );
+      }
+    } catch (error) {
+      // The read model repairs on the next look (`transcriptionState`), and says
+      // `failed` if it cannot — so logging is enough here.
+      this.logger.warn(
+        { projectId, mediaId, error: error instanceof Error ? error.message : String(error) },
+        "could not build the editing document from the stored transcript",
+      );
     }
   }
 }

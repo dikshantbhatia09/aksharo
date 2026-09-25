@@ -28,6 +28,7 @@ import type { TestDatabase } from "./db-harness.js";
 import type { CommonAuditService } from "../src/common/audit/audit.service.js";
 import type { PrismaService } from "../src/common/prisma/prisma.service.js";
 import type { RedisService } from "../src/common/redis/redis.service.js";
+import type { ObjectStore } from "../src/common/storage/index.js";
 import type { CreditsFacade } from "../src/credits/credits.facade.js";
 import type { JobCompletionContext, JobCompletionRegistry } from "../src/jobs/completion-handlers.js";
 import type { JobsService } from "../src/jobs/jobs.service.js";
@@ -86,6 +87,37 @@ let projectSeq = 0;
 let published: { event: string; data: Record<string, unknown> }[] = [];
 let audited: { action: string; data: Record<string, unknown> }[] = [];
 let enqueued: { type: string; jobKey: string; params: Record<string, unknown>; id: string }[] = [];
+/** What reached `MediaService.completeAcquisition`, and whether its transcript was already there. */
+let acquired: {
+  mediaId: string;
+  status: string;
+  transcriptsAtStart: number;
+  inRaw: boolean;
+}[] = [];
+/**
+ * The two object stores. `media.clip` writes its mezzanine to the DERIVED one;
+ * the media pipeline reads only the RAW one.
+ */
+let rawObjects: Map<string, Uint8Array>;
+let derivedObjects: Map<string, Uint8Array>;
+
+function fakeStore(kind: "s3" | "r2", objects: () => Map<string, Uint8Array>): ObjectStore {
+  return {
+    kind,
+    bucket: kind === "s3" ? "montaj-raw" : "montaj-derived",
+    head: async (key: string) => {
+      const body = objects().get(key);
+      return body === undefined ? null : { sizeBytes: body.length, contentType: "video/mp4" };
+    },
+    get: async (key: string) => Buffer.from(objects().get(key) ?? new Uint8Array()),
+    put: async (input: { key: string; body: Uint8Array | string }) => {
+      objects().set(
+        input.key,
+        typeof input.body === "string" ? Buffer.from(input.body) : input.body,
+      );
+    },
+  } as unknown as ObjectStore;
+}
 
 function fakeProjects(): ProjectsService {
   return {
@@ -106,6 +138,19 @@ function fakeStyles(): StylesService {
 
 function fakeMedia(): MediaService {
   return {
+    completeAcquisition: async (input: {
+      media: { id: string; projectId: string; status: string };
+    }) => {
+      acquired.push({
+        mediaId: input.media.id,
+        status: input.media.status,
+        transcriptsAtStart: await prisma.transcript.count({
+          where: { projectId: input.media.projectId },
+        }),
+        inRaw: rawObjects.has((input.media as unknown as { storageKey: string }).storageKey),
+      });
+      return { media: input.media, probeJobId: id("PROBE") };
+    },
     initUpload: async () => ({
       mediaId: id("MM"),
       uploadId: "upload-1",
@@ -244,9 +289,12 @@ describe.skipIf(!CAN_RUN)("repurpose full chain execution and failure paths", ()
     clipHandler = new RepurposeClipCompletionHandler(
       prisma as unknown as PrismaService,
       fakeProjects(),
+      fakeMedia(),
       service,
       registry,
       realtime,
+      fakeStore("s3", () => rawObjects),
+      fakeStore("r2", () => derivedObjects),
     );
     transcriptListener = new RepurposeTranscriptCompletedListener(
       prisma as unknown as PrismaService,
@@ -263,6 +311,9 @@ describe.skipIf(!CAN_RUN)("repurpose full chain execution and failure paths", ()
     published = [];
     audited = [];
     enqueued = [];
+    acquired = [];
+    rawObjects = new Map();
+    derivedObjects = new Map();
     await prisma.job.deleteMany({});
     await prisma.clipVariant.deleteMany({});
     await prisma.repurposeClip.deleteMany({});
@@ -442,6 +493,9 @@ describe.skipIf(!CAN_RUN)("repurpose full chain execution and failure paths", ()
       deduplicated: false,
     };
 
+    // Where the worker really writes it (`processors/clip.ts`: `context.derived`).
+    derivedObjects.set(mezzanineKey, new Uint8Array(4_096));
+
     const clipContext: JobCompletionContext = {
       job: {
         id: clipJob?.id ?? id("CJ"),
@@ -463,6 +517,50 @@ describe.skipIf(!CAN_RUN)("repurpose full chain execution and failure paths", ()
     expect(run.currentStage).toBe("review");
     expect(run.clipCount).toBe(1);
     expect(run.variantCount).toBe(1);
+
+    // The child project must become editable (2026-09-25): its mezzanine enters
+    // the ordinary media pipeline unprobed — never stamped `ready` with no
+    // dimensions — and only after the transcript slice is in place, so the
+    // proxy's completion can build the editing document from it.
+    const variant = await prisma.clipVariant.findFirstOrThrow({
+      where: { clipId: clipResult.clipId },
+    });
+    const childMedia = await prisma.mediaAsset.findFirstOrThrow({
+      where: { projectId: variant.projectId, role: "primary" },
+    });
+    expect(childMedia.storageKey).toBe(mezzanineKey);
+    expect(childMedia.status).toBe("pending");
+    expect(childMedia.bucket).toBe("s3");
+    // Copied into the raw store — the only one probe, proxy and render read —
+    // before the pipeline starts.
+    expect(acquired).toEqual([
+      { mediaId: childMedia.id, status: "pending", transcriptsAtStart: 1, inRaw: true },
+    ]);
+    const childTranscript = await prisma.transcript.findFirstOrThrow({
+      where: { projectId: variant.projectId },
+    });
+    const childChunk = await prisma.transcriptChunk.findFirstOrThrow({
+      where: { transcriptId: childTranscript.id },
+    });
+    // Words inside [800, 5200], shifted to the clip's own clock.
+    expect((childChunk.words as { t: string; s: number }[]).map((w) => [w.t, w.s])).toEqual([
+      ["Welcome", 200],
+      ["to", 1_200],
+      ["this", 1_700],
+      ["great", 2_200],
+      ["highlight", 2_700],
+      ["moment", 3_200],
+    ]);
+
+    // A replayed completion must not push already-probed media back through the
+    // pipeline.
+    await prisma.mediaAsset.update({ where: { id: childMedia.id }, data: { status: "ready" } });
+    await prisma.repurposeRun.update({
+      where: { id: runId },
+      data: { status: "materializing" },
+    });
+    await clipHandler.handle(clipContext);
+    expect(acquired).toHaveLength(1);
 
     // 7. Advance to terminal state (published)
     await prisma.repurposeRun.update({

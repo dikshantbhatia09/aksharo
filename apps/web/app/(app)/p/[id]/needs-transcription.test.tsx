@@ -1,9 +1,13 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { NeedsTranscription } from "./needs-transcription";
 
+import {
+  releaseReadyAnnouncement,
+  TRANSCRIPT_READY_EVENT,
+} from "@/lib/edg/transcription-state";
 import { renderWithProviders } from "@/test/harness";
 
 const PROJECT = {
@@ -22,6 +26,67 @@ const json = (body: unknown, status = 200): Response =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 
 describe("<NeedsTranscription />", () => {
+  afterEach(() => {
+    releaseReadyAnnouncement("01PROJECT");
+  });
+
+  // 2026-09-25: the read model said `ready`, the editor found no document and
+  // remounted this screen, which said `ready` again — ~5 times a second, behind
+  // "Checking this project…", for every repurposed clip.
+  describe("a ready that does not open the editor", () => {
+    it("asks the editor to open once, then says so instead of looping", async () => {
+      const announced = vi.fn();
+      window.addEventListener(TRANSCRIPT_READY_EVENT, announced);
+      try {
+        const routes = {
+          "/projects/01PROJECT": PROJECT,
+          [STATE_ROUTE]: { status: "ready" },
+        };
+        const first = renderWithProviders(<NeedsTranscription projectId="01PROJECT" />, {
+          routes,
+        });
+        await waitFor(() => expect(announced).toHaveBeenCalledTimes(1));
+        // The editor reloaded, still found no document, and mounted the screen again.
+        first.unmount();
+        renderWithProviders(<NeedsTranscription projectId="01PROJECT" />, { routes });
+
+        await waitFor(() => {
+          expect(screen.getByTestId("editor-open-stuck")).toHaveTextContent(
+            "could not open this project",
+          );
+        });
+        expect(announced).toHaveBeenCalledTimes(1);
+        expect(screen.queryByText("Checking this project…")).not.toBeInTheDocument();
+
+        // A person's retry is theirs to make, window or not.
+        fireEvent.click(screen.getByTestId("editor-open-retry"));
+        expect(announced).toHaveBeenCalledTimes(2);
+      } finally {
+        window.removeEventListener(TRANSCRIPT_READY_EVENT, announced);
+      }
+    });
+  });
+
+  it("reports a read model that keeps failing instead of spinning on it", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      renderWithProviders(<NeedsTranscription projectId="01PROJECT" />, {
+        // No route for the read model: every check answers 404.
+        routes: { "/projects/01PROJECT": PROJECT },
+      });
+      expect(await screen.findByText("Checking this project…")).toBeInTheDocument();
+      await vi.advanceTimersByTimeAsync(4_000 + 8_000 + 1_000);
+      await waitFor(() => {
+        expect(screen.getByTestId("transcription-state-error")).toHaveTextContent(
+          "could not check this project",
+        );
+      });
+      expect(screen.getByTestId("transcription-state-retry")).toBeEnabled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   // The editor used to dead-end here with a red sentence and no way forward.
   it("offers the work instead of an error", async () => {
     renderWithProviders(<NeedsTranscription projectId="01PROJECT" />, {
