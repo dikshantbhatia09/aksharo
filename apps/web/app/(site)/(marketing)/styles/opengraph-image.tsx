@@ -6,7 +6,7 @@ export const contentType = "image/png";
 
 export default function Image(): ReturnType<typeof renderOgImage> {
   return renderOgImage(
-    "30+ styles, every word tunable.",
+    "One bold style, every word tunable.",
     "Built for Reels, Shorts and YouTube. Hover to animate.",
   );
 }

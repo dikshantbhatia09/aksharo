@@ -1,7 +1,7 @@
 import { HttpStatus, Injectable } from "@nestjs/common";
 import { ulid } from "ulid";
 
-import type { StyleDoc } from "@montaj/caption-styles";
+import { isPickableStyle, type StyleDoc } from "@montaj/caption-styles";
 
 import { STYLE_ERRORS } from "./styles.constants.js";
 import { AppException, PrismaService } from "../common/index.js";
@@ -29,13 +29,17 @@ export interface StyleCatalogueEntry extends Omit<StyleDoc, "previewKey"> {
 export class StylesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  /** System styles, oldest first, then this workspace's own, newest first. */
+  /**
+   * The pickable system styles (`PICKABLE_STYLE_IDS`), then this workspace's
+   * own. The other seeded system styles stay in the table — existing documents
+   * still resolve them — but are no longer offered.
+   */
   async list(workspaceId: string): Promise<StyleCatalogueEntry[]> {
     const rows = await this.prisma.stylePreset.findMany({
       where: { OR: [{ workspaceId: null }, { workspaceId }] },
       orderBy: [{ workspaceId: "asc" }, { key: "asc" }],
     });
-    return rows.map(toEntry);
+    return rows.filter((row) => row.workspaceId !== null || isPickableStyle(row.key)).map(toEntry);
   }
 
   async createPreset(workspaceId: string, doc: StyleDoc): Promise<StyleCatalogueEntry> {

@@ -1,3 +1,4 @@
+import { DEFAULT_PICKABLE_STYLE_ID } from "@montaj/caption-styles";
 import type { ScriptId, Speaker, TranscriptChunk } from "@montaj/edg/schemas";
 import { DEFAULT_SEGMENTER_PARAMS } from "@montaj/edg/segmenter";
 import type { SegmenterParams } from "@montaj/edg/segmenter";
@@ -56,8 +57,10 @@ export const CAPTION_BOUNDS = {
  * that the fit budget looks the style up to measure it (D78): `EdgService`'s own
  * fallback string `clean-bold` is not in the catalogue, so a document created
  * without an explicit `styleRef` could never be measured. Raised in the A11 report.
+ * Since 2026-09-25 it is the one pickable style (`punch-pop`); documents created
+ * earlier keep the `vertical-clean` they were made with.
  */
-export const DEFAULT_STYLE_REF = "vertical-clean";
+export const DEFAULT_STYLE_REF: string = DEFAULT_PICKABLE_STYLE_ID;
 
 export interface TranscriptEdgInitOptions {
   readonly transcriptId: string;

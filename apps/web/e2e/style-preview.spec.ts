@@ -49,22 +49,19 @@ test.describe("style preview canvas", () => {
       "ready",
       { timeout: 30_000 },
     );
-    await page.getByTestId("style-picker-tile-karaoke-fill").click();
+    await page.getByTestId("style-picker-tile-punch-pop").click();
     const log = page.getByTestId("style-gallery-ops");
     await expect(log).toContainText('"op":"SetStyle"');
-    await expect(log).toContainText('"styleRef":"karaoke-fill"');
+    await expect(log).toContainText('"styleRef":"punch-pop"');
     await expect(log).toContainText('"scope":"doc"');
   });
 
-  test("narrows the grid by search and by category", async ({ page }) => {
+  test("narrows the grid by search", async ({ page }) => {
     await page.getByTestId("style-picker-search").fill("karaoke");
-    await expect(page.getByTestId("style-picker-tile-karaoke-fill")).toBeVisible();
     await expect(page.getByTestId("style-picker-tile-punch-pop")).toHaveCount(0);
 
-    await page.getByTestId("style-picker-search").fill("");
-    await page.getByTestId("style-picker-category-retro").click();
-    await expect(page.getByTestId("style-picker-tile-tape-retro")).toBeVisible();
-    await expect(page.getByTestId("style-picker-tile-punch-pop")).toHaveCount(0);
+    await page.getByTestId("style-picker-search").fill("punch");
+    await expect(page.getByTestId("style-picker-tile-punch-pop")).toBeVisible();
   });
 
   test("a Look slider emits a nested SetStyle override", async ({ page }) => {

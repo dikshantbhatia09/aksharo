@@ -7,25 +7,14 @@ import { expect, gotoHydrated, test } from "./fixtures";
  * endpoint should fire from this component).
  */
 
-test("the style switcher lists punch-pop first and can change the active style", async ({
-  page,
-}) => {
+test("the style switcher offers only punch-pop, selected", async ({ page }) => {
   await gotoHydrated(page, "/");
   const switcher = page.getByTestId("live-caption-demo-switcher");
   await expect(switcher).toBeVisible();
+  await expect(switcher.getByRole("button")).toHaveCount(1);
   await expect(page.getByTestId("live-caption-demo-style-punch-pop")).toHaveAttribute(
     "aria-pressed",
     "true",
-  );
-
-  await page.getByTestId("live-caption-demo-style-hype-bold").click();
-  await expect(page.getByTestId("live-caption-demo-style-hype-bold")).toHaveAttribute(
-    "aria-pressed",
-    "true",
-  );
-  await expect(page.getByTestId("live-caption-demo-style-punch-pop")).toHaveAttribute(
-    "aria-pressed",
-    "false",
   );
 });
 

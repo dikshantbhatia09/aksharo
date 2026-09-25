@@ -29,7 +29,7 @@ import type { StyleDoc } from "@montaj/caption-styles";
 import { PageHeader, cn } from "@montaj/ui";
 
 import { StylePreviewCanvas } from "@/components/editor/canvas/StylePreviewCanvas";
-import { SYSTEM_STYLE_MAP, SYSTEM_STYLES } from "@/components/editor/panels/system-styles";
+import { PICKABLE_STYLES, SYSTEM_STYLE_MAP } from "@/components/editor/panels/system-styles";
 
 
 /** The canvas's "Preview script" switch, in the renderer's own vocabulary. */
@@ -78,7 +78,7 @@ export function StylesView(): React.JSX.Element {
     React.useMemo(() => {
       const fromApi = catalogue.data;
       if (fromApi === undefined || fromApi.length === 0) {
-        return SYSTEM_STYLES.map((doc) => ({
+        return PICKABLE_STYLES.map((doc) => ({
           id: doc.id,
           name: doc.name,
           category: doc.category,

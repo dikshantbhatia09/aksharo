@@ -24,7 +24,7 @@ export const VALUE_PROPS: readonly ValueProp[] = [
   },
   {
     id: "styles",
-    title: "30+ caption styles, every word tunable",
+    title: "A bold caption style, every word tunable",
     body: "Designed for Reels, Shorts and YouTube, exported at up to 4K, browser-native with zero upload when you want privacy. Save your own look as a template.",
   },
   {

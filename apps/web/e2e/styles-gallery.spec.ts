@@ -1,28 +1,28 @@
 import { expect, gotoHydrated, test } from "./fixtures";
 
 /**
- * A24: the public styles gallery (all 30 styles, category and script filters,
- * hover-to-animate). The pixel-drawing assertion mirrors
+ * A24: the public styles gallery (the pickable styles, category and script
+ * filters, hover-to-animate). Since 2026-09-25 only Punch Pop is offered
+ * (`PICKABLE_STYLE_IDS`). The pixel-drawing assertion mirrors
  * `style-preview.spec.ts`'s chromium-only pattern — CanvasKit's cross-browser
  * pixel parity is A18a's lane, this suite's job is the page integration.
  */
 
-test("lists all 30 system styles by default", async ({ page }) => {
+test("lists only the pickable style", async ({ page }) => {
   await gotoHydrated(page, "/styles");
-  await expect(page.getByTestId("styles-gallery-count")).toHaveText("30 of 30 styles");
+  await expect(page.getByTestId("styles-gallery-count")).toHaveText("1 of 1 style");
+  await expect(page.getByTestId("styles-gallery-tile-punch-pop")).toBeVisible();
+  await expect(page.getByTestId("styles-gallery-tile-karaoke-fill")).toHaveCount(0);
 });
 
-test("narrows the grid by search and by category", async ({ page }) => {
+test("narrows the grid by search", async ({ page }) => {
   await gotoHydrated(page, "/styles");
 
   await page.getByTestId("styles-gallery-search").fill("karaoke");
-  await expect(page.getByTestId("styles-gallery-tile-karaoke-fill")).toBeVisible();
   await expect(page.getByTestId("styles-gallery-tile-punch-pop")).toHaveCount(0);
 
-  await page.getByTestId("styles-gallery-search").fill("");
-  await page.getByTestId("styles-gallery-category-retro").click();
-  await expect(page.getByTestId("styles-gallery-tile-tape-retro")).toBeVisible();
-  await expect(page.getByTestId("styles-gallery-tile-punch-pop")).toHaveCount(0);
+  await page.getByTestId("styles-gallery-search").fill("punch");
+  await expect(page.getByTestId("styles-gallery-tile-punch-pop")).toBeVisible();
 });
 
 test("the script toggle changes the preview script for every tile", async ({ page }) => {

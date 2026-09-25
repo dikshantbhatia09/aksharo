@@ -65,7 +65,7 @@ import {
 } from "@/components/editor/panels/my-presets";
 import { type PanelOp, type PanelScope } from "@/components/editor/panels/ops";
 import { RightPanel, type PanelTab } from "@/components/editor/panels/RightPanel";
-import { SYSTEM_STYLE_MAP, SYSTEM_STYLES } from "@/components/editor/panels/system-styles";
+import { PICKABLE_STYLES, SYSTEM_STYLE_MAP } from "@/components/editor/panels/system-styles";
 import { CustomFontsPanel } from "@/components/editor/rail/CustomFontsPanel";
 import { EditorRail, type EditorRailTab } from "@/components/editor/rail/EditorRail";
 import { LibraryPanel } from "@/components/editor/rail/LibraryPanel";
@@ -1430,7 +1430,7 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
             ) : null}
             <RightPanel
               {...(inspectorTabRequest === undefined ? {} : { tabRequest: inspectorTabRequest })}
-              styles={SYSTEM_STYLES}
+              styles={PICKABLE_STYLES}
               style={effectiveStyle}
               scope={scope}
               canvas={projection.canvas}

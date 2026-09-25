@@ -147,21 +147,21 @@ test.describe("editor", () => {
     await expect(page.getByTestId("word-chip-0:1")).toHaveText("dosti", { timeout: 10_000 });
   });
 
-  test("changing style offers a reflow, and applying it re-cuts captions", async ({ page }) => {
+  test("the Templates panel offers only Punch Pop, already applied", async ({ page }) => {
+    // Since 2026-09-25 the catalogue offers one style (PICKABLE_STYLE_IDS) and a
+    // new project starts on it, so there is no second tile to switch to.
     await page.getByTestId("right-panel-tab-style").click();
-    const before = await page.locator('[data-testid^="segment-card-"]').count();
-
-    // "word-pop" is a one-word-per-caption style (D78 addendum) — its budget
-    // differs sharply from the default's, which is what makes the banner
-    // appear rather than asserting on a specific style pair.
-    await page.getByTestId("style-picker-tile-word-pop").click();
-    await expect(page.getByTestId("reflow-banner")).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByTestId("below-comfortable-minimum-hint")).toBeVisible();
-
-    await page.getByTestId("reflow-banner-apply").click();
-    await expect(page.getByTestId("reflow-banner")).toHaveCount(0, { timeout: 15_000 });
-    const after = await page.locator('[data-testid^="segment-card-"]').count();
-    expect(after).toBeGreaterThan(before); // one word a caption cuts more, shorter, captions
+    const tiles = page.locator('[data-testid^="style-picker-tile-"]');
+    await expect(tiles).toHaveCount(1);
+    await expect(page.getByTestId("style-picker-tile-punch-pop")).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    await expect(page.getByTestId("style-preview-punch-pop").first()).toHaveAttribute(
+      "data-state",
+      "ready",
+      { timeout: 30_000 },
+    );
   });
 
   test("has no serious or critical axe violations", async ({ page }) => {

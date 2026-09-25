@@ -15,14 +15,14 @@ import { mergeOverrides } from "@montaj/render-core";
 
 import { type PanelScope, type SetStyleOp } from "./ops";
 import { RightPanel } from "./RightPanel";
-import { SYSTEM_STYLES } from "./system-styles";
+import { PICKABLE_STYLES } from "./system-styles";
 
 export interface StyleGalleryProps {
   /** Defaults to the system catalogue; A15 passes the workspace's own. */
   readonly styles?: readonly StyleDoc[];
 }
 
-export function StyleGallery({ styles = SYSTEM_STYLES }: StyleGalleryProps): React.JSX.Element {
+export function StyleGallery({ styles = PICKABLE_STYLES }: StyleGalleryProps): React.JSX.Element {
   const [styleId, setStyleId] = useState(styles[0]?.id ?? "");
   const [overrides, setOverrides] = useState<Record<string, unknown>>({});
   const [ops, setOps] = useState<SetStyleOp[]>([]);

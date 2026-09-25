@@ -17,6 +17,7 @@
  * subset — no Devanagari fetch on the marketing homepage's critical path.
  */
 
+import { PICKABLE_STYLE_IDS } from "@montaj/caption-styles/browser";
 import type { WordScript } from "@montaj/render-core";
 
 export interface DemoWord {
@@ -81,16 +82,7 @@ export const DEMO_SEGMENT = {
 } as const;
 
 /**
- * The curated switcher: six styles spanning bold, karaoke, playful and clean
- * shelves, all shipped in the system catalogue (`SYSTEM_STYLE_MAP`).
- * `punch-pop` first, per the brief ("renders captions with `punch-pop`... with a
- * style switcher").
+ * The demo's switcher: the pickable styles (`PICKABLE_STYLE_IDS`), so the home
+ * page never shows a style the product no longer offers.
  */
-export const DEMO_STYLE_IDS: readonly string[] = [
-  "punch-pop",
-  "word-pop",
-  "karaoke-fill",
-  "hype-bold",
-  "bubble-soft",
-  "minimal-lower-third",
-];
+export const DEMO_STYLE_IDS: readonly string[] = PICKABLE_STYLE_IDS;

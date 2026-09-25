@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * The public styles gallery: all 30 system styles, hover-to-animate, filtered
+ * The public styles gallery: the pickable system styles, hover-to-animate, filtered
  * by category and by preview script. Built for a signed-out visitor rather than
  * reusing `apps/web/components/editor/panels/StylePicker.tsx` directly — that
  * component emits `SetStyle` editor ops and a plan-gated "Save as template"
@@ -115,7 +115,7 @@ export function StylesGalleryGrid({
       </div>
 
       <p className="text-fg-2 mt-4 text-sm" data-testid="styles-gallery-count" aria-live="polite">
-        {visible.length} of {styles.length} styles
+        {visible.length} of {styles.length} {styles.length === 1 ? "style" : "styles"}
       </p>
 
       {visible.length === 0 ? (

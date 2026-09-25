@@ -997,3 +997,31 @@ the store it gets from the app; fake `head`/`get` instead.
 - **API-only deploys** now use `_orchestration/tools/deploy-api-swap.ps1
   -Sha <new> -PreviousSha <live>` (add `-Rollback` to undo), after building with
   `tsc --outDir dist-<sha>` as above.
+
+---
+
+## 14. 2026-09-25 — blank template tiles; the catalogue is one style
+
+**Every CanvasKit surface in the editor drew nothing** (template tiles, the Anim
+preview, the public `/styles` gallery) from the 2026-09-19 move to
+`montaj-release` until this fix. `use-canvaskit.ts`'s `DEFAULT_FONTS` named five
+pre-pack fixture files (`PlayfairDisplay-SemiBold(Italic).ttf`,
+`EBGaramond-Regular.ttf`, `Helvetica(-Bold).ttf`) that
+`scripts/copy-render-assets.mjs` never produced. `public/fonts/` is gitignored,
+so only the original `montaj` checkout had stray copies; the clean release
+checkout served 404s, and `loadFonts` used `Promise.all`, so one 404 failed
+the whole renderer. Fixed: the entries now name pack faces
+(`playfair-display-500/600`), the copy script copies them, a missing face is
+skipped instead of fatal, and `use-canvaskit.test.ts` fails if any
+`DEFAULT_FONTS` file is not in the copy script. **After a fresh checkout, run
+`pnpm --filter @montaj/web assets:render`**, or `/fonts/*` 404s.
+
+**The caption style catalogue offers one style, Punch Pop** (owner decision).
+`PICKABLE_STYLE_IDS` in `packages/caption-styles/src/catalogue.ts` is the only
+list: the editor Templates panel, Studio > Styles, the repurpose form, the
+public gallery, the home-page demo and `GET /styles` (system rows; workspace
+presets are unaffected) all read it, and new projects default to it
+(`DEFAULT_STYLE_REF`). The other 66 documents still ship and still resolve by
+id, because existing projects use them (`vertical-clean` backed 119 live
+projects). **Do not delete a style JSON** while a document references it;
+offering a style again is adding its id to that list.

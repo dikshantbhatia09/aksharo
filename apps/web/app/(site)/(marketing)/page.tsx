@@ -15,12 +15,12 @@ import { VALUE_PROPS } from "@/content/site/value-props";
 export const metadata: Metadata = {
   title: `${BRAND.name} — captions, cuts and polish for Indian video creators`,
   description:
-    "Hinglish-accurate captions, every word editable, 30+ styles, autocut and zoom passes, and one transparent plan for creators.",
+    "Hinglish-accurate captions, every word editable, fully tunable caption styling, autocut and zoom passes, and one transparent plan for creators.",
   alternates: { canonical: "/" },
   openGraph: {
     title: `${BRAND.name} — captions, cuts and polish for Indian video creators`,
     description:
-      "Hinglish-accurate captions, every word editable, 30+ styles, and one transparent plan for creators.",
+      "Hinglish-accurate captions, every word editable, fully tunable caption styling, and one transparent plan for creators.",
     url: "/",
     type: "website",
   },

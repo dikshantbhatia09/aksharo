@@ -32,7 +32,7 @@ import * as React from "react";
 
 import { Button, Field, Input, cn } from "@montaj/ui";
 
-import { SYSTEM_STYLES } from "@/components/editor/panels/system-styles";
+import { PICKABLE_STYLES } from "@/components/editor/panels/system-styles";
 import { LanguagePicker } from "@/components/projects/language-picker";
 import { WritingScriptPicker } from "@/components/projects/writing-script-picker";
 
@@ -49,18 +49,8 @@ export interface StartFormValue {
   readonly rightsAttested: boolean;
 }
 
-/** The presets offered up front. "See all styles" opens the full picker later. */
-export const RECOMMENDED_STYLE_IDS = [
-  "punch-pop",
-  "bold-drop",
-  "karaoke-fill",
-  "caption-card",
-] as const;
-
-/** The recommended styles that actually exist in the catalogue, in that order. */
-export const RECOMMENDED_STYLES = RECOMMENDED_STYLE_IDS.map((id) =>
-  SYSTEM_STYLES.find((style) => style.id === id),
-).filter((style) => style !== undefined);
+/** The presets offered up front: every pickable style (`PICKABLE_STYLE_IDS`). */
+export const RECOMMENDED_STYLES: readonly (typeof PICKABLE_STYLES)[number][] = PICKABLE_STYLES;
 
 /**
  * The style a run starts with.
@@ -70,7 +60,7 @@ export const RECOMMENDED_STYLES = RECOMMENDED_STYLE_IDS.map((id) =>
  * form STATE, not computed at render: a chip that looks selected while the form
  * holds `""` is how every default submit ends up rejected by the API.
  */
-export const DEFAULT_STYLE_ID: string = RECOMMENDED_STYLES[0]?.id ?? SYSTEM_STYLES[0]?.id ?? "";
+export const DEFAULT_STYLE_ID: string = RECOMMENDED_STYLES[0]?.id ?? "";
 
 export const EMPTY_START_FORM: StartFormValue = Object.freeze({
   tab: "link",

@@ -116,6 +116,20 @@ describe("StylesService.list", () => {
     expect(entries[0]?.previewKey).toBe("punch-pop.png");
     expect(entries[1]?.previewKey).toBeNull();
   });
+
+  it("offers only the pickable system styles, and every workspace preset", async () => {
+    const retired = presetRow({ id: "01SYSTEMRETIRED00000000000", key: "vertical-clean" });
+    const custom = presetRow({
+      id: CUSTOM_PRESET_ID,
+      workspaceId: WORKSPACE,
+      key: "my-look",
+      doc: styleDoc({ id: "my-look", name: "My Look" }) as unknown as object,
+    });
+    const { service } = makeService([presetRow(), retired, custom]);
+    const entries = await service.list(WORKSPACE);
+
+    expect(entries.map((entry) => entry.presetId)).toEqual([SYSTEM_PRESET_ID, CUSTOM_PRESET_ID]);
+  });
 });
 
 describe("StylesService.createPreset", () => {

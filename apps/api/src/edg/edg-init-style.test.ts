@@ -111,7 +111,7 @@ describe("EdgService.initialise — where the chosen style lives", () => {
     await h.service.initialise("01PROJECT", INIT);
 
     expect(h.hot()?.styles.defaultStyleId).toBe(DEFAULT_STYLE_REF);
-    expect(DEFAULT_STYLE_REF).toBe("vertical-clean");
+    expect(DEFAULT_STYLE_REF).toBe("punch-pop");
     for (const segment of h.segments()) expect(segment.styleRef).toBeUndefined();
   });
 });

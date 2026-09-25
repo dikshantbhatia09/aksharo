@@ -12,6 +12,7 @@
  */
 
 import type { StyleDoc } from "@montaj/caption-styles";
+import { isPickableStyle } from "@montaj/caption-styles/browser";
 import arcadePixel from "@montaj/caption-styles/styles/arcade-pixel.json";
 import bengaliNative from "@montaj/caption-styles/styles/bengali-native.json";
 import boldDrop from "@montaj/caption-styles/styles/bold-drop.json";
@@ -160,6 +161,15 @@ const DOCUMENTS: readonly unknown[] = [
  * and checked for real by `system-styles.test.ts`.
  */
 export const SYSTEM_STYLES: readonly StyleDoc[] = DOCUMENTS as readonly StyleDoc[];
+
+/**
+ * The styles a person can pick (`PICKABLE_STYLE_IDS`): what every picker
+ * lists. `SYSTEM_STYLES` and `SYSTEM_STYLE_MAP` stay complete so a project made
+ * on a style that is no longer offered still renders.
+ */
+export const PICKABLE_STYLES: readonly StyleDoc[] = SYSTEM_STYLES.filter((style) =>
+  isPickableStyle(style.id),
+);
 
 /** The catalogue keyed by id, the shape `renderFrame` wants. */
 export const SYSTEM_STYLE_MAP: ReadonlyMap<string, StyleDoc> = new Map(

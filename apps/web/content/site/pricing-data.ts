@@ -56,7 +56,7 @@ export const FALLBACK_PLAN_CATALOGUE: readonly PlanCatalogueEntry[] = [
     highlights: [
       "20 credits a month",
       "One watermark-free 1080p browser export on signup",
-      "All 30+ styles, Google Fonts",
+      "The Punch Pop caption style, Google Fonts",
       "Browser-native export with zero upload",
     ],
     ctaLabel: "Start free",
