@@ -1,8 +1,10 @@
 import { Inject, Injectable, Logger } from "@nestjs/common";
 
 import { MEDIA_JOB_KEYS, MEDIA_JOB_QUOTES } from "./media.constants.js";
+import { AppException } from "../common/errors/error-codes.js";
 import { PrismaService } from "../common/prisma/prisma.service.js";
 import { DERIVED_STORE, RAW_STORE } from "../common/storage/index.js";
+import { JOB_ERROR_CODES } from "../jobs/jobs.errors.js";
 import { JobsService } from "../jobs/jobs.service.js";
 
 import type { ObjectStore } from "../common/storage/index.js";
@@ -96,6 +98,17 @@ export function neverProbed(media: {
 }
 
 /**
+ * What {@link MediaProbeRestart.restart} managed:
+ *
+ * - `queued`: the probe is on its way (or already was).
+ * - `busy`: the workspace's plan lane is full right now (`jobs/concurrency_cap`
+ *   — a Free workspace allows two jobs in flight). Temporary: ask again later.
+ * - `failed`: it cannot be probed (the video is in neither store, or the
+ *   enqueue failed for a reason waiting will not fix).
+ */
+export type ProbeRestartOutcome = "queued" | "busy" | "failed";
+
+/**
  * Send an unprobed asset back through the ordinary pipeline:
  * `media.probe` → `media.proxy` → (on proxy success) `AutoTranscribeTrigger`,
  * which builds the editing document from a transcript the project already has.
@@ -115,11 +128,10 @@ export class MediaProbeRestart {
     @Inject(DERIVED_STORE) private readonly derived: ObjectStore,
   ) {}
 
-  /** @returns whether the probe is now queued (or already was). */
   async restart(
     media: ProbeTarget & { readonly projectId: string },
     workspaceId: string,
-  ): Promise<boolean> {
+  ): Promise<ProbeRestartOutcome> {
     try {
       // A clip's mezzanine may only exist in the derived store (see `promoteToRaw`).
       await promoteToRaw(
@@ -150,8 +162,17 @@ export class MediaProbeRestart {
         { mediaId: media.id, projectId: media.projectId, probeJobId: probe.job.id },
         "sent never-probed media back through the pipeline",
       );
-      return true;
+      return "queued";
     } catch (error) {
+      if (error instanceof AppException && error.code === JOB_ERROR_CODES.concurrencyCap) {
+        // Found live (2026-09-25): three stuck clips repaired at once on a Free
+        // workspace — the third met a full lane and was opened with no preview.
+        this.logger.log(
+          { mediaId: media.id, projectId: media.projectId },
+          "workspace lane is full; the probe will be restarted on the next look",
+        );
+        return "busy";
+      }
       this.logger.warn(
         {
           mediaId: media.id,
@@ -160,7 +181,7 @@ export class MediaProbeRestart {
         },
         "could not restart the probe for never-probed media",
       );
-      return false;
+      return "failed";
     }
   }
 }

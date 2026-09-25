@@ -61,8 +61,8 @@ interface Overrides {
   document?: { id: string } | null;
   /** What `TranscriptDocumentService.ensure` does when the read model repairs. */
   ensure?: () => Promise<{ status: string; edgId?: string }>;
-  /** Whether `MediaProbeRestart.restart` manages to queue the probe. */
-  restarted?: boolean;
+  /** What `MediaProbeRestart.restart` answers. */
+  restarted?: "queued" | "busy" | "failed";
 }
 
 function harness(overrides: Overrides = {}) {
@@ -96,7 +96,7 @@ function harness(overrides: Overrides = {}) {
     edgDocument: { findUnique: vi.fn(async () => overrides.document ?? null) },
   } as unknown as PrismaService;
 
-  const restart = vi.fn(async () => overrides.restarted ?? true);
+  const restart = vi.fn(async () => overrides.restarted ?? "queued");
   const ensure = vi.fn(overrides.ensure ?? (async () => ({ status: "created", edgId: "01EDG" })));
 
   const repository = {
@@ -195,11 +195,24 @@ describe("TranscriptsService.transcriptionState", () => {
       expect(ensure).not.toHaveBeenCalled();
     });
 
-    it("still opens the project when the probe cannot be restarted", async () => {
+    // A Free workspace allows two jobs in flight; a full lane is temporary.
+    it("keeps waiting when the workspace's lane is full, rather than open with no preview", async () => {
       const { service, ensure } = harness({
         transcript: { id: "01TRANSCRIPT" },
         media: NEVER_PROBED,
-        restarted: false,
+        restarted: "busy",
+      });
+      await expect(service.transcriptionState("01PROJECT", "01WORKSPACE")).resolves.toEqual({
+        status: "processing_media",
+      });
+      expect(ensure).not.toHaveBeenCalled();
+    });
+
+    it("still opens the project when the video cannot be probed at all", async () => {
+      const { service, ensure } = harness({
+        transcript: { id: "01TRANSCRIPT" },
+        media: NEVER_PROBED,
+        restarted: "failed",
       });
       await expect(service.transcriptionState("01PROJECT", "01WORKSPACE")).resolves.toEqual({
         status: "ready",

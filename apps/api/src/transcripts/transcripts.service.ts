@@ -264,12 +264,12 @@ export class TranscriptsService {
     if (media !== null && media.status !== "ready" && media.status !== "failed") {
       return { status: "processing_media" };
     }
-    if (
-      media !== null &&
-      neverProbed(media) &&
-      (await this.probes.restart(media, media.project.workspaceId))
-    ) {
-      return { status: "processing_media" };
+    if (media !== null && neverProbed(media)) {
+      // `busy` (the plan's lane is full) is waited out — the screen polls again
+      // — rather than opened with no preview; only a video that cannot be
+      // probed at all falls through to building the document without one.
+      const restarted = await this.probes.restart(media, media.project.workspaceId);
+      if (restarted !== "failed") return { status: "processing_media" };
     }
 
     try {

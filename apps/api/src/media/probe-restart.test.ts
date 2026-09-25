@@ -1,3 +1,4 @@
+import { HttpStatus } from "@nestjs/common";
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -7,6 +8,7 @@ import {
   PROMOTE_MAX_BYTES,
   promoteToRaw,
 } from "./probe-restart.js";
+import { AppException } from "../common/errors/error-codes.js";
 
 import type { PrismaService } from "../common/prisma/prisma.service.js";
 import type { ObjectStore } from "../common/storage/index.js";
@@ -71,7 +73,7 @@ describe("MediaProbeRestart.restart", () => {
       deduplicated: false,
     }));
 
-    await expect(restart.restart(MEDIA, "01WS")).resolves.toBe(true);
+    await expect(restart.restart(MEDIA, "01WS")).resolves.toBe("queued");
 
     expect(jobs.enqueue).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -91,9 +93,23 @@ describe("MediaProbeRestart.restart", () => {
 
   it("leaves the asset alone when the probe cannot be queued", async () => {
     const { restart, updateMany } = harness(async () => {
-      throw new Error("jobs/concurrency_cap");
+      throw new Error("redis is down");
     });
-    await expect(restart.restart(MEDIA, "01WS")).resolves.toBe(false);
+    await expect(restart.restart(MEDIA, "01WS")).resolves.toBe("failed");
+    expect(updateMany).not.toHaveBeenCalled();
+  });
+
+  // Found live: three clips repaired at once on a Free workspace (two jobs in
+  // flight allowed) — the third must wait, not open without a preview.
+  it("reports a full plan lane as busy, which is temporary", async () => {
+    const { restart, updateMany } = harness(async () => {
+      throw new AppException(
+        "jobs/concurrency_cap",
+        "This workspace already has 2 jobs in flight; the free plan allows 2.",
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    });
+    await expect(restart.restart(MEDIA, "01WS")).resolves.toBe("busy");
     expect(updateMany).not.toHaveBeenCalled();
   });
 });
