@@ -1,7 +1,7 @@
-import { Bricolage_Grotesque, Inter, JetBrains_Mono } from "next/font/google";
+import { Anek_Latin, Inter, JetBrains_Mono } from "next/font/google";
 
 /**
- * The three UI faces of 08 §1, self-hosted by `next/font` so there is no
+ * The three UI faces (docs/redesign/DESIGN.md), self-hosted by `next/font` so there is no
  * request to `fonts.googleapis.com` on a page load and no layout shift.
  *
  * The nine Indic Noto families are **not** here: they are ~1.5 MB nobody needs
@@ -16,10 +16,17 @@ export const fontSans = Inter({
   display: "swap",
 });
 
-export const fontDisplay = Bricolage_Grotesque({
+/**
+ * The display face: Anek Latin, from Ek Type, an Indian type foundry whose
+ * Anek superfamily covers the Indic scripts this product captions. Variable in
+ * weight and width; titles use it slightly condensed. Page titles and large
+ * figures only — never a control or a paragraph.
+ */
+export const fontDisplay = Anek_Latin({
   subsets: ["latin"],
-  weight: ["600", "700"],
-  variable: "--font-bricolage",
+  weight: "variable",
+  axes: ["wdth"],
+  variable: "--font-anek",
   display: "swap",
 });
 

@@ -1,65 +1,64 @@
 /*
- * Aksharo design tokens — the **Nocturne** system.
+ * Aksharo design tokens — the **Shirorekha** system (replaced Nocturne on
+ * 2026-09-25; the full spec is `docs/redesign/DESIGN.md`).
  *
- * Source of truth for the look: the premium design canvas
- * (`Aksharo Studio (premium).dc.html`) and its design system,
- * `_ds/nocturne-*\/`. Nocturne is a quiet, compact dark interface: a
- * near-neutral blue-grey ground, Inter at medium weight, soft 8 px radii, and
- * a single blurple accent used as a line and a glow rather than a flood.
+ * Aksharo is named for the akshar, the written syllable, and its users caption
+ * Hindi, Hinglish and other Indic speech. Shirorekha is the headline bar that
+ * Devanagari letters hang from, and this system borrows it: page titles and a
+ * few defining moments hang from a short rani-pink bar, and nothing else in
+ * the chrome is loud. The rest is a warm, low-chroma charcoal so footage — the
+ * actual subject — is the most colourful thing on screen.
  *
  * Tailwind v4 is configured in CSS, so this file *is* the preset: importing it
  * after `@import "tailwindcss"` registers every colour, radius, font, spacing and
  * motion token as a Tailwind utility namespace (`bg-bg-1`, `text-fg-2`,
  * `border-border`, `rounded-md`, `duration-base`, …).
  *
- * The studio is dark-only (08 §1): there is one palette, defined on `:root`,
- * and no light override.
+ * The studio is dark-only: it is a video tool, and footage is judged against a
+ * dark surround. One palette, defined on `:root`, no light override.
  *
  * Two naming schemes live here on purpose and they are the same colours:
  *   - the app's own roles (`bg-0…bg-3`, `fg-0…fg-2`, `border`, `lime-500`),
  *     which 80-odd existing files already consume, and
- *   - Nocturne's own names (`surface`, `sunken`, `ink`, `divider`, and the
- *     100–900 `neutral-*` / `accent-*` tonal ramps), which the screens rebuilt
- *     against the canvas use directly.
+ *   - the system's own names (`surface`, `sunken`, `ink`, `divider`, and the
+ *     100–900 `neutral-*` / `accent-*` tonal ramps).
  * Retuning a value in one scheme must retune it in the other.
  *
- * Font families come from the app: `next/font` mints the `--font-sans`,
- * `--font-display` and `--font-mono` variables and this file only consumes
- * them, with a system fallback so a package rendered outside Next still has
- * type. Nocturne pairs Inter with Inter, so `--font-display` resolves to Inter
- * as well — headings are distinguished by size and space, not by a second face.
+ * Font families come from the app: `next/font` mints `--font-inter`,
+ * `--font-anek` and `--font-jetbrains-mono` and this file only consumes them,
+ * with a system fallback so a package rendered outside Next still has type.
+ * Anek Latin (Ek Type, an Indian foundry) is the display face, used for page
+ * titles and a few large numbers only; Inter carries every control and all body
+ * text.
  */
 
 @theme {
-  /* --- Nocturne grounds ---------------------------------------------------
-   * `bg` #161826 is the page; `surface` #232532 is every card and panel;
-   * `sunken` #101220 is the nav rail, timeline bed and inset wells; `ink`
-   * #0a0b12 is the video canvas — the one near-black, and the only place the
-   * ramps are allowed to bottom out. */
-  --color-bg-0: #161826;
-  --color-bg-1: #232532;
-  --color-bg-2: #2c2f3e;
-  --color-bg-3: #3a3d4f;
-  --color-border: #383946;
-  --color-border-hover: #4a4c5c;
-  --color-overlay: rgb(10 11 18 / 0.72);
+  /* --- Grounds -------------------------------------------------------------
+   * Warm charcoal, not blue-grey: `bg` #141217 is the page; `surface`
+   * #1f1c23 is every card and panel; `sunken` #0e0c10 is the nav rail,
+   * timeline bed and inset wells; `ink` #0b0a0c is the video canvas — the one
+   * near-black. */
+  --color-bg-0: #141217;
+  --color-bg-1: #1f1c23;
+  --color-bg-2: #2a262f;
+  --color-bg-3: #38333d;
+  --color-border: #36313a;
+  --color-border-hover: #4a4450;
+  --color-overlay: rgb(11 10 12 / 0.72);
 
-  /* Nocturne's own names for the same three grounds, plus the fading-rule
-   * divider. `--color-divider` is translucent by design: a rule painted from
-   * it fades to transparent at its ends over 48 px a side (the Nocturne
-   * signature), which only works if the colour carries alpha. */
-  --color-surface: #232532;
-  --color-sunken: #101220;
-  --color-ink: #0a0b12;
-  --color-divider: color-mix(in srgb, #e9e9ed 16%, transparent);
+  /* The system's own names for the same grounds, plus the divider. */
+  --color-surface: #1f1c23;
+  --color-sunken: #0e0c10;
+  --color-ink: #0b0a0c;
+  --color-divider: color-mix(in srgb, #f1ece6 14%, transparent);
 
   /* --- Text --------------------------------------------------------------
    * The ramp's light steps. Contrast comes from the tonal ramp, not from
    * saturation, so no text colour is pure white. */
-  --color-fg-0: #e9e9ed;
-  --color-fg-1: #cfd3e5;
-  --color-fg-2: #9397ab;
-  --color-fg-disabled: #75798c;
+  --color-fg-0: #f1ece6;
+  --color-fg-1: #d6cfc8;
+  --color-fg-2: #a39a93;
+  --color-fg-disabled: #7c746e;
 
   /* --- Tonal ramps -------------------------------------------------------
    * Generated in OKLCH on one shared perceptual lightness scale, so the same
@@ -72,109 +71,108 @@
    * is the same (100 lightest, 900 darkest) and the dozen existing
    * `text-neutral-400`-style usages want exactly this blue-tinted version, so
    * the override is the point rather than a collision to work around. */
-  --color-neutral-100: #f3f5fe;
-  --color-neutral-200: #e4e7f5;
-  --color-neutral-300: #cfd3e5;
-  --color-neutral-400: #b2b6ca;
-  --color-neutral-500: #9397ab;
-  --color-neutral-600: #75798c;
-  --color-neutral-700: #595d6c;
-  --color-neutral-800: #3f424d;
-  --color-neutral-900: #292b31;
-  --color-neutral-950: #0a0b12;
+  --color-neutral-100: #f7f3ef;
+  --color-neutral-200: #ebe5df;
+  --color-neutral-300: #d6cfc8;
+  --color-neutral-400: #bcb3ac;
+  --color-neutral-500: #a39a93;
+  --color-neutral-600: #7c746e;
+  --color-neutral-700: #5a534f;
+  --color-neutral-800: #3d3739;
+  --color-neutral-900: #262227;
+  --color-neutral-950: #0b0a0c;
 
-  --color-accent-100: #f5f4ff;
-  --color-accent-200: #e7e5fe;
-  --color-accent-300: #d2cefd;
-  --color-accent-400: #b5abfc;
-  --color-accent-500: #968ae0;
-  --color-accent-600: #796cbf;
-  --color-accent-700: #5d5294;
-  --color-accent-800: #423a6a;
-  --color-accent-900: #2b2741;
+  --color-accent-100: #fde8f0;
+  --color-accent-200: #fbcadd;
+  --color-accent-300: #f78bb0;
+  --color-accent-400: #f36b9b;
+  --color-accent-500: #f0508a;
+  --color-accent-600: #c8336c;
+  --color-accent-700: #962752;
+  --color-accent-800: #5e1d37;
+  --color-accent-900: #2e1420;
 
   /* The one full-bleed saturated field the system allows: the marketing
    * page's stat band. Deck- and page-scale only, never interface chrome. */
-  --color-section: #262a60;
-  --color-section-glow: #353b80;
-  --color-section-ghost: #4c5397;
+  --color-section: #3a1427;
+  --color-section-glow: #5a1f3b;
+  --color-section-ghost: #7a2a50;
 
-  /* --- The accent --------------------------------------------------------
-   * #9184d9, a blurple at OKLCH hue 289.2. One accent, no second: it is a
-   * line, a glow, an outline and a 10–20 % tint, never a flood.
+  /* --- The accent ---------------------------------------------------------
+   * Rani pink, #f0508a — the colour of wedding cards and festival saris, and
+   * nowhere near any signal hue or the yellow caption highlight. One accent, no
+   * second. It fills the ONE primary action per surface (ink text on it,
+   * 5.5:1), draws the shirorekha bar, marks the active nav row, tab and switch,
+   * and tints selections. Accent text is legal on `bg`, `surface` and
+   * `sunken` (≥ 4.98:1); on `bg-2` and above use `accent-300`.
    *
-   * The `lime-*` and `mint*` names are historical — 80-odd files consume them
-   * and renaming every call site would be a much larger and much riskier diff
-   * than repointing the value. They are the accent; there is no lime and no
-   * mint in this palette. */
-  --color-accent: #9184d9;
-  --color-accent-hover: #b5abfc;
-  --color-lime-500: #9184d9;
-  --color-lime-600: #b5abfc;
-  --color-mint: #9184d9;
-  --color-mint-hover: #b5abfc;
-  --color-emerald: #968ae0;
-  --color-mint-glow: rgb(145 132 217 / 0.2);
-  --color-gold: #e6cf97;
-  /* Nocturne outlines its primary action rather than filling it, so this is
-   * only reached where a fill is unavoidable (a switch that is ON, a filled
-   * meter track). Ink, so the pair clears 8:1. */
-  --color-on-accent: #0a0b12;
+   * The `lime-*` and `mint*` names are historical — 80-odd files consume them.
+   * They are the accent. */
+  --color-accent: #f0508a;
+  --color-accent-hover: #f36b9b;
+  --color-lime-500: #f0508a;
+  --color-lime-600: #f36b9b;
+  --color-mint: #f0508a;
+  --color-mint-hover: #f36b9b;
+  --color-emerald: #f0508a;
+  --color-mint-glow: rgb(240 80 138 / 0.2);
+  --color-gold: #e8c98a;
+  /* Text on an accent fill: the page ink, 5.51:1 on #f0508a. */
+  --color-on-accent: #141217;
 
   /* --- Editor chrome ------------------------------------------------------
-   * The caption editor's own surfaces, retuned onto the Nocturne ramps. The
-   * emphasis and selection pairs are the canvas's transcript rows: an
-   * accent-800 tint carrying accent-100 text. */
-  --color-editor-inspector: #1e2030;
-  --color-editor-sunken: #101220;
-  --color-editor-raised: #2f3243;
-  --color-editor-divider: #242636;
-  --color-editor-pill: #232532;
-  --color-editor-pill-border: #313449;
-  --color-editor-emphasis: #d2cefd;
-  --color-editor-emphasis-bg: #423a6a;
-  --color-editor-emphasis-border: #5d5294;
-  --color-editor-selection: #d2cefd;
-  --color-editor-selection-bg: #221f3a;
-  --color-editor-selection-border: #5d5294;
-  --color-editor-avatar: #423a6a;
-  --color-editor-avatar-text: #f5f4ff;
-  --color-editor-track: #5d5294;
-  --color-editor-track-text: #f5f4ff;
-  --color-editor-ruler: #22242f;
-  --color-editor-muted: #9397ab;
+   * The caption editor's own surfaces, retuned onto the Shirorekha ramps: the
+   * emphasis and selection pairs are an accent-800/900 tint carrying accent-200
+   * text. */
+  --color-editor-inspector: #1a171d;
+  --color-editor-sunken: #0e0c10;
+  --color-editor-raised: #2c2830;
+  --color-editor-divider: #252127;
+  --color-editor-pill: #1f1c23;
+  --color-editor-pill-border: #342f38;
+  --color-editor-emphasis: #fbcadd;
+  --color-editor-emphasis-bg: #5e1d37;
+  --color-editor-emphasis-border: #962752;
+  --color-editor-selection: #fbcadd;
+  --color-editor-selection-bg: #2e1420;
+  --color-editor-selection-border: #962752;
+  --color-editor-avatar: #5e1d37;
+  --color-editor-avatar-text: #fde8f0;
+  --color-editor-track: #962752;
+  --color-editor-track-text: #fde8f0;
+  --color-editor-ruler: #201d23;
+  --color-editor-muted: #a39a93;
 
   /* --- Signals -----------------------------------------------------------
    * Semantic, not decorative: these say accepted/rejected/warning and must
    * stay distinguishable from the accent, so they keep their own hues —
-   * desaturated to sit inside Nocturne's low-chroma world. */
-  --color-proposed: #e6b45c;
-  --color-accepted: #6dc99e;
-  --color-rejected: #e8776f;
-  --color-info: #7aa2f7;
-  --color-warning: #e6b45c;
+   * rejected is pushed toward orange so it never reads as the pink accent. */
+  --color-proposed: #e8b04a;
+  --color-accepted: #6fcf97;
+  --color-rejected: #ef7d4f;
+  --color-info: #7fa6f5;
+  --color-warning: #e8b04a;
 
   /* --- Caption defaults (rendered content, not chrome) -------------------
-   * Deliberately NOT the Nocturne palette. These burn into exported video and
+   * Deliberately NOT the chrome palette. These burn into exported video and
    * are governed by legibility over arbitrary footage, not by the app's
    * chrome; the render tests assert them. Never use the brand accent here. */
   --color-caption-fill: #ffffff;
   --color-caption-highlight: #ffd400;
   --color-caption-stroke: #000000;
 
-  /* --- Radii: Nocturne's 8 px control radius, 12 / 14 for cards ---------- */
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 14px;
+  /* --- Radii: 6 px controls, 10 px cards, 16 px sheets and dialogs ------ */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
 
   /* --- Type --------------------------------------------------------------
-   * Inter over Inter. `--font-display` keeps a system chain behind Inter so a
-   * page that still asks for it degrades sensibly, but nothing in this system
-   * should be reaching for a second face. */
+   * Inter for everything a person operates; Anek Latin (`font-display`) for
+   * page titles and large figures only. */
   --font-sans:
     var(--font-inter), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-display:
-    var(--font-inter), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    var(--font-anek), var(--font-inter), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-mono: var(--font-jetbrains-mono), ui-monospace, "SFMono-Regular", Menlo, monospace;
 
   --text-2xs: 0.6875rem; /* 11px — meter captions, shortcut hints */
@@ -205,11 +203,11 @@
   :root {
     /*
      * Elevation on a dark ground is a hairline edge plus ambient darkness,
-     * never a heavy blur and never stacked (Nocturne readme, Don't).
+     * never a heavy blur and never stacked.
      */
-    --shadow-sm: 0 0 0 1px #3f424d;
-    --shadow-md: 0 0 0 1px #595d6c, 0 6px 18px rgb(0 0 0 / 0.55);
-    --shadow-lg: 0 0 0 1px #9397ab, 0 16px 40px rgb(0 0 0 / 0.65);
+    --shadow-sm: 0 0 0 1px #3d3739;
+    --shadow-md: 0 0 0 1px #5a534f, 0 6px 18px rgb(0 0 0 / 0.55);
+    --shadow-lg: 0 0 0 1px #7c746e, 0 16px 40px rgb(0 0 0 / 0.65);
     --shadow-panel: var(--shadow-md);
     --focus-ring: 0 0 0 2px var(--color-bg-0), 0 0 0 4px var(--color-accent);
     color-scheme: dark;
@@ -229,12 +227,12 @@
   }
 
   /*
-   * Do not bolden headings past their 500 weight — hierarchy here is size and
-   * space (Nocturne readme). Utilities still win, so a heading that genuinely
-   * needs more can ask; this only changes what an unstyled h1–h6 does.
+   * Headings are Inter 600 with slight negative tracking; a page title opts
+   * into the display face and the shirorekha bar through `PageHeader` rather
+   * than every h1 changing face. Utilities still win.
    */
   :is(h1, h2, h3, h4, h5, h6) {
-    font-weight: 500;
+    font-weight: 600;
     letter-spacing: -0.015em;
   }
 
@@ -295,35 +293,39 @@
 }
 
 /*
- * A freestanding rule fades to transparent 48 px from each end rather than
- * stopping cleanly — the Nocturne signature. Box outlines, in-control
- * separators and short accent marks stay solid, so this is opt-in.
+ * A divider. The name is historical (Nocturne faded its rules at the ends);
+ * under Shirorekha a rule is a plain, solid hairline, because the one piece of
+ * ornament the system allows is the shirorekha bar and a second flourish would
+ * compete with it.
  */
 @utility rule-fade {
   height: 1px;
   border: 0;
-  background: linear-gradient(
-    to right,
-    transparent,
-    var(--color-divider) 48px,
-    var(--color-divider) calc(100% - 48px),
-    transparent
-  );
+  background: var(--color-divider);
+}
+
+/* The same hairline along the bottom edge of an element with its own content. */
+@utility rule-fade-b {
+  box-shadow: inset 0 -1px 0 var(--color-divider);
 }
 
 /*
- * The same rule painted along the bottom edge of an element that has its own
- * content — a header, a list row — instead of as a separate element.
+ * The shirorekha: the signature. A short, 3 px rani bar drawn ABOVE an
+ * element, the way Devanagari letters hang from their headline. It is spent
+ * on page titles (`PageHeader`), the brand mark, and at most one hero moment
+ * per screen — never on cards, rows or buttons, or it stops meaning anything.
  */
-@utility rule-fade-b {
-  background-image: linear-gradient(
-    to right,
-    transparent,
-    var(--color-divider) 48px,
-    var(--color-divider) calc(100% - 48px),
-    transparent
-  );
-  background-repeat: no-repeat;
-  background-position: bottom;
-  background-size: 100% 1px;
+@utility shirorekha {
+  position: relative;
+  padding-top: 14px;
+  &::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 32px;
+    height: 3px;
+    border-radius: 2px;
+    background: var(--color-accent);
+  }
 }

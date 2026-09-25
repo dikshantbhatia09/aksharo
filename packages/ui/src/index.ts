@@ -16,6 +16,8 @@ export * from "./fonts/indic";
 
 // --- Primitives -------------------------------------------------------------
 export { Button, buttonVariants } from "./primitives/button";
+export { PageHeader } from "./primitives/page-header";
+export type { PageHeaderProps } from "./primitives/page-header";
 export type { ButtonProps } from "./primitives/button";
 export { Input, Textarea } from "./primitives/input";
 export type { InputProps } from "./primitives/input";

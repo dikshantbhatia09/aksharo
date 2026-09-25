@@ -11,18 +11,15 @@ import type { VariantProps } from "class-variance-authority";
 /**
  * The one button.
  *
- * **The primary is an accent outline on transparent, never a fill.** That is
- * Nocturne's rule, not a preference: "Buttons are outlined (1px accent border
- * on transparent), not solid-filled", and "do not flood large areas with the
- * accent". The accent is spent on lines, glows and 10–20 % tints; a filled
- * button is the largest block of pure accent a screen can have, and half a
- * dozen of them is what turns a dark interface loud. `variant="primary"`
- * should still appear once per surface — the discipline is about which action
- * is *the* action, and that has not changed.
+ * **The primary is a rani fill with ink text (5.5:1)**, the prominent style
+ * Apple's HIG asks for on a key action such as Save or Export. It is the
+ * single largest block of accent a screen may have, so `variant="primary"`
+ * appears **once per surface** — everything else is `secondary` (an outline)
+ * or `ghost`. This replaced Nocturne's outlined primary on 2026-09-25: an
+ * outline made the main action look like one more option.
  *
- * `danger` keeps its fill. Destruction is the one action that has to be
- * unmistakable at a glance, and an outlined destructive button reads as one
- * more option rather than as the last one.
+ * `danger` is filled too, in the rejected hue, so destruction stays
+ * unmistakable and never reads as the brand action.
  *
  * Motion is a 160 ms colour transition; `prefers-reduced-motion` collapses it in
  * `tokens.css` rather than here, so no component has to remember.
@@ -38,18 +35,12 @@ export const buttonVariants = cva(
   {
     variants: {
       variant: {
-        // The label lightens as the ground lifts. With a filled button the
-        // hover tint sits BEHIND the text and contrast rises; with an outline
-        // the label IS the accent, so tinting the ground alone pushes it the
-        // wrong way — measured 4.71:1 at rest on a card, 3.97 hovered, 3.37
-        // pressed, i.e. straight through the 4.5:1 AA floor on the product's
-        // main action. Moving the text one step up the ramp restores it
-        // (8.5:1 hovered, 7.3:1 pressed) and is also what Nocturne asks for:
-        // on a dark ground a state change moves toward the light end.
+        // Ink on rani is 5.51:1 at rest; the hover and press steps move the
+        // fill one step lighter (accent-400, 6.6:1; accent-300 pressed, 8.2:1) rather than darker, so the
+        // label only gains contrast as the state changes.
         primary: [
-          "border border-accent bg-transparent text-accent",
-          "hover:bg-accent/12 hover:text-accent-300",
-          "active:bg-accent/22 active:text-accent-200",
+          "bg-accent text-on-accent font-semibold",
+          "hover:bg-accent-400 active:bg-accent-300",
         ].join(" "),
         secondary: [
           "border border-border bg-transparent text-fg-0",
@@ -63,9 +54,9 @@ export const buttonVariants = cva(
           "hover:bg-neutral-100/7 hover:text-fg-0",
         ].join(" "),
         ghost:
-          "bg-transparent text-accent px-1 hover:bg-accent/10 hover:text-accent-300 active:bg-accent/18 active:text-accent-200",
-        danger: "bg-rejected text-ink hover:bg-rejected/85",
-        link: "bg-transparent text-accent underline-offset-4 hover:underline",
+          "bg-transparent text-fg-1 px-2 hover:bg-neutral-100/7 hover:text-fg-0 active:bg-neutral-100/14",
+        danger: "bg-rejected text-ink font-semibold hover:bg-rejected/85",
+        link: "bg-transparent text-accent-300 underline underline-offset-4 hover:text-accent-200",
       },
       size: {
         sm: "h-8 px-3 text-xs",
