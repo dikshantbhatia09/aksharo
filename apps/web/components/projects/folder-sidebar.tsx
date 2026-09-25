@@ -17,14 +17,15 @@ import { Button, cn, Input, toast } from "@montaj/ui";
 import { messageForError } from "@/lib/errors";
 
 /**
- * The canvas's folder row: a 14 px icon, the name, and — pushed right — the
- * count. Selected is an accent tint rather than a raised grey, which is how
- * Nocturne marks "this one" everywhere else in the shell.
+ * A folder row: a 16 px icon, the name, and — pushed right — the count.
+ * Selected is the active-nav tint the shell uses for "this one"
+ * (`bg-accent/14 text-accent-200`, 9.9:1), plus `aria-current`, so the state
+ * is announced and not only coloured.
  */
 const ROW =
-  "flex items-center gap-2 rounded-sm px-2.5 py-[7px] text-left text-[12.5px] transition-colors duration-[160ms] ease-[var(--ease-out-soft)]";
-const ROW_ON = "bg-accent/12 text-accent-200";
-const ROW_OFF = "text-neutral-300 hover:bg-neutral-100/6 hover:text-fg-0";
+  "flex min-h-8 items-center gap-2 rounded-sm px-2.5 py-1.5 text-left text-sm transition-colors duration-[160ms] ease-[var(--ease-out-soft)]";
+const ROW_ON = "bg-accent/14 text-accent-200";
+const ROW_OFF = "text-fg-1 hover:bg-neutral-100/7 hover:text-fg-0";
 
 export function FolderSidebar({
   selectedFolderId,
@@ -46,18 +47,19 @@ export function FolderSidebar({
 
   return (
     <nav aria-label="Folders" className="flex flex-col gap-0.5" data-testid="folder-sidebar">
-      <span className="text-neutral-500 px-2.5 pb-1.5 text-[9.5px] tracking-[0.12em] uppercase">
+      <h2 className="text-fg-2 px-2.5 pb-1.5 text-2xs font-medium tracking-[0.06em] uppercase">
         Folders
-      </span>
+      </h2>
       <button
         type="button"
         onClick={() => {
           onSelect(undefined);
         }}
         className={cn(ROW, selectedFolderId === undefined ? ROW_ON : ROW_OFF)}
+        aria-current={selectedFolderId === undefined ? "true" : undefined}
         data-testid="folder-all"
       >
-        <Folders className="size-3.5 shrink-0" aria-hidden="true" />
+        <Folders className="size-4 shrink-0" aria-hidden="true" />
         All projects
       </button>
       <button
@@ -66,9 +68,10 @@ export function FolderSidebar({
           onSelect("root");
         }}
         className={cn(ROW, selectedFolderId === "root" ? ROW_ON : ROW_OFF)}
+        aria-current={selectedFolderId === "root" ? "true" : undefined}
         data-testid="folder-root"
       >
-        <Folder className="size-3.5 shrink-0" aria-hidden="true" />
+        <Folder className="size-4 shrink-0" aria-hidden="true" />
         No folder
       </button>
 
@@ -120,24 +123,27 @@ export function FolderSidebar({
                 "flex-1 truncate",
                 selectedFolderId === folder.id ? ROW_ON : ROW_OFF,
               )}
+              aria-current={selectedFolderId === folder.id ? "true" : undefined}
               data-testid={`folder-${folder.id}`}
             >
-              <Folder className="size-3.5 shrink-0" aria-hidden="true" />
+              <Folder className="size-4 shrink-0" aria-hidden="true" />
               <span className="truncate">{folder.name}</span>
               {/* A real separator, not just a margin: without it the accessible
                   name reads "Client work0" (F07-E2). */}
-              <span className="text-neutral-500 ml-auto text-[10px]">{` · ${String(folder.projectCount)}`}</span>
+              <span className="text-fg-2 ml-auto text-2xs">{` · ${String(folder.projectCount)}`}</span>
             </button>
             <button
               type="button"
               aria-label={`Rename ${folder.name}`}
-              className="text-fg-2 hover:text-fg-0 rounded-sm p-1 opacity-0 group-hover:opacity-100"
+              // Revealed on hover AND on keyboard focus: an opacity-0 control
+              // that stays invisible while focused is a focus trap for sight.
+              className="text-fg-2 hover:text-fg-0 flex size-8 shrink-0 items-center justify-center rounded-sm opacity-0 group-hover:opacity-100 hover:bg-neutral-100/7 focus-visible:opacity-100"
               onClick={() => {
                 setRenamingId(folder.id);
                 setRenameDraft(folder.name);
               }}
             >
-              <Pencil className="size-3.5" aria-hidden="true" />
+              <Pencil className="size-4" aria-hidden="true" />
             </button>
           </div>
         ),
@@ -170,6 +176,7 @@ export function FolderSidebar({
           <Input
             autoFocus
             placeholder="Name, then press Enter"
+            aria-label="New folder name"
             value={draftName}
             onChange={(event) => {
               setDraftName(event.target.value);

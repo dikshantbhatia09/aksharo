@@ -19,7 +19,7 @@ import {
   useSaveOnboarding,
 } from "@montaj/api-client";
 import { BRAND } from "@montaj/config";
-import { Button, cn, Field, Input, toast } from "@montaj/ui";
+import { Button, cn, Field, Input, PageHeader, toast } from "@montaj/ui";
 
 import { ALL_LANGUAGES } from "@/components/projects/languages";
 import { SampleProjectButton } from "@/components/projects/project-grid";
@@ -215,15 +215,12 @@ export function OnboardingFlow(): React.JSX.Element {
           : t("onboarding.step.finish.title");
 
   return (
-    <div
-      className="mx-auto flex w-full max-w-[560px] flex-col gap-[18px] pt-3"
-      data-testid="onboarding"
-    >
+    <div className="mx-auto flex w-full max-w-[560px] flex-col gap-6 pt-3" data-testid="onboarding">
       {/*
-        The canvas's progress is four dots, not a bar: four steps is a
-        countable number, and a dot that is filled/ringed/empty says which one
-        you are on without needing a percentage. The "N of 4" sentence stays
-        as the accessible name, so nothing is lost for a screen reader.
+        Progress is four numbered steps, not a bar: four is a countable
+        number. Done steps carry a check and the current one the accent ring
+        (the "selected" treatment), so the state is shape as well as colour.
+        The "N of 4" sentence is the accessible name.
       */}
       <div
         className="flex items-center gap-2"
@@ -236,21 +233,22 @@ export function OnboardingFlow(): React.JSX.Element {
             aria-hidden="true"
             data-state={index < step ? "done" : index === step ? "current" : "todo"}
             className={cn(
-              "flex size-6 items-center justify-center rounded-full text-[11px]",
-              index < step && "bg-accent-800 text-accent-100",
-              index === step &&
-                "bg-accent/18 text-accent-200 shadow-[inset_0_0_0_1px_var(--color-accent)]",
-              index > step && "bg-neutral-900 text-neutral-500",
+              "flex size-6 items-center justify-center rounded-full text-2xs font-medium",
+              index < step && "bg-bg-2 text-fg-0",
+              index === step && "bg-bg-2 text-fg-0 ring-accent ring-1",
+              index > step && "text-fg-2 border-border border",
             )}
           >
-            {index + 1}
+            {index < step ? <Check className="size-3.5" /> : index + 1}
           </span>
         ))}
-        <span className="text-neutral-500 ml-auto text-[11px]">Takes under a minute</span>
+        <span className="text-fg-2 ml-auto text-xs">Takes under a minute</span>
       </div>
 
-      <div className="bg-surface flex flex-col gap-4 rounded-lg p-[22px] shadow-[var(--shadow-sm)]">
-        <h1 className="font-display m-0 text-[23px] tracking-[-0.02em]">{stepTitle}</h1>
+      {/* The step's question is the page title: one PageHeader, one shirorekha. */}
+      <PageHeader title={stepTitle} aria-live="polite" />
+
+      <div className="border-border bg-surface flex flex-col gap-4 rounded-md border p-5">
         {step === 0 ? (
           <ChoiceGrid
             name="makes"
@@ -320,7 +318,7 @@ export function OnboardingFlow(): React.JSX.Element {
 
         {step === 3 ? (
           <div className="flex flex-col gap-3">
-            <p className="text-neutral-300 m-0 text-[13px]">{t("onboarding.step.finish.body")}</p>
+            <p className="text-fg-1 m-0 text-sm">{t("onboarding.step.finish.body")}</p>
             <div className="flex flex-wrap gap-2">
               <Button
                 variant="primary"
@@ -343,7 +341,7 @@ export function OnboardingFlow(): React.JSX.Element {
           the primary is how people miss the primary.
         */}
         {step === 3 ? null : (
-          <div className="flex items-center gap-[9px] pt-0.5">
+          <div className="flex items-center gap-2 pt-1">
             {step > 0 ? (
               <Button
                 variant="ghost"
@@ -441,13 +439,16 @@ function ChoiceGrid({
                 onToggle(option.key);
               }}
               className={cn(
-                "rounded-sm border px-2.5 py-[5px] text-[11.5px]",
+                "inline-flex h-8 items-center gap-1.5 rounded-sm border px-3 text-xs",
                 "transition-colors duration-[160ms] ease-[var(--ease-out-soft)]",
+                // Selected = the accent ring plus a check, so it is not
+                // colour alone (DESIGN.md accessibility floor).
                 active
-                  ? "border-accent bg-accent/14 text-accent-200"
-                  : "border-border text-neutral-400 hover:border-accent hover:text-neutral-200",
+                  ? "border-accent bg-bg-2 text-fg-0 ring-accent ring-1"
+                  : "border-border text-fg-1 hover:bg-neutral-100/7 hover:text-fg-0",
               )}
             >
+              {active ? <Check className="size-3.5" aria-hidden="true" /> : null}
               {option.label}
             </button>
           );
@@ -464,32 +465,35 @@ function ChoiceGrid({
               onToggle(option.key);
             }}
             className={cn(
-              "flex items-center gap-[9px] rounded-md border px-3 py-[11px] text-left text-[13px]",
+              "flex min-h-11 items-center gap-3 rounded-md border px-3 py-3 text-left text-sm",
               "transition-colors duration-[160ms] ease-[var(--ease-out-soft)]",
               active
-                ? "border-accent bg-accent/10 text-accent-200"
-                : "border-border text-neutral-300 hover:border-accent",
+                ? "border-accent bg-bg-2 text-fg-0 ring-accent ring-1"
+                : "border-border text-fg-1 hover:bg-neutral-100/7 hover:text-fg-0",
             )}
           >
             {Icon === undefined ? (
               <span
                 aria-hidden="true"
                 className={cn(
-                  "flex size-4 shrink-0 items-center justify-center rounded-[4px] border",
-                  active ? "border-accent bg-accent text-on-accent" : "border-border",
+                  "flex size-4 shrink-0 items-center justify-center rounded-sm border",
+                  active ? "border-fg-0 bg-fg-0 text-bg-0" : "border-neutral-600",
                 )}
               >
                 {active ? <Check className="size-3" /> : null}
               </span>
             ) : (
-              <Icon className="size-4 shrink-0" aria-hidden="true" />
+              <Icon className="text-fg-2 size-5 shrink-0" aria-hidden="true" />
             )}
-            <span>
+            <span className="flex-1">
               {option.label}
               {option.hint === undefined ? null : (
-                <span className="text-neutral-500 block text-xs">{option.hint}</span>
+                <span className="text-fg-2 block text-xs">{option.hint}</span>
               )}
             </span>
+            {Icon !== undefined && active ? (
+              <Check className="text-fg-0 size-4 shrink-0" aria-hidden="true" />
+            ) : null}
           </button>
         );
       })}

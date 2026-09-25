@@ -1,10 +1,10 @@
 "use client";
 
 /**
- * The studio, rebuilt to the premium canvas's four bands: the clips-pipeline
- * banner, the "New project" card (pitch and quick picks on the left, the drop
- * well on the right), a "Working now" / "This month" pair, and "Pick up where
- * you left off".
+ * The studio (Shirorekha, 2026-09-25): the page title, the "New project" card
+ * (quick picks on the left, the drop well on the right) with its upload
+ * progress directly under it, the clips-pipeline banner (cohort only), a
+ * "Working now" / "Credits this month" pair, and "Pick up where you left off".
  *
  * `/` is the URL a signed-in visitor sees this at — `middleware.ts` rewrites an authenticated request
  * for "/" here invisibly, because `(site)/page.tsx` already owns "/" for the
@@ -25,7 +25,7 @@ import { useSearchParams } from "next/navigation";
 import * as React from "react";
 
 import { useCurrentUser, useProjects } from "@montaj/api-client";
-import { toast } from "@montaj/ui";
+import { Button, PageHeader, toast } from "@montaj/ui";
 
 import { LocalProjectsSection } from "./local-projects-section";
 
@@ -193,41 +193,41 @@ export function HomeView(): React.JSX.Element {
       : queue.items.find((candidate) => candidate.id === pendingMedia.localId);
 
   return (
-    <div className="flex flex-col gap-5" data-testid="home-view">
+    <div className="flex flex-col gap-8" data-testid="home-view">
       {/*
-        Band 1 — the clips pipeline. First on the canvas because it is the
-        product's biggest job; renders nothing outside the `repurpose_flow`
-        cohort, where every route behind it answers 404.
+        The page title, and the only shirorekha on Home. The name, when we
+        have it, sits in the eyebrow so the title stays one short line that
+        says what this page is for.
       */}
-      <PipelineBanner />
+      <PageHeader
+        size="lg"
+        {...(name === undefined ? {} : { eyebrow: `Welcome, ${name}` })}
+        title="Captions that match how you talk"
+        description="Drop a video or audio file. Pick the language you actually spoke, and your credits go to the engine that scores best on it."
+      />
 
       {/*
-        Band 2 — "New project". The canvas splits this card: the pitch, the
-        quick picks and the two buttons on the left, the drop well on the
-        right. The whole card is the drop target, so a file dragged anywhere
-        over it lands, not only onto the well.
+        The main job: a new project. The quick picks on the left, the drop
+        well on the right, and the whole card is the drop target, so a file
+        dragged anywhere over it lands, not only onto the well. It comes first
+        because every account can use it; the clips pipeline below is limited
+        to one cohort.
       */}
       {pendingBatchFiles === undefined ? (
         <section
-          className="bg-surface grid overflow-hidden rounded-lg shadow-[var(--shadow-sm)] lg:grid-cols-[minmax(0,1.25fr)_minmax(220px,0.75fr)]"
+          className="border-border bg-surface grid overflow-hidden rounded-md border lg:grid-cols-[minmax(0,1.25fr)_minmax(240px,0.75fr)]"
           ref={dropZoneRef}
           tabIndex={-1}
           aria-labelledby="new-project-heading"
         >
-          <div className="flex flex-col gap-[13px] p-[22px]">
-            <span className="text-accent text-[10px] tracking-[0.12em] uppercase">New project</span>
+          <div className="flex flex-col gap-4 p-5">
             <div>
-              <h1
-                id="new-project-heading"
-                className="font-display m-0 mb-1.5 text-[26px] tracking-[-0.02em]"
-              >
-                {name === undefined
-                  ? "Drop footage. Get captions that match how you talk."
-                  : `${name}, drop footage. Get captions that match how you talk.`}
-              </h1>
-              <p className="text-neutral-400 m-0 max-w-[48ch] text-[13.5px]">
-                Pick the language you actually spoke and your credits go to the engine that scores
-                best on it.
+              <h2 id="new-project-heading" className="text-fg-0 m-0 text-lg font-semibold">
+                New project
+              </h2>
+              <p className="text-fg-2 m-0 mt-1 max-w-[48ch] text-sm">
+                These settings apply to the next file you add. You can change them again before
+                anything is transcribed.
               </p>
             </div>
 
@@ -273,6 +273,15 @@ export function HomeView(): React.JSX.Element {
         />
       )}
 
+      {/* Progress sits directly under the action that started it. */}
+      <UploadTray
+        items={queue.items}
+        pause={queue.pause}
+        resume={queue.resume}
+        cancel={queue.cancel}
+        dismiss={queue.dismiss}
+      />
+
       {activeBatchId === undefined ? null : <BatchProgressView batchId={activeBatchId} />}
 
       <PrepareMediaModal
@@ -295,40 +304,51 @@ export function HomeView(): React.JSX.Element {
         }}
       />
 
-      <UploadTray
-        items={queue.items}
-        pause={queue.pause}
-        resume={queue.resume}
-        cancel={queue.cancel}
-        dismiss={queue.dismiss}
-      />
+      {/*
+        The clips pipeline. Renders nothing outside the `repurpose_flow`
+        cohort, where every route behind it answers 404.
+      */}
+      <PipelineBanner />
 
       {/*
-        Band 3 — what is happening and what it costs. "Working now" hides
-        itself when nothing is running, which is why the grid is `auto-fit`
-        rather than two fixed columns: with no jobs, the credit card takes the
-        full width instead of leaving a hole.
+        What is happening and what it costs. "Working now" hides itself when
+        nothing is running, which is why the grid is `auto-fit` rather than two
+        fixed columns: with no jobs, the credit card takes the full width
+        instead of leaving a hole.
       */}
-      <div className="grid gap-3.5 [grid-template-columns:repeat(auto-fit,minmax(280px,1fr))]">
+      <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(280px,1fr))]">
         <WorkingNowCard projects={projects} />
         <ThisMonthCard />
       </div>
 
-      {/* Band 4 — the library, newest first. */}
-      <section className="flex flex-col gap-3">
-        <div className="flex items-baseline gap-3">
-          <h2 className="font-display m-0 text-[17px] tracking-[-0.01em]">
+      {/* The library, newest first. */}
+      <section className="flex flex-col gap-4" aria-labelledby="recent-projects-heading">
+        <div className="flex flex-wrap items-center gap-3">
+          <h2 id="recent-projects-heading" className="text-fg-0 m-0 text-lg font-semibold">
             Pick up where you left off
           </h2>
-          {projects.length === 0 ? null : <SampleProjectButton variant="outline" />}
-          <Link
-            href="/projects"
-            className="text-accent hover:text-accent-300 ml-auto flex items-center gap-1.5 text-[12.5px]"
-          >
-            All projects <ArrowRight className="size-3" aria-hidden="true" />
-          </Link>
+          <div className="ml-auto flex items-center gap-2">
+            {projects.length === 0 ? null : <SampleProjectButton variant="outline" />}
+            <Button variant="ghost" asChild>
+              <Link href="/projects" className="no-underline">
+                All projects <ArrowRight aria-hidden="true" />
+              </Link>
+            </Button>
+          </div>
         </div>
-        <ProjectGrid projects={projects} loading={recent.isPending} />
+        {/*
+          While the batch sheet is open its "Create N projects" is this
+          surface's one primary, so the empty library's sample offer steps
+          down to an outline rather than becoming a second filled button.
+        */}
+        <ProjectGrid
+          projects={projects}
+          loading={recent.isPending}
+          {...(pendingBatchFiles === undefined
+            ? {}
+            : { emptyAction: <SampleProjectButton variant="outline" /> })}
+        />
+
       </section>
 
       <LocalProjectsSection />

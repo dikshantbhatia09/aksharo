@@ -61,7 +61,10 @@ export function LocalProjectsSection(): React.JSX.Element | null {
         <h2 className="text-fg-0 text-lg font-semibold">Local projects</h2>
         <p className="text-fg-2 text-sm">
           Edit fully offline, no upload, on Starter and above.{" "}
-          <a className="underline" href="/settings/billing">
+          <a
+            className="text-accent-300 hover:text-accent-200 underline underline-offset-4"
+            href="/settings/billing"
+          >
             Upgrade your plan
           </a>{" "}
           to turn it on.

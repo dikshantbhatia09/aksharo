@@ -31,15 +31,15 @@ export function activeJobFor(
 }
 
 /**
- * The canvas's status dot. Ready is the accent; anything still moving is one
- * step lighter on the same ramp, so "working" reads as a weaker version of
- * "done" rather than as a second colour. Failed is the one place a signal hue
- * overrides the accent, because it has to be distinguishable from progress.
+ * The status dot. Shirorekha keeps the accent out of lists, so each state
+ * takes its signal hue instead: ready is `accepted`, working is `info`,
+ * queued is `proposed`, failed is `rejected`, and draft/archived are neutral.
+ * The dot is never alone — `STATUS_WORD` always sits beside it (08 §6).
  */
 export const STATUS_DOT: Readonly<Record<ChipStatus, string>> = Object.freeze({
-  ready: "bg-accent",
-  processing: "bg-accent-400",
-  queued: "bg-accent-700",
+  ready: "bg-accepted",
+  processing: "bg-info",
+  queued: "bg-proposed",
   failed: "bg-rejected",
   draft: "bg-neutral-600",
   archived: "bg-neutral-700",

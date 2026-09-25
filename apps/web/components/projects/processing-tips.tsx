@@ -16,20 +16,21 @@
  */
 import * as React from "react";
 
+import { BRAND } from "@montaj/config";
 import { ProgressBar } from "@montaj/ui";
 
 import { cn } from "@/lib/utils";
 
 export const PROCESSING_TIPS: readonly string[] = [
   "Sabr karo, sabr ka phal meetha hota hai.",
-  "Good things take time, great captions take seconds.",
+  "Good captions are worth a short wait.",
   "Polishing every word for maximum engagement.",
-  "Kalakar is the most accurate captioning tool for South Asian languages.",
+  `${BRAND.name} is built for South Asian speech, including code-mixed Hinglish.`,
   "Hinglish and other code-mixed speech get their own transcription lane for better accuracy.",
   "Word-level timing means you can nudge a single word without retiming the rest of the line.",
   "Switch between Roman, Native and English captions any time from the editor's script tabs.",
   "Emphasis, glow, shadows and 3D depth are one click away in the Style panel once captions land.",
-  "Tip: You can customize fonts and colors once your transcript is ready.",
+  "You can change fonts and colours once your transcript is ready.",
 ];
 
 /** Cycles through `tips` every `intervalMs`; a single tip never rotates. */
@@ -64,7 +65,7 @@ export function DidYouKnow({
       role="status"
       aria-live="polite"
     >
-      <p className="text-lime-500 text-2xs font-semibold tracking-wide uppercase">Did you know?</p>
+      <p className="text-fg-2 text-2xs font-semibold tracking-wide uppercase">Did you know?</p>
       <p className="text-fg-1 text-sm">{tip}</p>
     </div>
   );
@@ -91,7 +92,7 @@ export function IndeterminateBar({
       aria-label={label}
       className={cn("bg-bg-2 h-1.5 w-full overflow-hidden rounded-full", className)}
     >
-      <div className="bg-lime-500 h-full w-full animate-pulse rounded-full" />
+      <div className="bg-accent h-full w-full animate-pulse rounded-full" />
     </div>
   );
 }
@@ -123,7 +124,7 @@ export function ProcessingScreen({
       data-testid="processing-screen"
     >
       <div
-        className="border-lime-500/30 bg-lime-500/10 text-lime-500 flex size-16 items-center justify-center rounded-full border"
+        className="border-border bg-bg-2 text-fg-1 flex size-16 items-center justify-center rounded-full border"
         aria-hidden="true"
       >
         {icon}

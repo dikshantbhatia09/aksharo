@@ -66,7 +66,7 @@ export function QuickPickRow({
 
   return (
     <div
-      className="flex flex-wrap items-center gap-[7px]"
+      className="flex flex-wrap items-center gap-2"
       role="group"
       aria-label="Language, style and aspect for what you upload next"
       data-testid="quick-pick-row"
@@ -90,12 +90,15 @@ export function QuickPickRow({
         <DropdownMenuTrigger asChild>
           <button
             type="button"
-            className="border-border text-fg-0 hover:border-accent flex items-center gap-[7px] rounded-sm border px-2.5 py-1.5 text-[12.5px] transition-colors duration-[160ms] ease-[var(--ease-out-soft)]"
+            className="border-border text-fg-0 flex min-h-8 items-center gap-2 rounded-sm border px-2.5 py-1.5 text-xs transition-colors duration-[160ms] ease-[var(--ease-out-soft)] hover:bg-neutral-100/7"
+            aria-label={`Frame: ${aspectLabel}`}
             data-testid="quick-pick-aspect"
           >
-            <span className="text-neutral-500 text-[9.5px] tracking-[0.1em] uppercase">Frame</span>
+            <span className="text-fg-2 text-2xs font-medium tracking-[0.06em] uppercase" aria-hidden="true">
+              Frame
+            </span>
             {value.aspect}
-            <ChevronDown className="text-neutral-500 size-3" aria-hidden="true" />
+            <ChevronDown className="text-fg-2 size-3.5" aria-hidden="true" />
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start">
@@ -112,7 +115,6 @@ export function QuickPickRow({
           ))}
         </DropdownMenuContent>
       </DropdownMenu>
-      <span className="sr-only">{aspectLabel}</span>
     </div>
   );
 }

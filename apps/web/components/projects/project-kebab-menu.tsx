@@ -31,6 +31,7 @@ import * as React from "react";
 import { useCreateProject, useDeleteProject, useUpdateProject } from "@montaj/api-client";
 import type { Project } from "@montaj/api-client";
 import {
+  Button,
   Dialog,
   DialogContent,
   DialogFooter,
@@ -108,7 +109,7 @@ export function ProjectKebabMenu({
         <DropdownMenuTrigger asChild>
           <button
             type="button"
-            className="text-fg-2 hover:text-fg-0 hover:bg-bg-2 rounded-sm p-1.5"
+            className="text-fg-2 hover:text-fg-0 flex size-8 shrink-0 items-center justify-center rounded-sm hover:bg-neutral-100/7"
             aria-label={`More actions for ${project.title}`}
             data-testid={`project-kebab-${project.id}`}
             onClick={(event) => {
@@ -200,27 +201,27 @@ export function ProjectKebabMenu({
             <DialogTitle>Delete &ldquo;{project.title}&rdquo;?</DialogTitle>
           </DialogHeader>
           <p className="text-fg-1 text-sm">
-            This project moves to Archive-then-delete: nothing in storage is removed yet, but it
-            leaves your Recent grid and your workspace&apos;s retention window applies from here.
+            It leaves your project list straight away. Nothing in storage is removed yet: your
+            workspace&apos;s retention period starts today, and the files are deleted when it ends.
           </p>
           <DialogFooter>
-            <button
+            <Button
               type="button"
-              className="text-fg-1 hover:text-fg-0 rounded-sm px-3 py-2 text-sm"
+              variant="ghost"
               onClick={() => {
                 setConfirmingDelete(false);
               }}
             >
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
-              className="bg-rejected text-ink rounded-sm px-3 py-2 text-sm font-medium"
+              variant="danger"
               onClick={confirmDelete}
               data-testid="confirm-delete"
             >
-              Delete
-            </button>
+              Delete project
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

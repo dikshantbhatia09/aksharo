@@ -29,8 +29,8 @@ import {
   Captions,
   CheckCircle2,
   Copy,
+  FileVideo,
   Lock,
-  Play,
   ScanSearch,
   Smile,
   Sparkles,
@@ -120,121 +120,105 @@ export function PrepareMediaModal({
         {item === undefined ? (
           <>
             <DialogHeader>
-              <DialogTitle>Prepare Your Media</DialogTitle>
-              <DialogDescription>Select a language to transcribe your media.</DialogDescription>
+              <DialogTitle>Prepare your media</DialogTitle>
+              <DialogDescription>
+                Choose the spoken language. It decides which transcription engine your credits
+                are spent on.
+              </DialogDescription>
             </DialogHeader>
 
             {file === undefined ? null : (
-              <div className="mb-4 flex flex-col gap-2">
-                <div className="bg-bg-2 border-border relative flex h-36 w-full items-center justify-center overflow-hidden rounded-lg border">
-                  <div className="bg-accent text-on-accent flex size-11 items-center justify-center rounded-full shadow-lg">
-                    <Play className="ml-0.5 size-5 fill-current" />
-                  </div>
-                  <span className="bg-ink/75 text-accent-300 absolute top-2 right-2 rounded-full px-2 py-0.5 text-[11px] backdrop-blur-sm">
-                    ● Ready for processing
+              <div
+                className="border-border bg-sunken mb-4 flex items-center gap-3 rounded-md border p-3"
+                data-testid="prepare-media-file"
+              >
+                <span
+                  className="bg-bg-2 text-fg-2 flex size-10 shrink-0 items-center justify-center rounded-sm"
+                  aria-hidden="true"
+                >
+                  <FileVideo className="size-5" />
+                </span>
+                <span className="flex min-w-0 flex-col">
+                  <span className="text-fg-0 truncate text-sm font-medium">{file.name}</span>
+                  <span className="text-fg-2 text-xs">
+                    {formatFileSize(file.size)} · ready to upload
                   </span>
-                  <span className="bg-ink/75 text-neutral-100 absolute bottom-2 left-2 flex items-center gap-1 rounded px-2 py-0.5 text-xs backdrop-blur-sm">
-                    <span>{file.name}</span>
-                    <span className="text-neutral-400">·</span>
-                    <span className="text-neutral-400">{formatFileSize(file.size)}</span>
-                  </span>
-                </div>
+                </span>
               </div>
             )}
 
-            <div className="mb-4 flex flex-col gap-3">
-              <div>
-                <p className="text-fg-0 text-sm font-medium">Language settings</p>
-                <p className="text-fg-2 text-xs">
-                  Configure the source language and writing system.
-                </p>
-              </div>
+            <fieldset className="mb-4 flex flex-col gap-3">
+              <legend className="text-fg-0 mb-3 text-sm font-semibold">Language</legend>
               <div className="flex flex-col gap-3 sm:flex-row">
                 <div className="flex flex-1 flex-col gap-1.5">
-                  <label className="text-fg-2 text-xs" id="prepare-media-language-label">
-                    What language is spoken?
-                  </label>
+                  <span className="text-fg-1 text-xs" id="prepare-media-language-label">
+                    Spoken language
+                  </span>
                   <LanguagePicker value={language} onChange={setLanguage} fullWidth />
                 </div>
-                <div
-                  className={cn(
-                    "flex flex-1 flex-col gap-1.5 transition-all duration-200",
-                    isHinglish && "hidden",
-                  )}
-                >
-                  <label className="text-fg-2 text-xs" id="prepare-media-script-label">
-                    Writing system used?
-                  </label>
+                <div className={cn("flex flex-1 flex-col gap-1.5", isHinglish && "hidden")}>
+                  <span className="text-fg-1 text-xs" id="prepare-media-script-label">
+                    Caption script
+                  </span>
                   <WritingScriptPicker value={script} onChange={setScript} fullWidth />
                 </div>
               </div>
-            </div>
+            </fieldset>
 
-            {/* Kalakar Additional Options: Translation, Audio Enhancement, Emojis */}
-            <div className="border-border bg-bg-2/50 mb-5 flex flex-col divide-y divide-border/60 rounded-lg border">
-              {/* Translation */}
-              <div className="flex items-center justify-between p-3">
-                <div className="flex items-start gap-2.5">
-                  <Sparkles className="text-fg-2 mt-0.5 size-4" />
-                  <div>
-                    <p className="text-fg-0 text-xs font-medium">Translation</p>
-                    <p className="text-fg-2 text-[11px]">
-                      Automatically translate your captions
-                    </p>
-                  </div>
-                </div>
-                <Badge tone="neutral" className="border-border bg-bg-1 gap-1 text-[11px] text-fg-2">
-                  <Lock className="size-3" />
-                  Creator Plan
-                </Badge>
-              </div>
-
-              {/* Audio Enhancement */}
-              <div className="flex items-center justify-between p-3">
-                <div className="flex items-start gap-2.5">
-                  <Volume2 className="text-fg-2 mt-0.5 size-4" />
-                  <div>
-                    <div className="flex items-center gap-1.5">
-                      <p className="text-fg-0 text-xs font-medium">Audio Enhancement</p>
-                      <span className="text-accent-300 text-[10px]">✦ AI-Powered</span>
-                    </div>
-                    <p className="text-fg-2 text-[11px]">
-                      Clean background noise and enhance speech clarity
-                    </p>
-                  </div>
-                </div>
-                <Switch
-                  checked={audioEnhancement}
-                  onCheckedChange={setAudioEnhancement}
-                  aria-label="Audio Enhancement"
-                  data-testid="toggle-audio-enhancement"
-                />
-              </div>
-
-              {/* Emojis */}
-              <div className="flex items-center justify-between p-3">
-                <div className="flex items-start gap-2.5">
-                  <Smile className="text-fg-2 mt-0.5 size-4" />
-                  <div>
-                    <p className="text-fg-0 text-xs font-medium">Emojis</p>
-                    <p className="text-fg-2 text-[11px]">
-                      Automatically insert context-aware emojis into captions
-                    </p>
-                  </div>
-                </div>
-                <Switch
-                  checked={autoEmojis}
-                  onCheckedChange={setAutoEmojis}
-                  aria-label="Emojis"
-                  data-testid="toggle-emojis"
-                />
-              </div>
+            {/*
+              Options. Audio enhancement and emojis were live-looking switches
+              whose values were never sent anywhere (neither reaches
+              `onGenerate`), so they are shown switched off and disabled, with
+              a word saying so, rather than letting someone believe they turned
+              something on. Their test ids stay for the e2e suite.
+            */}
+            <div className="border-border mb-5 flex flex-col divide-y divide-border rounded-md border">
+              <OptionRow
+                icon={<Sparkles aria-hidden="true" />}
+                title="Translation"
+                description="Translate your captions into another language."
+                control={
+                  <Badge tone="neutral" className="gap-1">
+                    <Lock className="size-3" aria-hidden="true" />
+                    Creator plan
+                  </Badge>
+                }
+              />
+              <OptionRow
+                icon={<Volume2 aria-hidden="true" />}
+                title="Audio enhancement"
+                description="Reduce background noise before transcription. Not available yet."
+                control={
+                  <Switch
+                    checked={audioEnhancement}
+                    onCheckedChange={setAudioEnhancement}
+                    disabled
+                    aria-label="Audio enhancement (not available yet)"
+                    data-testid="toggle-audio-enhancement"
+                  />
+                }
+              />
+              <OptionRow
+                icon={<Smile aria-hidden="true" />}
+                title="Emojis"
+                description="Add emojis that fit what is said. Not available yet."
+                control={
+                  <Switch
+                    checked={autoEmojis}
+                    onCheckedChange={setAutoEmojis}
+                    disabled
+                    aria-label="Emojis (not available yet)"
+                    data-testid="toggle-emojis"
+                  />
+                }
+              />
             </div>
 
             <Button
               type="button"
               variant="primary"
-              className="border-accent text-accent hover:bg-accent/12 h-11 w-full rounded-md border"
+              size="lg"
+              className="w-full"
               disabled={!canGenerate}
               data-testid="prepare-media-generate"
               onClick={() => {
@@ -242,7 +226,7 @@ export function PrepareMediaModal({
                 onGenerate(language, isHinglish ? "roman" : (script ?? "roman"));
               }}
             >
-              Generate Transcription →
+              Upload and transcribe
             </Button>
           </>
         ) : (
@@ -250,6 +234,32 @@ export function PrepareMediaModal({
         )}
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** One row of the options list: icon, title, one sentence, and its control on the right. */
+function OptionRow({
+  icon,
+  title,
+  description,
+  control,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+  control: React.ReactNode;
+}): React.JSX.Element {
+  return (
+    <div className="flex items-center justify-between gap-3 p-3">
+      <div className="flex items-start gap-2.5">
+        <span className="text-fg-2 mt-0.5 [&_svg]:size-4">{icon}</span>
+        <div>
+          <p className="text-fg-0 text-sm font-medium">{title}</p>
+          <p className="text-fg-2 text-xs">{description}</p>
+        </div>
+      </div>
+      {control}
+    </div>
   );
 }
 
@@ -302,7 +312,7 @@ function ProcessingBody({
         {item.duplicateOfProjectId === undefined ? null : (
           <a
             href={`/p/${item.duplicateOfProjectId}`}
-            className="text-lime-500 text-sm underline"
+            className="text-accent-300 hover:text-accent-200 text-sm underline underline-offset-4"
             data-testid="prepare-media-duplicate-open"
           >
             Open the original
@@ -344,7 +354,7 @@ function ProcessingBody({
       <ProcessingScreen
         icon={<Captions className="size-7" aria-hidden="true" />}
         headline="Generating your captions"
-        subtext="This may take a minute — hang tight."
+        subtext="You can close this window. Transcription keeps going on the server."
         tip={tip}
       >
         {openProjectButton}
@@ -367,7 +377,7 @@ function ProcessingBody({
       <ProcessingScreen
         icon={<UploadCloud className="size-7" aria-hidden="true" />}
         headline="Uploading your video"
-        subtext="This may take a minute, hang tight!"
+        subtext="Keep this tab open until the upload finishes."
         progress={item.status === "uploading" ? percent : undefined}
         tip={tip}
       />

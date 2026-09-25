@@ -34,25 +34,22 @@ export function ThisMonthCard({ className }: { className?: string }): React.JSX.
 
   return (
     <section
-      className={cn("bg-surface flex flex-col gap-[11px] rounded-lg px-4 py-3.5", className)}
+      className={cn("border-border bg-surface flex flex-col gap-3 rounded-md border p-5", className)}
       data-testid="this-month"
       aria-labelledby="this-month-heading"
     >
-      <h2
-        id="this-month-heading"
-        className="text-neutral-500 text-[10px] tracking-[0.12em] uppercase"
-      >
-        This month
+      <h2 id="this-month-heading" className="text-fg-1 text-sm font-semibold">
+        Credits this month
       </h2>
 
-      <div className="flex items-end gap-[7px]">
+      <div className="flex items-end gap-2">
         <span
-          className="font-display text-[34px] leading-none tracking-[-0.02em] tabular-nums"
+          className="font-display text-fg-0 text-4xl leading-none font-semibold tabular-nums [font-stretch:92%]"
           data-testid="this-month-balance"
         >
           {Math.round(balance / 10)}
         </span>
-        <span className="text-neutral-400 pb-1 text-xs">
+        <span className="text-fg-2 pb-1 text-sm">
           {
             // A workspace can carry an admin "adjustment" lot on top of its
             // monthly grant (Subscription -> Usage shows these as separate
@@ -68,23 +65,34 @@ export function ThisMonthCard({ className }: { className?: string }): React.JSX.
       </div>
 
       {pct === null ? null : (
-        <span className="bg-neutral-800 block h-[3px] overflow-hidden rounded-full">
+        <span
+          role="meter"
+          aria-label="Credits left this month"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={Math.round(pct)}
+          className="bg-bg-2 block h-1 overflow-hidden rounded-full"
+        >
           <span className="bg-accent block h-full" style={{ width: `${String(pct)}%` }} />
         </span>
       )}
 
-      <p className="text-neutral-400 m-0 text-xs">
+      <p className="text-fg-2 m-0 text-sm">
         About {formatCreditHours(balance)} of transcription.
       </p>
 
-      <div className="mt-auto flex gap-2">
+      {/*
+        Both secondary: Home spends its one filled button on the upload flow,
+        and topping up is a supporting task here, not the page's job.
+      */}
+      <div className="mt-auto flex flex-wrap gap-2">
         {razorpayEnabled ? (
-          <Button variant="primary" size="sm" asChild data-testid="this-month-topup">
-            <Link href="/billing/plans">Top up</Link>
+          <Button variant="secondary" size="sm" asChild data-testid="this-month-topup">
+            <Link href="/billing/plans">Top up credits</Link>
           </Button>
         ) : null}
-        <Button variant="secondary" size="sm" asChild>
-          <Link href="/billing/usage">Usage</Link>
+        <Button variant="ghost" size="sm" asChild>
+          <Link href="/billing/usage">See usage</Link>
         </Button>
       </div>
     </section>

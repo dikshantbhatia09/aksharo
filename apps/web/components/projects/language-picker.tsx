@@ -157,14 +157,16 @@ export function LanguagePicker({
           setOpen((current) => !current);
         }}
         className={cn(
-          // The canvas's quick-pick chip: a key in 9.5 px uppercase, the value
-          // beside it, a caret, and an 8 px radius — not a pill.
-          "flex items-center gap-[7px] rounded-sm border px-2.5 py-1.5 text-[12.5px]",
-          "transition-colors duration-[160ms] ease-[var(--ease-out-soft)]",
-          fullWidth && "w-full justify-between",
+          // A quick-pick chip: a small key, the value beside it, a caret, a
+          // 6 px radius. An answered language reads as plain text; an
+          // unanswered one is a dashed outline in the muted colour, so "still
+          // to choose" is carried by shape and wording, not by accent.
+          "flex min-h-8 items-center gap-2 rounded-sm border px-2.5 py-1.5 text-xs",
+          "hover:bg-neutral-100/7 transition-colors duration-[160ms] ease-[var(--ease-out-soft)]",
+          fullWidth && "h-9 w-full justify-between bg-sunken text-sm",
           value !== undefined
-            ? "border-accent/45 bg-accent/12 text-accent-200"
-            : "border-border text-fg-0 hover:border-accent",
+            ? "border-border text-fg-0"
+            : "border-neutral-600 border-dashed text-fg-1",
         )}
         data-testid="quick-pick-language-trigger"
       >
@@ -172,7 +174,7 @@ export function LanguagePicker({
           {kicker === undefined ? (
             <LanguagesIcon className="size-3.5 shrink-0" aria-hidden="true" />
           ) : (
-            <span className="text-neutral-500 shrink-0 text-[9.5px] tracking-[0.1em] uppercase">
+            <span className="text-fg-2 shrink-0 text-2xs font-medium tracking-[0.06em] uppercase">
               {kicker}
             </span>
           )}
@@ -180,7 +182,7 @@ export function LanguagePicker({
             {currentLabel}
           </span>
         </span>
-        <ChevronDown className="text-neutral-500 size-3 shrink-0" aria-hidden="true" />
+        <ChevronDown className="text-fg-2 size-3.5 shrink-0" aria-hidden="true" />
       </button>
 
       {open ? (
@@ -213,7 +215,7 @@ export function LanguagePicker({
                     aria-selected={value === entry.key}
                   >
                     <Check
-                      className={cn("text-lime-500 size-4", value !== entry.key && "invisible")}
+                      className={cn("text-fg-0 size-4", value !== entry.key && "invisible")}
                       aria-hidden="true"
                     />
                     {entry.label}
@@ -233,7 +235,7 @@ export function LanguagePicker({
                     aria-selected={value === entry.key}
                   >
                     <Check
-                      className={cn("text-lime-500 size-4", value !== entry.key && "invisible")}
+                      className={cn("text-fg-0 size-4", value !== entry.key && "invisible")}
                       aria-hidden="true"
                     />
                     {entry.label}

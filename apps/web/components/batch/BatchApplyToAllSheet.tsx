@@ -96,26 +96,34 @@ export function BatchApplyToAllSheet({
 
   return (
     <div
-      className="border-border bg-bg-1 flex flex-col gap-4 rounded-md border p-4"
+      className="border-border bg-surface flex flex-col gap-4 rounded-md border p-5"
       data-testid="batch-apply-sheet"
+      aria-labelledby="batch-apply-heading"
+      role="region"
     >
-      <h2 className="text-fg-0 text-lg font-semibold">
-        Apply to all {files.length} file{files.length === 1 ? "" : "s"}
-      </h2>
-      <ul className="text-fg-2 flex flex-col gap-1 text-sm">
+      <div>
+        <h2 id="batch-apply-heading" className="text-fg-0 text-lg font-semibold">
+          Create {files.length} project{files.length === 1 ? "" : "s"} with the same settings
+        </h2>
+        <p className="text-fg-2 mt-1 text-sm">
+          Each file becomes its own project, using the language, style and frame you picked.
+        </p>
+      </div>
+      <ul className="border-border text-fg-1 flex flex-col divide-y divide-border rounded-sm border text-sm">
         {files.map((file) => (
-          <li key={file.name} className="truncate">
+          <li key={file.name} className="truncate px-3 py-2">
             {file.name}
           </li>
         ))}
       </ul>
-      <p className="text-fg-2 text-sm" data-testid="batch-quote">
+      <p className="text-fg-1 text-sm" data-testid="batch-quote">
         {estimatedCredits === undefined
           ? "Estimating credits…"
           : `~${String(estimatedCredits)} credits for transcription`}
       </p>
       <div className="flex gap-2">
         <Button
+          variant="primary"
           onClick={confirm}
           disabled={createBatch.isPending || durationsMs === undefined}
           data-testid="batch-confirm"
@@ -127,10 +135,10 @@ export function BatchApplyToAllSheet({
         </Button>
       </div>
       {createBatch.isError ? (
-        <p className="text-sm text-red-400" data-testid="batch-error">
+        <p className="text-rejected text-sm" role="alert" data-testid="batch-error">
           {isApiError(createBatch.error)
             ? createBatch.error.message
-            : "Could not create the batch."}
+            : "The projects could not be created. Try again, or drop the files one at a time."}
         </p>
       ) : null}
     </div>

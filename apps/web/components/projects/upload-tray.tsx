@@ -159,7 +159,7 @@ export function UploadTray({
   if (items.length === 0) return null;
 
   return (
-    <div className="flex flex-col gap-2" data-testid="upload-tray">
+    <section className="flex flex-col gap-2" data-testid="upload-tray" aria-label="Uploads">
       {items.map((item) => {
         const percent =
           item.progress.totalBytes > 0
@@ -167,7 +167,7 @@ export function UploadTray({
             : 0;
 
         return (
-          <Card key={item.id} className="flex flex-col gap-2 p-3" data-testid="upload-tray-item">
+          <Card key={item.id} className="flex flex-col gap-2 p-4" data-testid="upload-tray-item">
             <div className="flex items-center justify-between gap-2">
               <span className="text-fg-0 truncate text-sm font-medium">{item.fileName}</span>
               <div className="flex shrink-0 items-center gap-1.5">
@@ -245,7 +245,7 @@ export function UploadTray({
                 {item.duplicateOfProjectId === undefined ? null : (
                   <a
                     href={`/p/${item.duplicateOfProjectId}`}
-                    className="text-lime-500 underline"
+                    className="text-accent-300 hover:text-accent-200 underline underline-offset-4"
                     data-testid="duplicate-open-original"
                   >
                     Open the original
@@ -282,6 +282,6 @@ export function UploadTray({
           </Card>
         );
       })}
-    </div>
+    </section>
   );
 }

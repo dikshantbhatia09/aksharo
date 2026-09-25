@@ -104,21 +104,23 @@ export function WritingScriptPicker({
             type="button"
             aria-label="Writing script"
             className={cn(
-              "flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm",
-              fullWidth && "w-full justify-between rounded-md",
+              // Same shape as the spoken-language chip beside it in the modal.
+              "flex min-h-8 items-center gap-2 rounded-sm border px-2.5 py-1.5 text-xs",
+              "hover:bg-neutral-100/7 transition-colors duration-[160ms] ease-[var(--ease-out-soft)]",
+              fullWidth && "bg-sunken h-9 w-full justify-between text-sm",
               value !== undefined
-                ? "border-lime-500 bg-lime-500/10 text-fg-0"
-                : "border-border bg-bg-2 text-fg-1 hover:text-fg-0",
+                ? "border-border text-fg-0"
+                : "border-neutral-600 border-dashed text-fg-1",
             )}
             data-testid="quick-pick-writing-script-trigger"
           >
             <span className="flex min-w-0 items-center gap-1.5">
-              <Type className="size-3.5 shrink-0" aria-hidden="true" />
+              <Type className="text-fg-2 size-3.5 shrink-0" aria-hidden="true" />
               <span className={cn("truncate", fullWidth ? "max-w-none" : "max-w-40")}>
                 {currentLabel}
               </span>
             </span>
-            <ChevronDown className="size-3.5 shrink-0" aria-hidden="true" />
+            <ChevronDown className="text-fg-2 size-3.5 shrink-0" aria-hidden="true" />
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent
@@ -134,7 +136,7 @@ export function WritingScriptPicker({
               >
                 <span className="flex flex-col">
                   <span>{entry.label}</span>
-                  <span className="text-fg-2 text-2xs">{entry.hint}</span>
+                  <span className="text-fg-2 text-xs">{entry.hint}</span>
                 </span>
               </DropdownMenuRadioItem>
             ))}

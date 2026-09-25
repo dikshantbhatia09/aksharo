@@ -17,7 +17,7 @@ export function StreakWidget(): React.JSX.Element | null {
 
   if (streak.isPending) {
     return (
-      <Card data-testid="streak-widget-slot">
+      <Card data-testid="streak-widget-slot" role="status">
         <p className="text-fg-2 text-xs">Loading streak…</p>
       </Card>
     );
@@ -35,7 +35,7 @@ export function StreakWidget(): React.JSX.Element | null {
       <div className="flex flex-col gap-2" data-testid="streak-widget">
         <div className="flex items-center justify-between">
           <h3 className="text-fg-0 text-sm font-semibold">Streak</h3>
-          {data.creditsOnly ? null : <Badge tone="accent">L{data.level}</Badge>}
+          {data.creditsOnly ? null : <Badge tone="neutral">L{data.level}</Badge>}
         </div>
 
         {data.paused ? (

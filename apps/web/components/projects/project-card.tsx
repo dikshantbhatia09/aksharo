@@ -14,9 +14,9 @@
  *    obscured the frame it sat on.
  *  - a green circular play button on hover, in a hard-coded `#10B981` that is
  *    not a colour in this palette and read as a second accent.
- *  - a 1 px border on the tile. Nocturne separates a card from the page with
- *    its own lighter surface; the outline appears on hover, in the accent, as
- *    the selection affordance.
+ *  - an accent outline on hover. Shirorekha spends the accent ring on the
+ *    selected state only; the tile has the standard card hairline and hover
+ *    steps it one shade lighter.
  *
  * Status is live: `useProjectJobs` polls every few seconds while any of the
  * project's jobs are still queued or running (`@montaj/api-client`'s
@@ -94,11 +94,11 @@ export function ProjectCard({
         }
       }}
       className={cn(
-        "group bg-surface relative flex flex-col overflow-hidden rounded-[10px]",
-        "transition-shadow duration-[160ms] ease-[var(--ease-out-soft)]",
-        selected
-          ? "shadow-[0_0_0_1px_var(--color-accent)]"
-          : "hover:shadow-[0_0_0_1px_var(--color-accent)]",
+        "group border-border bg-surface relative flex flex-col overflow-hidden rounded-md border no-underline",
+        "transition-colors duration-[160ms] ease-[var(--ease-out-soft)]",
+        // The accent ring is the selected state only (DESIGN.md: "Selected:
+        // ring-1 ring-accent"); hover is a neutral border step.
+        selected ? "border-accent ring-accent ring-1" : "hover:border-border-hover",
       )}
       data-testid="project-card"
       data-project-id={project.id}
@@ -127,7 +127,7 @@ export function ProjectCard({
         ) : null}
 
         {project.thumbnailUrl === undefined ? (
-          <Film className="text-neutral-700 size-7" aria-hidden="true" />
+          <Film className="text-fg-disabled size-7" aria-hidden="true" />
         ) : (
           // A plain <img>, as elsewhere in this folder: the src is a short-lived
           // presigned URL on an external origin, which next/image cannot optimise.
@@ -136,7 +136,7 @@ export function ProjectCard({
 
         {duration === undefined ? null : (
           <span
-            className="bg-ink/70 text-neutral-200 absolute right-1.5 bottom-1.5 rounded-[4px] px-1.5 py-px font-mono text-[10px]"
+            className="bg-ink/80 text-fg-0 absolute right-1.5 bottom-1.5 rounded-sm px-1.5 py-px font-mono text-2xs"
             data-testid="project-card-duration"
           >
             {duration}
@@ -144,18 +144,23 @@ export function ProjectCard({
         )}
       </div>
 
-      <div className="flex flex-1 flex-col gap-[5px] px-2.5 pt-[9px] pb-[11px]">
+      <div className="flex flex-1 flex-col gap-1.5 px-3 pt-2.5 pb-3">
         <div className="flex items-start justify-between gap-1.5">
-          <h3 className="text-fg-0 line-clamp-2 text-[12.5px] leading-[1.3]">{project.title}</h3>
+          <h3 className="text-fg-0 line-clamp-2 text-sm leading-[1.3] font-medium">
+            {project.title}
+          </h3>
           <ProjectKebabMenu
             project={project}
             {...(onViewDetails === undefined ? {} : { onViewDetails })}
           />
         </div>
 
-        <span className="text-neutral-500 flex items-center gap-1.5 text-[10.5px]">
-          {/* eslint-disable-next-line security/detect-object-injection -- `status` is one of the six ChipStatus literals */}
-          <span className={cn("size-[5px] shrink-0 rounded-full", STATUS_DOT[status])} />
+        <span className="text-fg-2 flex items-center gap-1.5 text-2xs">
+          <span
+            // eslint-disable-next-line security/detect-object-injection -- `status` is one of the six ChipStatus literals
+            className={cn("size-1.5 shrink-0 rounded-full", STATUS_DOT[status])}
+            aria-hidden="true"
+          />
           {/* eslint-disable-next-line security/detect-object-injection -- as above */}
           {STATUS_WORD[status]}
           {project.sourceLanguage === null ? null : ` · ${project.sourceLanguage}`}

@@ -18,7 +18,7 @@
 import * as React from "react";
 
 import { useProjects } from "@montaj/api-client";
-import { Button, cn } from "@montaj/ui";
+import { Button, cn, PageHeader } from "@montaj/ui";
 
 import type { ProjectFilters } from "@/components/projects/project-toolbar";
 
@@ -129,22 +129,32 @@ export function ProjectsView(): React.JSX.Element {
     onViewDetails: setDetailProjectId,
   };
 
+  // A segmented control: the pressed segment is raised in neutral (bg-2),
+  // not tinted with the accent — the accent budget has no room for a view
+  // switch, and `aria-pressed` carries the state for assistive tech.
   const viewToggle = (on: boolean): string =>
     cn(
-      "rounded-[6px] px-2.5 py-1 text-[11.5px] transition-colors duration-[160ms]",
-      on ? "bg-accent/16 text-accent-200" : "text-neutral-500 hover:text-neutral-300",
+      "h-8 rounded-sm px-3 text-sm transition-colors duration-[160ms]",
+      on ? "bg-bg-2 text-fg-0 font-medium" : "text-fg-2 hover:text-fg-0",
     );
 
   return (
-    <div className="flex flex-col gap-3.5" data-testid="projects-view">
+    <div className="flex flex-col gap-6" data-testid="projects-view">
+      <PageHeader
+        title="Projects"
+        description="Everything in this workspace. Search, filter, sort, and file projects into folders."
+      />
+
       {/*
-        The canvas's filter bar: search, three filters, and — pushed right —
-        the sort label and the primary action. Select mode and the view
-        toggle sit with them rather than above, so the screen opens on the
-        table instead of on a heading.
+        The filter bar: search and filters on the left; sort, the view
+        switch and Select mode pushed right.
       */}
       <ProjectToolbar filters={filters} onChange={setFilters}>
-        <span className="border-border flex items-center gap-1 rounded-sm border p-[3px]">
+        <span
+          className="border-border flex items-center gap-0.5 rounded-sm border p-0.5"
+          role="group"
+          aria-label="View"
+        >
           <button
             type="button"
             className={viewToggle(view === "table")}
@@ -170,19 +180,18 @@ export function ProjectsView(): React.JSX.Element {
         </span>
         <Button
           type="button"
-          variant={selecting ? "primary" : "secondary"}
-          size="sm"
+          variant="secondary"
           onClick={() => {
             setSelecting((value) => !value);
             setSelectedIds(new Set());
           }}
           data-testid="toggle-select-mode"
         >
-          {selecting ? "Done" : "Select"}
+          {selecting ? "Done selecting" : "Select"}
         </Button>
       </ProjectToolbar>
 
-      <div className="grid grid-cols-1 gap-5 md:grid-cols-[minmax(0,150px)_minmax(0,1fr)]">
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-[minmax(0,180px)_minmax(0,1fr)]">
         <FolderSidebar selectedFolderId={folderId} onSelect={setFolderId} />
 
         <div className={cn("flex min-w-0 flex-col gap-4", selecting && "pb-20")}>

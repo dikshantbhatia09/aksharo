@@ -59,9 +59,9 @@ function FilterMenu({
   onSelect,
   testId,
   /**
-   * The accent outline means "this is narrowing the list". Sort always has a
-   * value and never narrows anything, so it opts out — otherwise the bar
-   * claims a filter is applied on a screen where nothing is filtered.
+   * An applied filter is drawn raised, with its value as the label, so the
+   * bar says "this is narrowing the list" in words as well as shape. Sort
+   * always has a value and never narrows anything, so it opts out.
    */
   narrows = true,
 }: {
@@ -79,19 +79,25 @@ function FilterMenu({
         <button
           type="button"
           className={cn(
-            // The canvas's filter control: a 36 px outlined button with a
-            // caret, not a pill. An applied filter takes the accent outline
-            // so the bar says at a glance that the list is narrowed.
-            "flex h-9 items-center gap-1.5 rounded-sm border px-3 text-[12.5px]",
+            // A 36 px outlined button with a caret, not a pill. An applied
+            // filter is raised (bg-2) and names its field, so "narrowed" is
+            // read, not inferred from a colour.
+            "flex h-9 items-center gap-1.5 rounded-sm border px-3 text-sm",
             "transition-colors duration-[160ms] ease-[var(--ease-out-soft)]",
             selected === undefined || !narrows
-              ? "border-border text-fg-0 hover:border-accent"
-              : "border-accent/45 bg-accent/12 text-accent-200",
+              ? "border-border text-fg-0 hover:bg-neutral-100/7"
+              : "border-border-hover bg-bg-2 text-fg-0 hover:bg-bg-3",
           )}
+          aria-label={selected === undefined ? label : `${label}: ${selected}`}
           data-testid={testId}
         >
+          {selected !== undefined && narrows ? (
+            <span className="text-fg-2" aria-hidden="true">
+              {label}:
+            </span>
+          ) : null}
           {selected ?? label}
-          <ChevronDown className="size-3 opacity-70" aria-hidden="true" />
+          <ChevronDown className="text-fg-2 size-3.5" aria-hidden="true" />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start">
@@ -134,9 +140,9 @@ export function ProjectToolbar({
 
   return (
     <div className="flex flex-wrap items-center gap-2" data-testid="project-toolbar">
-      <span className="relative flex items-center">
+      <span className="relative flex w-full items-center sm:w-auto">
         <Search
-          className="text-neutral-500 pointer-events-none absolute left-2.5 size-3.5"
+          className="text-fg-2 pointer-events-none absolute left-2.5 size-4"
           aria-hidden="true"
         />
         <Input
@@ -146,7 +152,7 @@ export function ProjectToolbar({
           onChange={(event) => {
             onChange({ ...filters, q: event.target.value });
           }}
-          className="h-9 w-[250px] pl-[30px]"
+          className="h-9 w-full pl-8 sm:w-[260px]"
           aria-label="Search projects"
           data-testid="project-search"
         />
@@ -183,7 +189,7 @@ export function ProjectToolbar({
               clientTag: event.target.value === "" ? undefined : event.target.value,
             });
           }}
-          className="w-40"
+          className="h-9 w-40"
           aria-label="Filter by client tag"
           data-testid="filter-client-tag"
         />

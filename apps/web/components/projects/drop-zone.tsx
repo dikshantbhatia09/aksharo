@@ -15,7 +15,7 @@
  * mouse gives everyone else — `tabIndex`, `role="button"` and an Enter/Space
  * handler, not a bare `<input>` hidden behind a decoration.
  */
-import { ClapperboardIcon } from "lucide-react";
+import { UploadCloud } from "lucide-react";
 import * as React from "react";
 
 import { useEntitlement } from "@montaj/api-client";
@@ -80,7 +80,7 @@ export function DropZone({
   disabled?: boolean;
   /**
    * `"panel"` is the premium canvas's shape: the right-hand half of the "New
-   * project" card — a sunken well with a dashed accent rectangle inset 14 px,
+   * project" card — a sunken well with a dashed rectangle inset 14 px,
    * a film icon, one line of instruction and one of formats. It is the one the
    * studio uses.
    *
@@ -180,28 +180,32 @@ export function DropZone({
           "relative flex w-full flex-col items-center justify-center text-center",
           "transition-colors duration-[160ms] ease-[var(--ease-out-soft)]",
           variant === "panel"
-            ? "bg-sunken min-h-[186px] gap-[9px] p-4"
-            : "bg-surface h-[240px] gap-3 rounded-lg px-6 py-8",
+            ? "bg-sunken min-h-[200px] gap-2 p-5"
+            : "bg-surface border-border h-[240px] gap-3 rounded-md border px-6 py-8",
           disabled && "cursor-not-allowed opacity-60",
-          !disabled && "cursor-pointer",
+          !disabled && "cursor-pointer hover:bg-neutral-100/5",
           dragging && "bg-accent/8",
         )}
       >
         {/*
           The dashed rectangle is inset rather than being the element's own
-          border, which is what gives the canvas's well its margin of dark
-          around the invitation.
+          border, which leaves a margin of dark around the invitation. It is a
+          neutral dash at rest (3.7:1 against the well, so the target reads
+          as a target) and turns rani only while a file is over it: the
+          accent marks the one moment the drop will land, not the resting
+          state.
         */}
         <span
           aria-hidden="true"
           className={cn(
-            "pointer-events-none absolute inset-3.5 rounded-[10px] border border-dashed transition-colors",
-            dragging ? "border-accent" : "border-accent/45",
+            "pointer-events-none absolute inset-3.5 rounded-md border border-dashed transition-colors",
+            dragging ? "border-accent" : "border-neutral-600",
           )}
         />
-        <ClapperboardIcon className="text-accent size-[26px]" aria-hidden="true" />
-        <span className="text-fg-0 text-[13px]">Drop video or audio here</span>
-        <span className="text-neutral-500 text-[11px]" data-testid="drop-zone-limits">
+        <UploadCloud className="text-fg-2 size-6" aria-hidden="true" />
+        <span className="text-fg-0 text-sm font-medium">Drop video or audio here</span>
+        <span className="text-fg-2 text-xs">or choose a file from this device</span>
+        <span className="text-fg-2 text-xs" data-testid="drop-zone-limits">
           {maxFileBytes === undefined || maxDurationMs === undefined
             ? FORMAT_SUMMARY
             : `${FORMAT_SUMMARY} · up to ${formatBytes(Number(maxFileBytes))} and ${formatDuration(
@@ -212,12 +216,12 @@ export function DropZone({
           F07-E1: the badge quotes no number, because the free-stack pipeline
           (local Whisper on CPU) cannot hold a 60-second promise and UI never
           quotes a number the pipeline does not enforce. It belongs to the
-          full-width variant only — the canvas's panel is a well with four
-          lines in it and a fifth would crowd the frame.
+          full-width variant only — the panel is a well with four lines in it
+          and a fifth would crowd the frame.
         */}
         {variant === "block" ? (
           <span
-            className="border-accent/40 bg-accent/10 text-accent-300 mt-1 inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs"
+            className="border-border bg-bg-2 text-fg-1 mt-1 inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs"
             data-testid="drop-zone-eta-badge"
           >
             Transcription usually takes a few minutes

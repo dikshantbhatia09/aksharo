@@ -18,11 +18,12 @@ import { Badge, Button, ProgressBar } from "@montaj/ui";
 
 import { useApplyBatch, useBatch } from "@/lib/share/hooks";
 
-function statusTone(status: string | null): "neutral" | "accent" | "rejected" | "accepted" {
+/** Signal hues, never the accent: a list of badges is not an accent moment. */
+function statusTone(status: string | null): "neutral" | "info" | "rejected" | "accepted" {
   if (status === null) return "neutral";
   if (status === "failed" || status === "dlq") return "rejected";
   if (status === "succeeded") return "accepted";
-  return "accent";
+  return "info";
 }
 
 export function BatchProgressView({ batchId }: { batchId: string }): React.JSX.Element {
@@ -32,8 +33,9 @@ export function BatchProgressView({ batchId }: { batchId: string }): React.JSX.E
   if (batch.isPending) {
     return (
       <div
-        className="border-border bg-bg-1 rounded-md border p-4"
+        className="border-border bg-surface rounded-md border p-5"
         data-testid="batch-progress-loading"
+        role="status"
       >
         <p className="text-fg-2 text-sm">Loading batch…</p>
       </div>
@@ -43,10 +45,12 @@ export function BatchProgressView({ batchId }: { batchId: string }): React.JSX.E
   if (batch.data === undefined) {
     return (
       <div
-        className="border-border bg-bg-1 rounded-md border p-4"
+        className="border-border bg-surface rounded-md border p-5"
         data-testid="batch-progress-error"
       >
-        <p className="text-fg-2 text-sm">Could not load this batch.</p>
+        <p className="text-fg-2 text-sm">
+          This batch could not be loaded. Its projects are still in your project list.
+        </p>
       </div>
     );
   }
@@ -58,12 +62,12 @@ export function BatchProgressView({ batchId }: { batchId: string }): React.JSX.E
 
   return (
     <div
-      className="border-border bg-bg-1 flex flex-col gap-3 rounded-md border p-4"
+      className="border-border bg-surface flex flex-col gap-3 rounded-md border p-5"
       data-testid="batch-progress-view"
     >
-      <div className="flex items-center justify-between">
-        <h2 className="text-fg-0 text-sm font-semibold">
-          Batch — {done}/{total} done
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-fg-0 text-base font-semibold">
+          Batch: {done} of {total} transcribed
         </h2>
         <Button
           type="button"
