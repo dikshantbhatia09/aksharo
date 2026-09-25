@@ -9,8 +9,10 @@ Read this before touching anything. The most important section is
 
 > **Changed 2026-09-19 — production no longer runs from this folder.** It runs
 > from `05-build/montaj-release`, a git worktree **detached at a verified commit
-> of `main`** (deployed 2026-09-25: api `e9b1f2d9`, web `1a1bf376` in build
-> `.next-live-20260925a` / `14H3rMRtWH2mKmNPFgohI`; §13). Until then it ran whatever uncommitted files sat in
+> of `main`** (which build is live: `_orchestration/release/web-dist.txt`; what each release
+> shipped and how to undo it: the newest `_orchestration/tools/deploy-*.ps1` and
+> its `rollback-*`. Several deploys a day are normal now, so this file no
+> longer names one; §13). Until then it ran whatever uncommitted files sat in
 > `montaj`, which coding agents edit. Rules:
 >
 > - **Never build into or restart from `montaj`.** Verify a change in the clean
@@ -406,96 +408,84 @@ record in `docs/LAUNCH-READINESS-IMPLEMENTATION-2026-09-14.md`.
   also emitting CommonJS. This silently killed every render worker thread. Put
   the data in a `.ts` module.
 
-## 5. Design system — **Shirorekha** on branch `redesign/new-direction` (2026-09-25)
+## 5. Design system — **Shirorekha** (live since 2026-09-25)
 
-> On the `redesign/new-direction` branch Nocturne is replaced by **Shirorekha**:
-> warm charcoal grounds, one rani-pink accent `#f0508a`, Anek Latin for page
-> titles, a FILLED primary button, and the shirorekha bar via `<PageHeader>`.
-> The spec is `docs/redesign/DESIGN.md` and it wins over the Nocturne text
-> below, which describes `main` until this branch is merged. Per-area screen
-> maps and audits are in `docs/redesign/map/`.
+The spec is `docs/redesign/DESIGN.md`; it wins over this summary. Per-area
+screen maps and audits (with the product decisions they deferred) are in
+`docs/redesign/map/`. It replaced **Nocturne** (blurple on blue-grey, outlined
+primary button), which is gone: there is no `#9184d9`, `#161826` or outlined
+primary in this product any more, and none of lime or mint either.
 
-### Previously — **Nocturne** (changed 2026-09-16)
+Aksharo is named for the akshar, the written syllable. The chrome is a quiet
+warm charcoal so footage and words are the colourful thing on screen, and it
+is signed in one place: the **shirorekha**, the bar Devanagari letters hang
+from, drawn as a 32 × 3 px rani bar above each page title.
 
-The look is **Nocturne**, from the premium design canvas in
-`New folder/Premium software frontend design/`: `Aksharo Studio (premium).dc.html`
-is the screen-by-screen source and `_ds/nocturne-*/readme.md` is the written
-system. If a screen and this file disagree, the canvas wins.
+**Tokens** live in `packages/ui/src/styles/tokens.css` (Tailwind v4 `@theme`)
+with a data copy in `packages/ui/src/tokens.ts`; `tokens.test.ts` pins the two
+together and fails on pure black or white outside the caption defaults. They
+are the ONLY legal source of colour/size — never a raw hex, never `white/NN`:
 
-**This replaced a zinc-and-lime palette (and, before a partial pass, a
-zinc-and-mint one). There is no lime and no mint in this product any more.**
-The `lime-*`/`mint*` CSS variables still exist because 80-odd files consume
-them; they resolve to the accent. Do not reintroduce `#d8ff3d` or `#49a781`,
-and do not "fix" a `lime-500` class name — renaming them is a separate,
-mechanical diff.
+`bg-bg-0 #141217` (page) · `bg-surface #1f1c23` (cards) · `bg-bg-2 #2a262f`
+(raised) · `bg-sunken #0e0c10` (rails, inputs, timelines) · `bg-ink #0b0a0c`
+(the video canvas) · `text-fg-0 #f1ece6` · `text-fg-1 #d6cfc8` ·
+`text-fg-2 #a39a93` · accent **rani `#f0508a`** with `accent-100…900`, and
+warm `neutral-*` ramps · signals `proposed/warning #e8b04a`, `accepted #6fcf97`,
+`rejected #ef7d4f`, `info #7fa6f5` · radii `rounded-sm` 6 · `md` 10 · `lg` 16.
+Accent text is legal on `bg-0`/`surface`/`sunken` only; on `bg-2` use
+`text-accent-300`. The `lime-*`/`mint*` variable names are historical and
+resolve to the accent; do not rename them in passing.
 
-Tokens live in `packages/ui/src/styles/tokens.css` (Tailwind v4 `@theme`) with a
-data copy in `packages/ui/src/tokens.ts`; `tokens.test.ts` pins the two together
-and fails on a pure black or pure white anywhere outside the caption defaults.
-They are the ONLY legal source of colour/size — never a raw hex, never
-`white/NN`:
+Caption colours are a **different palette**: fill `#ffffff`, highlight
+`#ffd400`, stroke `#000000`. Never use the accent as a caption colour.
 
-`bg-bg-0 #161826` (page) · `bg-surface #232532` (cards) · `bg-sunken #101220` (rails,
-timelines) · `bg-ink #0a0b12` (the video canvas, the one near-black)
-`text-fg-0 #e9e9ed` · `text-fg-1 #cfd3e5` · `text-fg-2 #9397ab` · `text-fg-disabled #75798c`
-accent `#9184d9` — `text-accent` / `border-accent`, hover one step *lighter*
-(`accent-400`), plus the 100–900 ramps `accent-*` and `neutral-*`
-signals `proposed / accepted / rejected / info / warning` (their own hues, on purpose)
-radii `rounded-sm` 8 · `rounded-md` 12 · `rounded-lg` 14 · type `text-2xs` 11 / `text-xs` 12 / `text-sm` 14
+**Rules that tests or reviewers will hold you to:**
 
-Caption colours are a **different palette** from chrome: fill `#ffffff`,
-highlight `#ffd400`, stroke `#000000`. Never use the brand accent as a caption
-colour — these burn into exported video over footage nobody controls.
-
-**Accent discipline.** Nocturne spends the accent on *lines, glows and tints*,
-never as a flood: "do not flood large areas with the accent". So
-
-- **the primary button is an accent outline on transparent, not a fill**
-  (`Button variant="primary"`; `primitives.test.tsx` asserts the absence of a
-  fill). `danger` keeps its fill — destruction has to be unmistakable.
-- the accent is otherwise for: an active nav row (`bg-accent/12-16` +
-  `text-accent-200`), an active tab's underline, a switch that is ON, a filled
-  meter track, a selected card's ring (`shadow-[0_0_0_1px_var(--color-accent)]`),
-  a kicker over a card, and at most one primary action per surface.
-- the ONE exception to "no saturated fields" is the marketing page's stat band,
-  which uses `bg-section`. Nothing else may.
-
-**Rules fade at their ends.** A freestanding rule uses the `rule-fade` utility,
-and a rule along an element's bottom edge uses `rule-fade-b`, not `border-b` —
-both paint the divider fading to transparent 48 px from each end. Box outlines,
-in-control separators and short accent marks stay solid.
-
-**Headings are weight 500.** Size and space carry the hierarchy; `tokens.css`
-sets this on bare `h1`–`h6`. Inter for both headings and body.
-
-**A link inside an `<li>` that is navigation, not prose, needs `no-underline`.**
-The base stylesheet underlines any `<a>` inside a text block for WCAG 1.4.1;
-that is right for a link in a sentence and wrong for a section list or a row of
-stage pills.
+- **`Button variant="primary"` is a rani fill with ink text, once per
+  surface** (`primitives.test.tsx`). Everything else is `secondary`
+  (outline) or `ghost`; `danger` is filled rejected.
+- **Every page title is `<PageHeader>`** from `@montaj/ui` (eyebrow, title,
+  description, actions). Nothing else carries the shirorekha bar — not cards,
+  rows or dialog titles.
+- **Anek Latin (`font-display`) is for page titles and large figures only**;
+  Inter carries every control and all body text; JetBrains Mono for timecodes.
+- The accent budget: one primary, the title bar, the active nav row, active
+  tab, a switch that is on, a filled meter, a checked box, an unread dot, a
+  selected card's ring. No accent headings, icons in lists, tinted cards or
+  gradients. The only saturated field is the marketing stat band (`bg-section`).
+- Inputs are `bg-sunken border-neutral-600` (a 4.25:1 control boundary);
+  `border-border` is for cards and dividers.
+- **Destructive actions that can't be undone go through `<ConfirmAction>`**
+  (`@montaj/ui`): Cancel is focused first, the confirm button is named for the
+  action. Reversible actions (archive, toggles) don't ask.
+- `rule-fade` / `rule-fade-b` are plain hairlines now (the names are
+  historical).
+- A link inside an `<li>` that is navigation needs `no-underline`.
+- Dark-only on purpose (a video tool). This is a recorded trade-off against
+  Apple's "follow the system appearance", not an oversight.
 
 **Shell.** Two widths, switched from the header and remembered per browser
-(`components/shell/nav-model.ts`): a 68 px `NavRail` (the default) and the
-232 px `Sidebar`. `PRIMARY_NAV` is the canvas's eight destinations; the routes
-it had no room for live in `SECONDARY_NAV`, which the sidebar shows under
-"More" and the command palette offers in full. A disabled nav row is never
-"active", whatever the path says.
+(`components/shell/nav-model.ts`): a 68 px `NavRail` (default) and the 232 px
+`Sidebar`. `PRIMARY_NAV` holds the eight destinations; the rest live in
+`SECONDARY_NAV` ("More" in the sidebar, all of them in the command palette).
+A disabled nav row is never "active".
 
 The editor panel's row recipes live in
-`apps/web/components/editor/panels/controls.tsx` — copy them rather than
-inventing new ones. The three native controls (`.panel-range`, `.panel-swatch`,
-`.panel-switch`) are in `apps/web/app/globals.css` because they need
-pseudo-elements; they must stay native elements because tests drive them with
-`toHaveValue()` and `fill()`.
+`apps/web/components/editor/panels/controls.tsx`. The three native controls
+(`.panel-range`, `.panel-swatch`, `.panel-switch`) are in
+`apps/web/app/globals.css` and must stay native elements — tests drive them
+with `toHaveValue()` and `fill()`.
 
 **Never remove a `data-testid`.** Unit tests and Playwright specs assert on them.
 
-**Seeing the screens.** `apps/web/e2e/nocturne-shots.spec.ts` captures every
-rebuilt screen at the canvas's own 1440 × 900 into `test-results-nocturne/`. It
-is a verification aid, not a gate, and it must run against a scratch stack —
-its header comment has the exact command, and §1's warning about
-`.env.local-run` applies: it signs up an account.
-
----
+**Seeing the screens.** `apps/web/e2e/shirorekha-qa.spec.ts` captures every
+signed-in screen at 1440 × 900 and 390 × 844 plus the editor, with an overflow
+and console-error report; its header has the exact scratch-stack command. Two
+things that cost time: run the **local** CLI
+(`node node_modules/@playwright/test/cli.js test …`) — `npx playwright` picked
+up a second Playwright on this machine and every spec failed to load with
+"did not expect test() to be called here"; and set every port and origin,
+because `playwright.config.ts` defaults to the production ports 3913/3914.
 
 ## 6. Known traps
 
