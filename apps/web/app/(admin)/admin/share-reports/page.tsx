@@ -2,6 +2,15 @@
 
 import * as React from "react";
 
+import { Button, Input, PageHeader } from "@montaj/ui";
+
+import {
+  AdminEmpty,
+  AdminError,
+  AdminLoading,
+  AdminPage,
+  adminCard,
+} from "@/components/admin/admin-ui";
 import { AdminFetchError, useAdminFetch } from "@/lib/admin/use-admin-fetch";
 
 interface ShareReport {
@@ -14,7 +23,7 @@ interface ShareReport {
 /** `GET /admin/share-reports` + `POST .../:id/resolve` (ops/content/superadmin). */
 export default function AdminShareReportsPage(): React.JSX.Element {
   const adminFetch = useAdminFetch();
-  const [items, setItems] = React.useState<ShareReport[]>([]);
+  const [items, setItems] = React.useState<ShareReport[] | null>(null);
   const [notes, setNotes] = React.useState<Record<string, string>>({});
   const [error, setError] = React.useState<string | null>(null);
 
@@ -45,45 +54,59 @@ export default function AdminShareReportsPage(): React.JSX.Element {
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <h1 className="text-xl font-semibold text-neutral-100">Share-link reports</h1>
-      <p className="text-xs text-neutral-500">
-        Resolving a report also notifies the reporter (when they left contact details) and the
-        workspace owner (`share-report-resolved`, B13b).
-      </p>
-      {error !== null && <p className="text-sm text-red-400">{error}</p>}
-      <ul className="flex flex-col gap-3 text-sm text-neutral-300">
-        {items.map((report) => (
-          <li key={report.id} className="rounded border border-neutral-800 p-3">
-            <p>
-              {report.category} — due {new Date(report.dueAt).toLocaleString()}
-            </p>
-            <div className="mt-2 flex gap-2">
-              <input
-                value={notes[report.id] ?? ""}
-                onChange={(e) => setNotes((prev) => ({ ...prev, [report.id]: e.target.value }))}
-                placeholder="resolution note"
-                className="w-56 rounded border border-neutral-700 bg-neutral-900 px-2 py-1"
-              />
-              <button
-                type="button"
-                onClick={() => void resolve(report.id, "take_down")}
-                className="rounded bg-neutral-800 px-2 py-1"
-              >
-                Take down
-              </button>
-              <button
-                type="button"
-                onClick={() => void resolve(report.id, "dismiss")}
-                className="rounded bg-neutral-800 px-2 py-1"
-              >
-                Dismiss
-              </button>
-            </div>
-          </li>
-        ))}
-        {items.length === 0 && <p className="text-neutral-500">No unresolved reports.</p>}
-      </ul>
-    </div>
+    <AdminPage>
+      <PageHeader
+        eyebrow="Content"
+        title="Share-link reports"
+        description="Resolving a report notifies the reporter (when they left contact details) and the workspace owner. Write a note of at least 10 characters first."
+      />
+      {error !== null && <AdminError>{error}</AdminError>}
+      {items === null ? (
+        error === null ? (
+          <AdminLoading />
+        ) : null
+      ) : items.length === 0 ? (
+        <AdminEmpty title="No unresolved reports" />
+      ) : (
+        <ul className="flex flex-col gap-3">
+          {items.map((report) => (
+            <li key={report.id} className={`${adminCard} flex flex-col gap-3`}>
+              <div>
+                <p className="text-sm font-medium text-fg-0">{report.category}</p>
+                <p className="text-xs text-fg-2">
+                  Due {new Date(report.dueAt).toLocaleString()} · link{" "}
+                  <span className="font-mono">{report.shareLinkId}</span>
+                </p>
+              </div>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <Input
+                  aria-label={`Resolution note for the ${report.category} report`}
+                  value={notes[report.id] ?? ""}
+                  onChange={(e) => setNotes((prev) => ({ ...prev, [report.id]: e.target.value }))}
+                  placeholder="Resolution note"
+                  className="h-8 sm:max-w-80"
+                />
+                <div className="flex gap-2">
+                  <Button
+                    variant="danger"
+                    size="sm"
+                    onClick={() => void resolve(report.id, "take_down")}
+                  >
+                    Take down
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => void resolve(report.id, "dismiss")}
+                  >
+                    Dismiss
+                  </Button>
+                </div>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </AdminPage>
   );
 }

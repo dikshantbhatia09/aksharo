@@ -2,6 +2,19 @@
 
 import * as React from "react";
 
+import { Button, Field, Input, PageHeader } from "@montaj/ui";
+
+import {
+  AdminEmpty,
+  AdminError,
+  AdminLoading,
+  AdminPage,
+  AdminSection,
+  AdminTable,
+  td,
+  th,
+  tr,
+} from "@/components/admin/admin-ui";
 import { useRuntimeConfig } from "@/components/providers";
 import { readAdminSession } from "@/lib/admin/admin-session";
 import { useAdminFetch } from "@/lib/admin/use-admin-fetch";
@@ -18,7 +31,7 @@ interface PendingAffiliate {
 export default function AdminAffiliatesPage(): React.JSX.Element {
   const adminFetch = useAdminFetch();
   const config = useRuntimeConfig();
-  const [items, setItems] = React.useState<PendingAffiliate[]>([]);
+  const [items, setItems] = React.useState<PendingAffiliate[] | null>(null);
   const [fyLabel, setFyLabel] = React.useState("2026-27");
   const [error, setError] = React.useState<string | null>(null);
 
@@ -53,33 +66,68 @@ export default function AdminAffiliatesPage(): React.JSX.Element {
   }, [adminFetch]);
 
   return (
-    <div className="flex flex-col gap-4">
-      <h1 className="text-xl font-semibold text-neutral-100">Affiliates</h1>
-      {error !== null && <p className="text-sm text-red-400">{error}</p>}
-      <h2 className="text-sm font-semibold text-neutral-200">Pending applications</h2>
-      <ul className="text-sm text-neutral-300">
-        {items.map((a) => (
-          <li key={a.id}>
-            {a.code} ({a.country})
-          </li>
-        ))}
-        {items.length === 0 && <p className="text-neutral-500">None pending.</p>}
-      </ul>
-      <h2 className="mt-2 text-sm font-semibold text-neutral-200">TDS (finance/superadmin)</h2>
-      <div className="flex items-center gap-2 text-sm">
-        <input
-          value={fyLabel}
-          onChange={(e) => setFyLabel(e.target.value)}
-          className="w-28 rounded border border-neutral-700 bg-neutral-900 px-2 py-1 text-neutral-100"
-        />
-        <button
-          type="button"
-          onClick={() => void downloadCsv()}
-          className="rounded bg-neutral-800 px-3 py-1.5 text-neutral-100"
+    <AdminPage>
+      <PageHeader
+        eyebrow="Money"
+        title="Affiliates"
+        description="Applications waiting for a decision, and the financial-year TDS totals finance files."
+      />
+      {error !== null && <AdminError>{error}</AdminError>}
+
+      <AdminSection title="Pending applications" bare>
+        {items === null ? (
+          error === null ? (
+            <AdminLoading />
+          ) : null
+        ) : items.length === 0 ? (
+          <AdminEmpty title="None pending" />
+        ) : (
+          <AdminTable label="Pending affiliate applications" className="max-w-2xl">
+            <thead>
+              <tr>
+                <th className={th}>Code</th>
+                <th className={th}>Country</th>
+                <th className={th}>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((a) => (
+                <tr key={a.id} className={tr}>
+                  <td className={`${td} font-mono text-xs text-fg-0`}>{a.code}</td>
+                  <td className={td}>{a.country}</td>
+                  <td className={td}>{a.status}</td>
+                </tr>
+              ))}
+            </tbody>
+          </AdminTable>
+        )}
+      </AdminSection>
+
+      <AdminSection
+        title="TDS export"
+        description="Finance and superadmin only. Downloads the year's totals as a CSV file."
+        className="max-w-2xl"
+      >
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            void downloadCsv();
+          }}
+          className="flex flex-col gap-3 sm:flex-row sm:items-end"
         >
-          Export FY totals (CSV)
-        </button>
-      </div>
-    </div>
+          <Field label="Financial year" htmlFor="tds-fy" hint="For example 2026-27">
+            <Input
+              id="tds-fy"
+              value={fyLabel}
+              onChange={(e) => setFyLabel(e.target.value)}
+              className="w-32 font-mono"
+            />
+          </Field>
+          <Button type="submit" variant="primary" className="sm:mb-5">
+            Export FY totals (CSV)
+          </Button>
+        </form>
+      </AdminSection>
+    </AdminPage>
   );
 }

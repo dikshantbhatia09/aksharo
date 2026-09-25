@@ -1,7 +1,8 @@
+import { PageHeader } from "@montaj/ui";
+
 import type { Metadata } from "next";
 
 import { StyleGallery } from "@/components/editor/panels/StyleGallery";
-
 
 export const metadata: Metadata = { title: "Style gallery — UI kit" };
 
@@ -17,10 +18,12 @@ export const metadata: Metadata = { title: "Style gallery — UI kit" };
  */
 export default function StyleGalleryUiKitPage(): React.JSX.Element {
   return (
-    <main className="min-h-dvh p-6">
-      <h1 className="font-display mb-4 text-2xl tracking-tight" data-testid="styles-heading">
-        Style gallery harness
-      </h1>
+    <main className="flex min-h-dvh flex-col gap-6 bg-bg-0 px-4 py-8 sm:px-6">
+      <PageHeader
+        eyebrow="UI kit"
+        title={<span data-testid="styles-heading">Style gallery harness</span>}
+        description="Pick a style, change its colours, look and animation, and watch the ops the editor would send."
+      />
       <StyleGallery />
     </main>
   );

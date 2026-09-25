@@ -2,6 +2,17 @@
 
 import * as React from "react";
 
+import { Badge, Button, PageHeader } from "@montaj/ui";
+
+import {
+  AdminError,
+  AdminLoading,
+  AdminPage,
+  AdminTable,
+  td,
+  th,
+  tr,
+} from "@/components/admin/admin-ui";
 import { useAdminFetch } from "@/lib/admin/use-admin-fetch";
 
 interface PartnerGrantRow {
@@ -18,7 +29,7 @@ interface PartnerGrantRow {
 /** D04b2 scope §5 — every partner-catalogue grant, with revoke (`AdminPartnerCatalogueController`). */
 export default function AdminPartnerCatalogueGrantsPage(): React.JSX.Element {
   const adminFetch = useAdminFetch();
-  const [items, setItems] = React.useState<PartnerGrantRow[]>([]);
+  const [items, setItems] = React.useState<PartnerGrantRow[] | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [revokingId, setRevokingId] = React.useState<string | null>(null);
 
@@ -46,57 +57,73 @@ export default function AdminPartnerCatalogueGrantsPage(): React.JSX.Element {
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <h1 className="text-xl font-semibold text-neutral-100">Partner catalogue grants</h1>
-      {error !== null && <p className="text-sm text-red-400">{error}</p>}
-      <div className="overflow-x-auto">
-        <table className="w-full text-left text-sm text-neutral-300">
+    <AdminPage>
+      <PageHeader
+        eyebrow="Content"
+        title="Partner catalogue grants"
+        description="Every grant a workspace holds on a partner asset, with its usage-report status. Revoke ends an active grant."
+      />
+      {error !== null && <AdminError>{error}</AdminError>}
+      {items === null ? (
+        error === null ? (
+          <AdminLoading />
+        ) : null
+      ) : (
+        <AdminTable label="Partner catalogue grants">
           <thead>
-            <tr className="border-b border-neutral-800 text-neutral-500">
-              <th className="py-1 pr-4">Asset</th>
-              <th className="py-1 pr-4">Workspace</th>
-              <th className="py-1 pr-4">Use context</th>
-              <th className="py-1 pr-4">Status</th>
-              <th className="py-1 pr-4">Expiry</th>
-              <th className="py-1 pr-4">Usage report</th>
-              <th className="py-1 pr-4" />
+            <tr>
+              <th className={th}>Asset</th>
+              <th className={th}>Workspace</th>
+              <th className={th}>Use context</th>
+              <th className={th}>Status</th>
+              <th className={th}>Expiry</th>
+              <th className={th}>Usage report</th>
+              <th className={th}>
+                <span className="sr-only">Action</span>
+              </th>
             </tr>
           </thead>
           <tbody>
             {items.map((grant) => (
-              <tr key={grant.id} className="border-b border-neutral-900">
-                <td className="py-1 pr-4">{grant.providerAssetId ?? grant.id}</td>
-                <td className="py-1 pr-4">{grant.workspaceId}</td>
-                <td className="py-1 pr-4">{grant.useContext ?? "—"}</td>
-                <td className="py-1 pr-4">{grant.status}</td>
-                <td className="py-1 pr-4">
+              <tr key={grant.id} className={tr}>
+                <td className={`${td} font-mono text-xs text-fg-0`}>
+                  {grant.providerAssetId ?? grant.id}
+                </td>
+                <td className={`${td} font-mono text-xs`}>{grant.workspaceId}</td>
+                <td className={td}>{grant.useContext ?? "—"}</td>
+                <td className={td}>
+                  <Badge tone={grant.status === "active" ? "accepted" : "neutral"}>
+                    {grant.status}
+                  </Badge>
+                </td>
+                <td className={`${td} whitespace-nowrap`}>
                   {grant.expiresAt === null ? "—" : new Date(grant.expiresAt).toLocaleDateString()}
                 </td>
-                <td className="py-1 pr-4">{grant.reportStatus}</td>
-                <td className="py-1 pr-4">
+                <td className={td}>{grant.reportStatus}</td>
+                <td className={`${td} text-right`}>
                   {grant.status === "active" && (
-                    <button
-                      type="button"
+                    <Button
+                      variant="secondary"
+                      size="sm"
                       disabled={revokingId === grant.id}
                       onClick={() => void revoke(grant.id)}
-                      className="rounded bg-neutral-800 px-2 py-1 text-xs text-neutral-100 disabled:opacity-50"
                     >
                       {revokingId === grant.id ? "Revoking…" : "Revoke"}
-                    </button>
+                    </Button>
                   )}
                 </td>
               </tr>
             ))}
             {items.length === 0 && (
               <tr>
-                <td colSpan={7} className="py-2 text-neutral-500">
+                <td colSpan={7} className={`${td} text-fg-2`}>
                   No grants.
                 </td>
               </tr>
             )}
           </tbody>
-        </table>
-      </div>
-    </div>
+        </AdminTable>
+      )}
+    </AdminPage>
   );
 }

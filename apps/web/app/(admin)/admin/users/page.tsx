@@ -3,6 +3,19 @@
 import Link from "next/link";
 import * as React from "react";
 
+import { Badge, Button, Input, PageHeader } from "@montaj/ui";
+
+import {
+  AdminEmpty,
+  AdminError,
+  AdminLoading,
+  AdminPage,
+  AdminTable,
+  rowLink,
+  td,
+  th,
+  tr,
+} from "@/components/admin/admin-ui";
 import { useAdminFetch } from "@/lib/admin/use-admin-fetch";
 
 interface AdminUserSummary {
@@ -18,7 +31,7 @@ interface AdminUserSummary {
 export default function AdminUsersPage(): React.JSX.Element {
   const adminFetch = useAdminFetch();
   const [query, setQuery] = React.useState("");
-  const [items, setItems] = React.useState<AdminUserSummary[]>([]);
+  const [items, setItems] = React.useState<AdminUserSummary[] | null>(null);
   const [error, setError] = React.useState<string | null>(null);
 
   const search = React.useCallback(async () => {
@@ -38,53 +51,72 @@ export default function AdminUsersPage(): React.JSX.Element {
   }, []);
 
   return (
-    <div className="flex flex-col gap-4">
-      <h1 className="text-xl font-semibold text-neutral-100">Users</h1>
+    <AdminPage>
+      <PageHeader
+        eyebrow="People"
+        title="Users"
+        description="Find an account by email or name, then open it for its workspaces and admin roles."
+      />
       <form
+        role="search"
         onSubmit={(e) => {
           e.preventDefault();
           void search();
         }}
-        className="flex gap-2"
+        className="flex max-w-xl gap-2"
       >
-        <input
+        <label htmlFor="user-search" className="sr-only">
+          Search users
+        </label>
+        <Input
+          id="user-search"
+          type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search by email or name"
-          className="w-80 rounded border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-100"
         />
-        <button
-          type="submit"
-          className="rounded bg-neutral-800 px-3 py-1.5 text-sm text-neutral-100"
-        >
+        <Button type="submit" variant="secondary">
           Search
-        </button>
+        </Button>
       </form>
-      {error !== null && <p className="text-sm text-red-400">{error}</p>}
-      <table className="w-full text-left text-sm text-neutral-300">
-        <thead className="text-neutral-500">
-          <tr>
-            <th className="py-1 pr-4">Email</th>
-            <th className="py-1 pr-4">Name</th>
-            <th className="py-1 pr-4">Admin</th>
-            <th className="py-1 pr-4">Created</th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((user) => (
-            <tr key={user.id} className="border-t border-neutral-800">
-              <td className="py-1.5 pr-4">
-                <Link href={`/admin/users/${user.id}`} className="underline">
-                  {user.email}
-                </Link>
-              </td>
-              <td className="py-1.5 pr-4">{user.name ?? "—"}</td>
-              <td className="py-1.5 pr-4">{user.isAdmin ? "yes" : ""}</td>
-              <td className="py-1.5 pr-4">{new Date(user.createdAt).toLocaleDateString()}</td>
+      {error !== null && <AdminError>{error}</AdminError>}
+      {items === null ? (
+        error === null ? (
+          <AdminLoading />
+        ) : null
+      ) : items.length === 0 ? (
+        <AdminEmpty
+          title="No users found"
+          description={query.trim() === "" ? undefined : "Try part of the email address instead."}
+        />
+      ) : (
+        <AdminTable label="Users">
+          <thead>
+            <tr>
+              <th className={th}>Email</th>
+              <th className={th}>Name</th>
+              <th className={th}>Role</th>
+              <th className={th}>Created</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+          </thead>
+          <tbody>
+            {items.map((user) => (
+              <tr key={user.id} className={tr}>
+                <td className={td}>
+                  <Link href={`/admin/users/${user.id}`} className={rowLink}>
+                    {user.email}
+                  </Link>
+                </td>
+                <td className={td}>{user.name ?? "—"}</td>
+                <td className={td}>{user.isAdmin ? <Badge>Admin</Badge> : null}</td>
+                <td className={`${td} whitespace-nowrap text-fg-2`}>
+                  {new Date(user.createdAt).toLocaleDateString()}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </AdminTable>
+      )}
+    </AdminPage>
   );
 }

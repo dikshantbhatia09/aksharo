@@ -2,6 +2,20 @@
 
 import * as React from "react";
 
+import { Badge, Button, PageHeader } from "@montaj/ui";
+
+import {
+  AdminEmpty,
+  AdminError,
+  AdminLoading,
+  AdminPage,
+  AdminSection,
+  AdminSelect,
+  AdminTable,
+  td,
+  th,
+  tr,
+} from "@/components/admin/admin-ui";
 import { AdminFetchError, useAdminFetch } from "@/lib/admin/use-admin-fetch";
 
 interface AdminJobSummary {
@@ -22,18 +36,38 @@ interface QueueStats {
   cancelled: number;
 }
 
+type StatusTone = "neutral" | "info" | "accepted" | "rejected" | "warning";
+
+/** Every status is written out; the tone is a second cue, never the only one. */
+function statusTone(status: string): StatusTone {
+  if (status === "failed") return "rejected";
+  if (status === "running") return "info";
+  if (status === "succeeded") return "accepted";
+  if (status === "queued") return "warning";
+  return "neutral";
+}
+
+/** Sentence case for display; the filter still sends the raw status. */
+function statusLabel(status: string): string {
+  return status.length === 0 ? status : `${status[0]?.toUpperCase() ?? ""}${status.slice(1)}`;
+}
+
 /** Cross-tenant job monitor (`GET /admin/jobs`, `/admin/jobs/stats`, `POST /admin/jobs/:id/cancel`). */
 export default function AdminJobsPage(): React.JSX.Element {
   const adminFetch = useAdminFetch();
-  const [stats, setStats] = React.useState<QueueStats[]>([]);
-  const [jobs, setJobs] = React.useState<AdminJobSummary[]>([]);
+  const [stats, setStats] = React.useState<QueueStats[] | null>(null);
+  const [jobs, setJobs] = React.useState<AdminJobSummary[] | null>(null);
   const [status, setStatus] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
+  const [statsFailed, setStatsFailed] = React.useState(false);
 
   const load = React.useCallback(() => {
     adminFetch<QueueStats[]>("/admin/jobs/stats")
-      .then(setStats)
-      .catch(() => undefined);
+      .then((next) => {
+        setStats(next);
+        setStatsFailed(false);
+      })
+      .catch(() => setStatsFailed(true));
     adminFetch<AdminJobSummary[]>(`/admin/jobs${status === "" ? "" : `?status=${status}`}`)
       .then(setJobs)
       .catch((err: unknown) => setError(err instanceof Error ? err.message : "Failed to load."));
@@ -51,69 +85,114 @@ export default function AdminJobsPage(): React.JSX.Element {
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <h1 className="text-xl font-semibold text-neutral-100">Jobs</h1>
-      <table className="w-full max-w-2xl text-left text-sm text-neutral-300">
-        <thead className="text-neutral-500">
-          <tr>
-            <th className="py-1 pr-4">Queue</th>
-            <th className="py-1 pr-4">Queued</th>
-            <th className="py-1 pr-4">Running</th>
-            <th className="py-1 pr-4">Failed</th>
-          </tr>
-        </thead>
-        <tbody>
-          {stats.map((s) => (
-            <tr key={s.queue} className="border-t border-neutral-800">
-              <td className="py-1 pr-4">{s.queue}</td>
-              <td className="py-1 pr-4">{s.queued}</td>
-              <td className="py-1 pr-4">{s.running}</td>
-              <td className="py-1 pr-4">{s.failed}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <select
-        value={status}
-        onChange={(e) => setStatus(e.target.value)}
-        className="w-fit rounded border border-neutral-700 bg-neutral-900 px-2 py-1 text-sm text-neutral-100"
-      >
-        <option value="">all statuses</option>
-        <option value="queued">queued</option>
-        <option value="running">running</option>
-        <option value="failed">failed</option>
-      </select>
-      {error !== null && <p className="text-sm text-red-400">{error}</p>}
-      <table className="w-full text-left text-sm text-neutral-300">
-        <thead className="text-neutral-500">
-          <tr>
-            <th className="py-1 pr-4">Type</th>
-            <th className="py-1 pr-4">Status</th>
-            <th className="py-1 pr-4">Attempt</th>
-            <th className="py-1 pr-4" />
-          </tr>
-        </thead>
-        <tbody>
-          {jobs.map((job) => (
-            <tr key={job.id} className="border-t border-neutral-800">
-              <td className="py-1.5 pr-4">{job.type}</td>
-              <td className="py-1.5 pr-4">{job.status}</td>
-              <td className="py-1.5 pr-4">{job.attemptNo}</td>
-              <td className="py-1.5 pr-4">
-                {(job.status === "queued" || job.status === "running") && (
-                  <button
-                    type="button"
-                    onClick={() => void cancel(job.id)}
-                    className="rounded bg-neutral-800 px-2 py-1 text-neutral-100"
+    <AdminPage>
+      <PageHeader
+        eyebrow="Platform"
+        title="Jobs"
+        description="Every workspace's jobs, by queue. Cancel a queued or running job that is stuck."
+      />
+
+      <AdminSection title="Queues" bare>
+        {stats === null ? (
+          statsFailed ? (
+            <AdminError>Queue depth could not be loaded. Reload the page to try again.</AdminError>
+          ) : (
+            <AdminLoading />
+          )
+        ) : stats.length === 0 ? (
+          <AdminEmpty title="No queues reported" />
+        ) : (
+          <AdminTable label="Queue depth" className="max-w-2xl">
+            <thead>
+              <tr>
+                <th className={th}>Queue</th>
+                <th className={`${th} text-right`}>Queued</th>
+                <th className={`${th} text-right`}>Running</th>
+                <th className={`${th} text-right`}>Failed</th>
+              </tr>
+            </thead>
+            <tbody>
+              {stats.map((s) => (
+                <tr key={s.queue} className={tr}>
+                  <td className={`${td} font-mono text-xs text-fg-0`}>{s.queue}</td>
+                  <td className={`${td} text-right tabular-nums`}>{s.queued}</td>
+                  <td className={`${td} text-right tabular-nums`}>{s.running}</td>
+                  <td
+                    className={`${td} text-right tabular-nums ${s.failed > 0 ? "font-medium text-rejected" : ""}`}
                   >
-                    Cancel
-                  </button>
-                )}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+                    {s.failed}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </AdminTable>
+        )}
+      </AdminSection>
+
+      <AdminSection
+        title="Recent jobs"
+        bare
+        actions={
+          <label className="flex items-center gap-2 text-sm text-fg-1">
+            Status
+            <AdminSelect value={status} onChange={(e) => setStatus(e.target.value)}>
+              <option value="">All statuses</option>
+              <option value="queued">Queued</option>
+              <option value="running">Running</option>
+              <option value="failed">Failed</option>
+            </AdminSelect>
+          </label>
+        }
+      >
+        {error !== null && <AdminError>{error}</AdminError>}
+        {jobs === null ? (
+          error === null ? (
+            <AdminLoading />
+          ) : null
+        ) : jobs.length === 0 ? (
+          <AdminEmpty title="No jobs with this status" />
+        ) : (
+          <AdminTable label="Jobs">
+            <thead>
+              <tr>
+                <th className={th}>Type</th>
+                <th className={th}>Status</th>
+                <th className={`${th} text-right`}>Attempt</th>
+                <th className={th}>Queued</th>
+                <th className={th}>
+                  <span className="sr-only">Action</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {jobs.map((job) => (
+                <tr key={job.id} className={tr}>
+                  <td className={`${td} font-mono text-xs text-fg-0`}>{job.type}</td>
+                  <td className={td}>
+                    <Badge tone={statusTone(job.status)}>{statusLabel(job.status)}</Badge>
+                  </td>
+                  <td className={`${td} text-right tabular-nums`}>{job.attemptNo}</td>
+                  <td className={`${td} whitespace-nowrap text-fg-2`}>
+                    {new Date(job.queuedAt).toLocaleString()}
+                  </td>
+                  <td className={`${td} text-right`}>
+                    {(job.status === "queued" || job.status === "running") && (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        aria-label={`Cancel ${job.type} job ${job.id}`}
+                        onClick={() => void cancel(job.id)}
+                      >
+                        Cancel job
+                      </Button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </AdminTable>
+        )}
+      </AdminSection>
+    </AdminPage>
   );
 }

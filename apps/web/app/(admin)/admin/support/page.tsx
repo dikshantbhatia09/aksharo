@@ -2,6 +2,16 @@
 
 import * as React from "react";
 
+import { Badge, Button, PageHeader, Textarea } from "@montaj/ui";
+
+import {
+  AdminEmpty,
+  AdminError,
+  AdminLoading,
+  AdminPage,
+  AdminSelect,
+  adminCard,
+} from "@/components/admin/admin-ui";
 import { AdminFetchError, useAdminFetch } from "@/lib/admin/use-admin-fetch";
 
 interface SupportTicket {
@@ -19,13 +29,19 @@ interface SupportTicket {
 
 const STATUSES = ["open", "in_progress", "resolved", "closed"] as const;
 
+/** Sentence-case words for the stored status codes; the API still gets the code. */
+function statusLabel(status: string): string {
+  const spaced = status.replaceAll("_", " ");
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+}
+
 /**
  * `GET /admin/support/tickets` + `.../:id/status` + `.../:id/reply` (B13b,
  * replacing B13's stub now that `apps/api/src/support/**` (B12) exists).
  */
 export default function AdminSupportPage(): React.JSX.Element {
   const adminFetch = useAdminFetch();
-  const [tickets, setTickets] = React.useState<SupportTicket[]>([]);
+  const [tickets, setTickets] = React.useState<SupportTicket[] | null>(null);
   const [statusFilter, setStatusFilter] = React.useState<string>("");
   const [replies, setReplies] = React.useState<Record<string, string>>({});
   const [error, setError] = React.useState<string | null>(null);
@@ -62,72 +78,100 @@ export default function AdminSupportPage(): React.JSX.Element {
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <h1 className="text-xl font-semibold text-neutral-100">Support</h1>
-      {error !== null && <p className="text-sm text-red-400">{error}</p>}
+    <AdminPage>
+      <PageHeader
+        eyebrow="People"
+        title="Support"
+        description="Tickets from every workspace. Change a ticket's status or reply to the person who raised it."
+        actions={
+          <label htmlFor="status-filter" className="flex items-center gap-2 text-sm text-fg-1">
+            Show
+            <AdminSelect
+              id="status-filter"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+            >
+              <option value="">All tickets</option>
+              {STATUSES.map((s) => (
+                <option key={s} value={s}>
+                  {statusLabel(s)}
+                </option>
+              ))}
+            </AdminSelect>
+          </label>
+        }
+      />
+      {error !== null && <AdminError>{error}</AdminError>}
 
-      <div className="flex items-center gap-2 text-sm">
-        <label htmlFor="status-filter" className="text-neutral-400">
-          Status
-        </label>
-        <select
-          id="status-filter"
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          className="rounded border border-neutral-700 bg-neutral-900 px-2 py-1 text-neutral-100"
-        >
-          <option value="">All</option>
-          {STATUSES.map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <ul className="flex flex-col gap-3 text-sm text-neutral-300">
-        {tickets.map((ticket) => (
-          <li key={ticket.id} className="rounded border border-neutral-800 p-3">
-            <p className="font-medium text-neutral-100">
-              [{ticket.category}] {ticket.subject}
-            </p>
-            <p className="mt-1 whitespace-pre-wrap text-neutral-400">{ticket.body}</p>
-            <p className="mt-1 text-xs text-neutral-500">
-              status: {ticket.status}
-              {ticket.hasDiagnostics ? " · diagnostics attached" : ""}
-            </p>
-            <div className="mt-2 flex items-center gap-2">
-              <select
-                value={ticket.status}
-                onChange={(e) => void setStatus(ticket.id, e.target.value)}
-                className="rounded border border-neutral-700 bg-neutral-900 px-2 py-1"
-              >
-                {STATUSES.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="mt-2 flex gap-2">
-              <input
-                value={replies[ticket.id] ?? ""}
-                onChange={(e) => setReplies((prev) => ({ ...prev, [ticket.id]: e.target.value }))}
-                placeholder="Reply to this ticket…"
-                className="w-80 rounded border border-neutral-700 bg-neutral-900 px-2 py-1"
-              />
-              <button
-                type="button"
-                onClick={() => void reply(ticket.id)}
-                className="rounded bg-neutral-800 px-2 py-1"
-              >
-                Send
-              </button>
-            </div>
-          </li>
-        ))}
-        {tickets.length === 0 && <p className="text-neutral-500">No tickets.</p>}
-      </ul>
-    </div>
+      {tickets === null ? (
+        error === null ? (
+          <AdminLoading />
+        ) : null
+      ) : tickets.length === 0 ? (
+        <AdminEmpty
+          title="No tickets"
+          description={statusFilter === "" ? undefined : "None have this status."}
+        />
+      ) : (
+        <ul className="flex flex-col gap-3">
+          {tickets.map((ticket) => {
+            const replyId = `reply-${ticket.id}`;
+            const statusId = `status-${ticket.id}`;
+            return (
+              <li key={ticket.id} className={`${adminCard} flex flex-col gap-4`}>
+                <div className="flex flex-col gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge>{ticket.category}</Badge>
+                    {ticket.hasDiagnostics ? <Badge tone="info">Diagnostics attached</Badge> : null}
+                    <span className="text-xs text-fg-2">
+                      {new Date(ticket.createdAt).toLocaleString()}
+                    </span>
+                  </div>
+                  <p className="text-base font-semibold text-fg-0">{ticket.subject}</p>
+                  <p className="text-sm whitespace-pre-wrap text-fg-1">{ticket.body}</p>
+                </div>
+                <div className="flex flex-col gap-3 border-t border-border pt-4">
+                  <div className="flex items-center gap-2">
+                    <label htmlFor={statusId} className="text-sm text-fg-1">
+                      Status
+                    </label>
+                    <AdminSelect
+                      id={statusId}
+                      value={ticket.status}
+                      onChange={(e) => void setStatus(ticket.id, e.target.value)}
+                    >
+                      {STATUSES.map((s) => (
+                        <option key={s} value={s}>
+                          {statusLabel(s)}
+                        </option>
+                      ))}
+                    </AdminSelect>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <label htmlFor={replyId} className="text-sm text-fg-1">
+                      Reply
+                    </label>
+                    <Textarea
+                      id={replyId}
+                      value={replies[ticket.id] ?? ""}
+                      onChange={(e) =>
+                        setReplies((prev) => ({ ...prev, [ticket.id]: e.target.value }))
+                      }
+                      placeholder="Write to the person who raised this ticket"
+                      className="min-h-16"
+                    />
+                    <div>
+                      <Button variant="secondary" size="sm" onClick={() => void reply(ticket.id)}>
+                        Send reply
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </AdminPage>
   );
 }

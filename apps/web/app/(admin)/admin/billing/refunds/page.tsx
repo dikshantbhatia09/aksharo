@@ -2,6 +2,15 @@
 
 import * as React from "react";
 
+import { Button, Field, Input, PageHeader, Textarea } from "@montaj/ui";
+
+import {
+  AdminError,
+  AdminPage,
+  AdminSelect,
+  AdminSuccess,
+  adminCard,
+} from "@/components/admin/admin-ui";
 import { AdminFetchError, useAdminFetch } from "@/lib/admin/use-admin-fetch";
 
 const REASON_CODES = [
@@ -12,6 +21,16 @@ const REASON_CODES = [
   "goodwill",
   "other",
 ] as const;
+
+/** What an operator reads; the API still receives the code itself. */
+const REASON_LABELS = new Map<(typeof REASON_CODES)[number], string>([
+  ["customer_request", "Customer request"],
+  ["quality_issue", "Quality issue"],
+  ["duplicate_charge", "Duplicate charge"],
+  ["billing_error", "Billing error"],
+  ["goodwill", "Goodwill"],
+  ["other", "Other"],
+]);
 
 interface AdminRefundResult {
   outcome: string;
@@ -35,11 +54,13 @@ export default function AdminRefundsPage(): React.JSX.Element {
   const [reason, setReason] = React.useState("");
   const [result, setResult] = React.useState<AdminRefundResult | null>(null);
   const [error, setError] = React.useState<string | null>(null);
+  const [pending, setPending] = React.useState(false);
 
   async function submit(event: React.FormEvent): Promise<void> {
     event.preventDefault();
     setError(null);
     setResult(null);
+    setPending(true);
     try {
       const response = await adminFetch<AdminRefundResult>(
         `/admin/billing/passes/${passPurchaseId}/refund`,
@@ -48,78 +69,91 @@ export default function AdminRefundsPage(): React.JSX.Element {
       setResult(response);
     } catch (err) {
       setError(err instanceof AdminFetchError ? err.message : "Refund failed.");
+    } finally {
+      setPending(false);
     }
   }
 
   return (
-    <div className="flex max-w-lg flex-col gap-4">
-      <h1 className="text-xl font-semibold text-neutral-100">Refund a pass/top-up purchase</h1>
-      <form onSubmit={submit} className="flex flex-col gap-3 text-sm">
-        <label className="flex flex-col gap-1">
-          Pass purchase ID
-          <input
+    <AdminPage width="form">
+      <PageHeader
+        eyebrow="Money"
+        title="Refund a pass/top-up purchase"
+        description="The refund amount is set by policy on the server: in full within 7 days, pro rata by unspent credits after that. Finance and superadmin only."
+      />
+      <form onSubmit={submit} className={`${adminCard} flex flex-col gap-4`}>
+        <Field label="Pass purchase ID" htmlFor="refund-pass-id">
+          <Input
+            id="refund-pass-id"
             value={passPurchaseId}
             onChange={(e) => setPassPurchaseId(e.target.value)}
-            className="rounded border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-neutral-100"
+            className="font-mono"
+            autoComplete="off"
             required
           />
-        </label>
-        <label className="flex flex-col gap-1">
-          Provider payment ID
-          <input
+        </Field>
+        <Field label="Provider payment ID" htmlFor="refund-payment-id" hint="For example pay_…">
+          <Input
+            id="refund-payment-id"
             value={providerPaymentId}
             onChange={(e) => setProviderPaymentId(e.target.value)}
-            className="rounded border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-neutral-100"
+            className="font-mono"
+            autoComplete="off"
             required
           />
-        </label>
-        <label className="flex flex-col gap-1">
-          Reason code
-          <select
+        </Field>
+        <Field label="Reason code" htmlFor="refund-reason-code">
+          <AdminSelect
+            id="refund-reason-code"
             value={reasonCode}
             onChange={(e) => setReasonCode(e.target.value as (typeof REASON_CODES)[number])}
-            className="rounded border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-neutral-100"
           >
             {REASON_CODES.map((code) => (
               <option key={code} value={code}>
-                {code}
+                {REASON_LABELS.get(code) ?? code}
               </option>
             ))}
-          </select>
-        </label>
-        <label className="flex flex-col gap-1">
-          Reason (min 10 characters — mandatory)
-          <textarea
+          </AdminSelect>
+        </Field>
+        <Field
+          label="Reason (min 10 characters)"
+          htmlFor="refund-reason"
+          hint="Written to the audit log with your name."
+        >
+          <Textarea
+            id="refund-reason"
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             minLength={10}
-            className="rounded border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-neutral-100"
             required
           />
-        </label>
-        <button
-          type="submit"
-          data-testid="admin-refund-submit"
-          className="w-fit rounded bg-neutral-100 px-4 py-2 text-neutral-900"
-        >
-          Refund
-        </button>
+        </Field>
+        <div>
+          <Button
+            type="submit"
+            variant="primary"
+            disabled={pending}
+            data-testid="admin-refund-submit"
+          >
+            {pending ? "Refunding…" : "Issue refund"}
+          </Button>
+        </div>
       </form>
       {result !== null && (
-        <div data-testid="admin-refund-result" className="text-sm text-green-400">
+        <AdminSuccess data-testid="admin-refund-result">
           <p>
             {result.policy} refund of ₹{(result.refundAmountMinor / 100).toFixed(2)} —{" "}
             {result.outcome}
           </p>
-          {result.creditNoteId !== undefined && <p>Credit note: {result.creditNoteId}</p>}
+          {result.creditNoteId !== undefined && (
+            <p>
+              Credit note: <span className="font-mono">{result.creditNoteId}</span>
+            </p>
+          )}
           {result.creditNoteSkippedReason !== undefined && <p>{result.creditNoteSkippedReason}</p>}
-        </div>
+        </AdminSuccess>
       )}
-      {error !== null && (
-        <p data-testid="admin-refund-error" className="text-sm text-red-400">
-          {error}
-        </p>
-      )}
-    </div>
+      {error !== null && <AdminError data-testid="admin-refund-error">{error}</AdminError>}
+    </AdminPage>
   );
 }

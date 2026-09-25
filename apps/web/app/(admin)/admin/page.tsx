@@ -2,6 +2,9 @@
 
 import * as React from "react";
 
+import { PageHeader } from "@montaj/ui";
+
+import { AdminPage, AdminSection, StatTile } from "@/components/admin/admin-ui";
 import { BarChart } from "@/components/admin/bar-chart";
 import { useAdminFetch } from "@/lib/admin/use-admin-fetch";
 
@@ -54,8 +57,10 @@ interface OffersMetrics {
  */
 export default function AdminDashboardPage(): React.JSX.Element {
   const adminFetch = useAdminFetch();
-  const [jobStats, setJobStats] = React.useState<QueueStats[]>([]);
-  const [dunning, setDunning] = React.useState<DunningEntry[]>([]);
+  // `null` until the request answers, so a slow or failed fetch reads "—"
+  // rather than a confident zero.
+  const [jobStats, setJobStats] = React.useState<QueueStats[] | null>(null);
+  const [dunning, setDunning] = React.useState<DunningEntry[] | null>(null);
   const [acquisition, setAcquisition] = React.useState<AcquisitionMetrics | null>(null);
   const [streak, setStreak] = React.useState<StreakCohortMetrics | null>(null);
   const [offers, setOffers] = React.useState<OffersMetrics | null>(null);
@@ -78,61 +83,68 @@ export default function AdminDashboardPage(): React.JSX.Element {
       .catch(() => undefined);
   }, [adminFetch]);
 
-  const failedTotal = jobStats.reduce((sum, s) => sum + s.failed, 0);
-  const runningTotal = jobStats.reduce((sum, s) => sum + s.running, 0);
+  const failedTotal = jobStats?.reduce((sum, s) => sum + s.failed, 0);
+  const runningTotal = jobStats?.reduce((sum, s) => sum + s.running, 0);
 
   return (
-    <div className="flex flex-col gap-6">
-      <h1 className="text-2xl font-semibold text-neutral-100">Admin dashboard</h1>
-      <div className="grid grid-cols-3 gap-4">
-        <div className="rounded border border-neutral-800 p-4">
-          <p className="text-xs text-neutral-500">Jobs running</p>
-          <p className="text-2xl text-neutral-100">{runningTotal}</p>
-        </div>
-        <div className="rounded border border-neutral-800 p-4">
-          <p className="text-xs text-neutral-500">Jobs failed</p>
-          <p className="text-2xl text-neutral-100">{failedTotal}</p>
-        </div>
-        <div className="rounded border border-neutral-800 p-4">
-          <p className="text-xs text-neutral-500">Subscriptions past due</p>
-          <p className="text-2xl text-neutral-100">{dunning.length}</p>
-        </div>
-      </div>
+    <AdminPage>
+      <PageHeader
+        eyebrow="Admin console"
+        title={<span data-testid="admin-heading">Dashboard</span>}
+        description="Queue health and billing risk right now, then the latest growth snapshots."
+      />
 
-      <div className="grid grid-cols-3 gap-4">
-        <BarChart
-          title="Acquisition by source"
-          caption={
-            acquisition === null
-              ? undefined
-              : `${String(acquisition.totalOnboardingCompleted)} onboarded, last ${String(acquisition.windowDays)}d`
-          }
-          data={(acquisition?.bySource ?? []).map((row) => ({ label: row.key, value: row.count }))}
-        />
-        <BarChart
-          title="Streak: experiment vs holdout"
-          caption="Week-4 retention %"
-          data={
-            streak === null
-              ? []
-              : [
-                  { label: "experiment", value: streak.experiment.week4RetentionPct },
-                  { label: "holdout", value: streak.holdout.week4RetentionPct },
-                ]
-          }
-        />
-        <BarChart
-          title="₹9 offer: purchases vs upgrades"
-          data={
-            offers === null
-              ? []
-              : [
-                  { label: "purchases", value: offers.ninePass.totalPurchases },
-                  { label: "upgraded", value: offers.ninePass.upgradedWithinWindow },
-                ]
-          }
-        />
-      </div>
-    </div>
+      <AdminSection title="Right now" bare>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <StatTile label="Jobs running" value={runningTotal ?? "—"} />
+          <StatTile label="Jobs failed" value={failedTotal ?? "—"} />
+          <StatTile label="Subscriptions past due" value={dunning?.length ?? "—"} />
+        </div>
+      </AdminSection>
+
+      <AdminSection
+        title="Growth snapshots"
+        description="Each chart is a single snapshot over its window, not a daily trend."
+        bare
+      >
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+          <BarChart
+            title="Acquisition by source"
+            caption={
+              acquisition === null
+                ? undefined
+                : `${String(acquisition.totalOnboardingCompleted)} onboarded, last ${String(acquisition.windowDays)} days`
+            }
+            data={(acquisition?.bySource ?? []).map((row) => ({
+              label: row.key,
+              value: row.count,
+            }))}
+          />
+          <BarChart
+            title="Streak: experiment vs holdout"
+            caption="Week-4 retention, per cent"
+            data={
+              streak === null
+                ? []
+                : [
+                    { label: "experiment", value: streak.experiment.week4RetentionPct },
+                    { label: "holdout", value: streak.holdout.week4RetentionPct },
+                  ]
+            }
+          />
+          <BarChart
+            title="₹9 offer: purchases vs upgrades"
+            data={
+              offers === null
+                ? []
+                : [
+                    { label: "purchases", value: offers.ninePass.totalPurchases },
+                    { label: "upgraded", value: offers.ninePass.upgradedWithinWindow },
+                  ]
+            }
+          />
+        </div>
+      </AdminSection>
+    </AdminPage>
   );
 }

@@ -2,6 +2,18 @@
 
 import * as React from "react";
 
+import { Badge, Button, Input, PageHeader } from "@montaj/ui";
+
+import {
+  AdminEmpty,
+  AdminError,
+  AdminLoading,
+  AdminPage,
+  AdminTable,
+  td,
+  th,
+  tr,
+} from "@/components/admin/admin-ui";
 import { AdminFetchError, useAdminFetch } from "@/lib/admin/use-admin-fetch";
 
 interface FeatureFlag {
@@ -14,7 +26,7 @@ interface FeatureFlag {
 /** `GET /admin/flags` (any role) + `PUT /admin/flags/:key` (superadmin only, reason required). */
 export default function AdminFlagsPage(): React.JSX.Element {
   const adminFetch = useAdminFetch();
-  const [flags, setFlags] = React.useState<FeatureFlag[]>([]);
+  const [flags, setFlags] = React.useState<FeatureFlag[] | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [reasons, setReasons] = React.useState<Record<string, string>>({});
 
@@ -44,46 +56,66 @@ export default function AdminFlagsPage(): React.JSX.Element {
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <h1 className="text-xl font-semibold text-neutral-100">Feature flags</h1>
-      {error !== null && <p className="text-sm text-red-400">{error}</p>}
-      <table className="w-full text-left text-sm text-neutral-300">
-        <thead className="text-neutral-500">
-          <tr>
-            <th className="py-1 pr-4">Key</th>
-            <th className="py-1 pr-4">Enabled</th>
-            <th className="py-1 pr-4">Rollout %</th>
-            <th className="py-1 pr-4">Reason</th>
-            <th className="py-1 pr-4" />
-          </tr>
-        </thead>
-        <tbody>
-          {flags.map((flag) => (
-            <tr key={flag.id} className="border-t border-neutral-800">
-              <td className="py-1.5 pr-4">{flag.key}</td>
-              <td className="py-1.5 pr-4">{flag.enabled ? "on" : "off"}</td>
-              <td className="py-1.5 pr-4">{flag.rolloutPct}</td>
-              <td className="py-1.5 pr-4">
-                <input
-                  value={reasons[flag.key] ?? ""}
-                  onChange={(e) => setReasons((prev) => ({ ...prev, [flag.key]: e.target.value }))}
-                  placeholder="why"
-                  className="w-48 rounded border border-neutral-700 bg-neutral-900 px-2 py-1 text-neutral-100"
-                />
-              </td>
-              <td className="py-1.5 pr-4">
-                <button
-                  type="button"
-                  onClick={() => void toggle(flag)}
-                  className="rounded bg-neutral-800 px-2 py-1 text-neutral-100"
-                >
-                  Toggle
-                </button>
-              </td>
+    <AdminPage>
+      <PageHeader
+        eyebrow="Platform"
+        title="Feature flags"
+        description="A change applies to every workspace in the flag's rollout. Superadmin only: write a reason of at least 10 characters, then turn the flag on or off."
+      />
+      {error !== null && <AdminError>{error}</AdminError>}
+      {flags === null ? (
+        error === null ? (
+          <AdminLoading />
+        ) : null
+      ) : flags.length === 0 ? (
+        <AdminEmpty title="No flags defined" />
+      ) : (
+        <AdminTable label="Feature flags">
+          <thead>
+            <tr>
+              <th className={th}>Key</th>
+              <th className={th}>State</th>
+              <th className={`${th} text-right`}>Rollout</th>
+              <th className={th}>Reason</th>
+              <th className={th}>
+                <span className="sr-only">Action</span>
+              </th>
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+          </thead>
+          <tbody>
+            {flags.map((flag) => (
+              <tr key={flag.id} className={tr}>
+                <td className={`${td} font-mono text-xs text-fg-0`}>{flag.key}</td>
+                <td className={td}>
+                  {flag.enabled ? <Badge tone="accepted">On</Badge> : <Badge>Off</Badge>}
+                </td>
+                <td className={`${td} text-right tabular-nums`}>{flag.rolloutPct}%</td>
+                <td className={td}>
+                  <Input
+                    aria-label={`Reason for changing ${flag.key}`}
+                    value={reasons[flag.key] ?? ""}
+                    onChange={(e) =>
+                      setReasons((prev) => ({ ...prev, [flag.key]: e.target.value }))
+                    }
+                    placeholder="Why this change"
+                    className="h-8 min-w-48"
+                  />
+                </td>
+                <td className={`${td} text-right`}>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    aria-label={`${flag.enabled ? "Turn off" : "Turn on"} ${flag.key}`}
+                    onClick={() => void toggle(flag)}
+                  >
+                    {flag.enabled ? "Turn off" : "Turn on"}
+                  </Button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </AdminTable>
+      )}
+    </AdminPage>
   );
 }

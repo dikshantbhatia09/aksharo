@@ -11,6 +11,7 @@ export interface BarChartProps {
   /** Rendered under the title — for example, "no daily buckets yet; today's snapshot". */
   readonly caption?: string;
   readonly height?: number;
+  /** Any CSS colour. Omit it for the neutral bar the admin console uses everywhere. */
   readonly barColor?: string;
 }
 
@@ -21,6 +22,13 @@ export interface BarChartProps {
  * hoverable data-viz surface, and pulling in a charting package for that
  * would be the wrong trade on a shared, memory-constrained build.
  *
+ * Only the bars are SVG. The labels and values are HTML under it, because the
+ * SVG stretches (`preserveAspectRatio="none"`) and text inside it stretched
+ * with it. Bars are a neutral, not the accent: a chart is content, and the
+ * accent is spent elsewhere (DESIGN.md › Accent budget). Every value is also
+ * written out, and a screen reader gets the whole series as a list (HIG
+ * charts › Enhancing the accessibility of a chart).
+ *
  * Renders nothing but an empty caption when `data` is empty, rather than a
  * chart with a phantom zero-width bar.
  */
@@ -29,54 +37,79 @@ export function BarChart({
   data,
   caption,
   height = 160,
-  barColor = "#a3a3a3",
+  barColor,
 }: BarChartProps): React.JSX.Element {
   const max = Math.max(1, ...data.map((d) => d.value));
   const barWidth = data.length === 0 ? 0 : 100 / data.length;
+  const plotHeight = height - 8;
 
   return (
-    <div className="rounded border border-neutral-800 p-4">
-      <p className="text-sm font-medium text-neutral-100">{title}</p>
-      {caption !== undefined && <p className="text-xs text-neutral-500">{caption}</p>}
+    <div className="flex min-w-0 flex-col rounded-md border border-border bg-surface p-5">
+      <h3 className="text-sm font-semibold text-fg-0">{title}</h3>
+      {caption !== undefined && <p className="mt-0.5 text-xs text-fg-2">{caption}</p>}
       {data.length === 0 ? (
-        <p className="mt-2 text-xs text-neutral-500">No data yet.</p>
+        <p className="mt-4 text-sm text-fg-2">No data yet.</p>
       ) : (
-        <svg
-          role="img"
-          aria-label={title}
-          viewBox={`0 0 100 ${String(height)}`}
-          preserveAspectRatio="none"
-          className="mt-2 h-40 w-full"
-        >
-          {data.map((d, index) => {
-            const barHeight = (d.value / max) * (height - 20);
-            const x = index * barWidth;
-            return (
-              <g key={d.label}>
+        <>
+          <svg
+            role="img"
+            aria-label={title}
+            viewBox={`0 0 100 ${String(height)}`}
+            preserveAspectRatio="none"
+            className="mt-4 h-32 w-full"
+          >
+            <line
+              x1={0}
+              x2={100}
+              y1={plotHeight}
+              y2={plotHeight}
+              className="stroke-border"
+              strokeWidth={1}
+              vectorEffect="non-scaling-stroke"
+            />
+            {data.map((d, index) => {
+              const barHeight = (d.value / max) * (plotHeight - 4);
+              const x = index * barWidth;
+              return (
                 <rect
-                  x={x + barWidth * 0.15}
-                  y={height - 20 - barHeight}
-                  width={barWidth * 0.7}
+                  key={d.label}
+                  x={x + barWidth * 0.2}
+                  y={plotHeight - barHeight}
+                  width={barWidth * 0.6}
                   height={barHeight}
-                  fill={barColor}
+                  rx={1}
+                  className={barColor === undefined ? "fill-neutral-500" : undefined}
+                  style={barColor === undefined ? undefined : { fill: barColor }}
                 >
                   <title>
                     {d.label}: {d.value}
                   </title>
                 </rect>
-                <text
-                  x={x + barWidth / 2}
-                  y={height - 6}
-                  fontSize={4}
-                  textAnchor="middle"
-                  fill="#737373"
-                >
+              );
+            })}
+          </svg>
+          <div
+            aria-hidden="true"
+            className="mt-2 grid gap-1"
+            style={{ gridTemplateColumns: `repeat(${String(data.length)}, minmax(0, 1fr))` }}
+          >
+            {data.map((d) => (
+              <div key={d.label} className="flex min-w-0 flex-col items-center text-center">
+                <span className="text-xs font-medium tabular-nums text-fg-0">{d.value}</span>
+                <span className="w-full truncate text-2xs text-fg-2" title={d.label}>
                   {d.label.length > 10 ? `${d.label.slice(0, 9)}…` : d.label}
-                </text>
-              </g>
-            );
-          })}
-        </svg>
+                </span>
+              </div>
+            ))}
+          </div>
+          <ul className="sr-only">
+            {data.map((d) => (
+              <li key={d.label}>
+                {d.label}: {d.value}
+              </li>
+            ))}
+          </ul>
+        </>
       )}
     </div>
   );

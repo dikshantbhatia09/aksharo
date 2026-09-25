@@ -1,8 +1,23 @@
 "use client";
 
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import * as React from "react";
 
+import { Badge, PageHeader } from "@montaj/ui";
+
+import {
+  AdminEmpty,
+  AdminError,
+  AdminLoading,
+  AdminPage,
+  AdminSection,
+  AdminTable,
+  rowLink,
+  td,
+  th,
+  tr,
+} from "@/components/admin/admin-ui";
 import { useAdminFetch } from "@/lib/admin/use-admin-fetch";
 
 interface AdminUserDetail {
@@ -17,6 +32,17 @@ interface AdminUserDetail {
   memberships: { workspaceId: string; workspaceName: string; role: string; status: string }[];
 }
 
+function BackToUsers(): React.JSX.Element {
+  return (
+    <Link
+      href="/admin/users"
+      className={`${rowLink} inline-flex min-h-8 w-fit items-center text-sm`}
+    >
+      All users
+    </Link>
+  );
+}
+
 export default function AdminUserDetailPage(): React.JSX.Element {
   const { id } = useParams<{ id: string }>();
   const adminFetch = useAdminFetch();
@@ -29,30 +55,76 @@ export default function AdminUserDetailPage(): React.JSX.Element {
       .catch((err: unknown) => setError(err instanceof Error ? err.message : "Failed to load."));
   }, [adminFetch, id]);
 
-  if (error !== null) return <p className="text-sm text-red-400">{error}</p>;
-  if (user === null) return <p className="text-sm text-neutral-400">Loading…</p>;
+  if (error !== null) {
+    return (
+      <AdminPage width="form">
+        <BackToUsers />
+        <AdminError>{error}</AdminError>
+      </AdminPage>
+    );
+  }
+  if (user === null) return <AdminLoading />;
 
   return (
-    <div className="flex flex-col gap-4">
-      <h1 className="text-xl font-semibold text-neutral-100">{user.email}</h1>
-      <dl className="grid grid-cols-2 gap-2 text-sm text-neutral-300">
-        <dt className="text-neutral-500">Name</dt>
-        <dd>{user.name ?? "—"}</dd>
-        <dt className="text-neutral-500">Devices</dt>
-        <dd>{user.deviceCount}</dd>
-        <dt className="text-neutral-500">Admin roles</dt>
-        <dd>{user.adminRoles.length > 0 ? user.adminRoles.join(", ") : "none"}</dd>
-        <dt className="text-neutral-500">Last seen</dt>
-        <dd>{user.lastSeenAt === null ? "never" : new Date(user.lastSeenAt).toLocaleString()}</dd>
-      </dl>
-      <h2 className="mt-2 text-sm font-semibold text-neutral-200">Workspaces</h2>
-      <ul className="text-sm text-neutral-300">
-        {user.memberships.map((m) => (
-          <li key={m.workspaceId}>
-            {m.workspaceName} — {m.role} ({m.status})
-          </li>
-        ))}
-      </ul>
-    </div>
+    <AdminPage>
+      <div className="flex flex-col gap-4">
+        <BackToUsers />
+        <PageHeader
+          eyebrow="User"
+          title={<span className="break-all">{user.email}</span>}
+          description={user.name ?? undefined}
+        />
+      </div>
+
+      <AdminSection title="Account">
+        <dl className="grid grid-cols-1 gap-x-8 gap-y-3 text-sm sm:grid-cols-[max-content_1fr]">
+          <dt className="text-fg-2">Name</dt>
+          <dd className="text-fg-0">{user.name ?? "—"}</dd>
+          <dt className="text-fg-2">Devices</dt>
+          <dd className="text-fg-0 tabular-nums">{user.deviceCount}</dd>
+          <dt className="text-fg-2">Admin roles</dt>
+          <dd className="flex flex-wrap gap-1.5 text-fg-0">
+            {user.adminRoles.length > 0
+              ? user.adminRoles.map((role) => <Badge key={role}>{role}</Badge>)
+              : "None"}
+          </dd>
+          <dt className="text-fg-2">Created</dt>
+          <dd className="text-fg-0">{new Date(user.createdAt).toLocaleString()}</dd>
+          <dt className="text-fg-2">Last seen</dt>
+          <dd className="text-fg-0">
+            {user.lastSeenAt === null ? "Never" : new Date(user.lastSeenAt).toLocaleString()}
+          </dd>
+        </dl>
+      </AdminSection>
+
+      <AdminSection title="Workspaces" bare>
+        {user.memberships.length === 0 ? (
+          <AdminEmpty title="Not a member of any workspace" />
+        ) : (
+          <AdminTable label="Workspace memberships">
+            <thead>
+              <tr>
+                <th className={th}>Workspace</th>
+                <th className={th}>Role</th>
+                <th className={th}>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {user.memberships.map((m) => (
+                <tr key={m.workspaceId} className={tr}>
+                  <td className={td}>
+                    <Link href={`/admin/workspaces/${m.workspaceId}`} className={rowLink}>
+                      {m.workspaceName}
+                    </Link>
+                  </td>
+                  <td className={td}>{m.role}</td>
+                  <td className={td}>{m.status}</td>
+                </tr>
+              ))}
+            </tbody>
+          </AdminTable>
+        )}
+      </AdminSection>
+    </AdminPage>
   );
 }

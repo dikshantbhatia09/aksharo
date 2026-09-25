@@ -2,6 +2,19 @@
 
 import * as React from "react";
 
+import { Button, Field, Input, PageHeader } from "@montaj/ui";
+
+import {
+  AdminEmpty,
+  AdminError,
+  AdminLoading,
+  AdminPage,
+  AdminSection,
+  AdminTable,
+  td,
+  th,
+  tr,
+} from "@/components/admin/admin-ui";
 import { AdminFetchError, useAdminFetch } from "@/lib/admin/use-admin-fetch";
 
 interface RoutingWeightOverride {
@@ -14,7 +27,7 @@ interface RoutingWeightOverride {
 /** Routing weight overrides — superadmin only. Does not affect the worker (see final report). */
 export default function AdminRoutingPage(): React.JSX.Element {
   const adminFetch = useAdminFetch();
-  const [items, setItems] = React.useState<RoutingWeightOverride[]>([]);
+  const [items, setItems] = React.useState<RoutingWeightOverride[] | null>(null);
   const [laneId, setLaneId] = React.useState("");
   const [provider, setProvider] = React.useState("");
   const [weight, setWeight] = React.useState("");
@@ -43,61 +56,82 @@ export default function AdminRoutingPage(): React.JSX.Element {
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <h1 className="text-xl font-semibold text-neutral-100">Routing weight overrides</h1>
-      <p className="text-xs text-neutral-500">
-        Overrides the admin console's own record only — the worker still reads routing.yaml; see the
-        final report's open questions.
-      </p>
-      {error !== null && <p className="text-sm text-red-400">{error}</p>}
-      <table className="w-full max-w-md text-left text-sm text-neutral-300">
-        <thead className="text-neutral-500">
-          <tr>
-            <th className="py-1 pr-4">Lane</th>
-            <th className="py-1 pr-4">Provider</th>
-            <th className="py-1 pr-4">Weight</th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((o) => (
-            <tr key={o.id} className="border-t border-neutral-800">
-              <td className="py-1 pr-4">{o.laneId}</td>
-              <td className="py-1 pr-4">{o.provider}</td>
-              <td className="py-1 pr-4">{o.weight}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <form onSubmit={submit} className="flex max-w-md flex-col gap-2 text-sm">
-        <input
-          value={laneId}
-          onChange={(e) => setLaneId(e.target.value)}
-          placeholder="lane id (e.g. hinglish)"
-          className="rounded border border-neutral-700 bg-neutral-900 px-2 py-1 text-neutral-100"
-        />
-        <input
-          value={provider}
-          onChange={(e) => setProvider(e.target.value)}
-          placeholder="provider (e.g. elevenlabs)"
-          className="rounded border border-neutral-700 bg-neutral-900 px-2 py-1 text-neutral-100"
-        />
-        <input
-          value={weight}
-          onChange={(e) => setWeight(e.target.value)}
-          placeholder="weight 0-100"
-          type="number"
-          className="rounded border border-neutral-700 bg-neutral-900 px-2 py-1 text-neutral-100"
-        />
-        <input
-          value={reason}
-          onChange={(e) => setReason(e.target.value)}
-          placeholder="reason (min 10 chars)"
-          className="rounded border border-neutral-700 bg-neutral-900 px-2 py-1 text-neutral-100"
-        />
-        <button type="submit" className="w-fit rounded bg-neutral-800 px-3 py-1.5 text-neutral-100">
-          Set
-        </button>
-      </form>
-    </div>
+    <AdminPage>
+      <PageHeader
+        eyebrow="Platform"
+        title="Routing weight overrides"
+        description="Superadmin only. These are recorded here but not yet read by the transcription worker, which still routes from routing.yaml."
+      />
+      {error !== null && <AdminError>{error}</AdminError>}
+
+      <AdminSection title="Current overrides" bare>
+        {items === null ? (
+          error === null ? (
+            <AdminLoading />
+          ) : null
+        ) : items.length === 0 ? (
+          <AdminEmpty title="No overrides" description="Add one below." />
+        ) : (
+          <AdminTable label="Routing weight overrides" className="max-w-2xl">
+            <thead>
+              <tr>
+                <th className={th}>Lane</th>
+                <th className={th}>Provider</th>
+                <th className={`${th} text-right`}>Weight</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((o) => (
+                <tr key={o.id} className={tr}>
+                  <td className={`${td} font-mono text-xs text-fg-0`}>{o.laneId}</td>
+                  <td className={td}>{o.provider}</td>
+                  <td className={`${td} text-right tabular-nums`}>{o.weight}</td>
+                </tr>
+              ))}
+            </tbody>
+          </AdminTable>
+        )}
+      </AdminSection>
+
+      <AdminSection title="Set an override" className="max-w-2xl">
+        <form onSubmit={submit} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Field label="Lane ID" htmlFor="routing-lane" hint="For example hinglish">
+            <Input
+              id="routing-lane"
+              value={laneId}
+              onChange={(e) => setLaneId(e.target.value)}
+              className="font-mono"
+              autoComplete="off"
+            />
+          </Field>
+          <Field label="Provider" htmlFor="routing-provider" hint="For example elevenlabs">
+            <Input
+              id="routing-provider"
+              value={provider}
+              onChange={(e) => setProvider(e.target.value)}
+              className="font-mono"
+              autoComplete="off"
+            />
+          </Field>
+          <Field label="Weight" htmlFor="routing-weight" hint="0 to 100">
+            <Input
+              id="routing-weight"
+              value={weight}
+              onChange={(e) => setWeight(e.target.value)}
+              type="number"
+              inputMode="numeric"
+            />
+          </Field>
+          <Field label="Reason (min 10 characters)" htmlFor="routing-reason">
+            <Input id="routing-reason" value={reason} onChange={(e) => setReason(e.target.value)} />
+          </Field>
+          <div className="sm:col-span-2">
+            <Button type="submit" variant="primary">
+              Save override
+            </Button>
+          </div>
+        </form>
+      </AdminSection>
+    </AdminPage>
   );
 }

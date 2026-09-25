@@ -2,6 +2,15 @@
 
 import * as React from "react";
 
+import { Button, Input, PageHeader } from "@montaj/ui";
+
+import {
+  AdminEmpty,
+  AdminError,
+  AdminLoading,
+  AdminPage,
+  adminCard,
+} from "@/components/admin/admin-ui";
 import { AdminFetchError, useAdminFetch } from "@/lib/admin/use-admin-fetch";
 
 interface HeldReferral {
@@ -15,7 +24,7 @@ interface HeldReferral {
 /** Chained-self-referral review queue (`GET .../review-queue`, `POST .../approve|reject`). */
 export default function AdminReferralsPage(): React.JSX.Element {
   const adminFetch = useAdminFetch();
-  const [items, setItems] = React.useState<HeldReferral[]>([]);
+  const [items, setItems] = React.useState<HeldReferral[] | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [reasons, setReasons] = React.useState<Record<string, string>>({});
 
@@ -52,46 +61,52 @@ export default function AdminReferralsPage(): React.JSX.Element {
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <h1 className="text-xl font-semibold text-neutral-100">
-        Referral review — chained self-referral
-      </h1>
-      {error !== null && <p className="text-sm text-red-400">{error}</p>}
-      <ul className="flex flex-col gap-3 text-sm text-neutral-300">
-        {items.map((item) => (
-          <li key={item.id} className="rounded border border-neutral-800 p-3">
-            <p>
-              Code {item.code} — {item.holdReason}
-            </p>
-            <p className="text-neutral-500">
-              referrer {item.referrerWorkspaceId} → referred {item.referredWorkspaceId}
-            </p>
-            <div className="mt-2 flex gap-2">
-              <button
-                type="button"
-                onClick={() => void approve(item.id)}
-                className="rounded bg-neutral-800 px-2 py-1"
-              >
-                Approve
-              </button>
-              <input
-                value={reasons[item.id] ?? ""}
-                onChange={(e) => setReasons((prev) => ({ ...prev, [item.id]: e.target.value }))}
-                placeholder="reject reason"
-                className="w-48 rounded border border-neutral-700 bg-neutral-900 px-2 py-1"
-              />
-              <button
-                type="button"
-                onClick={() => void reject(item.id)}
-                className="rounded bg-neutral-800 px-2 py-1"
-              >
-                Reject
-              </button>
-            </div>
-          </li>
-        ))}
-        {items.length === 0 && <p className="text-neutral-500">Nothing held for review.</p>}
-      </ul>
-    </div>
+    <AdminPage>
+      <PageHeader
+        eyebrow="Money"
+        title="Referral review"
+        description="Referrals held because they look like a chained self-referral. Approve or reject each one; rejecting needs a reason of at least 10 characters."
+      />
+      {error !== null && <AdminError>{error}</AdminError>}
+      {items === null ? (
+        error === null ? (
+          <AdminLoading />
+        ) : null
+      ) : items.length === 0 ? (
+        <AdminEmpty title="Nothing held for review" description="New holds appear here." />
+      ) : (
+        <ul className="flex flex-col gap-3">
+          {items.map((item) => (
+            <li key={item.id} className={`${adminCard} flex flex-col gap-3`}>
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-fg-0">
+                  Code <span className="font-mono">{item.code}</span>
+                </p>
+                <p className="text-sm text-fg-1">{item.holdReason}</p>
+                <p className="mt-1 font-mono text-xs break-all text-fg-2">
+                  referrer {item.referrerWorkspaceId} → referred {item.referredWorkspaceId}
+                </p>
+              </div>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <Button variant="secondary" size="sm" onClick={() => void approve(item.id)}>
+                  Approve
+                </Button>
+                <div className="hidden h-6 w-px bg-border sm:block" aria-hidden="true" />
+                <Input
+                  aria-label={`Reason for rejecting code ${item.code}`}
+                  value={reasons[item.id] ?? ""}
+                  onChange={(e) => setReasons((prev) => ({ ...prev, [item.id]: e.target.value }))}
+                  placeholder="Reason to reject"
+                  className="h-8 sm:max-w-64"
+                />
+                <Button variant="secondary" size="sm" onClick={() => void reject(item.id)}>
+                  Reject
+                </Button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </AdminPage>
   );
 }

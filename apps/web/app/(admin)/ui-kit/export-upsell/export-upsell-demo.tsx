@@ -3,7 +3,7 @@
 import * as React from "react";
 
 import { useApiContext } from "@montaj/api-client";
-import { Skeleton } from "@montaj/ui";
+import { PageHeader, Skeleton } from "@montaj/ui";
 
 import { ExportUpsellPanel } from "@/components/editor/export/upsell/ExportUpsellPanel";
 import { refreshSession } from "@/lib/session/client";
@@ -54,19 +54,24 @@ export function ExportUpsellPanelDemo(): React.JSX.Element {
   }, [sessionStore]);
 
   return (
-    <div className="mx-auto flex max-w-md flex-col gap-4 p-6">
-      <h1 className="text-fg-0 text-lg font-semibold">Export upsell panel</h1>
-      <p className="text-fg-2 text-sm">
-        Mounts exactly what the export dialog will render for a watermarked export.
-      </p>
+    <main className="mx-auto flex min-h-dvh max-w-md flex-col gap-6 bg-bg-0 px-4 py-8 sm:px-6">
+      <PageHeader
+        eyebrow="UI kit"
+        title="Export upsell panel"
+        description="Mounts exactly what the export dialog renders for a watermarked export."
+      />
       <div
         className="border-border flex h-40 items-center justify-center rounded-md border border-dashed"
         data-testid="export-upsell-demo-preview"
       >
-        <span className="text-fg-2 text-sm">watermark preview</span>
+        <span className="text-fg-2 text-sm">Watermarked preview</span>
       </div>
       {bootstrapFailed ? (
-        <p className="text-rejected text-sm" data-testid="export-upsell-demo-signed-out">
+        <p
+          role="alert"
+          className="text-rejected text-sm"
+          data-testid="export-upsell-demo-signed-out"
+        >
           Sign in to preview the upsell panel.
         </p>
       ) : bootstrapped ? (
@@ -79,10 +84,10 @@ export function ExportUpsellPanelDemo(): React.JSX.Element {
         <Skeleton className="h-32" data-testid="export-upsell-demo-bootstrapping" />
       )}
       {ready ? (
-        <p className="text-lime-500 text-sm" data-testid="export-upsell-demo-ready">
-          Clean manifest ready — the dialog would re-request the export now.
+        <p role="status" className="text-accepted text-sm" data-testid="export-upsell-demo-ready">
+          Clean manifest ready. The dialog would request the export again now.
         </p>
       ) : null}
-    </div>
+    </main>
   );
 }

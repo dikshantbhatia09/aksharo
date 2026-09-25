@@ -3,6 +3,19 @@
 import Link from "next/link";
 import * as React from "react";
 
+import { Button, Input, PageHeader } from "@montaj/ui";
+
+import {
+  AdminEmpty,
+  AdminError,
+  AdminLoading,
+  AdminPage,
+  AdminTable,
+  rowLink,
+  td,
+  th,
+  tr,
+} from "@/components/admin/admin-ui";
 import { useAdminFetch } from "@/lib/admin/use-admin-fetch";
 
 interface AdminWorkspaceSummary {
@@ -16,7 +29,7 @@ interface AdminWorkspaceSummary {
 export default function AdminWorkspacesPage(): React.JSX.Element {
   const adminFetch = useAdminFetch();
   const [query, setQuery] = React.useState("");
-  const [items, setItems] = React.useState<AdminWorkspaceSummary[]>([]);
+  const [items, setItems] = React.useState<AdminWorkspaceSummary[] | null>(null);
   const [error, setError] = React.useState<string | null>(null);
 
   const search = React.useCallback(async () => {
@@ -36,39 +49,67 @@ export default function AdminWorkspacesPage(): React.JSX.Element {
   }, []);
 
   return (
-    <div className="flex flex-col gap-4">
-      <h1 className="text-xl font-semibold text-neutral-100">Workspaces</h1>
+    <AdminPage>
+      <PageHeader
+        eyebrow="People"
+        title="Workspaces"
+        description="Find a workspace by name or slug, then open it for its plan, credit balance and owner."
+      />
       <form
+        role="search"
         onSubmit={(e) => {
           e.preventDefault();
           void search();
         }}
-        className="flex gap-2"
+        className="flex max-w-xl gap-2"
       >
-        <input
+        <label htmlFor="workspace-search" className="sr-only">
+          Search workspaces
+        </label>
+        <Input
+          id="workspace-search"
+          type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search by name or slug"
-          className="w-80 rounded border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-100"
         />
-        <button
-          type="submit"
-          className="rounded bg-neutral-800 px-3 py-1.5 text-sm text-neutral-100"
-        >
+        <Button type="submit" variant="secondary">
           Search
-        </button>
+        </Button>
       </form>
-      {error !== null && <p className="text-sm text-red-400">{error}</p>}
-      <ul className="text-sm text-neutral-300">
-        {items.map((ws) => (
-          <li key={ws.id}>
-            <Link href={`/admin/workspaces/${ws.id}`} className="underline">
-              {ws.name}
-            </Link>{" "}
-            ({ws.slug}, {ws.type}, {ws.currency})
-          </li>
-        ))}
-      </ul>
-    </div>
+      {error !== null && <AdminError>{error}</AdminError>}
+      {items === null ? (
+        error === null ? (
+          <AdminLoading />
+        ) : null
+      ) : items.length === 0 ? (
+        <AdminEmpty title="No workspaces found" />
+      ) : (
+        <AdminTable label="Workspaces">
+          <thead>
+            <tr>
+              <th className={th}>Name</th>
+              <th className={th}>Slug</th>
+              <th className={th}>Type</th>
+              <th className={th}>Currency</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((ws) => (
+              <tr key={ws.id} className={tr}>
+                <td className={td}>
+                  <Link href={`/admin/workspaces/${ws.id}`} className={rowLink}>
+                    {ws.name}
+                  </Link>
+                </td>
+                <td className={`${td} font-mono text-xs`}>{ws.slug}</td>
+                <td className={td}>{ws.type}</td>
+                <td className={td}>{ws.currency}</td>
+              </tr>
+            ))}
+          </tbody>
+        </AdminTable>
+      )}
+    </AdminPage>
   );
 }

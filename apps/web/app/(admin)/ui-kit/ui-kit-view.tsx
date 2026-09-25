@@ -56,11 +56,27 @@ import {
   TooltipContent,
   TooltipTrigger,
   UpgradeGate,
+  PageHeader,
   ACCENT,
+  ACCENT_RAMP,
+  NEUTRAL,
   SIGNAL,
   SURFACE,
   TEXT,
 } from "@montaj/ui";
+
+/** The Shirorekha type scale (DESIGN.md › Type), smallest first. */
+const TYPE_SCALE = [
+  { px: 11, className: "text-2xs", use: "Meta only: shortcut hints, timestamps" },
+  { px: 12, className: "text-xs", use: "The smallest interactive text" },
+  { px: 14, className: "text-sm", use: "Body, controls, tables" },
+  { px: 16, className: "text-base", use: "Section headings" },
+  { px: 18, className: "text-lg", use: "Dialog titles" },
+  { px: 22, className: "text-xl", use: "Large figures" },
+  { px: 28, className: "text-2xl", use: "Page titles (PageHeader md)" },
+  { px: 36, className: "text-3xl", use: "Landing titles" },
+  { px: 44, className: "text-[2.75rem] leading-[3rem]", use: "Hero (PageHeader lg)" },
+] as const;
 
 /**
  * Every component, in every state that matters, on one page.
@@ -72,59 +88,146 @@ import {
  */
 export function UiKitView(): React.JSX.Element {
   return (
-    <main className="mx-auto flex w-full max-w-5xl flex-col gap-10 px-6 py-10" data-testid="ui-kit">
-      <header className="flex flex-col gap-1">
-        <h1 className="font-display text-2xl font-semibold tracking-tight">UI kit</h1>
-        <p className="text-fg-2 text-sm">
-          Every design token and component in the shared UI package, for screenshot review.
-        </p>
-      </header>
+    <main
+      className="mx-auto flex w-full max-w-5xl flex-col gap-12 bg-bg-0 px-4 py-10 sm:px-6"
+      data-testid="ui-kit"
+    >
+      <PageHeader
+        eyebrow="Shirorekha design system"
+        title="UI kit"
+        description="Every token and shared component in @montaj/ui, in the states that matter, for screenshot and accessibility review."
+      />
 
       <Section title="Palette">
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4" data-testid="kit-palette">
-          {[
-            ["bg-0", SURFACE.bg0],
-            ["bg-1", SURFACE.bg1],
-            ["bg-2", SURFACE.bg2],
-            ["border", SURFACE.border],
-            ["fg-0", TEXT.fg0],
-            ["fg-1", TEXT.fg1],
-            ["fg-2", TEXT.fg2],
-            ["disabled", TEXT.disabled],
-            ["lime-500", ACCENT.lime500],
-            ["lime-600", ACCENT.lime600],
-            ["proposed", SIGNAL.proposed],
-            ["accepted", SIGNAL.accepted],
-            ["rejected", SIGNAL.rejected],
-            ["info", SIGNAL.info],
-            ["warning", SIGNAL.warning],
-          ].map(([name, value]) => (
-            <div key={name} className="border-border flex items-center gap-2 rounded-sm border p-2">
-              <span
-                aria-hidden="true"
-                className="size-8 shrink-0 rounded-sm"
-                style={{ backgroundColor: value }}
-              />
-              <span className="flex flex-col">
-                <span className="text-fg-1 text-xs">{name}</span>
-                <span className="text-fg-2 font-mono text-2xs">{value}</span>
-              </span>
-            </div>
-          ))}
+        <div className="flex flex-col gap-6" data-testid="kit-palette">
+          <Swatches
+            label="Surfaces"
+            items={[
+              ["bg-0 · page", SURFACE.bg0],
+              ["bg-1 · surface", SURFACE.bg1],
+              ["bg-2 · raised", SURFACE.bg2],
+              ["sunken · rails", SURFACE.sunken],
+              ["ink · video", SURFACE.ink],
+              ["border", SURFACE.border],
+            ]}
+          />
+          <Swatches
+            label="Text"
+            items={[
+              ["fg-0 · primary", TEXT.fg0],
+              ["fg-1 · secondary", TEXT.fg1],
+              ["fg-2 · muted", TEXT.fg2],
+              ["disabled", TEXT.disabled],
+            ]}
+          />
+          <Swatches
+            label="Accent (rani): the one filled primary, the shirorekha, selection"
+            items={[
+              ["accent", ACCENT.lime500],
+              ["on-accent", ACCENT.onAccent],
+              ...Object.entries(ACCENT_RAMP).map(
+                ([step, value]) => [`accent-${step}`, value] as const,
+              ),
+            ]}
+          />
+          <Swatches
+            label="Neutral ramp"
+            items={Object.entries(NEUTRAL).map(
+              ([step, value]) => [`neutral-${step}`, value] as const,
+            )}
+          />
+          <Swatches
+            label="Signals: state, never decoration"
+            items={[
+              ["proposed", SIGNAL.proposed],
+              ["accepted", SIGNAL.accepted],
+              ["rejected", SIGNAL.rejected],
+              ["info", SIGNAL.info],
+              ["warning", SIGNAL.warning],
+            ]}
+          />
         </div>
       </Section>
 
       <Section title="Type">
-        <div className="flex flex-col gap-2">
-          <p className="font-display text-3xl font-semibold">Bricolage Grotesque display</p>
-          <p className="text-xl">Inter, the UI face, at 22 px</p>
-          <p className="text-sm">Inter at 14 px — the size most of the studio is set in.</p>
-          <p className="font-mono text-sm">00:01:23.456 · JetBrains Mono for timecodes</p>
-          <p className="text-fg-2 text-2xs">11 px, for meter captions and shortcut hints</p>
+        <div className="flex flex-col gap-6">
+          <div className="flex flex-col gap-1">
+            <p className="font-display text-3xl font-semibold [font-stretch:92%]">
+              Anek Latin, the display face
+            </p>
+            <p className="text-sm text-fg-2">
+              Page titles (through PageHeader), the marketing hero and large stat figures. Nowhere
+              else.
+            </p>
+          </div>
+          <div className="flex flex-col gap-1">
+            <p className="text-base">Inter, the interface face</p>
+            <p className="text-sm text-fg-2">Every control, label, table and paragraph.</p>
+          </div>
+          <div className="flex flex-col gap-1">
+            <p className="font-mono text-sm">00:01:23.456 · 01JWORKSPACE · Ctrl K</p>
+            <p className="text-sm text-fg-2">JetBrains Mono, for timecodes, IDs and keys.</p>
+          </div>
+          <p className="text-base">
+            <span lang="hi">आज हम बात करेंगे एडिटिंग के बारे में</span>
+            <span className="text-sm text-fg-2"> · Devanagari falls back to Noto.</span>
+          </p>
+          <ol className="flex flex-col divide-y divide-border rounded-md border border-border bg-surface">
+            {TYPE_SCALE.map((step) => (
+              <li
+                key={step.px}
+                className="flex flex-col gap-1 px-5 py-3 sm:flex-row sm:items-baseline sm:gap-6"
+              >
+                <span className="w-16 shrink-0 font-mono text-xs text-fg-2">{step.px} px</span>
+                <span className={`${step.className} min-w-0 truncate text-fg-0`}>
+                  Akshar, the written syllable
+                </span>
+                <span className="text-xs text-fg-2 sm:ml-auto sm:shrink-0">{step.use}</span>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </Section>
+
+      <Section title="PageHeader and the shirorekha">
+        <div className="flex flex-col gap-4">
+          <p className="max-w-2xl text-sm text-fg-1">
+            The signature: a 32 × 3 px rani bar above each page title, the way Devanagari letters
+            hang from their headline. Exactly once per page, through PageHeader. Never on cards,
+            rows, dialog titles or buttons. The two samples below are demonstrations inside the kit,
+            rendered as h2 so this page keeps one h1.
+          </p>
+          <div className="rounded-md border border-border bg-surface p-5">
+            <PageHeader
+              as="h2"
+              eyebrow="Projects"
+              title="Your captions"
+              description="The md size, for every app page. Actions sit on the trailing edge."
+              actions={
+                <>
+                  <Button variant="secondary">Import</Button>
+                  <Button variant="primary">New project</Button>
+                </>
+              }
+            />
+          </div>
+          <div className="rounded-md border border-border bg-surface p-5">
+            <PageHeader
+              as="h2"
+              size="lg"
+              title="Captions for Hindi and Hinglish"
+              description="The lg size, for Home and the marketing hero only."
+            />
+          </div>
         </div>
       </Section>
 
       <Section title="Button">
+        <p className="max-w-2xl text-sm text-fg-1">
+          Primary is a rani fill with ink text and appears once per surface; everything else is
+          secondary or ghost. Danger is filled in the rejected hue so it never reads as the brand
+          action.
+        </p>
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="primary">Primary</Button>
           <Button variant="secondary">Secondary</Button>
@@ -141,7 +244,7 @@ export function UiKitView(): React.JSX.Element {
           <Button variant="secondary" size="lg">
             Large
           </Button>
-          <Button variant="ghost" size="icon" aria-label="Sparkles">
+          <Button variant="ghost" size="icon" aria-label="Suggest a style">
             <Sparkles aria-hidden="true" />
           </Button>
         </div>
@@ -376,10 +479,42 @@ export function UiKitView(): React.JSX.Element {
           icon={<Sparkles />}
           title="No projects yet"
           description="Drop a clip and you will have captions in about a minute."
-          action={<Button variant="primary">Try with a sample</Button>}
+          action={<Button variant="secondary">Try with a sample</Button>}
         />
       </Section>
     </main>
+  );
+}
+
+function Swatches({
+  label,
+  items,
+}: {
+  label: string;
+  items: readonly (readonly [string, string])[];
+}): React.JSX.Element {
+  return (
+    <div className="flex flex-col gap-2">
+      <h3 className="text-sm font-medium text-fg-1">{label}</h3>
+      <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+        {items.map(([name, value]) => (
+          <li
+            key={name}
+            className="flex min-w-0 items-center gap-2 rounded-sm border border-border bg-surface p-2"
+          >
+            <span
+              aria-hidden="true"
+              className="size-8 shrink-0 rounded-sm border border-border"
+              style={{ backgroundColor: value }}
+            />
+            <span className="flex min-w-0 flex-col">
+              <span className="truncate text-xs text-fg-1">{name}</span>
+              <span className="font-mono text-2xs text-fg-2">{value}</span>
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
@@ -393,7 +528,7 @@ function Section({
   return (
     <section className="flex flex-col gap-4" data-kit-section={title}>
       <div className="flex items-center gap-3">
-        <h2 className="text-fg-0 text-base font-medium">{title}</h2>
+        <h2 className="text-fg-0 text-base font-semibold">{title}</h2>
         <Separator className="flex-1" />
       </div>
       {children}
