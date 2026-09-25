@@ -74,7 +74,7 @@ export function DeviceApprovalView(): React.JSX.Element {
     return (
       <AuthCard
         title="Connect a device"
-        subtitle={`Type the code shown in the app or panel. It looks like 4F7K-92QA and lasts ten minutes.`}
+        subtitle="Type the code shown in the app or panel. It looks like 4F7K-92QA and lasts ten minutes."
       >
         <form
           className="flex flex-col gap-4"
@@ -104,8 +104,8 @@ export function DeviceApprovalView(): React.JSX.Element {
               }}
             />
           </Field>
-          <Button type="submit" variant="secondary" size="lg" data-testid="device-code-submit">
-            Continue
+          <Button type="submit" variant="primary" size="lg" data-testid="device-code-submit">
+            Check code
           </Button>
         </form>
       </AuthCard>
@@ -115,7 +115,9 @@ export function DeviceApprovalView(): React.JSX.Element {
   if (approval.isPending || approval.data == null) {
     return (
       <AuthCard title="Checking that code">
-        <p className="text-fg-2 text-sm">One moment.</p>
+        <p className="text-fg-2 text-sm" role="status">
+          Looking up the device that asked…
+        </p>
       </AuthCard>
     );
   }
@@ -128,7 +130,7 @@ export function DeviceApprovalView(): React.JSX.Element {
       subtitle={`Only continue if you just started this yourself. ${BRAND.name} will never ask you for a code over the phone.`}
     >
       <dl
-        className="border-border divide-border divide-y rounded-sm border text-sm"
+        className="border-border divide-border bg-sunken divide-y rounded-sm border text-sm"
         data-testid="device-facts"
       >
         <Fact label="App" value={hostAppLabel(details)} />
@@ -166,7 +168,7 @@ export function DeviceApprovalView(): React.JSX.Element {
           Yes, that is me
         </Button>
         <Button
-          variant="outline"
+          variant="secondary"
           size="lg"
           className="flex-1"
           disabled={decide.isPending}
@@ -200,8 +202,14 @@ function Fact({
 }): React.JSX.Element {
   return (
     <div className="flex items-baseline justify-between gap-4 px-3 py-2">
-      <dt className="text-fg-2 text-xs">{label}</dt>
-      <dd className={mono ? "text-fg-0 font-mono text-sm tracking-widest" : "text-fg-0 text-sm"}>
+      <dt className="text-fg-2 shrink-0 text-xs">{label}</dt>
+      <dd
+        className={
+          mono
+            ? "text-fg-0 font-mono text-sm tracking-widest"
+            : "text-fg-0 min-w-0 text-right text-sm break-words"
+        }
+      >
         {value}
       </dd>
     </div>

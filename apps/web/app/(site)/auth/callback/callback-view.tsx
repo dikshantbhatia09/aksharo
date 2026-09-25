@@ -65,13 +65,13 @@ export function OAuthCallbackView(): React.JSX.Element {
 
   if (params.get("status") === "error" || (code === "" && !isRegistration)) {
     return (
-      <AuthCard title="Google sign-in did not finish">
+      <AuthCard title="Google sign-in didn't finish">
         <p className="text-fg-2 text-sm" data-testid="oauth-error">
           {failureReason === "provider_error"
             ? "Google turned the request down. Try again, or use your email address."
             : "That sign-in link is incomplete. Start again from the sign-in page."}
         </p>
-        <Button variant="secondary" asChild>
+        <Button variant="primary" size="lg" asChild>
           <Link href="/login">Back to sign in</Link>
         </Button>
       </AuthCard>
@@ -80,7 +80,7 @@ export function OAuthCallbackView(): React.JSX.Element {
 
   if (blockedIn !== null) {
     return (
-      <AuthCard title="We cannot open an account yet">
+      <AuthCard title="An account can't be opened yet">
         <BlockedMinor jurisdiction={blockedIn} />
       </AuthCard>
     );
@@ -89,8 +89,9 @@ export function OAuthCallbackView(): React.JSX.Element {
   if (isRegistration) {
     return (
       <AuthCard
-        title="Almost there"
-        subtitle="Google does not tell us your date of birth, and we need it to apply the right rules."
+        eyebrow="Last step"
+        title="Your age and privacy"
+        subtitle="Google doesn't share your date of birth, and your age decides which rules apply to your account."
       >
         <AgeConsentStep
           value={ageConsent}
@@ -139,7 +140,7 @@ export function OAuthCallbackView(): React.JSX.Element {
         <p className="text-fg-2 text-sm" data-testid="oauth-error">
           {messageForError(complete.error)}
         </p>
-        <Button variant="secondary" asChild>
+        <Button variant="primary" size="lg" asChild>
           <Link href="/login">Back to sign in</Link>
         </Button>
       </AuthCard>
@@ -148,7 +149,9 @@ export function OAuthCallbackView(): React.JSX.Element {
 
   return (
     <AuthCard title="Signing you in">
-      <p className="text-fg-2 text-sm">One moment.</p>
+      <p className="text-fg-2 text-sm" role="status">
+        Finishing your Google sign-in…
+      </p>
     </AuthCard>
   );
 }

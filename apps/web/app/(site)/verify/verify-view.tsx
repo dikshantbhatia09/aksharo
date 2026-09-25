@@ -46,9 +46,9 @@ export function VerifyView(): React.JSX.Element {
       <AuthCard title="That link is incomplete">
         <p className="text-fg-2 text-sm" data-testid="verify-error">
           The confirmation link needs the token that came with it. Open the link from your email
-          again, or ask for a new one.
+          again, or ask for a sign-in link instead.
         </p>
-        <Button variant="secondary" asChild>
+        <Button variant="primary" size="lg" asChild>
           <Link href="/magic">Send me a sign-in link</Link>
         </Button>
       </AuthCard>
@@ -61,7 +61,7 @@ export function VerifyView(): React.JSX.Element {
         <p className="text-fg-2 text-sm" data-testid="verify-error">
           {messageForError(verify.error)}
         </p>
-        <Button variant="secondary" asChild>
+        <Button variant="primary" size="lg" asChild>
           <Link href="/magic">Send me a new link</Link>
         </Button>
       </AuthCard>
@@ -70,8 +70,8 @@ export function VerifyView(): React.JSX.Element {
 
   return (
     <AuthCard title="Confirming your email">
-      <p className="text-fg-2 text-sm" data-testid="verify-pending">
-        One moment — we are checking the link.
+      <p className="text-fg-2 text-sm" data-testid="verify-pending" role="status">
+        Checking your confirmation link…
       </p>
     </AuthCard>
   );

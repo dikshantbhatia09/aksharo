@@ -8,7 +8,7 @@ import { useConsumeMagicLink, useRequestMagicLink } from "@montaj/api-client";
 import type { TokenResponse } from "@montaj/api-client";
 import { Button, Field, Input } from "@montaj/ui";
 
-import { AuthCard } from "@/components/auth/auth-card";
+import { AUTH_LINK_CLASS, AuthCard } from "@/components/auth/auth-card";
 import { useRuntimeConfig } from "@/components/providers";
 import { messageForError } from "@/lib/errors";
 import { persistSession } from "@/lib/session/client";
@@ -37,8 +37,24 @@ function RequestLink(): React.JSX.Element {
 
   if (request.isSuccess) {
     return (
-      <AuthCard title="Check your inbox">
-        <p className="text-fg-2 text-sm" data-testid="magic-sent">
+      <AuthCard
+        title="Check your inbox"
+        footer={
+          <>
+            Wrong address?{" "}
+            <button
+              type="button"
+              className={AUTH_LINK_CLASS}
+              onClick={() => {
+                request.reset();
+              }}
+            >
+              Use a different email
+            </button>
+          </>
+        }
+      >
+        <p className="text-fg-2 text-sm" data-testid="magic-sent" role="status">
           If <strong className="text-fg-1">{email}</strong> has an account, a sign-in link is on its
           way. It works once and lasts 15 minutes.
           {authDevAutoVerify
@@ -56,7 +72,7 @@ function RequestLink(): React.JSX.Element {
       footer={
         <>
           Prefer a password?{" "}
-          <Link href="/login" className="text-lime-500 rounded-sm hover:underline">
+          <Link href="/login" className={AUTH_LINK_CLASS}>
             Sign in
           </Link>
         </>
@@ -89,7 +105,7 @@ function RequestLink(): React.JSX.Element {
         </Field>
         <Button
           type="submit"
-          variant="secondary"
+          variant="primary"
           size="lg"
           disabled={request.isPending}
           data-testid="magic-submit"
@@ -132,7 +148,7 @@ function ConsumeLink({ token }: { token: string }): React.JSX.Element {
         <p className="text-fg-2 text-sm" data-testid="magic-error">
           {messageForError(consume.error)}
         </p>
-        <Button variant="secondary" asChild>
+        <Button variant="primary" size="lg" asChild>
           <Link href="/magic">Send me a new link</Link>
         </Button>
       </AuthCard>
@@ -141,7 +157,9 @@ function ConsumeLink({ token }: { token: string }): React.JSX.Element {
 
   return (
     <AuthCard title="Signing you in">
-      <p className="text-fg-2 text-sm">One moment.</p>
+      <p className="text-fg-2 text-sm" role="status">
+        Checking your sign-in link…
+      </p>
     </AuthCard>
   );
 }

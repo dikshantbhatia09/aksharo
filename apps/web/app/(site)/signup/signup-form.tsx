@@ -13,7 +13,7 @@ import { Button, Field, Input } from "@montaj/ui";
 import type { AgeConsentValue } from "@/components/auth/age-consent-step";
 
 import { AgeConsentStep, EMPTY_AGE_CONSENT } from "@/components/auth/age-consent-step";
-import { AuthCard } from "@/components/auth/auth-card";
+import { AUTH_LINK_CLASS, AuthCard } from "@/components/auth/auth-card";
 import { BlockedMinor } from "@/components/auth/blocked-minor";
 import { AuthDivider, GoogleButton } from "@/components/auth/google-button";
 import { useRuntimeConfig } from "@/components/providers";
@@ -161,7 +161,7 @@ export function SignUpForm(): React.JSX.Element {
         footer={
           <>
             Already have an account?{" "}
-            <Link href="/login" className="text-lime-500 rounded-sm hover:underline">
+            <Link href="/login" className={AUTH_LINK_CLASS}>
               Sign in
             </Link>
           </>
@@ -173,7 +173,7 @@ export function SignUpForm(): React.JSX.Element {
           ) : (
             <p className="text-fg-2 text-sm">
               Nothing in your inbox after a minute? Check spam, then ask for a{" "}
-              <Link href="/magic" className="text-lime-500 rounded-sm hover:underline">
+              <Link href="/magic" className={AUTH_LINK_CLASS}>
                 sign-in link
               </Link>{" "}
               instead — that works whether or not this address already had an account.
@@ -186,7 +186,7 @@ export function SignUpForm(): React.JSX.Element {
 
   if (stage === "blocked") {
     return (
-      <AuthCard title="We cannot open an account yet">
+      <AuthCard title="An account can't be opened yet">
         <BlockedMinor jurisdiction={blockedIn} defaultEmail={credentials.email} />
       </AuthCard>
     );
@@ -195,8 +195,9 @@ export function SignUpForm(): React.JSX.Element {
   if (stage === "age") {
     return (
       <AuthCard
-        title="A couple of legal things"
-        subtitle="Step 1 of 2 done. This part decides which rules apply to your account."
+        eyebrow="Step 2 of 2"
+        title="Your age and privacy"
+        subtitle="Your date of birth and country decide which rules apply to your account."
       >
         <AgeConsentStep
           value={ageConsent}
@@ -219,7 +220,7 @@ export function SignUpForm(): React.JSX.Element {
             setStage("credentials");
           }}
         >
-          Back
+          Back to your details
         </Button>
       </AuthCard>
     );
@@ -227,12 +228,13 @@ export function SignUpForm(): React.JSX.Element {
 
   return (
     <AuthCard
-      title={`Start with ${BRAND.name}`}
+      eyebrow="Step 1 of 2"
+      title={`Create your ${BRAND.name} account`}
       subtitle="Captions, cuts and reframes for the video you already shot."
       footer={
         <>
           Already have an account?{" "}
-          <Link href="/login" className="text-lime-500 rounded-sm hover:underline">
+          <Link href="/login" className={AUTH_LINK_CLASS}>
             Sign in
           </Link>
         </>
@@ -299,7 +301,13 @@ export function SignUpForm(): React.JSX.Element {
           />
         </Field>
 
-        <Button type="submit" variant="secondary" size="lg" data-testid="signup-continue">
+        <Button
+          type="submit"
+          // One filled button per screen: Google when it is offered, otherwise this.
+          variant={config.googleOAuthEnabled ? "secondary" : "primary"}
+          size="lg"
+          data-testid="signup-continue"
+        >
           Continue
         </Button>
       </form>

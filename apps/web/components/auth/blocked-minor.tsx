@@ -31,8 +31,8 @@ export function BlockedMinor({
 
   if (waitlist.isSuccess) {
     return (
-      <div className="flex flex-col gap-3" data-testid="waitlist-done">
-        <h2 className="text-fg-0 text-base font-medium">You are on the list</h2>
+      <div className="flex flex-col gap-2" data-testid="waitlist-done" role="status">
+        <h2 className="text-fg-0 text-base font-semibold">You're on the waiting list</h2>
         <p className="text-fg-2 text-sm">
           We will write to that address the moment a parental-consent flow is ready. Nothing else
           happens until then — there is no account and nothing stored beyond the address.
@@ -76,7 +76,8 @@ export function BlockedMinor({
         </Field>
         <Button
           type="submit"
-          variant="secondary"
+          variant="primary"
+          size="lg"
           disabled={waitlist.isPending}
           data-testid="waitlist-submit"
         >

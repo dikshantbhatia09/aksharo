@@ -10,8 +10,9 @@ import type { TokenResponse } from "@montaj/api-client";
 import { BRAND } from "@montaj/config";
 import { Button, Field, Input } from "@montaj/ui";
 
-import { AuthCard } from "@/components/auth/auth-card";
+import { AUTH_LINK_CLASS, AuthCard } from "@/components/auth/auth-card";
 import { AuthDivider, GoogleButton } from "@/components/auth/google-button";
+import { useRuntimeConfig } from "@/components/providers";
 import { messageForError, retryAfterSeconds } from "@/lib/errors";
 import { persistSession } from "@/lib/session/client";
 
@@ -30,6 +31,9 @@ const schema = z.object({
 export function LoginForm(): React.JSX.Element {
   const router = useRouter();
   const params = useSearchParams();
+  // One filled button per screen: Google when it is offered (brief §4, it is
+  // the primary way in), otherwise the email form's own submit.
+  const { googleOAuthEnabled } = useRuntimeConfig();
   const next = safeNext(params.get("next"));
   const expired = params.get("reason") === "expired";
   const justVerified = params.get("verified") === "1";
@@ -78,7 +82,7 @@ export function LoginForm(): React.JSX.Element {
       footer={
         <>
           New here?{" "}
-          <Link href="/signup" className="text-lime-500 rounded-sm hover:underline">
+          <Link href="/signup" className={AUTH_LINK_CLASS}>
             Create an account
           </Link>
         </>
@@ -135,18 +139,18 @@ export function LoginForm(): React.JSX.Element {
 
         <Button
           type="submit"
-          variant="secondary"
+          variant={googleOAuthEnabled ? "secondary" : "primary"}
           size="lg"
           disabled={login.isPending}
           data-testid="login-submit"
         >
-          {login.isPending ? "Signing in…" : "Sign in"}
+          {login.isPending ? "Signing in…" : "Sign in with email"}
         </Button>
       </form>
 
       <p className="text-fg-2 text-sm">
-        Forgotten your password? Ask for a{" "}
-        <Link href="/magic" className="text-lime-500 rounded-sm hover:underline">
+        Forgot your password? Ask for a{" "}
+        <Link href="/magic" className={AUTH_LINK_CLASS}>
           one-time sign-in link
         </Link>{" "}
         instead.

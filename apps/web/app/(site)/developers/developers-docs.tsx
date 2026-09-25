@@ -1,4 +1,8 @@
+import Link from "next/link";
+
 import openapi from "@montaj/api-client/openapi.json";
+import { BRAND } from "@montaj/config";
+import { PageHeader } from "@montaj/ui";
 
 import { CodeTabs } from "./code-tabs";
 import {
@@ -92,160 +96,235 @@ export function DevelopersDocs(): React.JSX.Element {
   const endpoints = publicEndpoints();
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-12 px-4 py-16">
-      <header className="flex flex-col gap-3">
-        <h1 className="font-display text-3xl font-semibold tracking-tight">Aksharo API</h1>
-        <p className="text-fg-2 text-base">
-          Create projects, transcribe, export and get notified by webhook — from a script, a CI
-          pipeline or your own product. Available on the Studio and Agency plans.
-        </p>
-      </header>
+    <main className="mx-auto flex w-full max-w-3xl flex-col gap-10 px-4 py-10 sm:px-6 sm:py-14">
+      <Link
+        href="/"
+        aria-label={`${BRAND.name} home`}
+        className="font-display text-fg-0 inline-flex min-h-8 items-center self-start rounded-sm text-lg font-semibold tracking-tight no-underline"
+      >
+        {BRAND.name}
+      </Link>
 
-      <section className="flex flex-col gap-4">
-        <h2 className="text-xl font-semibold">Authentication</h2>
-        <p className="text-fg-2 text-sm">
+      <PageHeader
+        eyebrow="Developers"
+        title={`${BRAND.name} API`}
+        description="Create projects, transcribe, export and get notified by webhook — from a script, a CI pipeline or your own product. Available on the Studio and Agency plans."
+      />
+
+      <nav aria-label="On this page" className="border-border bg-surface rounded-md border p-5">
+        <h2 className="text-fg-2 mb-2 text-xs font-medium">On this page</h2>
+        <ul className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm sm:grid-cols-3">
+          {SECTIONS.map((section) => (
+            <li key={section.id}>
+              <a
+                href={`#${section.id}`}
+                className="text-fg-1 hover:text-fg-0 inline-flex min-h-8 items-center rounded-sm no-underline hover:underline"
+              >
+                {section.label}
+              </a>
+            </li>
+          ))}
+        </ul>
+      </nav>
+
+      <DocSection id="authentication" title="Authentication">
+        <p className="text-fg-1 text-sm">
           Every <code>/v1</code> request carries an <code>X-Api-Key</code> header. Mint a key under{" "}
-          <strong>Settings → Developers</strong> — the full key is shown once, in the form{" "}
-          <code>ak_live_&lt;prefix&gt;.&lt;secret&gt;</code>. A key never has admin or billing
-          access; it can only do what its scopes say.
+          <strong className="text-fg-0">Settings → Developers</strong> — the full key is shown once,
+          in the form <code>ak_live_&lt;prefix&gt;.&lt;secret&gt;</code>. A key never has admin or
+          billing access; it can only do what its scopes say.
         </p>
         <CodeTabs
+          label="Create a project"
           tabs={[
             { label: "curl", language: "bash", code: CURL_CREATE_PROJECT },
             { label: "Node", language: "javascript", code: NODE_CREATE_PROJECT },
             { label: "Python", language: "python", code: PYTHON_CREATE_PROJECT },
           ]}
         />
-      </section>
+      </DocSection>
 
-      <section className="flex flex-col gap-4">
-        <h2 className="text-xl font-semibold">Scopes</h2>
-        <p className="text-fg-2 text-sm">
+      <DocSection id="scopes" title="Scopes">
+        <p className="text-fg-1 text-sm">
           A key carries one or more scopes. There is no <code>admin</code> or <code>billing</code>{" "}
           scope — a key can never reach <code>/admin/*</code>, <code>/billing/*</code> or{" "}
           <code>/me/*</code>, no matter what it is granted.
         </p>
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse text-sm">
-            <thead>
-              <tr className="border-border border-b text-left">
-                <th className="py-2 pr-4 font-medium">Scope</th>
-                <th className="py-2 font-medium">Grants</th>
-              </tr>
-            </thead>
-            <tbody>
-              {SCOPES.map((row) => (
-                <tr key={row.scope} className="border-border/50 border-b">
-                  <td className="py-2 pr-4 font-mono text-xs">{row.scope}</td>
-                  <td className="text-fg-1 py-2">{row.grants}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
+        <DocTable
+          caption="API key scopes and the endpoints each one grants"
+          columns={["Scope", "Grants"]}
+          rows={SCOPES.map((row) => ({ key: row.scope, cells: [row.scope, row.grants] }))}
+          monoColumns={[0]}
+        />
+      </DocSection>
 
-      <section className="flex flex-col gap-4">
-        <h2 className="text-xl font-semibold">Rate limits</h2>
-        <p className="text-fg-2 text-sm">
+      <DocSection id="rate-limits" title="Rate limits">
+        <p className="text-fg-1 text-sm">
           60 requests/minute per key, burst to 120 (Agency: 120/min, burst 240). Every response
           carries <code>RateLimit-Limit</code>, <code>RateLimit-Remaining</code> and{" "}
           <code>RateLimit-Reset</code>; a 429 carries <code>Retry-After</code>.
         </p>
-      </section>
+      </DocSection>
 
-      <section className="flex flex-col gap-4">
-        <h2 className="text-xl font-semibold">Idempotency</h2>
-        <p className="text-fg-2 text-sm">
+      <DocSection id="idempotency" title="Idempotency">
+        <p className="text-fg-1 text-sm">
           Pass an <code>Idempotency-Key</code> header on any <code>POST</code>. The same key replays
           the first response for 24 hours; the same key with a different body is refused.
         </p>
-      </section>
+      </DocSection>
 
-      <section className="flex flex-col gap-4">
-        <h2 className="text-xl font-semibold">Endpoints</h2>
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse text-sm">
-            <thead>
-              <tr className="border-border border-b text-left">
-                <th className="py-2 pr-4 font-medium">Method</th>
-                <th className="py-2 pr-4 font-medium">Path</th>
-                <th className="py-2 font-medium">Summary</th>
-              </tr>
-            </thead>
-            <tbody>
-              {endpoints.map((row) => (
-                <tr key={`${row.method}-${row.path}`} className="border-border/50 border-b">
-                  <td className="py-2 pr-4 font-mono text-xs uppercase">{row.method}</td>
-                  <td className="py-2 pr-4 font-mono text-xs">{row.path}</td>
-                  <td className="text-fg-1 py-2">{row.summary}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
+      <DocSection id="endpoints" title="Endpoints">
+        {endpoints.length === 0 ? (
+          <p className="text-fg-2 text-sm">
+            No public endpoints are published in this build&apos;s API document.
+          </p>
+        ) : (
+          <DocTable
+            caption="Public /v1 endpoints"
+            columns={["Method", "Path", "Summary"]}
+            rows={endpoints.map((row) => ({
+              key: `${row.method}-${row.path}`,
+              cells: [row.method.toUpperCase(), row.path, row.summary],
+            }))}
+            monoColumns={[0, 1]}
+          />
+        )}
+      </DocSection>
 
-      <section className="flex flex-col gap-4">
-        <h2 className="text-xl font-semibold">sourceUrl imports</h2>
-        <p className="text-fg-2 text-sm">
+      <DocSection id="source-url" title="sourceUrl imports">
+        <p className="text-fg-1 text-sm">
           <code>POST /v1/projects</code> accepts a <code>sourceUrl</code> instead of an upload. The
           URL is fetched under an SSRF guard: https only, DNS resolved and every address checked
           against private/loopback/link-local/metadata ranges, the connection pinned to the vetted
           address so a later DNS change cannot redirect it, redirects re-validated the same way and
           capped at 3 hops, and a content-type allow-list (video/audio only).
         </p>
-      </section>
+      </DocSection>
 
-      <section className="flex flex-col gap-4">
-        <h2 className="text-xl font-semibold">Webhooks</h2>
-        <p className="text-fg-2 text-sm">
+      <DocSection id="webhooks" title="Webhooks">
+        <p className="text-fg-1 text-sm">
           Subscribe to any of the events below under{" "}
-          <strong>Settings → Developers → Webhooks</strong>. Retries follow 1m, 5m, 30m, 2h, 12h; an
-          endpoint that fails 20 deliveries in a row is disabled automatically.
+          <strong className="text-fg-0">Settings → Developers → Webhooks</strong>. Retries follow
+          1m, 5m, 30m, 2h, 12h; an endpoint that fails 20 deliveries in a row is disabled
+          automatically.
         </p>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr className="border-border border-b">
-                <th className="py-2 pr-4 font-medium">Event</th>
-                <th className="py-2 font-medium">Fires when</th>
-              </tr>
-            </thead>
-            <tbody>
-              {WEBHOOK_EVENT_ROWS.map((row) => (
-                <tr key={row.event} className="border-border/50 border-b">
-                  <td className="py-2 pr-4 font-mono text-xs">{row.event}</td>
-                  <td className="text-fg-1 py-2">{row.description}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        <h3 className="text-base font-semibold">Verify a webhook</h3>
-        <p className="text-fg-2 text-sm">
+        <DocTable
+          caption="Webhook events"
+          columns={["Event", "Fires when"]}
+          rows={WEBHOOK_EVENT_ROWS.map((row) => ({
+            key: row.event,
+            cells: [row.event, row.description],
+          }))}
+          monoColumns={[0]}
+        />
+        <h3 className="text-fg-0 mt-2 text-base font-semibold">Verify a webhook</h3>
+        <p className="text-fg-1 text-sm">
           Every delivery carries <code>X-Aksharo-Signature: t=&lt;unix&gt;,v1=&lt;hex&gt;</code>{" "}
           where <code>v1 = hmac_sha256(secret, t + &quot;.&quot; + body)</code>. Recompute it over
-          the *raw* request body — not a re-serialised copy — and compare in constant time.
+          the <em>raw</em> request body — not a re-serialised copy — and compare in constant time.
         </p>
         <CodeTabs
+          label="Verify a webhook signature"
           tabs={[
             { label: "curl", language: "bash", code: CURL_VERIFY_EXAMPLE },
             { label: "Node", language: "javascript", code: NODE_VERIFY_SNIPPET },
             { label: "Python", language: "python", code: PYTHON_VERIFY_SNIPPET },
           ]}
         />
-      </section>
+      </DocSection>
 
-      <section className="flex flex-col gap-4">
-        <h2 className="text-xl font-semibold">Errors</h2>
-        <p className="text-fg-2 text-sm">
+      <DocSection id="errors" title="Errors">
+        <p className="text-fg-1 text-sm">
           Every error is <code>{"{ code, message, details? }"}</code> with <code>code</code> as{" "}
           <code>namespace/slug</code> (e.g. <code>common/rate_limited</code>,{" "}
           <code>entitlement/upgrade_required</code>). A key missing a scope gets{" "}
           <code>common/forbidden</code> with the required scope in <code>details</code>.
         </p>
-      </section>
+      </DocSection>
+    </main>
+  );
+}
+
+const SECTIONS: readonly { id: string; label: string }[] = [
+  { id: "authentication", label: "Authentication" },
+  { id: "scopes", label: "Scopes" },
+  { id: "rate-limits", label: "Rate limits" },
+  { id: "idempotency", label: "Idempotency" },
+  { id: "endpoints", label: "Endpoints" },
+  { id: "source-url", label: "sourceUrl imports" },
+  { id: "webhooks", label: "Webhooks" },
+  { id: "errors", label: "Errors" },
+];
+
+/** One reference section: an anchored `h2` (Inter, not the display face) and its body. */
+function DocSection({
+  id,
+  title,
+  children,
+}: {
+  id: string;
+  title: string;
+  children: React.ReactNode;
+}): React.JSX.Element {
+  return (
+    <section id={id} aria-labelledby={`${id}-heading`} className="flex scroll-mt-6 flex-col gap-4">
+      <h2 id={`${id}-heading`} className="text-fg-0 text-xl font-semibold">
+        {title}
+      </h2>
+      {children}
+    </section>
+  );
+}
+
+/** A reference table: hairline rows, column headers scoped, horizontal scroll on narrow screens. */
+function DocTable({
+  caption,
+  columns,
+  rows,
+  monoColumns = [],
+}: {
+  caption: string;
+  columns: readonly string[];
+  rows: readonly { key: string; cells: readonly string[] }[];
+  monoColumns?: readonly number[];
+}): React.JSX.Element {
+  return (
+    <div
+      className="border-border overflow-x-auto rounded-md border"
+      role="region"
+      aria-label={caption}
+      tabIndex={0}
+    >
+      <table className="w-full border-collapse text-left text-sm">
+        <caption className="sr-only">{caption}</caption>
+        <thead className="bg-sunken">
+          <tr className="border-border border-b">
+            {columns.map((column) => (
+              <th key={column} scope="col" className="text-fg-2 px-4 py-2 text-xs font-medium">
+                {column}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody className="divide-border divide-y">
+          {rows.map((row) => (
+            <tr key={row.key}>
+              {row.cells.map((cell, index) => (
+                <td
+                  key={index}
+                  className={
+                    monoColumns.includes(index)
+                      ? "text-fg-0 px-4 py-2 font-mono text-xs whitespace-nowrap"
+                      : "text-fg-1 px-4 py-2"
+                  }
+                >
+                  {cell}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

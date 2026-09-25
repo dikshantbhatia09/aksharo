@@ -7,6 +7,7 @@ import type { Jurisdiction } from "@montaj/api-client";
 import { BRAND } from "@montaj/config";
 import { Button, Field, Input, Label, Switch } from "@montaj/ui";
 
+import { AUTH_LINK_CLASS } from "@/components/auth/auth-card";
 import { evaluateAge, JURISDICTION_LABEL, JURISDICTIONS } from "@/lib/privacy/age-gate";
 
 /**
@@ -104,18 +105,18 @@ export function AgeConsentStep({
       </Field>
 
       <fieldset className="flex flex-col gap-1.5">
-        <legend className="text-fg-1 mb-1.5 text-sm font-medium">Where are you?</legend>
+        <legend className="text-fg-1 mb-1.5 text-sm font-medium">Where do you live?</legend>
         <div className="flex flex-col gap-1">
           {JURISDICTIONS.map((jurisdiction) => (
             <label
               key={jurisdiction}
-              className="border-border hover:border-fg-2/60 flex cursor-pointer items-center gap-2.5 rounded-sm border px-3 py-2 text-sm"
+              className="border-border text-fg-0 hover:bg-neutral-100/5 has-[:checked]:border-accent has-[:checked]:ring-accent flex min-h-10 cursor-pointer items-center gap-2.5 rounded-sm border px-3 py-2 text-sm has-[:checked]:ring-1"
             >
               <input
                 type="radio"
                 name="jurisdiction"
                 value={jurisdiction}
-                className="accent-lime-500"
+                className="accent-accent size-4 shrink-0"
                 checked={value.jurisdiction === jurisdiction}
                 onChange={() => {
                   onChange({ ...value, jurisdiction });
@@ -128,7 +129,10 @@ export function AgeConsentStep({
         </div>
       </fieldset>
 
-      <div className="border-border flex flex-col gap-4 rounded-sm border p-4">
+      <fieldset className="border-border flex flex-col gap-4 rounded-sm border p-4">
+        <legend className="text-fg-1 px-1 text-sm font-medium">
+          Privacy choices (both optional)
+        </legend>
         <ConsentToggle
           id="consent-analytics"
           label="Product analytics"
@@ -147,15 +151,15 @@ export function AgeConsentStep({
             onChange({ ...value, memory });
           }}
         />
-      </div>
+      </fieldset>
 
       <p className="text-fg-2 text-xs">
         By continuing you accept our{" "}
-        <Link href="/legal/terms" className="text-lime-500 rounded-sm hover:underline">
+        <Link href="/legal/terms" className={AUTH_LINK_CLASS}>
           terms
         </Link>{" "}
         and have read the{" "}
-        <Link href="/legal/privacy" className="text-lime-500 rounded-sm hover:underline">
+        <Link href="/legal/privacy" className={AUTH_LINK_CLASS}>
           privacy notice
         </Link>
         .
@@ -174,7 +178,7 @@ export function AgeConsentStep({
         disabled={pending}
         data-testid="age-consent-submit"
       >
-        {pending ? "Working…" : submitLabel}
+        {pending ? "Creating your account…" : submitLabel}
       </Button>
     </form>
   );

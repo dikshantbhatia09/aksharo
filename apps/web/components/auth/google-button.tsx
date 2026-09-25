@@ -8,7 +8,8 @@ import { useRuntimeConfig } from "@/components/providers";
 
 /**
  * Google is the primary way in (brief §4), so it sits above the email form and
- * carries the accent.
+ * is the screen's one filled `primary` button. The email form's submit drops to
+ * `secondary` whenever this renders (login-form.tsx, signup-form.tsx).
  *
  * It is a full navigation, not a fetch: `/auth/oauth/google/start` answers with a
  * 302 to Google, and PKCE state only works if the browser actually goes there.
@@ -65,7 +66,7 @@ export function AuthDivider(): React.JSX.Element | null {
   return (
     <div className="flex items-center gap-3" aria-hidden="true">
       <span className="bg-border h-px flex-1" />
-      <span className="text-fg-2 text-2xs uppercase">or</span>
+      <span className="text-fg-2 text-xs">or</span>
       <span className="bg-border h-px flex-1" />
     </div>
   );

@@ -7,7 +7,7 @@ import * as React from "react";
 import { BRAND } from "@montaj/config";
 import { Button } from "@montaj/ui";
 
-import { AuthCard } from "@/components/auth/auth-card";
+import { AUTH_LINK_CLASS, AuthCard } from "@/components/auth/auth-card";
 
 /**
  * The https page that hands a desktop sign-in back to the app.
@@ -43,11 +43,12 @@ export function DesktopLandingView(): React.JSX.Element {
 
   if (deepLink === null) {
     return (
-      <AuthCard title="Something went wrong">
+      <AuthCard title="This sign-in link is incomplete">
         <p className="text-fg-2 text-sm" data-testid="landing-error">
-          This sign-in link is incomplete. Start again from the app.
+          The link is missing its sign-in code. Start again from the desktop app, or sign in here in
+          the browser.
         </p>
-        <Button variant="secondary" asChild>
+        <Button variant="primary" size="lg" asChild>
           <Link href="/login">Sign in on the web instead</Link>
         </Button>
       </AuthCard>
@@ -57,7 +58,7 @@ export function DesktopLandingView(): React.JSX.Element {
   return (
     <AuthCard
       title={`Return to ${BRAND.name}`}
-      subtitle="Opening the app. If nothing happens, use the button below."
+      subtitle="Opening the desktop app. If nothing happens, use the button below."
     >
       <Button variant="primary" size="lg" asChild data-testid="open-desktop-app">
         <a href={deepLink}>Open {BRAND.name}</a>
@@ -65,7 +66,7 @@ export function DesktopLandingView(): React.JSX.Element {
       <p className="text-fg-2 text-xs">
         Nothing opened? Make sure the desktop app is installed and running, then try again. You can
         also{" "}
-        <Link href="/login" className="text-lime-500 rounded-sm hover:underline">
+        <Link href="/login" className={AUTH_LINK_CLASS}>
           carry on in the browser
         </Link>
         .

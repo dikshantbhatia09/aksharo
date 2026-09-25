@@ -16,7 +16,7 @@ import * as React from "react";
 
 import { isApiError } from "@montaj/api-client";
 import type { EdgProjection } from "@montaj/render-core";
-import { Badge, Button, Textarea } from "@montaj/ui";
+import { Badge, Button, Field, Input, PageHeader, Textarea } from "@montaj/ui";
 
 import type { ShareReportCategory } from "@/lib/share/types";
 
@@ -41,13 +41,25 @@ const REPORT_CATEGORIES: readonly { value: ShareReportCategory; label: string }[
   { value: "other", label: "Other" },
 ];
 
+/** What each link scope lets the viewer do, in words (never the raw enum). */
+const SCOPE_LABEL: Record<"view" | "comment" | "approve", string> = {
+  view: "View only",
+  comment: "Can comment",
+  approve: "Can approve",
+};
+
+/** A native `<select>` dressed like the `Input` primitive. */
+const SELECT_CLASS =
+  "bg-sunken border-border text-fg-0 hover:border-border-hover h-9 w-full rounded-sm border px-3 text-sm";
+
 function ErrorNotice({ message }: { message: string }): React.JSX.Element {
   return (
-    <main className="mx-auto flex min-h-dvh max-w-md flex-col items-center justify-center gap-3 px-6 text-center">
-      <h1 className="text-fg-0 text-xl font-semibold">This link isn&apos;t available</h1>
-      <p className="text-fg-2 text-sm" data-testid="share-error">
-        {message}
-      </p>
+    <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center gap-4 px-4 py-12 sm:px-6">
+      <PageHeader
+        title="This link isn't available"
+        description={<span data-testid="share-error">{message}</span>}
+      />
+      <p className="text-fg-2 text-sm">Ask the person who sent it for a new review link.</p>
     </main>
   );
 }
@@ -57,32 +69,53 @@ function PasswordGate({ token }: { token: string }): React.JSX.Element {
   const unlock = useUnlockShareLink(token);
 
   return (
-    <main className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center gap-4 px-6">
-      <h1 className="text-fg-0 text-xl font-semibold">Password required</h1>
+    <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center gap-6 px-4 py-12 sm:px-6">
+      <PageHeader
+        title="Enter the password"
+        description="The owner protected this review link. Ask them for the password if you don't have it."
+      />
       <form
-        className="flex flex-col gap-3"
+        className="border-border bg-surface flex flex-col gap-4 rounded-md border p-5"
         onSubmit={(event) => {
           event.preventDefault();
           unlock.mutate(password);
         }}
       >
-        <input
-          type="password"
-          autoFocus
-          value={password}
-          onChange={(event) => setPassword(event.target.value)}
-          placeholder="Password"
-          className="border-border bg-bg-1 text-fg-0 rounded-md border px-3 py-2 text-sm"
-          data-testid="share-password-input"
-        />
-        <Button type="submit" disabled={unlock.isPending || password === ""}>
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="share-password" className="text-fg-1 text-sm font-medium">
+            Password
+          </label>
+          <Input
+            id="share-password"
+            type="password"
+            autoFocus
+            value={password}
+            invalid={unlock.isError}
+            {...(unlock.isError ? { "aria-describedby": "share-password-error" } : {})}
+            onChange={(event) => setPassword(event.target.value)}
+            data-testid="share-password-input"
+          />
+          {unlock.isError ? (
+            <p
+              id="share-password-error"
+              className="text-rejected text-xs"
+              role="alert"
+              data-testid="share-password-error"
+            >
+              {isApiError(unlock.error)
+                ? unlock.error.message
+                : "That password didn't work. Check it with the person who sent the link."}
+            </p>
+          ) : null}
+        </div>
+        <Button
+          type="submit"
+          variant="primary"
+          size="lg"
+          disabled={unlock.isPending || password === ""}
+        >
           {unlock.isPending ? "Checking…" : "Unlock"}
         </Button>
-        {unlock.isError ? (
-          <p className="text-sm text-red-400" data-testid="share-password-error">
-            {isApiError(unlock.error) ? unlock.error.message : "Incorrect password."}
-          </p>
-        ) : null}
       </form>
     </main>
   );
@@ -98,7 +131,7 @@ function ReportAbuseForm({ token }: { token: string }): React.JSX.Element {
     return (
       <button
         type="button"
-        className="text-fg-2 hover:text-fg-0 text-xs underline"
+        className="text-fg-2 hover:text-fg-0 inline-flex min-h-8 items-center self-start rounded-sm text-xs underline underline-offset-4"
         data-testid="report-abuse-open"
         onClick={() => setOpen(true)}
       >
@@ -109,27 +142,34 @@ function ReportAbuseForm({ token }: { token: string }): React.JSX.Element {
 
   if (report.isSuccess) {
     return (
-      <p className="text-fg-2 text-xs" data-testid="report-abuse-ack">
-        Thank you — your report was received and will be reviewed.
+      <p className="text-fg-1 text-xs" data-testid="report-abuse-ack" role="status">
+        Report received. It will be reviewed.
       </p>
     );
   }
 
   return (
     <form
-      className="border-border bg-bg-1 flex flex-col gap-2 rounded-md border p-3 text-xs"
+      className="border-border bg-surface flex max-w-md flex-col gap-4 rounded-md border p-5"
       data-testid="report-abuse-form"
+      aria-labelledby="report-abuse-heading"
       onSubmit={(event) => {
         event.preventDefault();
         report.mutate({ category, reporterContact: contact === "" ? undefined : contact });
       }}
     >
-      <label className="flex flex-col gap-1">
-        Reason
+      <h2 id="report-abuse-heading" className="text-fg-0 text-sm font-semibold">
+        Report this content
+      </h2>
+      <div className="flex flex-col gap-1.5">
+        <label htmlFor="report-abuse-category" className="text-fg-1 text-sm font-medium">
+          Reason
+        </label>
         <select
+          id="report-abuse-category"
           value={category}
           onChange={(event) => setCategory(event.target.value as ShareReportCategory)}
-          className="border-border bg-bg-0 rounded-md border px-2 py-1"
+          className={SELECT_CLASS}
           data-testid="report-abuse-category"
         >
           {REPORT_CATEGORIES.map((option) => (
@@ -138,22 +178,32 @@ function ReportAbuseForm({ token }: { token: string }): React.JSX.Element {
             </option>
           ))}
         </select>
-      </label>
-      <label className="flex flex-col gap-1">
-        Your contact (optional)
-        <input
+      </div>
+      <Field
+        label="Your email or phone (optional)"
+        htmlFor="report-abuse-contact"
+        hint="Only used if the reviewer needs to reach you about this report."
+      >
+        <Input
+          id="report-abuse-contact"
           type="text"
           value={contact}
           onChange={(event) => setContact(event.target.value)}
-          className="border-border bg-bg-0 rounded-md border px-2 py-1"
           data-testid="report-abuse-contact"
         />
-      </label>
-      <div className="flex gap-2">
-        <Button type="submit" size="sm" disabled={report.isPending}>
+      </Field>
+      {report.isError ? (
+        <p className="text-rejected text-xs" role="alert">
+          {isApiError(report.error)
+            ? report.error.message
+            : "The report didn't send. Check your connection and try again."}
+        </p>
+      ) : null}
+      <div className="flex flex-wrap gap-2">
+        <Button type="submit" variant="secondary" disabled={report.isPending}>
           {report.isPending ? "Sending…" : "Send report"}
         </Button>
-        <Button type="button" variant="ghost" size="sm" onClick={() => setOpen(false)}>
+        <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
           Cancel
         </Button>
       </div>
@@ -164,9 +214,12 @@ function ReportAbuseForm({ token }: { token: string }): React.JSX.Element {
 function CommentsPanel({
   token,
   canComment,
+  isPrimaryAction,
 }: {
   token: string;
   canComment: boolean;
+  /** True when posting a comment is the page's main action (no approve bar). */
+  isPrimaryAction: boolean;
 }): React.JSX.Element {
   const comments = useShareComments(token, true);
   const addComment = useAddShareComment(token);
@@ -176,29 +229,49 @@ function CommentsPanel({
 
   return (
     <section className="flex flex-col gap-3" data-testid="share-comments" aria-label="Comments">
-      <h2 className="text-fg-0 text-sm font-semibold">
+      <h2 className="text-fg-0 text-base font-semibold">
         Comments{comments.data === undefined ? "" : ` (${String(comments.data.length)})`}
       </h2>
-      <ul className="flex flex-col gap-2">
-        {(comments.data ?? []).map((comment) => (
-          <li
-            key={comment.id}
-            className="border-border bg-bg-1 rounded-md border p-2 text-sm"
-            data-testid="share-comment-item"
-          >
-            <div className="text-fg-2 flex items-center gap-2 text-xs">
-              <span>{comment.authorName ?? "Workspace member"}</span>
-              {comment.atMs === null ? null : (
-                <Badge tone="neutral">{formatTimestamp(comment.atMs)}</Badge>
-              )}
-            </div>
-            <p className="text-fg-0">{comment.body}</p>
-          </li>
-        ))}
-      </ul>
+      {comments.isPending ? (
+        <p className="text-fg-2 text-sm" role="status">
+          Loading comments…
+        </p>
+      ) : comments.isError ? (
+        <p className="text-rejected text-sm" role="alert">
+          Comments didn&apos;t load. Refresh the page to try again.
+        </p>
+      ) : (comments.data ?? []).length === 0 ? (
+        <p className="text-fg-2 text-sm">
+          {canComment ? "No comments yet. Add the first one below." : "No comments yet."}
+        </p>
+      ) : (
+        <ul className="border-border bg-surface divide-border flex flex-col divide-y rounded-md border">
+          {(comments.data ?? []).map((comment) => (
+            <li
+              key={comment.id}
+              className="flex flex-col gap-1 px-4 py-3 text-sm"
+              data-testid="share-comment-item"
+            >
+              <div className="text-fg-2 flex items-center gap-2 text-xs">
+                <span className="text-fg-1 font-medium">
+                  {comment.authorName ?? "Workspace member"}
+                </span>
+                {comment.atMs === null ? null : (
+                  <Badge tone="neutral" className="font-mono">
+                    <span className="sr-only">at </span>
+                    {formatTimestamp(comment.atMs)}
+                  </Badge>
+                )}
+              </div>
+              <p className="text-fg-0 break-words whitespace-pre-line">{comment.body}</p>
+            </li>
+          ))}
+        </ul>
+      )}
       {canComment ? (
         <form
-          className="flex flex-col gap-2"
+          className="border-border bg-surface flex flex-col gap-4 rounded-md border p-5"
+          aria-label="Add a comment"
           onSubmit={(event) => {
             event.preventDefault();
             if (body.trim() === "") return;
@@ -211,34 +284,60 @@ function CommentsPanel({
             );
           }}
         >
-          <div className="flex gap-2">
-            <input
-              type="text"
-              placeholder="Your name"
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              className="border-border bg-bg-1 text-fg-0 flex-1 rounded-md border px-2 py-1 text-sm"
-              data-testid="comment-author-name"
-            />
-            <input
-              type="email"
-              placeholder="Email (optional)"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              className="border-border bg-bg-1 text-fg-0 flex-1 rounded-md border px-2 py-1 text-sm"
-              data-testid="comment-author-email"
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field
+              label="Your name"
+              htmlFor="comment-author-name"
+              hint="Shown next to your comment."
+            >
+              <Input
+                id="comment-author-name"
+                type="text"
+                autoComplete="name"
+                required
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                data-testid="comment-author-name"
+              />
+            </Field>
+            <Field
+              label="Email (optional)"
+              htmlFor="comment-author-email"
+              hint="Only the project owner sees it."
+            >
+              <Input
+                id="comment-author-email"
+                type="email"
+                autoComplete="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                data-testid="comment-author-email"
+              />
+            </Field>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="comment-body" className="text-fg-1 text-sm font-medium">
+              Comment
+            </label>
+            <Textarea
+              id="comment-body"
+              value={body}
+              onChange={(event) => setBody(event.target.value)}
+              placeholder="What should change, and where?"
+              rows={3}
+              data-testid="comment-body"
             />
           </div>
-          <Textarea
-            value={body}
-            onChange={(event) => setBody(event.target.value)}
-            placeholder="Leave a comment…"
-            rows={2}
-            data-testid="comment-body"
-          />
+          {addComment.isError ? (
+            <p className="text-rejected text-xs" role="alert">
+              {isApiError(addComment.error)
+                ? addComment.error.message
+                : "Your comment didn't post. Check your connection and try again."}
+            </p>
+          ) : null}
           <Button
             type="submit"
-            size="sm"
+            variant={isPrimaryAction ? "primary" : "secondary"}
             className="self-end"
             disabled={addComment.isPending || body.trim() === "" || name.trim() === ""}
           >
@@ -246,7 +345,7 @@ function CommentsPanel({
           </Button>
         </form>
       ) : (
-        <p className="text-fg-2 text-xs">This link does not allow comments.</p>
+        <p className="text-fg-2 text-sm">This link is view only, so comments are turned off.</p>
       )}
     </section>
   );
@@ -271,38 +370,66 @@ function DecisionBar({
   if (reviewStatus === "approved" || reviewStatus === "changes_requested") {
     return (
       <div
-        className="border-border bg-bg-1 flex items-center justify-between rounded-md border p-3"
+        className="border-border bg-surface flex flex-wrap items-center justify-between gap-3 rounded-md border px-5 py-4"
         data-testid="share-decision-recorded"
       >
-        <span className="text-fg-0 text-sm">
-          {reviewStatus === "approved" ? "Approved" : "Changes requested"}
+        <span className="text-fg-0 flex items-center gap-2 text-sm">
+          <Badge tone={reviewStatus === "approved" ? "accepted" : "proposed"}>
+            {reviewStatus === "approved" ? "Approved" : "Changes requested"}
+          </Badge>
+          <span className="text-fg-2">Your decision is recorded.</span>
         </span>
         <Button
           variant="ghost"
-          size="sm"
+          disabled={decide.isPending}
           onClick={() =>
             decide.mutate(reviewStatus === "approved" ? "changes_requested" : "approved")
           }
         >
-          Change decision
+          {reviewStatus === "approved" ? "Request changes instead" : "Approve instead"}
         </Button>
+        {decide.isError ? (
+          <p className="text-rejected w-full text-xs" role="alert">
+            {isApiError(decide.error)
+              ? decide.error.message
+              : "Your decision didn't save. Try again."}
+          </p>
+        ) : null}
       </div>
     );
   }
 
   return (
-    <div className="flex gap-2" data-testid="share-decision-bar">
-      <Button onClick={() => decide.mutate("approved")} disabled={decide.isPending}>
-        Approve
-      </Button>
-      <Button
-        variant="secondary"
-        onClick={() => decide.mutate("changes_requested")}
-        disabled={decide.isPending}
-      >
-        Request changes
-      </Button>
-    </div>
+    <section
+      className="border-border bg-surface flex flex-col gap-3 rounded-md border px-5 py-4 sm:flex-row sm:items-center sm:justify-between"
+      aria-label="Your decision"
+      data-testid="share-decision-bar"
+    >
+      <p className="text-fg-1 text-sm">Ready to sign off, or does it need another pass?</p>
+      <div className="flex flex-wrap gap-2">
+        <Button
+          variant="primary"
+          onClick={() => decide.mutate("approved")}
+          disabled={decide.isPending}
+        >
+          Approve
+        </Button>
+        <Button
+          variant="secondary"
+          onClick={() => decide.mutate("changes_requested")}
+          disabled={decide.isPending}
+        >
+          Request changes
+        </Button>
+      </div>
+      {decide.isError ? (
+        <p className="text-rejected text-xs sm:w-full" role="alert">
+          {isApiError(decide.error)
+            ? decide.error.message
+            : "Your decision didn't save. Try again."}
+        </p>
+      ) : null}
+    </section>
   );
 }
 
@@ -324,8 +451,10 @@ export function ShareViewer({ token }: { token: string }): React.JSX.Element {
 
   if (resolve.isPending) {
     return (
-      <main className="flex min-h-dvh items-center justify-center">
-        <p className="text-fg-2 text-sm">Loading…</p>
+      <main className="flex min-h-dvh items-center justify-center px-4">
+        <p className="text-fg-2 text-sm" role="status">
+          Opening the review link…
+        </p>
       </main>
     );
   }
@@ -358,17 +487,16 @@ export function ShareViewer({ token }: { token: string }): React.JSX.Element {
   const projection = (preview.data?.projection ?? emptyProjection()) as EdgProjection;
 
   return (
-    <main className="mx-auto flex min-h-dvh max-w-4xl flex-col gap-6 px-6 py-10">
-      <header className="flex items-center justify-between">
-        <h1 className="text-fg-0 text-xl font-semibold" data-testid="share-title">
-          {data.title}
-        </h1>
-        <Badge tone="accent">{data.scope}</Badge>
-      </header>
+    <main className="mx-auto flex min-h-dvh w-full max-w-4xl flex-col gap-8 px-4 py-10 sm:px-6">
+      <PageHeader
+        eyebrow="Shared for review"
+        title={<span data-testid="share-title">{data.title}</span>}
+        actions={<Badge tone="neutral">{SCOPE_LABEL[data.scope]}</Badge>}
+      />
 
       <div
         ref={stageRef}
-        className="max-h-[70dvh] max-w-full self-center overflow-hidden rounded-lg"
+        className="bg-ink max-h-[70dvh] max-w-full self-center overflow-hidden rounded-lg"
         style={{
           aspectRatio: aspectRatioOf(projection.canvas),
           // A `self-center` box with only `aspect-ratio` has no size basis at
@@ -380,11 +508,13 @@ export function ShareViewer({ token }: { token: string }): React.JSX.Element {
         }}
       >
         {preview.isPending ? (
-          <div className="bg-bg-1 flex h-full w-full items-center justify-center">
-            <p className="text-fg-2 text-sm">Loading preview…</p>
+          <div className="bg-ink flex h-full w-full items-center justify-center px-4 text-center">
+            <p className="text-fg-2 text-sm" role="status">
+              Loading the preview…
+            </p>
           </div>
         ) : preview.isError || preview.data === undefined ? (
-          <div className="bg-bg-1 flex h-full w-full items-center justify-center">
+          <div className="bg-ink flex h-full w-full items-center justify-center px-4 text-center">
             <p className="text-fg-2 text-sm">
               {isApiError(preview.error)
                 ? preview.error.message
@@ -405,14 +535,21 @@ export function ShareViewer({ token }: { token: string }): React.JSX.Element {
         <DecisionBar token={token} reviewStatus={data.reviewStatus} />
       ) : null}
 
-      <CommentsPanel token={token} canComment={data.scope !== "view"} />
+      <CommentsPanel
+        token={token}
+        canComment={data.scope !== "view"}
+        isPrimaryAction={data.scope === "comment"}
+      />
 
-      <footer className="border-border text-fg-2 flex flex-col gap-2 border-t pt-4 text-xs">
+      <footer className="border-border text-fg-2 flex flex-col gap-3 border-t pt-5 text-xs">
         <ReportAbuseForm token={token} />
         <p>{ATTRIBUTION_LINE}</p>
         <p>
           Grievance officer:{" "}
-          <a href={`mailto:${GRIEVANCE_OFFICER.email}`} className="underline">
+          <a
+            href={`mailto:${GRIEVANCE_OFFICER.email}`}
+            className="text-fg-1 hover:text-fg-0 rounded-sm underline underline-offset-4"
+          >
             {GRIEVANCE_OFFICER.email}
           </a>
         </p>
