@@ -290,7 +290,7 @@ function DocTable({
 }): React.JSX.Element {
   return (
     <div
-      className="border-border overflow-x-auto rounded-md border"
+      className="border-border relative overflow-x-auto rounded-md border"
       role="region"
       aria-label={caption}
       tabIndex={0}

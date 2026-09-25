@@ -188,7 +188,7 @@ export function ProjectTable({
 
   return (
     <div
-      className="border-border bg-surface min-w-0 overflow-x-auto rounded-md border px-3 pt-1 pb-2"
+      className="border-border bg-surface relative min-w-0 overflow-x-auto rounded-md border px-3 pt-1 pb-2"
       data-testid="project-table"
     >
       <table className="w-full border-collapse text-sm [&_td]:px-1.5 [&_td]:py-1.5 [&_th]:px-1.5 [&_th]:py-1.5">
