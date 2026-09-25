@@ -138,6 +138,16 @@ describe("promoteToRaw", () => {
     expect(raw.put).not.toHaveBeenCalled();
   });
 
+  // A re-cut writes new bytes to the same key; the stale raw copy must go.
+  it("replaces an existing raw copy when asked to overwrite", async () => {
+    const raw = fakeStore("s3", { [KEY]: 1_000 });
+    const derived = fakeStore("r2", { [KEY]: 4_096 });
+    await expect(
+      promoteToRaw({ raw, derived }, KEY, "video/mp4", { overwrite: true }),
+    ).resolves.toBe(true);
+    expect(await raw.head(KEY)).toMatchObject({ sizeBytes: 4_096 });
+  });
+
   it("refuses when neither store has it", async () => {
     await expect(
       promoteToRaw({ raw: fakeStore("s3"), derived: fakeStore("r2") }, KEY, "video/mp4"),

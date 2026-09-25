@@ -562,6 +562,25 @@ describe.skipIf(!CAN_RUN)("repurpose full chain execution and failure paths", ()
     await clipHandler.handle(clipContext);
     expect(acquired).toHaveLength(1);
 
+    // A re-cut (profile "2" replacing a burned-in-captions cut): new bytes at
+    // the same key. The child's picture is replaced and goes back through the
+    // pipeline; its transcript and project stay.
+    derivedObjects.set(mezzanineKey, new Uint8Array(8_192));
+    rawObjects.set(mezzanineKey, new Uint8Array(4_096)); // the stale, burned-in copy
+    await prisma.repurposeRun.update({ where: { id: runId }, data: { status: "materializing" } });
+    const recutResult = { ...mediaClipResult, checksum: "f".repeat(64), sizeBytes: 8_192 };
+    await clipHandler.handle({
+      ...clipContext,
+      result: recutResult,
+      completion: { status: "succeeded", result: recutResult },
+    });
+    const recut = await prisma.mediaAsset.findUniqueOrThrow({ where: { id: childMedia.id } });
+    expect(recut.status).toBe("pending");
+    expect(recut.contentHash).toBe("f".repeat(64));
+    expect(rawObjects.get(mezzanineKey)?.length).toBe(8_192);
+    expect(acquired).toHaveLength(2);
+    expect(await prisma.transcript.count({ where: { projectId: variant.projectId } })).toBe(1);
+
     // 7. Advance to terminal state (published)
     await prisma.repurposeRun.update({
       where: { id: runId },

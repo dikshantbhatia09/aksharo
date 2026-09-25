@@ -33,8 +33,10 @@ export async function promoteToRaw(
   stores: { readonly raw: ObjectStore; readonly derived: ObjectStore },
   key: string,
   contentType: string,
+  /** Replace a raw copy that is already there (a re-cut wrote new bytes to the same key). */
+  options: { readonly overwrite?: boolean } = {},
 ): Promise<boolean> {
-  if ((await stores.raw.head(key)) !== null) return false;
+  if (options.overwrite !== true && (await stores.raw.head(key)) !== null) return false;
   const source = await stores.derived.head(key);
   if (source === null) {
     throw new Error(`${key} is in neither the raw nor the derived store`);

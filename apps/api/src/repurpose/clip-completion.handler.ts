@@ -270,6 +270,37 @@ export class RepurposeClipCompletionHandler implements JobCompletionHandler, OnM
       );
     }
 
+    // 5b. A re-cut of a clip that already has its picture — a new profile (e.g.
+    //     "2", which stopped burning captions in) writing new bytes to the same
+    //     key. Replace the child's picture and send it through the pipeline
+    //     again; the editing document stays (same words, same range), so edits
+    //     made to the captions survive. Recognised by the checksum, so a
+    //     replayed completion of the SAME cut changes nothing.
+    const recut =
+      childMedia.contentHash !== null &&
+      childMedia.contentHash !== result.checksum &&
+      !["pending", "uploading", "uploaded"].includes(childMedia.status);
+    if (recut) {
+      await promoteToRaw({ raw: this.raw, derived: this.derived }, result.key, "video/mp4", {
+        overwrite: true,
+      });
+      childMedia = await this.prisma.mediaAsset.update({
+        where: { id: childMedia.id },
+        data: {
+          storageKey: result.key,
+          sizeBytes: BigInt(result.sizeBytes),
+          contentHash: result.checksum,
+          durationMs: result.durationMs,
+          status: "pending",
+          failureReason: null,
+        },
+      });
+      this.logger.log(
+        { clipId: clip.id, mediaId: childMedia.id },
+        "re-cut clip: replacing the child project's picture and re-running its media pipeline",
+      );
+    }
+
     // 6. Start the ordinary media pipeline for the mezzanine — after the
     //    transcript clone, so the proxy's completion finds it. Only for media that
     //    has not entered it yet: a replayed completion must not knock an already
