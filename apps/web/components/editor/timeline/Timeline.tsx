@@ -71,6 +71,7 @@ import {
   zoomAround,
   type Viewport,
 } from "@/lib/timeline/coords";
+import { coverCrop, filmstripTiles } from "@/lib/timeline/filmstrip";
 import {
   decodeItemKeyframes,
   keyframeMarkersOf,
@@ -139,6 +140,19 @@ const CANVAS = {
   seam: "rgba(11,10,12,0.4)",
   info: "#7fa6f5", // --color-info
 } as const;
+/**
+ * The filmstrip's own chrome, from the same tokens: `--color-surface` under a
+ * frame still loading, `--color-ink` for the line between frames (the video
+ * canvas colour, the one near-black), and a faint `--color-fg-0` edge.
+ */
+const FILMSTRIP_EMPTY = "#1f1c23";
+const FILMSTRIP_FRAME_LINE = "rgba(11, 10, 12, 0.85)";
+const FILMSTRIP_EDGE = "rgba(241, 236, 230, 0.08)";
+/** Frame shape to lay tiles out at before any thumbnail has decoded. */
+const FILMSTRIP_FALLBACK_ASPECT = 16 / 9;
+const FILMSTRIP_RADIUS = 6;
+/** Air above and below the strip inside its lane, CSS px. */
+const FILMSTRIP_INSET_Y = 4;
 import {
   reduceWaveform,
   waveformDrawWindow,
@@ -744,38 +758,61 @@ export function Timeline(props: TimelineProps): React.JSX.Element {
       ctx.globalAlpha = 1;
     }
 
-    // K03: video filmstrip — up to `THUMBNAIL_COUNT` (worker-media,
-    // evenly-spaced midpoints of the whole clip) presigned JPEGs, each
-    // stretched across its own `1/count` slice of the timeline. Virtualised
-    // the same way the waveform is: a slice outside `[startMs, endMs]` is
-    // skipped, so drawing never costs more than the (at most ten) slices
-    // actually on screen, regardless of zoom.
-    if (thumbnails !== undefined && thumbnails.length > 0) {
-      ctx.fillStyle = CANVAS.sunken;
-      ctx.fillRect(0, laneTops.thumbTop, widthPx, THUMB_LANE_HEIGHT);
-      const count = thumbnails.length;
-      for (const [index, url] of thumbnails.entries()) {
-        const sliceStartMs = Math.floor((durationMs * index) / count);
-        const sliceEndMs = Math.floor((durationMs * (index + 1)) / count);
-        if (sliceEndMs < startMs || sliceStartMs > endMs) continue;
-        const x0 = msToPx(sliceStartMs, viewport);
-        const x1 = msToPx(sliceEndMs, viewport);
-        const w = Math.max(1, x1 - x0);
-        const img = getThumbImage(url);
-        if (img.complete && img.naturalWidth > 0) {
-          ctx.drawImage(img, x0, laneTops.thumbTop + 3, w, THUMB_LANE_HEIGHT - 7);
-        } else {
-          ctx.fillStyle = CANVAS.wash;
-          ctx.fillRect(x0, laneTops.thumbTop, w, THUMB_LANE_HEIGHT);
+    // K03: video filmstrip. Frame-shaped tiles at the video's own aspect
+    // ratio, repeated along the lane and anchored to time, each showing the
+    // nearest of worker-media's thumbnails with a "cover" crop — never one
+    // thumbnail stretched across a tenth of the timeline, which drew a 9:16
+    // frame about nine times too wide (2026-09-25; `lib/timeline/filmstrip.ts`).
+    if (thumbnails !== undefined && thumbnails.length > 0 && durationMs > 0) {
+      const top = laneTops.thumbTop + FILMSTRIP_INSET_Y;
+      const height = THUMB_LANE_HEIGHT - FILMSTRIP_INSET_Y * 2;
+      const stripX0 = msToPx(0, viewport);
+      const stripX1 = msToPx(durationMs, viewport);
+      const loaded = thumbnails
+        .map((url) => getThumbImage(url))
+        .find((img) => img.complete && img.naturalWidth > 0);
+      const aspect =
+        loaded === undefined ? FILMSTRIP_FALLBACK_ASPECT : loaded.naturalWidth / loaded.naturalHeight;
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.roundRect(stripX0, top, stripX1 - stripX0, height, FILMSTRIP_RADIUS);
+      ctx.clip();
+      ctx.fillStyle = FILMSTRIP_EMPTY;
+      ctx.fillRect(stripX0, top, stripX1 - stripX0, height);
+      const tiles = filmstripTiles({
+        durationMs,
+        thumbCount: thumbnails.length,
+        aspect,
+        tileHeightPx: height,
+        viewport,
+        startMs,
+        endMs,
+      });
+      for (const tile of tiles) {
+        const url = thumbnails[tile.thumbIndex];
+        const img = url === undefined ? undefined : getThumbImage(url);
+        if (img !== undefined && img.complete && img.naturalWidth > 0) {
+          const crop = coverCrop(
+            { width: img.naturalWidth, height: img.naturalHeight },
+            tile.w,
+            height,
+          );
+          ctx.drawImage(img, crop.sx, crop.sy, crop.sw, crop.sh, tile.x, top, tile.w, height);
         }
-        if (index > 0) {
-          ctx.strokeStyle = CANVAS.seam;
-          ctx.beginPath();
-          ctx.moveTo(x0 + 0.5, laneTops.thumbTop);
-          ctx.lineTo(x0 + 0.5, laneTops.thumbTop + THUMB_LANE_HEIGHT);
-          ctx.stroke();
+        // A hairline of the canvas ink between frames, like a film's frame line.
+        if (tile.x > stripX0 + 0.5) {
+          ctx.fillStyle = FILMSTRIP_FRAME_LINE;
+          ctx.fillRect(Math.round(tile.x), top, 1, height);
         }
       }
+      ctx.restore();
+      // A faint inner edge so the strip reads as one object on the rail.
+      ctx.strokeStyle = FILMSTRIP_EDGE;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.roundRect(stripX0 + 0.5, top + 0.5, stripX1 - stripX0 - 1, height - 1, FILMSTRIP_RADIUS);
+      ctx.stroke();
     }
 
     // Waveform: bounded to the media's own `durationMs`, in canvas pixels —
