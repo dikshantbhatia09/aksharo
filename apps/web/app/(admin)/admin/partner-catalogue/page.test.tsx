@@ -47,6 +47,10 @@ describe("AdminPartnerCatalogueGrantsPage (D04b2 scope §5)", () => {
     await act(async () => {
       revokeButton.click();
     });
+    // Revoking asks first (ConfirmAction); confirm it.
+    await act(async () => {
+      (await screen.findByRole("button", { name: "Revoke grant" })).click();
+    });
 
     await waitFor(() => {
       expect(adminFetchMock).toHaveBeenCalledWith("/admin/partner-catalogue/grants/g1/revoke", {

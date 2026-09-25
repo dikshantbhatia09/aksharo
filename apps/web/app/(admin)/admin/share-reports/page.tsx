@@ -2,7 +2,7 @@
 
 import * as React from "react";
 
-import { Button, Input, PageHeader } from "@montaj/ui";
+import { Button, ConfirmAction, Input, PageHeader } from "@montaj/ui";
 
 import {
   AdminEmpty,
@@ -87,13 +87,18 @@ export default function AdminShareReportsPage(): React.JSX.Element {
                   className="h-8 sm:max-w-80"
                 />
                 <div className="flex gap-2">
-                  <Button
-                    variant="danger"
-                    size="sm"
-                    onClick={() => void resolve(report.id, "take_down")}
-                  >
-                    Take down
-                  </Button>
+                  <ConfirmAction
+                    title="Take this shared video down?"
+                    description="The share link stops working for everyone and the report is closed as taken down."
+                    confirmLabel="Take it down"
+                    confirmTestId={`confirm-take-down-${report.id}`}
+                    onConfirm={() => resolve(report.id, "take_down")}
+                    trigger={
+                      <Button variant="danger" size="sm">
+                        Take down
+                      </Button>
+                    }
+                  />
                   <Button
                     variant="secondary"
                     size="sm"

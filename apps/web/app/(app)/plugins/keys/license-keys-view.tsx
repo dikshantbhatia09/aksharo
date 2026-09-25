@@ -13,6 +13,7 @@ import {
   Badge,
   Button,
   Card,
+  ConfirmAction,
   Dialog,
   DialogContent,
   DialogDescription,
@@ -219,13 +220,12 @@ export function LicenseKeysView({
                   </p>
                 </div>
                 {isAdmin && key.revokedAt === null ? (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    disabled={revoke.isPending}
-                    aria-label={`Revoke ${key.label ?? "untitled key"}`}
-                    data-testid={`revoke-key-${key.id}`}
-                    onClick={() => {
+                  <ConfirmAction
+                    title={`Revoke ${key.label ?? "this licence key"}?`}
+                    description="Every plugin activated with it stops working at its next check. This can't be undone; you can create a new key."
+                    confirmLabel="Revoke key"
+                    confirmTestId={`confirm-revoke-key-${key.id}`}
+                    onConfirm={() => {
                       revoke.mutate(key.id, {
                         onError: (error) =>
                           toast.error("Could not revoke that key", {
@@ -233,9 +233,18 @@ export function LicenseKeysView({
                           }),
                       });
                     }}
-                  >
-                    Revoke
-                  </Button>
+                    trigger={
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={revoke.isPending}
+                        aria-label={`Revoke ${key.label ?? "untitled key"}`}
+                        data-testid={`revoke-key-${key.id}`}
+                      >
+                        Revoke
+                      </Button>
+                    }
+                  />
                 ) : null}
               </li>
             ))}

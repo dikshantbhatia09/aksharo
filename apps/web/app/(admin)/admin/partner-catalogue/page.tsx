@@ -2,7 +2,7 @@
 
 import * as React from "react";
 
-import { Badge, Button, PageHeader } from "@montaj/ui";
+import { Badge, Button, ConfirmAction, PageHeader } from "@montaj/ui";
 
 import {
   AdminError,
@@ -102,14 +102,18 @@ export default function AdminPartnerCatalogueGrantsPage(): React.JSX.Element {
                 <td className={td}>{grant.reportStatus}</td>
                 <td className={`${td} text-right`}>
                   {grant.status === "active" && (
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      disabled={revokingId === grant.id}
-                      onClick={() => void revoke(grant.id)}
-                    >
-                      {revokingId === grant.id ? "Revoking…" : "Revoke"}
-                    </Button>
+                    <ConfirmAction
+                      title="Revoke this partner grant?"
+                      description="The partner loses access to the catalogue straight away. Granting it again creates a new grant."
+                      confirmLabel="Revoke grant"
+                      confirmTestId={`confirm-revoke-grant-${grant.id}`}
+                      onConfirm={() => revoke(grant.id)}
+                      trigger={
+                        <Button variant="secondary" size="sm" disabled={revokingId === grant.id}>
+                          {revokingId === grant.id ? "Revoking…" : "Revoke"}
+                        </Button>
+                      }
+                    />
                   )}
                 </td>
               </tr>

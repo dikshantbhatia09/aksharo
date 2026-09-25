@@ -24,6 +24,7 @@ import {
   Button,
   Card,
   Checkbox,
+  ConfirmAction,
   Dialog,
   DialogContent,
   DialogDescription,
@@ -167,12 +168,12 @@ function ApiKeysCard(): React.JSX.Element {
                     >
                       <RefreshCw aria-hidden="true" /> Rotate
                     </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      disabled={revoke.isPending}
-                      data-testid={`revoke-${key.id}`}
-                      onClick={() => {
+                    <ConfirmAction
+                      title="Revoke this API key?"
+                      description="Anything using it stops working straight away. This can't be undone; you can create a new key."
+                      confirmLabel="Revoke key"
+                      confirmTestId={`confirm-revoke-${key.id}`}
+                      onConfirm={() => {
                         revoke.mutate(key.id, {
                           onError: (error) =>
                             toast.error("Could not revoke that key", {
@@ -180,9 +181,17 @@ function ApiKeysCard(): React.JSX.Element {
                             }),
                         });
                       }}
-                    >
-                      <Trash2 aria-hidden="true" /> Revoke
-                    </Button>
+                      trigger={
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          disabled={revoke.isPending}
+                          data-testid={`revoke-${key.id}`}
+                        >
+                          <Trash2 aria-hidden="true" /> Revoke
+                        </Button>
+                      }
+                    />
                   </div>
                 ) : null}
               </Card>
@@ -380,16 +389,24 @@ function WebhooksCard(): React.JSX.Element {
                     >
                       {logEndpointId === endpoint.id ? "Hide log" : "Delivery log"}
                     </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      disabled={remove.isPending}
-                      data-testid={`delete-${endpoint.id}`}
-                      aria-label={`Delete webhook ${endpoint.url}`}
-                      onClick={() => remove.mutate(endpoint.id)}
-                    >
-                      <Trash2 aria-hidden="true" />
-                    </Button>
+                    <ConfirmAction
+                      title="Delete this webhook?"
+                      description={`Aksharo stops sending events to ${endpoint.url}, and its delivery log goes with it.`}
+                      confirmLabel="Delete webhook"
+                      confirmTestId={`confirm-delete-${endpoint.id}`}
+                      onConfirm={() => remove.mutate(endpoint.id)}
+                      trigger={
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          disabled={remove.isPending}
+                          data-testid={`delete-${endpoint.id}`}
+                          aria-label={`Delete webhook ${endpoint.url}`}
+                        >
+                          <Trash2 aria-hidden="true" />
+                        </Button>
+                      }
+                    />
                   </div>
                 </div>
                 {logEndpointId === endpoint.id ? <DeliveryLog endpointId={endpoint.id} /> : null}

@@ -18,6 +18,7 @@ import {
   Badge,
   Button,
   Card,
+  ConfirmAction,
   Dialog,
   DialogContent,
   DialogDescription,
@@ -420,15 +421,23 @@ function MemberRow({
           </Button>
         ) : null}
         {canManage ? (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onRemove}
-            aria-label={`Remove ${member.name ?? member.email ?? "member"}`}
-            data-testid={`remove-${member.id}`}
-          >
-            Remove
-          </Button>
+          <ConfirmAction
+            title={`Remove ${member.name ?? member.email ?? "this member"}?`}
+            description="They lose access to this workspace and its projects straight away. You can invite them again later."
+            confirmLabel="Remove member"
+            confirmTestId={`confirm-remove-${member.id}`}
+            onConfirm={onRemove}
+            trigger={
+              <Button
+                variant="ghost"
+                size="sm"
+                aria-label={`Remove ${member.name ?? member.email ?? "member"}`}
+                data-testid={`remove-${member.id}`}
+              >
+                Remove
+              </Button>
+            }
+          />
         ) : null}
       </div>
     </li>

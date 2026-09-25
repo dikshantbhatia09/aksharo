@@ -12,7 +12,7 @@ import {
   useSessions,
 } from "@montaj/api-client";
 import type { DeviceView as RegisteredDevice, SessionSummary } from "@montaj/api-client";
-import { Badge, Button, Card, EmptyState, Input, Skeleton, toast } from "@montaj/ui";
+import { Badge, Button, Card, ConfirmAction, EmptyState, Input, Skeleton, toast } from "@montaj/ui";
 
 import { INLINE_LINK_CLASS, SettingsGroup, SettingsSection } from "@/components/settings/section";
 import { messageForError } from "@/lib/errors";
@@ -24,10 +24,21 @@ import { messageForError } from "@/lib/errors";
  * revoke button per row. This is the control a user reaches for after losing a
  * laptop, so the current session is clearly labelled and cannot be revoked by
  * accident — signing yourself out is a different button, in the profile menu.
+ * Revoking any OTHER session or a device asks first (`ConfirmAction`): it
+ * signs someone out somewhere this screen can't see, and can't be undone here.
  */
 export function DevicesView(): React.JSX.Element {
   const sessions = useSessions();
   const revoke = useRevokeSession();
+  const revokeSession = (id: string): void => {
+    revoke.mutate(id, {
+      onError: (error) => {
+        toast.error("Could not revoke that session", {
+          description: messageForError(error),
+        });
+      },
+    });
+  };
 
   return (
     <SettingsSection
@@ -63,23 +74,39 @@ export function DevicesView(): React.JSX.Element {
                     </p>
                     <p className="text-fg-2 truncate text-xs">{describeSession(session)}</p>
                   </div>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    disabled={revoke.isPending}
-                    data-testid={`revoke-${session.id}`}
-                    onClick={() => {
-                      revoke.mutate(session.id, {
-                        onError: (error) => {
-                          toast.error("Could not revoke that session", {
-                            description: messageForError(error),
-                          });
-                        },
-                      });
-                    }}
-                  >
-                    {session.current ? "Sign out here" : "Revoke"}
-                  </Button>
+                  {session.current ? (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      disabled={revoke.isPending}
+                      data-testid={`revoke-${session.id}`}
+                      onClick={() => {
+                        revokeSession(session.id);
+                      }}
+                    >
+                      Sign out here
+                    </Button>
+                  ) : (
+                    <ConfirmAction
+                      title="Sign this session out?"
+                      description="That browser or app is signed out the next time it talks to Aksharo, and has to sign in again."
+                      confirmLabel="Sign it out"
+                      confirmTestId={`confirm-revoke-${session.id}`}
+                      onConfirm={() => {
+                        revokeSession(session.id);
+                      }}
+                      trigger={
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          disabled={revoke.isPending}
+                          data-testid={`revoke-${session.id}`}
+                        >
+                          Revoke
+                        </Button>
+                      }
+                    />
+                  )}
                 </Card>
               </li>
             ))}
@@ -240,12 +267,12 @@ function RegisteredDevicesSection(): React.JSX.Element {
                       Rename
                     </Button>
                   ) : null}
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    disabled={revoke.isPending}
-                    data-testid={`revoke-device-${device.id}`}
-                    onClick={() => {
+                  <ConfirmAction
+                    title={`Revoke ${device.name}?`}
+                    description="The app on that device is signed out and has to be connected again with a new code."
+                    confirmLabel="Revoke device"
+                    confirmTestId={`confirm-revoke-device-${device.id}`}
+                    onConfirm={() => {
                       revoke.mutate(device.id, {
                         onError: (error) =>
                           toast.error("Could not revoke that device", {
@@ -253,9 +280,17 @@ function RegisteredDevicesSection(): React.JSX.Element {
                           }),
                       });
                     }}
-                  >
-                    Revoke
-                  </Button>
+                    trigger={
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        disabled={revoke.isPending}
+                        data-testid={`revoke-device-${device.id}`}
+                      >
+                        Revoke
+                      </Button>
+                    }
+                  />
                 </div>
               </Card>
             </li>

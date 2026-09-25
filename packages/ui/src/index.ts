@@ -131,6 +131,8 @@ export {
 } from "./components/chips";
 export type { ProjectStatus } from "./components/chips";
 export { EmptyState } from "./components/empty-state";
+export { ConfirmAction } from "./components/confirm-action";
+export type { ConfirmActionProps } from "./components/confirm-action";
 
 /** Build-time identity of this package, used by diagnostics bundles. */
 export interface PackageInfo {

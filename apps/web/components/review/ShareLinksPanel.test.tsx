@@ -70,6 +70,8 @@ describe("ShareLinksPanel", () => {
 
     await screen.findByTestId("share-link-item");
     fireEvent.click(screen.getByText("Revoke"));
+    // Revoking asks first (ConfirmAction); confirm it.
+    fireEvent.click(await screen.findByRole("button", { name: "Revoke link" }));
 
     await waitFor(() => {
       const revokeCall = fetchMock.mock.calls.find(

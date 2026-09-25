@@ -2,7 +2,7 @@
 
 import * as React from "react";
 
-import { Badge, Button, PageHeader } from "@montaj/ui";
+import { Badge, Button, ConfirmAction, PageHeader } from "@montaj/ui";
 
 import {
   AdminEmpty,
@@ -177,14 +177,22 @@ export default function AdminJobsPage(): React.JSX.Element {
                   </td>
                   <td className={`${td} text-right`}>
                     {(job.status === "queued" || job.status === "running") && (
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        aria-label={`Cancel ${job.type} job ${job.id}`}
-                        onClick={() => void cancel(job.id)}
-                      >
-                        Cancel job
-                      </Button>
+                      <ConfirmAction
+                        title={`Cancel this ${job.type} job?`}
+                        description="The job stops and its work so far is discarded. The person who started it has to run it again."
+                        confirmLabel="Cancel job"
+                        confirmTestId={`confirm-cancel-${job.id}`}
+                        onConfirm={() => cancel(job.id)}
+                        trigger={
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            aria-label={`Cancel ${job.type} job ${job.id}`}
+                          >
+                            Cancel job
+                          </Button>
+                        }
+                      />
                     )}
                   </td>
                 </tr>

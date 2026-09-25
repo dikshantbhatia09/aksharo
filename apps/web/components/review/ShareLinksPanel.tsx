@@ -14,7 +14,7 @@ import { Lock } from "lucide-react";
 import * as React from "react";
 
 import { isApiError } from "@montaj/api-client";
-import { Badge, Button, Field, Input } from "@montaj/ui";
+import { Badge, Button, ConfirmAction, Field, Input } from "@montaj/ui";
 
 import type { ShareLinkScope } from "@/lib/share/types";
 
@@ -181,15 +181,18 @@ export function ShareLinksPanel({ projectId }: { projectId: string }): React.JSX
                   {copiedId === link.id ? "Copied" : "Copy link"}
                 </Button>
                 {status.label === "Live" ? (
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    disabled={revoke.isPending}
-                    onClick={() => revoke.mutate(link.id)}
-                  >
-                    Revoke
-                  </Button>
+                  <ConfirmAction
+                    title="Revoke this share link?"
+                    description="Anyone who opens it sees that it has been revoked. You can make a new link, but it will have a different address."
+                    confirmLabel="Revoke link"
+                    confirmTestId={`confirm-revoke-link-${link.id}`}
+                    onConfirm={() => revoke.mutate(link.id)}
+                    trigger={
+                      <Button type="button" size="sm" variant="ghost" disabled={revoke.isPending}>
+                        Revoke
+                      </Button>
+                    }
+                  />
                 ) : null}
               </div>
               {link.reportCount > 0 ? (

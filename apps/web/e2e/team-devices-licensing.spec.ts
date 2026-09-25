@@ -46,6 +46,8 @@ test("Licence keys: create shows the AK-XXXX-XXXX-XXXX value once, then it can b
 
   const row = page.getByTestId("license-key-list").locator("li", { hasText: "Playwright suite" });
   await row.getByRole("button", { name: "Revoke" }).click();
+  // Revoking asks first.
+  await page.getByTestId("confirm-action-dialog").getByRole("button", { name: "Revoke key" }).click();
   await expect(row).toContainText("Revoked");
 });
 
