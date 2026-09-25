@@ -776,6 +776,20 @@ describe("enqueueChild", () => {
     expect(h.db.eventNames(parent.id)).toContain("job.child_enqueued");
   });
 
+  // A clip's media belongs to the clip's project; the media.clip job that made
+  // it belongs to the source's. The probe must run under the media's project.
+  it("runs under another project of the same workspace when asked", async () => {
+    const parent = (await h.jobs.enqueue(ENQUEUE)).job;
+    const child = await h.jobs.enqueueChild(parent, {
+      type: "media.probe",
+      payload: {},
+      worstCaseTenths: 0,
+      projectId: "01JCCLIPPR0JECT00000000000",
+    });
+    expect(child.job.projectId).toBe("01JCCLIPPR0JECT00000000000");
+    expect(child.job.workspaceId).toBe(parent.workspaceId);
+  });
+
   it("cannot fan out twice for the same follow-up", async () => {
     const parent = (await h.jobs.enqueue(ENQUEUE)).job;
     const first = await h.jobs.enqueueChild(parent, {

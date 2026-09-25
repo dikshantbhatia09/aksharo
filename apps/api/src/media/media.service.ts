@@ -631,6 +631,11 @@ export class MediaService {
       jobKey: MEDIA_JOB_KEYS.probe(updated.id),
       reason: `media.probe · ${updated.id}`,
       skipAdmission: true,
+      // The media's own project, not necessarily the parent's: a clip's
+      // `media.clip` job belongs to the SOURCE project, and a probe/proxy run
+      // under it wrote derived keys the API then refused (400) for the clip's
+      // asset (found live, 2026-09-25).
+      projectId: input.project.id,
     });
 
     return { media: updated, probeJobId: probe.job.id };

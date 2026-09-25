@@ -581,6 +581,23 @@ describe.skipIf(!CAN_RUN)("repurpose full chain execution and failure paths", ()
     expect(acquired).toHaveLength(2);
     expect(await prisma.transcript.count({ where: { projectId: variant.projectId } })).toBe(1);
 
+    // Cutting a clip again is how a person retries one whose media pipeline
+    // failed — even when the new cut is byte-identical.
+    await prisma.mediaAsset.update({
+      where: { id: childMedia.id },
+      data: { status: "failed", failureReason: "media/corrupt" },
+    });
+    await prisma.repurposeRun.update({ where: { id: runId }, data: { status: "materializing" } });
+    await clipHandler.handle({
+      ...clipContext,
+      result: recutResult,
+      completion: { status: "succeeded", result: recutResult },
+    });
+    const retried = await prisma.mediaAsset.findUniqueOrThrow({ where: { id: childMedia.id } });
+    expect(retried.status).toBe("pending");
+    expect(retried.failureReason).toBeNull();
+    expect(acquired).toHaveLength(3);
+
     // 7. Advance to terminal state (published)
     await prisma.repurposeRun.update({
       where: { id: runId },

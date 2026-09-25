@@ -149,6 +149,10 @@ function makeService(
       job: { id: `job-${jobKey}` },
       deduplicated: false,
     })),
+    enqueueChild: vi.fn(async (_parent: unknown, { jobKey }: { jobKey: string }) => ({
+      job: { id: `child-${jobKey}` },
+      deduplicated: false,
+    })),
   };
   const raw = fakeStore("s3");
   const derived = fakeStore("r2");
@@ -390,6 +394,29 @@ describe("MediaService.complete", () => {
       code: "media/not_found",
       httpStatus: 404,
     });
+  });
+});
+
+describe("MediaService.completeAcquisition", () => {
+  // Found live (2026-09-25): a repurposed clip's media belongs to the clip's own
+  // project, but the media.clip job it came from belongs to the SOURCE project.
+  // A probe run under the parent's project made the worker write derived keys
+  // outside the clip asset's prefix, and the API refused them (400).
+  it("probes under the media's own project, not the parent job's", async () => {
+    const CLIP_PROJECT = "01JCCLIPPR0JECT00000000000";
+    const { service, jobs } = makeService({ media: { projectId: CLIP_PROJECT } });
+    await service.completeAcquisition({
+      media: mediaRow({ projectId: CLIP_PROJECT }),
+      project: { id: CLIP_PROJECT, workspaceId: WORKSPACE, status: "draft" },
+      parent: { id: "01JCCLIPJ0B000000000000000", projectId: PROJECT, workspaceId: WORKSPACE } as never,
+      sizeBytes: 2_048,
+      mime: "video/mp4",
+      contentHash: "e".repeat(64),
+    });
+    expect(jobs.enqueueChild).toHaveBeenCalledWith(
+      expect.objectContaining({ projectId: PROJECT }),
+      expect.objectContaining({ type: "media.probe", projectId: CLIP_PROJECT }),
+    );
   });
 });
 

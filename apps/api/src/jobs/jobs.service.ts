@@ -639,13 +639,22 @@ export class JobsService {
       readonly reason?: string;
       /** API-side callers only; see {@link EnqueueJobInput.skipAdmission}. */
       readonly skipAdmission?: boolean;
+      /**
+       * The project the child's work is about, when that is not the parent's —
+       * a repurposed clip's media belongs to the clip's own project, while the
+       * `media.clip` job that produced it belongs to the source's. The worker
+       * derives its storage prefix from the job's project, and the API refuses
+       * derived keys outside the asset's own project, so this has to be right.
+       * Same workspace always.
+       */
+      readonly projectId?: string;
     },
   ): Promise<EnqueueResult> {
     const jobKey = input.jobKey ?? `${parent.jobKey}:${input.type}`;
     const result = await this.enqueue({
       type: input.type,
       workspaceId: parent.workspaceId,
-      projectId: parent.projectId,
+      projectId: input.projectId ?? parent.projectId,
       params: input.payload,
       priority: parent.priority,
       jobKey,

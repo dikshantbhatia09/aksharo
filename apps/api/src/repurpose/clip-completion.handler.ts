@@ -275,11 +275,14 @@ export class RepurposeClipCompletionHandler implements JobCompletionHandler, OnM
     //     key. Replace the child's picture and send it through the pipeline
     //     again; the editing document stays (same words, same range), so edits
     //     made to the captions survive. Recognised by the checksum, so a
-    //     replayed completion of the SAME cut changes nothing.
+    //     replayed completion of the SAME cut changes nothing — unless the
+    //     child's media FAILED its pipeline, when cutting the clip again is
+    //     exactly how a person retries it.
     const recut =
-      childMedia.contentHash !== null &&
-      childMedia.contentHash !== result.checksum &&
-      !["pending", "uploading", "uploaded"].includes(childMedia.status);
+      childMedia.status === "failed" ||
+      (childMedia.contentHash !== null &&
+        childMedia.contentHash !== result.checksum &&
+        !["pending", "uploading", "uploaded"].includes(childMedia.status));
     if (recut) {
       await promoteToRaw({ raw: this.raw, derived: this.derived }, result.key, "video/mp4", {
         overwrite: true,
