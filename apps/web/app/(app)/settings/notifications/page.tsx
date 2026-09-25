@@ -20,7 +20,7 @@ export default function NotificationsSettingsPage(): React.JSX.Element {
       testId="settings-notifications"
     >
       <Card className="flex flex-col gap-2">
-        <h2 className="text-fg-0 text-base font-medium">Nothing to choose yet</h2>
+        <h2 className="text-fg-0 text-base font-semibold">Nothing to choose yet</h2>
         <p className="text-fg-2 text-sm">
           Right now {BRAND.name} only emails you about your account: confirming your address,
           sign-in links, and approving a device. Those are not optional, and there is nothing else

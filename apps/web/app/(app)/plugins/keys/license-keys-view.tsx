@@ -23,6 +23,7 @@ import {
   EmptyState,
   Field,
   Input,
+  PageHeader,
   Skeleton,
   toast,
 } from "@montaj/ui";
@@ -37,7 +38,17 @@ import { messageForError } from "@/lib/errors";
  * later `GET`, matching how a password manager or an API-key page treats a
  * secret it can no longer fully show).
  */
-export function LicenseKeysView(): React.JSX.Element {
+export function LicenseKeysView({
+  embedded = false,
+}: {
+  /**
+   * `true` when the list sits inside another page (`/plugins-app`): the
+   * heading drops to an `h2` so that page keeps its single title, and the
+   * "New key" button is secondary so it does not compete with that page's
+   * own actions. `/plugins/keys` renders it standalone with a `PageHeader`.
+   */
+  readonly embedded?: boolean;
+} = {}): React.JSX.Element {
   const session = useSession();
   const keys = useLicenseKeys();
   const create = useCreateLicenseKey();
@@ -76,71 +87,91 @@ export function LicenseKeysView(): React.JSX.Element {
     }
   }
 
+  const description =
+    "Offline activation for plugins and the desktop app. A key keeps working for 7 days without a connection.";
+
+  const createDialog = isAdmin ? (
+    <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+      <DialogTrigger asChild>
+        <Button
+          variant={embedded ? "secondary" : "primary"}
+          data-testid="create-license-key-button"
+        >
+          New key
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <form onSubmit={submitCreate} className="flex flex-col gap-4">
+          <DialogHeader>
+            <DialogTitle>Create a licence key</DialogTitle>
+            <DialogDescription>
+              Shown in full once — copy it before you close this.
+            </DialogDescription>
+          </DialogHeader>
+          <Field label="Label (optional)" htmlFor="key-label">
+            <Input
+              id="key-label"
+              value={label}
+              onChange={(e) => setLabel(e.target.value)}
+              placeholder="Editing suite, floor 2"
+            />
+          </Field>
+          <Field label="Activation limit" htmlFor="key-activations">
+            <Input
+              id="key-activations"
+              type="number"
+              min={1}
+              max={1000}
+              value={maxActivations}
+              onChange={(e) => setMaxActivations(Number(e.target.value) || 1)}
+            />
+          </Field>
+          <DialogFooter>
+            <Button
+              type="submit"
+              variant="primary"
+              disabled={create.isPending}
+              data-testid="submit-create-key"
+            >
+              Create key
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  ) : undefined;
+
   return (
     <section
-      className="mx-auto flex w-full max-w-4xl flex-col gap-6"
+      className={
+        embedded ? "flex w-full flex-col gap-4" : "mx-auto flex w-full max-w-4xl flex-col gap-8"
+      }
       data-testid="license-keys-page"
     >
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <h1 className="font-display text-xl font-semibold tracking-tight">Licence keys</h1>
-          <p className="text-fg-2 text-sm">
-            Offline activation for plugins and the desktop app, verifiable for 7 days without a
-            connection.
-          </p>
+      {embedded ? (
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div className="flex min-w-0 flex-col gap-1">
+            <h2 className="text-fg-0 text-lg font-semibold">Licence keys</h2>
+            <p className="text-fg-2 text-sm">{description}</p>
+          </div>
+          {createDialog}
         </div>
-        {isAdmin ? (
-          <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-            <DialogTrigger asChild>
-              <Button data-testid="create-license-key-button">New key</Button>
-            </DialogTrigger>
-            <DialogContent>
-              <form onSubmit={submitCreate} className="flex flex-col gap-4">
-                <DialogHeader>
-                  <DialogTitle>Create a licence key</DialogTitle>
-                  <DialogDescription>
-                    Shown in full once — copy it before you close this.
-                  </DialogDescription>
-                </DialogHeader>
-                <Field label="Label (optional)" htmlFor="key-label">
-                  <Input
-                    id="key-label"
-                    value={label}
-                    onChange={(e) => setLabel(e.target.value)}
-                    placeholder="Editing suite, floor 2"
-                  />
-                </Field>
-                <Field label="Activation limit" htmlFor="key-activations">
-                  <Input
-                    id="key-activations"
-                    type="number"
-                    min={1}
-                    max={1000}
-                    value={maxActivations}
-                    onChange={(e) => setMaxActivations(Number(e.target.value) || 1)}
-                  />
-                </Field>
-                <DialogFooter>
-                  <Button type="submit" disabled={create.isPending} data-testid="submit-create-key">
-                    Create
-                  </Button>
-                </DialogFooter>
-              </form>
-            </DialogContent>
-          </Dialog>
-        ) : null}
-      </div>
+      ) : (
+        <PageHeader title="Licence keys" description={description} actions={createDialog} />
+      )}
 
       {justCreated !== null ? (
-        <Card className="flex items-center justify-between gap-4 p-4">
-          <div>
-            <p className="text-fg-2 text-xs">New licence key — copy it now</p>
+        <Card className="flex flex-wrap items-center justify-between gap-4 p-4">
+          <div className="min-w-0">
+            <p className="text-fg-2 text-xs">
+              New licence key. Copy it now: it is shown only once.
+            </p>
             <p className="text-fg-0 font-mono text-sm tracking-wide" data-testid="just-created-key">
               {justCreated}
             </p>
           </div>
-          <Button variant="outline" size="sm" onClick={() => void copyKey(justCreated)}>
-            Copy
+          <Button variant="secondary" size="sm" onClick={() => void copyKey(justCreated)}>
+            Copy key
           </Button>
         </Card>
       ) : null}
@@ -157,20 +188,25 @@ export function LicenseKeysView(): React.JSX.Element {
           </p>
         ) : (keys.data ?? []).length === 0 ? (
           <EmptyState
+            className="border-0"
             icon={<KeyRound />}
             title="No licence keys yet"
-            description="Create one for offline activation."
+            description={
+              isAdmin
+                ? "Create one for a machine that edits offline."
+                : "A workspace admin can create one for a machine that edits offline."
+            }
           />
         ) : (
           <ul className="divide-border divide-y" data-testid="license-key-list">
             {(keys.data ?? []).map((key) => (
               <li
                 key={key.id}
-                className="flex items-center justify-between gap-4 p-4"
+                className="flex flex-wrap items-center justify-between gap-4 p-4"
                 data-testid={`key-${key.id}`}
               >
                 <div className="flex min-w-0 flex-col gap-1">
-                  <p className="text-fg-0 flex items-center gap-2 text-sm font-medium">
+                  <p className="text-fg-0 flex flex-wrap items-center gap-2 text-sm font-medium">
                     {key.label ?? "Untitled"}
                     {key.revokedAt !== null ? <Badge tone="rejected">Revoked</Badge> : null}
                   </p>
@@ -187,6 +223,7 @@ export function LicenseKeysView(): React.JSX.Element {
                     variant="ghost"
                     size="sm"
                     disabled={revoke.isPending}
+                    aria-label={`Revoke ${key.label ?? "untitled key"}`}
                     data-testid={`revoke-key-${key.id}`}
                     onClick={() => {
                       revoke.mutate(key.id, {

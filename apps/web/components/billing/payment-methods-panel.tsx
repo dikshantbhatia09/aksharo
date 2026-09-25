@@ -55,12 +55,12 @@ export function PaymentMethodsPanel(): React.JSX.Element {
   return (
     <div className="flex flex-col gap-6" data-testid="payment-methods-panel">
       <section className="flex flex-col gap-3">
-        <h2 className="text-fg-0 text-lg font-semibold">On file</h2>
+        <h2 className="text-fg-0 text-base font-semibold">Saved payment methods</h2>
         {methods.isPending ? (
           <p className="text-fg-2 text-sm">Loading…</p>
         ) : methods.data === undefined || methods.data.length === 0 ? (
           <p className="text-fg-2 text-sm">
-            Nothing on file yet — it appears after your first checkout.
+            No saved payment method yet. One is saved when you first check out.
           </p>
         ) : (
           <ul className="flex flex-col gap-2">
@@ -74,7 +74,7 @@ export function PaymentMethodsPanel(): React.JSX.Element {
                     {method.label}
                     {method.last4 === undefined ? "" : ` •••• ${method.last4}`}
                   </span>
-                  {method.isDefault === true ? <Badge tone="accent">Default</Badge> : null}
+                  {method.isDefault === true ? <Badge tone="neutral">Default</Badge> : null}
                 </Card>
               </li>
             ))}
@@ -83,21 +83,26 @@ export function PaymentMethodsPanel(): React.JSX.Element {
       </section>
 
       <section className="flex flex-col gap-3">
-        <h2 className="text-fg-0 text-lg font-semibold">Mandates</h2>
+        <h2 className="text-fg-0 text-base font-semibold">Mandates</h2>
         {mandates.isPending ? (
           <p className="text-fg-2 text-sm">Loading…</p>
         ) : mandates.data === undefined || mandates.data.length === 0 ? (
-          <p className="text-fg-2 text-sm">No recurring mandate yet.</p>
+          <p className="text-fg-2 text-sm">
+            No recurring mandate yet. Choosing UPI Autopay or eNACH at checkout sets one up.
+          </p>
         ) : (
           <ul className="flex flex-col gap-3">
             {mandates.data.map((mandate) => (
               <li key={mandate.id}>
                 <Card className="flex flex-col gap-2" data-testid="mandate-row">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-2">
                     <span className="text-fg-0 text-sm font-medium">
                       {MANDATE_METHOD_LABEL[mandate.method] ?? mandate.method}
                     </span>
-                    <Badge tone={mandate.status === "active" ? "accent" : "neutral"}>
+                    <Badge
+                      tone={mandate.status === "active" ? "accepted" : "neutral"}
+                      className="capitalize"
+                    >
                       {mandate.status}
                     </Badge>
                   </div>
@@ -116,7 +121,7 @@ export function PaymentMethodsPanel(): React.JSX.Element {
                   </p>
                   {mandate.status === "active" ? (
                     <Button
-                      variant="outline"
+                      variant="secondary"
                       size="sm"
                       className="self-start"
                       data-testid="revoke-mandate"
@@ -124,7 +129,7 @@ export function PaymentMethodsPanel(): React.JSX.Element {
                         setRevokeTarget(mandate.id);
                       }}
                     >
-                      Revoke
+                      Revoke mandate
                     </Button>
                   ) : null}
                 </Card>

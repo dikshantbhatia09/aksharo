@@ -12,12 +12,14 @@ import {
   Checkbox,
   Field,
   Input,
+  PageHeader,
   ProgressBar,
   Skeleton,
   toast,
 } from "@montaj/ui";
 
 import { useRuntimeConfig } from "@/components/providers";
+import { INLINE_LINK_CLASS } from "@/components/settings/section";
 import { messageForError } from "@/lib/errors";
 
 /** Shown wherever the programme would otherwise ask for, or quote, money (F07-E9). */
@@ -40,7 +42,9 @@ function formatRupees(minor: number): string {
 }
 
 function StatusBadge({ status }: { status: string }): React.JSX.Element {
-  const tone = status === "approved" ? "accepted" : status === "pending" ? "accent" : "rejected";
+  // "Pending" is a waiting state, so it takes the proposed/warning signal
+  // rather than the brand accent (DESIGN.md > accent budget).
+  const tone = status === "approved" ? "accepted" : status === "pending" ? "warning" : "rejected";
   const label =
     status === "approved"
       ? "Approved"
@@ -51,7 +55,7 @@ function StatusBadge({ status }: { status: string }): React.JSX.Element {
           : status === "suspended"
             ? "Suspended"
             : "Rejected";
-  return <Badge tone={tone as "accepted" | "accent" | "rejected"}>{label}</Badge>;
+  return <Badge tone={tone as "accepted" | "warning" | "rejected"}>{label}</Badge>;
 }
 
 /**
@@ -61,6 +65,31 @@ function StatusBadge({ status }: { status: string }): React.JSX.Element {
  * FY-to-date gross/TDS/net.
  */
 export function AffiliateView(): React.JSX.Element {
+  const affiliate = useMyAffiliate();
+  const status = affiliate.data?.status;
+
+  // One title for every state of the page (loading, error, apply, dashboard):
+  // it used to be repeated inside three branches, and the loading and error
+  // states had none at all.
+  return (
+    <div className="mx-auto flex w-full max-w-4xl flex-col gap-8">
+      <PageHeader
+        title="Refer & earn"
+        description={
+          affiliate.data === null
+            ? `Apply to the ${BRAND.name} affiliate programme (India only at launch).`
+            : affiliate.data === undefined
+              ? `The ${BRAND.name} affiliate programme.`
+              : "Your referral link, the people it brought in, and what they earned you."
+        }
+        actions={status === undefined ? undefined : <StatusBadge status={status} />}
+      />
+      <AffiliateBody />
+    </div>
+  );
+}
+
+function AffiliateBody(): React.JSX.Element {
   const { razorpayEnabled } = useRuntimeConfig();
   const affiliate = useMyAffiliate();
   const isApproved = affiliate.data?.status === "approved";
@@ -89,24 +118,16 @@ export function AffiliateView(): React.JSX.Element {
 
   return (
     <div className="flex flex-col gap-6" data-testid="affiliate-dashboard">
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <h1 className="font-display text-xl font-semibold tracking-tight">Refer &amp; earn</h1>
-          <p className="text-fg-2 text-sm">Your affiliate programme dashboard.</p>
-        </div>
-        <StatusBadge status={affiliate.data.status} />
-      </div>
-
       {affiliate.data.status === "pending" ? (
-        <Card className="flex flex-col gap-2 p-4">
+        <Card className="flex flex-col gap-2">
           <p className="text-fg-0 text-sm">
-            Your application is under review. We will email you once it is approved.
+            Your application is under review. You get an email as soon as it is approved.
           </p>
         </Card>
       ) : null}
 
       {affiliate.data.status === "suspended" || affiliate.data.status === "suspended_review" ? (
-        <Card className="flex flex-col gap-2 p-4">
+        <Card className="flex flex-col gap-2">
           <p className="text-rejected text-sm" role="alert">
             {affiliate.data.status === "suspended_review"
               ? "Your account is under review for unusual referral activity. No commission accrues while it is."
@@ -117,20 +138,24 @@ export function AffiliateView(): React.JSX.Element {
 
       {isApproved ? (
         <>
-          <Card className="flex flex-col gap-3 p-4">
-            <h2 className="text-fg-0 text-base font-medium">Your link</h2>
+          <Card className="flex flex-col gap-3">
+            <h2 className="text-fg-0 text-base font-semibold">Your link</h2>
             <div className="flex items-center gap-2">
-              <Input readOnly value={affiliate.data.referralLink} data-testid="affiliate-link" />
+              <Input
+                readOnly
+                aria-label="Your referral link"
+                value={affiliate.data.referralLink}
+                data-testid="affiliate-link"
+              />
               <Button
-                variant="outline"
-                size="sm"
+                variant="primary"
                 onClick={() => {
                   const referralLink = affiliate.data?.referralLink ?? "";
                   void navigator.clipboard.writeText(referralLink);
                   toast.success("Link copied");
                 }}
               >
-                Copy
+                Copy link
               </Button>
             </div>
             <p className="text-fg-2 text-xs">
@@ -148,7 +173,7 @@ export function AffiliateView(): React.JSX.Element {
           ) : stats.data === undefined ? null : (
             <>
               <Card
-                className="grid grid-cols-2 gap-4 p-4 sm:grid-cols-4"
+                className="grid grid-cols-2 gap-x-4 gap-y-5 sm:grid-cols-4"
                 data-testid="affiliate-stats"
               >
                 <Stat label="Clicks" value={stats.data.clicks.toString()} />
@@ -174,8 +199,8 @@ export function AffiliateView(): React.JSX.Element {
               </Card>
 
               {stats.data.tier !== "while_subscribed_30" ? (
-                <Card className="flex flex-col gap-2 p-4">
-                  <h2 className="text-fg-0 text-base font-medium">Tier progress</h2>
+                <Card className="flex flex-col gap-2">
+                  <h2 className="text-fg-0 text-base font-semibold">Tier progress</h2>
                   <p className="text-fg-2 text-sm">
                     {stats.data.activeReferrals} of {stats.data.activeReferralsForTierUpgrade}{" "}
                     active referrals — reach {stats.data.activeReferralsForTierUpgrade} to unlock
@@ -195,11 +220,11 @@ export function AffiliateView(): React.JSX.Element {
               ) : null}
 
               {razorpayEnabled ? (
-                <Card className="flex flex-col gap-2 p-4" data-testid="affiliate-fy-tds">
-                  <h2 className="text-fg-0 text-base font-medium">
+                <Card className="flex flex-col gap-2" data-testid="affiliate-fy-tds">
+                  <h2 className="text-fg-0 text-base font-semibold">
                     FY {stats.data.fyLabel} to date
                   </h2>
-                  <dl className="grid grid-cols-3 gap-2 text-sm">
+                  <dl className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-3">
                     <div>
                       <dt className="text-fg-2">Gross</dt>
                       <dd className="text-fg-0 font-medium">
@@ -225,20 +250,20 @@ export function AffiliateView(): React.JSX.Element {
                   </p>
                 </Card>
               ) : (
-                <Card className="flex flex-col gap-2 p-4" data-testid="affiliate-no-payouts">
+                <Card className="flex flex-col gap-2" data-testid="affiliate-no-payouts">
                   <p className="text-fg-2 text-sm">{NO_PAYOUTS_NOTICE}</p>
                 </Card>
               )}
             </>
           )}
 
-          <Card className="flex flex-col gap-2 p-4">
-            <h2 className="text-fg-0 text-base font-medium">Assets and programme rules</h2>
+          <Card className="flex flex-col gap-2">
+            <h2 className="text-fg-0 text-base font-semibold">Assets and programme rules</h2>
             <p className="text-fg-2 text-sm">
               Scripts, demo cuts, disclosure labels and the full programme rules.
             </p>
-            <Link href="/affiliate/assets" className="text-lime-500 text-sm hover:underline">
-              Open the asset pack →
+            <Link href="/affiliate/assets" className={`${INLINE_LINK_CLASS} self-start text-sm`}>
+              Open the asset pack
             </Link>
           </Card>
         </>
@@ -251,7 +276,7 @@ function Stat({ label, value }: { label: string; value: string }): React.JSX.Ele
   return (
     <div className="flex flex-col gap-1">
       <span className="text-fg-2 text-xs">{label}</span>
-      <span className="text-fg-0 text-lg font-semibold">{value}</span>
+      <span className="text-fg-0 text-lg font-semibold tabular-nums">{value}</span>
     </div>
   );
 }
@@ -284,10 +309,7 @@ function ApplyForm(): React.JSX.Element {
   if (!razorpayEnabled) {
     return (
       <div className="flex max-w-xl flex-col gap-6" data-testid="affiliate-apply-form">
-        <div>
-          <h1 className="font-display text-xl font-semibold tracking-tight">Refer &amp; earn</h1>
-        </div>
-        <Card className="flex flex-col gap-2 p-4" data-testid="affiliate-no-payouts">
+        <Card className="flex flex-col gap-2" data-testid="affiliate-no-payouts">
           <p className="text-fg-2 text-sm">{NO_PAYOUTS_NOTICE}</p>
         </Card>
       </div>
@@ -296,14 +318,8 @@ function ApplyForm(): React.JSX.Element {
 
   return (
     <div className="flex max-w-xl flex-col gap-6" data-testid="affiliate-apply-form">
-      <div>
-        <h1 className="font-display text-xl font-semibold tracking-tight">Refer &amp; earn</h1>
-        <p className="text-fg-2 text-sm">
-          Apply to the {BRAND.name} affiliate programme (India only at launch).
-        </p>
-      </div>
-
-      <Card className="flex flex-col gap-4 p-4">
+      <Card className="flex flex-col gap-4">
+        <h2 className="text-fg-0 text-base font-semibold">Payout details</h2>
         <Field label="Legal name" htmlFor="aff-legal-name">
           <Input
             id="aff-legal-name"
@@ -348,12 +364,12 @@ function ApplyForm(): React.JSX.Element {
         </Field>
       </Card>
 
-      <Card className="flex flex-col gap-3 p-4">
-        <h2 className="text-fg-0 text-sm font-medium">Disclosure requirement</h2>
+      <Card className="flex flex-col gap-3">
+        <h2 className="text-fg-0 text-base font-semibold">Disclosure requirement</h2>
         <p className="text-fg-2 text-sm" data-testid="affiliate-asci-clause">
           {ASCI_DISCLOSURE_CLAUSE}
         </p>
-        <label className="flex items-start gap-2 text-sm">
+        <label className="flex min-h-8 items-start gap-2 text-sm">
           <Checkbox
             checked={accepted}
             onCheckedChange={(checked) => setAccepted(checked === true)}
@@ -366,6 +382,8 @@ function ApplyForm(): React.JSX.Element {
       </Card>
 
       <Button
+        variant="primary"
+        className="self-start"
         disabled={!canSubmit}
         data-testid="affiliate-apply-submit"
         onClick={() => {
@@ -391,7 +409,7 @@ function ApplyForm(): React.JSX.Element {
           );
         }}
       >
-        {apply.isPending ? "Submitting…" : "Apply"}
+        {apply.isPending ? "Submitting…" : "Send application"}
       </Button>
     </div>
   );

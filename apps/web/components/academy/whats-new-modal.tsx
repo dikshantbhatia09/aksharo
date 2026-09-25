@@ -107,19 +107,21 @@ export function WhatsNewModal({
         {latest.tags.length > 0 ? (
           <ul className="flex flex-wrap gap-2 text-xs">
             {latest.tags.map((tag) => (
-              <li key={tag} className="bg-bg-2 text-fg-2 rounded-full px-2 py-0.5">
+              <li key={tag} className="border-border text-fg-1 rounded-full border px-2 py-0.5">
                 {tag}
               </li>
             ))}
           </ul>
         ) : null}
-        <div className="mt-4 flex justify-end gap-2">
-          <Button variant="outline" asChild>
+        <div className="mt-4 flex flex-wrap justify-end gap-2">
+          <Button variant="secondary" asChild>
             <Link href="/updates" onClick={handleClose}>
               See full changelog
             </Link>
           </Button>
-          <Button onClick={handleClose}>Got it</Button>
+          <Button variant="primary" onClick={handleClose}>
+            Got it
+          </Button>
         </div>
       </DialogContent>
     </Dialog>

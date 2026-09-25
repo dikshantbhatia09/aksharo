@@ -4,7 +4,7 @@ import { LifeBuoy, Search } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
 
-import { Card, Input } from "@montaj/ui";
+import { Button, Card, Input, PageHeader } from "@montaj/ui";
 
 import type { HelpArticle, HelpCategory } from "@/lib/content/schema";
 import type { HelpSearchDoc } from "@/lib/content/search";
@@ -54,13 +54,8 @@ export function HelpCentre({
   }, [articles]);
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-6">
-      <div className="flex flex-col gap-1">
-        <h1 className="font-display text-fg-0 text-2xl font-semibold tracking-tight">
-          Help centre
-        </h1>
-        <p className="text-fg-2 text-sm">Search, or browse by category.</p>
-      </div>
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-8">
+      <PageHeader title="Help centre" description="Search the articles, or browse by topic." />
 
       <div className="relative">
         <Search className="text-fg-2 absolute left-3 top-1/2 size-4 -translate-y-1/2" aria-hidden />
@@ -75,61 +70,66 @@ export function HelpCentre({
       </div>
 
       {query.trim() !== "" ? (
-        <ul className="flex flex-col gap-2" data-testid="help-search-results">
-          {results.length === 0 ? (
-            <p className="text-fg-2 text-sm">No articles match &quot;{query}&quot;.</p>
-          ) : (
-            results.map((result) => (
+        results.length === 0 ? (
+          <p className="text-fg-2 text-sm" data-testid="help-search-results" role="status">
+            No articles match &quot;{query}&quot;. Try a shorter word, or contact support below.
+          </p>
+        ) : (
+          // One card with divided rows (DESIGN.md > Lists / tables) rather than
+          // a stack of cards; the whole row is the link.
+          <ul
+            className="border-border bg-surface divide-border divide-y overflow-hidden rounded-md border"
+            data-testid="help-search-results"
+          >
+            {results.map((result) => (
               <li key={result.id}>
-                <Link href={`/help/${result.id}`}>
-                  <Card className="p-4 transition hover:shadow-sm">
-                    <p className="text-fg-0 text-sm font-medium">{result.title}</p>
-                    <p className="text-fg-2 text-xs">{result.summary}</p>
-                  </Card>
+                <Link
+                  href={`/help/${result.id}`}
+                  className="hover:bg-neutral-100/5 block p-4 transition-colors duration-[160ms] no-underline"
+                >
+                  <p className="text-fg-0 text-sm font-medium">{result.title}</p>
+                  <p className="text-fg-2 text-xs">{result.summary}</p>
                 </Link>
               </li>
-            ))
-          )}
-        </ul>
+            ))}
+          </ul>
+        )
       ) : (
-        <div className="flex flex-col gap-6">
+        <div className="flex flex-col gap-8">
           {Array.from(byCategory.entries()).map(([category, categoryArticles]) => (
-            <div key={category}>
-              <h2 className="text-fg-0 mb-2 text-sm font-semibold">
+            <section key={category} className="flex flex-col gap-3">
+              <h2 className="text-fg-0 text-base font-semibold">
                 {CATEGORY_LABEL[category as HelpCategory] ?? category}
               </h2>
-              <ul className="flex flex-col gap-2">
+              <ul className="border-border bg-surface divide-border divide-y overflow-hidden rounded-md border">
                 {categoryArticles.map((article) => (
                   <li key={article.slug}>
                     <Link
                       href={`/help/${article.slug}`}
+                      className="hover:bg-neutral-100/5 block p-4 transition-colors duration-[160ms] no-underline"
                       data-testid={`help-article-${article.slug}`}
                     >
-                      <Card className="p-4 transition hover:shadow-sm">
-                        <p className="text-fg-0 text-sm font-medium">{article.title}</p>
-                        <p className="text-fg-2 text-xs">{article.summary}</p>
-                      </Card>
+                      <p className="text-fg-0 text-sm font-medium">{article.title}</p>
+                      <p className="text-fg-2 text-xs">{article.summary}</p>
                     </Link>
                   </li>
                 ))}
               </ul>
-            </div>
+            </section>
           ))}
         </div>
       )}
 
-      <Card className="flex items-center justify-between gap-3 p-4">
+      <Card className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <LifeBuoy className="text-accent size-4" aria-hidden />
+          <LifeBuoy className="text-fg-2 size-4" aria-hidden strokeWidth={1.75} />
           <p className="text-fg-1 text-sm">Didn&apos;t find what you needed?</p>
         </div>
-        <Link
-          href="/settings/support"
-          className="text-accent text-sm hover:underline"
-          data-testid="help-contact-support"
-        >
-          Contact support
-        </Link>
+        <Button variant="secondary" size="sm" asChild>
+          <Link href="/settings/support" data-testid="help-contact-support">
+            Contact support
+          </Link>
+        </Button>
       </Card>
     </div>
   );

@@ -28,7 +28,7 @@ import {
 } from "@montaj/ui";
 
 import { ConsentToggle } from "@/components/auth/age-consent-step";
-import { SettingsSection } from "@/components/settings/section";
+import { INLINE_LINK_CLASS, SettingsSection } from "@/components/settings/section";
 import { resetAnalytics } from "@/lib/analytics/posthog";
 import { messageForError } from "@/lib/errors";
 import {
@@ -149,7 +149,7 @@ export function PrivacyView(): React.JSX.Element {
       testId="settings-privacy"
     >
       <Card className="flex flex-col gap-4">
-        <h2 className="text-fg-0 text-base font-medium">Consents</h2>
+        <h2 className="text-fg-0 text-base font-semibold">Consents</h2>
 
         {isMinor ? (
           <p className="border-border text-fg-2 rounded-sm border border-dashed p-3 text-xs">
@@ -202,7 +202,7 @@ export function PrivacyView(): React.JSX.Element {
 
         <p className="text-fg-2 text-xs">
           Read the{" "}
-          <Link href="/legal/privacy" className="text-lime-500 rounded-sm hover:underline">
+          <Link href="/legal/privacy" className={INLINE_LINK_CLASS}>
             privacy notice
           </Link>{" "}
           for what each of these covers.
@@ -210,7 +210,7 @@ export function PrivacyView(): React.JSX.Element {
       </Card>
 
       <Card className="flex flex-col gap-3">
-        <h2 className="text-fg-0 text-base font-medium">Your data</h2>
+        <h2 className="text-fg-0 text-base font-semibold">Your data</h2>
         <p className="text-fg-2 text-sm">
           Export everything we hold: projects, transcripts, settings and what we learned. We build
           the bundle in the background and email you a link.
@@ -226,7 +226,7 @@ export function PrivacyView(): React.JSX.Element {
       </Card>
 
       <Card className="border-rejected/40 flex flex-col gap-3">
-        <h2 className="text-fg-0 text-base font-medium">Delete your account</h2>
+        <h2 className="text-fg-0 text-base font-semibold">Delete your account</h2>
         <p className="text-fg-2 text-sm">
           This erases your projects, media, transcripts and everything we learned, within 30 days.
           It cannot be undone, and an active subscription is cancelled rather than refunded.

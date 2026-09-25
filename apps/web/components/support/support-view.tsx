@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import * as React from "react";
 
 import {
@@ -12,7 +13,7 @@ import {
   endpoints,
 } from "@montaj/api-client";
 import type { SupportCategory, SupportDiagnostics } from "@montaj/api-client";
-import { Badge, Button, Card, Checkbox, Field, Skeleton, Textarea, toast } from "@montaj/ui";
+import { Badge, Button, Card, Checkbox, Field, Input, Skeleton, Textarea, toast } from "@montaj/ui";
 
 import {
   APP_VERSION,
@@ -21,7 +22,7 @@ import {
   recentConsoleErrors,
 } from "./diagnostics";
 
-import { SettingsSection } from "@/components/settings/section";
+import { INLINE_LINK_CLASS, SettingsGroup, SettingsSection } from "@/components/settings/section";
 import { messageForError } from "@/lib/errors";
 
 const CATEGORIES: { value: SupportCategory; label: string }[] = [
@@ -127,7 +128,7 @@ export function SupportView(): React.JSX.Element {
   return (
     <SettingsSection
       title="Support"
-      description="File a ticket and track its status."
+      description="Tell us what went wrong and follow the ticket here until it is resolved."
       testId="settings-support"
     >
       <Card className="p-5">
@@ -137,9 +138,8 @@ export function SupportView(): React.JSX.Element {
           data-testid="support-ticket-form"
         >
           <Field label="Subject" htmlFor="support-subject">
-            <input
+            <Input
               id="support-subject"
-              className="border-border bg-bg-1 h-9 rounded-md border px-3 text-sm"
               value={subject}
               maxLength={160}
               onChange={(event) => setSubject(event.target.value)}
@@ -151,7 +151,7 @@ export function SupportView(): React.JSX.Element {
           <Field label="Category" htmlFor="support-category">
             <select
               id="support-category"
-              className="border-border bg-bg-1 h-9 rounded-md border px-3 text-sm"
+              className="bg-sunken border-border text-fg-0 h-9 w-full rounded-sm border px-3 text-sm"
               value={category}
               onChange={(event) => setCategory(event.target.value as SupportCategory)}
               data-testid="support-category"
@@ -176,7 +176,7 @@ export function SupportView(): React.JSX.Element {
             />
           </Field>
 
-          <label className="flex items-start gap-2 text-sm">
+          <label className="flex min-h-8 items-start gap-2 text-sm">
             <Checkbox
               checked={includeDiagnostics}
               onCheckedChange={(checked) => setIncludeDiagnostics(checked === true)}
@@ -192,6 +192,7 @@ export function SupportView(): React.JSX.Element {
             <Field label="Diagnostics bundle (optional)" htmlFor="support-bundle">
               <input
                 id="support-bundle"
+                className="text-fg-1 file:border-border file:text-fg-0 hover:file:bg-neutral-100/7 text-sm file:mr-3 file:min-h-8 file:rounded-sm file:border file:bg-transparent file:px-3 file:text-sm"
                 type="file"
                 accept=".zip,application/zip"
                 data-testid="support-bundle-input"
@@ -213,33 +214,39 @@ export function SupportView(): React.JSX.Element {
             </Field>
           ) : (
             <p className="text-fg-2 text-xs">
-              Turn on desktop/plugin telemetry in Settings → Privacy to attach a diagnostics bundle
-              from the desktop app.
+              Turn on desktop/plugin telemetry in{" "}
+              <Link href="/settings/privacy" className={INLINE_LINK_CLASS}>
+                Settings → Privacy
+              </Link>{" "}
+              to attach a diagnostics bundle from the desktop app.
             </p>
           )}
 
           <Button
             type="submit"
+            variant="primary"
+            className="self-start"
             disabled={createTicket.isPending || attachBundle.isPending}
             data-testid="support-submit"
           >
-            {createTicket.isPending || attachBundle.isPending ? "Sending…" : "Send"}
+            {createTicket.isPending || attachBundle.isPending ? "Sending…" : "Send ticket"}
           </Button>
         </form>
       </Card>
 
-      <div className="flex flex-col gap-2">
-        <h2 className="text-fg-0 text-sm font-semibold">Your tickets</h2>
+      <SettingsGroup title="Your tickets">
         {tickets.isPending ? (
           <Skeleton className="h-16" />
         ) : (tickets.data?.tickets.length ?? 0) === 0 ? (
-          <p className="text-fg-2 text-sm">No tickets yet.</p>
+          <p className="text-fg-2 text-sm">
+            No tickets yet. A ticket you send appears here with its status.
+          </p>
         ) : (
           <ul className="flex flex-col gap-2" data-testid="support-ticket-list">
             {tickets.data?.tickets.map((ticket) => (
               <li key={ticket.id}>
-                <Card className="flex items-center justify-between gap-4 p-4">
-                  <div>
+                <Card className="flex flex-wrap items-center justify-between gap-4 p-4">
+                  <div className="min-w-0">
                     <p className="text-fg-0 text-sm font-medium">{ticket.subject}</p>
                     <p className="text-fg-2 text-xs">
                       {ticket.category} · {new Date(ticket.createdAt).toLocaleDateString()}
@@ -259,7 +266,7 @@ export function SupportView(): React.JSX.Element {
             ))}
           </ul>
         )}
-      </div>
+      </SettingsGroup>
     </SettingsSection>
   );
 }

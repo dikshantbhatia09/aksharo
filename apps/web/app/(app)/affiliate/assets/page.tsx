@@ -1,6 +1,7 @@
 import Link from "next/link";
 
-import { Badge, Card } from "@montaj/ui";
+import { BRAND } from "@montaj/config";
+import { Badge, Card, PageHeader } from "@montaj/ui";
 
 import { ASCI_DISCLOSURE_CLAUSE } from "../affiliate-view";
 
@@ -31,23 +32,25 @@ const SCRIPTS = [
  */
 export default function AffiliateAssetsPage(): React.JSX.Element {
   return (
-    <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="font-display text-xl font-semibold tracking-tight">Asset pack</h1>
-        <p className="text-fg-2 text-sm">
-          Scripts, demo cuts, and the disclosure labels ASCI requires. Everything here stays current
-          without needing you to re-accept the programme terms.
-        </p>
-        <Link href="/affiliate" className="text-lime-500 mt-1 inline-block text-sm hover:underline">
-          ← Back to dashboard
+    <div className="mx-auto flex w-full max-w-4xl flex-col gap-8">
+      <div className="flex flex-col gap-4">
+        <Link
+          href="/affiliate"
+          className="text-fg-2 hover:text-fg-0 inline-flex min-h-8 items-center self-start rounded-sm text-sm"
+        >
+          ← Refer &amp; earn
         </Link>
+        <PageHeader
+          title="Asset pack"
+          description="Scripts, demo cuts, and the disclosure labels ASCI requires. Everything here stays current without needing you to re-accept the programme terms."
+        />
       </div>
 
-      <Card className="flex flex-col gap-3 p-4">
-        <h2 className="text-fg-0 text-base font-medium">Scripts (Hindi + English)</h2>
+      <Card className="flex flex-col gap-3">
+        <h2 className="text-fg-0 text-base font-semibold">Scripts (Hindi + English)</h2>
         <ul className="flex flex-col gap-2" data-testid="affiliate-scripts">
           {SCRIPTS.map((script) => (
-            <li key={script.title} className="flex items-center justify-between text-sm">
+            <li key={script.title} className="flex items-center justify-between gap-3 text-sm">
               <span className="text-fg-0">{script.title}</span>
               <Badge tone="neutral">{script.language}</Badge>
             </li>
@@ -59,14 +62,14 @@ export default function AffiliateAssetsPage(): React.JSX.Element {
         </p>
       </Card>
 
-      <Card className="flex flex-col gap-3 p-4">
-        <h2 className="text-fg-0 text-base font-medium">9:16 demo cuts</h2>
+      <Card className="flex flex-col gap-3">
+        <h2 className="text-fg-0 text-base font-semibold">9:16 demo cuts</h2>
         <p className="text-fg-2 text-sm">Vertical, platform-ready cuts of the product demo.</p>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4" data-testid="affiliate-demo-cuts">
           {["Hook", "Feature tour", "Before/after", "CTA"].map((placeholder) => (
             <div
               key={placeholder}
-              className="border-border bg-bg-2 text-fg-2 flex aspect-9/16 items-center justify-center rounded-md border text-center text-xs"
+              className="border-border bg-sunken text-fg-2 flex aspect-9/16 items-center justify-center rounded-md border border-dashed text-center text-xs"
             >
               {placeholder}
               <br />
@@ -76,47 +79,58 @@ export default function AffiliateAssetsPage(): React.JSX.Element {
         </div>
       </Card>
 
-      <Card className="flex flex-col gap-3 p-4">
-        <h2 className="text-fg-0 text-base font-medium">Before/after Hinglish clips</h2>
+      <Card className="flex flex-col gap-3">
+        <h2 className="text-fg-0 text-base font-semibold">Before/after Hinglish clips</h2>
         <p className="text-fg-2 text-sm">
           Side-by-side raw vs. captioned/dubbed output, in Hinglish, for a quick before/after cut.
         </p>
         <div
-          className="border-border bg-bg-2 text-fg-2 flex h-24 items-center justify-center rounded-md border text-xs"
+          className="border-border bg-sunken text-fg-2 flex h-24 items-center justify-center rounded-md border border-dashed text-xs"
           data-testid="affiliate-before-after"
         >
           Coming soon
         </div>
       </Card>
 
-      <Card className="flex flex-col gap-3 p-4">
-        <h2 className="text-fg-0 text-base font-medium">Permitted disclosure labels</h2>
+      <Card className="flex flex-col gap-3">
+        <h2 className="text-fg-0 text-base font-semibold">Permitted disclosure labels</h2>
         <p className="text-fg-2 text-sm">{ASCI_DISCLOSURE_CLAUSE}</p>
-        <table className="text-sm" data-testid="affiliate-disclosure-labels">
-          <thead>
-            <tr className="text-fg-2 text-left text-xs">
-              <th className="pr-4 pb-1 font-medium">Label</th>
-              <th className="pr-4 pb-1 font-medium">Language</th>
-              <th className="pb-1 font-medium">Minimum on-screen time</th>
-            </tr>
-          </thead>
-          <tbody>
-            {DISCLOSURE_LABELS.map((row) => (
-              <tr key={row.label} className="text-fg-0">
-                <td className="pr-4 py-1">{row.label}</td>
-                <td className="pr-4 py-1">{row.language}</td>
-                <td className="py-1">{row.minDurationSeconds}s</td>
+        <div className="overflow-x-auto">
+          <table
+            className="w-full min-w-[420px] border-collapse text-left text-sm"
+            data-testid="affiliate-disclosure-labels"
+          >
+            <thead>
+              <tr className="border-border text-fg-2 border-b text-xs">
+                <th scope="col" className="py-2 pr-4 font-medium">
+                  Label
+                </th>
+                <th scope="col" className="py-2 pr-4 font-medium">
+                  Language
+                </th>
+                <th scope="col" className="py-2 font-medium">
+                  Minimum on-screen time
+                </th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {DISCLOSURE_LABELS.map((row) => (
+                <tr key={row.label} className="border-border text-fg-0 border-b last:border-0">
+                  <td className="py-2 pr-4">{row.label}</td>
+                  <td className="text-fg-1 py-2 pr-4">{row.language}</td>
+                  <td className="text-fg-1 py-2 tabular-nums">{row.minDurationSeconds} s</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </Card>
 
-      <Card className="flex flex-col gap-2 p-4">
-        <h2 className="text-fg-0 text-base font-medium">Programme rules</h2>
+      <Card className="flex flex-col gap-2">
+        <h2 className="text-fg-0 text-base font-semibold">Programme rules</h2>
         <ul className="text-fg-2 flex list-disc flex-col gap-1 pl-5 text-sm">
           <li>No self-referral, including through another account or email address you control.</li>
-          <li>No paid search or brand-bidding on “Aksharo” or close misspellings.</li>
+          <li>No paid search or brand-bidding on “{BRAND.name}” or close misspellings.</li>
           <li>No listing on coupon or deal sites.</li>
           <li>Codes are personal, non-guessable, and revocable at any time.</li>
           <li>Top affiliates are spot-checked for disclosure compliance.</li>

@@ -3,7 +3,8 @@
 import * as React from "react";
 
 import { useDevices, useEntitlement, usePluginManifest } from "@montaj/api-client";
-import { Skeleton } from "@montaj/ui";
+import { BRAND } from "@montaj/config";
+import { PageHeader, Skeleton } from "@montaj/ui";
 
 import { LicenseKeysView } from "../plugins/keys/license-keys-view";
 
@@ -44,6 +45,15 @@ const RESOLVE_CAPABILITY_NOTES: readonly CapabilityNote[] = [
  * the same page (brief §2), since a licence key and a device-code sign-in
  * are the two ways the same activation card gets a device onto the plan.
  */
+function PluginsHeader(): React.JSX.Element {
+  return (
+    <PageHeader
+      title="Plugins"
+      description="Caption your timeline inside the editor you already use."
+    />
+  );
+}
+
 export function PluginsView(): React.JSX.Element {
   const devices = useDevices();
   const entitlement = useEntitlement();
@@ -51,7 +61,8 @@ export function PluginsView(): React.JSX.Element {
 
   if (devices.isPending || entitlement.isPending) {
     return (
-      <section className="mx-auto flex w-full max-w-4xl flex-col gap-6" data-testid="plugins-page">
+      <section className="mx-auto flex w-full max-w-4xl flex-col gap-8" data-testid="plugins-page">
+        <PluginsHeader />
         <Skeleton className="h-40" />
         <Skeleton className="h-40" />
       </section>
@@ -60,7 +71,8 @@ export function PluginsView(): React.JSX.Element {
 
   if (devices.isError || entitlement.isError) {
     return (
-      <section className="mx-auto flex w-full max-w-4xl flex-col gap-6" data-testid="plugins-page">
+      <section className="mx-auto flex w-full max-w-4xl flex-col gap-8" data-testid="plugins-page">
+        <PluginsHeader />
         <p className="text-rejected text-sm" role="alert">
           {messageForError(devices.error ?? entitlement.error)}
         </p>
@@ -81,13 +93,8 @@ export function PluginsView(): React.JSX.Element {
   const resolveState = activationStateFor(allDevices, RESOLVE_HOSTS, atLimit);
 
   return (
-    <section className="mx-auto flex w-full max-w-4xl flex-col gap-6" data-testid="plugins-page">
-      <div>
-        <h1 className="font-display text-xl font-semibold tracking-tight">Plugins</h1>
-        <p className="text-fg-2 text-sm">
-          Caption your timeline right inside the app you already edit in.
-        </p>
-      </div>
+    <section className="mx-auto flex w-full max-w-4xl flex-col gap-8" data-testid="plugins-page">
+      <PluginsHeader />
 
       <ActivationCard
         testId="activation-card-adobe"
@@ -144,11 +151,11 @@ export function PluginsView(): React.JSX.Element {
         }
       />
 
-      <LicenseKeysView />
+      <LicenseKeysView embedded />
 
       <p className="text-fg-2 text-xs">
         Adobe, Premiere Pro and After Effects are trademarks of Adobe Inc.; DaVinci Resolve is a
-        trademark of Blackmagic Design. Aksharo is not affiliated with or endorsed by Adobe or
+        trademark of Blackmagic Design. {BRAND.name} is not affiliated with or endorsed by Adobe or
         Blackmagic Design.
       </p>
     </section>

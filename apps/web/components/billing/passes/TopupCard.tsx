@@ -96,7 +96,7 @@ export function TopupCard({ onDone, className }: TopupCardProps): React.JSX.Elem
       <p className="text-fg-0 text-sm font-medium">
         {formatAmount(tier.priceMinor, tier.currency)} for {tier.credits} credits
       </p>
-      <p className="text-fg-2 mt-1 text-2xs">Never expires while your account is active.</p>
+      <p className="text-fg-2 mt-1 text-xs">Never expires while your account is active.</p>
       <Button
         type="button"
         variant="secondary"
@@ -105,7 +105,7 @@ export function TopupCard({ onDone, className }: TopupCardProps): React.JSX.Elem
         onClick={() => void buy()}
         data-testid="topup-card-buy"
       >
-        {buying ? "Opening checkout…" : "Top up"}
+        {buying ? "Opening checkout…" : "Top up credits"}
       </Button>
     </Card>
   );

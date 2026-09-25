@@ -31,7 +31,10 @@ export function CreditsBuyCard({
   const rows: readonly { label: string; value: string }[] = [
     {
       label: "Transcription",
-      value: hours >= 1 ? `${(Math.round(hours * 10) / 10).toString()} hours` : `${String(Math.round(minutes))} min`,
+      value:
+        hours >= 1
+          ? `${(Math.round(hours * 10) / 10).toString()} hours`
+          : `${String(Math.round(minutes))} min`,
     },
     {
       label: `Reels at ${String(REEL_SECONDS)} seconds`,
@@ -45,22 +48,22 @@ export function CreditsBuyCard({
 
   return (
     <div
-      className={cn("bg-surface flex flex-col gap-[9px] rounded-md p-[18px]", className)}
+      className={cn(
+        "border-border bg-surface flex flex-col gap-2.5 rounded-md border p-5",
+        className,
+      )}
       data-testid="credits-buy-card"
     >
-      <span className="text-neutral-500 text-[10px] tracking-[0.12em] uppercase">
+      <span className="text-fg-2 text-2xs font-medium tracking-[0.08em] uppercase">
         What {String(Math.round(minutes))} credits buys
       </span>
       {rows.map((row) => (
-        <span
-          key={row.label}
-          className="text-neutral-300 flex items-baseline gap-[9px] text-[12.5px]"
-        >
+        <span key={row.label} className="text-fg-1 flex items-baseline gap-2 text-sm">
           {row.label}
           <span className="text-fg-0 ml-auto font-mono text-xs">{row.value}</span>
         </span>
       ))}
-      <p className="text-neutral-500 m-0 mt-1 text-[11px]">
+      <p className="text-fg-2 m-0 mt-1 text-xs">
         One credit is one minute of transcription at the base rate.
       </p>
     </div>

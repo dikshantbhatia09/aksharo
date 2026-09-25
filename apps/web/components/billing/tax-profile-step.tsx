@@ -34,7 +34,7 @@ const COMMON_COUNTRIES: readonly { readonly code: string; readonly name: string 
 ];
 
 const SELECT_CLASSNAME =
-  "bg-bg-1 border-border text-fg-0 hover:border-fg-2/60 h-9 w-full rounded-sm border px-3 text-sm " +
+  "bg-sunken border-border text-fg-0 hover:border-fg-2/60 h-9 w-full rounded-sm border px-3 text-sm " +
   "transition-colors duration-[160ms] ease-[var(--ease-out-soft)] disabled:cursor-not-allowed " +
   "disabled:text-fg-disabled aria-[invalid=true]:border-rejected";
 

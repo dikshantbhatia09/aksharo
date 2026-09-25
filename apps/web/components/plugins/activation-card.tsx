@@ -13,10 +13,12 @@ import {
   type PluginActivationState,
 } from "./plugin-status";
 
+import { INLINE_LINK_CLASS } from "@/components/settings/section";
 import { messageForError } from "@/lib/errors";
 
-const STATE_TONE: Record<PluginActivationState, "accent" | "neutral" | "warning"> = {
-  signed_in: "accent",
+// A state, so a signal hue with its word; never the brand accent.
+const STATE_TONE: Record<PluginActivationState, "accepted" | "neutral" | "warning"> = {
+  signed_in: "accepted",
   not_installed: "neutral",
   limit_reached: "warning",
 };
@@ -75,7 +77,7 @@ export function ActivationCard({
     <Card className="flex flex-col gap-5" data-testid={testId}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-fg-0 font-display text-lg font-semibold tracking-tight">{title}</h2>
+          <h2 className="text-fg-0 text-lg font-semibold">{title}</h2>
           <p className="text-fg-2 text-sm">
             {activeCount} / {limit} device{limit === 1 ? "" : "s"} on this plan
           </p>
@@ -93,7 +95,7 @@ export function ActivationCard({
         <Step index={1} title="Install">
           <ul className="flex flex-col gap-1">
             {channels.map((channel) => (
-              <li key={channel.key} className="flex items-center justify-between gap-3">
+              <li key={channel.key} className="flex flex-wrap items-center justify-between gap-3">
                 <span className="text-fg-1">{channel.hostLabel}</span>
                 {channelUnavailable(channel.manifest) ? (
                   <span
@@ -103,15 +105,14 @@ export function ActivationCard({
                     Download coming soon
                   </span>
                 ) : (
-                  <a
-                    className="text-lime-500 rounded-sm text-xs hover:underline"
-                    href={channel.manifest?.downloadUrl ?? "#"}
-                  >
-                    Download
-                    {channel.manifest?.version !== null && channel.manifest?.version !== undefined
-                      ? ` v${channel.manifest.version}`
-                      : ""}
-                  </a>
+                  <Button variant="secondary" size="sm" asChild>
+                    <a href={channel.manifest?.downloadUrl ?? "#"}>
+                      Download for {channel.hostLabel}
+                      {channel.manifest?.version !== null && channel.manifest?.version !== undefined
+                        ? ` (v${channel.manifest.version})`
+                        : ""}
+                    </a>
+                  </Button>
                 )}
               </li>
             ))}
@@ -121,11 +122,11 @@ export function ActivationCard({
           <p className="text-fg-2">
             Open the panel and click <strong className="text-fg-0">Sign in</strong> — approve the
             code at{" "}
-            <Link href="/device" className="text-lime-500 rounded-sm hover:underline">
+            <Link href="/device" className={INLINE_LINK_CLASS}>
               Connect a device
             </Link>
             . On an offline machine,{" "}
-            <Link href="/plugins/keys" className="text-lime-500 rounded-sm hover:underline">
+            <Link href="/plugins/keys" className={INLINE_LINK_CLASS}>
               generate a licence key
             </Link>{" "}
             instead — it verifies for 7 days without a connection.
@@ -137,14 +138,16 @@ export function ActivationCard({
       </ol>
 
       <div className="flex flex-col gap-2">
-        <h3 className="text-fg-0 text-sm font-medium">Devices</h3>
+        <h3 className="text-fg-0 text-sm font-semibold">Devices</h3>
         {devices.length === 0 ? (
-          <p className="text-fg-2 text-sm">No device signed in yet.</p>
+          <p className="text-fg-2 text-sm">
+            No device signed in yet. Sign in from the panel (step 2) and it appears here.
+          </p>
         ) : (
           <ul className="flex flex-col gap-2" data-testid={`${testId}-devices`}>
             {devices.map((device) => (
               <li key={device.id}>
-                <div className="border-border flex items-center justify-between gap-4 rounded-sm border p-3">
+                <div className="border-border flex flex-wrap items-center justify-between gap-4 rounded-sm border p-3">
                   <div className="flex min-w-0 flex-col gap-0.5">
                     <p className="text-fg-0 truncate text-sm font-medium">{device.name}</p>
                     <p className="text-fg-2 text-xs">
@@ -158,7 +161,7 @@ export function ActivationCard({
                   </div>
                   <div className="flex items-center gap-2">
                     <Button
-                      variant="outline"
+                      variant="secondary"
                       size="sm"
                       disabled={revoke.isPending}
                       data-testid={`${testId}-signout-${device.id}`}
@@ -198,7 +201,7 @@ export function ActivationCard({
       </div>
 
       <div className="border-border flex flex-wrap items-center justify-between gap-2 border-t pt-3 text-xs">
-        <Link href={tutorialsHref} className="text-lime-500 rounded-sm hover:underline">
+        <Link href={tutorialsHref} className={INLINE_LINK_CLASS}>
           Browse tutorials
         </Link>
         <ul className="text-fg-2 flex flex-col gap-1">
@@ -224,7 +227,7 @@ function Step({
 }): React.JSX.Element {
   return (
     <li className="flex gap-3">
-      <span className="bg-bg-2 text-fg-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold">
+      <span className="border-border text-fg-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-xs font-semibold tabular-nums">
         {index}
       </span>
       <div className="flex flex-col gap-1">

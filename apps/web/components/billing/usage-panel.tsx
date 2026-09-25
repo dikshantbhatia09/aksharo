@@ -2,7 +2,7 @@
 
 import * as React from "react";
 
-import { Button, Card } from "@montaj/ui";
+import { Button } from "@montaj/ui";
 
 import type { UsageEntry } from "@/lib/billing/types";
 
@@ -73,8 +73,17 @@ function downloadCsv(csv: string, filename: string): void {
   URL.revokeObjectURL(url);
 }
 
-/** `/billing/usage` (08 §Subscription: "Usage"). */
-export function UsagePanel(): React.JSX.Element {
+/**
+ * `/billing/usage` (08 §Subscription: "Usage"). `nested` drops its section
+ * headings to `h3` when it sits under another section heading (the
+ * Overview's "Where the credits went"), so the outline never skips back up.
+ */
+export function UsagePanel({
+  nested = false,
+}: {
+  readonly nested?: boolean;
+} = {}): React.JSX.Element {
+  const Heading = nested ? "h3" : "h2";
   const usage = useUsagePage();
   const credits = useCreditsSummary();
 
@@ -90,10 +99,16 @@ export function UsagePanel(): React.JSX.Element {
     <div className="flex flex-col gap-6" data-testid="usage-panel">
       {credits.data !== undefined && credits.data.lots.length > 0 ? (
         <section className="flex flex-col gap-2">
-          <h2 className="text-fg-0 text-lg font-semibold">Lots</h2>
-          <ul className="flex flex-col gap-1" data-testid="usage-lots">
+          <Heading className="text-fg-0 text-base font-semibold">Credit lots</Heading>
+          <ul
+            className="border-border bg-surface divide-border flex flex-col divide-y rounded-md border"
+            data-testid="usage-lots"
+          >
             {credits.data.lots.map((lot) => (
-              <li key={lot.id} className="text-fg-1 flex justify-between text-sm">
+              <li
+                key={lot.id}
+                className="text-fg-1 flex flex-wrap justify-between gap-x-4 gap-y-1 px-4 py-3 text-sm"
+              >
                 <span className="capitalize">{lot.source}</span>
                 <span>
                   {lot.remainingTenths / 10} of {lot.grantedTenths / 10} left
@@ -106,16 +121,16 @@ export function UsagePanel(): React.JSX.Element {
       ) : null}
 
       <section className="flex flex-col gap-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-fg-0 text-lg font-semibold">History</h2>
+        <div className="flex items-center justify-between gap-3">
+          <Heading className="text-fg-0 text-base font-semibold">History</Heading>
           <Button
-            variant="outline"
+            variant="secondary"
             size="sm"
             disabled={usage.data === undefined || usage.data.items.length === 0}
             data-testid="export-usage-csv"
             onClick={exportCsv}
           >
-            Export CSV
+            Download CSV
           </Button>
         </div>
 
@@ -127,14 +142,20 @@ export function UsagePanel(): React.JSX.Element {
           </p>
         ) : usage.data.items.length === 0 ? (
           <p className="text-fg-2 text-sm" data-testid="usage-empty">
-            No activity yet.
+            No credit activity yet. Transcribing or exporting a project shows up here.
           </p>
         ) : (
-          <ul className="flex flex-col gap-2" data-testid="usage-list">
+          <ul
+            className="border-border bg-surface divide-border flex flex-col divide-y rounded-md border"
+            data-testid="usage-list"
+          >
             {usage.data.items.map((entry) => (
               <li key={entry.id}>
-                <Card className="flex items-center justify-between py-3" data-testid="usage-row">
-                  <div className="flex flex-col">
+                <div
+                  className="flex items-center justify-between gap-4 px-4 py-3"
+                  data-testid="usage-row"
+                >
+                  <div className="flex min-w-0 flex-col">
                     <span className="text-fg-0 text-sm">
                       {KIND_LABEL[entry.kind] ?? entry.kind}
                     </span>
@@ -145,12 +166,14 @@ export function UsagePanel(): React.JSX.Element {
                   </div>
                   <span
                     className={
-                      entry.deltaTenths >= 0 ? "text-accepted text-sm" : "text-fg-1 text-sm"
+                      entry.deltaTenths >= 0
+                        ? "text-accepted text-sm tabular-nums"
+                        : "text-fg-1 text-sm tabular-nums"
                     }
                   >
                     {formatDelta(entry.deltaTenths)}
                   </span>
-                </Card>
+                </div>
               </li>
             ))}
           </ul>

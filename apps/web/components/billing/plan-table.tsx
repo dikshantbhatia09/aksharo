@@ -1,8 +1,9 @@
 "use client";
 
+import { Check } from "lucide-react";
 import * as React from "react";
 
-import { Badge, Button, Card, toast } from "@montaj/ui";
+import { Badge, Button, Card, cn, toast } from "@montaj/ui";
 
 import { CheckoutSheet } from "./checkout-sheet";
 import { FreeStackBillingNotice } from "./free-stack-notice";
@@ -40,12 +41,44 @@ const PLAN_HIGHLIGHTS: Record<PlanKey, readonly string[]> = {
 
 const ONCE_ELIGIBLE: ReadonlySet<PlanKey> = new Set(["starter", "creator"]);
 
-export function PlanTable(): React.JSX.Element {
+/** The plan most people land on; its card carries the one filled button. */
+const RECOMMENDED_PLAN: PlanKey = "creator";
+
+/*
+ * The interval and payment-mode switches are segmented controls. The selected
+ * segment is a raised neutral well, not an accent fill: the accent is spent on
+ * the one primary button below (DESIGN.md > accent budget). `aria-pressed`
+ * carries the state for assistive tech, and the well plus the weight change
+ * carry it visually, so it never rests on colour alone.
+ */
+const SEGMENT_CLASS =
+  "inline-flex min-h-8 items-center rounded-full px-3 text-xs transition-colors duration-[160ms]";
+const SEGMENT_ON = "bg-bg-2 text-fg-0 font-semibold shadow-sm";
+const SEGMENT_OFF = "text-fg-2 font-medium hover:text-fg-0";
+
+/**
+ * `emphasis="recommended"` (the default, on `/billing/plans`) fills the
+ * recommended plan's button; `"none"` keeps every plan button secondary, for
+ * a surface that already has its own primary action (the Overview).
+ */
+export function PlanTable({
+  emphasis = "recommended",
+}: {
+  readonly emphasis?: "recommended" | "none";
+} = {}): React.JSX.Element {
   const config = useRuntimeConfig();
-  return config.razorpayEnabled ? <PurchasablePlanTable /> : <FreeStackBillingNotice />;
+  return config.razorpayEnabled ? (
+    <PurchasablePlanTable emphasis={emphasis} />
+  ) : (
+    <FreeStackBillingNotice />
+  );
 }
 
-function PurchasablePlanTable(): React.JSX.Element {
+function PurchasablePlanTable({
+  emphasis,
+}: {
+  readonly emphasis: "recommended" | "none";
+}): React.JSX.Element {
   const plans = usePlans();
   const billing = useWorkspaceBilling();
   const subscription = useSubscription();
@@ -101,11 +134,7 @@ function PurchasablePlanTable(): React.JSX.Element {
               onClick={() => {
                 setBillingInterval(option);
               }}
-              className={
-                billingInterval === option
-                  ? "bg-lime-500 text-on-accent rounded-full px-3 py-1 text-xs font-semibold"
-                  : "text-fg-1 rounded-full px-3 py-1 text-xs font-semibold"
-              }
+              className={cn(SEGMENT_CLASS, billingInterval === option ? SEGMENT_ON : SEGMENT_OFF)}
             >
               {option === "month" ? "Monthly" : "Yearly — 2 months free"}
             </button>
@@ -126,11 +155,7 @@ function PurchasablePlanTable(): React.JSX.Element {
               onClick={() => {
                 setPayOnce(value);
               }}
-              className={
-                payOnce === value
-                  ? "bg-lime-500 text-on-accent rounded-full px-3 py-1 text-xs font-semibold"
-                  : "text-fg-1 rounded-full px-3 py-1 text-xs font-semibold"
-              }
+              className={cn(SEGMENT_CLASS, payOnce === value ? SEGMENT_ON : SEGMENT_OFF)}
             >
               {value ? "Pay once" : "UPI Autopay / Card"}
             </button>
@@ -163,6 +188,7 @@ function PurchasablePlanTable(): React.JSX.Element {
             seats={plan.key === "agency" ? seats : undefined}
             onSeatsChange={plan.key === "agency" ? setSeats : undefined}
             isCurrent={currentPlanKey === plan.key}
+            emphasised={emphasis === "recommended" && plan.key === RECOMMENDED_PLAN}
             onChoose={() => {
               openCheckout(plan.key);
             }}
@@ -199,6 +225,7 @@ function PlanCard({
   seats,
   onSeatsChange,
   isCurrent,
+  emphasised,
   onChoose,
 }: {
   readonly plan: PlanView;
@@ -209,6 +236,7 @@ function PlanCard({
   readonly seats?: number;
   readonly onSeatsChange?: (seats: number) => void;
   readonly isCurrent: boolean;
+  readonly emphasised: boolean;
   readonly onChoose: () => void;
 }): React.JSX.Element {
   // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
@@ -231,10 +259,13 @@ function PlanCard({
     !payOnce && interval === "year" && currency === "INR" && plan.hasHalfyear.INR;
 
   return (
-    <Card className="flex flex-col gap-3" data-testid={`plan-card-${plan.key}`}>
-      <div className="flex items-center justify-between">
+    <Card
+      className={cn("flex flex-col gap-3", isCurrent ? "ring-accent ring-1" : null)}
+      data-testid={`plan-card-${plan.key}`}
+    >
+      <div className="flex items-center justify-between gap-2">
         <h3 className="text-fg-0 text-lg font-semibold">{plan.name}</h3>
-        {isCurrent ? <Badge tone="accent">Current plan</Badge> : null}
+        {isCurrent ? <Badge tone="neutral">Current plan</Badge> : null}
       </div>
       <p className="text-fg-2 text-sm">{PLAN_TAGLINE[plan.key]}</p>
 
@@ -257,7 +288,7 @@ function PlanCard({
           </p>
         ) : null}
         {showHalfyearNote ? (
-          <p className="text-info mt-1 text-xs" data-testid={`plan-card-${plan.key}-halfyear`}>
+          <p className="text-fg-2 mt-1 text-xs" data-testid={`plan-card-${plan.key}-halfyear`}>
             Over UPI Autopay: two half-yearly debits of{" "}
             {formatMoney(prices.halfyear ?? 0, currency)} (₹15,000 mandate cap).
           </p>
@@ -266,11 +297,11 @@ function PlanCard({
 
       {isAgency && onSeatsChange !== undefined ? (
         <div className="flex items-center gap-2">
-          <label htmlFor="agency-seats" className="text-fg-1 text-xs">
+          <label htmlFor="agency-seats" className="text-fg-1 text-sm">
             Seats
           </label>
           <Button
-            variant="outline"
+            variant="secondary"
             size="icon"
             aria-label="Fewer seats"
             onClick={() => {
@@ -290,10 +321,10 @@ function PlanCard({
               const value = Number(event.target.value);
               if (Number.isInteger(value) && value >= 1) onSeatsChange(value);
             }}
-            className="bg-bg-1 border-border text-fg-0 h-8 w-14 rounded-sm border text-center text-sm"
+            className="bg-sunken border-border text-fg-0 h-9 w-16 rounded-sm border text-center text-sm"
           />
           <Button
-            variant="outline"
+            variant="secondary"
             size="icon"
             aria-label="More seats"
             onClick={() => {
@@ -307,17 +338,19 @@ function PlanCard({
 
       <ul className="flex flex-1 flex-col gap-1.5 text-sm">
         {PLAN_HIGHLIGHTS[plan.key].map((line) => (
-          <li key={line} className="text-fg-1 flex gap-2">
-            <span aria-hidden="true" className="text-lime-500">
-              +
-            </span>
+          <li key={line} className="text-fg-1 flex items-start gap-2">
+            <Check
+              aria-hidden="true"
+              className="text-fg-2 mt-0.5 size-4 shrink-0"
+              strokeWidth={1.75}
+            />
             {line}
           </li>
         ))}
       </ul>
 
       <Button
-        variant={isCurrent ? "outline" : "primary"}
+        variant={isCurrent ? "ghost" : emphasised ? "primary" : "secondary"}
         disabled={isCurrent || payOnceUnavailable}
         data-testid={`plan-card-${plan.key}-choose`}
         onClick={onChoose}
@@ -435,21 +468,22 @@ function OffersLadder({ currency }: { readonly currency: "INR" | "USD" }): React
 
   return (
     <section aria-labelledby="offers-heading" className="flex flex-col gap-4">
-      <h2 id="offers-heading" className="font-display text-fg-0 text-xl font-semibold">
+      <h2 id="offers-heading" className="text-fg-0 text-lg font-semibold">
         Try it before you subscribe
       </h2>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {offers.map((offer) => (
           <Card key={offer.key} className="flex flex-col gap-2" data-testid={`offer-${offer.key}`}>
-            <p className="text-fg-0 text-xl font-semibold">{offer.price}</p>
-            <h3 className="text-fg-0 font-medium">{offer.title}</h3>
+            <h3 className="text-fg-0 text-sm font-semibold">{offer.title}</h3>
+            <p className="text-fg-0 text-xl font-semibold tabular-nums">{offer.price}</p>
             <p className="text-fg-1 text-sm">{offer.description}</p>
             {offer.action === null ? null : (
               <Button
-                variant="outline"
+                variant="secondary"
                 size="sm"
                 className="mt-auto self-start"
                 disabled={passCheckout.isPending || topupCheckout.isPending}
+                aria-label={`Buy ${offer.title}`}
                 onClick={offer.action}
               >
                 Buy
@@ -465,7 +499,7 @@ function OffersLadder({ currency }: { readonly currency: "INR" | "USD" }): React
 function CreditsToOutcomes({ plans }: { readonly plans: readonly PlanView[] }): React.JSX.Element {
   return (
     <section aria-labelledby="outcomes-heading" className="flex flex-col gap-4">
-      <h2 id="outcomes-heading" className="font-display text-fg-0 text-xl font-semibold">
+      <h2 id="outcomes-heading" className="text-fg-0 text-lg font-semibold">
         Credits to outcomes
       </h2>
       <p className="text-fg-2 text-sm">
@@ -535,7 +569,7 @@ const FAQ_ENTRIES: readonly { readonly question: string; readonly answer: string
 function FaqBlock(): React.JSX.Element {
   return (
     <section aria-labelledby="faq-heading" className="flex flex-col gap-4">
-      <h2 id="faq-heading" className="font-display text-fg-0 text-xl font-semibold">
+      <h2 id="faq-heading" className="text-fg-0 text-lg font-semibold">
         Questions people ask
       </h2>
       <dl className="flex flex-col gap-4">

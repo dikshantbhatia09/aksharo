@@ -31,7 +31,7 @@ import {
   toast,
 } from "@montaj/ui";
 
-import { SettingsSection } from "@/components/settings/section";
+import { INLINE_LINK_CLASS, SettingsSection } from "@/components/settings/section";
 import { messageForError } from "@/lib/errors";
 import { readPrivacy, subscribePrivacy } from "@/lib/privacy/consent";
 
@@ -83,11 +83,11 @@ export function MemoryView(): React.JSX.Element {
 
       {!privacy.memory ? (
         <Card className="flex flex-col gap-3" data-testid="memory-disabled">
-          <h2 className="text-fg-0 text-base font-medium">Memory is off</h2>
+          <h2 className="text-fg-0 text-base font-semibold">Memory is off</h2>
           <p className="text-fg-2 text-sm">
             Nothing is being remembered, so there is nothing to show. Turn on “Remember my spellings
             and preferences” in{" "}
-            <Link href="/settings/privacy" className="text-lime-500 rounded-sm hover:underline">
+            <Link href="/settings/privacy" className={INLINE_LINK_CLASS}>
               Privacy
             </Link>{" "}
             if you want {BRAND.name} to stop asking you to fix the same name twice.
@@ -200,7 +200,7 @@ function MemoryRow({
             <span>
               {entry.key} → {entry.value}
             </span>
-            {entry.deviceOnly ? <Badge tone="accent">This device only</Badge> : null}
+            {entry.deviceOnly ? <Badge tone="neutral">This device only</Badge> : null}
           </p>
           {entry.aliases !== undefined && entry.aliases.length > 0 ? (
             <p className="text-fg-2 text-xs">Also heard as: {entry.aliases.join(", ")}</p>
@@ -269,6 +269,7 @@ function EditEntryDialog({
           <DialogDescription>Change what {BRAND.name} corrects this to.</DialogDescription>
         </DialogHeader>
         <Input
+          aria-label={`Correct ${entry?.key ?? "this entry"} to`}
           value={value}
           onChange={(event) => {
             setValue(event.target.value);
@@ -280,6 +281,7 @@ function EditEntryDialog({
             Cancel
           </Button>
           <Button
+            variant="primary"
             disabled={update.isPending || value.trim() === ""}
             data-testid="edit-memory-save"
             onClick={() => {
@@ -315,13 +317,14 @@ function GlossaryImport(): React.JSX.Element {
 
   return (
     <Card className="flex flex-col gap-3" data-testid="memory-glossary-import">
-      <h2 className="text-fg-0 text-base font-medium">Add glossary terms</h2>
+      <h2 className="text-fg-0 text-base font-semibold">Add glossary terms</h2>
       <p className="text-fg-2 text-sm">
-        Names Aksharo should spell exactly your way — channel names, product names, people.
+        Names {BRAND.name} should spell exactly your way — channel names, product names, people.
       </p>
       <div className="flex gap-2">
         <Input
-          placeholder="e.g. Aksharo"
+          aria-label="Glossary term"
+          placeholder={`e.g. ${BRAND.name}`}
           value={term}
           onChange={(event) => {
             setTerm(event.target.value);
@@ -329,7 +332,7 @@ function GlossaryImport(): React.JSX.Element {
           data-testid="memory-add-term-input"
         />
         <Button
-          variant="outline"
+          variant="secondary"
           disabled={create.isPending || term.trim() === ""}
           data-testid="memory-add-term"
           onClick={() => {
@@ -348,18 +351,21 @@ function GlossaryImport(): React.JSX.Element {
             );
           }}
         >
-          Add
+          Add term
         </Button>
       </div>
 
       <details>
-        <summary className="text-fg-2 cursor-pointer text-sm">Import a list (CSV)</summary>
+        <summary className="text-fg-1 hover:text-fg-0 flex min-h-8 cursor-pointer items-center rounded-sm text-sm">
+          Import a list (CSV)
+        </summary>
         <div className="mt-2 flex flex-col gap-2">
           <p className="text-fg-2 text-xs">
             One term per line: <code>term</code> or <code>term,alias1;alias2</code>.
           </p>
           <Textarea
             rows={4}
+            aria-label="Glossary terms, one per line"
             value={csv}
             onChange={(event) => {
               setCsv(event.target.value);
@@ -367,7 +373,7 @@ function GlossaryImport(): React.JSX.Element {
             data-testid="memory-import-csv"
           />
           <Button
-            variant="outline"
+            variant="secondary"
             className="self-start"
             disabled={importGlossary.isPending || csv.trim() === ""}
             data-testid="memory-import-submit"
@@ -388,7 +394,7 @@ function GlossaryImport(): React.JSX.Element {
               );
             }}
           >
-            Import
+            Import terms
           </Button>
         </div>
       </details>

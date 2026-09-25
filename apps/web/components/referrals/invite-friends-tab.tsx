@@ -42,10 +42,8 @@ export function InviteFriendsTab(): React.JSX.Element {
 
   return (
     <div className="flex flex-col gap-6" data-testid="invite-friends-tab">
-      <Card className="flex flex-col gap-1 p-5">
-        <h2 className="font-display text-lg font-semibold tracking-tight">
-          Give 30 credits, get 30 credits
-        </h2>
+      <Card className="flex flex-col gap-1">
+        <h2 className="text-fg-0 text-lg font-semibold">Give 30 credits, get 30 credits</h2>
         <p className="text-fg-2 text-sm">
           Share your code with a friend. When they complete their first export, you both get 30
           credits — free, and they never expire.
@@ -54,7 +52,7 @@ export function InviteFriendsTab(): React.JSX.Element {
 
       <ReferralShareRow code={code} />
 
-      <dl className="grid grid-cols-3 gap-3">
+      <dl className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <Stat label="Pending" value={pending} testId="referral-stat-pending" />
         <Stat label="Granted" value={granted} testId="referral-stat-granted" />
         <Stat label="Not eligible" value={rejected} testId="referral-stat-rejected" />
@@ -85,7 +83,9 @@ function Stat({
   return (
     <Card className="flex flex-col gap-1 p-4" data-testid={testId}>
       <dt className="text-fg-2 text-xs">{label}</dt>
-      <dd className="font-display text-2xl font-semibold tracking-tight">{value}</dd>
+      <dd className="font-display text-fg-0 text-2xl font-semibold tabular-nums [font-stretch:92%]">
+        {value}
+      </dd>
     </Card>
   );
 }

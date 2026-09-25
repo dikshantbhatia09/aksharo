@@ -24,10 +24,10 @@ const STATUS_LABEL: Record<PassStatus, string> = {
   expired: "Expired",
 };
 
-const STATUS_TONE: Record<PassStatus, "accent" | "warning" | "neutral" | "rejected"> = {
+const STATUS_TONE: Record<PassStatus, "accepted" | "warning" | "neutral" | "rejected"> = {
   pending_payment: "warning",
-  available: "accent",
-  active: "accent",
+  available: "accepted",
+  active: "accepted",
   redeemed: "neutral",
   expired: "rejected",
 };

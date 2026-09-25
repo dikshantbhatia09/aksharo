@@ -12,6 +12,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  ProgressBar,
   toast,
 } from "@montaj/ui";
 
@@ -43,9 +44,11 @@ const STATUS_LABEL: Record<string, string> = {
   expired: "Expired",
 };
 
-const STATUS_TONE: Record<string, "accent" | "warning" | "rejected" | "neutral"> = {
+// Status is a signal, never decoration: "active" reads as accepted (with its
+// word), not as the brand accent (DESIGN.md > Colour, accent budget).
+const STATUS_TONE: Record<string, "accepted" | "warning" | "rejected" | "neutral"> = {
   pending: "warning",
-  active: "accent",
+  active: "accepted",
   past_due: "warning",
   paused: "neutral",
   cancelled: "rejected",
@@ -95,7 +98,7 @@ export function OverviewPanel(): React.JSX.Element {
     grantTenths > 0 ? Math.min(100, Math.max(0, (balanceTenths / grantTenths) * 100)) : null;
 
   return (
-    <div className="flex flex-col gap-4" data-testid="billing-overview">
+    <div className="flex flex-col gap-8" data-testid="billing-overview">
       {config.razorpayEnabled ? null : <FreeStackBillingNotice />}
 
       {/*
@@ -105,16 +108,18 @@ export function OverviewPanel(): React.JSX.Element {
       */}
       <section className="grid gap-3.5 [grid-template-columns:repeat(auto-fit,minmax(260px,1fr))]">
         <div
-          className="bg-surface flex flex-col gap-2.5 rounded-md p-[18px] shadow-[var(--shadow-sm)]"
+          className="border-border bg-surface flex flex-col gap-2.5 rounded-md border p-5"
           data-testid="plan-card"
         >
           {subscription.isPending ? (
-            <p className="text-neutral-500 text-sm">Loading your plan…</p>
+            <p className="text-fg-2 text-sm">Loading your plan…</p>
           ) : subscription.data === null || subscription.data === undefined ? (
             <>
-              <span className="text-accent text-[10px] tracking-[0.12em] uppercase">Your plan</span>
-              <h2 className="font-display m-0 text-[25px] tracking-[-0.02em]">Free</h2>
-              <p className="text-neutral-400 m-0 text-[13px]">
+              <span className="text-fg-2 text-2xs font-medium tracking-[0.08em] uppercase">
+                Your plan
+              </span>
+              <h2 className="text-fg-0 m-0 text-xl font-semibold">Free</h2>
+              <p className="text-fg-1 m-0 text-sm">
                 20 credits a month and one watermark-free export.
               </p>
               {config.razorpayEnabled ? (
@@ -148,22 +153,29 @@ export function OverviewPanel(): React.JSX.Element {
           )}
         </div>
 
-        <div className="bg-surface flex flex-col gap-[11px] rounded-md p-[18px]" data-testid="credits-card">
-          <span className="text-neutral-500 text-[10px] tracking-[0.12em] uppercase">Credits</span>
+        <div
+          className="border-border bg-surface flex flex-col gap-3 rounded-md border p-5"
+          data-testid="credits-card"
+        >
+          <span className="text-fg-2 text-2xs font-medium tracking-[0.08em] uppercase">
+            Credits
+          </span>
           {credits.isPending ? (
-            <p className="text-neutral-500 text-sm">Loading credits…</p>
+            <p className="text-fg-2 text-sm">Loading credits…</p>
           ) : credits.data === undefined ? (
-            <p className="text-neutral-500 text-sm">{messageForError(credits.error)}</p>
+            <p className="text-rejected text-sm" role="alert">
+              {messageForError(credits.error)}
+            </p>
           ) : (
             <>
-              <div className="flex items-end gap-[7px]">
+              <div className="flex items-end gap-2">
                 <span
-                  className="font-display text-[34px] leading-none tracking-[-0.02em] tabular-nums"
+                  className="font-display text-fg-0 text-4xl leading-none font-semibold tabular-nums [font-stretch:92%]"
                   data-testid="credit-balance"
                 >
                   {Math.round(balanceTenths / 10)}
                 </span>
-                <span className="text-neutral-400 pb-1 text-xs">
+                <span className="text-fg-2 pb-1 text-xs">
                   {
                     // A workspace can carry an admin "adjustment" lot on top
                     // of its monthly grant (the lots list just below draws
@@ -181,12 +193,10 @@ export function OverviewPanel(): React.JSX.Element {
               </div>
 
               {creditsPct === null ? null : (
-                <span className="bg-neutral-800 block h-[3px] overflow-hidden rounded-full">
-                  <span className="bg-accent block h-full" style={{ width: `${String(creditsPct)}%` }} />
-                </span>
+                <ProgressBar value={creditsPct} label="Monthly credits left" />
               )}
 
-              <p className="text-neutral-400 m-0 text-xs">
+              <p className="text-fg-2 m-0 text-xs">
                 {credits.data.grantResetAt === null
                   ? "This balance does not reset on a schedule."
                   : `Your monthly credits refill on ${formatDate(credits.data.grantResetAt)}.`}
@@ -195,7 +205,7 @@ export function OverviewPanel(): React.JSX.Element {
               {credits.data.lots.length > 0 ? (
                 <ul className="m-0 flex flex-col gap-1" data-testid="credit-lots">
                   {credits.data.lots.map((lot) => (
-                    <li key={lot.id} className="text-neutral-500 flex justify-between text-xs">
+                    <li key={lot.id} className="text-fg-2 flex justify-between gap-3 text-xs">
                       <span className="capitalize">{lot.source}</span>
                       <span>
                         {lot.remainingTenths / 10} left
@@ -206,9 +216,11 @@ export function OverviewPanel(): React.JSX.Element {
                 </ul>
               ) : null}
 
+              {/* Secondary on purpose: the plan card's action is this page's
+                  one primary (DESIGN.md > Components). */}
               {config.razorpayEnabled ? (
-                <Button variant="primary" size="sm" asChild className="mt-auto self-start">
-                  <Link href="/billing/plans">Top up</Link>
+                <Button variant="secondary" size="sm" asChild className="mt-auto self-start">
+                  <Link href="/billing/plans">Top up credits</Link>
                 </Button>
               ) : null}
             </>
@@ -233,16 +245,14 @@ export function OverviewPanel(): React.JSX.Element {
       */}
       {config.razorpayEnabled ? (
         <section className="flex flex-col gap-3">
-          <h2 className="font-display m-0 text-[17px] tracking-[-0.01em]">Move up or down</h2>
-          <PlanTable />
+          <h2 className="text-fg-0 m-0 text-lg font-semibold">Change your plan</h2>
+          <PlanTable emphasis="none" />
         </section>
       ) : null}
 
       <section className="flex flex-col gap-3">
-        <h2 className="font-display m-0 text-[17px] tracking-[-0.01em]">
-          Where the credits went
-        </h2>
-        <UsagePanel />
+        <h2 className="text-fg-0 m-0 text-lg font-semibold">Where the credits went</h2>
+        <UsagePanel nested />
       </section>
 
       <Dialog
@@ -333,16 +343,16 @@ function PlanSummary({
 
   return (
     <>
-      <div className="flex items-center gap-[9px]">
-        <span className="text-accent text-[10px] tracking-[0.12em] uppercase">Your plan</span>
+      <div className="flex items-center gap-2">
+        <span className="text-fg-2 text-2xs font-medium tracking-[0.08em] uppercase">
+          Your plan
+        </span>
         <Badge tone={STATUS_TONE[subscription.status] ?? "neutral"} className="ml-auto">
           {STATUS_LABEL[subscription.status] ?? subscription.status}
         </Badge>
       </div>
-      <h2 className="font-display m-0 text-[25px] tracking-[-0.02em] capitalize">
-        {subscription.planKey}
-      </h2>
-      <p className="text-neutral-400 m-0 text-[13px]" data-testid="plan-renewal-summary">
+      <h2 className="text-fg-0 m-0 text-xl font-semibold capitalize">{subscription.planKey}</h2>
+      <p className="text-fg-1 m-0 text-sm" data-testid="plan-renewal-summary">
         Renews {formatDate(subscription.currentPeriodEnd)} · {renewsVia}
       </p>
       {subscription.cancelAtPeriodEnd ? (
@@ -361,18 +371,18 @@ function PlanSummary({
         {/* Invoices is one of the tabs the rail gate hides (F07-C1); its
             shortcut has to go with it or it is a link to nothing. */}
         {paymentsEnabled ? (
-          <Button variant="secondary" size="sm" asChild data-testid="billing-history-shortcut">
+          <Button variant="ghost" size="sm" asChild data-testid="billing-history-shortcut">
             <Link href="/billing/invoices">Invoices</Link>
           </Button>
         ) : null}
         {subscription.status === "paused" ? (
-          <Button variant="outline" size="sm" disabled={busy} onClick={onResume}>
-            Resume
+          <Button variant="secondary" size="sm" disabled={busy} onClick={onResume}>
+            Resume subscription
           </Button>
         ) : (
           <>
             {subscription.cancelAtPeriodEnd ? (
-              <Button variant="outline" size="sm" disabled={busy} onClick={onResume}>
+              <Button variant="secondary" size="sm" disabled={busy} onClick={onResume}>
                 Undo cancellation
               </Button>
             ) : (
@@ -384,7 +394,7 @@ function PlanSummary({
                   onClick={onPause}
                   data-testid="pause-subscription"
                 >
-                  Pause
+                  Pause subscription
                 </Button>
                 <Button
                   variant="ghost"
@@ -393,7 +403,7 @@ function PlanSummary({
                   onClick={onCancel}
                   data-testid="cancel-subscription"
                 >
-                  Cancel
+                  Cancel subscription
                 </Button>
               </>
             )}

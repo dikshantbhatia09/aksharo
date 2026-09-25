@@ -7,7 +7,7 @@ import { useCurrentUser, useSession, useUpdateMe } from "@montaj/api-client";
 import { Badge, Button, Card, Field, Input, Skeleton, toast } from "@montaj/ui";
 
 import { useRuntimeConfig } from "@/components/providers";
-import { SettingsSection } from "@/components/settings/section";
+import { INLINE_LINK_CLASS, SettingsSection } from "@/components/settings/section";
 import { messageForError } from "@/lib/errors";
 
 /** Profile: the name we call you, the address you sign in with, your role. */
@@ -31,7 +31,7 @@ export function ProfileView(): React.JSX.Element {
       { name: name.trim() === "" ? null : name.trim() },
       {
         onSuccess: () => {
-          toast.success("Saved");
+          toast.success("Profile saved");
         },
         onError: (error) => {
           toast.error("Could not save that", { description: messageForError(error) });
@@ -74,32 +74,39 @@ export function ProfileView(): React.JSX.Element {
               <Input id="profile-email" value={me.data?.email ?? ""} readOnly disabled />
             </Field>
 
-            <div className="flex items-center gap-2">
-              <Button
-                type="submit"
-                variant="secondary"
-                disabled={updateMe.isPending}
-                data-testid="save-profile"
-              >
-                {updateMe.isPending ? "Saving…" : "Save"}
-              </Button>
-              {session === null ? null : <Badge tone="neutral">{session.role}</Badge>}
+            <div className="flex flex-wrap items-center gap-2">
+              {session === null ? null : (
+                <Badge tone="neutral" className="capitalize">
+                  Role: {session.role}
+                </Badge>
+              )}
               {me.data?.emailVerified === false ? (
                 <Badge tone="warning">Email not confirmed</Badge>
               ) : null}
             </div>
+
+            {/* The page's one primary action (DESIGN.md > Components). */}
+            <Button
+              type="submit"
+              variant="primary"
+              className="self-start"
+              disabled={updateMe.isPending}
+              data-testid="save-profile"
+            >
+              {updateMe.isPending ? "Saving…" : "Save profile"}
+            </Button>
           </form>
         )}
       </Card>
 
       <Card className="flex flex-col gap-2">
-        <h2 className="text-fg-0 text-base font-medium">How you sign in</h2>
+        <h2 className="text-fg-0 text-base font-semibold">How you sign in</h2>
         <p className="text-fg-2 text-sm">
           {googleOAuthEnabled
             ? "Password, Google, or a one-time link"
             : "Password or a one-time link"}
           . Manage the devices that are signed in under{" "}
-          <Link href="/settings/devices" className="text-lime-500 rounded-sm hover:underline">
+          <Link href="/settings/devices" className={INLINE_LINK_CLASS}>
             Devices &amp; sessions
           </Link>
           .

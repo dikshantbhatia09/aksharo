@@ -1,11 +1,11 @@
 "use client";
 
-import { Check, ExternalLink } from "lucide-react";
+import { Check } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
 
 import { useAcademyProgress, useMarkAcademyStepDone } from "@montaj/api-client";
-import { Badge, Button, Card, toast } from "@montaj/ui";
+import { Badge, Button, Card, PageHeader, toast } from "@montaj/ui";
 
 import type { AcademyTrack } from "@/lib/content/schema";
 
@@ -20,30 +20,35 @@ export function AcademyTrackDetail({ track }: { readonly track: AcademyTrack }):
   const trackProgress = progress.data?.tracks.find((entry) => entry.trackId === track.id);
   const completedStepIds = new Set(trackProgress?.completedStepIds ?? []);
   const rewardGranted = trackProgress?.rewardGranted ?? false;
+  // The one filled button on the page: the next step a person can tick off
+  // by hand. Every other "Mark done" is secondary (DESIGN.md > Components).
+  const nextManualStepId = track.steps.find(
+    (step) => step.completionEvent === undefined && !completedStepIds.has(step.id),
+  )?.id;
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-6">
-      <div>
-        <Link href="/academy" className="text-fg-2 text-xs hover:underline">
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-8">
+      <div className="flex flex-col gap-4">
+        <Link
+          href="/academy"
+          className="text-fg-2 hover:text-fg-0 inline-flex min-h-8 items-center self-start rounded-sm text-sm"
+        >
           ← All tracks
         </Link>
-        <h1 className="font-display text-fg-0 mt-2 text-2xl font-semibold tracking-tight">
-          {track.title}
-        </h1>
-        <p className="text-fg-1 mt-1 text-sm">{track.outcome}</p>
+        <PageHeader eyebrow="Academy" title={track.title} description={track.outcome} />
       </div>
 
       {/* Demo video placeholder — resolved to a real asset by media (brief §1). */}
       <Card
-        className="bg-bg-2 flex h-40 items-center justify-center text-sm"
+        className="bg-sunken flex h-40 items-center justify-center border-dashed text-sm"
         data-testid="academy-demo-video"
         data-asset-id={track.demoVideoAssetId}
       >
-        <span className="text-fg-2">Demo video</span>
+        <span className="text-fg-2">Demo video coming soon</span>
       </Card>
 
-      <Card className="flex flex-col gap-3 p-5">
-        <div className="flex items-center justify-between">
+      <Card className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-fg-0 text-base font-semibold">Steps</h2>
           <Badge tone={rewardGranted ? "accepted" : "neutral"}>
             {rewardGranted ? "Reward earned" : `${track.creditReward} credits on completion`}
@@ -55,11 +60,13 @@ export function AcademyTrackDetail({ track }: { readonly track: AcademyTrack }):
             const isAutomatic = step.completionEvent !== undefined;
             return (
               <li key={step.id}>
-                <div className="flex items-start justify-between gap-3 rounded-md border border-border p-3">
+                <div className="border-border flex flex-wrap items-start justify-between gap-3 rounded-md border p-3">
                   <div className="flex items-start gap-3">
                     <span
-                      className={`mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full text-2xs ${
-                        done ? "bg-lime-500 text-black" : "bg-bg-2 text-fg-2"
+                      // Done is the accepted signal plus a check glyph, never
+                      // the accent and never colour alone.
+                      className={`mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full text-2xs tabular-nums ${
+                        done ? "bg-accepted/15 text-accepted" : "border-border text-fg-2 border"
                       }`}
                       aria-hidden
                     >
@@ -69,7 +76,7 @@ export function AcademyTrackDetail({ track }: { readonly track: AcademyTrack }):
                       <p className="text-fg-0 text-sm font-medium">{step.title}</p>
                       <p className="text-fg-2 text-xs">{step.detail}</p>
                       {isAutomatic ? (
-                        <p className="text-fg-2 mt-1 text-2xs italic">
+                        <p className="text-fg-2 mt-1 text-xs">
                           Completes automatically when you finish an export.
                         </p>
                       ) : null}
@@ -77,7 +84,9 @@ export function AcademyTrackDetail({ track }: { readonly track: AcademyTrack }):
                   </div>
                   {!isAutomatic ? (
                     <Button
-                      variant={done ? "outline" : "primary"}
+                      variant={
+                        done ? "ghost" : step.id === nextManualStepId ? "primary" : "secondary"
+                      }
                       size="sm"
                       disabled={done || markDone.isPending}
                       data-testid={`mark-done-${step.id}`}
@@ -115,14 +124,11 @@ export function AcademyTrackDetail({ track }: { readonly track: AcademyTrack }):
 
       <MarkdownBody markdown={track.body} />
 
-      <Card className="flex items-center justify-between gap-3 p-4">
+      <Card className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-fg-1 text-sm">Need a hand with something specific?</p>
-        <Link
-          href="/help"
-          className="text-accent inline-flex items-center gap-1 text-sm hover:underline"
-        >
-          Help centre <ExternalLink className="size-3.5" />
-        </Link>
+        <Button variant="secondary" size="sm" asChild>
+          <Link href="/help">Open the help centre</Link>
+        </Button>
       </Card>
     </div>
   );

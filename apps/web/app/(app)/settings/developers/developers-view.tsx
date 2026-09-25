@@ -37,7 +37,7 @@ import {
   toast,
 } from "@montaj/ui";
 
-import { SettingsSection } from "@/components/settings/section";
+import { INLINE_LINK_CLASS, SettingsGroup, SettingsSection } from "@/components/settings/section";
 import { messageForError } from "@/lib/errors";
 
 const SCOPE_LABEL: Record<ApiKeyScope, string> = {
@@ -63,31 +63,29 @@ const EVENT_LABEL: Record<WebhookEventName, string> = {
  * itself does (`api_keys.hash` is one-way). Copy it now or lose it.
  */
 export function DevelopersView(): React.JSX.Element {
+  // One page, one title: API keys and webhooks are two groups under
+  // "Developers", not two pages stacked (each used to carry its own h1).
   return (
-    <div className="flex flex-col gap-10">
-      <SettingsSection
-        title="Developers"
-        description="API keys for the public API, available on Studio and Agency."
-        testId="settings-developers"
-      >
-        <p className="text-fg-2 -mt-2 text-sm">
-          See the{" "}
-          <Link href="/docs/developers" className="text-lime-500 underline" target="_blank">
-            API docs
-          </Link>{" "}
-          for endpoints, scopes and quick-starts in curl, Node and Python.
-        </p>
-        <ApiKeysCard />
-      </SettingsSection>
-
-      <SettingsSection
-        title="Webhooks"
-        description="Get notified the moment a transcript finishes, an export completes, a job fails, or credits run low."
-        testId="settings-webhooks"
-      >
-        <WebhooksCard />
-      </SettingsSection>
-    </div>
+    <SettingsSection
+      title="Developers"
+      description="API keys and webhooks for the public API, available on Studio and Agency."
+      testId="settings-developers"
+    >
+      <p className="text-fg-2 -mt-4 text-sm">
+        The{" "}
+        <Link
+          href="/docs/developers"
+          className={INLINE_LINK_CLASS}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          API docs
+        </Link>{" "}
+        cover endpoints, scopes and quick-starts in curl, Node and Python.
+      </p>
+      <ApiKeysCard />
+      <WebhooksCard />
+    </SettingsSection>
   );
 }
 
@@ -104,13 +102,21 @@ function ApiKeysCard(): React.JSX.Element {
   const [minted, setMinted] = React.useState<MintedApiKeyView | null>(null);
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex justify-end">
-        <Button size="sm" onClick={() => setCreateOpen(true)} data-testid="create-api-key">
+    <SettingsGroup
+      title="API keys"
+      description="Each key carries only the scopes you give it."
+      actions={
+        // The page's one primary action (DESIGN.md > Components).
+        <Button
+          variant="primary"
+          size="sm"
+          onClick={() => setCreateOpen(true)}
+          data-testid="create-api-key"
+        >
           New API key
         </Button>
-      </div>
-
+      }
+    >
       {keys.isPending ? (
         <Skeleton className="h-16" />
       ) : keys.isError ? (
@@ -127,15 +133,16 @@ function ApiKeysCard(): React.JSX.Element {
         <ul className="flex flex-col gap-2" data-testid="api-key-list">
           {(keys.data ?? []).map((key) => (
             <li key={key.id}>
-              <Card className="flex items-center justify-between gap-4 p-4">
+              <Card className="flex flex-wrap items-center justify-between gap-4 p-4">
                 <div className="flex min-w-0 flex-col gap-1">
-                  <p className="text-fg-0 flex items-center gap-2 text-sm font-medium">
+                  <p className="text-fg-0 flex flex-wrap items-center gap-2 text-sm font-medium">
                     {key.name || key.prefix}
                     {key.revokedAt !== null ? <Badge tone="rejected">Revoked</Badge> : null}
                   </p>
                   <p className="text-fg-2 truncate text-xs">
+                    <span className="font-mono">{key.prefix}.…</span> ·{" "}
                     {/* eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up */}
-                    {key.prefix}.… · {key.scopes.map((s) => SCOPE_LABEL[s]).join(", ")}
+                    {key.scopes.map((s) => SCOPE_LABEL[s]).join(", ")}
                     {key.expiresAt !== null
                       ? ` · expires ${new Date(key.expiresAt).toLocaleDateString()}`
                       : ""}
@@ -144,7 +151,7 @@ function ApiKeysCard(): React.JSX.Element {
                 {key.revokedAt === null ? (
                   <div className="flex shrink-0 gap-2">
                     <Button
-                      variant="outline"
+                      variant="secondary"
                       size="sm"
                       disabled={rotate.isPending}
                       data-testid={`rotate-${key.id}`}
@@ -158,10 +165,10 @@ function ApiKeysCard(): React.JSX.Element {
                         });
                       }}
                     >
-                      <RefreshCw className="size-4" /> Rotate
+                      <RefreshCw aria-hidden="true" /> Rotate
                     </Button>
                     <Button
-                      variant="outline"
+                      variant="ghost"
                       size="sm"
                       disabled={revoke.isPending}
                       data-testid={`revoke-${key.id}`}
@@ -174,7 +181,7 @@ function ApiKeysCard(): React.JSX.Element {
                         });
                       }}
                     >
-                      <Trash2 className="size-4" /> Revoke
+                      <Trash2 aria-hidden="true" /> Revoke
                     </Button>
                   </div>
                 ) : null}
@@ -206,7 +213,7 @@ function ApiKeysCard(): React.JSX.Element {
         value={minted?.key ?? null}
         onClose={() => setMinted(null)}
       />
-    </div>
+    </SettingsGroup>
   );
 }
 
@@ -252,7 +259,7 @@ function CreateApiKeyDialog({
           <fieldset className="flex flex-col gap-2">
             <legend className="text-fg-1 text-sm font-medium">Scopes</legend>
             {API_KEY_SCOPES.map((scope) => (
-              <label key={scope} className="flex items-center gap-2 text-sm">
+              <label key={scope} className="flex min-h-8 items-center gap-2 text-sm">
                 <Checkbox
                   checked={scopes.includes(scope)}
                   onCheckedChange={(checked) =>
@@ -271,10 +278,11 @@ function CreateApiKeyDialog({
           </fieldset>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="ghost" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
           <Button
+            variant="primary"
             disabled={name.trim() === "" || scopes.length === 0 || submitting}
             data-testid="submit-create-api-key"
             onClick={() => onSubmit({ name: name.trim(), scopes })}
@@ -301,13 +309,21 @@ function WebhooksCard(): React.JSX.Element {
   const [logEndpointId, setLogEndpointId] = React.useState<string | null>(null);
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex justify-end">
-        <Button size="sm" onClick={() => setCreateOpen(true)} data-testid="create-webhook">
+    <SettingsGroup
+      title="Webhooks"
+      description="Get a signed HTTPS POST the moment a transcript finishes, an export completes, a job fails, or credits run low."
+      testId="settings-webhooks"
+      actions={
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() => setCreateOpen(true)}
+          data-testid="create-webhook"
+        >
           New webhook
         </Button>
-      </div>
-
+      }
+    >
       {endpoints.isPending ? (
         <Skeleton className="h-16" />
       ) : endpoints.isError ? (
@@ -325,9 +341,9 @@ function WebhooksCard(): React.JSX.Element {
           {(endpoints.data ?? []).map((endpoint) => (
             <li key={endpoint.id}>
               <Card className="flex flex-col gap-3 p-4">
-                <div className="flex items-center justify-between gap-4">
+                <div className="flex flex-wrap items-center justify-between gap-4">
                   <div className="flex min-w-0 flex-col gap-1">
-                    <p className="text-fg-0 truncate text-sm font-medium">{endpoint.url}</p>
+                    <p className="text-fg-0 truncate font-mono text-sm">{endpoint.url}</p>
                     <p className="text-fg-2 truncate text-xs">
                       {endpoint.events.join(", ")}
                       {!endpoint.active ? " · disabled" : ""}
@@ -336,9 +352,9 @@ function WebhooksCard(): React.JSX.Element {
                         : ""}
                     </p>
                   </div>
-                  <div className="flex shrink-0 gap-2">
+                  <div className="flex shrink-0 flex-wrap gap-2">
                     <Button
-                      variant="outline"
+                      variant="secondary"
                       size="sm"
                       disabled={test.isPending}
                       data-testid={`test-${endpoint.id}`}
@@ -355,8 +371,9 @@ function WebhooksCard(): React.JSX.Element {
                       Send test event
                     </Button>
                     <Button
-                      variant="outline"
+                      variant="ghost"
                       size="sm"
+                      aria-expanded={logEndpointId === endpoint.id}
                       onClick={() =>
                         setLogEndpointId(logEndpointId === endpoint.id ? null : endpoint.id)
                       }
@@ -364,13 +381,14 @@ function WebhooksCard(): React.JSX.Element {
                       {logEndpointId === endpoint.id ? "Hide log" : "Delivery log"}
                     </Button>
                     <Button
-                      variant="outline"
+                      variant="ghost"
                       size="sm"
                       disabled={remove.isPending}
                       data-testid={`delete-${endpoint.id}`}
+                      aria-label={`Delete webhook ${endpoint.url}`}
                       onClick={() => remove.mutate(endpoint.id)}
                     >
-                      <Trash2 className="size-4" />
+                      <Trash2 aria-hidden="true" />
                     </Button>
                   </div>
                 </div>
@@ -402,7 +420,7 @@ function WebhooksCard(): React.JSX.Element {
         value={secret}
         onClose={() => setSecret(null)}
       />
-    </div>
+    </SettingsGroup>
   );
 }
 
@@ -490,7 +508,7 @@ function CreateWebhookDialog({
           <fieldset className="flex flex-col gap-2">
             <legend className="text-fg-1 text-sm font-medium">Events</legend>
             {WEBHOOK_EVENT_NAMES.map((event) => (
-              <label key={event} className="flex items-center gap-2 text-sm">
+              <label key={event} className="flex min-h-8 items-center gap-2 text-sm">
                 <Checkbox
                   checked={events.includes(event)}
                   onCheckedChange={(checked) =>
@@ -509,10 +527,11 @@ function CreateWebhookDialog({
           </fieldset>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="ghost" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
           <Button
+            variant="primary"
             disabled={url.trim() === "" || events.length === 0 || submitting}
             data-testid="submit-create-webhook"
             onClick={() => onSubmit({ url: url.trim(), events })}
@@ -547,22 +566,26 @@ function RevealSecretDialog({
             Copy it now — this is the only time it is shown. If you lose it, rotate or recreate.
           </DialogDescription>
         </DialogHeader>
-        <div className="bg-bg-2 rounded-sm p-3">
-          <code className="text-fg-0 block overflow-x-auto text-xs" data-testid="revealed-secret">
+        <div className="border-border bg-sunken rounded-sm border p-3">
+          <code
+            className="text-fg-0 block overflow-x-auto font-mono text-xs"
+            data-testid="revealed-secret"
+          >
             {value}
           </code>
         </div>
         <DialogFooter>
+          <Button variant="ghost" onClick={onClose}>
+            Done
+          </Button>
           <Button
+            variant="primary"
             onClick={() => {
               if (value !== null) void navigator.clipboard.writeText(value);
               toast.success("Copied");
             }}
           >
-            Copy
-          </Button>
-          <Button variant="outline" onClick={onClose}>
-            Done
+            Copy secret
           </Button>
         </DialogFooter>
       </DialogContent>

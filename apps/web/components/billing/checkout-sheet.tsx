@@ -144,8 +144,9 @@ export function CheckoutSheet({
       ...(response.prefill === undefined ? {} : { prefill: response.prefill }),
       ...(response.notes === undefined ? {} : { notes: response.notes }),
       // The gateway widget is Razorpay's own iframe: it takes a literal, not
-      // a CSS variable. This is `--color-accent` written out.
-      theme: { color: "#9184d9" },
+      // a CSS variable. This is `--color-accent` (Shirorekha rani) written
+      // out; keep it in step with `packages/ui/src/styles/tokens.css`.
+      theme: { color: "#f0508a" },
     })
       .then((outcome) => {
         if (cancelled) return;
@@ -261,7 +262,7 @@ export function CheckoutSheet({
                   className="flex flex-col items-center gap-3 py-6 text-center"
                   data-testid="checkout-processing"
                 >
-                  <Loader2 className="text-lime-500 size-8 animate-spin" aria-hidden="true" />
+                  <Loader2 className="text-fg-2 size-8 animate-spin" aria-hidden="true" />
                   <p className="text-fg-0 text-sm font-medium">Waiting for payment confirmation…</p>
                   <p className="text-fg-2 text-xs">
                     This updates automatically the moment Razorpay confirms the payment — usually
@@ -401,7 +402,7 @@ function MethodStep({
 
       <div className="flex flex-col gap-2">
         <Button
-          variant="outline"
+          variant="secondary"
           className="justify-between"
           disabled={overCap}
           data-testid="method-upi_autopay"
@@ -413,7 +414,7 @@ function MethodStep({
           {overCap ? <span className="text-fg-2 text-xs">Over ₹15,000 cap</span> : null}
         </Button>
         <Button
-          variant="outline"
+          variant="secondary"
           data-testid="method-card"
           onClick={() => {
             onChooseMethod("card");
@@ -421,7 +422,7 @@ function MethodStep({
         >
           Card
         </Button>
-        <Button variant="outline" disabled data-testid="method-netbanking" aria-disabled="true">
+        <Button variant="secondary" disabled data-testid="method-netbanking" aria-disabled="true">
           Netbanking (coming soon — use Card)
         </Button>
       </div>

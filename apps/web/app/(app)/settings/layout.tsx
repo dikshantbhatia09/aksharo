@@ -32,11 +32,11 @@ export default function SettingsLayout({ children }: { children: ReactNode }): R
                     // `no-underline`: the base stylesheet underlines any <a>
                     // inside an <li> for WCAG 1.4.1, which is right for a link
                     // in a sentence and wrong for a section list.
-                    "block rounded-sm px-2.5 py-2 text-[12.5px] whitespace-nowrap no-underline",
+                    "flex min-h-9 items-center rounded-sm px-3 py-2 text-sm whitespace-nowrap no-underline",
                     "transition-colors duration-[160ms] ease-[var(--ease-out-soft)]",
                     active
-                      ? "bg-accent/12 text-accent-200"
-                      : "text-neutral-300 hover:bg-neutral-100/6 hover:text-fg-0",
+                      ? "bg-accent/14 text-accent-200 font-medium"
+                      : "text-fg-1 hover:bg-neutral-100/7 hover:text-fg-0",
                   )}
                 >
                   {section.label}

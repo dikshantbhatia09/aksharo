@@ -28,6 +28,7 @@ import {
   EmptyState,
   Field,
   Input,
+  PageHeader,
   Skeleton,
   toast,
 } from "@montaj/ui";
@@ -148,62 +149,69 @@ export function TeamView(): React.JSX.Element {
   const perSeat = entitlement.data?.entitlements["perSeat"] === true;
 
   return (
-    <section className="mx-auto flex w-full max-w-4xl flex-col gap-6" data-testid="team-page">
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <h1 className="font-display text-xl font-semibold tracking-tight">Team</h1>
-          <p className="text-fg-2 text-sm">Members, roles, seats and cost.</p>
-        </div>
-        {isAdmin ? (
-          <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
-            <DialogTrigger asChild>
-              <Button data-testid="invite-member-button">Invite</Button>
-            </DialogTrigger>
-            <DialogContent>
-              <form onSubmit={submitInvite} className="flex flex-col gap-4">
-                <DialogHeader>
-                  <DialogTitle>Invite a member</DialogTitle>
-                  <DialogDescription>
-                    They will get a link to accept from their own address.
-                  </DialogDescription>
-                </DialogHeader>
-                <Field label="Email" htmlFor="invite-email">
-                  <Input
-                    id="invite-email"
-                    type="email"
-                    required
-                    value={inviteEmail}
-                    onChange={(e) => setInviteEmail(e.target.value)}
-                  />
-                </Field>
-                <Field label="Role" htmlFor="invite-role">
-                  <select
-                    id="invite-role"
-                    className="border-border bg-bg-1 h-9 rounded-md border px-2 text-sm"
-                    value={inviteRole}
-                    onChange={(e) => setInviteRole(e.target.value as WorkspaceRole)}
-                  >
-                    {ROLES.map((role) => (
-                      <option key={role} value={role}>
-                        {/* eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up */}
-                        {ROLE_LABEL[role]}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-                <DialogFooter>
-                  <Button type="submit" disabled={invite.isPending} data-testid="submit-invite">
-                    Send invitation
-                  </Button>
-                </DialogFooter>
-              </form>
-            </DialogContent>
-          </Dialog>
-        ) : null}
-      </div>
+    <section className="mx-auto flex w-full max-w-4xl flex-col gap-8" data-testid="team-page">
+      <PageHeader
+        title="Team"
+        description="Who is in this workspace, what each person can do, and what the seats cost."
+        actions={
+          isAdmin ? (
+            <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
+              <DialogTrigger asChild>
+                <Button variant="primary" data-testid="invite-member-button">
+                  Invite a member
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <form onSubmit={submitInvite} className="flex flex-col gap-4">
+                  <DialogHeader>
+                    <DialogTitle>Invite a member</DialogTitle>
+                    <DialogDescription>
+                      They will get a link to accept from their own address.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <Field label="Email" htmlFor="invite-email">
+                    <Input
+                      id="invite-email"
+                      type="email"
+                      required
+                      value={inviteEmail}
+                      onChange={(e) => setInviteEmail(e.target.value)}
+                    />
+                  </Field>
+                  <Field label="Role" htmlFor="invite-role">
+                    <select
+                      id="invite-role"
+                      className="bg-sunken border-border text-fg-0 h-9 w-full rounded-sm border px-3 text-sm"
+                      value={inviteRole}
+                      onChange={(e) => setInviteRole(e.target.value as WorkspaceRole)}
+                    >
+                      {ROLES.map((role) => (
+                        <option key={role} value={role}>
+                          {/* eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up */}
+                          {ROLE_LABEL[role]}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  <DialogFooter>
+                    <Button
+                      type="submit"
+                      variant="primary"
+                      disabled={invite.isPending}
+                      data-testid="submit-invite"
+                    >
+                      Send invitation
+                    </Button>
+                  </DialogFooter>
+                </form>
+              </DialogContent>
+            </Dialog>
+          ) : null
+        }
+      />
 
-      <Card className="flex flex-col gap-2 p-4" data-testid="seats-preview">
-        <h2 className="text-fg-0 text-base font-medium">Seats</h2>
+      <Card className="flex flex-col gap-2" data-testid="seats-preview">
+        <h2 className="text-fg-0 text-base font-semibold">Seats</h2>
         {entitlement.isPending ? (
           <Skeleton className="h-6" />
         ) : (
@@ -230,9 +238,28 @@ export function TeamView(): React.JSX.Element {
           </p>
         ) : (members.data ?? []).length === 0 ? (
           <EmptyState
+            className="border-0"
             icon={<Users />}
             title="No members yet"
-            description="Invite your first teammate."
+            description={
+              isAdmin
+                ? "Invite a teammate to edit projects with you."
+                : "Ask a workspace admin to invite your teammates."
+            }
+            {...(isAdmin
+              ? {
+                  action: (
+                    <Button
+                      variant="secondary"
+                      onClick={() => {
+                        setInviteOpen(true);
+                      }}
+                    >
+                      Invite your first teammate
+                    </Button>
+                  ),
+                }
+              : {})}
           />
         ) : (
           <ul className="divide-border divide-y" data-testid="member-list">
@@ -269,8 +296,8 @@ export function TeamView(): React.JSX.Element {
       </Card>
 
       {(clientTags.data ?? []).length > 0 ? (
-        <Card className="flex flex-col gap-3 p-4" data-testid="client-tags-card">
-          <h2 className="text-fg-0 text-base font-medium">Client tags</h2>
+        <Card className="flex flex-col gap-3" data-testid="client-tags-card">
+          <h2 className="text-fg-0 text-base font-semibold">Client tags</h2>
           <ul className="flex flex-wrap gap-2">
             {(clientTags.data ?? []).map((tag) => (
               <li key={tag.tag}>
@@ -303,8 +330,17 @@ export function TeamView(): React.JSX.Element {
             </Field>
           ) : null}
           <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setTransferOpen(false);
+              }}
+            >
+              Keep ownership
+            </Button>
             {transferStage === "pick" ? (
               <Button
+                variant="primary"
                 onClick={requestTransfer}
                 disabled={transfer.isPending}
                 data-testid="request-transfer"
@@ -313,6 +349,7 @@ export function TeamView(): React.JSX.Element {
               </Button>
             ) : (
               <Button
+                variant="primary"
                 onClick={confirmTransfer}
                 disabled={transfer.isPending}
                 data-testid="confirm-transfer"
@@ -343,19 +380,22 @@ function MemberRow({
   onTransfer: () => void;
 }): React.JSX.Element {
   return (
-    <li className="flex items-center justify-between gap-4 p-4" data-testid={`member-${member.id}`}>
+    <li
+      className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 p-4"
+      data-testid={`member-${member.id}`}
+    >
       <div className="flex min-w-0 flex-col gap-1">
-        <p className="text-fg-0 flex items-center gap-2 text-sm font-medium">
+        <p className="text-fg-0 flex flex-wrap items-center gap-2 text-sm font-medium">
           {member.name ?? member.email ?? "Pending"}
           {member.status === "invited" ? <Badge tone="warning">Invited</Badge> : null}
         </p>
         <p className="text-fg-2 truncate text-xs">{member.email}</p>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         {canManage ? (
           <select
             aria-label={`Role for ${member.email ?? "member"}`}
-            className="border-border bg-bg-1 h-8 rounded-md border px-2 text-xs"
+            className="bg-sunken border-border text-fg-0 h-8 rounded-sm border px-2 text-sm"
             value={member.role}
             onChange={(e) => onChangeRole(e.target.value as WorkspaceRole)}
           >
@@ -371,7 +411,7 @@ function MemberRow({
         )}
         {canTransferTo ? (
           <Button
-            variant="outline"
+            variant="secondary"
             size="sm"
             onClick={onTransfer}
             data-testid={`transfer-to-${member.id}`}
@@ -380,7 +420,13 @@ function MemberRow({
           </Button>
         ) : null}
         {canManage ? (
-          <Button variant="ghost" size="sm" onClick={onRemove} data-testid={`remove-${member.id}`}>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onRemove}
+            aria-label={`Remove ${member.name ?? member.email ?? "member"}`}
+            data-testid={`remove-${member.id}`}
+          >
             Remove
           </Button>
         ) : null}

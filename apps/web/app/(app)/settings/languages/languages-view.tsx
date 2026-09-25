@@ -1,5 +1,6 @@
 "use client";
 
+import { Check } from "lucide-react";
 import * as React from "react";
 
 import { LangChip, Button, Card, cn, toast } from "@montaj/ui";
@@ -87,7 +88,7 @@ export function LanguagesView(): React.JSX.Element {
     >
       <Card className="flex flex-col gap-4">
         <fieldset className="flex flex-col gap-3">
-          <legend className="text-fg-0 text-sm font-medium">Languages you speak on camera</legend>
+          <legend className="text-fg-0 text-sm font-semibold">Languages you speak on camera</legend>
           <p className="text-fg-2 text-xs">
             Hinglish first: most of what we transcribe is Hindi written in Roman script.
           </p>
@@ -109,9 +110,18 @@ export function LanguagesView(): React.JSX.Element {
                         : [...value.languages, language],
                     });
                   }}
-                  className={cn("rounded-full", active ? "ring-lime-500 ring-1" : "opacity-70")}
+                  // Selected = a check mark plus the accent ring (never colour
+                  // alone), and unselected chips keep full contrast instead of
+                  // fading to 70 % (HIG Accessibility > Vision).
+                  className={cn(
+                    "inline-flex min-h-8 items-center gap-1 rounded-full pr-1",
+                    active ? "ring-accent ring-1" : "hover:bg-neutral-100/7",
+                  )}
                 >
                   <LangChip language={language} />
+                  {active ? (
+                    <Check aria-hidden="true" className="text-fg-0 size-3.5" strokeWidth={2} />
+                  ) : null}
                 </button>
               );
             })}
@@ -119,16 +129,16 @@ export function LanguagesView(): React.JSX.Element {
         </fieldset>
 
         <fieldset className="flex flex-col gap-2">
-          <legend className="text-fg-0 mb-1 text-sm font-medium">Default aspect ratio</legend>
+          <legend className="text-fg-0 mb-1 text-sm font-semibold">Default aspect ratio</legend>
           {ASPECTS.map((aspect) => (
             <label
               key={aspect.key}
-              className="border-border hover:border-fg-2/60 flex cursor-pointer items-center gap-2.5 rounded-sm border px-3 py-2 text-sm"
+              className="border-border hover:bg-neutral-100/5 has-[:checked]:ring-accent flex min-h-10 cursor-pointer items-center gap-2.5 rounded-sm border px-3 py-2 text-sm has-[:checked]:ring-1"
             >
               <input
                 type="radio"
                 name="aspect"
-                className="accent-lime-500"
+                className="accent-accent"
                 checked={value.aspect === aspect.key}
                 onChange={() => {
                   setValue({ ...value, aspect: aspect.key });
@@ -139,12 +149,7 @@ export function LanguagesView(): React.JSX.Element {
           ))}
         </fieldset>
 
-        <Button
-          variant="secondary"
-          className="self-start"
-          onClick={save}
-          data-testid="save-defaults"
-        >
+        <Button variant="primary" className="self-start" onClick={save} data-testid="save-defaults">
           Save defaults
         </Button>
       </Card>

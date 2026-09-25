@@ -66,7 +66,7 @@ export function InvoicesPanel(): React.JSX.Element {
   if (invoices.data.length === 0) {
     return (
       <p className="text-fg-2 text-sm" data-testid="invoices-empty">
-        No invoices yet — one appears here after your first payment.
+        No invoices yet. Each payment adds a GST invoice here.
       </p>
     );
   }
@@ -118,10 +118,11 @@ export function InvoicesPanel(): React.JSX.Element {
               </div>
 
               <Button
-                variant="outline"
+                variant="secondary"
                 size="sm"
                 className="self-start"
                 disabled={download.isPending}
+                aria-label={`Download PDF of invoice ${invoice.series}/${invoice.number}`}
                 data-testid="download-invoice"
                 onClick={() => {
                   openDownload(invoice.id);

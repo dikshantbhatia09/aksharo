@@ -13,15 +13,16 @@
  * /billing/checkout {interval:"once"}` (B01) is what it should call once that
  * sheet exists. Noted here rather than guessed at with a placeholder UI.
  */
+import Link from "next/link";
 import * as React from "react";
 
 import { useSubscription } from "@montaj/api-client";
-import { Badge, Card, Skeleton } from "@montaj/ui";
+import { Badge, Button, Card, Skeleton } from "@montaj/ui";
 
 import { PassStatusChips } from "@/components/billing/passes/PassStatusChips";
 import { TopupCard } from "@/components/billing/passes/TopupCard";
 import { useRuntimeConfig } from "@/components/providers";
-import { SettingsSection } from "@/components/settings/section";
+import { SettingsGroup, SettingsSection } from "@/components/settings/section";
 
 const PLAN_LABEL: Record<string, string> = {
   free: "Free",
@@ -50,22 +51,30 @@ export function SubscriptionView(): React.JSX.Element {
       title="Subscription"
       description="Your plan, passes and top-ups."
       testId="settings-subscription"
+      actions={
+        <Button variant="secondary" size="sm" asChild>
+          <Link href="/billing">Open billing</Link>
+        </Button>
+      }
     >
       <Card className="flex flex-col gap-2" data-testid="subscription-plan-card">
         {subscription.isPending ? (
           <Skeleton className="h-16" />
         ) : subscription.data === null || subscription.data === undefined ? (
           <>
-            <p className="text-fg-0 text-sm font-medium">Free</p>
-            <p className="text-fg-2 text-sm">No paid plan on file.</p>
+            <p className="text-fg-0 text-base font-semibold">Free</p>
+            <p className="text-fg-2 text-sm">No paid plan on this workspace.</p>
           </>
         ) : (
           <>
-            <div className="flex items-center gap-2">
-              <p className="text-fg-0 text-sm font-medium">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-fg-0 text-base font-semibold">
                 {PLAN_LABEL[subscription.data.planKey] ?? subscription.data.planKey}
               </p>
-              <Badge tone={subscription.data.status === "active" ? "accent" : "warning"}>
+              <Badge
+                tone={subscription.data.status === "active" ? "accepted" : "warning"}
+                className="capitalize"
+              >
                 {subscription.data.status}
               </Badge>
               {subscription.data.interval === "once" ? (
@@ -82,19 +91,15 @@ export function SubscriptionView(): React.JSX.Element {
         )}
       </Card>
 
-      <div className="flex flex-col gap-2">
-        <h2 className="text-fg-0 text-base font-medium">Passes</h2>
+      <SettingsGroup title="Passes">
         <PassStatusChips />
-      </div>
+      </SettingsGroup>
 
-      <div className="flex flex-col gap-2">
-        {/* With no payment rail `TopupCard` renders the admin-credits notice, so
-            a "Top up" heading would title a section that cannot top anything up. */}
-        <h2 className="text-fg-0 text-base font-medium">
-          {razorpayEnabled ? "Top up" : "Credits"}
-        </h2>
+      {/* With no payment rail `TopupCard` renders the admin-credits notice, so
+          a "Top up" heading would title a section that cannot top anything up. */}
+      <SettingsGroup title={razorpayEnabled ? "Top up" : "Credits"}>
         <TopupCard />
-      </div>
+      </SettingsGroup>
     </SettingsSection>
   );
 }
