@@ -26,7 +26,7 @@ import * as React from "react";
 
 import { useStyles } from "@montaj/api-client";
 import type { StyleDoc } from "@montaj/caption-styles";
-import { cn } from "@montaj/ui";
+import { PageHeader, cn } from "@montaj/ui";
 
 import { StylePreviewCanvas } from "@/components/editor/canvas/StylePreviewCanvas";
 import { SYSTEM_STYLE_MAP, SYSTEM_STYLES } from "@/components/editor/panels/system-styles";
@@ -41,14 +41,25 @@ const SCRIPTS = [
 
 type ScriptKey = (typeof SCRIPTS)[number]["key"];
 
-function pill(on: boolean): string {
+/**
+ * One segment of a segmented control. Selection is shown the way the system
+ * shows a selected item (a raised well plus the accent ring); hover is the
+ * neutral tint. The accent is never spent on hover.
+ */
+function segment(on: boolean): string {
   return cn(
-    "rounded-sm border px-2.5 py-[5px] text-[11.5px] capitalize",
+    "inline-flex h-8 items-center rounded-sm px-3 text-xs font-medium",
     "transition-colors duration-[160ms] ease-[var(--ease-out-soft)]",
     on
-      ? "border-accent bg-accent/14 text-accent-200"
-      : "border-border text-neutral-400 hover:border-accent hover:text-neutral-200",
+      ? "bg-bg-2 text-fg-0 ring-1 ring-accent"
+      : "text-fg-2 hover:bg-neutral-100/7 hover:text-fg-0",
   );
+}
+
+/** "all" and the catalogue's lower-case category keys, in sentence case. */
+function categoryLabel(key: string): string {
+  if (key === "all") return "All";
+  return key.charAt(0).toUpperCase() + key.slice(1).replace(/[-_]/g, " ");
 }
 
 export function StylesView(): React.JSX.Element {
@@ -94,63 +105,62 @@ export function StylesView(): React.JSX.Element {
   const visible = entries.filter((entry) => category === "all" || entry.category === category);
 
   return (
-    <div className="flex flex-col gap-3.5" data-testid="styles-view">
-      <div className="flex flex-wrap items-end gap-3.5">
-        <div className="max-w-[52ch]">
-          <h1
-            className="font-display m-0 mb-[5px] text-[23px] tracking-[-0.02em]"
-            data-testid="styles-heading"
-          >
-            Styles
-          </h1>
-          <p className="text-neutral-400 m-0 text-[13px]">
-            Every style renders through the same engine your export uses, so the tile is the
-            result. Hover to play one.
-          </p>
-        </div>
-
-        <div className="ml-auto flex flex-col items-end gap-[7px]">
-          <span className="text-neutral-500 text-[9.5px] tracking-[0.12em] uppercase">
-            Preview script
-          </span>
-          <div className="flex gap-1.5" role="group" aria-label="Preview script">
-            {SCRIPTS.map((entry) => (
-              <button
-                key={entry.key}
-                type="button"
-                className={pill(script === entry.key)}
-                aria-pressed={script === entry.key}
-                onClick={() => {
-                  setScript(entry.key);
-                }}
-                data-testid={`preview-script-${entry.key}`}
-              >
-                {entry.label}
-              </button>
-            ))}
+    <div className="flex flex-col gap-6" data-testid="styles-view">
+      <PageHeader
+        title={<span data-testid="styles-heading">Styles</span>}
+        description="Every style renders through the same engine your export uses, so the tile is the result. Hover or focus a tile to play it."
+        actions={
+          <div className="flex flex-col items-start gap-1.5 sm:items-end">
+            <span id="styles-preview-script" className="text-xs font-medium text-fg-2">
+              Preview script
+            </span>
+            <div
+              className="flex gap-1 rounded-md border border-border bg-sunken p-1"
+              role="group"
+              aria-labelledby="styles-preview-script"
+            >
+              {SCRIPTS.map((entry) => (
+                <button
+                  key={entry.key}
+                  type="button"
+                  className={segment(script === entry.key)}
+                  aria-pressed={script === entry.key}
+                  onClick={() => {
+                    setScript(entry.key);
+                  }}
+                  data-testid={`preview-script-${entry.key}`}
+                >
+                  {entry.label}
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
-      </div>
+        }
+      />
 
-      <div className="flex flex-wrap items-center gap-1.5">
-        <div className="flex flex-wrap gap-1.5" role="group" aria-label="Style categories">
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap gap-1" role="group" aria-label="Style categories">
           {categories.map((key) => (
             <button
               key={key}
               type="button"
-              className={pill(category === key)}
+              className={segment(category === key)}
               aria-pressed={category === key}
               onClick={() => {
                 setCategory(key);
               }}
               data-testid={`style-category-${key}`}
             >
-              {key}
+              {categoryLabel(key)}
             </button>
           ))}
         </div>
-        <span className="text-neutral-500 ml-auto text-[11.5px]" data-testid="style-count">
-          {String(visible.length)} styles
+        <span
+          className="ml-auto text-xs text-fg-2 tabular-nums"
+          data-testid="style-count"
+          aria-live="polite"
+        >
+          {visible.length === 1 ? "1 style" : `${String(visible.length)} styles`}
         </span>
       </div>
 
@@ -159,10 +169,12 @@ export function StylesView(): React.JSX.Element {
           <button
             key={entry.id}
             type="button"
+            // A tile is a card: hairline border, neutral hover. The accent ring
+            // is reserved for a SELECTED card, and this catalogue has no
+            // selection, so it never appears here.
             className={cn(
-              "bg-surface flex flex-col overflow-hidden rounded-md text-left",
-              "shadow-[0_0_0_1px_var(--color-neutral-900)] transition-shadow duration-[160ms]",
-              "hover:shadow-[0_0_0_1px_var(--color-accent)]",
+              "flex flex-col overflow-hidden rounded-md border border-border bg-surface text-left",
+              "transition-colors duration-[160ms] hover:border-neutral-600",
             )}
             onPointerEnter={() => {
               setHovered(entry.id);
@@ -180,8 +192,8 @@ export function StylesView(): React.JSX.Element {
           >
             <span className="bg-sunken flex aspect-[9/13] items-center justify-center overflow-hidden">
               {entry.doc === undefined ? (
-                <span className="text-neutral-500 px-3 text-center text-[10.5px]">
-                  Preview not bundled
+                <span className="px-3 text-center text-xs text-fg-2">
+                  No preview for this style yet
                 </span>
               ) : (
                 <StylePreviewCanvas
@@ -195,11 +207,9 @@ export function StylesView(): React.JSX.Element {
                 />
               )}
             </span>
-            <span className="flex items-baseline justify-between gap-1.5 px-2.5 pt-2 pb-2.5">
-              <span className="text-fg-0 text-[11.5px]">{entry.name}</span>
-              <span className="text-neutral-500 text-[9.5px] tracking-[0.08em] uppercase">
-                {entry.category}
-              </span>
+            <span className="flex flex-col gap-0.5 px-3 pt-2.5 pb-3">
+              <span className="truncate text-sm text-fg-0">{entry.name}</span>
+              <span className="text-2xs text-fg-2">{categoryLabel(entry.category)}</span>
             </span>
           </button>
         ))}

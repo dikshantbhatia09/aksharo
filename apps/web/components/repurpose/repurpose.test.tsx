@@ -366,7 +366,7 @@ describe("<SourceStartForm />", () => {
       // Both chip/radio groups are real groups with a name...
       expect(screen.getByRole("group", { name: "Caption look" })).toBeInTheDocument();
       expect(
-        screen.getByRole("group", { name: "How should we choose the clips?" }),
+        screen.getByRole("group", { name: "How should the clips be chosen?" }),
       ).toBeInTheDocument();
       expect(screen.getByRole("group", { name: "Spoken language" })).toBeInTheDocument();
 

@@ -27,6 +27,7 @@
  *     referenced by `aria-describedby`, so the message reaches a screen reader
  *     attached to the control rather than as a detached alert.
  */
+import { ChevronRight } from "lucide-react";
 import * as React from "react";
 
 import { Button, Field, Input, cn } from "@montaj/ui";
@@ -171,111 +172,179 @@ export function SourceStartForm({
     onSubmit();
   };
 
+  const TABS = ["link", "upload"] as const;
+  const tabRefs = React.useRef<Record<string, HTMLButtonElement | null>>({});
+
+  // Arrow keys move between the two tabs, as a tablist promises (roving focus).
+  const onTabKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>): void => {
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+    event.preventDefault();
+    const current = TABS.indexOf(value.tab);
+    const next =
+      event.key === "Home"
+        ? 0
+        : event.key === "End"
+          ? TABS.length - 1
+          : (current + (event.key === "ArrowRight" ? 1 : -1) + TABS.length) % TABS.length;
+    // eslint-disable-next-line security/detect-object-injection -- bounded index into a literal tuple
+    const tab = TABS[next] ?? "link";
+    set("tab", tab);
+    // eslint-disable-next-line security/detect-object-injection -- key is one of two literals
+    tabRefs.current[tab]?.focus();
+  };
+
   return (
     <form onSubmit={submit} data-testid="repurpose-start-form" className={cn("space-y-6", className)}>
-      {/* Two equal tabs — neither is the "real" one (§3.3). */}
-      <div role="tablist" aria-label="Where your video comes from" className="flex gap-2">
-        {(["link", "upload"] as const).map((tab) => (
-          <button
-            key={tab}
-            type="button"
-            role="tab"
-            aria-selected={value.tab === tab}
-            data-testid={`source-tab-${tab}`}
-            onClick={() => {
-              set("tab", tab);
-            }}
-            className={cn(
-              "flex-1 rounded-md border px-3 py-2 text-sm",
-              value.tab === tab
-                ? "border-lime-500/45 bg-lime-500/12 text-fg-0"
-                : "border-border bg-bg-1 text-fg-2",
-            )}
-          >
-            {tab === "link" ? "Paste a link" : "Upload a video"}
-          </button>
-        ))}
-      </div>
+      <section className="space-y-4" aria-labelledby="repurpose-source-heading">
+        <h2 id="repurpose-source-heading" className="text-base text-fg-0">
+          Your video
+        </h2>
+        {/* Two equal tabs — neither is the "real" one (§3.3). Underline
+            indicator per the Shirorekha tab recipe. */}
+        <div
+          role="tablist"
+          aria-label="Where your video comes from"
+          className="flex border-b border-border"
+        >
+          {TABS.map((tab) => {
+            const selected = value.tab === tab;
+            return (
+              <button
+                key={tab}
+                ref={(node) => {
+                  // eslint-disable-next-line security/detect-object-injection -- key is one of two literals
+                  tabRefs.current[tab] = node;
+                }}
+                type="button"
+                role="tab"
+                id={`repurpose-tab-${tab}`}
+                aria-selected={selected}
+                aria-controls={`repurpose-panel-${tab}`}
+                tabIndex={selected ? 0 : -1}
+                data-testid={`source-tab-${tab}`}
+                onClick={() => {
+                  set("tab", tab);
+                }}
+                onKeyDown={onTabKeyDown}
+                className={cn(
+                  "-mb-px h-10 flex-1 border-b-2 px-4 text-sm font-medium transition-colors duration-[160ms]",
+                  selected
+                    ? "border-accent text-fg-0"
+                    : "border-transparent text-fg-2 hover:text-fg-0",
+                )}
+              >
+                {tab === "link" ? "Paste a link" : "Upload a video"}
+              </button>
+            );
+          })}
+        </div>
 
-      {value.tab === "link" ? (
-        <div role="tabpanel" aria-label="Paste a link" className="space-y-3">
-          <Field
-            label="Video link"
-            htmlFor="repurpose-url"
-            hint="A YouTube link. To use a file from somewhere else, upload it."
-            {...(visible.url === undefined ? {} : { error: visible.url })}
+        {value.tab === "link" ? (
+          <div
+            role="tabpanel"
+            id="repurpose-panel-link"
+            aria-labelledby="repurpose-tab-link"
+            className="space-y-3"
           >
-            <Input
-              id="repurpose-url"
-              type="url"
-              inputMode="url"
-              placeholder="https://www.youtube.com/watch?v=…"
-              value={value.url}
-              data-testid="source-url"
-              aria-invalid={visible.url !== undefined}
-              // The message is attached to the control, not floating beside it.
-              aria-describedby={
-                visible.url === undefined ? "repurpose-url-hint" : "repurpose-url-error"
-              }
-              onChange={(event) => {
-                set("url", event.target.value);
-              }}
-            />
-          </Field>
-
-          <div>
-            <label className="flex items-start gap-2 text-xs text-fg-1">
-              <input
-                type="checkbox"
-                checked={value.rightsAttested}
-                data-testid="rights-attested"
-                aria-describedby={visible.rights === undefined ? undefined : "repurpose-rights-error"}
+            <Field
+              label="Video link"
+              htmlFor="repurpose-url"
+              hint="A YouTube link. To use a file from somewhere else, upload it."
+              {...(visible.url === undefined ? {} : { error: visible.url })}
+            >
+              <Input
+                id="repurpose-url"
+                type="url"
+                inputMode="url"
+                className="bg-sunken"
+                placeholder="https://www.youtube.com/watch?v=…"
+                value={value.url}
+                data-testid="source-url"
+                aria-invalid={visible.url !== undefined}
+                // The message is attached to the control, not floating beside it.
+                aria-describedby={
+                  visible.url === undefined ? "repurpose-url-hint" : "repurpose-url-error"
+                }
                 onChange={(event) => {
-                  set("rightsAttested", event.target.checked);
+                  set("url", event.target.value);
                 }}
               />
-              <span>I own this video or have permission to use it.</span>
-            </label>
-            {visible.rights !== undefined && (
-              <p
-                id="repurpose-rights-error"
-                role="alert"
-                className="mt-1 text-xs text-rejected"
-                data-testid="error-rights"
-              >
-                {visible.rights}
+            </Field>
+
+            <div>
+              {/* The whole row is the hit target, not just the 16 px box. */}
+              <label className="flex min-h-8 cursor-pointer items-center gap-2.5 text-sm text-fg-1">
+                <input
+                  type="checkbox"
+                  className="size-4 shrink-0 accent-accent"
+                  checked={value.rightsAttested}
+                  data-testid="rights-attested"
+                  aria-invalid={visible.rights !== undefined}
+                  aria-describedby={visible.rights === undefined ? undefined : "repurpose-rights-error"}
+                  onChange={(event) => {
+                    set("rightsAttested", event.target.checked);
+                  }}
+                />
+                <span>I own this video or have permission to use it.</span>
+              </label>
+              {visible.rights !== undefined && (
+                <p
+                  id="repurpose-rights-error"
+                  role="alert"
+                  className="mt-1 text-xs text-rejected"
+                  data-testid="error-rights"
+                >
+                  {visible.rights}
+                </p>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div
+            role="tabpanel"
+            id="repurpose-panel-upload"
+            aria-labelledby="repurpose-tab-upload"
+            className="space-y-3"
+          >
+            <Field
+              label="Video file"
+              htmlFor="repurpose-file"
+              {...(visible.file === undefined ? {} : { error: visible.file })}
+            >
+              <input
+                id="repurpose-file"
+                type="file"
+                accept="video/*"
+                data-testid="source-file"
+                aria-describedby={visible.file === undefined ? undefined : "repurpose-file-error"}
+                className={cn(
+                  "text-sm text-fg-1",
+                  "file:mr-3 file:h-9 file:cursor-pointer file:rounded-sm file:border file:border-border",
+                  "file:bg-transparent file:px-4 file:text-sm file:font-medium file:text-fg-0",
+                  "hover:file:bg-neutral-100/7",
+                )}
+                onChange={(event) => {
+                  set("file", event.target.files?.[0] ?? null);
+                }}
+              />
+            </Field>
+            {value.file !== null && (
+              <p className="text-xs text-fg-1" data-testid="selected-file">
+                {value.file.name}
               </p>
             )}
           </div>
-        </div>
-      ) : (
-        <div role="tabpanel" aria-label="Upload a video" className="space-y-3">
-          <Field
-            label="Video file"
-            htmlFor="repurpose-file"
-            {...(visible.file === undefined ? {} : { error: visible.file })}
-          >
-            <input
-              id="repurpose-file"
-              type="file"
-              accept="video/*"
-              data-testid="source-file"
-              aria-describedby={visible.file === undefined ? undefined : "repurpose-file-error"}
-              onChange={(event) => {
-                set("file", event.target.files?.[0] ?? null);
-              }}
-            />
-          </Field>
-          {value.file !== null && (
-            <p className="text-xs text-fg-1" data-testid="selected-file">
-              {value.file.name}
-            </p>
-          )}
-        </div>
-      )}
+        )}
+      </section>
 
       {/* One setup panel, whichever tab is open (§3.3). */}
-      <div className="space-y-4 rounded-md border border-border bg-bg-1 p-4">
+      <section
+        className="space-y-5 rounded-md border border-border bg-surface p-5"
+        aria-labelledby="repurpose-setup-heading"
+      >
+        <h2 id="repurpose-setup-heading" className="text-base text-fg-0">
+          Captions and clips
+        </h2>
         {/* The picker owns its own button and its own `aria-label`; a `<label for>`
             beside it would point at nothing, so this is a named group instead and
             the visible text is the picker's own accessible name. */}
@@ -286,7 +355,7 @@ export function SourceStartForm({
             visible.sourceLanguage === undefined ? undefined : "repurpose-language-error"
           }
         >
-          <span id="repurpose-language-label" className="text-sm text-fg-1">
+          <span id="repurpose-language-label" className="text-sm font-medium text-fg-1">
             Spoken language
           </span>
           <div className="mt-1.5">
@@ -313,7 +382,7 @@ export function SourceStartForm({
         <Field label="Caption language" htmlFor="repurpose-output-language">
           <select
             id="repurpose-output-language"
-            className="w-full rounded-md border border-border bg-bg-2 px-3 py-2 text-sm text-fg-0"
+            className="h-9 w-full rounded-sm border border-border bg-sunken px-3 text-sm text-fg-0 hover:border-neutral-600"
             value={value.outputLanguage}
             data-testid="output-language"
             onChange={(event) => {
@@ -332,7 +401,7 @@ export function SourceStartForm({
             "Writing script" because that is what the picker announces itself as. */}
         {SCRIPT_CHOICE_LANGUAGES.has(value.outputLanguage) && (
           <div role="group" aria-labelledby="repurpose-script-label">
-            <span id="repurpose-script-label" className="text-sm text-fg-1">
+            <span id="repurpose-script-label" className="text-sm font-medium text-fg-1">
               Writing script
             </span>
             <div className="mt-1.5">
@@ -351,28 +420,33 @@ export function SourceStartForm({
           className="border-0 p-0"
           aria-describedby={visible.style === undefined ? undefined : "repurpose-style-error"}
         >
-          <legend className="text-sm text-fg-1">Caption look</legend>
+          <legend className="text-sm font-medium text-fg-1">Caption look</legend>
           <div className="mt-2 flex flex-wrap gap-2" data-testid="style-picker">
-            {RECOMMENDED_STYLES.map((style, index) => (
-              <button
-                key={style.id}
-                type="button"
-                data-testid={`style-${style.id}`}
-                aria-pressed={value.styleId === style.id}
-                onClick={() => {
-                  set("styleId", style.id);
-                }}
-                className={cn(
-                  "rounded-md border px-3 py-2 text-xs",
-                  value.styleId === style.id
-                    ? "border-lime-500/45 bg-lime-500/12 text-fg-0"
-                    : "border-border bg-bg-2 text-fg-1",
-                )}
-              >
-                {style.name}
-                {index === 0 && <span className="ml-1 text-2xs text-fg-2">Recommended</span>}
-              </button>
-            ))}
+            {RECOMMENDED_STYLES.map((style, index) => {
+              const selected = value.styleId === style.id;
+              return (
+                <button
+                  key={style.id}
+                  type="button"
+                  data-testid={`style-${style.id}`}
+                  aria-pressed={selected}
+                  onClick={() => {
+                    set("styleId", style.id);
+                  }}
+                  className={cn(
+                    "inline-flex h-9 items-center gap-1.5 rounded-sm border px-3 text-sm",
+                    "transition-colors duration-[160ms]",
+                    // Selected = the system's selection ring, not a tinted fill.
+                    selected
+                      ? "border-transparent bg-bg-2 text-fg-0 ring-1 ring-accent"
+                      : "border-border text-fg-1 hover:bg-neutral-100/7 hover:text-fg-0",
+                  )}
+                >
+                  {style.name}
+                  {index === 0 && <span className="text-2xs text-fg-2">Recommended</span>}
+                </button>
+              );
+            })}
           </div>
           {visible.style !== undefined && (
             <p
@@ -387,20 +461,24 @@ export function SourceStartForm({
         </fieldset>
 
         <fieldset className="border-0 p-0">
-          <legend className="text-sm text-fg-1">How should we choose the clips?</legend>
-          <div className="mt-2 space-y-2">
+          <legend className="text-sm font-medium text-fg-1">How should the clips be chosen?</legend>
+          <div className="mt-1.5 flex flex-col">
             {/* Equally visible, because manual is a first-class path, not a
                 fallback for when the AI disappoints (§3.5). */}
             {(
               [
-                { key: "ai", label: "Let AI suggest moments" },
+                { key: "ai", label: "Suggest the strongest moments for me" },
                 { key: "manual", label: "I know the timestamps" },
               ] as const
             ).map((option) => (
-              <label key={option.key} className="flex items-center gap-2 text-sm text-fg-1">
+              <label
+                key={option.key}
+                className="flex min-h-8 cursor-pointer items-center gap-2.5 text-sm text-fg-1"
+              >
                 <input
                   type="radio"
                   name="clip-method"
+                  className="size-4 shrink-0 accent-accent"
                   value={option.key}
                   checked={value.method === option.key}
                   data-testid={`method-${option.key}`}
@@ -418,30 +496,46 @@ export function SourceStartForm({
           </div>
         </fieldset>
 
-        <div>
-          <button
-            type="button"
+        <div className="border-t border-border pt-4">
+          <Button
+            variant="ghost"
+            size="sm"
             data-testid="advanced-toggle"
             aria-expanded={advancedOpen}
             aria-controls="repurpose-advanced"
-            className="text-xs text-fg-2 underline"
+            className="-ml-2"
             onClick={() => {
               setAdvancedOpen(!advancedOpen);
             }}
           >
+            <ChevronRight
+              aria-hidden="true"
+              strokeWidth={1.75}
+              className={cn("transition-transform duration-[160ms]", advancedOpen && "rotate-90")}
+            />
             Advanced settings
-          </button>
+          </Button>
           {advancedOpen && (
             <div className="mt-3" id="repurpose-advanced" data-testid="advanced-panel">
-              <Field label="How many suggestions?" htmlFor="repurpose-count">
+              <Field
+                label="Number of suggested moments"
+                htmlFor="repurpose-count"
+                hint={
+                  value.method === "manual"
+                    ? "Not used when you pick the timestamps yourself."
+                    : "Between 1 and 20."
+                }
+              >
                 <Input
                   id="repurpose-count"
                   type="number"
                   min={1}
                   max={20}
+                  className="w-32 bg-sunken"
                   disabled={value.method === "manual"}
                   value={value.requestedCandidates}
                   data-testid="requested-candidates"
+                  aria-describedby="repurpose-count-hint"
                   onChange={(event) => {
                     set("requestedCandidates", Number(event.target.value));
                   }}
@@ -450,7 +544,7 @@ export function SourceStartForm({
             </div>
           )}
         </div>
-      </div>
+      </section>
 
       {serverError !== null && (
         <p role="alert" className="text-sm text-rejected" data-testid="start-server-error">
@@ -458,7 +552,7 @@ export function SourceStartForm({
         </p>
       )}
 
-      <Button type="submit" disabled={submitting} data-testid="start-run">
+      <Button type="submit" variant="primary" disabled={submitting} data-testid="start-run">
         {submitting ? "Starting…" : "Start finding clips"}
       </Button>
     </form>

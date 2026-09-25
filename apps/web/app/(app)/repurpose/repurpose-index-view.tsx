@@ -10,9 +10,10 @@
  * run to open: the same pitch and the same link field, plus the runs this
  * workspace already has.
  *
- * With a run in flight it sends you straight into it rather than making you
- * pick it out of a list — the canvas's own behaviour, where the banner's
- * "Open the pipeline" goes to the live run.
+ * A run in flight is surfaced at the top as a plain card with one link into
+ * it, rather than as an accent-tinted banner: Shirorekha spends the accent on
+ * the page's one primary action ("Read the video"), and a second rani block
+ * above the list would compete with it.
  */
 import { ArrowRight, Link2, Waypoints } from "lucide-react";
 import NextLink from "next/link";
@@ -21,16 +22,16 @@ import * as React from "react";
 
 import { useFeatureFlag, useRepurposeRuns } from "@montaj/api-client";
 import type { RepurposeRunView } from "@montaj/api-client";
-import { Button, EmptyState, Skeleton, cn } from "@montaj/ui";
-
+import { Button, EmptyState, PageHeader, Skeleton, cn } from "@montaj/ui";
 
 import { REPURPOSE_FLOW_FLAG } from "@/components/home/pipeline-banner";
 import { formatRelative } from "@/components/projects/project-table";
 
-
 function isLive(run: RepurposeRunView): boolean {
   return run.stages.some((stage) => stage.state === "running");
 }
+
+const PAGE_TITLE = "One long video, nine posts";
 
 export function RepurposeIndexView(): React.JSX.Element {
   const enabled = useFeatureFlag(REPURPOSE_FLOW_FLAG);
@@ -40,11 +41,14 @@ export function RepurposeIndexView(): React.JSX.Element {
 
   if (!enabled) {
     return (
-      <EmptyState
-        icon={<Waypoints aria-hidden="true" />}
-        title="The clips pipeline is not on for this workspace yet"
-        description="It turns one long video into short, captioned clips you review before anything is posted. We will let you know when it reaches your workspace."
-      />
+      <div className="flex flex-col gap-8">
+        <PageHeader eyebrow="Clips pipeline" title={PAGE_TITLE} />
+        <EmptyState
+          icon={<Waypoints aria-hidden="true" />}
+          title="The clips pipeline is not on for this workspace yet"
+          description="It turns one long video into short, captioned clips you review before anything is posted. You will be told here when it reaches your workspace."
+        />
+      </div>
     );
   }
 
@@ -59,69 +63,84 @@ export function RepurposeIndexView(): React.JSX.Element {
   };
 
   return (
-    <div className="flex flex-col gap-4" data-testid="repurpose-index">
-      <header className="max-w-[60ch]">
-        <h1 className="font-display m-0 mb-[5px] text-[23px] tracking-[-0.02em]">
-          One long video, nine posts
-        </h1>
-        <p className="text-neutral-400 m-0 text-[13px]">
-          Paste a link and the pipeline runs end to end: read the transcript, find the moments
-          worth cutting, reframe, caption, build a version per platform, then post on a schedule
-          you set. Every stage is resumable and nothing publishes until you say so.
-        </p>
-      </header>
+    <div className="flex flex-col gap-8" data-testid="repurpose-index">
+      <PageHeader
+        eyebrow="Clips pipeline"
+        title={PAGE_TITLE}
+        description="Paste a link and the pipeline runs end to end: it reads the transcript, finds the moments worth cutting, reframes and captions them, and builds a version per platform. Every stage can be resumed, and nothing is posted until you say so."
+      />
 
-      <form
-        className="bg-surface flex flex-wrap items-center gap-2 rounded-md px-3 py-[11px]"
-        onSubmit={(event) => {
-          event.preventDefault();
-          start();
-        }}
-      >
-        <span className="relative flex min-w-[240px] flex-1 items-center">
-          <Link2
-            className="text-neutral-500 pointer-events-none absolute left-2.5 size-[13px]"
-            aria-hidden="true"
-          />
-          <input
-            className="border-border bg-bg-0 text-fg-0 placeholder:text-neutral-500 hover:border-neutral-500 focus-visible:border-accent h-9 w-full rounded-sm border pr-2.5 pl-[30px] text-sm"
-            placeholder="Paste a YouTube link"
-            aria-label="YouTube link to repurpose"
-            value={url}
-            onChange={(event) => {
-              setUrl(event.target.value);
-            }}
-            data-testid="index-url"
-          />
-        </span>
-        <Button type="submit" variant="primary" className="h-9">
-          Read the video
-        </Button>
-        <Button variant="secondary" className="h-9" asChild>
-          <NextLink href="/repurpose/new">Upload a file</NextLink>
-        </Button>
-      </form>
+      <section aria-labelledby="repurpose-start-heading" className="flex flex-col gap-3">
+        <h2 id="repurpose-start-heading" className="text-base text-fg-0">
+          Start a new run
+        </h2>
+        <form
+          className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-surface p-5"
+          onSubmit={(event) => {
+            event.preventDefault();
+            start();
+          }}
+        >
+          <span className="relative flex min-w-0 flex-[1_1_240px] items-center">
+            <Link2
+              className="pointer-events-none absolute left-3 size-4 text-fg-2"
+              strokeWidth={1.75}
+              aria-hidden="true"
+            />
+            <input
+              className="h-9 w-full rounded-sm border border-border bg-sunken pr-3 pl-9 text-sm text-fg-0 placeholder:text-fg-2 hover:border-neutral-600"
+              // No `type="url"`: native validation would block a scheme-less
+              // link before `start()` hands it to /repurpose/new, which owns
+              // the real check.
+              inputMode="url"
+              placeholder="Paste a YouTube link"
+              aria-label="YouTube link to repurpose"
+              value={url}
+              onChange={(event) => {
+                setUrl(event.target.value);
+              }}
+              data-testid="index-url"
+            />
+          </span>
+          <Button type="submit" variant="primary">
+            Read the video
+          </Button>
+          <Button variant="secondary" asChild>
+            <NextLink href="/repurpose/new" className="no-underline">
+              Upload a file instead
+            </NextLink>
+          </Button>
+        </form>
+      </section>
 
       {live === undefined ? null : (
         <NextLink
           href={`/repurpose/${live.id}`}
-          className="border-accent bg-accent/9 flex flex-wrap items-center gap-3 rounded-md border px-3.5 py-3"
+          className="flex flex-wrap items-center gap-3 rounded-md border border-border bg-surface px-5 py-4 no-underline hover:bg-neutral-100/5"
           data-testid="repurpose-live-run"
         >
-          <span className="bg-accent size-[5px] rounded-full" aria-hidden="true" />
-          <span className="text-neutral-300 text-[12.5px]">
-            {live.sourceDisplay ?? "A video"} — {live.message}
+          <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+            <span className="text-xs font-medium text-fg-2">In progress</span>
+            <span className="truncate text-sm text-fg-0">
+              {live.sourceDisplay ?? "A video"} — {live.message}
+            </span>
           </span>
-          <span className="text-accent ml-auto flex items-center gap-1.5 text-xs">
-            Open the pipeline <ArrowRight className="size-3" aria-hidden="true" />
+          <span className="flex items-center gap-1.5 text-sm text-fg-1">
+            Open this run <ArrowRight className="size-4" strokeWidth={1.75} aria-hidden="true" />
           </span>
         </NextLink>
       )}
 
-      <section className="flex flex-col gap-3">
-        <h2 className="font-display m-0 text-[17px] tracking-[-0.01em]">Your runs</h2>
+      <section aria-labelledby="repurpose-runs-heading" className="flex flex-col gap-3">
+        <h2 id="repurpose-runs-heading" className="text-base text-fg-0">
+          Your runs
+        </h2>
         {runs.isPending ? (
           <Skeleton className="h-24 w-full" />
+        ) : runs.isError ? (
+          <p role="alert" className="text-sm text-fg-1">
+            Your runs could not be loaded. Refresh the page to try again.
+          </p>
         ) : items.length === 0 ? (
           <EmptyState
             icon={<Waypoints aria-hidden="true" />}
@@ -129,31 +148,38 @@ export function RepurposeIndexView(): React.JSX.Element {
             description="Paste a link above, or upload a long video, and the first stage starts."
           />
         ) : (
-          <ul className="bg-surface flex flex-col rounded-md px-3.5 py-1">
-            {items.map((run) => (
-              <li key={run.id}>
-                <NextLink
-                  href={`/repurpose/${run.id}`}
-                  className="rule-fade-b flex flex-wrap items-center gap-3 py-2.5 no-underline"
-                  data-testid={`repurpose-run-${run.id}`}
-                >
-                  <span
-                    className={cn(
-                      "size-[5px] shrink-0 rounded-full",
-                      isLive(run) ? "bg-accent" : "bg-neutral-600",
-                    )}
-                    aria-hidden="true"
-                  />
-                  <span className="truncate text-[12.5px]">
-                    {run.sourceDisplay ?? "Your upload"}
-                  </span>
-                  <span className="text-neutral-500 text-[11.5px]">{run.message}</span>
-                  <span className="text-neutral-500 ml-auto font-mono text-[11px]">
-                    {formatRelative(run.updatedAt)}
-                  </span>
-                </NextLink>
-              </li>
-            ))}
+          <ul className="flex flex-col divide-y divide-border rounded-md border border-border bg-surface">
+            {items.map((run) => {
+              const running = isLive(run);
+              return (
+                <li key={run.id}>
+                  <NextLink
+                    href={`/repurpose/${run.id}`}
+                    className="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 px-5 py-3 no-underline hover:bg-neutral-100/5"
+                    data-testid={`repurpose-run-${run.id}`}
+                  >
+                    <span
+                      className={cn(
+                        "size-2 shrink-0 rounded-full",
+                        running ? "bg-accepted" : "bg-neutral-600",
+                      )}
+                      aria-hidden="true"
+                    />
+                    <span className="min-w-0 truncate text-sm text-fg-0">
+                      {run.sourceDisplay ?? "Your upload"}
+                    </span>
+                    <span className="text-xs text-fg-2">
+                      {/* The dot is decoration; the state is said in words. */}
+                      {running ? "In progress · " : ""}
+                      {run.message}
+                    </span>
+                    <span className="ml-auto font-mono text-2xs text-fg-2">
+                      {formatRelative(run.updatedAt)}
+                    </span>
+                  </NextLink>
+                </li>
+              );
+            })}
           </ul>
         )}
       </section>

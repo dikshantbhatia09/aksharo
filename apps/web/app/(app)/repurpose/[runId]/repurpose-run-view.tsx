@@ -13,6 +13,7 @@
  * fixture panel" the plan allows, and it needs no development-only branch that
  * could ship by accident.
  */
+import { Download, Loader2 } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
 
@@ -27,7 +28,7 @@ import {
   useRepurposeRun,
   useRetryRepurposeRun,
 } from "@montaj/api-client";
-import { Button, Skeleton } from "@montaj/ui";
+import { Badge, Button, PageHeader, Skeleton } from "@montaj/ui";
 
 import type { StageKey } from "@/components/repurpose/copy";
 
@@ -44,6 +45,13 @@ const STAGE_WAITING_NOTE: Readonly<Record<StageKey, string>> = Object.freeze({
   publish: "Connect accounts and choose where each video goes. Nothing is posted without you.",
 });
 
+/** `m:ss` for a position in the source video. */
+function formatClock(ms: number): string {
+  const minutes = Math.floor(ms / 60000);
+  const seconds = Math.floor((ms % 60000) / 1000);
+  return `${String(minutes)}:${String(seconds).padStart(2, "0")}`;
+}
+
 export function RepurposeRunView({ runId }: { readonly runId: string }): React.JSX.Element {
   const query = useRepurposeRun(runId);
   const cancel = useCancelRepurposeRun();
@@ -56,9 +64,10 @@ export function RepurposeRunView({ runId }: { readonly runId: string }): React.J
 
   if (query.isPending) {
     return (
-      <div className="w-full" data-testid="run-loading">
-        <Skeleton className="h-6 w-48" />
-        <Skeleton className="mt-4 h-24 w-full" />
+      <div className="w-full" data-testid="run-loading" role="status" aria-label="Loading this run">
+        <Skeleton className="h-8 w-64" />
+        <Skeleton className="mt-6 h-8 w-full max-w-xl" />
+        <Skeleton className="mt-6 h-40 w-full" />
       </div>
     );
   }
@@ -68,21 +77,23 @@ export function RepurposeRunView({ runId }: { readonly runId: string }): React.J
     // deliberately does not distinguish, and neither does this page.
     const notFound = isApiError(query.error) && query.error.status === 404;
     return (
-      <div className="w-full max-w-2xl" data-testid="run-missing">
-        <h1 className="font-display m-0 text-lg">
-          {notFound ? "We could not find that video project" : "We could not load this just now"}
-        </h1>
-        <p className="text-neutral-400 mt-2 text-sm">
-          {notFound
-            ? "It may have been removed, or the link may belong to another workspace."
-            : "Your work is safe. Please try again in a moment."}
-        </p>
-        <Link
-          href="/repurpose/new"
-          className="text-accent hover:text-accent-300 mt-4 inline-block text-sm underline"
-        >
-          Start a new one
-        </Link>
+      <div className="flex w-full max-w-2xl flex-col gap-5" data-testid="run-missing">
+        <PageHeader
+          eyebrow="Clips pipeline"
+          title={notFound ? "We could not find that video project" : "This run could not be loaded"}
+          description={
+            notFound
+              ? "It may have been removed, or the link may belong to another workspace."
+              : "Your work is safe. Refresh the page in a moment to try again."
+          }
+        />
+        <div>
+          <Button variant="secondary" asChild>
+            <Link href="/repurpose/new" className="no-underline">
+              Start a new run
+            </Link>
+          </Button>
+        </div>
       </div>
     );
   }
@@ -93,40 +104,47 @@ export function RepurposeRunView({ runId }: { readonly runId: string }): React.J
   const busy = !["draft", "published", "failed", "cancelled"].includes(run.status);
 
   const stageIndex = run.stages.findIndex((entry) => entry.stage === expanded);
+  const candidates = candidatesQuery.data?.candidates ?? [];
 
   return (
     <div
-      className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(220px,264px)]"
+      className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(240px,280px)]"
       data-testid="repurpose-run"
     >
-      <div className="flex min-w-0 flex-col gap-4">
-        <header className="max-w-[60ch]">
-          <h1 className="font-display m-0 mb-[5px] text-[23px] tracking-[-0.02em]">
-            One long video, nine posts
-          </h1>
-          <p className="text-neutral-400 m-0 text-[13px]" data-testid="run-status">
-            {run.message}
-          </p>
-        </header>
-
-        <RunStageRail
-          stages={run.stages}
-          onOpenStage={(stage) => {
-            setBlockedNote(null);
-            setOpenStage(stage);
-          }}
-          onBlockedStage={(_stage, reason) => {
-            // Clicking ahead explains the prerequisite rather than doing
-            // nothing, which is the difference between "not yet" and "broken".
-            setBlockedNote(reason);
-          }}
+      <div className="flex min-w-0 flex-col gap-6">
+        {/* The page is about THIS run, so its title is the run's source; the
+            pipeline's pitch lives on /repurpose, not repeated on every run. */}
+        <PageHeader
+          eyebrow="Clips pipeline"
+          className="[&>div]:w-full"
+          title={
+            <span className="block truncate">
+              {run.sourceDisplay ?? (run.sourceKind === "upload" ? "Your upload" : "Your video")}
+            </span>
+          }
+          description={<span data-testid="run-status">{run.message}</span>}
         />
 
-        {blockedNote !== null && (
-          <p role="status" className="text-neutral-500 text-xs" data-testid="stage-blocked-note">
-            {blockedNote}
-          </p>
-        )}
+        <div className="flex flex-col gap-2">
+          <RunStageRail
+            stages={run.stages}
+            onOpenStage={(stage) => {
+              setBlockedNote(null);
+              setOpenStage(stage);
+            }}
+            onBlockedStage={(_stage, reason) => {
+              // Clicking ahead explains the prerequisite rather than doing
+              // nothing, which is the difference between "not yet" and "broken".
+              setBlockedNote(reason);
+            }}
+          />
+
+          {blockedNote !== null && (
+            <p role="status" className="text-xs text-fg-2" data-testid="stage-blocked-note">
+              {blockedNote}
+            </p>
+          )}
+        </div>
 
         <div className="flex flex-col gap-4">
           {run.status === "failed" ? (
@@ -156,53 +174,46 @@ export function RepurposeRunView({ runId }: { readonly runId: string }): React.J
               message={run.message}
               busy={busy && expanded === currentStage}
             >
-              {candidatesQuery.data?.candidates && candidatesQuery.data.candidates.length > 0 ? (
-                <div className="flex flex-col gap-3 py-1">
-                  <p
-                    className="text-neutral-400 text-[12.5px]"
-                    data-testid={`stage-note-${expanded}`}
-                  >
-                    Discovered {candidatesQuery.data.candidates.length} highlight moments. Pick a
-                    moment to generate your vertical 9:16 clip.
+              {candidates.length > 0 ? (
+                <div className="flex flex-col gap-3">
+                  <p className="m-0 text-sm text-fg-1" data-testid={`stage-note-${expanded}`}>
+                    {candidates.length === 1
+                      ? "1 moment found."
+                      : `${String(candidates.length)} moments found.`}{" "}
+                    Create a vertical 9:16 clip from any of them.
                   </p>
 
-                  <div className="flex flex-col gap-3 mt-2" data-testid="candidates-list">
-                    {candidatesQuery.data.candidates.map((cand: RepurposeCandidateItem) => {
-                      const durationSec = Math.round((cand.endMs - cand.startMs) / 1000);
+                  <ul className="m-0 flex list-none flex-col gap-3 p-0" data-testid="candidates-list">
+                    {candidates.map((cand: RepurposeCandidateItem) => {
                       const matchingClip = clipsQuery.data?.clips?.find(
                         (c: RepurposeClipItem) => c.candidateId === cand.id,
                       );
                       const isCreating =
                         createClip.isPending && createClip.variables?.candidateId === cand.id;
+                      // Never invent a score: a candidate without one shows none.
+                      const score = cand.potentialScore ?? cand.score;
+                      const title = cand.title ?? cand.headline ?? "Suggested moment";
 
                       return (
-                        <div
+                        <li
                           key={cand.id}
-                          className="flex flex-col gap-2.5 rounded-lg border border-neutral-800 bg-neutral-900/70 p-4 transition hover:border-neutral-700"
+                          className="flex flex-col gap-3 rounded-md border border-border bg-bg-0 p-4"
                           data-testid={`candidate-card-${cand.id}`}
                         >
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-2">
-                                <span className="rounded bg-emerald-500/20 px-2 py-0.5 text-[11px] font-semibold text-emerald-400">
-                                  Viral Score: {cand.potentialScore ?? cand.score ?? 80}%
-                                </span>
-                                <span className="text-[11px] text-neutral-400 font-mono">
-                                  {Math.floor(cand.startMs / 60000)}:
-                                  {String(Math.floor((cand.startMs % 60000) / 1000)).padStart(
-                                    2,
-                                    "0",
-                                  )}{" "}
-                                  - {Math.floor(cand.endMs / 60000)}:
-                                  {String(Math.floor((cand.endMs % 60000) / 1000)).padStart(2, "0")}{" "}
-                                  ({durationSec}s)
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div className="min-w-0 flex-[1_1_240px]">
+                              <div className="flex flex-wrap items-center gap-2">
+                                {score === undefined || score === null ? null : (
+                                  <Badge tone="neutral">Potential {String(score)}%</Badge>
+                                )}
+                                <span className="font-mono text-2xs text-fg-2">
+                                  {formatClock(cand.startMs)} – {formatClock(cand.endMs)} (
+                                  {String(Math.round((cand.endMs - cand.startMs) / 1000))}s)
                                 </span>
                               </div>
-                              <h4 className="mt-1.5 text-sm font-semibold text-neutral-100">
-                                {cand.title ?? cand.headline ?? "Highlight Moment"}
-                              </h4>
+                              <h3 className="mt-1.5 text-sm font-semibold text-fg-0">{title}</h3>
                               {(cand.transcriptExcerpt || cand.reason) && (
-                                <p className="mt-1 text-xs text-neutral-400 line-clamp-2">
+                                <p className="mt-1 line-clamp-2 text-sm text-fg-2">
                                   {cand.transcriptExcerpt ?? cand.reason}
                                 </p>
                               )}
@@ -211,27 +222,41 @@ export function RepurposeRunView({ runId }: { readonly runId: string }): React.J
                             <div className="flex shrink-0 items-center gap-2">
                               {matchingClip ? (
                                 matchingClip.mezzanineUrl ? (
-                                  <a
-                                    href={matchingClip.mezzanineUrl}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    download={`clip-${cand.id}.mp4`}
-                                    className="inline-flex items-center gap-1.5 rounded bg-accent px-3 py-1.5 text-xs font-semibold text-white hover:bg-accent/90"
-                                    data-testid={`download-clip-${cand.id}`}
-                                  >
-                                    Download 9:16 Clip
-                                  </a>
+                                  <Button variant="secondary" size="sm" asChild>
+                                    <a
+                                      href={matchingClip.mezzanineUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      download={`clip-${cand.id}.mp4`}
+                                      className="no-underline"
+                                      aria-label={`Download clip: ${title}`}
+                                      data-testid={`download-clip-${cand.id}`}
+                                    >
+                                      <Download strokeWidth={1.75} aria-hidden="true" />
+                                      Download clip
+                                    </a>
+                                  </Button>
                                 ) : (
-                                  <span className="text-xs text-amber-400 font-medium animate-pulse">
-                                    Cutting 9:16 clip…
+                                  <span
+                                    role="status"
+                                    className="inline-flex items-center gap-1.5 text-xs text-fg-1"
+                                  >
+                                    <Loader2
+                                      className="size-4 animate-spin text-fg-2"
+                                      strokeWidth={1.75}
+                                      aria-hidden="true"
+                                    />
+                                    Cutting the 9:16 clip…
                                   </span>
                                 )
                               ) : (
+                                // Secondary, not primary: a list of candidates
+                                // would otherwise put a rani button on every row.
                                 <Button
-                                  variant="primary"
+                                  variant="secondary"
                                   size="sm"
-                                  className="h-8 text-xs font-medium"
                                   disabled={isCreating}
+                                  aria-label={isCreating ? undefined : `Create 9:16 clip: ${title}`}
                                   onClick={() =>
                                     createClip.mutate({
                                       runId,
@@ -241,39 +266,38 @@ export function RepurposeRunView({ runId }: { readonly runId: string }): React.J
                                   }
                                   data-testid={`create-clip-${cand.id}`}
                                 >
-                                  {isCreating ? "Queuing…" : "Create 9:16 Clip"}
+                                  {isCreating ? "Queuing…" : "Create 9:16 clip"}
                                 </Button>
                               )}
                             </div>
                           </div>
 
                           {matchingClip?.mezzanineUrl && (
-                            <div className="mt-2 overflow-hidden rounded-md bg-black border border-neutral-800 max-w-[220px]">
+                            <div className="max-w-[220px] overflow-hidden rounded-sm border border-border bg-ink">
                               <video
                                 src={matchingClip.mezzanineUrl}
                                 controls
                                 playsInline
-                                className="w-full aspect-[9/16] object-cover"
+                                aria-label={`${title}, 9:16 clip`}
+                                className="aspect-[9/16] w-full object-cover"
                                 data-testid={`clip-video-${cand.id}`}
                               />
                             </div>
                           )}
-                        </div>
+                        </li>
                       );
                     })}
-                  </div>
+                  </ul>
                 </div>
               ) : (
-                <p
-                  className="text-neutral-400 text-[12.5px]"
-                  data-testid={`stage-note-${expanded}`}
-                >
+                <p className="m-0 text-sm text-fg-2" data-testid={`stage-note-${expanded}`}>
                   {/* eslint-disable-next-line security/detect-object-injection -- bounded stage index */}
                   {STAGE_WAITING_NOTE[expanded]}
                 </p>
               )}
 
               <RunActionBar
+                className="mt-4"
                 note={
                   run.canCancel
                     ? "Nothing is posted anywhere without your confirmation."

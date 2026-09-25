@@ -16,7 +16,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
 
 import { isApiError, useCreateRepurposeRun } from "@montaj/api-client";
-
+import { PageHeader } from "@montaj/ui";
 
 import { rememberedLanguage, rememberLanguage } from "@/components/projects/language-picker";
 import {
@@ -116,7 +116,7 @@ export function RepurposeNewView(): React.JSX.Element {
           setServerError(
             isApiError(error)
               ? error.message
-              : "We could not start this just now. Please try again.",
+              : "The run could not be started. Check your connection and try again.",
           );
         },
       },
@@ -124,13 +124,16 @@ export function RepurposeNewView(): React.JSX.Element {
   };
 
   return (
-    <main className="mx-auto w-full max-w-2xl px-4 py-8">
-      <h1 className="text-lg text-fg-0">Create from a long video</h1>
-      <p className="mt-1 text-sm text-fg-2">
-        One long video becomes short, captioned videos you can review before anything is posted.
-      </p>
+    // A `<div>`, not a second `<main>`: the app shell already provides the
+    // page's one main landmark.
+    <div className="mx-auto flex w-full max-w-2xl flex-col gap-8">
+      <PageHeader
+        eyebrow="Clips pipeline"
+        title="Create from a long video"
+        description="One long video becomes short, captioned videos you review before anything is posted."
+      />
 
-      <div className="mt-6">
+      <div>
         <SourceStartForm
           value={value}
           onChange={setValue}
@@ -139,6 +142,6 @@ export function RepurposeNewView(): React.JSX.Element {
           serverError={serverError}
         />
       </div>
-    </main>
+    </div>
   );
 }

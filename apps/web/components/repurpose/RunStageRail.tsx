@@ -83,26 +83,29 @@ export function RunStageNode({
         aria-current={stage.state === "running" ? "step" : undefined}
         aria-label={`Step ${String(index + 1)} of ${String(total)}: ${copy.title}. ${STATE_WORD[stage.state]}.`}
         className={cn(
-          // The canvas's stage pill: a 22 px state dot, then the title, on an
-          // 8 px outlined chip. Not a card — the rail is a row of ten-ish
-          // small things and a card each would be a wall.
-          "flex shrink-0 items-center gap-[7px] rounded-sm border px-2.5 py-1.5",
-          "text-[11.5px] whitespace-nowrap transition-colors duration-[160ms] ease-[var(--ease-out-soft)]",
-          stage.state === "running" && "border-accent bg-accent/12 text-accent-200",
-          stage.state === "complete" && "border-border text-neutral-300 hover:border-accent",
-          stage.state === "failed" && "border-rejected text-rejected",
-          stage.state === "waiting" && "border-border text-neutral-500",
+          // The canvas's stage pill: a 20 px state dot, then the title, on an
+          // outlined chip at least 32 px tall. Not a card — the rail is a row
+          // of small things and a card each would be a wall.
+          //
+          // Accent budget: only the CURRENT step carries the accent (the
+          // "active nav row" recipe). Done steps are neutral with a check;
+          // hover is the system's neutral tint, never an accent border.
+          "flex min-h-8 shrink-0 items-center gap-2 rounded-sm border px-2.5 py-1",
+          "text-xs whitespace-nowrap transition-colors duration-[160ms] ease-[var(--ease-out-soft)]",
+          stage.state === "running" && "border-accent/60 bg-accent/14 text-accent-200",
+          stage.state === "complete" && "border-border text-fg-1 hover:bg-neutral-100/7 hover:text-fg-0",
+          stage.state === "failed" && "border-rejected/60 text-rejected",
+          stage.state === "waiting" && "border-border text-fg-2",
         )}
       >
         <span
           aria-hidden="true"
           className={cn(
-            "flex size-[22px] shrink-0 items-center justify-center rounded-full text-[11px]",
-            stage.state === "complete" && "bg-accent-800 text-accent-100",
-            stage.state === "running" &&
-              "bg-accent/18 text-accent-200 shadow-[inset_0_0_0_1px_var(--color-accent)]",
+            "flex size-5 shrink-0 items-center justify-center rounded-full text-2xs",
+            stage.state === "complete" && "bg-bg-2 text-accepted",
+            stage.state === "running" && "bg-accent text-on-accent",
             stage.state === "failed" && "bg-rejected/20 text-rejected",
-            stage.state === "waiting" && "bg-neutral-900 text-neutral-500",
+            stage.state === "waiting" && "bg-bg-2 text-fg-2",
           )}
           data-testid={`stage-icon-${stage.stage}`}
         >

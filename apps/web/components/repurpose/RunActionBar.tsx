@@ -42,7 +42,7 @@ export function RunActionBar({
         // what the primary will cost. Not a sticky footer bar — the stage
         // panel is short enough that a bar pinned to the viewport spent most
         // of its time floating over nothing.
-        "flex flex-wrap items-center gap-[9px] pt-1",
+        "flex flex-wrap items-center gap-2 border-t border-border pt-4",
         className,
       )}
     >
@@ -50,7 +50,6 @@ export function RunActionBar({
         <Button
           variant="primary"
           size="sm"
-          className="h-8"
           onClick={primary.onClick}
           disabled={primary.disabled ?? false}
           data-testid={primary.testId}
@@ -62,7 +61,6 @@ export function RunActionBar({
         <Button
           variant="secondary"
           size="sm"
-          className="h-8"
           onClick={secondary.onClick}
           disabled={secondary.disabled ?? false}
           data-testid={secondary.testId}
@@ -70,7 +68,7 @@ export function RunActionBar({
           {secondary.label}
         </Button>
       )}
-      <p className="text-neutral-500 m-0 text-[11px]">{note ?? ""}</p>
+      {note === undefined ? null : <p className="m-0 text-xs text-fg-2">{note}</p>}
     </div>
   );
 }
@@ -93,12 +91,16 @@ export function PersistentPreview({
     <aside
       aria-label="This video"
       data-testid="persistent-preview"
-      className={cn("bg-surface flex flex-col gap-[11px] self-start rounded-md p-3.5", className)}
+      className={cn(
+        "flex flex-col gap-4 self-start rounded-md border border-border bg-surface p-5",
+        className,
+      )}
     >
-      <span className="text-neutral-500 text-[9.5px] tracking-[0.12em] uppercase">Source</span>
+      <h2 className="m-0 text-sm font-medium text-fg-0">This video</h2>
 
+      {/* The video canvas colour, not a gradient: the frame is for footage. */}
       <div
-        className="text-neutral-500 flex aspect-video items-center justify-center rounded-sm bg-[radial-gradient(120%_90%_at_50%_20%,var(--color-accent-900),var(--color-ink))] px-3 text-center text-[11px]"
+        className="flex aspect-video items-center justify-center rounded-sm bg-ink px-3 text-center text-xs text-fg-2"
         data-testid="preview-placeholder"
       >
         {/* A poster arrives with the media; until then the box holds its shape so
@@ -106,22 +108,22 @@ export function PersistentPreview({
         Preview appears once your video is ready
       </div>
 
-      <dl className="m-0 flex flex-col gap-1.5 text-xs">
+      <dl className="m-0 flex flex-col gap-2 text-sm">
         <div className="flex justify-between gap-2">
-          <dt className="text-neutral-500">Source</dt>
-          <dd className="text-neutral-300 m-0 truncate" data-testid="preview-source">
+          <dt className="text-fg-2">Source</dt>
+          <dd className="m-0 min-w-0 truncate text-fg-0" data-testid="preview-source">
             {run.sourceDisplay ?? (run.sourceKind === "upload" ? "Your upload" : "Link")}
           </dd>
         </div>
         <div className="flex justify-between gap-2">
-          <dt className="text-neutral-500">Suggested moments</dt>
-          <dd className="text-neutral-300 m-0" data-testid="preview-candidates">
+          <dt className="text-fg-2">Suggested moments</dt>
+          <dd className="m-0 font-mono text-fg-0 tabular-nums" data-testid="preview-candidates">
             {run.candidateCount}
           </dd>
         </div>
         <div className="flex justify-between gap-2">
-          <dt className="text-neutral-500">Videos being made</dt>
-          <dd className="text-neutral-300 m-0" data-testid="preview-variants">
+          <dt className="text-fg-2">Videos being made</dt>
+          <dd className="m-0 font-mono text-fg-0 tabular-nums" data-testid="preview-variants">
             {run.variantCount}
           </dd>
         </div>
@@ -129,15 +131,10 @@ export function PersistentPreview({
 
       <div>
         <ProgressBar value={run.progress} label="How far along your video is" />
-        <p className="text-neutral-500 mt-1 text-2xs" data-testid="preview-progress">
+        <p className="mt-1.5 text-xs text-fg-2" data-testid="preview-progress">
           {run.progress}% complete
         </p>
       </div>
-
-      <span className="rule-fade" aria-hidden="true" />
-      <span className="text-neutral-400 text-[11.5px]">
-        Nothing is posted anywhere without your confirmation.
-      </span>
     </aside>
   );
 }
