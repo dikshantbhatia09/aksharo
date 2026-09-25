@@ -2,12 +2,14 @@ import { Module } from "@nestjs/common";
 
 import { MemoryGlossarySource } from "./postprocess/index.js";
 import { TranscribeCompletionHandler } from "./transcribe.handler.js";
+import { TranscriptDocumentService } from "./transcript-document.service.js";
 import { TranscriptsController } from "./transcripts.controller.js";
 import { TranscriptsRepository } from "./transcripts.repository.js";
 import { TranscriptsService } from "./transcripts.service.js";
 import { EdgModule } from "../edg/index.js";
 import { CAPTION_RENDER_CONTEXT, captionRenderContext } from "../edg/init/index.js";
 import { JobsModule } from "../jobs/jobs.module.js";
+import { MediaProbeRestart } from "../media/probe-restart.js";
 import { MemoryModule } from "../memory/memory.module.js";
 import { WorkspaceMemberGuard } from "../workspaces/workspace-member.guard.js";
 
@@ -41,10 +43,12 @@ import { WorkspaceMemberGuard } from "../workspaces/workspace-member.guard.js";
     TranscriptsService,
     TranscriptsRepository,
     TranscribeCompletionHandler,
+    TranscriptDocumentService,
+    MediaProbeRestart,
     MemoryGlossarySource,
     WorkspaceMemberGuard,
     { provide: CAPTION_RENDER_CONTEXT, useFactory: captionRenderContext },
   ],
-  exports: [TranscriptsService, TranscriptsRepository],
+  exports: [TranscriptsService, TranscriptsRepository, TranscriptDocumentService],
 })
 export class TranscriptsModule {}

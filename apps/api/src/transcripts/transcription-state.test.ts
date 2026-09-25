@@ -23,6 +23,12 @@ const READY_MEDIA: {
   durationMs: number | null;
   failureReason?: string | null;
   createdAt?: Date;
+  id?: string;
+  projectId?: string;
+  hasAudio?: boolean | null;
+  width?: number | null;
+  proxyKey?: string | null;
+  project?: { workspaceId: string };
 } = {
   status: "ready",
   durationMs: 20_200,
@@ -51,6 +57,12 @@ interface Overrides {
    * point of the case is WHICH row the read model picks.
    */
   jobs?: readonly TypedJobRow[];
+  /** Whether `edg_documents` has a row for the project. */
+  document?: { id: string } | null;
+  /** What `TranscriptDocumentService.ensure` does when the read model repairs. */
+  ensure?: () => Promise<{ status: string; edgId?: string }>;
+  /** Whether `MediaProbeRestart.restart` manages to queue the probe. */
+  restarted?: boolean;
 }
 
 function harness(overrides: Overrides = {}) {
@@ -81,7 +93,11 @@ function harness(overrides: Overrides = {}) {
     project: { findFirst: vi.fn(async () => project) },
     mediaAsset: { findFirst: vi.fn(async () => media) },
     job: { findFirst: findFirstJob },
+    edgDocument: { findUnique: vi.fn(async () => overrides.document ?? null) },
   } as unknown as PrismaService;
+
+  const restart = vi.fn(async () => overrides.restarted ?? true);
+  const ensure = vi.fn(overrides.ensure ?? (async () => ({ status: "created", edgId: "01EDG" })));
 
   const repository = {
     latest: vi.fn(async () => overrides.transcript ?? null),
@@ -93,20 +109,139 @@ function harness(overrides: Overrides = {}) {
     undefined as never,
     undefined as never,
     undefined as never,
+    { ensure } as never,
+    { restart } as never,
   );
 
-  return { service, prisma, repository };
+  return { service, prisma, repository, ensure, restart };
 }
 
 const state = async (overrides: Overrides = {}) =>
   harness(overrides).service.transcriptionState("01PROJECT", "01WORKSPACE");
 
 describe("TranscriptsService.transcriptionState", () => {
-  // The whole point of the read model: a transcript row is the editor's green
-  // light, and it outranks any job row still lying around.
-  it("is ready as soon as a transcript row exists", async () => {
-    await expect(state({ transcript: { id: "01TRANSCRIPT" } })).resolves.toEqual({
+  // `ready` is the editor's green light, so it needs what the editor loads: the
+  // editing document. A transcript alone used to count, and every repurposed
+  // clip (transcript cloned, document never built) looped on the waiting screen.
+  it("is ready when the transcript has an editing document", async () => {
+    const { service, ensure } = harness({
+      transcript: { id: "01TRANSCRIPT" },
+      document: { id: "01EDG" },
+    });
+    await expect(service.transcriptionState("01PROJECT", "01WORKSPACE")).resolves.toEqual({
       status: "ready",
+    });
+    expect(ensure).not.toHaveBeenCalled();
+  });
+
+  describe("a transcript with no editing document", () => {
+    it("reports the producer's open job instead of racing its write", async () => {
+      const { service, ensure } = harness({
+        transcript: { id: "01TRANSCRIPT" },
+        job: { id: "01JOB", status: "running" },
+      });
+      await expect(service.transcriptionState("01PROJECT", "01WORKSPACE")).resolves.toEqual({
+        status: "running",
+        jobId: "01JOB",
+      });
+      expect(ensure).not.toHaveBeenCalled();
+    });
+
+    // A clip's transcript is cloned before its video is probed; the document is
+    // built on `media.proxy` success, against the probed dimensions.
+    it("waits on the media while it is still being prepared", async () => {
+      const { service, ensure } = harness({
+        transcript: { id: "01TRANSCRIPT" },
+        media: { status: "probing" },
+      });
+      await expect(service.transcriptionState("01PROJECT", "01WORKSPACE")).resolves.toEqual({
+        status: "processing_media",
+      });
+      expect(ensure).not.toHaveBeenCalled();
+    });
+
+    it("builds the document from the stored transcript once the media is ready", async () => {
+      const { service, ensure } = harness({ transcript: { id: "01TRANSCRIPT" } });
+      await expect(service.transcriptionState("01PROJECT", "01WORKSPACE")).resolves.toEqual({
+        status: "ready",
+      });
+      expect(ensure).toHaveBeenCalledWith("01PROJECT");
+    });
+
+    // Every clip cut before 2026-09-25: the mezzanine was stamped `ready` with
+    // nothing measured and no preview. Opening it as-is would show "audio only".
+    const NEVER_PROBED = {
+      id: "01MEDIA",
+      projectId: "01PROJECT",
+      status: "ready",
+      hasAudio: null,
+      width: null,
+      proxyKey: null,
+      project: { workspaceId: "01WORKSPACE" },
+    };
+
+    it("sends never-probed media back through the pipeline instead of opening it", async () => {
+      const { service, ensure, restart } = harness({
+        transcript: { id: "01TRANSCRIPT" },
+        media: NEVER_PROBED,
+      });
+      await expect(service.transcriptionState("01PROJECT", "01WORKSPACE")).resolves.toEqual({
+        status: "processing_media",
+      });
+      expect(restart).toHaveBeenCalledWith(
+        expect.objectContaining({ id: "01MEDIA", projectId: "01PROJECT" }),
+        "01WORKSPACE",
+      );
+      expect(ensure).not.toHaveBeenCalled();
+    });
+
+    it("still opens the project when the probe cannot be restarted", async () => {
+      const { service, ensure } = harness({
+        transcript: { id: "01TRANSCRIPT" },
+        media: NEVER_PROBED,
+        restarted: false,
+      });
+      await expect(service.transcriptionState("01PROJECT", "01WORKSPACE")).resolves.toEqual({
+        status: "ready",
+      });
+      expect(ensure).toHaveBeenCalledWith("01PROJECT");
+    });
+
+    it("does not re-probe media that was probed", async () => {
+      const { service, restart } = harness({
+        transcript: { id: "01TRANSCRIPT" },
+        media: { ...NEVER_PROBED, hasAudio: true, width: 1080, proxyKey: "p/proxy.mp4" },
+      });
+      await expect(service.transcriptionState("01PROJECT", "01WORKSPACE")).resolves.toEqual({
+        status: "ready",
+      });
+      expect(restart).not.toHaveBeenCalled();
+    });
+
+    it("is ready when a concurrent request built the document first", async () => {
+      const { service, prisma } = harness({
+        transcript: { id: "01TRANSCRIPT" },
+        ensure: async () => {
+          throw new Error("Unique constraint failed on the fields: (`project_id`)");
+        },
+      });
+      const findUnique = prisma.edgDocument.findUnique as unknown as ReturnType<typeof vi.fn>;
+      findUnique.mockResolvedValueOnce(null).mockResolvedValueOnce({ id: "01EDG" });
+      await expect(service.transcriptionState("01PROJECT", "01WORKSPACE")).resolves.toEqual({
+        status: "ready",
+      });
+    });
+
+    it("answers failed, never ready, when the document cannot be built", async () => {
+      const { service } = harness({
+        transcript: { id: "01TRANSCRIPT" },
+        ensure: async () => {
+          throw new Error("segmenter exploded");
+        },
+      });
+      const view = await service.transcriptionState("01PROJECT", "01WORKSPACE");
+      expect(view.status).toBe("failed");
+      expect(view.error).toMatch(/editor could not be prepared/);
     });
   });
 

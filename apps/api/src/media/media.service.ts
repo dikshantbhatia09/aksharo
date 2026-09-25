@@ -5,6 +5,7 @@ import { HttpStatus, Inject, Injectable, Logger } from "@nestjs/common";
 import { ulid } from "ulid";
 
 import { MEDIA_JOB_KEYS, MEDIA_JOB_QUOTES } from "./media.constants.js";
+import { probeJobPayload } from "./probe-restart.js";
 import { AppException, ERROR_CODES, PrismaService } from "../common/index.js";
 import {
   DERIVED_STORE,
@@ -545,7 +546,9 @@ export class MediaService {
   }
 
   /**
-   * {@link complete}'s tail, for bytes that arrived through `media.acquire`.
+   * {@link complete}'s tail, for bytes a worker wrote rather than a browser:
+   * `media.acquire` (a fetched source) and `media.clip` (a repurposed clip's
+   * mezzanine).
    *
    * Identical in effect to finishing an upload — the store's own size, the plan's
    * purge dates, the project's retention pushed out, `media.probe` enqueued — and
@@ -580,7 +583,7 @@ export class MediaService {
     const head = await this.raw.head(input.media.storageKey);
     if (head === null) {
       throw new Error(
-        `media.acquire reported ${input.media.storageKey}, which the raw store does not have`,
+        `a worker reported ${input.media.storageKey}, which the raw store does not have`,
       );
     }
 
@@ -589,7 +592,7 @@ export class MediaService {
       // disagreeing means the upload and the measurement saw different files.
       this.logger.warn(
         { mediaId: input.media.id, stored: head.sizeBytes, reported: input.sizeBytes },
-        "media.acquire reported a size the raw store does not agree with",
+        "a worker reported a size the raw store does not agree with",
       );
     }
 
@@ -746,18 +749,9 @@ export class MediaService {
     return { media: view, probeJobId: probe.job.id, proxyJobId: null };
   }
 
-  /** What `media.probe` is told about an asset. One definition, two callers. */
+  /** What `media.probe` is told about an asset (`probeJobPayload`, shared with `MediaProbeRestart`). */
   private probePayload(media: MediaAsset, project: AcquisitionProject): Record<string, unknown> {
-    return {
-      mediaId: media.id,
-      projectId: project.id,
-      bucket: this.raw.kind,
-      key: media.storageKey,
-      mime: media.mime,
-      sizeBytes: Number(media.sizeBytes ?? 0),
-      derivedBucket: this.derived.kind,
-      derivedPrefix: media.storageKey.slice(0, media.storageKey.lastIndexOf("/")),
-    };
+    return probeJobPayload(media, project.id, { raw: this.raw.kind, derived: this.derived.kind });
   }
 
   /** A settled upload of the same bytes, anywhere in this workspace. */

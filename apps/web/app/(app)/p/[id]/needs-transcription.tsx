@@ -21,7 +21,9 @@ import {
 } from "@/components/projects/processing-tips";
 import {
   announceTranscriptReady,
+  claimReadyAnnouncement,
   getTranscriptionState,
+  releaseReadyAnnouncement,
   TRANSCRIPTION_POLL_BACKOFF_MS,
   TRANSCRIPTION_WAITING_STATUSES,
   type TranscriptionStateView,
@@ -65,7 +67,19 @@ import { messageForError } from "@/lib/errors";
  * `ai.transcribe`/`ai.align`, so an alignment that fails answers `failed` here
  * instead of staying invisible: the poll settles on it and the phase renders the
  * failure with a way back to the offer, rather than spinning forever.
+ *
+ * **Nothing here spins without an ending** (2026-09-25). Every repurposed clip
+ * opened onto "Checking this project…" and never left it: the read model said
+ * `ready`, the editor found no document, remounted this screen, and it said
+ * `ready` again, ~5 times a second. Two guards now: a second `ready` for the same
+ * project inside `READY_REANNOUNCE_WINDOW_MS` shows an error with a retry instead
+ * of reloading again, and a read model that keeps failing is reported after
+ * {@link POLL_FAILURES_BEFORE_ERROR} attempts instead of hidden behind the
+ * spinner.
  */
+
+/** Consecutive failed checks before the screen says so (the poll keeps going). */
+export const POLL_FAILURES_BEFORE_ERROR = 3;
 
 export function NeedsTranscription({ projectId }: { projectId: string }): React.JSX.Element {
   const client = useRawApiClient();
@@ -93,6 +107,9 @@ export function NeedsTranscription({ projectId }: { projectId: string }): React.
   const [chosenLanguage, setChosenLanguage] = React.useState<string | undefined>(undefined);
   const [choosing, setChoosing] = React.useState(false);
   const announced = React.useRef(false);
+  /** The editor was already asked to open this project moments ago and could not. */
+  const [openStuck, setOpenStuck] = React.useState(false);
+  const [pollError, setPollError] = React.useState<unknown>(null);
   // K02: the same rotating "Did you know?" this WP's Prepare-Media modal
   // shows on Home — this screen is the full-screen "Analyzing content" /
   // "Generating subtitles" half of the same trip (reference frames
@@ -107,11 +124,14 @@ export function NeedsTranscription({ projectId }: { projectId: string }): React.
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let attempt = 0;
+    let failures = 0;
 
     async function tick(): Promise<void> {
       try {
         const next = await client.call(getTranscriptionState, { params: { projectId } });
         if (cancelled) return;
+        failures = 0;
+        setPollError(null);
         setView(next);
         // Settled: stop asking. `ready` unmounts this screen a moment later.
         // S-06: a failed alignment settles the wait too — the read model now sees
@@ -124,10 +144,13 @@ export function NeedsTranscription({ projectId }: { projectId: string }): React.
             : !TRANSCRIPTION_WAITING_STATUSES.has(next.status)
         )
           return;
-      } catch {
+      } catch (error) {
         // A transient failure must not strand the screen on a stale answer —
-        // keep the rhythm and try again on the next tick.
+        // keep the rhythm and try again on the next tick. A persistent one is
+        // said out loud rather than left behind the spinner.
         if (cancelled) return;
+        failures += 1;
+        if (failures >= POLL_FAILURES_BEFORE_ERROR) setPollError(error);
       }
       const delay =
         TRANSCRIPTION_POLL_BACKOFF_MS[
@@ -149,9 +172,16 @@ export function NeedsTranscription({ projectId }: { projectId: string }): React.
   React.useEffect(() => {
     if (status === "ready" && !announced.current) {
       announced.current = true;
-      announceTranscriptReady(projectId);
+      if (claimReadyAnnouncement(projectId)) announceTranscriptReady(projectId);
+      else setOpenStuck(true);
     }
   }, [status, projectId]);
+
+  function retryOpen(): void {
+    releaseReadyAnnouncement(projectId);
+    setOpenStuck(false);
+    if (claimReadyAnnouncement(projectId)) announceTranscriptReady(projectId);
+  }
 
   async function start(chosen?: string): Promise<void> {
     setBlocked(false);
@@ -335,6 +365,36 @@ export function NeedsTranscription({ projectId }: { projectId: string }): React.
           "You do not have to wait for credits: importing an SRT/VTT you already " +
             "have costs none at all.",
         )}
+      </div>
+    );
+  } else if (openStuck) {
+    content = (
+      <div className="flex flex-col items-center gap-3" data-testid="editor-open-stuck">
+        <h2 className="text-fg-0 text-lg font-semibold">The editor could not open this project</h2>
+        <p className="text-fg-2 max-w-md text-sm">
+          Its transcript is ready, but the editor did not load it. Try again in a moment — if it
+          keeps happening, this project needs a look from support.
+        </p>
+        <Button type="button" onClick={retryOpen} data-testid="editor-open-retry">
+          Try again
+        </Button>
+      </div>
+    );
+  } else if (status === undefined && pollError !== null) {
+    content = (
+      <div className="flex flex-col items-center gap-3" data-testid="transcription-state-error">
+        <h2 className="text-fg-0 text-lg font-semibold">We could not check this project</h2>
+        <p className="text-fg-2 max-w-md text-sm">{messageForError(pollError)}</p>
+        <Button
+          type="button"
+          onClick={() => {
+            setPollError(null);
+            setPollSeq((seq) => seq + 1);
+          }}
+          data-testid="transcription-state-retry"
+        >
+          Try again
+        </Button>
       </div>
     );
   } else if (status === undefined) {

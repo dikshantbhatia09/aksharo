@@ -86,6 +86,8 @@ let projectSeq = 0;
 let published: { event: string; data: Record<string, unknown> }[] = [];
 let audited: { action: string; data: Record<string, unknown> }[] = [];
 let enqueued: { type: string; jobKey: string; params: Record<string, unknown>; id: string }[] = [];
+/** What reached `MediaService.completeAcquisition`, and whether its transcript was already there. */
+let acquired: { mediaId: string; status: string; transcriptsAtStart: number }[] = [];
 
 function fakeProjects(): ProjectsService {
   return {
@@ -106,6 +108,18 @@ function fakeStyles(): StylesService {
 
 function fakeMedia(): MediaService {
   return {
+    completeAcquisition: async (input: {
+      media: { id: string; projectId: string; status: string };
+    }) => {
+      acquired.push({
+        mediaId: input.media.id,
+        status: input.media.status,
+        transcriptsAtStart: await prisma.transcript.count({
+          where: { projectId: input.media.projectId },
+        }),
+      });
+      return { media: input.media, probeJobId: id("PROBE") };
+    },
     initUpload: async () => ({
       mediaId: id("MM"),
       uploadId: "upload-1",
@@ -244,6 +258,7 @@ describe.skipIf(!CAN_RUN)("repurpose full chain execution and failure paths", ()
     clipHandler = new RepurposeClipCompletionHandler(
       prisma as unknown as PrismaService,
       fakeProjects(),
+      fakeMedia(),
       service,
       registry,
       realtime,
@@ -263,6 +278,7 @@ describe.skipIf(!CAN_RUN)("repurpose full chain execution and failure paths", ()
     published = [];
     audited = [];
     enqueued = [];
+    acquired = [];
     await prisma.job.deleteMany({});
     await prisma.clipVariant.deleteMany({});
     await prisma.repurposeClip.deleteMany({});
@@ -463,6 +479,47 @@ describe.skipIf(!CAN_RUN)("repurpose full chain execution and failure paths", ()
     expect(run.currentStage).toBe("review");
     expect(run.clipCount).toBe(1);
     expect(run.variantCount).toBe(1);
+
+    // The child project must become editable (2026-09-25): its mezzanine enters
+    // the ordinary media pipeline unprobed — never stamped `ready` with no
+    // dimensions — and only after the transcript slice is in place, so the
+    // proxy's completion can build the editing document from it.
+    const variant = await prisma.clipVariant.findFirstOrThrow({
+      where: { clipId: clipResult.clipId },
+    });
+    const childMedia = await prisma.mediaAsset.findFirstOrThrow({
+      where: { projectId: variant.projectId, role: "primary" },
+    });
+    expect(childMedia.storageKey).toBe(mezzanineKey);
+    expect(childMedia.status).toBe("pending");
+    expect(acquired).toEqual([
+      { mediaId: childMedia.id, status: "pending", transcriptsAtStart: 1 },
+    ]);
+    const childTranscript = await prisma.transcript.findFirstOrThrow({
+      where: { projectId: variant.projectId },
+    });
+    const childChunk = await prisma.transcriptChunk.findFirstOrThrow({
+      where: { transcriptId: childTranscript.id },
+    });
+    // Words inside [800, 5200], shifted to the clip's own clock.
+    expect((childChunk.words as { t: string; s: number }[]).map((w) => [w.t, w.s])).toEqual([
+      ["Welcome", 200],
+      ["to", 1_200],
+      ["this", 1_700],
+      ["great", 2_200],
+      ["highlight", 2_700],
+      ["moment", 3_200],
+    ]);
+
+    // A replayed completion must not push already-probed media back through the
+    // pipeline.
+    await prisma.mediaAsset.update({ where: { id: childMedia.id }, data: { status: "ready" } });
+    await prisma.repurposeRun.update({
+      where: { id: runId },
+      data: { status: "materializing" },
+    });
+    await clipHandler.handle(clipContext);
+    expect(acquired).toHaveLength(1);
 
     // 7. Advance to terminal state (published)
     await prisma.repurposeRun.update({

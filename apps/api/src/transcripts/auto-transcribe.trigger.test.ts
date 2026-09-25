@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AutoTranscribeTrigger } from "./auto-transcribe.trigger.js";
 
+import type { TranscriptDocumentService } from "./transcript-document.service.js";
 import type { TranscriptsService } from "./transcripts.service.js";
 import type { PrismaService } from "../common/prisma/prisma.service.js";
 
@@ -39,6 +40,7 @@ function harness(
     project?: Partial<typeof FRESH_PROJECT> | null;
     transcriptCount?: number;
     transcribe?: () => Promise<{ jobId: string }>;
+    ensure?: () => Promise<{ status: string; edgId?: string }>;
   } = {},
 ) {
   const media = overrides.media === null ? null : { ...READY_PRIMARY, ...overrides.media };
@@ -49,10 +51,13 @@ function harness(
     project: { findFirst: vi.fn(async () => project) },
     transcript: { count: vi.fn(async () => overrides.transcriptCount ?? 0) },
   } as unknown as PrismaService;
-  const trigger = new AutoTranscribeTrigger(prisma, {
-    transcribe,
-  } as unknown as TranscriptsService);
-  return { trigger, transcribe };
+  const ensure = vi.fn(overrides.ensure ?? (async () => ({ status: "created", edgId: "01EDG" })));
+  const trigger = new AutoTranscribeTrigger(
+    prisma,
+    { transcribe } as unknown as TranscriptsService,
+    { ensure } as unknown as TranscriptDocumentService,
+  );
+  return { trigger, transcribe, ensure };
 }
 
 describe("AutoTranscribeTrigger", () => {
@@ -85,6 +90,32 @@ describe("AutoTranscribeTrigger", () => {
     const { trigger, transcribe } = harness({ transcriptCount: 1 });
     await expect(trigger.maybeEnqueue("01MEDIA")).resolves.toBeUndefined();
     expect(transcribe).not.toHaveBeenCalled();
+  });
+
+  // A repurposed clip: its transcript slice was cloned before its video was
+  // probed, and nothing else ever turned it into an editing document.
+  it("builds the document from a transcript the project already has", async () => {
+    const { trigger, transcribe, ensure } = harness({ transcriptCount: 1 });
+    await expect(trigger.maybeEnqueue("01MEDIA")).resolves.toBeUndefined();
+    expect(ensure).toHaveBeenCalledWith("01PROJECT");
+    expect(transcribe).not.toHaveBeenCalled();
+  });
+
+  it("never fails the proxy job when the document cannot be built", async () => {
+    const { trigger, ensure } = harness({
+      transcriptCount: 1,
+      ensure: async () => {
+        throw new Error("segmenter exploded");
+      },
+    });
+    await expect(trigger.maybeEnqueue("01MEDIA")).resolves.toBeUndefined();
+    expect(ensure).toHaveBeenCalled();
+  });
+
+  it("does not build a document for a project that has neither transcript nor document", async () => {
+    const { trigger, ensure } = harness();
+    await trigger.maybeEnqueue("01MEDIA");
+    expect(ensure).not.toHaveBeenCalled();
   });
 
   it.each([
