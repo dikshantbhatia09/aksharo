@@ -406,7 +406,16 @@ record in `docs/LAUNCH-READINESS-IMPLEMENTATION-2026-09-14.md`.
   also emitting CommonJS. This silently killed every render worker thread. Put
   the data in a `.ts` module.
 
-## 5. Design system — **Nocturne** (changed 2026-09-16)
+## 5. Design system — **Shirorekha** on branch `redesign/new-direction` (2026-09-25)
+
+> On the `redesign/new-direction` branch Nocturne is replaced by **Shirorekha**:
+> warm charcoal grounds, one rani-pink accent `#f0508a`, Anek Latin for page
+> titles, a FILLED primary button, and the shirorekha bar via `<PageHeader>`.
+> The spec is `docs/redesign/DESIGN.md` and it wins over the Nocturne text
+> below, which describes `main` until this branch is merged. Per-area screen
+> maps and audits are in `docs/redesign/map/`.
+
+### Previously — **Nocturne** (changed 2026-09-16)
 
 The look is **Nocturne**, from the premium design canvas in
 `New folder/Premium software frontend design/`: `Aksharo Studio (premium).dc.html`

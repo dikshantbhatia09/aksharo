@@ -44,7 +44,10 @@ trade-off is recorded here, not an oversight.)
 **Accent budget, per screen:** one filled primary button, the shirorekha bar
 on the page title, the active nav row (`bg-accent/14 text-accent-200` or
 `text-fg-0` with an accent bar), the active tab indicator, a switch that is on,
-a filled meter, a selected card's ring (`ring-1 ring-accent`). That is all.
+a filled meter, a checked checkbox, an unread dot, a selected card's ring
+(`ring-1 ring-accent`). That is all. The one saturated field in the product is
+the marketing home page's stat band (`bg-section`, a dark rani `#3a1427`);
+nothing inside the app may use it.
 No accent headings, accent icons in lists, accent-tinted card backgrounds, or
 gradients. Signals are never decoration.
 
@@ -100,7 +103,10 @@ titles, buttons.
 - Lists / tables: row hover `bg-neutral-100/5`, dividers `border-border`.
 - Empty states: a one-line headline, one sentence, one action that starts the
   next step. No illustrations of clipart.
-- Inputs: `bg-sunken border-border rounded-sm`, focus = the global focus ring.
+- Inputs: `bg-sunken border-neutral-600 rounded-sm` (the border is 4.25:1 on
+  sunken, clearing WCAG 1.4.11's 3:1 for a control boundary — `border-border`
+  is only 1.3:1 and is for cards and dividers, not controls). Focus = the
+  global focus ring.
 - Icons: lucide, 16 px in controls and 20 px in nav, `text-fg-2`, stroke 1.75.
   Every icon-only control has an `aria-label`.
 
