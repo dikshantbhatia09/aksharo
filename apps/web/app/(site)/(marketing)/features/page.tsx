@@ -54,12 +54,13 @@ export default function FeaturesPage(): React.JSX.Element {
             id={prop.id}
             aria-labelledby={`${prop.id}-heading`}
             data-testid={`feature-section-${prop.id}`}
-            className="border-border grid scroll-mt-24 gap-3 border-t py-10 sm:grid-cols-[3rem_1fr] sm:gap-6"
+            className="border-border grid scroll-mt-24 grid-cols-[minmax(0,1fr)] gap-3 border-t py-10 sm:grid-cols-[3rem_minmax(0,1fr)] sm:gap-6"
           >
             <span className="text-fg-2 font-mono text-sm sm:pt-1.5" aria-hidden="true">
               {String(index + 1).padStart(2, "0")}
             </span>
-            <div>
+            {/* min-w-0: the accuracy table is 420 px wide at least and scrolls in its own box; without it the grid column grows to fit it and the page scrolls sideways on a phone. */}
+            <div className="min-w-0">
               <h2 id={`${prop.id}-heading`} className="text-fg-0 text-xl">
                 {prop.title}
               </h2>
