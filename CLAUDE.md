@@ -1059,6 +1059,6 @@ alike.
 - **Cloud-render fonts (fixed the same day).** `.env.local-run` had no
   `RENDER_FONT_DIR`, so `apps/render` logged `fontDir: (bundled subsets)` and
   every server-side export drew captions in three fallback subsets, not the
-  style's font. It now points at `montaj-release\packagesonts\pack` (a
+  style's font. It now points at `montaj-release/packages/fonts/pack` (a
   tracked v1 pack, 67 faces); check the render log's `fontDir` after any env
   rebuild. Deploy/undo: `_orchestration/tools/{deploy,rollback}-20260925l.ps1`.
