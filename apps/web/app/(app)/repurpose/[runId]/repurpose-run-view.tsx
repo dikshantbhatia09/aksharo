@@ -32,6 +32,7 @@ import { Badge, Button, PageHeader, Skeleton } from "@montaj/ui";
 
 import type { StageKey } from "@/components/repurpose/copy";
 
+import { ClipPreview } from "@/components/repurpose/ClipPreview";
 import { PersistentPreview, RunActionBar } from "@/components/repurpose/RunActionBar";
 import { RunStageRail } from "@/components/repurpose/RunStageRail";
 import { StageErrorCard, StagePanel } from "@/components/repurpose/StagePanel";
@@ -183,7 +184,10 @@ export function RepurposeRunView({ runId }: { readonly runId: string }): React.J
                     Create a vertical 9:16 clip from any of them.
                   </p>
 
-                  <ul className="m-0 flex list-none flex-col gap-3 p-0" data-testid="candidates-list">
+                  <ul
+                    className="m-0 flex list-none flex-col gap-3 p-0"
+                    data-testid="candidates-list"
+                  >
                     {candidates.map((cand: RepurposeCandidateItem) => {
                       const matchingClip = clipsQuery.data?.clips?.find(
                         (c: RepurposeClipItem) => c.candidateId === cand.id,
@@ -193,6 +197,8 @@ export function RepurposeRunView({ runId }: { readonly runId: string }): React.J
                       // Never invent a score: a candidate without one shows none.
                       const score = cand.potentialScore ?? cand.score;
                       const title = cand.title ?? cand.headline ?? "Suggested moment";
+                      // The clip's own project: where its captions live and are exported.
+                      const clipProjectId = matchingClip?.variants?.[0]?.projectId;
 
                       return (
                         <li
@@ -222,20 +228,37 @@ export function RepurposeRunView({ runId }: { readonly runId: string }): React.J
                             <div className="flex shrink-0 items-center gap-2">
                               {matchingClip ? (
                                 matchingClip.mezzanineUrl ? (
-                                  <Button variant="secondary" size="sm" asChild>
-                                    <a
-                                      href={matchingClip.mezzanineUrl}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      download={`clip-${cand.id}.mp4`}
-                                      className="no-underline"
-                                      aria-label={`Download clip: ${title}`}
-                                      data-testid={`download-clip-${cand.id}`}
-                                    >
-                                      <Download strokeWidth={1.75} aria-hidden="true" />
-                                      Download clip
-                                    </a>
-                                  </Button>
+                                  <>
+                                    {/* The captioned video is an export from the clip's own
+                                        project; the download is the clean picture it starts from. */}
+                                    {clipProjectId === undefined ? null : (
+                                      <Button variant="secondary" size="sm" asChild>
+                                        <Link
+                                          href={`/p/${clipProjectId}`}
+                                          className="no-underline"
+                                          aria-label={`Open in editor: ${title}`}
+                                          data-testid={`open-clip-${cand.id}`}
+                                        >
+                                          Open in editor
+                                        </Link>
+                                      </Button>
+                                    )}
+                                    <Button variant="ghost" size="sm" asChild>
+                                      <a
+                                        href={matchingClip.mezzanineUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        download={`clip-${cand.id}.mp4`}
+                                        className="no-underline"
+                                        title="The 9:16 video without captions. Export from the editor for a captioned one."
+                                        aria-label={`Download video without captions: ${title}`}
+                                        data-testid={`download-clip-${cand.id}`}
+                                      >
+                                        <Download strokeWidth={1.75} aria-hidden="true" />
+                                        Download video
+                                      </a>
+                                    </Button>
+                                  </>
                                 ) : (
                                   <span
                                     role="status"
@@ -274,13 +297,11 @@ export function RepurposeRunView({ runId }: { readonly runId: string }): React.J
 
                           {matchingClip?.mezzanineUrl && (
                             <div className="max-w-[220px] overflow-hidden rounded-sm border border-border bg-ink">
-                              <video
-                                src={matchingClip.mezzanineUrl}
-                                controls
-                                playsInline
-                                aria-label={`${title}, 9:16 clip`}
-                                className="aspect-[9/16] w-full object-cover"
-                                data-testid={`clip-video-${cand.id}`}
+                              <ClipPreview
+                                videoUrl={matchingClip.mezzanineUrl}
+                                projectId={clipProjectId}
+                                label={`${title}, 9:16 clip`}
+                                testId={`clip-video-${cand.id}`}
                               />
                             </div>
                           )}

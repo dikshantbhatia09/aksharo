@@ -161,3 +161,15 @@
     font-weight: 600;
   }
 }
+
+/*
+ * The run page's clip preview draws its captions as a native text track
+ * (`components/repurpose/ClipPreview.tsx`). A preview, not the export: caption
+ * white (the caption palette, not chrome) on a translucent `--color-ink` box.
+ */
+video.clip-preview::cue {
+  font-family: var(--font-sans, Inter, sans-serif);
+  font-weight: 600;
+  color: #ffffff;
+  background-color: color-mix(in srgb, var(--color-ink) 72%, transparent);
+}

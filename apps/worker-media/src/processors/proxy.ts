@@ -1,11 +1,11 @@
 import {
   ASR_SAMPLE_RATE,
   MASTER_SAMPLE_RATE,
-  THUMBNAIL_COUNT,
   encodeProxy,
   extractAudio,
   grabThumbnail,
   proxySize,
+  thumbnailCount,
   thumbnailOffsetMs,
 } from "../ffmpeg/derive.js";
 import { ffprobe, readProbe } from "../ffmpeg/ffprobe.js";
@@ -29,7 +29,7 @@ import type { JobContext, ProcessorOutcome } from "../runtime.js";
  *   -> audio48k.wav   mono 48 kHz PCM        (mastering, 09 §5)
  *   -> waveform.json  from the 16 kHz PCM    (streamed, never buffered)
  *   -> proxy540.mp4   540p CRF 28 faststart  (tone-mapped when HDR)
- *   -> thumb-{0..9}.jpg  ten input-seeks     (a filmstrip)
+ *   -> thumb-{0..n}.jpg  10-32 input-seeks   (a filmstrip, `thumbnailCount`)
  *   -> PATCH /internal/media/{id} { ...keys, status: "ready" }
  * ```
  *
@@ -157,8 +157,9 @@ export async function processProxy(context: JobContext): Promise<ProcessorOutcom
 
       // --- thumbnails -----------------------------------------------------
       context.report(85, "grabbing thumbnails");
-      for (let index = 0; index < THUMBNAIL_COUNT; index += 1) {
-        const at = thumbnailOffsetMs(facts.durationMs, index, THUMBNAIL_COUNT);
+      const thumbs = thumbnailCount(facts.durationMs);
+      for (let index = 0; index < thumbs; index += 1) {
+        const at = thumbnailOffsetMs(facts.durationMs, index, thumbs);
         const file = workspace.path(`thumb-${String(index)}.jpg`);
         // A miss is not a failure: seeking into the tail of a variable-frame-rate
         // recording genuinely finds no frame, and nine images is still a filmstrip.

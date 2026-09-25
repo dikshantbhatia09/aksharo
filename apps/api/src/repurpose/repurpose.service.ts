@@ -17,6 +17,7 @@ import {
   ACQUIRE_TIMEOUT_MS,
   ACQUIRED_FILENAME,
   ACQUIRED_MIME,
+  CLIP_PROFILE_VERSION,
   DEFAULT_STAGE_DEADLINES_MS,
   REPURPOSE_ERRORS,
   REPURPOSE_FLAGS,
@@ -29,8 +30,6 @@ import { AppException, PrismaService } from "../common/index.js";
 import { DERIVED_STORE, type ObjectStore } from "../common/storage/index.js";
 import { ENV } from "../config/config.module.js";
 import { CREDITS_FACADE, type CreditsFacade } from "../credits/credits.facade.js";
-import { newestChunkRows } from "../edg/chunk-rows.js";
-import { toChunk } from "../edg/edg.rows.js";
 import { JobsService } from "../jobs/jobs.service.js";
 import { MediaService } from "../media/media.service.js";
 import { mediaLimitsFor } from "../projects/plan-limits.js";
@@ -873,57 +872,10 @@ export class RepurposeService {
 
     const destKey = `ws/${workspaceId}/p/${run.sourceProjectId}/repurpose/${run.id}/clips/${candidate.id}/master.mp4`;
 
-    const subtitles: Array<{ startMs: number; endMs: number; text: string }> = [];
-    try {
-      const transcript = await this.prisma.transcript.findFirst({
-        where: { projectId: run.sourceProjectId },
-        orderBy: { createdAt: "desc" },
-      });
-      if (transcript) {
-        const rows = await newestChunkRows(this.prisma, transcript.id);
-        const words: Array<{ text: string; startMs: number; endMs: number }> = [];
-        for (const c of rows) {
-          const chunk = toChunk(c);
-          for (const w of chunk.words) {
-            if (!w.deleted && w.s >= candidate.startMs - 500 && w.e <= candidate.endMs + 500) {
-              words.push({ text: w.t, startMs: w.s, endMs: w.e });
-            }
-          }
-        }
-        const GROUP_SIZE = 5;
-        for (let i = 0; i < words.length; i += GROUP_SIZE) {
-          const group = words.slice(i, i + GROUP_SIZE);
-          const first = group[0];
-          const last = group[group.length - 1];
-          if (first && last) {
-            subtitles.push({
-              startMs: first.startMs,
-              endMs: last.endMs,
-              text: group.map((w) => w.text).join(" "),
-            });
-          }
-        }
-      }
-    } catch {
-      // ignore
-    }
-
-    if (subtitles.length === 0 && candidate.transcriptExcerpt) {
-      const words = candidate.transcriptExcerpt.split(/\s+/);
-      const totalDuration = candidate.endMs - candidate.startMs;
-      const GROUP_SIZE = 5;
-      const numGroups = Math.ceil(words.length / GROUP_SIZE);
-      const groupDuration = totalDuration / Math.max(1, numGroups);
-      for (let i = 0; i < words.length; i += GROUP_SIZE) {
-        const groupIdx = Math.floor(i / GROUP_SIZE);
-        subtitles.push({
-          startMs: Math.round(candidate.startMs + groupIdx * groupDuration),
-          endMs: Math.round(candidate.startMs + (groupIdx + 1) * groupDuration),
-          text: words.slice(i, i + GROUP_SIZE).join(" "),
-        });
-      }
-    }
-
+    // No `subtitles`: the mezzanine is the clip project's primary media, and
+    // captions burned into it sat under every caption the editor drew and every
+    // export (2026-09-25). Captions come from the clip's editing document; the
+    // run page overlays the clip transcript as a text track for its preview.
     const payload: MediaClipPayload = {
       schemaVersion: 1,
       runId: run.id,
@@ -947,8 +899,7 @@ export class RepurposeService {
         audioCodec: "aac",
         maxHeight: 1080,
       },
-      profileVersion: "1",
-      subtitles: subtitles.length > 0 ? subtitles : undefined,
+      profileVersion: CLIP_PROFILE_VERSION,
     };
 
     const enqueued = await this.jobs.enqueue({
@@ -956,7 +907,11 @@ export class RepurposeService {
       workspaceId,
       projectId: run.sourceProjectId,
       params: payload,
-      jobKey: mediaClipJobKey(candidate.id, `${candidate.startMs}-${candidate.endMs}`, "1"),
+      jobKey: mediaClipJobKey(
+        candidate.id,
+        `${candidate.startMs}-${candidate.endMs}`,
+        CLIP_PROFILE_VERSION,
+      ),
       worstCaseTenths: 0,
       reason: `media.clip · ${clip.id}`,
     });

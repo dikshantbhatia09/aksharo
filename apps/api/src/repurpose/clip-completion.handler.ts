@@ -4,6 +4,7 @@ import { ulid } from "ulid";
 import type { Word } from "@montaj/edg/schemas";
 import { MediaClipResultSchema } from "@montaj/repurpose-contracts";
 
+import { CLIP_PROFILE_VERSION } from "./repurpose.constants.js";
 import { RepurposeService } from "./repurpose.service.js";
 import { PrismaService } from "../common/prisma/prisma.service.js";
 import { DERIVED_STORE, RAW_STORE } from "../common/storage/index.js";
@@ -164,7 +165,7 @@ export class RepurposeClipCompletionHandler implements JobCompletionHandler, OnM
       },
       update: {
         projectId: childProjectId,
-        profileVersion: "1",
+        profileVersion: CLIP_PROFILE_VERSION,
         captionConfig,
         status: "ready",
       },
@@ -173,7 +174,7 @@ export class RepurposeClipCompletionHandler implements JobCompletionHandler, OnM
         clipId: clip.id,
         projectId: childProjectId,
         aspect: "r9x16",
-        profileVersion: "1",
+        profileVersion: CLIP_PROFILE_VERSION,
         captionConfig,
         status: "ready",
       },

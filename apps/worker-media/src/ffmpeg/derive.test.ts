@@ -5,7 +5,9 @@ import {
   MASTER_SAMPLE_RATE,
   PROXY_CRF,
   PROXY_SHORT_SIDE,
-  THUMBNAIL_COUNT,
+  THUMBNAIL_MAX_COUNT,
+  THUMBNAIL_MIN_COUNT,
+  thumbnailCount,
   THUMBNAIL_WIDTH,
   audioArgs,
   proxyArgs,
@@ -139,6 +141,25 @@ describe("proxyArgs", () => {
   });
 });
 
+describe("thumbnailCount", () => {
+  it("gives a short clip one frame per half second", () => {
+    expect(thumbnailCount(16_183)).toBe(32);
+    expect(thumbnailCount(12_000)).toBe(24);
+  });
+
+  it("never gives fewer than the minimum, even to a blip or a broken duration", () => {
+    expect(thumbnailCount(1_000)).toBe(THUMBNAIL_MIN_COUNT);
+    expect(thumbnailCount(0)).toBe(THUMBNAIL_MIN_COUNT);
+    expect(thumbnailCount(Number.NaN)).toBe(THUMBNAIL_MIN_COUNT);
+  });
+
+  // The API refuses more than MAX_THUMB_KEYS (32) on the proxy write-back.
+  it("never exceeds what the API accepts, however long the video", () => {
+    expect(thumbnailCount(3_600_000)).toBe(THUMBNAIL_MAX_COUNT);
+    expect(THUMBNAIL_MAX_COUNT).toBeLessThanOrEqual(32);
+  });
+});
+
 describe("thumbnailOffsetMs", () => {
   it("takes the midpoint of each slice, not its edge", () => {
     // Frame zero is a slate more often than not, and the last frame is a fade.
@@ -147,8 +168,8 @@ describe("thumbnailOffsetMs", () => {
   });
 
   it("stays strictly inside the clip for every index", () => {
-    for (let index = 0; index < THUMBNAIL_COUNT; index += 1) {
-      const at = thumbnailOffsetMs(3_000, index, THUMBNAIL_COUNT);
+    for (let index = 0; index < THUMBNAIL_MIN_COUNT; index += 1) {
+      const at = thumbnailOffsetMs(3_000, index, THUMBNAIL_MIN_COUNT);
       expect(at).toBeGreaterThan(0);
       expect(at).toBeLessThan(3_000);
     }

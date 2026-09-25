@@ -113,16 +113,32 @@ export class ApiClient {
         details: { endpoint: endpoint.path, owner: endpoint.pending },
       });
     }
-    return this.send(endpoint, options, false);
+    return (await this.send(endpoint, options, false, "json")) as TResponse;
+  }
+
+  /**
+   * {@link call} for an endpoint whose body is a file rather than JSON — a
+   * transcript exported as WebVTT or SRT. Same auth, same one-shot refresh on a
+   * 401, same error envelope; only the success body is returned as text.
+   */
+  async callText<TRequest>(
+    endpoint: EndpointSpec<TRequest, unknown>,
+    options: CallOptions<TRequest> = {},
+  ): Promise<string> {
+    return (await this.send(endpoint, options, false, "text")) as string;
   }
 
   private async send<TRequest, TResponse>(
     endpoint: EndpointSpec<TRequest, TResponse>,
     options: CallOptions<TRequest>,
     isRetry: boolean,
-  ): Promise<TResponse> {
+    body: "json" | "text",
+  ): Promise<unknown> {
     const url = this.buildUrl(endpoint.path, options.params, options.query);
-    const headers: Record<string, string> = { Accept: JSON_TYPE, ...options.headers };
+    const headers: Record<string, string> = {
+      Accept: body === "json" ? JSON_TYPE : "*/*",
+      ...options.headers,
+    };
 
     if (endpoint.auth === "bearer") {
       const token = this.options.getAccessToken?.() ?? null;
@@ -175,12 +191,12 @@ export class ApiClient {
     if (canRefresh) {
       const token = await this.refreshOnce();
       // eslint-disable-next-line security/detect-possible-timing-attacks -- equality check on a null/undefined/status/hash sentinel, not a secret or MAC comparison -- reviewed for M06's eslint-plugin-security promotion
-      if (token !== null) return this.send(endpoint, options, true);
+      if (token !== null) return this.send(endpoint, options, true, body);
       this.options.onUnauthenticated?.();
     }
 
     if (!response.ok) throw await toApiError(response);
-    return (await readJson(response)) as TResponse;
+    return body === "json" ? readJson(response) : response.text();
   }
 
   /** Collapse concurrent refreshes into one rotation (CONTRACTS §5). */

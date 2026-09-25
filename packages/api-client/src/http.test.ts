@@ -304,3 +304,56 @@ describe("a 401 from a public route", () => {
     expect(fetchMock).toHaveBeenCalledOnce();
   });
 });
+
+describe("ApiClient.callText", () => {
+  const exportVtt = defineEndpoint<void, unknown>({
+    method: "GET",
+    path: "/projects/{projectId}/transcript/export",
+    auth: "bearer",
+  });
+  const VTT = ["WEBVTT", "", "00:00:00.200 --> 00:00:01.300", "Its an editorial", ""].join("\n");
+
+  // A transcript export is a file, not JSON; `call` would refuse it as malformed.
+  it("returns a file body as text, with the bearer token, and asks for any type", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response(VTT, { status: 200, headers: { "content-type": "text/vtt" } }));
+    const client = createApiClient({ baseUrl: BASE, getAccessToken: () => "tok", fetch: fetchMock });
+
+    await expect(
+      client.callText(exportVtt, { params: { projectId: "01P" }, query: { format: "vtt" } }),
+    ).resolves.toBe(VTT);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(`${BASE}/projects/01P/transcript/export?format=vtt`);
+    const init = fetchMock.mock.calls[0]?.[1] as RequestInit;
+    const headers = init.headers as Record<string, string>;
+    expect(headers["Authorization"]).toBe("Bearer tok");
+    expect(headers["Accept"]).toBe("*/*");
+  });
+
+  it("still turns an error envelope into an ApiError", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(jsonResponse(envelope("common/not_found", "No such project."), { status: 404 }));
+    const client = createApiClient({ baseUrl: BASE, getAccessToken: () => "tok", fetch: fetchMock });
+    const error = await client
+      .callText(exportVtt, { params: { projectId: "01P" } })
+      .catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).code).toBe("common/not_found");
+  });
+
+  it("refreshes once on a 401 and retries as text", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(envelope("auth/expired", "Expired."), { status: 401 }))
+      .mockResolvedValueOnce(new Response(VTT, { status: 200 }));
+    const client = createApiClient({
+      baseUrl: BASE,
+      getAccessToken: () => "tok",
+      refreshAccessToken: async () => "fresh",
+      fetch: fetchMock,
+    });
+    await expect(client.callText(exportVtt, { params: { projectId: "01P" } })).resolves.toBe(VTT);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+});

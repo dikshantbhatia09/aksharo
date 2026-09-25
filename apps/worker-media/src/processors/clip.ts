@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
-import { stat, writeFile } from "node:fs/promises";
+import { stat } from "node:fs/promises";
 
 import { unreadableMedia } from "../errors.js";
 import { ffprobe, readProbe } from "../ffmpeg/ffprobe.js";
@@ -28,26 +28,19 @@ export interface ClipPayload {
     readonly maxHeight: number;
   };
   readonly profileVersion?: string;
-  readonly subtitles?: Array<{
-    readonly startMs: number;
-    readonly endMs: number;
-    readonly text: string;
-  }>;
 }
 
 const RESULT_SCHEMA_VERSION = 1;
 
-function formatSrtTime(ms: number): string {
-  const totalSec = Math.floor(ms / 1000);
-  const m = ms % 1000;
-  const hours = Math.floor(totalSec / 3600);
-  const minutes = Math.floor((totalSec % 3600) / 60);
-  const seconds = totalSec % 60;
-  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")},${String(m).padStart(3, "0")}`;
-}
-
 /**
  * `media.clip` — cut one selected interval into a short mezzanine MP4.
+ *
+ * **Clean picture only.** This used to burn the payload's `subtitles` into the
+ * video (Arial, white on a black box). The mezzanine is the clip project's
+ * primary media, so every caption the editor drew — and every export — landed
+ * on top of a second, uneditable set, and the timeline filmstrip showed text on
+ * every frame (2026-09-25). Captions belong to the editing document; a
+ * payload's `subtitles` (still optional in the contract) is ignored.
  */
 export async function processClip(context: JobContext): Promise<ProcessorOutcome> {
   const { settings } = context;
@@ -125,25 +118,6 @@ export async function processClip(context: JobContext): Promise<ProcessorOutcome
     });
 
     const filters: string[] = ["crop='min(iw,ih*9/16)':'min(ih,iw*16/9)',scale=720:1280,setsar=1"];
-
-    if (payload.subtitles && payload.subtitles.length > 0) {
-      const srtLines: string[] = [];
-      payload.subtitles.forEach((sub, idx) => {
-        const relStart = Math.max(0, sub.startMs - effectiveStartMs);
-        const relEnd = Math.max(relStart + 300, sub.endMs - effectiveStartMs);
-        srtLines.push(String(idx + 1));
-        srtLines.push(`${formatSrtTime(relStart)} --> ${formatSrtTime(relEnd)}`);
-        srtLines.push(sub.text.trim());
-        srtLines.push("");
-      });
-      const srtPath = workspace.path("captions.srt");
-      // eslint-disable-next-line security/detect-non-literal-fs-filename -- RLS-008 (@aksharo/core-pipelines): ephemeral scratch captions path inside job workspace
-      await writeFile(srtPath, srtLines.join("\n"), "utf8");
-      const subFilterPath = srtPath.replace(/\\/g, "/").replace(/:/g, "\\:");
-      filters.push(
-        `subtitles='${subFilterPath}':force_style='FontSize=26,FontName=Arial,Bold=1,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=3,Outline=2,Shadow=0,Alignment=2,MarginV=120'`,
-      );
-    }
 
     const vfArg = filters.join(",");
 

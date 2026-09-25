@@ -17,9 +17,9 @@ import { FFMPEG_BASE_ARGS, inputArgs, run } from "./run.js";
  * |                 | a tenth of the bytes and indistinguishable at editor size.   |
  * |                 | `+faststart` puts the moov atom first so a browser can play  |
  * |                 | before the file has finished downloading.                    |
- * | `thumb-{n}.jpg` | Ten frames at 320 px wide: a filmstrip, not a gallery.       |
+ * | `thumb-{n}.jpg` | 10-32 frames at 320 px wide (`thumbnailCount`): a filmstrip. |
  *
- * The **input seek** (`-ss` before `-i`) is the reason ten thumbnails are cheap.
+ * The **input seek** (`-ss` before `-i`) is the reason the thumbnails are cheap.
  * After `-i` it decodes from the start of the file to the timestamp; before it,
  * ffmpeg jumps to the nearest keyframe and issues one range request. On a
  * sixty-minute source that is the difference between ten seconds and ten minutes.
@@ -49,8 +49,34 @@ export const PROXY_CRF = 28;
 /** Proxy audio bitrate. Speech at 96 kbit/s AAC is transparent enough to cut on. */
 export const PROXY_AUDIO_BITRATE = "96k";
 
-/** How many thumbnails a video gets. */
-export const THUMBNAIL_COUNT = 10;
+/** The fewest thumbnails a video gets (a very short clip still gets a strip). */
+export const THUMBNAIL_MIN_COUNT = 10;
+
+/**
+ * The most a video gets: exactly the API's `MAX_THUMB_KEYS`
+ * (`apps/api/src/internal/internal-media.controller.ts`), which refuses a longer
+ * list — raising this alone would fail every proxy write-back.
+ */
+export const THUMBNAIL_MAX_COUNT = 32;
+
+/** One frame per this much media, between the two bounds. */
+export const THUMBNAIL_INTERVAL_MS = 500;
+
+/**
+ * How many thumbnails a video of `durationMs` gets.
+ *
+ * It used to be a flat ten, so a 16 s clip's timeline filmstrip showed each
+ * frame three or four tiles in a row (2026-09-25). One frame per half second,
+ * bounded, gives a short clip a distinct frame in nearly every tile and a long
+ * one an evenly spread strip without an unbounded number of seeks.
+ */
+export function thumbnailCount(durationMs: number): number {
+  if (!Number.isFinite(durationMs) || durationMs <= 0) return THUMBNAIL_MIN_COUNT;
+  return Math.min(
+    THUMBNAIL_MAX_COUNT,
+    Math.max(THUMBNAIL_MIN_COUNT, Math.ceil(durationMs / THUMBNAIL_INTERVAL_MS)),
+  );
+}
 
 /** Thumbnail width in pixels; the height follows the aspect ratio. */
 export const THUMBNAIL_WIDTH = 320;

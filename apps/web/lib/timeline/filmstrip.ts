@@ -1,7 +1,8 @@
 /**
  * The video lane's filmstrip: frame-shaped tiles, not stretched slices.
  *
- * worker-media makes `THUMBNAIL_COUNT` (10) thumbnails per video
+ * worker-media makes 10-32 thumbnails per video (`thumbnailCount`: one per half
+ * second, bounded)
  * (`apps/worker-media/src/ffmpeg/derive.ts`, midpoints of equal slices). The
  * lane used to stretch each one across a full `1/count` of the timeline, so a
  * 9:16 frame drawn into a slice ~5:1 came out about nine times too wide

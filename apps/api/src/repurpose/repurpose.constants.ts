@@ -112,3 +112,11 @@ export const DEFAULT_MAX_CANDIDATE_MS = 60_000;
 /** List page size, and its ceiling. */
 export const RUN_PAGE_SIZE = 20;
 export const RUN_PAGE_MAX = 50;
+
+/**
+ * The `media.clip` output profile. `"2"` (2026-09-25): a clean 9:16 picture.
+ * `"1"` burned Arial captions into the mezzanine, under every caption the clip
+ * project's editor drew. In the job key, so a re-cut is never deduplicated
+ * against an old-profile cut still in flight.
+ */
+export const CLIP_PROFILE_VERSION = "2";

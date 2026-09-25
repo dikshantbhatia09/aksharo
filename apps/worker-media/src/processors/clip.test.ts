@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { copyFile, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -123,6 +123,7 @@ function buildContext(
 
 let dir = "";
 let video = "";
+let flat = "";
 let corrupt = "";
 
 beforeAll(async () => {
@@ -156,6 +157,30 @@ beforeAll(async () => {
     video,
   ]);
 
+  // One flat mid-blue field: any burned-in caption shows up as near-white pixels.
+  flat = join(dir, "flat.mp4");
+  generate([
+    "-y",
+    "-f",
+    "lavfi",
+    "-i",
+    "color=c=0x3050a0:size=1280x720:rate=30:duration=4",
+    "-f",
+    "lavfi",
+    "-i",
+    "sine=frequency=440:sample_rate=48000:duration=4",
+    "-c:v",
+    "libx264",
+    "-preset",
+    "ultrafast",
+    "-pix_fmt",
+    "yuv420p",
+    "-c:a",
+    "aac",
+    "-shortest",
+    flat,
+  ]);
+
   corrupt = join(dir, "corrupt.mp4");
   // eslint-disable-next-line security/detect-non-literal-fs-filename -- test fixture write in temporary directory
   await writeFile(corrupt, randomBytes(32 * 1024));
@@ -167,11 +192,7 @@ afterAll(async () => {
 
 describe.skipIf(!CAN_RUN)("processClip", () => {
   it("cuts a mezzanine MP4 successfully and returns defined terminal success outcome", async () => {
-    const { context: ctx, derived, progress } = buildContext(video, {
-      subtitles: [
-        { startMs: 600, endMs: 1500, text: "Hello highlight clip" },
-      ],
-    });
+    const { context: ctx, derived, progress } = buildContext(video);
 
     const outcome = await processClip(ctx);
     const result = outcome.result as Record<string, unknown>;
@@ -185,6 +206,39 @@ describe.skipIf(!CAN_RUN)("processClip", () => {
     expect(result["checksum"]).toMatch(/^[a-f0-9]{64}$/);
     expect(derived.written.has(`ws/${WS}/clips/${CLIP_ID}/master.mp4`)).toBe(true);
     expect(progress).toContain(100);
+  }, 120_000);
+
+  // 2026-09-25: the mezzanine had Arial captions burned in, so every caption the
+  // editor drew on the clip project sat on top of a second, uneditable set.
+  it("cuts a clean picture even when an old payload still carries subtitles", async () => {
+    const kept = join(dir, "kept-mezzanine.mp4");
+    const store = fakeStore(() => flat);
+    const keeping: FakeStore = {
+      ...store,
+      putFile: async (input) => {
+        await copyFile(input.file, kept);
+        return store.putFile(input);
+      },
+    };
+    const legacy = {
+      subtitles: [{ startMs: 500, endMs: 2_500, text: "BURNED IN CAPTION TEXT" }],
+    } as Partial<ClipPayload>;
+    const { context: ctx } = buildContext(flat, legacy, keeping);
+
+    await processClip(ctx);
+
+    const frame = spawnSync(
+      "ffmpeg",
+      ["-nostdin", "-loglevel", "error", "-ss", "1", "-i", kept, "-frames:v", "1", "-f", "rawvideo", "-pix_fmt", "gray", "-"],
+      { stdio: "pipe", timeout: 60_000, maxBuffer: 64 * 1024 * 1024 },
+    );
+    expect(frame.status).toBe(0);
+    const luma = frame.stdout as Buffer;
+    expect(luma.length).toBe(720 * 1280);
+    // Flat mid-blue is ~luma 80; white caption text would be ~235.
+    let brightest = 0;
+    for (const value of luma) if (value > brightest) brightest = value;
+    expect(brightest).toBeLessThan(140);
   }, 120_000);
 
   it("refuses a missing source object with a terminal error", async () => {

@@ -1366,5 +1366,7 @@ export interface RepurposeClipItem {
   mezzanineKey?: string | null;
   mezzanineUrl?: string | null;
   status?: string;
+  /** The clip's formats; each is its own editable project (`GET .../clips`). */
+  variants?: Array<{ id: string; projectId: string; aspect: string }>;
   [key: string]: unknown;
 }
