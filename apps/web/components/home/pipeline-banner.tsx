@@ -92,8 +92,9 @@ export function PipelineBanner({ className }: { className?: string }): React.JSX
             One long video, nine posts
           </h2>
           <p className="text-fg-1 m-0 max-w-[60ch] text-sm">
-            Paste a YouTube link. {BRAND.name} transcribes it, finds the moments worth posting,
-            and cuts them into captioned clips in the language you pick.
+            Paste a YouTube link. {BRAND.name} fetches and transcribes it, then looks for the
+            moments worth posting. Cutting those into captioned clips is the next step we are
+            building.
           </p>
         </div>
 
