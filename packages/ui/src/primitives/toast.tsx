@@ -19,10 +19,14 @@ export function Toaster(props: React.ComponentProps<typeof SonnerToaster>): Reac
       closeButton
       toastOptions={{
         classNames: {
-          toast: "!bg-bg-2 !border-border !text-fg-0 !rounded-md !border !font-sans",
+          toast: "!bg-bg-2 !border-border !text-fg-0 !rounded-md !border !font-sans !shadow-[var(--shadow-md)]",
           description: "!text-fg-2",
-          actionButton: "!bg-lime-500 !text-on-accent",
-          cancelButton: "!bg-bg-1 !text-fg-1",
+          // A toast floats over a page that already spends its one primary
+          // action, so its action is the outlined secondary, never a rani fill.
+          actionButton:
+            "!bg-transparent !text-fg-0 !border !border-border-hover !font-medium hover:!bg-neutral-100/7",
+          cancelButton: "!bg-transparent !text-fg-1 hover:!bg-neutral-100/7",
+          closeButton: "!bg-bg-2 !border-border !text-fg-1 hover:!text-fg-0",
           error: "!border-rejected/60",
           success: "!border-accepted/60",
         },

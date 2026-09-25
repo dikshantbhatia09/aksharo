@@ -22,7 +22,7 @@ export function Kbd({ className, ...props }: React.ComponentProps<"kbd">): React
       data-slot="kbd"
       className={cn(
         "pointer-events-none inline-flex h-5 min-w-5 items-center justify-center gap-1 rounded-sm",
-        "text-fg-3 border border-white/10 bg-white/5 px-1 font-sans text-[0.625rem] font-medium select-none",
+        "text-fg-2 border-border bg-bg-2 border px-1 font-sans text-2xs font-medium select-none",
         className,
       )}
       {...props}

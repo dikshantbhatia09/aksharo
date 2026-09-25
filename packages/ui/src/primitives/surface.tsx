@@ -13,7 +13,7 @@ export function Card({
   ...props
 }: React.HTMLAttributes<HTMLDivElement>): React.JSX.Element {
   return (
-    <div className={cn("bg-bg-1 border-border rounded-md border p-5", className)} {...props} />
+    <div className={cn("bg-surface border-border rounded-md border p-5", className)} {...props} />
   );
 }
 
@@ -71,7 +71,7 @@ export function ProgressBar({
 }): React.JSX.Element {
   const clamped = Math.max(0, Math.min(100, Math.round(value)));
   const fill =
-    tone === "rejected" ? "bg-rejected" : tone === "warning" ? "bg-warning" : "bg-lime-500";
+    tone === "rejected" ? "bg-rejected" : tone === "warning" ? "bg-warning" : "bg-accent";
   return (
     <div
       role="progressbar"

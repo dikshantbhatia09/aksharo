@@ -13,17 +13,18 @@ import { Sidebar, UpgradeButton } from "./sidebar";
 import type { NavModel } from "./nav-model";
 
 /**
- * The canvas's 52 px header.
+ * The 52 px header: global chrome, not page content.
  *
- * Left: where you are, in two lines — a 9.5 px uppercase breadcrumb over a
- * 15 px title. Right: the Rail/Sidebar switch that sets the shell's width,
- * then search, New project, What's new and Upgrade. The bottom edge is a rule
- * that fades out 48 px from each end rather than stopping at the corners —
- * Nocturne's signature, and the reason this is a background gradient instead
- * of a `border-b`.
+ * Left: the section you are in, in the nav's own words (the page's title
+ * lives in its `PageHeader`, so this is one quiet line, never the display
+ * face). Right: the Rail/Sidebar width switch, search, New project, What's new
+ * and Upgrade — all secondary or ghost, because each page's header spends the
+ * screen's one filled primary on its own main task (DESIGN.md "Accent
+ * budget"; HIG Toolbars › Actions).
  *
  * On a narrow viewport the nav collapses into a sheet that this bar opens,
- * which is why the mobile trigger lives here rather than in the sidebar.
+ * which is why the mobile trigger lives here rather than in the sidebar, and
+ * search collapses to an icon button rather than disappearing.
  */
 export function TopBar({
   onOpenPalette,
@@ -49,12 +50,14 @@ export function TopBar({
 
   const segment = (on: boolean): string =>
     cn(
-      "rounded-[6px] px-2.5 py-1 text-[11.5px] transition-colors duration-[160ms]",
-      on ? "bg-accent/16 text-accent-200" : "text-neutral-500 hover:text-neutral-300",
+      "inline-flex h-8 items-center rounded-sm px-2.5 text-xs font-medium transition-colors duration-[160ms]",
+      // A segmented control's selection is neutral: the accent is already spent
+      // on the active nav row, and two accent "you are here" marks compete.
+      on ? "bg-bg-2 text-fg-0" : "text-fg-2 hover:bg-neutral-100/7 hover:text-fg-0",
     );
 
   return (
-    <header className="bg-bg-0/95 rule-fade-b sticky top-0 z-30 flex h-[52px] items-center gap-3.5 px-4 backdrop-blur">
+    <header className="bg-bg-0/95 rule-fade-b sticky top-0 z-30 flex h-[52px] items-center gap-3 px-4 backdrop-blur lg:px-6">
       <Sheet open={navOpen} onOpenChange={setNavOpen}>
         <Button
           variant="ghost"
@@ -79,11 +82,21 @@ export function TopBar({
         </SheetContent>
       </Sheet>
 
-      <span className="flex min-w-0 flex-col leading-[1.2]" data-testid="screen-title">
-        <span className="text-neutral-500 text-[9.5px] tracking-[0.12em] uppercase">{crumb}</span>
-        <span className="font-display truncate text-[15px] font-medium tracking-[-0.01em]">
-          {title}
+      <span
+        className="flex min-w-0 items-center gap-1.5 text-sm font-medium"
+        data-testid="screen-title"
+      >
+        <span className={cn("truncate", title === undefined ? "text-fg-0" : "text-fg-2")}>
+          {crumb}
         </span>
+        {title === undefined ? null : (
+          <>
+            <span aria-hidden="true" className="text-fg-disabled">
+              /
+            </span>
+            <span className="text-fg-0 truncate">{title}</span>
+          </>
+        )}
       </span>
 
       <div className="ml-auto flex items-center gap-2.5">
@@ -94,12 +107,11 @@ export function TopBar({
           both widths collapse into the same sheet.
         */}
         <span
-          className="border-border hidden items-center gap-1.5 rounded-sm border p-[3px] lg:flex"
+          role="group"
+          aria-label="Navigation width"
+          className="border-border hidden items-center gap-0.5 rounded-sm border p-px lg:flex"
           data-testid="nav-model-switch"
         >
-          <span className="text-neutral-500 pl-1.5 text-[9.5px] tracking-[0.1em] uppercase">
-            Nav
-          </span>
           <button
             type="button"
             className={segment(navModel === "rail")}
@@ -128,17 +140,30 @@ export function TopBar({
           type="button"
           onClick={onOpenPalette}
           data-testid="open-palette"
-          className="border-border bg-surface text-neutral-500 hover:border-accent hidden h-[30px] w-56 items-center gap-2 rounded-sm border px-2.5 text-[12.5px] transition-colors md:flex"
+          className="border-border bg-sunken text-fg-2 hover:border-border-hover hover:text-fg-1 hidden h-8 w-60 items-center gap-2 rounded-sm border px-2.5 text-xs transition-colors md:flex"
         >
-          <Search className="size-3.5 shrink-0" aria-hidden="true" />
+          <Search className="size-4 shrink-0" aria-hidden="true" />
           <span className="truncate">Search projects and actions</span>
           <ShortcutHint keys={keys} />
         </button>
+        {/* Below `md` the search field has no room, but search must not vanish. */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="md:hidden"
+          aria-label="Search projects and actions"
+          onClick={onOpenPalette}
+          data-testid="open-palette-compact"
+        >
+          <Search aria-hidden="true" />
+        </Button>
 
         <Button variant="secondary" size="sm" asChild data-testid="new-project">
-          <Link href="/?new=1">
+          <Link href="/?new=1" aria-label="New project">
             <Plus aria-hidden="true" />
-            <span className="hidden sm:inline">New project</span>
+            <span aria-hidden="true" className="hidden sm:inline">
+              New project
+            </span>
           </Link>
         </Button>
 

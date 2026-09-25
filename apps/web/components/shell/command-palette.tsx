@@ -1,6 +1,6 @@
 "use client";
 
-import { FilePlus2, Settings, ShieldCheck, Sparkles } from "lucide-react";
+import { Film, FilePlus2, Settings, ShieldCheck } from "lucide-react";
 import { useRouter } from "next/navigation";
 import * as React from "react";
 
@@ -121,7 +121,7 @@ export function CommandPalette({
     >
       <CommandInput placeholder="Search projects and actions" data-testid="command-input" />
       <CommandList>
-        <CommandEmpty>Nothing matches that. Try a project name.</CommandEmpty>
+        <CommandEmpty>No project or action matches. Try a project name.</CommandEmpty>
 
         {recentProjects.length > 0 ? (
           <CommandGroup heading="Recent projects">
@@ -133,8 +133,8 @@ export function CommandPalette({
                   go(project.href);
                 }}
               >
-                <Sparkles aria-hidden="true" />
-                {project.title}
+                <Film aria-hidden="true" />
+                <span className="truncate">{project.title}</span>
               </CommandItem>
             ))}
           </CommandGroup>

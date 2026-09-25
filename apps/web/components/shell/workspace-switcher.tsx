@@ -66,23 +66,22 @@ export function WorkspaceSwitcher({
   };
 
   if (workspaces.isPending && session !== null) {
-    return <Skeleton className={compact ? "h-3 w-28" : "mx-1 h-9"} />;
+    return <Skeleton className={compact ? "h-4 w-28" : "h-9 w-full"} />;
   }
 
   // With one workspace there is nothing to switch to, so the control is a label
   // rather than a menu that opens onto a single item.
   const options = workspaces.data ?? [];
   if (options.length < 2) {
+    // A plain line, not a bordered box: a box reads as a control, and with one
+    // workspace there is nothing to operate.
     return compact ? (
-      <span
-        className="text-neutral-500 truncate text-[10px] tracking-[0.09em] uppercase"
-        data-testid="workspace-switcher"
-      >
+      <span className="text-fg-2 truncate text-xs" data-testid="workspace-switcher">
         {label}
       </span>
     ) : (
       <div
-        className="border-border text-fg-1 mx-1 flex items-center gap-2 rounded-sm border px-2.5 py-2 text-sm"
+        className="text-fg-2 flex min-h-8 min-w-0 items-center px-2.5 text-xs"
         data-testid="workspace-switcher"
       >
         <span className="truncate">{label}</span>
@@ -96,22 +95,22 @@ export function WorkspaceSwitcher({
         {compact ? (
           <button
             type="button"
-            className="text-neutral-500 hover:text-neutral-300 flex max-w-full items-center gap-1 truncate rounded-sm text-[10px] tracking-[0.09em] uppercase"
+            className="text-fg-2 hover:bg-neutral-100/7 hover:text-fg-0 -mx-1 flex min-h-8 max-w-full items-center gap-1 truncate rounded-sm px-1 text-xs"
             data-testid="workspace-switcher"
             disabled={switchWorkspace.isPending}
           >
             <span className="truncate">{label}</span>
-            <ChevronsUpDown className="size-2.5 shrink-0" aria-hidden="true" />
+            <ChevronsUpDown className="size-3.5 shrink-0" aria-hidden="true" />
           </button>
         ) : (
           <Button
             variant="outline"
-            className="mx-1 justify-between"
+            className="w-full justify-between px-2.5"
             data-testid="workspace-switcher"
             disabled={switchWorkspace.isPending}
           >
             <span className="truncate">{label}</span>
-            <ChevronsUpDown className="size-4 shrink-0" aria-hidden="true" />
+            <ChevronsUpDown className="text-fg-2 size-4 shrink-0" aria-hidden="true" />
           </Button>
         )}
       </DropdownMenuTrigger>
@@ -122,7 +121,7 @@ export function WorkspaceSwitcher({
           {options.map((workspace) => (
             <DropdownMenuRadioItem key={workspace.id} value={workspace.id}>
               <span className="truncate">{workspace.name}</span>
-              <span className="text-fg-2 ml-auto text-2xs">{workspace.role}</span>
+              <span className="text-fg-2 ml-auto text-2xs capitalize">{workspace.role}</span>
             </DropdownMenuRadioItem>
           ))}
         </DropdownMenuRadioGroup>

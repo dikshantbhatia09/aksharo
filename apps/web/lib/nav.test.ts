@@ -40,7 +40,7 @@ describe("PRIMARY_NAV", () => {
       "Academy",
       "Plugins",
       "Team",
-      "Refer & Earn",
+      "Refer & earn",
       "Help",
     ]);
     expect(ALL_NAV).toHaveLength(PRIMARY_NAV.length + SECONDARY_NAV.length);

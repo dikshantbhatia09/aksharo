@@ -69,7 +69,7 @@ export function JobProgress({
                 className={cn(
                   "inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-2xs font-medium",
                   done && "border-accepted/40 bg-accepted/10 text-accepted",
-                  active && "border-lime-500/40 bg-lime-500/10 text-lime-500",
+                  active && "border-border-hover bg-bg-2 text-fg-0",
                   !done && !active && "border-border text-fg-2",
                   failed && current && "border-rejected/40 bg-rejected/10 text-rejected",
                 )}
@@ -94,7 +94,11 @@ export function JobProgress({
         <p className="text-rejected flex items-center gap-2 text-xs" role="alert">
           {error}
           {onRetry === undefined ? null : (
-            <button type="button" onClick={onRetry} className="rounded-sm underline">
+            <button
+              type="button"
+              onClick={onRetry}
+              className="text-fg-0 hover:bg-neutral-100/7 inline-flex h-8 items-center rounded-sm px-2 font-medium underline underline-offset-4"
+            >
               Retry
             </button>
           )}

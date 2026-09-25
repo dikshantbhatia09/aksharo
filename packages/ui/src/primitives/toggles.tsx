@@ -21,8 +21,11 @@ export const Switch = React.forwardRef<
     <SwitchPrimitive.Root
       ref={ref}
       className={cn(
-        "border-border data-[state=unchecked]:bg-bg-2 data-[state=checked]:bg-lime-500",
-        "inline-flex h-5 w-9 shrink-0 items-center rounded-full border transition-colors",
+        "border-border data-[state=unchecked]:bg-bg-2 data-[state=checked]:border-accent data-[state=checked]:bg-accent",
+        "relative inline-flex h-5 w-9 shrink-0 items-center rounded-full border transition-colors",
+        // The visible track is 20 px; the hit area is extended to 32 px so the
+        // control meets the pointer floor without changing any layout.
+        "after:absolute after:-inset-x-1 after:-inset-y-1.5 after:content-['']",
         "disabled:cursor-not-allowed disabled:opacity-50",
         className,
       )}
@@ -47,8 +50,10 @@ export const Checkbox = React.forwardRef<
     <CheckboxPrimitive.Root
       ref={ref}
       className={cn(
-        "border-border bg-bg-1 size-4 shrink-0 rounded-[4px] border",
-        "data-[state=checked]:border-lime-500 data-[state=checked]:bg-lime-500",
+        "border-border-hover bg-sunken relative size-4 shrink-0 rounded-[4px] border",
+        "data-[state=checked]:border-accent data-[state=checked]:bg-accent",
+        // 16 px box, 32 px hit area (see Switch).
+        "after:absolute after:-inset-2 after:content-['']",
         "disabled:cursor-not-allowed disabled:opacity-50",
         className,
       )}

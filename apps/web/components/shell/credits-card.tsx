@@ -23,9 +23,11 @@ export function formatCreditHours(tenths: number): string {
 }
 
 /**
- * The sidebar's credit block, as the canvas draws it: an accent kicker with
- * the balance on the right, a 3 px meter, and one plain sentence saying what
- * the balance means in minutes and when it refills.
+ * The sidebar's credit block: a quiet label with the balance on the right, a
+ * 4 px meter, and one plain sentence saying what the balance means in minutes
+ * and when it refills. The filled meter is the only accent here (DESIGN.md's
+ * budget allows "a filled meter"); the label used to be an accent kicker too,
+ * which made the card read as a second active nav row.
  *
  * Every number is real. The monthly grant and the reset date come from the
  * credit account (`GET /workspaces/{id}/credits`); the plan's allowance is the
@@ -46,15 +48,15 @@ export function CreditsCard({ className }: { className?: string }): React.JSX.El
 
   return (
     <div
-      className={cn("bg-surface flex flex-col gap-[7px] rounded-sm px-3 py-[11px]", className)}
+      className={cn(
+        "border-border bg-surface flex flex-col gap-2 rounded-md border px-3 py-3",
+        className,
+      )}
       data-testid="credits-card"
     >
-      <span className="text-accent flex items-center justify-between text-[10px] tracking-[0.1em] uppercase">
-        Credits
-        <span
-          className="text-neutral-400 text-[11px] tracking-normal normal-case tabular-nums"
-          data-testid="credits-card-balance"
-        >
+      <span className="flex items-center justify-between gap-2">
+        <span className="text-fg-2 text-2xs font-medium tracking-[0.08em] uppercase">Credits</span>
+        <span className="text-fg-0 text-xs font-medium tabular-nums" data-testid="credits-card-balance">
           {
             // A workspace can carry an admin "adjustment" lot on top of its
             // monthly grant, and `balance` sums every lot -- so once one of
@@ -72,12 +74,12 @@ export function CreditsCard({ className }: { className?: string }): React.JSX.El
       </span>
 
       {pct === null ? null : (
-        <span className="bg-neutral-800 block h-[3px] overflow-hidden rounded-full">
+        <span aria-hidden="true" className="bg-bg-2 block h-1 overflow-hidden rounded-full">
           <span className="bg-accent block h-full" style={{ width: `${pct}%` }} />
         </span>
       )}
 
-      <span className="text-neutral-500 text-[11px]">
+      <span className="text-fg-2 text-2xs">
         {formatCreditHours(balance)} of transcription.
         {resets === undefined ? "" : ` Resets ${resets}.`}
       </span>

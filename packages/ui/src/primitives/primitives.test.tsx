@@ -267,7 +267,7 @@ describe("<Menubar />", () => {
       </Menubar>,
     );
     const item = await screen.findByRole("menuitem", { name: "Delete word" });
-    expect(item.className).toContain("text-red-400");
+    expect(item.className).toContain("text-rejected");
     expect(item).toHaveAttribute("data-variant", "destructive");
   });
 });
@@ -310,7 +310,7 @@ describe("<ContextMenu />", () => {
     fireEvent.contextMenu(screen.getByTestId("cm-trigger"), { clientX: 12, clientY: 20 });
 
     const destructive = screen.getByText("Delete word");
-    expect(destructive.className).toContain("text-red-400");
+    expect(destructive.className).toContain("text-rejected");
     expect(destructive).toHaveAttribute("data-disabled");
   });
 });

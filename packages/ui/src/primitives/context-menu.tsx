@@ -49,15 +49,15 @@ export const ContextMenuContent = React.forwardRef<
 // items whose siblings carry an icon or a check.
 const itemClasses = [
   "text-fg-1 flex cursor-default items-center gap-2 rounded-sm px-2.5 py-2 text-sm outline-none",
-  "data-[highlighted]:bg-bg-1 data-[highlighted]:text-fg-0",
+  "data-[highlighted]:bg-neutral-100/7 data-[highlighted]:text-fg-0",
   "data-[disabled]:text-fg-disabled data-[disabled]:pointer-events-none",
   "[&_svg]:size-4 [&_svg]:shrink-0",
   "data-[inset]:pl-7",
 ].join(" ");
 
-/** `text-destructive` / `focus:bg-destructive/10` in the source (ARCHITECTURE §4). */
+/** `text-destructive` / `focus:bg-destructive/10` in the source (ARCHITECTURE §4), on the rejected signal token. */
 const destructiveClasses =
-  "text-red-400 data-[highlighted]:bg-red-400/10 data-[highlighted]:text-red-400";
+  "text-rejected data-[highlighted]:bg-rejected/10 data-[highlighted]:text-rejected";
 
 export interface ContextMenuItemProps extends React.ComponentPropsWithoutRef<
   typeof ContextMenuPrimitive.Item
@@ -93,7 +93,7 @@ export const ContextMenuCheckboxItem = React.forwardRef<
     >
       <span className="absolute left-2.5 flex size-4 items-center justify-center">
         <ContextMenuPrimitive.ItemIndicator>
-          <Check className="size-4 text-lime-500" aria-hidden="true" />
+          <Check className="text-fg-0 size-4" aria-hidden="true" />
         </ContextMenuPrimitive.ItemIndicator>
       </span>
       {children}
@@ -146,7 +146,7 @@ export function ContextMenuShortcut({
   return (
     <span
       aria-hidden="true"
-      className={cn("text-fg-3 ml-auto pl-4 text-xs tracking-widest", className)}
+      className={cn("text-fg-2 ml-auto pl-4 text-xs tracking-widest", className)}
       {...props}
     />
   );
@@ -162,11 +162,11 @@ export const ContextMenuSubTrigger = React.forwardRef<
     <ContextMenuPrimitive.SubTrigger
       ref={ref}
       {...(inset ? { "data-inset": "" } : {})}
-      className={cn(itemClasses, "data-[state=open]:bg-bg-1", className)}
+      className={cn(itemClasses, "data-[state=open]:bg-neutral-100/7", className)}
       {...props}
     >
       {children}
-      <ChevronRight className="text-fg-3 ml-auto size-4" aria-hidden="true" />
+      <ChevronRight className="text-fg-2 ml-auto size-4" aria-hidden="true" />
     </ContextMenuPrimitive.SubTrigger>
   );
 });

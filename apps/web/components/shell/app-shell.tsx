@@ -315,14 +315,14 @@ export function AppShell({ children }: { children: React.ReactNode }): React.JSX
               }}
             />
             {/*
-              The canvas's page padding: 18 px horizontal, 22 px down to the
-              first card and a deep 34 px tail so the last row never sits on
-              the viewport edge.
+              DESIGN.md's page gutter on the 4 px grid: 16 px on a phone, 24 px
+              from `lg`, 24 px down to the page header and a 40 px tail so the
+              last row never sits on the viewport edge.
             */}
             <main
               id="main"
               tabIndex={-1}
-              className="flex min-w-0 flex-1 flex-col px-4 pt-[22px] pb-[34px] focus:outline-none sm:px-[18px]"
+              className="flex min-w-0 flex-1 flex-col px-4 pt-6 pb-10 focus:outline-none lg:px-6"
             >
               {children}
             </main>

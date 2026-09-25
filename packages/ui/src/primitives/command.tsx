@@ -44,7 +44,7 @@ export function CommandDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         hideClose
-        className="top-24 max-w-2xl translate-y-0 overflow-hidden p-0"
+        className="bg-bg-1/95 top-24 max-w-2xl translate-y-0 overflow-hidden p-0 backdrop-blur-md"
         aria-label={label}
       >
         <DialogTitle className="sr-only">{label}</DialogTitle>
@@ -127,9 +127,9 @@ export const CommandItem = React.forwardRef<
       ref={ref}
       className={cn(
         "text-fg-1 flex cursor-default items-center gap-2.5 rounded-sm px-2 py-2 text-sm",
-        "data-[selected=true]:bg-bg-2 data-[selected=true]:text-fg-0",
+        "data-[selected=true]:bg-neutral-100/7 data-[selected=true]:text-fg-0",
         "data-[disabled=true]:text-fg-disabled data-[disabled=true]:pointer-events-none",
-        "[&_svg]:size-4 [&_svg]:shrink-0",
+        "[&_svg]:text-fg-2 [&_svg]:size-4 [&_svg]:shrink-0",
         className,
       )}
       {...props}

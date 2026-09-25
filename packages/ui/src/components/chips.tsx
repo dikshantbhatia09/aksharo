@@ -27,7 +27,7 @@ export function ShortcutHint({
       {keys.map((key) => (
         <kbd
           key={key}
-          className="border-border bg-bg-2 text-fg-2 rounded-[4px] border px-1.5 py-0.5 font-mono text-2xs"
+          className="border-border bg-bg-2 text-fg-2 rounded-sm border px-1.5 py-0.5 font-mono text-2xs"
         >
           {key}
         </kbd>

@@ -32,7 +32,7 @@ import type { LucideIcon } from "lucide-react";
  * sidebar renders under a "More" heading and the 68 px rail does not render at
  * all. That keeps the rail faithful to the canvas without losing a route.
  *
- * `short` is the rail's caption: the rail is 68 px wide and shows a 9 px label
+ * `short` is the rail's caption: the rail is 68 px wide and shows an 11 px label
  * under each icon, so an item needs a one-word name as well as its full one.
  *
  * `ready` says whether the destination exists yet. An item that is not ready
@@ -86,7 +86,7 @@ export const PRIMARY_NAV: readonly NavItem[] = [
     // canvas: ph-folders
     key: "projects",
     label: "Projects",
-    short: "Files",
+    short: "Projects",
     href: "/projects",
     icon: Folder,
     ready: true,
@@ -180,7 +180,7 @@ export const SECONDARY_NAV: readonly NavItem[] = [
   { key: "team", label: "Team", short: "Team", href: "/team", icon: Users, ready: true },
   {
     key: "affiliate",
-    label: "Refer & Earn",
+    label: "Refer & earn",
     short: "Refer",
     href: "/affiliate",
     // B07 shipped: `/affiliate` renders stats and the programme rules, so the

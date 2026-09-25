@@ -48,7 +48,7 @@
     border-radius: 999px;
     background: var(--color-fg-0);
     border: 1px solid var(--color-border);
-    box-shadow: 0 1px 2px rgb(0 0 0 / 0.4);
+    box-shadow: var(--shadow-sm);
   }
 
   .panel-range::-moz-range-thumb {
@@ -80,14 +80,15 @@
     padding: 0;
   }
 
+  /* Concentric with the 6 px control radius and its 1 px border. */
   .panel-swatch::-webkit-color-swatch {
     border: 0;
-    border-radius: 7px;
+    border-radius: calc(var(--radius-sm) - 1px);
   }
 
   .panel-swatch::-moz-color-swatch {
     border: 0;
-    border-radius: 7px;
+    border-radius: calc(var(--radius-sm) - 1px);
   }
 
   /*

@@ -129,11 +129,9 @@ function NavRow({
   const active = item.ready && isActivePath(pathname, item.href);
   const Icon = item.icon;
   const classes = cn(
-    "flex w-full items-center gap-[9px] rounded-sm px-2.5 py-2 text-[13px]",
+    "flex min-h-9 w-full items-center gap-2.5 rounded-sm px-2.5 py-2 text-sm",
     "transition-colors duration-[160ms] ease-[var(--ease-out-soft)]",
-    active
-      ? "bg-accent/14 text-accent-200"
-      : "text-neutral-300 hover:bg-neutral-100/6 hover:text-fg-0",
+    active ? "bg-accent/14 text-accent-200" : "text-fg-1 hover:bg-neutral-100/7 hover:text-fg-0",
   );
 
   if (!item.ready) {
@@ -141,11 +139,16 @@ function NavRow({
       <Tooltip>
         <TooltipTrigger asChild>
           <span
+            role="link"
             aria-disabled="true"
+            tabIndex={0}
             data-testid={`nav-${item.key}`}
-            className={cn(classes, "text-fg-disabled cursor-default hover:bg-transparent")}
+            className={cn(
+              classes,
+              "text-fg-disabled hover:text-fg-disabled cursor-default hover:bg-transparent",
+            )}
           >
-            <Icon className="size-4 shrink-0" aria-hidden="true" />
+            <Icon className="size-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />
             {item.label}
             <Badge className="ml-auto">{item.disabledBadge ?? "Soon"}</Badge>
           </span>
@@ -165,10 +168,14 @@ function NavRow({
       data-testid={`nav-${item.key}`}
       onClick={onNavigate}
     >
-      <Icon className="size-4 shrink-0" aria-hidden="true" />
+      <Icon
+        className={cn("size-4 shrink-0", active ? undefined : "text-fg-2")}
+        strokeWidth={1.75}
+        aria-hidden="true"
+      />
       {item.label}
       {badge === undefined ? null : (
-        <span className="text-neutral-500 ml-auto text-[10px] tabular-nums">{badge}</span>
+        <span className="text-fg-2 ml-auto text-2xs tabular-nums">{badge}</span>
       )}
     </Link>
   );
@@ -198,35 +205,34 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }): React.JSX.
     firstPage !== undefined && firstPage.nextCursor === null ? firstPage.items.length : undefined;
   const isProductionOrigin = isBrandOrigin(config.webOrigin);
   const storage = useStorageUsage();
+  // Two sidebars can be mounted at once (the desktop aside and the mobile
+  // sheet), so the "More" heading's id must be unique per instance.
+  const moreHeadingId = React.useId();
 
   return (
-    <div className="bg-sunken flex h-full w-full flex-col gap-[18px] px-3 pt-4 pb-3.5 shadow-[inset_-1px_0_0_var(--color-neutral-900)]">
+    <div className="bg-sunken scrollbar-thin flex h-full w-full flex-col gap-5 overflow-y-auto px-3 pt-4 pb-3.5 shadow-[inset_-1px_0_0_var(--color-border)]">
       {/*
-        The canvas's lockup: the mark and the wordmark go home, and the
-        workspace name sits under them as a 10 px uppercase line. They are two
-        controls, not one — a switcher nested inside the home link would be a
-        button inside an anchor, which is invalid and unusable by keyboard.
+        The lockup: one link home (mark + wordmark), then the workspace as its
+        own control underneath. They are two controls, not one — a switcher
+        nested inside the home link would be a button inside an anchor, which
+        is invalid and unusable by keyboard. The switcher used to be a 10 px
+        uppercase line under the wordmark: under the legibility floor and a
+        ~14 px hit target for the one control that changes whose data you see.
       */}
-      <div className="flex items-center gap-[9px] px-1.5">
+      <div className="flex flex-col gap-2">
         <Link
           href="/"
-          className="flex items-center gap-[9px] rounded-sm"
+          className="flex min-h-9 items-center gap-2.5 self-start rounded-sm px-1.5"
           onClick={onNavigate}
           data-testid="sidebar-brand"
           aria-label={`${BRAND.name} home`}
         >
           <BrandMark size={30} />
-        </Link>
-        <span className="flex min-w-0 flex-col leading-[1.15]">
-          <Link
-            href="/"
-            onClick={onNavigate}
-            className="font-display text-fg-0 rounded-sm text-base font-medium tracking-[-0.01em]"
-          >
+          <span aria-hidden="true" className="text-fg-0 text-base font-semibold">
             {BRAND.name}
-          </Link>
-          <WorkspaceSwitcher compact />
-        </span>
+          </span>
+        </Link>
+        <WorkspaceSwitcher />
       </div>
 
       <nav aria-label="Main" className="flex flex-col gap-0.5">
@@ -244,8 +250,11 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }): React.JSX.
         ))}
       </nav>
 
-      <nav aria-label="More" className="flex flex-col gap-0.5">
-        <span className="text-neutral-500 px-2.5 pb-1 text-[9.5px] tracking-[0.12em] uppercase">
+      <nav aria-labelledby={moreHeadingId} className="flex flex-col gap-0.5">
+        <span
+          id={moreHeadingId}
+          className="text-fg-2 px-2.5 pb-1 text-2xs font-medium tracking-[0.08em] uppercase"
+        >
           More
         </span>
         {secondary.map((item) => (
@@ -268,7 +277,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }): React.JSX.
             <TooltipTrigger asChild>
               <div
                 tabIndex={0}
-                className="text-neutral-500 flex items-center gap-2 rounded-sm text-[11px]"
+                className="text-fg-2 flex min-h-8 items-center gap-2 rounded-sm px-1 text-2xs"
                 data-testid="storage-meter"
               >
                 <HardDrive className="size-3.5 shrink-0" aria-hidden="true" />
@@ -306,13 +315,13 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }): React.JSX.
         {isProductionOrigin && surfaceEnabled("desktop", config.flags) ? (
           <a
             href={`https://${BRAND.domain}/download`}
-            className="text-neutral-300 hover:bg-neutral-100/6 hover:text-fg-0 mx-1 flex items-center gap-2.5 rounded-sm px-2 py-2 text-xs"
+            className="text-fg-1 hover:bg-neutral-100/7 hover:text-fg-0 flex items-center gap-2.5 rounded-sm px-2.5 py-2 text-xs"
             data-testid="desktop-download"
           >
-            <Monitor className="size-4 shrink-0" aria-hidden="true" />
+            <Monitor className="text-fg-2 size-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />
             <span>
               Get the desktop app
-              <span className="text-neutral-500 block">
+              <span className="text-fg-2 block">
                 Local mode, watch folders, offline queue
               </span>
             </span>
@@ -335,7 +344,14 @@ function isBrandOrigin(origin: string): boolean {
   }
 }
 
-/** The "Upgrade" call to action, hidden on the top plan (08 §3). */
+/**
+ * The "Upgrade" call to action, hidden on the top plan (08 §3).
+ *
+ * Secondary, not primary: it sits in global chrome above every page, and each
+ * page's own header already spends the screen's one filled primary on its main
+ * task (DESIGN.md "Accent budget"; HIG Toolbars › Actions — one prominent
+ * action). An upsell that out-shouts "Export video" is the wrong hierarchy.
+ */
 export function UpgradeButton({
   editor = false,
 }: { editor?: boolean } = {}): React.JSX.Element | null {
@@ -347,7 +363,7 @@ export function UpgradeButton({
   if (!razorpayEnabled) return null;
   if (plan === undefined || plan === "studio" || plan === "agency") return null;
   return (
-    <Button variant="primary" size="sm" asChild data-testid="upgrade-cta">
+    <Button variant="secondary" size="sm" asChild data-testid="upgrade-cta">
       <Link href="/billing" className={editor ? "editor-upgrade" : undefined}>
         Upgrade{editor ? <ArrowUpRight className="size-[13px]" aria-hidden="true" /> : null}
       </Link>

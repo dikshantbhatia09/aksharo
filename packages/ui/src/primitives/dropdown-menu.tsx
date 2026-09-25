@@ -33,7 +33,7 @@ export const DropdownMenuContent = React.forwardRef<
 
 const itemClasses = [
   "text-fg-1 flex cursor-default items-center gap-2 rounded-sm px-2.5 py-2 text-sm outline-none",
-  "data-[highlighted]:bg-bg-1 data-[highlighted]:text-fg-0",
+  "data-[highlighted]:bg-neutral-100/7 data-[highlighted]:text-fg-0",
   "data-[disabled]:text-fg-disabled data-[disabled]:pointer-events-none",
   "[&_svg]:size-4 [&_svg]:shrink-0",
 ].join(" ");
@@ -57,7 +57,7 @@ export const DropdownMenuRadioItem = React.forwardRef<
     >
       <span className="absolute left-2.5 flex size-4 items-center justify-center">
         <DropdownMenuPrimitive.ItemIndicator>
-          <Check className="text-lime-500 size-4" aria-hidden="true" />
+          <Check className="text-fg-0 size-4" aria-hidden="true" />
         </DropdownMenuPrimitive.ItemIndicator>
       </span>
       {children}

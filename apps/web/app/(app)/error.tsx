@@ -1,6 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import * as React from "react";
+
+import { Button } from "@montaj/ui";
 
 /**
  * The signed-in app's error boundary.
@@ -16,6 +19,12 @@ import * as React from "react";
  * `reset()` re-renders the segment so the user can carry on without losing the
  * session. It deliberately shows the real message — this is a creator tool, and
  * "something went wrong" costs a support round-trip.
+ *
+ * Shape: it stands in for the page that failed, so its heading is the page's
+ * `h1`, but it carries no shirorekha — the bar marks a page's own title, and an
+ * error is not a destination. One primary ("Try again", the likeliest fix) and
+ * one secondary way out (HIG Writing › Write clear error messages: say what
+ * happened and what to do, no apology).
  */
 export default function AppError({
   error,
@@ -30,34 +39,30 @@ export default function AppError({
 
   return (
     <div
-      className="flex min-h-[60dvh] flex-col items-center justify-center gap-3 p-8 text-center"
+      className="flex min-h-[60dvh] flex-col items-center justify-center px-4 py-10"
       data-testid="app-error-boundary"
       role="alert"
     >
-      <h2 className="text-fg-0 text-lg font-semibold">This screen hit a problem</h2>
-      <p className="text-fg-2 max-w-md text-sm">
-        The rest of the app is still running. Try again, and if it keeps happening tell support what
-        you were doing.
-      </p>
-      <pre className="text-neutral-400 border-border bg-sunken max-w-xl overflow-x-auto rounded border p-3 text-left text-xs">
-        {error.message}
-        {error.digest === undefined ? "" : `\n\ndigest: ${error.digest}`}
-      </pre>
-      <div className="flex gap-2">
-        <button
-          type="button"
-          onClick={reset}
-          className="border-border hover:bg-neutral-100/7 rounded border px-3 py-1.5 text-sm font-medium"
-          data-testid="app-error-retry"
-        >
-          Try again
-        </button>
-        <a
-          href="/projects"
-          className="text-fg-2 hover:text-fg-0 rounded px-3 py-1.5 text-sm font-medium underline"
-        >
-          Back to projects
-        </a>
+      <div className="border-border bg-surface flex w-full max-w-xl flex-col gap-4 rounded-md border p-5 sm:p-6">
+        <div className="flex flex-col gap-1.5">
+          <h1 className="text-fg-0 text-lg font-semibold">This screen stopped working</h1>
+          <p className="text-fg-1 text-sm">
+            The rest of Aksharo is still running and your work is saved on the server. Try again;
+            if it keeps happening, send support the message below and what you were doing.
+          </p>
+        </div>
+        <pre className="border-border bg-sunken text-fg-2 scrollbar-thin max-h-48 overflow-auto rounded-sm border p-3 font-mono text-xs whitespace-pre-wrap">
+          {error.message}
+          {error.digest === undefined ? "" : `\n\ndigest: ${error.digest}`}
+        </pre>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="primary" onClick={reset} data-testid="app-error-retry">
+            Try again
+          </Button>
+          <Button variant="secondary" asChild>
+            <Link href="/projects">Back to projects</Link>
+          </Button>
+        </div>
       </div>
     </div>
   );

@@ -5,7 +5,7 @@ import {
   ChevronsUpDown,
   Globe,
   LogOut,
-  Settings,
+  MonitorSmartphone,
   ShieldCheck,
   User,
 } from "lucide-react";
@@ -117,23 +117,23 @@ export function ProfileMenu({
           aria-label={compact ? name : undefined}
           className={
             compact
-              ? "size-7 rounded-full p-0"
+              ? "size-8 rounded-full p-0"
               : editor
                 ? "editor-profile justify-start gap-2"
-                : "mx-1 justify-start gap-2.5"
+                : "w-full justify-start gap-2.5"
           }
           data-testid="profile-menu"
         >
           <span
             aria-hidden="true"
-            className="bg-accent-800 text-accent-100 flex size-7 shrink-0 items-center justify-center rounded-full text-[10px] font-medium"
+            className="bg-neutral-800 text-fg-0 flex size-7 shrink-0 items-center justify-center rounded-full text-2xs font-semibold"
           >
             {editor ? initials(name).slice(0, 1) : initials(name)}
           </span>
           {compact ? null : <span className="truncate text-sm">{name}</span>}
           {editor ? <ChevronDown className="size-3 text-fg-2" aria-hidden="true" /> : null}
           {compact || editor ? null : (
-            <ChevronsUpDown className="text-neutral-500 ml-auto size-3" aria-hidden="true" />
+            <ChevronsUpDown className="text-fg-2 ml-auto size-3.5" aria-hidden="true" />
           )}
         </Button>
       </DropdownMenuTrigger>
@@ -142,7 +142,17 @@ export function ProfileMenu({
         side={editor ? "bottom" : compact ? "right" : "top"}
         className="w-64"
       >
-        <DropdownMenuLabel>{session?.role ?? "Account"}</DropdownMenuLabel>
+        {/*
+          Who is signed in, then in what capacity. This used to be the bare role
+          ("owner") styled as an uppercase group label, which named nothing a
+          person would recognise as themselves.
+        */}
+        <div className="flex flex-col gap-0.5 px-2.5 py-2" data-testid="profile-menu-identity">
+          <span className="text-fg-0 truncate text-sm font-medium">{name}</span>
+          {session?.role === undefined ? null : (
+            <span className="text-fg-2 text-xs capitalize">{session.role}</span>
+          )}
+        </div>
         <DropdownMenuSeparator />
         {options.length < 2 ? null : (
           <>
@@ -170,7 +180,7 @@ export function ProfileMenu({
                   data-testid={`profile-workspace-${workspace.id}`}
                 >
                   <span className="truncate">{workspace.name}</span>
-                  <span className="text-neutral-500 ml-auto text-2xs">{workspace.role}</span>
+                  <span className="text-fg-2 ml-auto text-2xs capitalize">{workspace.role}</span>
                 </DropdownMenuRadioItem>
               ))}
             </DropdownMenuRadioGroup>
@@ -191,7 +201,7 @@ export function ProfileMenu({
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
           <Link href="/settings/devices" onClick={onNavigate}>
-            <Settings aria-hidden="true" />
+            <MonitorSmartphone aria-hidden="true" />
             Devices & sessions
           </Link>
         </DropdownMenuItem>

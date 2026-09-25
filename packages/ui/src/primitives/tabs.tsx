@@ -28,8 +28,10 @@ export const TabsTrigger = React.forwardRef<
     <TabsPrimitive.Trigger
       ref={ref}
       className={cn(
-        "text-fg-2 -mb-px border-b-2 border-transparent px-3 py-2 text-sm font-medium",
-        "hover:text-fg-0 data-[state=active]:border-lime-500 data-[state=active]:text-fg-0",
+        "text-fg-2 -mb-px min-h-9 border-b-2 border-transparent px-3 py-2 text-sm font-medium",
+        "transition-colors duration-[160ms] ease-[var(--ease-out-soft)]",
+        "hover:text-fg-0 data-[state=active]:border-accent data-[state=active]:text-fg-0",
+        "disabled:text-fg-disabled disabled:pointer-events-none",
         className,
       )}
       {...props}

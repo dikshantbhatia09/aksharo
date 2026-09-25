@@ -4,6 +4,7 @@ import { Flame, Zap } from "lucide-react";
 import * as React from "react";
 
 import { cn } from "../lib/cn";
+import { Button } from "../primitives/button";
 import { ProgressBar } from "../primitives/surface";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../primitives/tooltip";
 
@@ -139,7 +140,7 @@ export function CreditMeter({
         ) : null}
       </div>
 
-      <p className="text-fg-0 text-sm font-medium" data-testid={`${testId}-balance`}>
+      <p className="text-fg-0 text-sm font-medium tabular-nums" data-testid={`${testId}-balance`}>
         {formatValue(remainingTenths)} {valueSuffix}
         {formatUnit === null ? null : (
           <span className="text-fg-2 font-normal"> · {formatUnit(remainingTenths)}</span>
@@ -161,13 +162,11 @@ export function CreditMeter({
       ) : null}
 
       {onTopUp === undefined ? null : (
-        <button
-          type="button"
-          onClick={onTopUp}
-          className="text-lime-500 self-start rounded-sm text-2xs font-medium hover:underline"
-        >
+        // A link-styled button, not an accent label: accent-300 stays legible on
+        // any ground this meter sits on, and the 32 px row meets the pointer floor.
+        <Button variant="link" size="sm" onClick={onTopUp} className="-ml-1 self-start px-1">
           Top up
-        </button>
+        </Button>
       )}
     </div>
   );

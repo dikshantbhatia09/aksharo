@@ -53,7 +53,7 @@ export function UpgradeGate({
   return (
     <div
       className={cn(
-        "border-border bg-bg-1 flex flex-col gap-3 rounded-md border border-dashed p-4",
+        "border-border bg-surface flex flex-col gap-3 rounded-md border p-4",
         className,
       )}
       data-testid="upgrade-gate"
@@ -69,7 +69,7 @@ export function UpgradeGate({
         have already made.
       </p>
       {onUpgrade === undefined ? null : (
-        <Button variant="primary" size="sm" className="self-start" onClick={onUpgrade}>
+        <Button variant="secondary" size="sm" className="self-start" onClick={onUpgrade}>
           {ctaLabel ?? `Upgrade to ${planName}`}
         </Button>
       )}

@@ -1,51 +1,62 @@
 /**
- * The header's two lines.
+ * Where you are, for the top bar.
  *
- * The canvas's header is a breadcrumb in 9.5 px uppercase over a 15 px title —
- * "LIBRARY / 24 projects", "PLAN AND CREDITS / Creator, renews 1 Oct". It is
- * the only place in the shell that names where you are, because the rail
- * shows an icon and a one-word caption and nothing else.
+ * Under Nocturne the header carried a breadcrumb over a 15 px display-face
+ * tagline ("Every style, every word tunable"), and every page then repeated
+ * its own title underneath. Under Shirorekha each page opens with a
+ * `PageHeader` that owns the one title (and the one shirorekha bar), so the
+ * top bar only has to say which section you are in — in the SAME words the
+ * nav uses, so the rail's "Styles" never lands on a header that says
+ * "Caption styles" (HIG Writing › Build language patterns). Sub-pages that the
+ * nav does not name get a second segment ("Settings › Profile").
  *
- * The title is the specific half and often depends on data the header does not
- * have (a project's name, a credit balance), so `crumb` here is always right
- * and `title` is the fallback a screen can override by passing its own through
- * {@link ScreenTitle}.
+ * The rail shows icons and one-word captions, which is why this stays at all:
+ * with the 68 px rail, this line is the only persistent place name in the
+ * chrome (HIG Toolbars › Titles — a short title that confirms location).
  */
 export interface ScreenTitle {
+  /** The section, named exactly as the nav names it. */
   readonly crumb: string;
-  readonly title: string;
+  /** A sub-page inside the section, when the section alone is ambiguous. */
+  readonly title?: string;
 }
 
 /**
  * Longest prefix wins, so `/settings/languages` resolves before `/settings`.
  * Order in this array is irrelevant; {@link screenTitleFor} sorts by length.
  */
-const STUDIO: ScreenTitle = { crumb: "Aksharo studio", title: "Your studio" };
+const STUDIO: ScreenTitle = { crumb: "Studio" };
 
-const TITLES: readonly (readonly [prefix: string, crumb: string, title: string])[] = [
-  ["/", STUDIO.crumb, STUDIO.title],
-  ["/projects", "Library", "Every project"],
-  ["/p", "Project", "Caption editor"],
-  ["/studio/styles", "Caption styles", "Every style, every word tunable"],
-  ["/repurpose", "Repurpose run", "One long video, nine posts"],
-  ["/billing", "Plan and credits", "Your plan and what it buys"],
-  ["/settings", "Settings", "Your studio, your defaults"],
+const TITLES: readonly (readonly [prefix: string, crumb: string, title?: string])[] = [
+  ["/", "Studio"],
+  ["/projects", "Projects"],
+  ["/p", "Editor"],
+  ["/studio/styles", "Styles"],
+  ["/repurpose", "Clips pipeline"],
+  ["/billing", "Plan and credits"],
+  ["/billing/plans", "Plan and credits", "Plans"],
+  ["/billing/methods", "Plan and credits", "Payment methods"],
+  ["/billing/invoices", "Plan and credits", "Invoices"],
+  ["/billing/usage", "Plan and credits", "Usage"],
+  ["/settings", "Settings"],
   ["/settings/profile", "Settings", "Profile"],
-  ["/settings/languages", "Settings", "Languages and defaults"],
+  ["/settings/languages", "Settings", "Languages & defaults"],
   ["/settings/memory", "Settings", "What Aksharo learned"],
-  ["/settings/devices", "Settings", "Devices and sessions"],
+  ["/settings/devices", "Settings", "Devices & sessions"],
   ["/settings/privacy", "Settings", "Privacy"],
   ["/settings/notifications", "Settings", "Notifications"],
   ["/settings/support", "Settings", "Support"],
   ["/settings/subscription", "Settings", "Subscription"],
   ["/settings/developers", "Settings", "Developers"],
-  ["/onboarding", "First run", "Four questions, then you are in"],
-  ["/academy", "Academy", "Learn the studio"],
-  ["/plugins", "Plugins", "Premiere, After Effects and Resolve"],
-  ["/team", "Team", "Seats and roles"],
-  ["/affiliate", "Refer and earn", "Your referral programme"],
-  ["/help", "Help", "Guides and support"],
-  ["/updates", "Updates", "What is new"],
+  ["/templates", "Templates"],
+  ["/onboarding", "First run"],
+  ["/academy", "Academy"],
+  ["/plugins", "Plugins"],
+  ["/plugins/keys", "Plugins", "Licence keys"],
+  ["/team", "Team"],
+  ["/affiliate", "Refer & earn"],
+  ["/help", "Help"],
+  ["/updates", "What's new"],
 ];
 
 /** Resolves a pathname to its header pair. Unknown routes fall back to the studio. */
@@ -59,5 +70,5 @@ export function screenTitleFor(pathname: string | null): ScreenTitle {
     if (best === undefined || prefix.length > best[0].length) best = entry;
   }
   if (best === undefined) return STUDIO;
-  return { crumb: best[1], title: best[2] };
+  return best[2] === undefined ? { crumb: best[1] } : { crumb: best[1], title: best[2] };
 }

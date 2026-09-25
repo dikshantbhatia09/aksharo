@@ -30,7 +30,7 @@ export const Menubar = React.forwardRef<
       ref={ref}
       data-slot="menubar"
       className={cn(
-        "flex h-8 items-center gap-0.5 rounded-md border border-white/10 bg-bg-1 p-0.5",
+        "border-border bg-bg-1 flex h-8 items-center gap-0.5 rounded-md border p-0.5",
         className,
       )}
       {...props}
@@ -47,8 +47,8 @@ export const MenubarTrigger = React.forwardRef<
       ref={ref}
       data-slot="menubar-trigger"
       className={cn(
-        "text-fg-2 rounded px-2 py-1 text-xs font-medium outline-none select-none",
-        "hover:bg-white/5 hover:text-fg-0 data-[state=open]:bg-white/10 data-[state=open]:text-fg-0",
+        "text-fg-2 rounded-sm px-2 py-1 text-xs font-medium outline-none select-none",
+        "hover:bg-neutral-100/7 hover:text-fg-0 data-[state=open]:bg-neutral-100/14 data-[state=open]:text-fg-0",
         className,
       )}
       {...props}
@@ -83,14 +83,14 @@ export const MenubarContent = React.forwardRef<
 /** Copied verbatim from `dropdown-menu.tsx` — the two menus share one row. */
 const itemClasses = [
   "text-fg-1 flex cursor-default items-center gap-2 rounded-sm px-2.5 py-2 text-sm outline-none",
-  "data-[highlighted]:bg-bg-1 data-[highlighted]:text-fg-0",
+  "data-[highlighted]:bg-neutral-100/7 data-[highlighted]:text-fg-0",
   "data-[disabled]:text-fg-disabled data-[disabled]:pointer-events-none",
   "[&_svg]:size-4 [&_svg]:shrink-0",
 ].join(" ");
 
 /** ARCHITECTURE §4: OpenCut's `text-destructive` / `focus:bg-destructive/10`. */
 const destructiveClasses =
-  "text-red-400 data-[highlighted]:bg-red-400/10 data-[highlighted]:text-red-400";
+  "text-rejected data-[highlighted]:bg-rejected/10 data-[highlighted]:text-rejected";
 
 export const MenubarItem = React.forwardRef<
   React.ComponentRef<typeof MenubarPrimitive.Item>,
@@ -122,7 +122,7 @@ export const MenubarCheckboxItem = React.forwardRef<
     >
       <span className="absolute left-2.5 flex size-4 items-center justify-center">
         <MenubarPrimitive.ItemIndicator>
-          <Check className="text-lime-500 size-3.5" aria-hidden="true" />
+          <Check className="text-fg-0 size-3.5" aria-hidden="true" />
         </MenubarPrimitive.ItemIndicator>
       </span>
       {children}
@@ -138,7 +138,7 @@ export const MenubarSubTrigger = React.forwardRef<
     <MenubarPrimitive.SubTrigger
       ref={ref}
       data-slot="menubar-sub-trigger"
-      className={cn(itemClasses, "data-[state=open]:bg-bg-1", className)}
+      className={cn(itemClasses, "data-[state=open]:bg-neutral-100/7", className)}
       {...props}
     >
       {children}
@@ -206,7 +206,7 @@ export function MenubarShortcut({
   return (
     <span
       data-slot="menubar-shortcut"
-      className={cn("text-fg-3 ml-auto text-[0.625rem] tracking-widest", className)}
+      className={cn("text-fg-2 ml-auto text-2xs tracking-widest", className)}
       {...props}
     />
   );

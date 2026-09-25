@@ -134,7 +134,7 @@ describe("<NavRail />", () => {
 
   it("captions each icon, so the rail is readable without hovering", () => {
     renderWithProviders(<NavRail />);
-    expect(screen.getByTestId("nav-projects")).toHaveTextContent("Files");
+    expect(screen.getByTestId("nav-projects")).toHaveTextContent("Projects");
     expect(screen.getByTestId("nav-repurpose")).toHaveTextContent("Clips");
   });
 

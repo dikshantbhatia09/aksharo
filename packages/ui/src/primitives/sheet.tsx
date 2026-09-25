@@ -19,7 +19,7 @@ export const SheetTrigger = DialogPrimitive.Trigger;
 export const SheetClose = DialogPrimitive.Close;
 
 const sheetVariants = cva(
-  "bg-bg-1 border-border fixed z-50 flex flex-col shadow-[var(--shadow-panel)] focus:outline-none",
+  "bg-surface border-border fixed z-50 flex flex-col shadow-[var(--shadow-lg)] focus:outline-none",
   {
     variants: {
       side: {
@@ -47,7 +47,7 @@ export const SheetContent = React.forwardRef<
       >
         {children}
         <DialogPrimitive.Close
-          className="text-fg-2 hover:text-fg-0 absolute top-4 right-4 rounded-sm"
+          className="text-fg-2 hover:bg-neutral-100/7 hover:text-fg-0 absolute top-3 right-3 inline-flex size-8 items-center justify-center rounded-sm transition-colors"
           aria-label="Close"
         >
           <X className="size-4" aria-hidden="true" />
