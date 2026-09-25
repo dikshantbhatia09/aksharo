@@ -1056,3 +1056,9 @@ alike.
   subtitle files (no positions to move). Face positions are personal data:
   `faces.json` is deleted by retention and by the erasure cascade with the
   other derived objects.
+- **Cloud-render fonts (fixed the same day).** `.env.local-run` had no
+  `RENDER_FONT_DIR`, so `apps/render` logged `fontDir: (bundled subsets)` and
+  every server-side export drew captions in three fallback subsets, not the
+  style's font. It now points at `montaj-release\packagesonts\pack` (a
+  tracked v1 pack, 67 faces); check the render log's `fontDir` after any env
+  rebuild. Deploy/undo: `_orchestration/tools/{deploy,rollback}-20260925l.ps1`.
