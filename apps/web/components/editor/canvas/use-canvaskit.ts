@@ -90,46 +90,17 @@ export const DEFAULT_FONTS: readonly FontFile[] = [
   { id: "inter-600", family: "Inter", weight: 600, italic: false, file: "inter-600.ttf", scripts: ["latin"] },
   { id: "inter-700", family: "Inter", weight: 700, italic: false, file: "inter-700.ttf", scripts: ["latin"] },
   { id: "inter-900", family: "Inter", weight: 900, italic: false, file: "inter-900.ttf", scripts: ["latin"] },
-  {
-    id: "playfair-semibold",
-    family: "Playfair Display",
-    weight: 600,
-    italic: false,
-    file: "PlayfairDisplay-SemiBold.ttf",
-    scripts: ["latin"],
-  },
-  {
-    id: "playfair-semibold-italic",
-    family: "Playfair Display",
-    weight: 600,
-    italic: true,
-    file: "PlayfairDisplay-SemiBoldItalic.ttf",
-    scripts: ["latin"],
-  },
-  {
-    id: "eb-garamond-regular",
-    family: "EB Garamond",
-    weight: 400,
-    italic: false,
-    file: "EBGaramond-Regular.ttf",
-    scripts: ["latin"],
-  },
-  {
-    id: "helvetica-regular",
-    family: "Helvetica",
-    weight: 400,
-    italic: false,
-    file: "Helvetica.ttf",
-    scripts: ["latin"],
-  },
-  {
-    id: "helvetica-bold",
-    family: "Helvetica",
-    weight: 700,
-    italic: false,
-    file: "Helvetica-Bold.ttf",
-    scripts: ["latin"],
-  },
+  // Playfair from the pack (`playfair-display-<weight>.ttf`). Until 2026-09-25
+  // this block named five pre-pack fixture files — PlayfairDisplay-SemiBold(,
+  // Italic), EBGaramond-Regular, Helvetica(-Bold) — that `copy-render-assets.mjs`
+  // never produced. They survived only in the original checkout's `public/`,
+  // so the release worktree (a clean checkout, live since 2026-09-19) served
+  // them as 404, `loadFonts` rejected, and every CanvasKit surface in the
+  // editor — the template tiles included — drew nothing. The pack ships no EB
+  // Garamond, Helvetica or italic Playfair; those styles resolve to the
+  // nearest registered face, as any unregistered family does.
+  { id: "playfair-display-500", family: "Playfair Display", weight: 500, italic: false, file: "playfair-display-500.ttf", scripts: ["latin"] },
+  { id: "playfair-display-600", family: "Playfair Display", weight: 600, italic: false, file: "playfair-display-600.ttf", scripts: ["latin"] },
   // Every other face `@montaj/fonts`' bundled CATALOGUE ships — the same list
   // the Font Family picker (`RightPanel.tsx`) already offers. Registering them
   // here is what makes picking one of these actually draw in that family
@@ -209,23 +180,42 @@ let backendPromise: Promise<CanvasKitBackend> | undefined;
 let fontsPromise: Promise<FontResource[]> | undefined;
 let shaperPromise: Promise<LayoutEngine> | undefined;
 
-/** Fetches the subset faces once, for both the backend and the shaper. */
-async function loadFonts(fontBase: string, files: readonly FontFile[]): Promise<FontResource[]> {
-  fontsPromise ??= Promise.all(
-    files.map(async (font): Promise<FontResource> => {
-      const response = await fetch(`${fontBase}${font.file}`);
-      if (!response.ok)
-        throw new Error(`could not fetch the font ${font.file}: ${String(response.status)}`);
-      return {
-        id: font.id,
-        family: font.family,
-        weight: font.weight,
-        italic: font.italic,
-        data: new Uint8Array(await response.arrayBuffer()),
-        ...(font.scripts === undefined ? {} : { scripts: font.scripts }),
-      };
-    }),
-  );
+/**
+ * Fetches the subset faces once, for both the backend and the shaper.
+ *
+ * A face that cannot be fetched is skipped, not fatal: one missing file used to
+ * reject the whole set and leave every caption surface blank (2026-09-25). A
+ * style asking for a skipped face draws in the nearest registered one. Only
+ * losing every face is an error.
+ */
+export async function loadFonts(
+  fontBase: string,
+  files: readonly FontFile[],
+): Promise<FontResource[]> {
+  fontsPromise ??= (async (): Promise<FontResource[]> => {
+    const settled = await Promise.allSettled(
+      files.map(async (font): Promise<FontResource> => {
+        const response = await fetch(`${fontBase}${font.file}`);
+        if (!response.ok)
+          throw new Error(`could not fetch the font ${font.file}: ${String(response.status)}`);
+        return {
+          id: font.id,
+          family: font.family,
+          weight: font.weight,
+          italic: font.italic,
+          data: new Uint8Array(await response.arrayBuffer()),
+          ...(font.scripts === undefined ? {} : { scripts: font.scripts }),
+        };
+      }),
+    );
+    const fonts: FontResource[] = [];
+    for (const result of settled) {
+      if (result.status === "fulfilled") fonts.push(result.value);
+      else console.warn(`[renderer] ${String((result.reason as Error).message)}`);
+    }
+    if (fonts.length === 0) throw new Error("could not fetch any caption font");
+    return fonts;
+  })();
   return fontsPromise;
 }
 

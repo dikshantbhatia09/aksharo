@@ -52,6 +52,8 @@ for (const file of [
   "montserrat-600.ttf",
   "montserrat-800.ttf",
   "montserrat-900.ttf",
+  "playfair-display-500.ttf",
+  "playfair-display-600.ttf",
   "poppins-400.ttf",
   "poppins-700.ttf",
   "poppins-800.ttf",

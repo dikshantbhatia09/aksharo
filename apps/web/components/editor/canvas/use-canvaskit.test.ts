@@ -1,8 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { CATALOGUE } from "@montaj/fonts";
 
-import { DEFAULT_FONTS } from "./use-canvaskit";
+import { DEFAULT_FONTS, loadFonts, resetRenderer } from "./use-canvaskit";
 
 /**
  * The browser's fit-budget measurement (`checkReflow`, `apps/web/lib/edg/
@@ -54,5 +57,56 @@ describe("DEFAULT_FONTS covers what the bundled pack ships", () => {
       if (font.family !== "Inter") continue;
       expect(font.file).toBe(`inter-${String(font.weight)}.ttf`);
     }
+  });
+});
+
+/**
+ * `public/fonts/` is gitignored and filled only by `copy-render-assets.mjs`, so
+ * a name that script does not produce 404s on a clean checkout — which is what
+ * production runs. Five such names blanked every caption surface in the editor
+ * from 2026-09-19 to 2026-09-25, while the original checkout still had stray
+ * copies and looked fine.
+ */
+describe("every DEFAULT_FONTS file is one copy-render-assets.mjs produces", () => {
+  it("names only files the script copies", () => {
+    const script = readFileSync(join(__dirname, "../../../scripts/copy-render-assets.mjs"), "utf8");
+    for (const font of DEFAULT_FONTS) {
+      expect(script, `${font.file} is never copied into public/fonts`).toContain(`"${font.file}"`);
+    }
+  });
+});
+
+describe("loadFonts", () => {
+  afterEach(() => {
+    resetRenderer();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  const faces = [
+    { id: "a", family: "A", weight: 400, italic: false, file: "a.ttf" },
+    { id: "b", family: "B", weight: 400, italic: false, file: "b.ttf" },
+  ];
+
+  it("skips a face that 404s instead of failing every caption surface", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string) =>
+        Promise.resolve(
+          url.endsWith("b.ttf")
+            ? new Response(null, { status: 404 })
+            : new Response(new Uint8Array([1, 2, 3])),
+        ),
+      ),
+    );
+    const fonts = await loadFonts("/fonts/", faces);
+    expect(fonts.map((font) => font.id)).toEqual(["a"]);
+  });
+
+  it("fails only when no face loads at all", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(new Response(null, { status: 404 }))));
+    await expect(loadFonts("/fonts/", faces)).rejects.toThrow("could not fetch any caption font");
   });
 });
