@@ -28,6 +28,7 @@ import type { TestDatabase } from "./db-harness.js";
 import type { CommonAuditService } from "../src/common/audit/audit.service.js";
 import type { PrismaService } from "../src/common/prisma/prisma.service.js";
 import type { RedisService } from "../src/common/redis/redis.service.js";
+import type { ObjectStore } from "../src/common/storage/index.js";
 import type { CreditsFacade } from "../src/credits/credits.facade.js";
 import type { JobCompletionContext, JobCompletionRegistry } from "../src/jobs/completion-handlers.js";
 import type { JobsService } from "../src/jobs/jobs.service.js";
@@ -87,7 +88,36 @@ let published: { event: string; data: Record<string, unknown> }[] = [];
 let audited: { action: string; data: Record<string, unknown> }[] = [];
 let enqueued: { type: string; jobKey: string; params: Record<string, unknown>; id: string }[] = [];
 /** What reached `MediaService.completeAcquisition`, and whether its transcript was already there. */
-let acquired: { mediaId: string; status: string; transcriptsAtStart: number }[] = [];
+let acquired: {
+  mediaId: string;
+  status: string;
+  transcriptsAtStart: number;
+  inRaw: boolean;
+}[] = [];
+/**
+ * The two object stores. `media.clip` writes its mezzanine to the DERIVED one;
+ * the media pipeline reads only the RAW one.
+ */
+let rawObjects: Map<string, Uint8Array>;
+let derivedObjects: Map<string, Uint8Array>;
+
+function fakeStore(kind: "s3" | "r2", objects: () => Map<string, Uint8Array>): ObjectStore {
+  return {
+    kind,
+    bucket: kind === "s3" ? "montaj-raw" : "montaj-derived",
+    head: async (key: string) => {
+      const body = objects().get(key);
+      return body === undefined ? null : { sizeBytes: body.length, contentType: "video/mp4" };
+    },
+    get: async (key: string) => Buffer.from(objects().get(key) ?? new Uint8Array()),
+    put: async (input: { key: string; body: Uint8Array | string }) => {
+      objects().set(
+        input.key,
+        typeof input.body === "string" ? Buffer.from(input.body) : input.body,
+      );
+    },
+  } as unknown as ObjectStore;
+}
 
 function fakeProjects(): ProjectsService {
   return {
@@ -117,6 +147,7 @@ function fakeMedia(): MediaService {
         transcriptsAtStart: await prisma.transcript.count({
           where: { projectId: input.media.projectId },
         }),
+        inRaw: rawObjects.has((input.media as unknown as { storageKey: string }).storageKey),
       });
       return { media: input.media, probeJobId: id("PROBE") };
     },
@@ -262,6 +293,8 @@ describe.skipIf(!CAN_RUN)("repurpose full chain execution and failure paths", ()
       service,
       registry,
       realtime,
+      fakeStore("s3", () => rawObjects),
+      fakeStore("r2", () => derivedObjects),
     );
     transcriptListener = new RepurposeTranscriptCompletedListener(
       prisma as unknown as PrismaService,
@@ -279,6 +312,8 @@ describe.skipIf(!CAN_RUN)("repurpose full chain execution and failure paths", ()
     audited = [];
     enqueued = [];
     acquired = [];
+    rawObjects = new Map();
+    derivedObjects = new Map();
     await prisma.job.deleteMany({});
     await prisma.clipVariant.deleteMany({});
     await prisma.repurposeClip.deleteMany({});
@@ -458,6 +493,9 @@ describe.skipIf(!CAN_RUN)("repurpose full chain execution and failure paths", ()
       deduplicated: false,
     };
 
+    // Where the worker really writes it (`processors/clip.ts`: `context.derived`).
+    derivedObjects.set(mezzanineKey, new Uint8Array(4_096));
+
     const clipContext: JobCompletionContext = {
       job: {
         id: clipJob?.id ?? id("CJ"),
@@ -492,8 +530,11 @@ describe.skipIf(!CAN_RUN)("repurpose full chain execution and failure paths", ()
     });
     expect(childMedia.storageKey).toBe(mezzanineKey);
     expect(childMedia.status).toBe("pending");
+    expect(childMedia.bucket).toBe("s3");
+    // Copied into the raw store — the only one probe, proxy and render read —
+    // before the pipeline starts.
     expect(acquired).toEqual([
-      { mediaId: childMedia.id, status: "pending", transcriptsAtStart: 1 },
+      { mediaId: childMedia.id, status: "pending", transcriptsAtStart: 1, inRaw: true },
     ]);
     const childTranscript = await prisma.transcript.findFirstOrThrow({
       where: { projectId: variant.projectId },

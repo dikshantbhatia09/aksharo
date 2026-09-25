@@ -24,7 +24,7 @@ import { resolve } from "node:path";
 import { type MembershipRole, type PrismaClient } from "@prisma/client";
 import IORedis from "ioredis";
 import request from "supertest";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { buildWordIndex, newId, validateProjection } from "@montaj/edg";
 import { type Segment, type TranscriptChunk, type Word } from "@montaj/edg/schemas";
@@ -36,6 +36,7 @@ import { isRedisAvailable, redisSkipReason, testRedisUrl } from "./redis-harness
 import { TokenService } from "../src/auth/token.service.js";
 import { PrismaService } from "../src/common/prisma/prisma.service.js";
 import { RedisService } from "../src/common/redis/redis.service.js";
+import { DERIVED_STORE, RAW_STORE } from "../src/common/storage/index.js";
 import { resetEnvCache } from "../src/config/config.module.js";
 import { EdgRepository } from "../src/edg/index.js";
 import { INTERNAL_BODY_LIMIT_BYTES } from "../src/internal/internal-body-limit.js";
@@ -48,6 +49,7 @@ import {
 import { projectRoom, roomChannel } from "../src/realtime/realtime.protocol.js";
 
 import type { TestDatabase } from "./db-harness.js";
+import type { ObjectStore } from "../src/common/storage/index.js";
 import type { INestApplication } from "@nestjs/common";
 
 const CALLBACK_SECRET = "test-callback-secret-at-least-32-characters-long";
@@ -1183,18 +1185,52 @@ describe.skipIf(!CAN_RUN)("a transcript with no editing document", () => {
       hasAudio: null,
       proxyKey: null,
     });
+    // The suite's object store is whatever `S3_ENDPOINT` names, which on a
+    // developer machine can be a live MinIO: answer `head` here rather than
+    // write a fixture object into it.
+    const raw = app.get<ObjectStore>(RAW_STORE);
+    const head = vi
+      .spyOn(raw, "head")
+      .mockResolvedValue({ sizeBytes: 5_690_820, contentType: "video/mp4" } as never);
+    try {
+      const state = await request(app.getHttpServer())
+        .get(`/projects/${projectId}/transcription-state`)
+        .set("Authorization", `Bearer ${accessToken()}`)
+        .expect(200);
+      expect(state.body).toEqual({ status: "processing_media" });
 
-    const state = await request(app.getHttpServer())
-      .get(`/projects/${projectId}/transcription-state`)
-      .set("Authorization", `Bearer ${accessToken()}`)
-      .expect(200);
-    expect(state.body).toEqual({ status: "processing_media" });
+      const probe = await prisma.job.findFirst({ where: { projectId, type: "media.probe" } });
+      expect(probe?.jobKey).toBe(`media.probe:${mediaId}`);
+      const media = await prisma.mediaAsset.findUniqueOrThrow({ where: { id: mediaId } });
+      expect(media.status).toBe("uploaded");
+      // The document waits for the probed dimensions (built on `media.proxy` success).
+      expect(await prisma.edgDocument.count({ where: { projectId } })).toBe(0);
+    } finally {
+      head.mockRestore();
+    }
+  });
 
-    const probe = await prisma.job.findFirst({ where: { projectId, type: "media.probe" } });
-    expect(probe?.jobKey).toBe(`media.probe:${mediaId}`);
-    const media = await prisma.mediaAsset.findUniqueOrThrow({ where: { id: mediaId } });
-    expect(media.status).toBe("uploaded");
-    // The document waits for the probed dimensions (built on `media.proxy` success).
-    expect(await prisma.edgDocument.count({ where: { projectId } })).toBe(0);
+  it("still opens a never-probed project whose video cannot be found anywhere", async () => {
+    const { projectId } = await clipShapedProject("C", {
+      width: null,
+      hasAudio: null,
+      proxyKey: null,
+    });
+    const raw = app.get<ObjectStore>(RAW_STORE);
+    const derived = app.get<ObjectStore>(DERIVED_STORE);
+    const rawHead = vi.spyOn(raw, "head").mockResolvedValue(null);
+    const derivedHead = vi.spyOn(derived, "head").mockResolvedValue(null);
+    try {
+      const state = await request(app.getHttpServer())
+        .get(`/projects/${projectId}/transcription-state`)
+        .set("Authorization", `Bearer ${accessToken()}`)
+        .expect(200);
+      // No probe can run, so the editor opens on the transcript rather than wait.
+      expect(state.body).toEqual({ status: "ready" });
+      expect(await prisma.edgDocument.count({ where: { projectId } })).toBe(1);
+    } finally {
+      rawHead.mockRestore();
+      derivedHead.mockRestore();
+    }
   });
 });

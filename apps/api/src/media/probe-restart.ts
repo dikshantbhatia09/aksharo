@@ -7,6 +7,46 @@ import { JobsService } from "../jobs/jobs.service.js";
 
 import type { ObjectStore } from "../common/storage/index.js";
 
+/**
+ * Largest mezzanine {@link promoteToRaw} will copy. The API's object store reads
+ * whole objects into memory; a repurposed clip is a short cut (<= 1080p, tens of
+ * MB), so anything near this is a bug upstream, refused rather than buffered.
+ */
+export const PROMOTE_MAX_BYTES = 512 * 1024 * 1024;
+
+/**
+ * Make sure `key` exists in the RAW store, copying it from the derived one if
+ * that is where it is.
+ *
+ * `media.probe`, `media.proxy` and the renderer all read a primary asset from
+ * the raw store — only raw — whatever bucket their payload names. `media.clip`
+ * writes its mezzanine to the DERIVED store (the run's clip preview presigns it
+ * there) and reports the bucket it was *asked* for. So a clip's mezzanine
+ * becomes a child project's ordinary primary media only once a copy sits in
+ * raw under the same key; without one the probe answers 404 `media/unreadable`.
+ *
+ * @returns whether a copy was made (false when raw already had it).
+ */
+export async function promoteToRaw(
+  stores: { readonly raw: ObjectStore; readonly derived: ObjectStore },
+  key: string,
+  contentType: string,
+): Promise<boolean> {
+  if ((await stores.raw.head(key)) !== null) return false;
+  const source = await stores.derived.head(key);
+  if (source === null) {
+    throw new Error(`${key} is in neither the raw nor the derived store`);
+  }
+  if (source.sizeBytes > PROMOTE_MAX_BYTES) {
+    throw new Error(
+      `${key} is ${String(source.sizeBytes)} bytes; refusing to copy more than ${String(PROMOTE_MAX_BYTES)} through the API`,
+    );
+  }
+  const body = await stores.derived.get(key);
+  await stores.raw.put({ key, body, contentType });
+  return true;
+}
+
 /** The asset fields `media.probe` is told about. */
 export interface ProbeTarget {
   readonly id: string;
@@ -76,8 +116,17 @@ export class MediaProbeRestart {
   ) {}
 
   /** @returns whether the probe is now queued (or already was). */
-  async restart(media: ProbeTarget & { readonly projectId: string }, workspaceId: string): Promise<boolean> {
+  async restart(
+    media: ProbeTarget & { readonly projectId: string },
+    workspaceId: string,
+  ): Promise<boolean> {
     try {
+      // A clip's mezzanine may only exist in the derived store (see `promoteToRaw`).
+      await promoteToRaw(
+        { raw: this.raw, derived: this.derived },
+        media.storageKey,
+        media.mime ?? "video/mp4",
+      );
       // Enqueue first: if admission refuses, the asset keeps the state it had
       // rather than being left `uploaded` with nothing coming to move it.
       const probe = await this.jobs.enqueue({

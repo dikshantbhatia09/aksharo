@@ -1,4 +1,4 @@
-import { Injectable, Logger, type OnModuleInit } from "@nestjs/common";
+import { Inject, Injectable, Logger, type OnModuleInit } from "@nestjs/common";
 import { ulid } from "ulid";
 
 import type { Word } from "@montaj/edg/schemas";
@@ -6,12 +6,15 @@ import { MediaClipResultSchema } from "@montaj/repurpose-contracts";
 
 import { RepurposeService } from "./repurpose.service.js";
 import { PrismaService } from "../common/prisma/prisma.service.js";
+import { DERIVED_STORE, RAW_STORE } from "../common/storage/index.js";
 import { newestChunkRows } from "../edg/chunk-rows.js";
 import { JobCompletionRegistry } from "../jobs/completion-handlers.js";
 import { MediaService } from "../media/media.service.js";
+import { promoteToRaw } from "../media/probe-restart.js";
 import { ProjectsService } from "../projects/projects.service.js";
 import { RealtimePublisher } from "../realtime/realtime.publisher.js";
 
+import type { ObjectStore } from "../common/storage/index.js";
 import type {
   JobCompletionContext,
   JobCompletionHandler,
@@ -31,7 +34,9 @@ import type { Prisma } from "@prisma/client";
  * never build a document at all, so every clip opened onto an editor that looped
  * on "Checking this project…". Now the mezzanine joins the ordinary media
  * pipeline the way an acquired source does (`MediaService.completeAcquisition`:
- * `media.probe` as a child job, then `media.proxy`), and the transcript slice is
+ * `media.probe` as a child job, then `media.proxy`) — with a copy of the
+ * mezzanine in the raw store, which is the only store that pipeline reads
+ * (`promoteToRaw`) — and the transcript slice is
  * cloned *before* that pipeline starts — so when the proxy lands,
  * `AutoTranscribeTrigger` finds a transcript with no document and builds it
  * (`TranscriptDocumentService`) against the probed dimensions. If the clone
@@ -51,6 +56,8 @@ export class RepurposeClipCompletionHandler implements JobCompletionHandler, OnM
     private readonly runs: RepurposeService,
     private readonly registry: JobCompletionRegistry,
     private readonly realtime: RealtimePublisher,
+    @Inject(RAW_STORE) private readonly raw: ObjectStore,
+    @Inject(DERIVED_STORE) private readonly derived: ObjectStore,
   ) {}
 
   onModuleInit(): void {
@@ -185,7 +192,9 @@ export class RepurposeClipCompletionHandler implements JobCompletionHandler, OnM
         projectId: childProjectId,
         filename: "mezzanine.mp4",
         mime: "video/mp4",
-        bucket: result.bucket,
+        // Where the copy below puts it — not `result.bucket`, which echoes the
+        // bucket requested while the worker writes to the derived store.
+        bucket: this.raw.kind,
         sizeBytes: BigInt(result.sizeBytes),
         contentHash: result.checksum,
         durationMs: result.durationMs,
@@ -266,6 +275,7 @@ export class RepurposeClipCompletionHandler implements JobCompletionHandler, OnM
     //    probed asset back to `uploaded`, and the probe enqueue dedupes on the
     //    media id anyway.
     if (["pending", "uploading", "uploaded"].includes(childMedia.status)) {
+      await promoteToRaw({ raw: this.raw, derived: this.derived }, result.key, "video/mp4");
       const childProject = await this.prisma.project.findUniqueOrThrow({
         where: { id: childProjectId },
         select: { id: true, workspaceId: true, status: true },
