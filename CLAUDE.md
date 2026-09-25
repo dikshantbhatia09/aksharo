@@ -9,8 +9,8 @@ Read this before touching anything. The most important section is
 
 > **Changed 2026-09-19 — production no longer runs from this folder.** It runs
 > from `05-build/montaj-release`, a git worktree **detached at a verified commit
-> of `main`** (deployed: `fd1c24b6`, web build `.next-live-20260919c` /
-> `2dC4yWeSgyxfWtKU2LMny`). Until then it ran whatever uncommitted files sat in
+> of `main`** (deployed 2026-09-25: api `e9b1f2d9`, web `1a1bf376` in build
+> `.next-live-20260925a` / `14H3rMRtWH2mKmNPFgohI`; §13). Until then it ran whatever uncommitted files sat in
 > `montaj`, which coding agents edit. Rules:
 >
 > - **Never build into or restart from `montaj`.** Verify a change in the clean
@@ -901,3 +901,70 @@ office network, multiple tabs open at once, or simply refreshing during
 the minute or two a deploy takes, would all have hit the exact same
 permanent, unrecoverable sign-out — for a condition that resolves itself
 within seconds if only the cookie had been left alone.
+
+---
+
+## 13. FIXED 2026-09-25 — every repurposed clip looped on "Checking this project…"
+
+**Symptom.** Opening any clip a repurpose run had cut (the `… (9:16)` child
+projects) showed a spinner and "Checking this project…" forever. The API log
+showed the tab alternating `GET /projects/{id}/edg` and
+`GET /projects/{id}/transcription-state` every 100–300 ms. Every clip that
+existed (three) was affected, and no health check noticed.
+
+**Root cause — three defects stacked.**
+
+1. `RepurposeClipCompletionHandler` (`apps/api/src/repurpose/clip-completion.handler.ts`)
+   cloned a transcript slice onto the child project but **never built its
+   editing document** (`EdgService.initialise`), and stamped the mezzanine
+   media `ready` **without probing it** (no width/height/fps, no proxy).
+2. `transcription-state` answered `ready` as soon as a **transcript** row
+   existed, without checking for the document the editor actually loads.
+3. The waiting screen (`needs-transcription.tsx`) announced `ready`, the editor
+   reloaded `/edg`, got `edg/not_initialised`, remounted the screen with fresh
+   state (resetting its "announce once" guard) and asked again, forever. Its
+   poll also swallowed every error silently.
+
+**A fourth, found while repairing:** `media.clip` (`apps/worker-media/src/processors/clip.ts`)
+writes the mezzanine to the **derived** store (the run's clip preview presigns
+it from there) but reports the bucket it was *asked* for (`"s3"`), while
+`media.probe`, `media.proxy` and the renderer read a primary asset from the
+**raw** store only. Probing a clip therefore 404'd (`media/unreadable`).
+
+**The fix (`1a1bf376`, `2d232165`, `e9b1f2d9`).**
+
+- `TranscriptDocumentService.ensure()` builds a document from a transcript the
+  project already has (no credits). `AutoTranscribeTrigger` calls it on
+  `media.proxy` success for a project with a transcript and no document.
+- The clip completion copies the mezzanine derived → raw (`promoteToRaw`, capped
+  at 512 MiB), then sends it through the ordinary pipeline
+  (`MediaService.completeAcquisition` → probe → proxy → document), *after*
+  cloning the transcript so the proxy hook finds it.
+- `transcription-state` says `ready` only when a document exists. A transcript
+  without one reports an open job, waits on media still being prepared, sends
+  never-probed media back through the probe (`MediaProbeRestart`, which waits
+  out a full plan lane — `jobs/concurrency_cap`, Free allows 2 — rather than
+  skipping it), or builds the document on the spot, and says `failed` rather
+  than spin.
+- Web: a second `ready` for the same project within 15 s shows "The editor could
+  not open this project" with a retry instead of reloading again, and three
+  failed polls show an error instead of the spinner.
+
+**Invariant to keep:** *a project with a transcript has an editing document.*
+Any new producer that writes a transcript must build the document too, or call
+`TranscriptDocumentService.ensure()`. Checked live:
+`select count(*) from projects p join transcripts t on t.project_id=p.id left join edg_documents d on d.project_id=p.id where d.id is null and p.deleted_at is null` → 0.
+
+**Deploying without `nest build`.** `apps/api/nest-cli.json` has
+`deleteOutDir: true`, so building the API inside `montaj-release` deletes the
+running API's `dist/`. The 2026-09-25 deploys compiled with
+`npx tsc -p tsconfig.build.json --outDir dist-<sha>` (identical file set to
+`nest build`), and `_orchestration/tools/deploy-20260925{a,b,c}.ps1` stop only
+the api (and web for `a`), swap `dist`, and restart; each has a matching
+`rollback-*.ps1`. The workers were never restarted.
+
+**Test hazard.** `apps/api/test/setup-env.ts` falls back to
+`S3_ENDPOINT=http://localhost:9000`, bucket `montaj-raw` — on this machine that
+is the **production** MinIO. The suites that upload use `montaj-e2e-minio`
+(port 59000) and nothing was written, but a new e2e case must never `put` into
+the store it gets from the app; fake `head`/`get` instead.
