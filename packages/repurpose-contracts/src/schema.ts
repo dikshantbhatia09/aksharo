@@ -313,6 +313,32 @@ export const SAFE_ERROR_CODES = [
   "repurpose/highlights_no_candidates",
   "repurpose/clip_bounds_invalid",
   "repurpose/variant_stale",
+  // 2026-09-26 (clips hardening): every way a run can stop, named, so the page
+  // can say what happened and offer the action that actually helps. The run's
+  // `failure_code` column holds one of these; the web maps each to copy.
+  /** Over the plan's size cap even at the lowest acceptable quality. */
+  "repurpose/source_too_large",
+  /** Longer than the plan allows. */
+  "repurpose/source_too_long",
+  /** Private, members-only or sign-in required. */
+  "repurpose/source_private",
+  "repurpose/source_age_restricted",
+  /** A live stream or unfinished premiere. */
+  "repurpose/source_live",
+  /** Deleted or removed. */
+  "repurpose/source_removed",
+  /** The site is refusing this server for now: retry later with the same link. */
+  "repurpose/source_blocked",
+  /** A playlist or channel, not one video. */
+  "repurpose/source_playlist",
+  /** Downloaded, but the file could not be read or prepared. */
+  "repurpose/processing_failed",
+  /** Transcription failed or could not start. */
+  "repurpose/transcription_failed",
+  /** Not enough credits to transcribe the video. */
+  "repurpose/no_credits",
+  /** A stage stopped making progress; retrying restarts it. */
+  "repurpose/stage_timeout",
 ] as const;
 export const SafeErrorSchema = z.strictObject({
   code: z.enum(SAFE_ERROR_CODES),

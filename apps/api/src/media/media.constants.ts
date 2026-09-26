@@ -58,6 +58,24 @@ export const MEDIA_FAILURE_REASONS = [
   "media/too_long",
   /** Terminal, and none of the above. The job event carries the detail. */
   "media/probe_failed",
+  // External sources (media.acquire), 2026-09-26: the reason a link could not
+  // be fetched, so the run can say which way and offer the right next step.
+  /** Bigger than the plan allows, even at the smallest acceptable quality. */
+  "media/too_large",
+  /** The source is private, members-only or needs a sign-in we do not have. */
+  "media/source_private",
+  /** The source is age-restricted. */
+  "media/source_age_restricted",
+  /** A live stream (or a premiere that has not finished). */
+  "media/source_live",
+  /** Deleted, removed by the uploader, or the account is gone. */
+  "media/source_removed",
+  /** The site refused this server for now (bot check, rate limit). Retry later. */
+  "media/source_blocked",
+  /** A playlist or channel link rather than one video. */
+  "media/source_playlist",
+  /** The download failed for a reason we could not name, after its retries. */
+  "media/source_failed",
 ] as const;
 
 export type MediaFailureReason = (typeof MEDIA_FAILURE_REASONS)[number];

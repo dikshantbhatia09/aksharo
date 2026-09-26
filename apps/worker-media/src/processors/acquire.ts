@@ -102,6 +102,7 @@ export async function processAcquire(context: JobContext): Promise<ProcessorOutc
       url: payload.source.normalizedUrl,
       outputPath,
       limits,
+      format: metadata.formatSelector ?? null,
       signal: context.signal,
       onProgress: (percent) => {
         // 5-70% of the job is the download; the rest is probing and uploading.

@@ -127,9 +127,27 @@ export const MediaClipPayloadSchema = z
       container: z.literal("mp4"),
       videoCodec: z.literal("h264"),
       audioCodec: z.literal("aac"),
-      /** The mezzanine keeps the source's shape; reframing happens per variant. */
+      /**
+       * The mezzanine's output height (a 9:16 picture this tall, or the
+       * source's own height if that is smaller). Was ignored until 2026-09-26:
+       * every clip came out 720 x 1280.
+       */
       maxHeight: z.int().positive().max(2160),
     }),
+    /**
+     * Where the 9:16 window sits across the source frame (2026-09-26). The API
+     * decides it from the source's face track (`faces.json`, `ai.faces`): the
+     * horizontal centre of the speaking face over the clip, as a fraction of
+     * the source width. Absent means the frame centre, which is what every
+     * clip got before - and what off-centre speakers were cut out by.
+     */
+    reframe: z
+      .strictObject({
+        centerX: z.number().min(0).max(1),
+        /** `faces`: from the face track; `centre`: no usable faces. */
+        basis: z.enum(["faces", "centre"]),
+      })
+      .optional(),
     profileVersion: z.string().trim().min(1).max(100),
     subtitles: z
       .array(

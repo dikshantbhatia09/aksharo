@@ -96,7 +96,185 @@ export interface SourceMetadata {
   readonly channel: string | null;
   readonly durationMs: number | null;
   readonly isLive: boolean;
+  /** Size of what WILL be downloaded (the chosen streams), not of the largest format. */
   readonly approximateBytes: number | null;
+  /**
+   * The exact streams to download (`137+140`), chosen by {@link chooseFormat}
+   * from the probe's own format list; `null` when the source listed none, and
+   * the download falls back to {@link FALLBACK_FORMAT}.
+   */
+  readonly formatSelector?: string | null;
+}
+
+/**
+ * The tallest picture worth fetching. Every output this product makes is at
+ * most 1080 px on its short side (a 9:16 clip is 1080 x 1920 cut from the
+ * middle of the frame), so a 4K source costs 3x the bytes, a slower download
+ * and a heavier decode for pixels the export throws away - and, on a long
+ * video, blows the plan's byte cap: an 18-minute talk is 556 MB in 4K AV1 and
+ * 187 MB in 1080p H.264 (2026-09-25, the failure that prompted this).
+ */
+export const MAX_SOURCE_HEIGHT = 1080;
+
+/** The shortest picture worth making a clip from, when the source offers better. */
+export const MIN_SOURCE_HEIGHT = 360;
+
+/** Estimates are estimates: leave room under the cap for what actually lands. */
+const BUDGET_HEADROOM = 0.9;
+
+/** When the source lists no usable formats: the same preferences, as a selector. */
+export const FALLBACK_FORMAT =
+  `bv*[height<=${String(MAX_SOURCE_HEIGHT)}][vcodec^=avc1]+ba[ext=m4a]/` +
+  `bv*[height<=${String(MAX_SOURCE_HEIGHT)}]+ba/b[height<=${String(MAX_SOURCE_HEIGHT)}]/b`;
+
+/** One entry of the probe's `formats` array, as far as the chooser reads it. */
+export interface ProbeFormat {
+  readonly format_id?: unknown;
+  readonly vcodec?: unknown;
+  readonly acodec?: unknown;
+  readonly height?: unknown;
+  readonly ext?: unknown;
+  readonly protocol?: unknown;
+  readonly filesize?: unknown;
+  readonly filesize_approx?: unknown;
+  readonly tbr?: unknown;
+  readonly abr?: unknown;
+  readonly format_note?: unknown;
+  readonly language_preference?: unknown;
+  readonly has_drm?: unknown;
+}
+
+export interface FormatChoice {
+  readonly selector: string;
+  readonly height: number | null;
+  /** Estimated size of the chosen streams together; `null` when the source did not say. */
+  readonly bytes: number | null;
+}
+
+function codecRank(vcodec: string): number {
+  if (vcodec.startsWith("avc1") || vcodec.startsWith("h264")) return 0;
+  if (vcodec.startsWith("vp09") || vcodec.startsWith("vp9")) return 1;
+  if (vcodec.startsWith("av01")) return 2;
+  return 3;
+}
+
+function sizeOf(format: ProbeFormat, durationS: number | null): number | null {
+  if (typeof format.filesize === "number" && format.filesize > 0) return format.filesize;
+  if (typeof format.filesize_approx === "number" && format.filesize_approx > 0) {
+    return format.filesize_approx;
+  }
+  if (typeof format.tbr === "number" && format.tbr > 0 && durationS !== null) {
+    return Math.round((format.tbr * 1000 * durationS) / 8);
+  }
+  return null;
+}
+
+const vcodecOf = (format: ProbeFormat): string =>
+  typeof format.vcodec === "string" ? format.vcodec : "none";
+const acodecOf = (format: ProbeFormat): string =>
+  typeof format.acodec === "string" ? format.acodec : "none";
+const heightOf = (format: ProbeFormat): number | null =>
+  typeof format.height === "number" && format.height > 0 ? format.height : null;
+const isHls = (format: ProbeFormat): boolean =>
+  typeof format.protocol === "string" && format.protocol.includes("m3u8");
+
+/** The audio track to pair with a video-only stream: original language, AAC, no DRC. */
+function pickAudio(formats: readonly ProbeFormat[]): ProbeFormat | undefined {
+  const original = (f: ProbeFormat): number =>
+    (typeof f.format_note === "string" && f.format_note.includes("original")) ||
+    (typeof f.language_preference === "number" && f.language_preference >= 10)
+      ? 1
+      : 0;
+  const aac = (f: ProbeFormat): number => (f.ext === "m4a" || acodecOf(f).startsWith("mp4a") ? 1 : 0);
+  const drc = (f: ProbeFormat): number => (String(f.format_id).includes("drc") ? 1 : 0);
+  const abr = (f: ProbeFormat): number => (typeof f.abr === "number" ? f.abr : 0);
+  const size = (f: ProbeFormat): number => sizeOf(f, null) ?? 0;
+  return formats
+    .filter((format) => vcodecOf(format) === "none" && acodecOf(format) !== "none")
+    .sort(
+      (a, b) =>
+        original(b) - original(a) ||
+        aac(b) - aac(a) ||
+        drc(a) - drc(b) ||
+        Number(isHls(a)) - Number(isHls(b)) ||
+        abr(b) - abr(a) ||
+        size(b) - size(a),
+    )[0];
+}
+
+/**
+ * Pick the streams to download: the tallest picture at or under
+ * {@link MAX_SOURCE_HEIGHT} whose video and audio together fit the plan's
+ * byte budget, preferring H.264 (cheapest to decode downstream) over VP9 over
+ * AV1, a direct HTTPS stream over HLS, and the original audio track over a
+ * dub. A long video steps down to 720p or 480p rather than failing. When
+ * nothing fits, the smallest option is returned so the limit check refuses it
+ * with the real reason. Sizes come from the source, or from the bitrate; a
+ * source that gives neither gets its best stream, and the byte cap still
+ * applies during and after the download.
+ *
+ * Exported for its tests; the probe is the only caller.
+ */
+export function chooseFormat(
+  formats: readonly ProbeFormat[],
+  maxBytes: number,
+  durationS: number | null,
+): FormatChoice | null {
+  const usable = formats.filter(
+    (format) => typeof format.format_id === "string" && format.has_drm !== true,
+  );
+  const audio = pickAudio(usable);
+
+  const candidates: (FormatChoice & { readonly rank: number; readonly hls: boolean })[] = [];
+  for (const format of usable) {
+    const height = heightOf(format);
+    if (vcodecOf(format) === "none" || height === null || height > MAX_SOURCE_HEIGHT) continue;
+    const videoBytes = sizeOf(format, durationS);
+    if (acodecOf(format) === "none") {
+      if (audio === undefined) continue;
+      const audioBytes = sizeOf(audio, durationS);
+      candidates.push({
+        selector: `${String(format.format_id)}+${String(audio.format_id)}`,
+        height,
+        bytes: videoBytes === null || audioBytes === null ? null : videoBytes + audioBytes,
+        rank: codecRank(vcodecOf(format)),
+        hls: isHls(format),
+      });
+    } else {
+      candidates.push({
+        selector: String(format.format_id),
+        height,
+        bytes: videoBytes,
+        rank: codecRank(vcodecOf(format)),
+        hls: isHls(format),
+      });
+    }
+  }
+  if (candidates.length === 0) return null;
+  // A clip cut from a postage stamp is not a clip. Below the floor only when the
+  // source itself has nothing taller.
+  const watchable = candidates.filter((candidate) => (candidate.height ?? 0) >= MIN_SOURCE_HEIGHT);
+  const pool = watchable.length > 0 ? watchable : candidates;
+
+  pool.sort(
+    (a, b) =>
+      (b.height ?? 0) - (a.height ?? 0) ||
+      a.rank - b.rank ||
+      Number(a.bytes === null) - Number(b.bytes === null) ||
+      Number(a.hls) - Number(b.hls) ||
+      (a.bytes ?? 0) - (b.bytes ?? 0),
+  );
+  const budget = maxBytes * BUDGET_HEADROOM;
+  const sized = pool.filter((candidate) => candidate.bytes !== null);
+  // Decide on known sizes whenever there are any: a size-unknown stream at a
+  // height whose known-size sibling is over the cap is over the cap too.
+  const chosen =
+    sized.length > 0
+      ? (sized.find((candidate) => (candidate.bytes ?? 0) <= budget) ??
+        [...sized].sort((a, b) => (a.bytes ?? 0) - (b.bytes ?? 0))[0])
+      : pool[0];
+  if (chosen === undefined) return null;
+  return { selector: chosen.selector, height: chosen.height, bytes: chosen.bytes };
 }
 
 /** Thrown at boot when the pinned downloader is absent, wrong or unverified. */
@@ -117,7 +295,21 @@ export function buildArgs(input: {
   readonly url: string;
   readonly outputPath: string;
   readonly limits: AcquireLimits;
+  /** From {@link chooseFormat}: a bare `id` or `id+id`, validated here. */
+  readonly format?: string | null;
 }): string[] {
+  const format = input.format ?? FALLBACK_FORMAT;
+  // The selector reaches argv as one entry either way; this keeps it to what
+  // `chooseFormat` produces (format ids joined by `+`) or the fixed fallback.
+  const ids = format.split("+");
+  if (
+    format !== FALLBACK_FORMAT &&
+    (ids.length > 2 || !ids.every((id) => /^[\w-]{1,32}$/.test(id)))
+  ) {
+    throw new DownloaderUnusableError(
+      `refusing an unexpected format selector ${JSON.stringify(format)}`,
+    );
+  }
   const args = [
     // No terminal, no colours, no progress bar to parse: progress comes from
     // --newline on stderr, which is a format rather than a moving cursor.
@@ -140,7 +332,7 @@ export function buildArgs(input: {
     "--merge-output-format",
     "mp4",
     "-f",
-    "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
+    format,
     // Bounded retries inside one attempt; BullMQ owns the retries between them.
     "--retries",
     "3",
@@ -302,6 +494,9 @@ export async function probeSource(input: {
   }
 
   const durationSeconds = typeof parsed["duration"] === "number" ? parsed["duration"] : null;
+  const choice = Array.isArray(parsed["formats"])
+    ? chooseFormat(parsed["formats"] as ProbeFormat[], input.limits.maxBytes, durationSeconds)
+    : null;
   const metadata: SourceMetadata = {
     provider: asString(parsed["extractor_key"]) ?? asString(parsed["extractor"]) ?? "unknown",
     sourceId: asString(parsed["id"]),
@@ -309,12 +504,19 @@ export async function probeSource(input: {
     channel: asString(parsed["channel"]) ?? asString(parsed["uploader"]),
     durationMs: durationSeconds === null ? null : Math.round(durationSeconds * 1000),
     isLive: parsed["is_live"] === true || parsed["live_status"] === "is_live",
+    // The size of what will be fetched. The top-level `filesize_approx` is the
+    // size of yt-dlp's own default pick (the largest format), which is what
+    // refused an 18-minute talk as "larger than your plan" when its 1080p
+    // version was a third of the cap.
     approximateBytes:
-      typeof parsed["filesize"] === "number"
-        ? parsed["filesize"]
-        : typeof parsed["filesize_approx"] === "number"
-          ? parsed["filesize_approx"]
-          : null,
+      choice !== null
+        ? choice.bytes
+        : typeof parsed["filesize"] === "number"
+          ? parsed["filesize"]
+          : typeof parsed["filesize_approx"] === "number"
+            ? parsed["filesize_approx"]
+            : null,
+    formatSelector: choice?.selector ?? null,
   };
 
   assertWithinLimits(metadata, input.limits);
@@ -345,12 +547,18 @@ export async function download(input: {
   readonly url: string;
   readonly outputPath: string;
   readonly limits: AcquireLimits;
+  readonly format?: string | null;
   readonly onProgress?: (percent: number) => void;
   readonly signal?: AbortSignal;
 }): Promise<void> {
   const result = await run(
     input.binary,
-    buildArgs({ url: input.url, outputPath: input.outputPath, limits: input.limits }),
+    buildArgs({
+      url: input.url,
+      outputPath: input.outputPath,
+      limits: input.limits,
+      ...(input.format === undefined ? {} : { format: input.format }),
+    }),
     {
       timeoutMs: input.limits.timeoutMs,
       ...(input.signal === undefined ? {} : { signal: input.signal }),
