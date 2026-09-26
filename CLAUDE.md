@@ -1062,3 +1062,36 @@ alike.
   style's font. It now points at `montaj-release/packages/fonts/pack` (a
   tracked v1 pack, 67 faces); check the render log's `fontDir` after any env
   rebuild. Deploy/undo: `_orchestration/tools/{deploy,rollback}-20260925l.ps1`.
+
+---
+
+## 16. 2026-09-26 — the clips pipeline recovers, says why, and frames the face
+
+Trigger: an 18-minute YouTube link failed with "We could not get that video".
+Root cause: yt-dlp fetched 4K AV1 (556 MB) against the Free plan's 500 MB cap
+while 1080p H.264 is 188 MB. A full audit (docs/repurpose/CLIPS-HARDENING-2026-09-26.md)
+then found the pipeline could not recover from anything. What now holds:
+
+- **Acquisition** (`apps/worker-media/src/yt-dlp.ts` `chooseFormat`): the
+  largest picture by its SHORT side up to 2160p that fits 90 % of the byte cap,
+  then down to 360p; the download fetches exactly those ids. Every refusal is
+  named (`media/too_large`, `source_private`, `source_blocked` for YouTube's bot
+  check/429, …). Non-retryable failures run once (`UnrecoverableError`). A Stop
+  aborts the download.
+- **The run is reconciled from durable state** (`apps/api/src/repurpose/reconciler.ts`)
+  on every read, after every completion, and by an in-process watchdog every
+  `REPURPOSE_RECONCILE_INTERVAL_MS` (30 s; independent of
+  `MONTAJ_SCHEDULER_DISABLED`). A lost enqueue, a failure no handler reported
+  or a stalled job can no longer leave a run spinning. Retry re-runs the failed
+  stage (a YouTube link is rebuilt from its fingerprint); `canRetry` is only
+  true when retry can work.
+- **Clips fail on their own**, retry on their own
+  (`POST .../clips/:clipId/retry`), wait (not fail) for a full plan lane, and
+  are framed on the speaking face (`reframe.ts` → `media.clip` `reframe.centerX`,
+  profile `"3"`, up to 1080×1920). Manual moments: `POST .../candidates`.
+- **The run page** shows the real reason and the action that helps, keeps
+  candidates and clips visible on failure, and previews clips through
+  `CaptionStage` (`GET /projects/:id/render-preview`) with the face track.
+- Deploys that touch these services must **stop the workers before the API**
+  (`_orchestration/tools/deploy-20260926a.ps1`): old workers must not consume
+  what the new reconciler enqueues. Undo: `rollback-20260926a.ps1 -Sha a214bcfb`.
