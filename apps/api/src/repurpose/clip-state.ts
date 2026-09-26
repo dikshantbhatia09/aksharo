@@ -11,18 +11,22 @@ import type { $Enums, Prisma, RepurposeRun } from "@prisma/client";
  *   from it (or is still being made from it).
  * - `cutting`: its newest `media.clip` job is queued or running.
  * - `failed`: its newest job failed, was cancelled, stalled (below), or
- *   succeeded without the cut ever being recorded (a completion the old handler
- *   dropped because the run had failed). Or the cut landed but the child
+ *   succeeded without the cut ever being recorded (a completion older code
+ *   dropped because the run had failed, or had been stopped — the handler keeps
+ *   both since 2026-09-26). Or the cut landed but the child
  *   project's media failed its probe or proxy — the editor cannot open such a
  *   clip, and cutting it again is how it is repaired
  *   (`RepurposeClipCompletionHandler` re-runs the pipeline). Retry is offered.
  * - `waiting`: a cut was asked for and no job took it — the plan's lane was
- *   full. Either it has no job at all, or it was asked for again (a retry, a
- *   re-cut) after its newest job ended ({@link cutRequestedSince}).
- *   `RepurposeClipsService.reconcileClips` enqueues it once a slot frees;
- *   nobody has to press anything. Unless the source's original has been purged
- *   meanwhile (`sourceGone`): nothing can ever cut it then, so it is `failed`
- *   with `repurpose/source_expired` rather than waiting forever.
+ *   full, or the source's face track is still being made (bounded,
+ *   `awaitingFaceDetection` in `reframe.ts`: a clip cut before the track lands is
+ *   framed on the centre for good). Either it has no job at all, or it was
+ *   asked for again (a retry, a re-cut) after its newest job ended
+ *   ({@link cutRequestedSince}). `RepurposeClipsService.reconcileClips`
+ *   enqueues it once a slot frees and the track has landed, or the wait for it
+ *   is over; nobody has to press anything. Unless the source's original has
+ *   been purged meanwhile (`sourceGone`): nothing can ever cut it then, so it
+ *   is `failed` with `repurpose/source_expired` rather than waiting forever.
  *
  * Everything here is already in `repurpose_clips`, the child's `media_assets`
  * and `jobs`, so the state cannot drift from what actually happened, the way a
@@ -49,13 +53,15 @@ export interface LatestClipJob {
 export interface ClipFacts {
   readonly mezzanineKey: string | null;
   /**
-   * Touched when a cut is asked for and the plan's lane refuses it
-   * (`RepurposeClipsService`) — the only record that a cut is owed, since no
-   * job exists to say so. The completion handler also writes the row, but
-   * always while its job is still open, so only a touch after the newest job
-   * ENDED means "cut this again". A new writer of `repurpose_clips` must keep to
-   * that too (write only while the clip's job is open), or a failed clip it
-   * touches would read `waiting` and be cut again without anyone asking.
+   * Touched when a cut is asked for and cannot start (`RepurposeClipsService`):
+   * the plan's lane refuses it, or it waits for the source's face track to be
+   * made (bounded, `awaitingFaceDetection` in `reframe.ts`). It is the only record
+   * that a cut is owed, since no job exists to say so. The completion handler
+   * also writes the row, but always while its job is still open, so only a
+   * touch after the newest job ENDED means "cut this again". A new writer of
+   * `repurpose_clips` must keep to that too (write only while the clip's job is
+   * open), or a failed clip it touches would read `waiting` and be cut again
+   * without anyone asking.
    */
   readonly updatedAt?: Date;
   /**
@@ -127,8 +133,9 @@ export function stalledCode(job: LatestClipJob, now: number = Date.now()): strin
 }
 
 /**
- * Whether a cut was asked for after `latest` ended — a retry or a re-cut the
- * plan's lane refused, so no newer job exists to show it. See
+ * Whether a cut was asked for after `latest` ended — a retry or a re-cut that
+ * could not start (the plan's lane refused it, or it waits for the source's
+ * face track), so no newer job exists to show it. See
  * {@link ClipFacts.updatedAt}. Both timestamps come from the API's own clock
  * (`@updatedAt` and `JobsService` set them), so they compare.
  */

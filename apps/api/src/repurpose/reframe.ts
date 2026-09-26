@@ -18,6 +18,12 @@ import type { FacesTrigger } from "../media/faces.js";
  * a clip is a single moment of 3-180 s in which the speaker rarely crosses the
  * frame. Following motion inside a clip is a later refinement, not a
  * prerequisite for getting the speaker into the picture at all.
+ *
+ * A source proxied before `ai.faces` existed has no track yet, and a clip cut
+ * then is on the centre for good: nothing re-frames a clip that is ready at the
+ * current profile. So the cut waits while the detection it queues is running
+ * ({@link awaitingFaceDetection}) — bounded, because a clip on the centre is
+ * still better than a clip that never comes.
  */
 
 export interface ClipReframe {
@@ -173,6 +179,117 @@ function roundFraction(value: number): number {
   return Math.round(Math.min(1, Math.max(0, value)) * 10_000) / 10_000;
 }
 
+/**
+ * The largest `faces.json` the API will read. The file's size is set by the
+ * video — every detection the worker keeps, four samples a second, for as long
+ * as the plan allows — and the API reads a whole object into memory and parses
+ * it on the one process that serves the site, then keeps up to
+ * `FACE_TRACK_CACHE_SIZE` of them. Measured (2026-09-26): a 3 h, 25-face grid
+ * recording is ~31 MB of JSON (~96 MB of heap, 0.2 s of parse); 6 h at 50 faces
+ * is ~124 MB (~277 MB, 0.9 s with the event loop blocked). 64 MiB leaves every
+ * real source up to the Creator cap with its framing, where 8 MiB would quietly
+ * centre a long gallery recording, and refuses what only a hand-made
+ * wall-of-faces video produces. A track over it frames on the centre, like one
+ * that cannot be read.
+ */
+export const FACE_TRACK_MAX_BYTES = 64 * 1024 * 1024;
+
+/**
+ * How long a cut gives its source's face detection to run, at the least, before
+ * it is made on the centre anyway — measured from when detection STARTED, not
+ * when it was queued: worker-ai detects one video at a time, so a job can sit
+ * behind others for minutes through no fault of its own, and a clock started at
+ * queueing would spend the wait before detection had begun. Also how long a
+ * detection that has just succeeded is given for its track to be read.
+ */
+export const FACE_TRACK_WAIT_MS = 3 * 60_000;
+
+/**
+ * A long source gets longer: detection samples four frames a second of the
+ * whole video, so its time grows with the duration. Measured (2026-09-26) at
+ * about an eighth of real time on the 540p proxy — 2 s for a 16 s source — so
+ * half the duration is four times that: a 368 s source (the legacy clips of
+ * run 01M2W1J5BZJF7QGMDM5HE39YZ1) is given 184 s for about 46 s of work.
+ */
+export const FACE_TRACK_WAIT_SHARE_OF_SOURCE = 0.5;
+
+/** ...up to this, so a three-hour recording does not hold a clip for ninety minutes. */
+export const FACE_TRACK_MAX_RUN_WAIT_MS = 10 * 60_000;
+
+/**
+ * How long a detection may sit queued before the cut stops waiting for it.
+ * Longer than one detection takes, because it may be behind a few others; a
+ * job still queued after this is behind a worker that is down or a queue that is
+ * backed up, and the clip is better on the centre than not there.
+ */
+export const FACE_TRACK_QUEUE_WAIT_MS = 10 * 60_000;
+
+/**
+ * The whole wait, queued and running together, from when detection was queued.
+ * The two allowances above each have a ceiling; this is the one a person
+ * watching "waiting" is promised, whatever mix of the two it was.
+ */
+export const FACE_TRACK_MAX_WAIT_MS = 15 * 60_000;
+
+/** How long detection of a source this long is given to run: {@link FACE_TRACK_WAIT_SHARE_OF_SOURCE}, within its floor and ceiling. */
+export function faceDetectionRunWaitMs(sourceDurationMs: number | null | undefined): number {
+  const scaled =
+    typeof sourceDurationMs === "number" && Number.isFinite(sourceDurationMs)
+      ? sourceDurationMs * FACE_TRACK_WAIT_SHARE_OF_SOURCE
+      : 0;
+  return Math.min(FACE_TRACK_MAX_RUN_WAIT_MS, Math.max(FACE_TRACK_WAIT_MS, scaled));
+}
+
+/** The newest `ai.faces` job for a media: as much of it as {@link awaitingFaceDetection} reads. */
+export interface FaceDetectionJob {
+  readonly status: string;
+  readonly queuedAt: Date;
+  readonly startedAt?: Date | null;
+  readonly finishedAt?: Date | null;
+}
+
+/**
+ * Whether a cut from a source with no face track should wait for one, because
+ * its newest `ai.faces` job is
+ *
+ * - queued, for less than {@link FACE_TRACK_QUEUE_WAIT_MS};
+ * - running, for less than {@link faceDetectionRunWaitMs} of the source since it
+ *   started (from queueing, if the row never recorded a start);
+ * - or succeeded less than {@link FACE_TRACK_WAIT_MS} ago: the track landed
+ *   after the media row the caller holds was read, and the next reconcile reads
+ *   it —
+ *
+ * and was queued less than {@link FACE_TRACK_MAX_WAIT_MS} ago in any case.
+ *
+ * Not when there is no such job (the source cannot be detected — no proxy, no
+ * picture — so {@link loadFaceTrack} queued nothing), when detection failed or
+ * was cancelled, or once the wait is over: the centre it is, as before.
+ */
+export function awaitingFaceDetection(
+  job: FaceDetectionJob | null | undefined,
+  sourceDurationMs: number | null | undefined,
+  now: number = Date.now(),
+): boolean {
+  if (job === null || job === undefined) return false;
+  const queuedAt = job.queuedAt.getTime();
+  if (now - queuedAt >= FACE_TRACK_MAX_WAIT_MS) return false;
+  switch (job.status) {
+    case "queued":
+      return now - queuedAt < FACE_TRACK_QUEUE_WAIT_MS;
+    case "running":
+      return (
+        now - (job.startedAt?.getTime() ?? queuedAt) < faceDetectionRunWaitMs(sourceDurationMs)
+      );
+    case "succeeded":
+      return (
+        now - (job.finishedAt?.getTime() ?? job.startedAt?.getTime() ?? queuedAt) <
+        FACE_TRACK_WAIT_MS
+      );
+    default:
+      return false;
+  }
+}
+
 export interface FaceTrackDeps {
   readonly derived: ObjectStore;
   readonly faces: Pick<FacesTrigger, "maybeEnqueue">;
@@ -185,8 +302,10 @@ export interface FaceTrackDeps {
  *
  * Never throws and never waits. A source proxied before `ai.faces` existed has
  * no track, so detection is queued for it — once: `onlyIfNeverTried`, so a
- * video whose detection failed is not retried on every clip. A track that
- * cannot be read (purged, malformed, another version) is the same as none.
+ * video whose detection failed is not retried on every clip. Whether the cut
+ * then waits for it is the caller's call ({@link awaitingFaceDetection}). A
+ * track that cannot be read (purged, malformed, another version, larger than
+ * {@link FACE_TRACK_MAX_BYTES}) is the same as none.
  */
 export async function loadFaceTrack(
   deps: FaceTrackDeps,
@@ -195,6 +314,20 @@ export async function loadFaceTrack(
   try {
     if (media.facesKey === null) {
       await deps.faces.maybeEnqueue(media.id, { onlyIfNeverTried: true });
+      return undefined;
+    }
+    // Sized before it is read: `get` buffers the whole object (see
+    // FACE_TRACK_MAX_BYTES), so the check has to come first to be any bound.
+    const head = await deps.derived.head(media.facesKey);
+    if (head === null) {
+      deps.warn({ mediaId: media.id }, "the source's face track is gone; clip cut on centre");
+      return undefined;
+    }
+    if (head.sizeBytes > FACE_TRACK_MAX_BYTES) {
+      deps.warn(
+        { mediaId: media.id, sizeBytes: head.sizeBytes, maxBytes: FACE_TRACK_MAX_BYTES },
+        "the source's face track is too large to read; clip cut on centre",
+      );
       return undefined;
     }
     const body = await deps.derived.get(media.facesKey);

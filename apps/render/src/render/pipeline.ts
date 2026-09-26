@@ -50,6 +50,9 @@ import { brandAssetKey, contentTypeFor, exportKey, type ObjectStore } from "../s
 
 import type { RenderVideoPayload } from "../queues.js";
 
+/** Same bound the API applies before framing a clip (`reframe.ts`). */
+const FACE_TRACK_MAX_BYTES = 64 * 1024 * 1024;
+
 export interface RenderDependencies {
   /** S3: the raw originals. */
   readonly rawStore: ObjectStore;
@@ -279,6 +282,11 @@ export async function renderVideo(
     if (manifest.source.facesKey !== undefined) {
       try {
         const bytes = await dependencies.derivedStore.getBytes(manifest.source.facesKey);
+        // The track is sized by the video's content. Past this it is not parsed:
+        // the render keeps every caption where its style puts it.
+        if (bytes.byteLength > FACE_TRACK_MAX_BYTES) {
+          throw new Error(`faces.json is ${String(bytes.byteLength)} bytes, over the cap`);
+        }
         const track = parseFaceTrack(JSON.parse(Buffer.from(bytes).toString("utf8")));
         if (track !== undefined) faces = faceTrackOnCanvas(track, projectionForFrames.canvas);
       } catch (error) {

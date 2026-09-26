@@ -36,6 +36,21 @@ export function runActivity(run: Pick<RepurposeRunView, "status">): RunActivity 
 }
 
 /**
+ * Whether the server is doing something for this run right now: the one rule
+ * behind the run page's "we'll keep working" and Home's progress bar.
+ *
+ * `draft` is `working` to {@link runActivity} (nobody has a choice to make),
+ * but nothing on the server moves it: it is an upload run waiting for a file
+ * the browser is still sending, or for one that never arrives (the upload
+ * never started, failed, or was dismissed). Home counted it as work, so a
+ * stuck upload sat there at 0% indefinitely, ahead of runs waiting for the
+ * person, while the run page already said otherwise.
+ */
+export function serverIsWorking(run: Pick<RepurposeRunView, "status">): boolean {
+  return runActivity(run) === "working" && run.status !== "draft";
+}
+
+/**
  * Statuses at which the source's transcript exists, so a moment can be added by
  * time (`POST /repurpose/runs/{id}/candidates` is refused before then).
  */

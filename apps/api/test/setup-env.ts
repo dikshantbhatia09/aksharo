@@ -30,6 +30,10 @@ const TEST_ENV: Record<string, string> = {
   // `test/auth-harness.ts` — the one suite with a real Redis that needs mail
   // actually delivered — turns it back on for itself.
   NOTIFY_WORKER_ENABLED: "0",
+  // 2026-09-26: the repurpose run watchdog reconciles every unsettled run on a
+  // timer; in a booted e2e app it would move a suite's runs (and enqueue their
+  // jobs) behind the suite's back. Suites drive `RepurposeReconciler` directly.
+  REPURPOSE_RECONCILE_INTERVAL_MS: "0",
   MAIL_PROVIDER: "dev",
   AUTH_DEV_AUTO_VERIFY: "0",
   MAIL_FROM: "",

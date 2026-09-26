@@ -3,11 +3,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Env } from "@montaj/config";
 import { clipMasterKey, MediaClipPayloadSchema } from "@montaj/repurpose-contracts";
 
+import { FACE_TRACK_WAIT_MS, faceDetectionRunWaitMs } from "./reframe.js";
 import { REPURPOSE_CLIP_ERRORS } from "./repurpose-clips.dto.js";
 import { RepurposeClipsService, timecode } from "./repurpose-clips.service.js";
 import { CLIP_PROFILE_VERSION } from "./repurpose.constants.js";
 import { AppException } from "../common/index.js";
 import { JOB_ERROR_CODES } from "../jobs/jobs.errors.js";
+import { facesJobKey } from "../media/faces.js";
 
 const WS = "01JCWS0000000000000000000A";
 const USER = "01JCUSER000000000000000000";
@@ -167,6 +169,15 @@ function fakePrisma(t: Tables) {
           .filter((job) => matches(job, args.where))
           .sort((a, b) => (b["queuedAt"] as Date).getTime() - (a["queuedAt"] as Date).getTime()),
       ),
+      /** `orderBy: { queuedAt: "desc" }`, as the face-detection lookup asks. */
+      findFirst: vi.fn(
+        async (args: { where: Row }) =>
+          t.jobs
+            .filter((job) => matches(job, args.where))
+            .sort(
+              (a, b) => (b["queuedAt"] as Date).getTime() - (a["queuedAt"] as Date).getTime(),
+            )[0] ?? null,
+      ),
     },
   };
 }
@@ -187,7 +198,10 @@ interface Harness {
   enqueue: ReturnType<typeof vi.fn>;
   cancel: ReturnType<typeof vi.fn>;
   maybeEnqueueFaces: ReturnType<typeof vi.fn>;
+  derivedHead: ReturnType<typeof vi.fn>;
   derivedGet: ReturnType<typeof vi.fn>;
+  /** `prisma.job.findFirst`: the source's face-detection lookup. */
+  jobFindFirst: ReturnType<typeof vi.fn>;
   consume: ReturnType<typeof vi.fn>;
   publish: ReturnType<typeof vi.fn>;
   env: { FEATURE_FLAGS_JSON: Record<string, boolean> };
@@ -288,6 +302,7 @@ function harness(overrides: { run?: Row; media?: Row } = {}): Harness {
     return job;
   });
   const maybeEnqueueFaces = vi.fn(async () => undefined);
+  const derivedHead = vi.fn(async () => ({ sizeBytes: 1_024 }));
   const derivedGet = vi.fn(async () => Buffer.from("{}"));
   const consume = vi.fn(async () => ({ allowed: true, remaining: 10, retryAfterSec: 0 }));
   const publish = vi.fn(async () => undefined);
@@ -307,6 +322,7 @@ function harness(overrides: { run?: Row; media?: Row } = {}): Harness {
     env as unknown as Env,
     {
       presignGet: vi.fn(async (key: string) => `https://cdn.example.test/${key}`),
+      head: derivedHead,
       get: derivedGet,
     } as never,
   );
@@ -316,7 +332,9 @@ function harness(overrides: { run?: Row; media?: Row } = {}): Harness {
     enqueue,
     cancel,
     maybeEnqueueFaces,
+    derivedHead,
     derivedGet,
+    jobFindFirst: prisma.job.findFirst,
     consume,
     publish,
     env,
@@ -363,6 +381,66 @@ function jobRow(
     maxQueueWaitMs: 30 * 60_000,
     ...timings,
   };
+}
+
+/**
+ * An `ai.faces` job for the source media, queued `agoMs` ago and (unless it is
+ * still queued) started `startedAgoMs` ago — at once, by default.
+ */
+function facesJob(status: string, agoMs = 0, startedAgoMs = agoMs): Row {
+  const queuedAt = new Date(Date.now() - agoMs);
+  const startedAt = new Date(Date.now() - startedAgoMs);
+  return {
+    id: `01JCFACES${String(clock++).padStart(17, "0")}`,
+    workspaceId: WS,
+    type: "ai.faces",
+    jobKey: facesJobKey(MEDIA),
+    status,
+    error: null,
+    queuedAt,
+    startedAt: status === "queued" ? null : startedAt,
+    finishedAt: ["queued", "running"].includes(status) ? null : startedAt,
+  };
+}
+
+/** Detection is queued the first time it is asked for, as `FacesTrigger.maybeEnqueue` does. */
+function detectionQueues(h: Harness): void {
+  h.maybeEnqueueFaces.mockImplementation(async () => {
+    if (h.tables.jobs.some((job) => job["type"] === "ai.faces")) return undefined;
+    const job = facesJob("queued");
+    h.tables.jobs.push(job);
+    return { jobId: job["id"] };
+  });
+}
+
+/**
+ * The source's face track lands: its job succeeds, the media row gets the key,
+ * and the file shows one speaker centred at 0.72 across the first 160 s.
+ */
+function trackLands(h: Harness): void {
+  for (const job of h.tables.jobs) {
+    if (job["type"] === "ai.faces")
+      Object.assign(job, { status: "succeeded", finishedAt: new Date() });
+  }
+  const source = h.tables.media.find((row) => row["id"] === MEDIA);
+  if (source !== undefined) source["facesKey"] = FACES_KEY;
+  h.derivedGet.mockResolvedValue(
+    Buffer.from(
+      JSON.stringify({
+        version: 1,
+        intervalMs: 250,
+        source: { width: 1920, height: 1080 },
+        samples: Array.from({ length: 640 }, (_, i) => [i * 250, [[0.62, 0.2, 0.2, 0.2]]]),
+      }),
+    ),
+  );
+}
+
+/** Every `media.clip` payload enqueued so far, checked against the contract. */
+function enqueuedPayloads(h: Harness) {
+  return h.enqueue.mock.calls.map((call) =>
+    MediaClipPayloadSchema.parse((call[0] as { params: unknown }).params),
+  );
 }
 
 /** The 9:16 variant of `clip`, whose child project's primary media is `media`. */
@@ -413,7 +491,8 @@ describe("createClip", () => {
     );
     expect(payload.source.key).toBe(`ws/${WS}/p/${SRC}/media/${MEDIA}/raw.mp4`);
     expect(payload.profileVersion).toBe(CLIP_PROFILE_VERSION);
-    // No face track yet: centre, and detection queued for the source — once.
+    // No face track, and no detection on its way (this source cannot have one
+    // queued): centre at once, and detection asked for — once.
     expect(payload.reframe).toEqual({ centerX: 0.5, basis: "centre" });
     expect(h.maybeEnqueueFaces).toHaveBeenCalledWith(MEDIA, { onlyIfNeverTried: true });
     // The run starts showing "Creating your clips".
@@ -872,6 +951,145 @@ describe("reconcileClips", () => {
     await h.service.reconcileClips(RUN);
     expect(h.tables.runs[0]?.["status"]).toBe("review_ready");
     expect(h.publish).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("a source whose face track is still being made", () => {
+  // Found on the deploy of 2026-09-26: no source proxied before `ai.faces` had a
+  // track, the first reconcile queued detection and cut every waiting clip on
+  // the centre in the same breath, and a clip ready at the current profile is
+  // never re-framed.
+  it("holds a new clip, waiting, instead of cutting it on the centre for good, then frames it", async () => {
+    detectionQueues(h);
+    const clip = await h.service.createClip(WS, USER, RUN, { candidateId: CAND_A });
+
+    expect(clip.state).toBe("waiting");
+    expect(h.enqueue).not.toHaveBeenCalled();
+    expect(h.maybeEnqueueFaces).toHaveBeenCalledWith(MEDIA, { onlyIfNeverTried: true });
+    // It is the run's clip all the same, and the run says it is making it.
+    expect(h.tables.clips).toHaveLength(1);
+    expect(h.tables.runs[0]?.["status"]).toBe("materializing");
+
+    trackLands(h);
+    expect((await h.service.reconcileClips(RUN)).enqueued).toEqual([clip.id]);
+    expect(enqueuedPayload(h).reframe).toEqual({ centerX: 0.72, basis: "faces" });
+  });
+
+  it("cuts none of a run's waiting clips while detection runs, and all of them on the track after", async () => {
+    // The three legacy clips of run 01M2W1J5BZJF7QGMDM5HE39YZ1: rows, no jobs.
+    detectionQueues(h);
+    h.tables.clips.push(clipRow(CAND_A), clipRow(CAND_B));
+
+    expect(await h.service.reconcileClips(RUN)).toEqual({ enqueued: [] });
+    expect(await h.service.reconcileClips(RUN)).toEqual({ enqueued: [] });
+    expect(h.enqueue).not.toHaveBeenCalled();
+    expect((await h.service.listClips(WS, RUN)).clips.map((clip) => clip.state)).toEqual([
+      "waiting",
+      "waiting",
+    ]);
+
+    trackLands(h);
+    expect((await h.service.reconcileClips(RUN)).enqueued).toHaveLength(2);
+    expect(enqueuedPayloads(h).map((payload) => payload.reframe)).toEqual([
+      { centerX: 0.72, basis: "faces" },
+      { centerX: 0.72, basis: "faces" },
+    ]);
+  });
+
+  it("keeps a retry that waits for the track owed, so the reconcile cuts it", async () => {
+    const failed = clipRow(CAND_A);
+    h.tables.clips.push(failed);
+    h.tables.jobs.push(jobRow(CAND_A, "failed", { code: "media/corrupt" }));
+    detectionQueues(h);
+
+    const retried = await h.service.retryClip(WS, USER, RUN, String(failed["id"]));
+    expect(retried).toMatchObject({ state: "waiting", failureCode: null });
+    expect(h.enqueue).not.toHaveBeenCalled();
+
+    trackLands(h);
+    expect((await h.service.reconcileClips(RUN)).enqueued).toEqual([failed["id"]]);
+    expect(enqueuedPayload(h).reframe).toMatchObject({ basis: "faces" });
+  });
+
+  it("cuts on the centre once detection has failed", async () => {
+    h.tables.jobs.push(facesJob("failed"));
+    const clip = await h.service.createClip(WS, USER, RUN, { candidateId: CAND_A });
+    expect(clip.state).toBe("cutting");
+    expect(enqueuedPayload(h).reframe).toEqual({ centerX: 0.5, basis: "centre" });
+  });
+
+  it("cuts on the centre once detection has been at it for the whole wait", async () => {
+    // A stuck worker-ai costs the framing, never the clip. The fixture source
+    // is ten minutes long, so detection is given half that to run.
+    h.tables.jobs.push(facesJob("running", faceDetectionRunWaitMs(600_000) + 1_000));
+    const clip = await h.service.createClip(WS, USER, RUN, { candidateId: CAND_A });
+    expect(clip.state).toBe("cutting");
+    expect(enqueuedPayload(h).reframe).toEqual({ centerX: 0.5, basis: "centre" });
+  });
+
+  it("still waits for a detection that queued behind others and has only just started", async () => {
+    // worker-ai detects one video at a time. Timed from queueing, the wait was
+    // spent in the queue and the clip was cut on the centre for good the moment
+    // detection finally began.
+    detectionQueues(h);
+    h.tables.jobs.push(facesJob("running", FACE_TRACK_WAIT_MS + 60_000, 30_000));
+    const clip = await h.service.createClip(WS, USER, RUN, { candidateId: CAND_A });
+    expect(clip.state).toBe("waiting");
+    expect(h.enqueue).not.toHaveBeenCalled();
+    expect(h.jobFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        select: { status: true, queuedAt: true, startedAt: true, finishedAt: true },
+      }),
+    );
+
+    trackLands(h);
+    expect((await h.service.reconcileClips(RUN)).enqueued).toEqual([clip.id]);
+    expect(enqueuedPayload(h).reframe).toEqual({ centerX: 0.72, basis: "faces" });
+  });
+
+  // The lookup only decides framing, so a database that fails it must cost the
+  // framing, not the clip: holding the cut would leave it waiting for a job
+  // nobody can see, and a throw would fail the person's request (or skip the
+  // reconcile's clip) over a question that was never about the clip itself.
+  function detectionLookupFails(): void {
+    h.jobFindFirst.mockImplementation(async (args: { where: Row }) => {
+      if (args.where["type"] === "ai.faces") throw new Error("connection reset");
+      return null;
+    });
+  }
+
+  it("cuts a new clip on the centre when the detection lookup fails, instead of holding or refusing it", async () => {
+    detectionQueues(h);
+    detectionLookupFails();
+    const clip = await h.service.createClip(WS, USER, RUN, { candidateId: CAND_A });
+
+    expect(h.jobFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { type: "ai.faces", jobKey: facesJobKey(MEDIA) } }),
+    );
+    expect(clip.state).toBe("cutting");
+    expect(h.tables.clips).toHaveLength(1);
+    expect(enqueuedPayload(h).reframe).toEqual({ centerX: 0.5, basis: "centre" });
+  });
+
+  it("cuts a run's waiting clips on the centre when the detection lookup fails, instead of skipping them", async () => {
+    detectionQueues(h);
+    detectionLookupFails();
+    h.tables.clips.push(clipRow(CAND_A), clipRow(CAND_B));
+
+    expect((await h.service.reconcileClips(RUN)).enqueued).toHaveLength(2);
+    expect(enqueuedPayloads(h).map((payload) => payload.reframe)).toEqual([
+      { centerX: 0.5, basis: "centre" },
+      { centerX: 0.5, basis: "centre" },
+    ]);
+  });
+
+  it("frames on the centre, without downloading it, a face track over the size bound", async () => {
+    h = harness({ media: { facesKey: FACES_KEY } });
+    h.derivedHead.mockResolvedValue({ sizeBytes: 65 * 1024 * 1024 });
+    const clip = await h.service.createClip(WS, USER, RUN, { candidateId: CAND_A });
+    expect(clip.state).toBe("cutting");
+    expect(h.derivedGet).not.toHaveBeenCalled();
+    expect(enqueuedPayload(h).reframe).toEqual({ centerX: 0.5, basis: "centre" });
   });
 });
 

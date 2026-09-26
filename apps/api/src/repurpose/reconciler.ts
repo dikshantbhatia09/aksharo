@@ -1,4 +1,11 @@
-import { HttpStatus, Injectable, Logger, type OnModuleInit } from "@nestjs/common";
+import {
+  HttpStatus,
+  Injectable,
+  Logger,
+  type OnApplicationBootstrap,
+  type OnModuleDestroy,
+  type OnModuleInit,
+} from "@nestjs/common";
 
 import { MediaAcquirePayloadSchema } from "@montaj/repurpose-contracts";
 
@@ -10,11 +17,19 @@ import {
 } from "./failure-codes.js";
 import { RepurposeClipsService } from "./repurpose-clips.service.js";
 import {
+  ACQUIRE_RUNNING_MARGIN_MS,
+  ACQUIRE_TIMEOUT_MS,
   PRE_CANDIDATE_STATUSES,
   QUEUE_DOWN_BACKOFF_MS,
   RECONCILE_INTERVAL_MS,
+  RECONCILE_WATCHDOG_MAX_RUNS,
   REPURPOSE_ERRORS,
+  REPURPOSE_FLAGS,
   SETTLED_RUN_STATUSES,
+  STAGE_RUNNING_BASE_MS,
+  STAGE_RUNNING_PER_MEDIA_MS,
+  UPLOAD_WINDOW_MS,
+  reconcileWatchdogIntervalMs,
 } from "./repurpose.constants.js";
 import { progressForStatus, stageForStatus } from "./repurpose.projection.js";
 import { RepurposeService, isRefusal, isUniqueViolation } from "./repurpose.service.js";
@@ -43,21 +58,48 @@ import type { $Enums, Prisma, RepurposeRun } from "@prisma/client";
  * transcript, the discovery job, the clips — and moves the run to where that
  * says it is: it starts the step that is missing, or fails the run with the
  * code for the step that failed. It runs on every read of a run (throttled per
- * run) and at the end of every completion that concerns one, so nothing needs
- * a scheduler. It is idempotent: every enqueue it makes dedupes on its job key,
- * and every write is conditional on the run still being where it was read.
+ * run), at the end of every completion that concerns one, and from an
+ * in-process watchdog every `REPURPOSE_RECONCILE_INTERVAL_MS` — so nothing needs
+ * a scheduler, and nothing needs a page open either. It is idempotent: every
+ * enqueue it makes dedupes on its job key, and every write is conditional on
+ * the run still being where it was read.
  */
 
-/** Enough of one job to tell live, finished and failed apart. */
+/** Enough of one job to tell live, finished, failed and lost apart. */
 export interface JobFacts {
   readonly status: $Enums.JobStatus;
   readonly errorCode: string | null;
   /** A worker picked it up (`started_at` is set). */
   readonly started: boolean;
+  /** The job row, so one that has stalled can be cancelled. */
+  readonly id?: string;
+  /**
+   * When it was queued and when a worker started it (ms since the epoch). The
+   * timings are optional so a caller holding only the status still gets an
+   * answer; without them a job is never read as stalled.
+   */
+  readonly queuedAt?: number;
+  readonly startedAt?: number | null;
+  /** The plan's queue wait it was admitted with (`jobs.max_queue_wait_ms`). */
+  readonly maxQueueWaitMs?: number | null;
+  /** A download's own deadline, from its payload (`limits.timeoutMs`). */
+  readonly timeoutMs?: number | null;
 }
 
 /** Everything the decision reads, as plain data, so the decision is a pure function. */
 export interface RunSnapshot {
+  /**
+   * When this was read (ms since the epoch). A job's age and an upload's wait
+   * are measured against it, so the decision stays a pure function of the
+   * snapshot rather than of the clock.
+   */
+  readonly now: number;
+  /**
+   * When the source was last asked for: the newest media row's creation (an
+   * upload's ticket), or the run's own while it has none. An upload still not
+   * arrived {@link UPLOAD_WINDOW_MS} after this is given up on.
+   */
+  readonly sourceRequestedAt: number;
   readonly sourceKind: $Enums.RepurposeSourceKind;
   /**
    * The source project is gone (deleted from the projects page, erased): there
@@ -120,6 +162,86 @@ function isOver(job: JobFacts): boolean {
   return job.status === "failed" || job.status === "cancelled";
 }
 
+/**
+ * How long a download may run: its own deadline, which the worker enforces,
+ * plus a margin. Past it the worker is gone, not slow.
+ */
+export function acquireCeilingMs(job: JobFacts): number {
+  const timeoutMs = job.timeoutMs ?? null;
+  return (
+    (timeoutMs !== null && timeoutMs > 0 ? timeoutMs : ACQUIRE_TIMEOUT_MS) +
+    ACQUIRE_RUNNING_MARGIN_MS
+  );
+}
+
+/** How long the probe, the proxy, the transcription or discovery may run: scaled to the video. */
+export function workCeilingMs(durationMs: number | null): number {
+  return STAGE_RUNNING_BASE_MS + STAGE_RUNNING_PER_MEDIA_MS * Math.max(0, durationMs ?? 0);
+}
+
+/**
+ * A job still open long past the point it could finish: queued past its plan's
+ * `maxQueueWaitMs`, or running past `ceilingMs` (see `STAGE_RUNNING_BASE_MS`).
+ * The run-level twin of the clips' `stalledCode` (`clip-state.ts`). Such a job
+ * is over as far as the run is concerned — nothing is coming back from it in
+ * time — so the run fails for it. Which of them are then cancelled is
+ * {@link stalledJobIds}'s question.
+ */
+export function isStalled(job: JobFacts, ceilingMs: number, now: number): boolean {
+  if (job.status === "queued") {
+    const waitMs = job.maxQueueWaitMs ?? null;
+    return job.queuedAt !== undefined && waitMs !== null && now - job.queuedAt > waitMs;
+  }
+  if (job.status === "running") {
+    const since = job.startedAt ?? job.queuedAt;
+    return since !== undefined && since !== null && now - since > ceilingMs;
+  }
+  return false;
+}
+
+/** The work ceiling for this snapshot's video. */
+function workCeilingOf(snapshot: RunSnapshot): number {
+  return workCeilingMs(snapshot.media?.durationMs ?? null);
+}
+
+/**
+ * The run's jobs, among those it read, that have stalled ({@link isStalled}),
+ * by id: what a retry cancels before it starts the stage again (`preparation:
+ * true`, the default), and what the reconciler cancels once it has failed the
+ * run for them (`preparation: false`).
+ *
+ * The media's probe and proxy (`processingJob`) are cancelled only on a retry.
+ * They are the source project's media pipeline, not the run's: they take no
+ * lane slot and hold no credit (`skipAdmission`), so cancelling one gives
+ * nothing back, and it cannot be undone — the BullMQ job is removed, a
+ * cancelled proxy marks the media failed, and a cancelled probe leaves it
+ * `uploaded` for good, since nothing re-probes an uploaded file. When
+ * worker-media is merely down for a while (CLAUDE.md §8), a queued probe left
+ * alone runs once it is back, the media reaches `ready`, and "Try again"
+ * transcribes it; cancelled, that upload could never be used again. A retry
+ * cancels it only where it then fetches the link into a fresh media row
+ * ({@link planRetry} is `impossible` for an upload whose preparation stalled,
+ * so a retry never reaches the cancel for one).
+ */
+export function stalledJobIds(
+  snapshot: RunSnapshot,
+  options: { readonly preparation?: boolean } = {},
+): string[] {
+  const work = workCeilingOf(snapshot);
+  const read: Array<{ readonly job: JobFacts | null; readonly ceilingMs: number }> = [
+    {
+      job: snapshot.acquireJob,
+      ceilingMs: snapshot.acquireJob === null ? 0 : acquireCeilingMs(snapshot.acquireJob),
+    },
+    ...(options.preparation === false ? [] : [{ job: snapshot.processingJob, ceilingMs: work }]),
+    { job: snapshot.transcribeJob, ceilingMs: work },
+    { job: snapshot.highlightsJob, ceilingMs: work },
+  ];
+  return read.flatMap(({ job, ceilingMs }) =>
+    job?.id !== undefined && isStalled(job, ceilingMs, snapshot.now) ? [job.id] : [],
+  );
+}
+
 function fail(failedAt: FailedAt, mediaReason: string | null, jobErrorCode: string | null) {
   return {
     kind: "fail",
@@ -129,16 +251,48 @@ function fail(failedAt: FailedAt, mediaReason: string | null, jobErrorCode: stri
 }
 
 /**
+ * A step that stopped making progress: its job is still open, long past the
+ * point it could finish. Not the stage's own failure code — nothing says the
+ * video or the file was at fault — but the one whose copy says a stage stalled
+ * and that trying again restarts it.
+ */
+function timedOut(failedAt: FailedAt): RunAction {
+  return { kind: "fail", failedAt, code: "repurpose/stage_timeout" };
+}
+
+/**
  * The media arrived, and the step preparing it — the probe or the proxy —
  * ended without it. The proxy's failure handler marks the media failed; the
  * probe has none, so a probe that failed (or a media PATCH that never landed)
- * leaves the media `uploaded` or `probing` for good.
+ * leaves the media `uploaded` or `probing` for good. A step still open long
+ * past the point it could finish has ended too (`stalled`): its worker died, or
+ * BullMQ failed it for stalling with no callback at all.
  */
-function preparationEnded(snapshot: RunSnapshot): JobFacts | null {
+function preparationEnded(
+  snapshot: RunSnapshot,
+): { readonly errorCode: string | null; readonly stalled: boolean } | null {
   const status = snapshot.media?.status;
   if (status !== "uploaded" && status !== "probing") return null;
   const job = presentJob(snapshot.processingJob);
-  return job !== null && isOver(job) ? job : null;
+  if (job === null) return null;
+  if (isOver(job)) return { errorCode: job.errorCode, stalled: false };
+  return isStalled(job, workCeilingOf(snapshot), snapshot.now)
+    ? { errorCode: null, stalled: true }
+    : null;
+}
+
+/**
+ * An upload run whose file has not arrived — no media row, or one still
+ * `pending` or `uploading` — for longer than {@link UPLOAD_WINDOW_MS}.
+ */
+function uploadAbandoned(snapshot: RunSnapshot): boolean {
+  if (snapshot.sourceKind !== "upload" || !uploadNotArrived(snapshot)) return false;
+  return snapshot.now - snapshot.sourceRequestedAt > UPLOAD_WINDOW_MS;
+}
+
+function uploadNotArrived(snapshot: RunSnapshot): boolean {
+  const status = snapshot.media?.status;
+  return status === undefined || status === "pending" || status === "uploading";
 }
 
 /** The source project is gone: the run fails as a video we no longer have. */
@@ -146,6 +300,18 @@ const SOURCE_GONE: RunAction = {
   kind: "fail",
   failedAt: "acquire",
   code: "repurpose/source_unavailable",
+};
+
+/**
+ * An upload that never arrived. Nothing on the run page can add a file to it
+ * (the browser's upload queue is the only thing that could, and it has given
+ * up), so the run says so and offers another video rather than read "Add a
+ * video to get started" for good — and show on Home as working at 0%.
+ */
+const UPLOAD_MISSING: RunAction = {
+  kind: "fail",
+  failedAt: "acquire",
+  code: "repurpose/upload_missing",
 };
 
 /**
@@ -169,9 +335,11 @@ export function decideRunAction(snapshot: RunSnapshot): RunAction {
       // written before the move and the insert were one step).
       return snapshot.candidateCount > 0 ? { kind: "candidates_ready" } : { kind: "discover" };
     }
-    return WAIT;
+    // Queued or running — unless for longer than it ever could.
+    return isStalled(job, workCeilingOf(snapshot), snapshot.now) ? timedOut("highlights") : WAIT;
   }
 
+  if (uploadAbandoned(snapshot)) return UPLOAD_MISSING;
   const media = snapshot.media;
   // An upload whose browser has not asked for a ticket yet.
   if (media === null) return WAIT;
@@ -190,8 +358,10 @@ export function decideRunAction(snapshot: RunSnapshot): RunAction {
       return media.status === "pending" && snapshot.canRefetch ? { kind: "acquire" } : WAIT;
     }
     if (isOver(job)) return fail("acquire", media.failureReason, job.errorCode);
-    // Queued or running, or succeeded with the hand-off to probing in flight.
-    return WAIT;
+    // Queued or running, or succeeded with the hand-off to probing in flight —
+    // unless it is still open long after its own deadline: the acquisition
+    // worker died, or never started (CLAUDE.md §8), and nothing reports it.
+    return isStalled(job, acquireCeilingMs(job), snapshot.now) ? timedOut("acquire") : WAIT;
   }
 
   switch (media.status) {
@@ -206,7 +376,10 @@ export function decideRunAction(snapshot: RunSnapshot): RunAction {
       // ended with nothing written back, which would otherwise read
       // "Getting your video" for good.
       const ended = preparationEnded(snapshot);
-      return ended === null ? WAIT : fail("processing", media.failureReason, ended.errorCode);
+      if (ended === null) return WAIT;
+      return ended.stalled
+        ? timedOut("processing")
+        : fail("processing", media.failureReason, ended.errorCode);
     }
   }
   if (media.durationMs === null || media.durationMs <= 0) return WAIT;
@@ -214,8 +387,9 @@ export function decideRunAction(snapshot: RunSnapshot): RunAction {
   const job = presentJob(snapshot.transcribeJob);
   if (job === null) return { kind: "transcribe" };
   if (isOver(job)) return fail("transcription", null, job.errorCode);
-  // Queued or running, or succeeded with the transcript still being written.
-  return WAIT;
+  // Queued or running, or succeeded with the transcript still being written —
+  // unless a worker lost it (a callback that never landed leaves it `running`).
+  return isStalled(job, workCeilingOf(snapshot), snapshot.now) ? timedOut("transcription") : WAIT;
 }
 
 /** What a retry does, decided from the same snapshot (§3). */
@@ -250,6 +424,17 @@ export function planRetry(
       reason: "This video's project was deleted. Start a new video with it.",
     };
   }
+  if (context.failureCode === REPURPOSE_ERRORS.transcriptUntimed) {
+    // Looking again reads the same words with the same missing timings, and
+    // this run's source already has a transcript, which is what stops a first
+    // transcription from starting. Starting the video again makes a new
+    // project, and transcribes it afresh.
+    return {
+      kind: "impossible",
+      reason:
+        "This video's transcript has no word timings, so no moment can be placed in it. Start the video again to transcribe it afresh.",
+    };
+  }
   if (snapshot.candidateCount > 0 && !DISCOVERY_FAILURES.has(context.failureCode ?? "")) {
     // It already had moments (an old run a clip failed, a timeout while
     // cutting): nothing upstream needs doing again, it goes back to them.
@@ -273,7 +458,11 @@ export function planRetry(
       // good. It gets a fresh row and a fresh job instead.
       media.status !== "failed" &&
       fetching !== null &&
-      !isOver(fetching)
+      !isOver(fetching) &&
+      // A download open long past its own deadline is lost, not slow:
+      // "resuming" it would watch it for good. `redrive` cancels it first, and
+      // the fetch starts again.
+      !isStalled(fetching, acquireCeilingMs(fetching), snapshot.now)
     ) {
       // Still downloading (the run was timed out, not the download): a second
       // fetch would write into the same file or leave two copies to transcribe.
@@ -293,10 +482,33 @@ export function planRetry(
 
   // Preparing it ended with the media left `uploaded` or `probing`: the same
   // unreadable file, and "resuming" would only fail the run again.
-  if (media?.status === "failed" || preparationEnded(snapshot) !== null) {
+  const preparation = preparationEnded(snapshot);
+  if (media?.status === "failed" || (preparation !== null && !preparation.stalled)) {
     return {
       kind: "impossible",
       reason: "This file could not be read. Upload it again, or choose another video.",
+    };
+  }
+  // A preparation that stalled is still open (the run never cancels it, see
+  // `stalledJobIds`), and nothing in a run can send an uploaded file back
+  // through the probe. If it runs late the media reaches `ready`, and this
+  // same plan then says `transcribe`.
+  if (preparation !== null) {
+    return {
+      kind: "impossible",
+      reason:
+        "This file is still waiting to be prepared. Try again once it has been, or upload it again.",
+    };
+  }
+  // The file never arrived, and nothing on the run's page can send it: only a
+  // new upload helps. "Resuming" would fail the run again on the next read.
+  if (
+    uploadNotArrived(snapshot) &&
+    (context.failureCode === REPURPOSE_ERRORS.uploadMissing || uploadAbandoned(snapshot))
+  ) {
+    return {
+      kind: "impossible",
+      reason: "This file never finished uploading. Upload it again, or choose another video.",
     };
   }
   // An upload still arriving, or being prepared: nothing to restart, only a
@@ -305,20 +517,36 @@ export function planRetry(
 }
 
 interface JobRow {
+  readonly id: string;
   readonly status: $Enums.JobStatus;
   readonly error: Prisma.JsonValue | null;
+  readonly queuedAt: Date;
   readonly startedAt: Date | null;
   readonly finishedAt: Date | null;
+  readonly maxQueueWaitMs: number | null;
   readonly params: Prisma.JsonValue;
 }
 
 function factsOf(job: JobRow | undefined | null): JobFacts | null {
   if (job === undefined || job === null) return null;
   return {
+    id: job.id,
     status: job.status,
     errorCode: jobErrorCodeOf(job.error),
     started: job.startedAt !== null,
+    queuedAt: job.queuedAt.getTime(),
+    startedAt: job.startedAt?.getTime() ?? null,
+    maxQueueWaitMs: job.maxQueueWaitMs,
+    timeoutMs: timeoutOf(job),
   };
+}
+
+/** A download's `limits.timeoutMs`, from its payload; null for any other job. */
+function timeoutOf(job: JobRow): number | null {
+  const limits = paramOf(job, "limits");
+  if (typeof limits !== "object" || limits === null) return null;
+  const timeoutMs = (limits as Record<string, unknown>)["timeoutMs"];
+  return typeof timeoutMs === "number" && Number.isFinite(timeoutMs) ? timeoutMs : null;
 }
 
 /**
@@ -358,10 +586,13 @@ function paramOf(job: JobRow, key: string): unknown {
 }
 
 const JOB_FIELDS = {
+  id: true,
   status: true,
   error: true,
+  queuedAt: true,
   startedAt: true,
   finishedAt: true,
+  maxQueueWaitMs: true,
   params: true,
 } as const;
 
@@ -377,6 +608,7 @@ interface SourceMedia {
   readonly failureReason: string | null;
   readonly uploadedAt: Date | null;
   readonly durationMs: number | null;
+  readonly createdAt: Date;
 }
 
 /** The source project columns a transcription start depends on. */
@@ -411,9 +643,21 @@ const LIST_CLIP_STATUSES: ReadonlySet<string> = new Set(["candidates_ready", "ma
 const STAMP_PRUNE_AT = 5_000;
 
 @Injectable()
-export class RepurposeReconciler implements RunReconciler, OnModuleInit {
+export class RepurposeReconciler
+  implements RunReconciler, OnModuleInit, OnApplicationBootstrap, OnModuleDestroy
+{
   private readonly logger = new Logger(RepurposeReconciler.name);
   private readonly reconciledAt = new Map<string, number>();
+  private watchdog: NodeJS.Timeout | undefined;
+  /** The watchdog pass in flight, so passes never overlap and shutdown can wait for one. */
+  private sweeping: Promise<void> | undefined;
+  /**
+   * Set at shutdown: a pass in flight stops at the next run instead of working
+   * through up to {@link RECONCILE_WATCHDOG_MAX_RUNS} of them, one after
+   * another, while Nest tears down the Prisma client they read through (it
+   * promises no order between providers).
+   */
+  private stopping = false;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -429,6 +673,109 @@ export class RepurposeReconciler implements RunReconciler, OnModuleInit {
    */
   onModuleInit(): void {
     this.runs.useReconciler(this);
+  }
+
+  /**
+   * Start the watchdog (see `DEFAULT_RECONCILE_WATCHDOG_MS`): every interval,
+   * every run that has not settled is reconciled, so work refused "for now"
+   * starts once the lane frees whether or not anyone has a page open. Not tied
+   * to the scheduler, which production runs with off. `unref()`'d, so it never
+   * keeps a process alive on its own.
+   */
+  onApplicationBootstrap(): void {
+    const every = reconcileWatchdogIntervalMs();
+    if (every <= 0) {
+      this.logger.log("run reconcile watchdog disabled (REPURPOSE_RECONCILE_INTERVAL_MS=0)");
+      return;
+    }
+    this.watchdog = setInterval(() => {
+      void this.sweepOnce();
+    }, every);
+    this.watchdog.unref();
+  }
+
+  async onModuleDestroy(): Promise<void> {
+    this.stopping = true;
+    if (this.watchdog !== undefined) clearInterval(this.watchdog);
+    this.watchdog = undefined;
+    // The run a pass is on is left to finish rather than cut off mid-write
+    // (`stopping` ends the pass after it); a pass never throws.
+    await this.sweeping;
+  }
+
+  /**
+   * One watchdog pass, unless the last is still going or the process is
+   * shutting down. Never throws: a timer's rejection has nowhere to go, and the
+   * next pass tries again.
+   */
+  sweepOnce(now?: number): Promise<void> {
+    if (this.stopping) return Promise.resolve();
+    if (this.sweeping !== undefined) return this.sweeping;
+    const pass = this.sweep(now).finally(() => {
+      this.sweeping = undefined;
+    });
+    this.sweeping = pass;
+    return pass;
+  }
+
+  /**
+   * Reconcile, one at a time, every run that has not settled — newest first,
+   * at most {@link RECONCILE_WATCHDOG_MAX_RUNS} — through the same throttle a
+   * read uses, so a run its own page is polling is not reconciled twice.
+   *
+   * A workspace whose `repurpose_flow` is off is skipped: the kill switch
+   * (`FEATURE_FLAGS_JSON`) stops the whole surface, and that has to include
+   * work started in the background, which spends credits on transcriptions.
+   */
+  private async sweep(now?: number): Promise<void> {
+    try {
+      const runs = await this.prisma.repurposeRun.findMany({
+        where: { status: { notIn: [...SETTLED_RUN_STATUSES] } },
+        orderBy: { id: "desc" },
+        take: RECONCILE_WATCHDOG_MAX_RUNS,
+      });
+      const enabled = new Map<string, boolean>();
+      for (const run of runs) {
+        if (this.stopping) return;
+        let on = enabled.get(run.workspaceId);
+        if (on === undefined) {
+          on = await this.flowEnabled(run.workspaceId);
+          enabled.set(run.workspaceId, on);
+        }
+        if (!on) continue;
+        await this.reconcileIfDue(run, {}, now ?? Date.now());
+      }
+    } catch (error) {
+      this.logger.warn({ err: error }, "run reconcile watchdog pass failed; the next one retries");
+    }
+  }
+
+  /** One workspace's entitlements failing to load skips it this pass, not everyone after it. */
+  private async flowEnabled(workspaceId: string): Promise<boolean> {
+    try {
+      return await this.runs.flagEnabled(workspaceId, REPURPOSE_FLAGS.flow);
+    } catch (error) {
+      this.logger.warn(
+        { workspaceId, err: error },
+        "could not read the workspace's flags; skipped",
+      );
+      return false;
+    }
+  }
+
+  /**
+   * Whether "Try again" on `run` would restart anything: the plan
+   * {@link redrive} follows, from the same snapshot. The page offers the button
+   * only when it would (2026-09-26: it offered it as the main action on runs
+   * the endpoint always refused with 409 — an upload that could not be read, a
+   * project that was deleted).
+   *
+   * @param failureCode the failure the page is showing, which a read can derive
+   *   before the reconciler has written it to the row.
+   */
+  async retryPossible(run: RepurposeRun, failureCode: string | null): Promise<boolean> {
+    const state = await this.read(run);
+    return planRetry(state.snapshot, { failureCode }).kind !== "impossible";
   }
 
   /**
@@ -482,13 +829,25 @@ export class RepurposeReconciler implements RunReconciler, OnModuleInit {
    * stage, and leaves anything that is refused "for now" to the next reconcile
    * — a full plan lane is not an error, so the answer is the run, open.
    *
+   * A job of the run still open long past the point it could finish is
+   * cancelled first ({@link stalledJobIds}): it holds a lane slot, and for a
+   * transcription a credit hold, and a fresh enqueue would only dedupe onto it.
+   * Its failure handler can change the state the plan was read from (a
+   * download's marks its media failed), so the plan is read again after.
+   *
    * @throws 409 when there is no stage a retry can restart (an upload that could
    *   not be read, a deleted project), or when the link has been started again
    *   in another run meanwhile (`repurpose/source_already_running`).
    */
   async redrive(run: RepurposeRun): Promise<RepurposeRun> {
-    const state = await this.read(run);
-    const plan = planRetry(state.snapshot, { failureCode: run.failureCode });
+    let state = await this.read(run);
+    let plan = planRetry(state.snapshot, { failureCode: run.failureCode });
+    const stale = plan.kind === "impossible" ? [] : stalledJobIds(state.snapshot);
+    if (stale.length > 0) {
+      await this.runs.cancelJobs(run, stale);
+      state = await this.read(run);
+      plan = planRetry(state.snapshot, { failureCode: run.failureCode });
+    }
 
     switch (plan.kind) {
       case "impossible":
@@ -586,7 +945,7 @@ export class RepurposeReconciler implements RunReconciler, OnModuleInit {
       return this.current(run);
     }
 
-    const state = await this.read(run);
+    const state = await this.read(run, now);
     const action = decideRunAction(state.snapshot);
     switch (action.kind) {
       case "wait":
@@ -594,7 +953,17 @@ export class RepurposeReconciler implements RunReconciler, OnModuleInit {
 
       case "fail": {
         const failed = await this.runs.failRun(run, action.code, STAGE_OF_FAILURE[action.failedAt]);
-        return failed ?? this.current(run);
+        if (failed === null) return this.current(run);
+        // A stalled job would otherwise keep its lane slot (two of them block a
+        // Free workspace outright) and a transcription's credit hold until
+        // someone pressed Try again. Cancelled only now the run reads failed:
+        // its failure handler then finds a run that has already answered, and
+        // leaves the failure this pass wrote in place. Not the media's probe
+        // or proxy: those free nothing, and a late one is still the only way
+        // an upload gets prepared (see `stalledJobIds`).
+        const stale = stalledJobIds(state.snapshot, { preparation: false });
+        if (stale.length > 0) await this.runs.cancelJobs(failed, stale);
+        return failed;
       }
 
       case "acquire":
@@ -733,8 +1102,8 @@ export class RepurposeReconciler implements RunReconciler, OnModuleInit {
     return "deferred";
   }
 
-  /** Everything {@link decideRunAction} reads, in one pass. */
-  private async read(run: RepurposeRun): Promise<ReadState> {
+  /** Everything {@link decideRunAction} reads, in one pass, as of `now`. */
+  private async read(run: RepurposeRun, now: number = Date.now()): Promise<ReadState> {
     const [project, media, transcript, candidateCount] = await Promise.all([
       this.prisma.project.findUnique({
         where: { id: run.sourceProjectId },
@@ -751,6 +1120,7 @@ export class RepurposeReconciler implements RunReconciler, OnModuleInit {
           failureReason: true,
           uploadedAt: true,
           durationMs: true,
+          createdAt: true,
         },
       }),
       this.prisma.transcript.findFirst({
@@ -827,6 +1197,8 @@ export class RepurposeReconciler implements RunReconciler, OnModuleInit {
       project: sourceDeleted ? null : project,
       refetchUrl,
       snapshot: {
+        now,
+        sourceRequestedAt: (media?.createdAt ?? run.createdAt).getTime(),
         sourceKind: run.sourceKind,
         sourceDeleted,
         media:

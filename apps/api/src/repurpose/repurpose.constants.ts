@@ -36,6 +36,8 @@ export const REPURPOSE_ERRORS = {
   notRetryable: "repurpose/not_retryable",
   styleUnknown: "repurpose/style_unknown",
   stageTimeout: "repurpose/stage_timeout",
+  uploadMissing: "repurpose/upload_missing",
+  transcriptUntimed: "repurpose/transcript_untimed",
 } as const;
 
 /**
@@ -88,6 +90,80 @@ export const QUEUE_DOWN_BACKOFF_MS = 60_000;
  * and time out requests that have nothing to do with runs.
  */
 export const LIST_RECONCILE_CONCURRENCY = 3;
+
+/**
+ * How often the API's own watchdog reconciles every run that has not settled
+ * (`RepurposeReconciler`), unless `REPURPOSE_RECONCILE_INTERVAL_MS` says
+ * otherwise.
+ *
+ * Reads and completions reconcile a run too, but work refused "for now" — a
+ * transcription or a clip the plan's two-job lane turned away, a fetch refused
+ * while the lane was full — has no completion of its own to wake it, so it only
+ * moved when somebody next opened a page, while the page promised "You can
+ * leave this page — we'll keep working". The scheduled sweep that would have
+ * covered it never runs here (`MONTAJ_SCHEDULER_DISABLED=1`), so this is an
+ * in-process timer that does not depend on the scheduler.
+ */
+export const DEFAULT_RECONCILE_WATCHDOG_MS = 30_000;
+
+/** Below this the watchdog would only hammer the database; a smaller setting is raised to it. */
+const MIN_RECONCILE_WATCHDOG_MS = 1_000;
+
+/**
+ * The watchdog's interval, from `REPURPOSE_RECONCILE_INTERVAL_MS`. `0` turns it
+ * off (the test setup does, so an e2e app never reconciles behind a suite's
+ * back); unset or unreadable is the default.
+ *
+ * Read from `process.env` rather than the validated `Env`, like
+ * `MONTAJ_SCHEDULER_DISABLED` and `NOTIFY_WORKER_ENABLED`: it switches a
+ * background loop in this process on or off, it is not product configuration.
+ * Default on, because a deployment that forgets it would quietly go back to
+ * runs that only move while someone is looking.
+ */
+export function reconcileWatchdogIntervalMs(source: NodeJS.ProcessEnv = process.env): number {
+  const raw = source["REPURPOSE_RECONCILE_INTERVAL_MS"]?.trim();
+  if (raw === undefined || raw === "") return DEFAULT_RECONCILE_WATCHDOG_MS;
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value < 0) return DEFAULT_RECONCILE_WATCHDOG_MS;
+  if (value === 0) return 0;
+  return Math.max(MIN_RECONCILE_WATCHDOG_MS, Math.floor(value));
+}
+
+/**
+ * The most runs one watchdog pass looks at, newest first. Each is a handful of
+ * queries, one after another; a pass over a few hundred is seconds, and a
+ * backlog larger than this is a sign of something the watchdog cannot fix.
+ */
+export const RECONCILE_WATCHDOG_MAX_RUNS = 200;
+
+/**
+ * How long a run-level job may stay `running` before the reconciler reads it as
+ * lost (2026-09-26). Production runs no scheduler, so a worker that died, a job
+ * BullMQ failed for stalling twice (no callback), or a final report lost to an
+ * API restart used to leave the run on "Creating the transcript" for good, with
+ * a lane slot — and for a transcription a credit hold — taken the whole time.
+ *
+ * The probe, the proxy, the transcription and discovery each scale with the
+ * video: an hour, plus twice its length. A download has its own deadline in its
+ * payload (`limits.timeoutMs`), which the worker enforces; ten minutes past it,
+ * the worker is gone. A job still `queued` is measured against the plan's own
+ * queue wait (`jobs.max_queue_wait_ms`), which is what the scheduled
+ * queue-timeout task would have failed it for.
+ */
+export const STAGE_RUNNING_BASE_MS = 60 * 60_000;
+export const STAGE_RUNNING_PER_MEDIA_MS = 2;
+export const ACQUIRE_RUNNING_MARGIN_MS = 10 * 60_000;
+
+/**
+ * How long an upload run waits for its file (2026-09-26). Its media row is made
+ * by the browser's upload queue, which resumes from IndexedDB, so a closed tab
+ * is not an abandoned upload — but an upload that never started, was refused,
+ * failed and was dismissed, or matched a file already in the workspace (which
+ * makes no row in this run's project) never arrives. A day is long enough for
+ * any resume; past it the run fails with `repurpose/upload_missing` instead of
+ * reading "Add a video to get started" with no way to add one.
+ */
+export const UPLOAD_WINDOW_MS = 24 * 60 * 60_000;
 
 /** Per-stage timeout deadlines (CORE-023). Moving a run past its deadline to failed. */
 export const DEFAULT_STAGE_DEADLINES_MS: Readonly<Record<string, number>> = Object.freeze({

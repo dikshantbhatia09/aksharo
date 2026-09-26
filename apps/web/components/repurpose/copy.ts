@@ -17,6 +17,23 @@ export interface SafeErrorCopy {
   /** Whether their work survived — always answered, never implied. */
   readonly reassurance: string;
   /**
+   * The sentence that says trying again can help, kept apart from the
+   * reassurance because it is only true beside a "Try again" the run really
+   * offers. The API says `canRetry: false` when the retry it would be asked for
+   * can only be refused (a deleted source, an upload whose file could not be
+   * read); the card then has no such button, and "it may work if you try
+   * again" would send the person looking for one.
+   */
+  readonly retryHint?: string;
+  /**
+   * The same, for a `start_again` card: what starting again does, shown only
+   * beside a "Start again" the page really offers. An upload run (or a link run
+   * whose link cannot be recovered) has none, so its card leads with another
+   * video, and "starting again makes a fresh transcript" would describe a
+   * button that is not there.
+   */
+  readonly startAgainHint?: string;
+  /**
    * The one recommended action:
    *
    *   * `retry` — run the failed step again, same video (`POST .../retry`);
@@ -24,6 +41,10 @@ export interface SafeErrorCopy {
    *     keeping the caption setup;
    *   * `edit_settings` — the link or a setting needs fixing; start again with
    *     the same link AND setup pre-filled so it can be corrected;
+   *   * `start_again` — this run cannot go further, but the same video in a
+   *     fresh run can: start again with the same link AND setup pre-filled,
+   *     nothing to correct (an upload, or a run whose link cannot be recovered,
+   *     has none to carry, so it offers another video);
    *   * `add_moment` — pick the moment by its start and end time instead;
    *   * `open_existing` — the work already exists in another run;
    *   * `check_credits` — the balance is the problem: see it (`/billing`),
@@ -34,6 +55,7 @@ export interface SafeErrorCopy {
     | "retry"
     | "choose_another"
     | "edit_settings"
+    | "start_again"
     | "add_moment"
     | "open_existing"
     | "check_credits"
@@ -92,10 +114,13 @@ export const SAFE_ERROR_COPY: Readonly<Record<string, SafeErrorCopy>> = Object.f
     actionLabel: "Open the existing run",
   },
   // A download that failed for a reason nobody could name. Usually a hiccup on
-  // the site's side, so the same link is worth one more go.
+  // the site's side, so the same link is worth one more go. (Also what a run
+  // whose source project was deleted carries — and that one cannot be retried,
+  // so the hint is shown only beside a real "Try again".)
   "repurpose/source_unavailable": {
     title: "We could not get that video",
-    reassurance: "Everything you had before is still here. It may work if you try again.",
+    reassurance: "Everything you had before is still here.",
+    retryHint: "It may work if you try again.",
     action: "retry",
     actionLabel: "Try again",
   },
@@ -140,7 +165,8 @@ export const SAFE_ERROR_COPY: Readonly<Record<string, SafeErrorCopy>> = Object.f
   // site is turning this server away for a while, and it passes.
   "repurpose/source_blocked": {
     title: "YouTube is refusing our server for a few minutes",
-    reassurance: "Your link is fine and nothing was lost. Try again in a few minutes.",
+    reassurance: "Your link is fine and nothing was lost.",
+    retryHint: "Try again in a few minutes.",
     action: "retry",
     actionLabel: "Try again",
   },
@@ -169,7 +195,8 @@ export const SAFE_ERROR_COPY: Readonly<Record<string, SafeErrorCopy>> = Object.f
   "repurpose/no_credits": {
     title: "You are out of credits for this video",
     reassurance:
-      "Your video is safe. Making its transcript needs more credits than you have left right now. Try again once you have enough.",
+      "Your video is safe. Making its transcript needs more credits than you have left right now.",
+    retryHint: "Try again once you have enough.",
     action: "check_credits",
     actionLabel: "See your credits",
   },
@@ -184,9 +211,42 @@ export const SAFE_ERROR_COPY: Readonly<Record<string, SafeErrorCopy>> = Object.f
   },
   "repurpose/stage_timeout": {
     title: "This step took too long",
-    reassurance: "Your work is safe. Trying again starts the step afresh.",
+    reassurance: "Your work is safe.",
+    retryHint: "Trying again starts the step afresh.",
     action: "retry",
     actionLabel: "Try again",
+  },
+  // An upload run whose file never arrived: the upload never started, failed,
+  // or was dismissed, and the API stopped waiting for it. Nothing was made from
+  // it, so the way on is a file (the form opens on its upload tab).
+  //
+  // Not "Upload it again": the likeliest reason a file never arrives is that
+  // the same file is already in one of the person's projects. The upload is
+  // then matched to that copy and stops (uploads are de-duplicated across the
+  // workspace), so the same file sent into a new run waits a day and ends here
+  // again. Until an upload into a run can reuse that copy, the button offers a
+  // video and the sentence says why the same one may not work.
+  "repurpose/upload_missing": {
+    title: "We never received your video",
+    reassurance:
+      "No credits were used. A video that is already in one of your projects cannot be sent here again, so upload a different file or choose another video.",
+    action: "choose_another",
+    actionLabel: "Choose another video",
+  },
+  // A transcript with no word timings (a Sarvam transcript made before the
+  // 2026-09-17 fix): no moment can be placed in it, so discovery would
+  // only say "nothing found". The same video in a fresh run is transcribed
+  // afresh, so a link run offers exactly that, link kept. That transcript is a
+  // new one and is charged like one, which the start form never says, so the
+  // card does — beside that button only (`startAgainHint`).
+  "repurpose/transcript_untimed": {
+    title: "This video's transcript has no timings",
+    reassurance:
+      "Your video is safe, but without timings we cannot tell where a moment starts or ends.",
+    startAgainHint:
+      "Starting again with the same video makes a fresh transcript, which uses credits like any new video.",
+    action: "start_again",
+    actionLabel: "Start again with this video",
   },
   // Older runs only: a clip's failure is the clip's own now, never the run's.
   "repurpose/clip_failed": CLIP_FAILED,
@@ -224,7 +284,9 @@ export function safeErrorCopy(code: string | null): SafeErrorCopy {
  * offering a button that would only book it twice.
  */
 export const CLIP_STATE_COPY = Object.freeze({
-  waiting: "Waiting for a free slot — it starts on its own.",
+  // Also covers the few minutes a clip waits for its source's face track, so it
+  // is framed on the speaker rather than the frame centre.
+  waiting: "Waiting to start — it starts on its own.",
   cutting: "Cutting the 9:16 clip…",
   unavailable: "This clip is ready, but its preview did not load. Refresh the page to see it.",
   // A stopped run starts nothing new: a clip still waiting for a slot never
@@ -232,29 +294,80 @@ export const CLIP_STATE_COPY = Object.freeze({
   stopped: "Not made — this run was stopped before it started.",
   stoppedFailed:
     "Your video and your other clips are safe. This run was stopped, so this clip cannot be tried again here.",
+  // A clip whose original is gone, on a link run that is still open. A new run
+  // of the same link is refused while this one is open (one open run per
+  // video), so "Start again from the link" would only lead back here. The way
+  // is to stop this run first, and the sentence says so; once it is stopped
+  // the card offers the new run.
+  sourceGoneStopFirst:
+    "Your other clips are safe. To cut this moment, stop this run, then start again from the same link.",
+  // The same, on an open run that can no longer be stopped (it is partly
+  // published): no new run of this link can start until it has finished.
+  sourceGoneRunOpen:
+    "Your other clips are safe. This moment can be cut from the same link in a new run once this one has finished.",
 });
 
 export interface ClipFailureCopy {
   readonly title: string;
   readonly reassurance: string;
   /**
-   * Whether cutting it again can work. Not when the original video is gone:
-   * the retry would only be refused, so the card offers a new run instead.
+   * Whether cutting it again can work. Not when the original video is gone
+   * (the retry would only be refused), nor when the cut itself came out
+   * unusable in a way a re-cut repeats (too large).
    */
   readonly retryable: boolean;
+  /**
+   * When cutting again cannot work, whether the same video in a NEW run can,
+   * so the card offers one. Only when the original is no longer kept: a new
+   * run gets it afresh. A clip that came out too large would come out the same
+   * from the same moment, so that card offers nothing but its sentence.
+   */
+  readonly startAgain?: boolean;
 }
 
-/** The original video is no longer stored, so nothing can be cut from it again. */
+/**
+ * The original video is no longer stored, so nothing can be cut from it again.
+ * "The same video", not "the same link": an upload run's original expires too,
+ * and its way back is the file.
+ */
 const CLIP_SOURCE_GONE: ClipFailureCopy = {
   title: "The original video is no longer kept",
-  reassurance: "Your other clips are safe. To cut this moment, start again from the same link.",
+  reassurance: "Your other clips are safe. To cut this moment, start again with the same video.",
   retryable: false,
+  startAgain: true,
+};
+
+/** The cut itself did not finish: the tool ran out of time, was killed or never started. */
+const CLIP_CUT_UNFINISHED: ClipFailureCopy = {
+  title: "We could not finish cutting this clip",
+  reassurance: "Your video and your other clips are safe. Trying again usually works.",
+  retryable: true,
+};
+
+/** The cut was stopped from outside before it finished (its job was cancelled). */
+const CLIP_CUT_STOPPED: ClipFailureCopy = {
+  title: "This clip was stopped before it finished",
+  reassurance: "Your video and your other clips are safe.",
+  retryable: true,
 };
 
 /**
- * A failed clip, by the code of its newest cut (`failureCode` on the clip: the
- * `media.clip` job's own code, or the API's `repurpose/source_expired`). A
- * clip's failure is its own: every entry says the other clips are untouched.
+ * The finished clip could not be read back when it was prepared for the editor
+ * (the clip project's own media failed its check). Cutting it again replaces it.
+ */
+const CLIP_OUTPUT_UNREADABLE: ClipFailureCopy = {
+  title: "We could not open the finished clip",
+  reassurance: "Your video and your other clips are safe. Trying again cuts it afresh.",
+  retryable: true,
+};
+
+/**
+ * A failed clip, by the code of its newest cut (`failureCode` on the clip, from
+ * `clipStateOf` in the API's `clip-state.ts`): the `media.clip` job's own code,
+ * the job ledger's, the clip project's media failure (any `MEDIA_FAILURE_REASONS`
+ * entry but the download-only `media/source_*` ones), or the API's own
+ * `repurpose/source_expired` and `repurpose/clip_stalled`. A clip's failure is
+ * its own: every entry says the other clips are untouched.
  */
 export const CLIP_FAILURE_COPY: Readonly<Record<string, ClipFailureCopy>> = Object.freeze({
   "media/unreadable": {
@@ -272,14 +385,40 @@ export const CLIP_FAILURE_COPY: Readonly<Record<string, ClipFailureCopy>> = Obje
     reassurance: "Your video and your other clips are safe. Trying again usually works.",
     retryable: true,
   },
-  "media/encode_failed": {
-    title: "We could not finish cutting this clip",
-    reassurance: "Your video and your other clips are safe. Trying again usually works.",
-    retryable: true,
+  "media/encode_failed": CLIP_CUT_UNFINISHED,
+  "media/encode_incomplete": CLIP_CUT_UNFINISHED,
+  // The worker's tool failures (`TOOL_FAILURES` in `processors/clip.ts`): a
+  // cut that timed out, was killed, or never started. They say nothing about
+  // the video, and a clip ends on one once its attempts run out.
+  "media/tool_timeout": CLIP_CUT_UNFINISHED,
+  "media/tool_signal": CLIP_CUT_UNFINISHED,
+  "media/tool_spawn": CLIP_CUT_UNFINISHED,
+  "media/cancelled": CLIP_CUT_STOPPED,
+  // The clip project's media failing its check after the cut landed.
+  "media/unsupported": CLIP_OUTPUT_UNREADABLE,
+  "media/no_streams": CLIP_OUTPUT_UNREADABLE,
+  "media/probe_failed": CLIP_OUTPUT_UNREADABLE,
+  // The finished clip is bigger than the editor can be prepared from
+  // (`PROMOTE_MAX_BYTES`, written by the API's clip completion). Cutting the
+  // same moment again makes the same file, so no retry; a shorter one fits.
+  "media/too_large": {
+    title: "This clip came out too large to open in the editor",
+    reassurance: "Your video and your other clips are safe. A shorter moment from it will fit.",
+    retryable: false,
   },
-  "media/encode_incomplete": {
-    title: "We could not finish cutting this clip",
-    reassurance: "Your video and your other clips are safe. Trying again usually works.",
+  // The plan's length limit, applied when the clip is checked. A clip is at
+  // most three minutes, so this is unlikely; if it happens, the same moment
+  // is the same length again.
+  "media/too_long": {
+    title: "This clip is longer than your plan allows",
+    reassurance: "Your video and your other clips are safe. A shorter moment from it will fit.",
+    retryable: false,
+  },
+  // A cut `running` far past any real cut: its worker or its completion was
+  // lost. Trying again cancels that cut and starts a new one.
+  "repurpose/clip_stalled": {
+    title: "This clip stopped partway through",
+    reassurance: "Your video and your other clips are safe. Trying again starts it afresh.",
     retryable: true,
   },
   "jobs/queue_timeout": {
@@ -288,11 +427,7 @@ export const CLIP_FAILURE_COPY: Readonly<Record<string, ClipFailureCopy>> = Obje
       "Your video and your other clips are safe. Try again once your other videos are done.",
     retryable: true,
   },
-  "jobs/cancelled": {
-    title: "This clip was stopped before it finished",
-    reassurance: "Your video and your other clips are safe.",
-    retryable: true,
-  },
+  "jobs/cancelled": CLIP_CUT_STOPPED,
   "media/source_missing": CLIP_SOURCE_GONE,
   "repurpose/source_expired": CLIP_SOURCE_GONE,
   unknown: {

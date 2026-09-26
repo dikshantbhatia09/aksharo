@@ -38,7 +38,7 @@ import math
 from collections import Counter
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from typing import Final
+from typing import Any, Final
 
 from worker_ai.highlights.contracts import MIN_DURATION_MS
 from worker_ai.highlights.text import carries_break, ends_clause, ends_sentence_before, is_speech
@@ -123,6 +123,22 @@ def _milliseconds(value: object) -> int | None:
     return round(value)
 
 
+def _citable(item: dict[Any, Any]) -> tuple[str, str] | None:
+    """The id and text of a words-response item a proposal could quote, whatever its timing.
+
+    One check for :func:`usable_words` and :func:`spoken_count`, so the two can
+    only ever differ by timing - which is what the untimed-transcript failure
+    claims they differ by.
+    """
+    wid = item.get("wid")
+    text = item.get("text")
+    if not isinstance(wid, str) or not wid.strip() or len(wid.strip()) > _MAX_WORD_ID:
+        return None
+    if not isinstance(text, str) or not text.strip():
+        return None
+    return wid.strip(), text.strip()
+
+
 def usable_words(raw: Sequence[object]) -> list[Word]:
     """The spoken words a window can be built from, in time order.
 
@@ -136,19 +152,14 @@ def usable_words(raw: Sequence[object]) -> list[Word]:
     """
     tokens: list[Word] = []
     for item in raw:
-        if not isinstance(item, dict):
+        if not isinstance(item, dict) or (cited := _citable(item)) is None:
             continue
-        wid = item.get("wid")
-        text = item.get("text")
         start = _milliseconds(item.get("startMs"))
         end = _milliseconds(item.get("endMs"))
-        if not isinstance(wid, str) or not wid.strip() or len(wid.strip()) > _MAX_WORD_ID:
-            continue
-        if not isinstance(text, str) or not text.strip():
-            continue
         if start is None or end is None or start < 0 or end < start:
             continue
-        tokens.append(Word(wid=wid.strip(), text=text.strip(), start_ms=start, end_ms=end))
+        wid, text = cited
+        tokens.append(Word(wid=wid, text=text, start_ms=start, end_ms=end))
     # Stable: a well-formed transcript is already in order and stays exactly so.
     tokens.sort(key=lambda word: word.start_ms)
 
@@ -163,11 +174,17 @@ def usable_words(raw: Sequence[object]) -> list[Word]:
 
 
 def spoken_count(raw: Sequence[object]) -> int:
-    """How many items of a words response are speech, whatever their timing."""
+    """How many items of a words response are citable speech, whatever their timing.
+
+    The words :func:`usable_words` would keep if every timing were sound. A
+    word whose id is missing or overlong is left out here too: it is not a
+    word without a timing, and counting it would report a malformed response
+    as an untimed transcript and send the user to transcribe again for nothing.
+    """
     return sum(
         1
         for item in raw
-        if isinstance(item, dict) and isinstance(text := item.get("text"), str) and is_speech(text)
+        if isinstance(item, dict) and (cited := _citable(item)) is not None and is_speech(cited[1])
     )
 
 

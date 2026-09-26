@@ -71,6 +71,59 @@ describe("bannerRun", () => {
   it("never reports a stopped or finished run as in progress", () => {
     expect(bannerRun([run("01STOP", "cancelled"), run("01DONE", "published")], NOW)).toBeUndefined();
   });
+
+  // An upload run whose file never arrived stays `draft`, and it was picked as
+  // "working" ahead of a newer run that was ready to review — at 0%, for good.
+  it("ranks an upload still waiting for its file below a run waiting for the person", () => {
+    const stuck = run("01DRAFT", "draft", {
+      sourceKind: "upload",
+      sourceDisplay: null,
+      progress: 0,
+    });
+    const review = run("01REVIEW", "review_ready");
+    expect(bannerRun([stuck, review], NOW)).toEqual({ run: review, kind: "needs_you" });
+    // Real work still comes first.
+    const working = run("01WORK", "transcribing");
+    expect(bannerRun([stuck, review, working], NOW)).toEqual({ run: working, kind: "working" });
+    // Alone, it is still worth a line, but never as work in progress.
+    expect(bannerRun([stuck], NOW)).toEqual({ run: stuck, kind: "awaiting_video" });
+  });
+});
+
+describe("<PipelineBanner /> with an upload that has not arrived", () => {
+  it("says so, with no stage number and no progress bar", async () => {
+    renderWithProviders(<PipelineBanner />, {
+      routes: {
+        "/workspaces/01JWORKSPACE/entitlement": {
+          workspaceId: "01JWORKSPACE",
+          planKey: "free",
+          planName: "Free",
+          creditsPerMonthTenths: 200,
+          seatsIncluded: 1,
+          seatsUsed: 1,
+          computedAt: "2026-09-15T10:00:00.000Z",
+          entitlements: { flags: { repurpose_flow: true } },
+        },
+        "/repurpose/runs": {
+          items: [
+            run("01DRAFT", "draft", {
+              sourceKind: "upload",
+              sourceDisplay: null,
+              progress: 0,
+              message: "Add a video to get started.",
+            }),
+          ],
+          nextCursor: null,
+        },
+      },
+    });
+
+    const line = await screen.findByTestId("pipeline-live");
+    expect(line).toHaveAttribute("data-kind", "awaiting_video");
+    expect(line).toHaveTextContent("Your upload has not arrived yet.");
+    expect(line).not.toHaveTextContent(/stage 1 of 5/);
+    expect(line.querySelector(".bg-accent")).toBeNull();
+  });
 });
 
 describe("<PipelineBanner /> with a failed run", () => {

@@ -12,6 +12,14 @@
  * of the frame, so a speaker sitting on a thirds line was cut out of the clip
  * before face-aware captions ever ran; and every 1080 x 1920 export of a clip
  * scaled a 720-wide picture up by half again.
+ *
+ * The mezzanine is now as tall as the source allows, up to 1080 x 1920 — but a
+ * landscape source's window is only as tall as the source itself, so it takes
+ * a 2160p source to fill the canvas (a 1216 x 2160 window, scaled down). 1440p
+ * gives 810 x 1440 and 1080p only 608 x 1080, which the export scales up
+ * 1.78x. That is why acquisition (`chooseFormat` in `yt-dlp.ts`) fetches up to
+ * 2160p whenever the plan's byte cap allows it and the download can arrive
+ * inside its time limit, rather than stopping at 1080p.
  */
 
 /** A vertical short: nine wide, sixteen tall. */
@@ -23,7 +31,9 @@ const ASPECT_HEIGHT = 16;
  *
  * 1920 is the clip project's canvas (1080 x 1920). Every export draws the
  * mezzanine onto that canvas, so a taller picture is only bytes the export
- * scales back down.
+ * scales back down. Reaching it needs a 9:16 window at least 1920 tall: a
+ * landscape source at least that tall (in practice 2160p), or a portrait one
+ * at least 1080 wide, like a 1080 x 1920 Short.
  */
 export const MAX_CLIP_HEIGHT = 1920;
 

@@ -219,6 +219,13 @@ function refusal(status: number, code: string, details?: unknown): Response {
   );
 }
 
+/** The buttons on a card that are its primary (the rani fill). */
+function cardPrimaries(card: HTMLElement): HTMLElement[] {
+  return within(card)
+    .getAllByRole("button")
+    .filter((button) => button.className.split(/\s+/).includes("bg-accent"));
+}
+
 /** The JSON bodies POSTed to `path`, in order. */
 function postsTo(fetchMock: FetchMock, path: string): unknown[] {
   return fetchMock.mock.calls
@@ -412,6 +419,166 @@ describe("<RepurposeRunView /> after a failure", () => {
     );
   });
 
+  // An upload whose file could not be read fails as `processing_failed`, whose
+  // recommendation is "Try again" — but the API refuses that retry every time
+  // (the file is the problem), so it now answers `canRetry: false`, and the
+  // card must lead with the way out rather than a button that always fails.
+  it("leads with another file, not Try again, when the run cannot be retried", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<RepurposeRunView runId={RUN_ID} />, {
+      routes: {
+        [RUN_PATH]: run({
+          sourceKind: "upload",
+          status: "failed",
+          currentStage: "getting_video",
+          failureCode: "repurpose/processing_failed",
+          canCancel: false,
+          canRetry: false,
+        }),
+      },
+    });
+
+    const card = await screen.findByTestId("stage-error");
+    expect(within(card).queryByTestId("stage-error-retry")).toBeNull();
+    expect(cardPrimaries(card)).toEqual([within(card).getByTestId("stage-error-choose-another")]);
+
+    await user.click(within(card).getByTestId("stage-error-choose-another"));
+    // Another FILE, most likely: the form opens on its upload tab.
+    const href = String(routerMock.push.mock.calls[0]?.[0]);
+    expect(new URL(href, "https://app.test").searchParams.get("source")).toBe("upload");
+  });
+
+  it("drops a refused Try again for the way out once the run says it cannot be retried", async () => {
+    const user = userEvent.setup();
+    const failed = {
+      sourceKind: "upload",
+      status: "failed",
+      currentStage: "getting_video",
+      failureCode: "repurpose/processing_failed",
+      canCancel: false,
+    };
+    // A tab opened before the API learned to say so: it still offers the retry.
+    const routes: Record<string, unknown> = { [RUN_PATH]: run({ ...failed, canRetry: true }) };
+    const { fetchMock } = renderWithProviders(<RepurposeRunView runId={RUN_ID} />, { routes });
+    onPost(fetchMock, `${RUN_PATH}/retry`, () => {
+      Object.assign(routes, { [RUN_PATH]: run({ ...failed, canRetry: false }) });
+      return refusal(409, "repurpose/not_retryable");
+    });
+
+    await user.click(await screen.findByTestId("stage-error-retry"));
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("stage-error-retry")).toBeNull();
+    });
+    const card = screen.getByTestId("stage-error");
+    expect(cardPrimaries(card)).toEqual([within(card).getByTestId("stage-error-choose-another")]);
+    expect(screen.getByTestId("stage-error-retry-error")).toHaveTextContent(
+      "This run cannot be tried again.",
+    );
+  });
+
+  it("does not say 'unless you try again' under a run that cannot be tried again", async () => {
+    renderWithProviders(<RepurposeRunView runId={RUN_ID} />, {
+      routes: {
+        [RUN_PATH]: run({
+          status: "failed",
+          currentStage: "finding_clips",
+          failureCode: "repurpose/highlights_failed",
+          canCancel: false,
+          canRetry: false,
+          candidateCount: 1,
+        }),
+        ...momentsRoutes([candidate("01CAND1")]),
+      },
+    });
+
+    const bar = await screen.findByTestId("run-action-bar");
+    expect(bar).toHaveTextContent("Nothing further will be spent on this run.");
+    expect(bar).not.toHaveTextContent(/try again/i);
+  });
+
+  it("starts the same link afresh when the transcript has no timings", async () => {
+    const user = userEvent.setup();
+    rememberRunSetup(RUN_ID, {
+      sourceLanguage: "hi",
+      outputLanguage: "same",
+      scriptMode: "auto",
+      styleId: RECOMMENDED_STYLES[0]?.id ?? "",
+      method: "ai",
+      requestedCandidates: 5,
+      link: "https://www.youtube.com/watch?v=untimed",
+    });
+    renderWithProviders(<RepurposeRunView runId={RUN_ID} />, {
+      routes: {
+        [RUN_PATH]: run({
+          sourceKind: "youtube_url",
+          status: "failed",
+          currentStage: "finding_clips",
+          failureCode: "repurpose/transcript_untimed",
+          canCancel: false,
+          canRetry: true,
+        }),
+      },
+    });
+
+    const card = await screen.findByTestId("stage-error");
+    expect(within(card).getByText("This video's transcript has no timings")).toBeInTheDocument();
+    expect(cardPrimaries(card)).toEqual([within(card).getByTestId("stage-error-start-again")]);
+    await user.click(within(card).getByTestId("stage-error-start-again"));
+    const href = String(routerMock.push.mock.calls[0]?.[0]);
+    const params = new URL(href, "https://app.test").searchParams;
+    expect(params.get("url")).toBe("https://www.youtube.com/watch?v=untimed");
+    expect(params.get("lang")).toBe("hi");
+  });
+
+  // The run this card exists for was started on 2026-09-15, before setups were
+  // remembered — as is any run started in another browser or a private window.
+  // "Start again with this video" then opened an empty "Paste a link" form.
+  it("keeps the link for a run this browser never saw, from the run's own display", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<RepurposeRunView runId={RUN_ID} />, {
+      routes: {
+        [RUN_PATH]: run({
+          sourceKind: "youtube_url",
+          sourceDisplay: "youtube.com · kE0oUEzVVes",
+          status: "failed",
+          currentStage: "finding_clips",
+          failureCode: "repurpose/transcript_untimed",
+          canCancel: false,
+          canRetry: false,
+        }),
+      },
+    });
+
+    const card = await screen.findByTestId("stage-error");
+    expect(cardPrimaries(card)).toEqual([within(card).getByTestId("stage-error-start-again")]);
+    await user.click(within(card).getByTestId("stage-error-start-again"));
+    const href = String(routerMock.push.mock.calls[0]?.[0]);
+    expect(new URL(href, "https://app.test").searchParams.get("url")).toBe(
+      "https://www.youtube.com/watch?v=kE0oUEzVVes",
+    );
+  });
+
+  it("offers another video, not an empty 'this video', when no link can be recovered", async () => {
+    renderWithProviders(<RepurposeRunView runId={RUN_ID} />, {
+      routes: {
+        [RUN_PATH]: run({
+          sourceKind: "youtube_url",
+          sourceDisplay: null,
+          status: "failed",
+          currentStage: "finding_clips",
+          failureCode: "repurpose/transcript_untimed",
+          canCancel: false,
+          canRetry: false,
+        }),
+      },
+    });
+
+    const card = await screen.findByTestId("stage-error");
+    expect(within(card).queryByTestId("stage-error-start-again")).toBeNull();
+    expect(cardPrimaries(card)).toEqual([within(card).getByTestId("stage-error-choose-another")]);
+  });
+
   it("says a failed run has stopped, instead of 0% complete", async () => {
     renderWithProviders(<RepurposeRunView runId={RUN_ID} />, {
       routes: {
@@ -480,10 +647,21 @@ describe("<RepurposeRunView /> clips, one state each", () => {
     expect(postsTo(fetchMock, `${RUN_PATH}/retry`)).toHaveLength(0);
   });
 
-  it("offers a new run, not a retry, when the original video is gone", async () => {
+  // "Start again from the link" used to be built from this browser's memory
+  // alone, so for a run it never saw it opened an empty form ("/repurpose/new").
+  // It is offered once this run is stopped (or failed, or published): the API
+  // allows one open run per link, so while this one is open a new run of the
+  // same link is refused and sent back here.
+  it("offers a new run from the same link, not a retry, once the run with the gone original is stopped", async () => {
     renderWithProviders(<RepurposeRunView runId={RUN_ID} />, {
       routes: {
-        [RUN_PATH]: cuttingRun,
+        [RUN_PATH]: {
+          ...cuttingRun,
+          status: "cancelled",
+          canCancel: false,
+          sourceKind: "youtube_url",
+          sourceDisplay: "youtube.com · kE0oUEzVVes",
+        },
         ...momentsRoutes(
           [candidate("01CANDF")],
           [
@@ -495,11 +673,109 @@ describe("<RepurposeRunView /> clips, one state each", () => {
         ),
       },
     });
-    expect(await screen.findByTestId("restart-clip-01CANDF")).toHaveAttribute(
-      "href",
-      "/repurpose/new",
+    const restart = await screen.findByTestId("restart-clip-01CANDF");
+    expect(restart).toHaveTextContent("Start again from the link");
+    const href = restart.getAttribute("href") ?? "";
+    expect(new URL(href, "https://app.test").searchParams.get("url")).toBe(
+      "https://www.youtube.com/watch?v=kE0oUEzVVes",
     );
     expect(screen.queryByTestId("retry-clip-01CANDF")).toBeNull();
+  });
+
+  // The API refuses a new run of a link that still has an open one
+  // (`source_already_running`), so the button led straight back to this run.
+  it("says to stop the run first, with no dead-end button, while a link run with a gone original is open", async () => {
+    renderWithProviders(<RepurposeRunView runId={RUN_ID} />, {
+      routes: {
+        [RUN_PATH]: {
+          ...cuttingRun,
+          status: "candidates_ready",
+          currentStage: "finding_clips",
+          sourceKind: "youtube_url",
+          sourceDisplay: "youtube.com · kE0oUEzVVes",
+        },
+        ...momentsRoutes(
+          [candidate("01CANDF")],
+          [
+            clip("01CLIPF", "01CANDF", {
+              state: "failed",
+              failureCode: "repurpose/source_expired",
+            }),
+          ],
+        ),
+      },
+    });
+    const failed = await screen.findByTestId("clip-state-01CANDF");
+    expect(failed).toHaveTextContent("The original video is no longer kept");
+    expect(failed).toHaveTextContent(
+      "To cut this moment, stop this run, then start again from the same link.",
+    );
+    expect(screen.queryByTestId("restart-clip-01CANDF")).toBeNull();
+    expect(screen.queryByTestId("retry-clip-01CANDF")).toBeNull();
+    // The way to stop it is on the same page.
+    expect(screen.getByTestId("run-cancel")).toBeInTheDocument();
+  });
+
+  it("says to wait for the run to finish when an open link run can no longer be stopped", async () => {
+    renderWithProviders(<RepurposeRunView runId={RUN_ID} />, {
+      routes: {
+        [RUN_PATH]: {
+          ...cuttingRun,
+          status: "partially_published",
+          currentStage: "publish",
+          canCancel: false,
+          sourceKind: "youtube_url",
+          sourceDisplay: "youtube.com · kE0oUEzVVes",
+        },
+        ...momentsRoutes(
+          [candidate("01CANDF")],
+          [clip("01CLIPF", "01CANDF", { state: "failed", failureCode: "media/source_missing" })],
+        ),
+      },
+    });
+    const failed = await screen.findByTestId("clip-state-01CANDF");
+    expect(failed).toHaveTextContent("once this one has finished");
+    expect(failed).not.toHaveTextContent(/stop this run/);
+    expect(screen.queryByTestId("restart-clip-01CANDF")).toBeNull();
+  });
+
+  it("offers the file again, not the link, when an upload's original is gone", async () => {
+    renderWithProviders(<RepurposeRunView runId={RUN_ID} />, {
+      routes: {
+        [RUN_PATH]: cuttingRun,
+        ...momentsRoutes(
+          [candidate("01CANDF")],
+          [clip("01CLIPF", "01CANDF", { state: "failed", failureCode: "media/source_missing" })],
+        ),
+      },
+    });
+    const restart = await screen.findByTestId("restart-clip-01CANDF");
+    expect(restart).toHaveTextContent("Upload the video again");
+    expect(restart).toHaveAttribute("href", "/repurpose/new?source=upload");
+    expect(screen.getByTestId("clip-state-01CANDF")).not.toHaveTextContent(/link/);
+  });
+
+  // A clip too large to prepare fell through to "This clip could not be made"
+  // with a "Try again" that would only cut the same size again.
+  it("offers neither a retry nor a new run for a clip that came out too large", async () => {
+    renderWithProviders(<RepurposeRunView runId={RUN_ID} />, {
+      routes: {
+        [RUN_PATH]: {
+          ...cuttingRun,
+          sourceKind: "youtube_url",
+          sourceDisplay: "youtube.com · kE0oUEzVVes",
+        },
+        ...momentsRoutes(
+          [candidate("01CANDF")],
+          [clip("01CLIPF", "01CANDF", { state: "failed", failureCode: "media/too_large" })],
+        ),
+      },
+    });
+    const failed = await screen.findByTestId("clip-state-01CANDF");
+    expect(failed).toHaveTextContent("This clip came out too large to open in the editor");
+    expect(failed).toHaveTextContent("A shorter moment from it will fit.");
+    expect(screen.queryByTestId("retry-clip-01CANDF")).toBeNull();
+    expect(screen.queryByTestId("restart-clip-01CANDF")).toBeNull();
   });
 
   it("shows a refused create next to its moment, in plain words", async () => {

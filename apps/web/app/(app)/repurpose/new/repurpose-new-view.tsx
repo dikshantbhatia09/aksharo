@@ -57,6 +57,7 @@ export function RepurposeNewView(): React.JSX.Element {
    * A failed run's "Choose another video" / "Check the link" comes here the
    * same way, adding its setup (`lang`, `out`, `script`, `style`, `method`,
    * `n`) so nothing but the video has to be chosen again (`run-setup.ts`).
+   * A failed upload run adds `source=upload`, which opens the upload tab.
    */
   const searchParams = useSearchParams();
   const create = useCreateRepurposeRun();

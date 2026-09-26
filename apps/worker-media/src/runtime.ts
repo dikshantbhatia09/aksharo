@@ -70,6 +70,18 @@ import type { Job } from "bullmq";
  * **The media row is only marked `failed` when the failure is terminal.** An asset
  * shown as failed while BullMQ still has two attempts left is a lie the next
  * attempt has to undo, and the user has watched it happen.
+ *
+ * **A row settled mid-run stops the work** — the table's settled row, at any
+ * point after pickup rather than only at it. Stopping a run cancels its jobs
+ * in the API, but BullMQ cannot remove a job a worker holds, so a download
+ * already under way used to run to its end — up to the 40-minute acquire
+ * timeout, on the one acquisition slot every run shares — and then upload a
+ * file nobody would keep. Every progress answer after the stop says
+ * `already_completed`, so the heartbeat reads its answers: a settled one
+ * aborts the job's own signal (the processor's `signal` is that one joined
+ * with the shutdown's), and the job ends like a settled pickup — nothing
+ * reported, nothing retried. A shutdown alone never aborts it, so a job
+ * interrupted by a restart still fails retryably and runs again.
  */
 
 /** Everything a processor is handed. */
@@ -84,7 +96,10 @@ export interface JobContext {
   readonly callbacks: CallbackClient;
   /** Report progress; throttled by {@link Heartbeat}, safe to call often. */
   report(progress: number, message?: string): void;
-  /** Aborted when the worker is shutting down, so ffmpeg is killed with it. */
+  /**
+   * Aborted when the worker is shutting down, or when the API says this job's
+   * row is settled (a stopped run), so ffmpeg or the downloader is killed with it.
+   */
   readonly signal: AbortSignal;
 }
 
@@ -122,6 +137,13 @@ export function buildServices(settings: Settings): Services {
  */
 const SETTLED_REASONS: ReadonlySet<string> = new Set(["already_completed", "stale_attempt"]);
 
+/** The reason an ack says nothing more can be recorded, or `null` when it can. */
+function settledReason(ack: CallbackAck): string | null {
+  return !ack.applied && ack.reason !== undefined && SETTLED_REASONS.has(ack.reason)
+    ? ack.reason
+    : null;
+}
+
 /** A move this large is news, and is posted before the heartbeat interval is up... */
 export const PROGRESS_STEP = 5;
 /** ...but never sooner than this after the previous post, whatever the processor says. */
@@ -140,19 +162,32 @@ export const MIN_PROGRESS_POST_MS = 2_000;
  * The step rule exists because the interval is a third of the lock — 200 s on
  * the media queues — and a 90-second download that posted only on the interval
  * showed "getting your video" at 5% from start to finish.
+ *
+ * Every answer is read as well as sent: one that says the row is settled is
+ * how a running job learns its run was stopped (see `onSettled`). A download
+ * that is moving posts every few points, so that is usually seconds; a stalled
+ * one, or a quiet encode, learns it at worst one interval later.
  */
 export class Heartbeat {
   private last = -1;
   private lastPosted = -1;
   private lastPostedAt = 0;
   private timer: NodeJS.Timeout | undefined;
-  private inflight = false;
+  /** The post on the wire, if any, settled or not; see {@link Heartbeat.drain}. */
+  private inflight: Promise<void> | undefined;
+  private settled = false;
 
   constructor(
     private readonly callbacks: CallbackClient,
     private readonly jobId: string,
     private readonly attemptId: string,
     private readonly intervalMs: number,
+    /**
+     * Called once, when an answer says the row is settled — a user stopped the
+     * run, or a newer attempt owns the row — so nothing this attempt does can
+     * be recorded any more. Nothing is posted after it.
+     */
+    private readonly onSettled?: (reason: string) => void,
   ) {}
 
   /** Note a new percentage, and post it if enough time has passed or it moved enough. */
@@ -187,14 +222,33 @@ export class Heartbeat {
     this.timer = undefined;
   }
 
+  /**
+   * Wait out a post already on the wire; never rejects.
+   *
+   * `stop()` only ends the timer. A beat sent just before the processor
+   * returned can still come back saying the row is settled, and a caller that
+   * checked for that without waiting would deliver this attempt's media patch
+   * anyway — the API checks the completion against the job, not the patch.
+   * Bounded by the progress post's own short retry budget.
+   */
+  async drain(): Promise<void> {
+    await this.inflight;
+  }
+
   private post(progress: number, message?: string): void {
-    if (this.inflight) return;
-    this.inflight = true;
+    if (this.inflight !== undefined || this.settled) return;
     this.lastPosted = progress;
     this.lastPostedAt = Date.now();
-    void this.callbacks
+    this.inflight = this.callbacks
       .progress(this.jobId, this.attemptId, progress, {
         ...(message === undefined ? {} : { message }),
+      })
+      .then((ack) => {
+        const reason = settledReason(ack);
+        if (reason === null || this.settled) return;
+        this.settled = true;
+        this.stop();
+        this.onSettled?.(reason);
       })
       .catch((error: unknown) => {
         // A dropped heartbeat is not a reason to fail work that is going fine: the
@@ -202,7 +256,7 @@ export class Heartbeat {
         logger.warn("heartbeat not delivered", { jobId: this.jobId, error: describeError(error) });
       })
       .finally(() => {
-        this.inflight = false;
+        this.inflight = undefined;
       });
   }
 }
@@ -248,7 +302,16 @@ export function makeHandler(
     };
     logger.info("job received", log);
 
-    const heartbeat = new Heartbeat(services.callbacks, jobId, attemptId, interval);
+    // This job's own stop, separate from the process's: aborted only when the
+    // API says the row is settled, so it can be told apart from a shutdown,
+    // which has to stay retryable.
+    const settled = new AbortController();
+    const heartbeat = new Heartbeat(services.callbacks, jobId, attemptId, interval, (reason) => {
+      logger.warn("job was settled by the API while it ran; stopping it", { ...log, reason });
+      settled.abort(reason);
+    });
+    const alreadySettled = (reason: unknown): UnrecoverableError =>
+      new UnrecoverableError(`${queueName} job ${jobId} is already settled (${String(reason)})`);
     const reporting: Reporting = { services, envelope, log, started, queueName };
 
     // An earlier attempt finished and could not tell the API. Tell it now,
@@ -269,9 +332,17 @@ export function makeHandler(
       return success.completion.result ?? {};
     } catch (thrown) {
       heartbeat.stop();
+      // A beat on the wire may be the one that says the run was stopped; the
+      // failure report below would mark the media failed over a stopped run.
+      await heartbeat.drain();
       // Only the settled-row refusal throws this: there is nothing to report
       // against a row the API has closed, and nothing to retry.
       if (thrown instanceof UnrecoverableError) throw thrown;
+      // The row was settled while the processor ran, and it was stopped for
+      // that (or failed on its own at the same moment). Either way the API
+      // would refuse the report — the row's own failure is the user's answer —
+      // and a retry would only be turned away at pickup.
+      if (settled.signal.aborted) throw alreadySettled(settled.signal.reason);
       const error = asMediaJobError(thrown);
       const unheard = await reportFailure(job, error, reporting);
       if (unheard !== null && (await carryToNextAttempt(job, unheard, log))) {
@@ -307,17 +378,16 @@ export function makeHandler(
       const derivedPrefix = mediaPrefix(envelope.workspaceId, envelope.projectId, targetId);
 
       const pickup = await heartbeat.postNow(0, `${queueName} started`);
-      if (!pickup.applied && pickup.reason !== undefined && SETTLED_REASONS.has(pickup.reason)) {
+      const pickupSettled = settledReason(pickup);
+      if (pickupSettled !== null) {
         // Nothing this attempt does can be recorded — a user cancelled the run,
         // or an earlier attempt already settled the row — and for acquisition
         // running anyway means downloading a whole video nobody will keep.
         logger.warn("job is already settled by the API; not running it", {
           ...log,
-          reason: pickup.reason,
+          reason: pickupSettled,
         });
-        throw new UnrecoverableError(
-          `${queueName} job ${jobId} is already settled (${pickup.reason})`,
-        );
+        throw alreadySettled(pickupSettled);
       }
       heartbeat.start();
 
@@ -332,10 +402,21 @@ export function makeHandler(
         report: (progress, message) => {
           heartbeat.report(progress, message);
         },
-        signal: shutdown,
+        // Either stop kills a child process that is running. One not yet spawned
+        // needs its own check of the signal: the downloader and acquire make
+        // one, ffmpeg/run.ts does not yet, so a stop between two ffmpeg steps
+        // lets the next run to its end before delivery is refused. Only the
+        // shutdown is retried.
+        signal: AbortSignal.any([shutdown, settled.signal]),
       });
 
       heartbeat.stop();
+      // Settled while the last step finished anyway: the completion would be
+      // refused, and the media patch — which the API does not check against the
+      // job — would still write this attempt's facts onto the asset. The check
+      // waits for a beat still on the wire, whose answer may be that stop.
+      await heartbeat.drain();
+      if (settled.signal.aborted) throw alreadySettled(settled.signal.reason);
 
       return {
         attemptId,

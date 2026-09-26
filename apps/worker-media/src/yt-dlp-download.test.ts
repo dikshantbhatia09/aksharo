@@ -343,6 +343,33 @@ describe("probeSource", () => {
     expect(error).toMatchObject({ reason: "media/source_private", retryable: false });
   });
 
+  it("chooses the streams against the job's time limit as well as its byte cap", async () => {
+    // Three hours: 4K (5.6 GB) fits an 8 GiB plan, but not 40 minutes at the
+    // assumed speed; given three hours to arrive, it would be the pick.
+    const long = {
+      ...VIDEO,
+      duration: 3 * 60 * 60,
+      formats: [
+        { format_id: "140", vcodec: "none", acodec: "mp4a.40.2", ext: "m4a", tbr: 129.476 },
+        { format_id: "137", vcodec: "avc1.640028", acodec: "none", width: 1920, height: 1080, tbr: 1262.937 },
+        { format_id: "401", vcodec: "av01.0.12M.08", acodec: "none", width: 3840, height: 2160, tbr: 3994.581 },
+      ],
+    };
+    const limits = (timeoutMs: number): AcquireLimits => ({
+      maxBytes: 8 * 1024 ** 3,
+      maxDurationMs: 6 * 60 * 60 * 1000,
+      timeoutMs,
+    });
+    probeReturning(long);
+    await expect(
+      probeSource({ binary: "yt-dlp", url: URL, limits: limits(40 * 60 * 1000) }),
+    ).resolves.toMatchObject({ formatSelector: "137+140" });
+    probeReturning(long);
+    await expect(
+      probeSource({ binary: "yt-dlp", url: URL, limits: limits(3 * 60 * 60 * 1000) }),
+    ).resolves.toMatchObject({ formatSelector: "401+140" });
+  });
+
   it("gives an unreadable description a reason for when its retries run out", async () => {
     fakeDownloader(async (child) => {
       child.stdout.write("{not json");

@@ -88,6 +88,23 @@ describe("<RepurposeIndexView /> run list", () => {
     expect(screen.queryByTestId("repurpose-live-run")).toBeNull();
   });
 
+  // An upload run whose file never arrived stays `draft`; it sat on top as
+  // "In progress" with nothing on the server moving it.
+  it("does not call an upload still waiting for its file in progress", async () => {
+    renderList([
+      run("01DRAFT", "draft", {
+        sourceKind: "upload",
+        sourceDisplay: null,
+        currentStage: "getting_video",
+        message: "Add a video to get started.",
+      }),
+    ]);
+    const row = await screen.findByTestId("repurpose-run-01DRAFT");
+    expect(row).toHaveTextContent("Waiting for its video · Add a video to get started.");
+    expect(row).not.toHaveTextContent("In progress");
+    expect(screen.queryByTestId("repurpose-live-run")).toBeNull();
+  });
+
   it("surfaces a run that is working at the top", async () => {
     renderList([run("01WORK", "transcribing", { message: "Creating the transcript." })]);
     expect(await screen.findByTestId("repurpose-live-run")).toHaveAttribute(

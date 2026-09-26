@@ -2,7 +2,19 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { FaceTrackDocument } from "@montaj/render-core";
 
-import { CENTRE_REFRAME, reframeForClip, reframeFromFaces, reframeFromTrack } from "./reframe.js";
+import {
+  CENTRE_REFRAME,
+  FACE_TRACK_MAX_BYTES,
+  FACE_TRACK_MAX_RUN_WAIT_MS,
+  FACE_TRACK_MAX_WAIT_MS,
+  FACE_TRACK_QUEUE_WAIT_MS,
+  FACE_TRACK_WAIT_MS,
+  awaitingFaceDetection,
+  faceDetectionRunWaitMs,
+  reframeForClip,
+  reframeFromFaces,
+  reframeFromTrack,
+} from "./reframe.js";
 
 type Box = readonly [number, number, number, number];
 
@@ -188,14 +200,22 @@ describe("reframeFromTrack", () => {
 describe("reframeForClip", () => {
   const interval = { fromMs: 0, toMs: 10_000 };
 
-  function deps(body?: Buffer | Error) {
+  /**
+   * `sizeBytes` is what `head` reports: the body's own length by default, or
+   * `null` for an object that is not there.
+   */
+  function deps(body?: Buffer | Error, sizeBytes?: number | null) {
+    const size =
+      sizeBytes !== undefined ? sizeBytes : body instanceof Buffer ? body.length : "{}".length;
+    const head = vi.fn(async () => (size === null ? null : { sizeBytes: size }));
+    const get = vi.fn(async () => {
+      if (body instanceof Error) throw body;
+      return body ?? Buffer.from("{}");
+    });
     return {
-      derived: {
-        get: vi.fn(async () => {
-          if (body instanceof Error) throw body;
-          return body ?? Buffer.from("{}");
-        }),
-      } as never,
+      derived: { head, get } as never,
+      head,
+      get,
       faces: { maybeEnqueue: vi.fn(async () => undefined) },
       warn: vi.fn(),
     };
@@ -210,6 +230,35 @@ describe("reframeForClip", () => {
     );
     expect(reframe).toEqual({ centerX: 0.7, basis: "faces" });
     expect(d.faces.maybeEnqueue).not.toHaveBeenCalled();
+  });
+
+  it("cuts on the centre, without downloading it, when the track is over the size bound", async () => {
+    // `get` buffers the whole object and the parse blocks the one API process;
+    // the file's size is set by the video, so it is checked before it is read.
+    const body = Buffer.from(JSON.stringify(track(40, () => [face(0.7)])));
+    const d = deps(body, FACE_TRACK_MAX_BYTES + 1);
+    expect(await reframeForClip(d, { id: "M1", facesKey: "k" }, interval)).toEqual(CENTRE_REFRAME);
+    expect(d.get).not.toHaveBeenCalled();
+    expect(d.warn).toHaveBeenCalledWith(
+      expect.objectContaining({ mediaId: "M1", sizeBytes: FACE_TRACK_MAX_BYTES + 1 }),
+      expect.stringContaining("too large"),
+    );
+  });
+
+  it("still reads a track exactly at the size bound", async () => {
+    const body = Buffer.from(JSON.stringify(track(40, () => [face(0.7)])));
+    const d = deps(body, FACE_TRACK_MAX_BYTES);
+    expect(await reframeForClip(d, { id: "M1", facesKey: "k" }, interval)).toEqual({
+      centerX: 0.7,
+      basis: "faces",
+    });
+  });
+
+  it("cuts on the centre, without downloading anything, when the track is gone", async () => {
+    const d = deps(undefined, null);
+    expect(await reframeForClip(d, { id: "M1", facesKey: "k" }, interval)).toEqual(CENTRE_REFRAME);
+    expect(d.get).not.toHaveBeenCalled();
+    expect(d.warn).toHaveBeenCalled();
   });
 
   it("queues detection for a source that has none yet, once, and cuts on the centre", async () => {
@@ -255,5 +304,112 @@ describe("reframeForClip", () => {
         interval,
       ),
     ).toEqual(CENTRE_REFRAME);
+  });
+});
+
+describe("awaitingFaceDetection", () => {
+  const now = Date.parse("2026-09-26T12:00:00Z");
+  /** A 368 s source: the legacy clips of run 01M2W1J5BZJF7QGMDM5HE39YZ1. */
+  const SOURCE_MS = 368_000;
+  const ago = (ms: number): Date => new Date(now - ms);
+  /** A job queued `queuedMs` ago, started `startedMs` ago (if it has), finished `finishedMs` ago. */
+  const job = (
+    status: string,
+    queuedMs: number,
+    startedMs: number | null = status === "queued" ? null : queuedMs,
+    finishedMs: number | null = ["queued", "running"].includes(status)
+      ? null
+      : (startedMs ?? queuedMs),
+  ) => ({
+    status,
+    queuedAt: ago(queuedMs),
+    startedAt: startedMs === null ? null : ago(startedMs),
+    finishedAt: finishedMs === null ? null : ago(finishedMs),
+  });
+
+  it("waits while the source's detection is on its way, or has only just landed", () => {
+    expect(awaitingFaceDetection(job("queued", 0), SOURCE_MS, now)).toBe(true);
+    expect(awaitingFaceDetection(job("running", 60_000), SOURCE_MS, now)).toBe(true);
+    // The track landed after the caller read the media row: the next reconcile has it.
+    expect(awaitingFaceDetection(job("succeeded", 90_000), SOURCE_MS, now)).toBe(true);
+  });
+
+  it("does not wait when there is no detection, or it failed or was stopped", () => {
+    expect(awaitingFaceDetection(null, SOURCE_MS, now)).toBe(false);
+    expect(awaitingFaceDetection(undefined, SOURCE_MS, now)).toBe(false);
+    expect(awaitingFaceDetection(job("failed", 10_000), SOURCE_MS, now)).toBe(false);
+    expect(awaitingFaceDetection(job("cancelled", 10_000), SOURCE_MS, now)).toBe(false);
+  });
+
+  it("gives detection its whole run from when it STARTED, not from when it was queued", () => {
+    // worker-ai detects one video at a time: this one sat four minutes behind
+    // others, then started a minute ago. Counted from queueing, the wait was over
+    // before detection began, and the clips were cut on the centre for good.
+    const behindOthers = job("running", 4 * 60_000, 60_000);
+    expect(awaitingFaceDetection(behindOthers, SOURCE_MS, now)).toBe(true);
+    // Once it has run the whole allowance, the centre it is.
+    expect(
+      awaitingFaceDetection(
+        job("running", 4 * 60_000, faceDetectionRunWaitMs(SOURCE_MS)),
+        SOURCE_MS,
+        now,
+      ),
+    ).toBe(false);
+    // A row that never recorded its start is timed from queueing.
+    expect(awaitingFaceDetection(job("running", FACE_TRACK_WAIT_MS - 1, null), 16_000, now)).toBe(
+      true,
+    );
+    expect(awaitingFaceDetection(job("running", FACE_TRACK_WAIT_MS, null), 16_000, now)).toBe(
+      false,
+    );
+  });
+
+  it("gives a long source's detection longer to run, within a ceiling", () => {
+    expect(faceDetectionRunWaitMs(16_000)).toBe(FACE_TRACK_WAIT_MS);
+    // Half of 368 s: just over the floor.
+    expect(faceDetectionRunWaitMs(SOURCE_MS)).toBe(184_000);
+    expect(faceDetectionRunWaitMs(null)).toBe(FACE_TRACK_WAIT_MS);
+    expect(faceDetectionRunWaitMs(Number.NaN)).toBe(FACE_TRACK_WAIT_MS);
+    expect(faceDetectionRunWaitMs(12 * 60_000)).toBe(6 * 60_000);
+    expect(faceDetectionRunWaitMs(3 * 3_600_000)).toBe(FACE_TRACK_MAX_RUN_WAIT_MS);
+
+    // Twelve minutes of source: five minutes into detection is still waiting.
+    const long = job("running", 5 * 60_000);
+    expect(awaitingFaceDetection(long, 12 * 60_000, now)).toBe(true);
+    expect(awaitingFaceDetection(long, SOURCE_MS, now)).toBe(false);
+  });
+
+  it("waits out a queue behind other detections, but not a worker that never takes it", () => {
+    expect(awaitingFaceDetection(job("queued", 5 * 60_000), SOURCE_MS, now)).toBe(true);
+    expect(awaitingFaceDetection(job("queued", FACE_TRACK_QUEUE_WAIT_MS - 1), SOURCE_MS, now)).toBe(
+      true,
+    );
+    expect(awaitingFaceDetection(job("queued", FACE_TRACK_QUEUE_WAIT_MS), SOURCE_MS, now)).toBe(
+      false,
+    );
+  });
+
+  it("never waits past the whole ceiling, however the time was split", () => {
+    // Queued nine minutes, running seven of a ten-minute allowance: the person
+    // watching "waiting" has had the fifteen minutes they were promised.
+    const split = job("running", FACE_TRACK_MAX_WAIT_MS + 1_000, 7 * 60_000);
+    expect(awaitingFaceDetection(split, 3 * 3_600_000, now)).toBe(false);
+    const inside = job("running", FACE_TRACK_MAX_WAIT_MS - 1_000, 7 * 60_000);
+    expect(awaitingFaceDetection(inside, 3 * 3_600_000, now)).toBe(true);
+  });
+
+  it("gives a track that has just landed one short wait to be read, then no more", () => {
+    // Timed from when it finished, not queued: a long detection that has just
+    // succeeded is read on the next reconcile, not given up on.
+    expect(
+      awaitingFaceDetection(job("succeeded", 8 * 60_000, 7 * 60_000, 10_000), SOURCE_MS, now),
+    ).toBe(true);
+    expect(
+      awaitingFaceDetection(
+        job("succeeded", 8 * 60_000, 7 * 60_000, FACE_TRACK_WAIT_MS),
+        SOURCE_MS,
+        now,
+      ),
+    ).toBe(false);
   });
 });

@@ -155,6 +155,7 @@ function harness(options: Options = {}) {
       run = { ...value, status: "analyzing", failureCode: null } as RepurposeRun;
       return { ...run };
     }),
+    retryPossible: vi.fn(async (_value: RepurposeRun, _failureCode: string | null) => true),
   } satisfies RunReconciler;
   if (options.noReconciler !== true) service.useReconciler(reconciler);
 
@@ -433,6 +434,110 @@ describe("get — a source that failed after the download", () => {
     });
     const view = await h.service.get(WS, RUN);
     expect(view.failureCode).toBe("repurpose/source_private");
+  });
+});
+
+describe("canRetry — only a retry the endpoint would run", () => {
+  it("is false on a failed run whose retry would be refused", async () => {
+    // An upload whose file could not be read: "Try again" was the card's main
+    // button, and every press answered 409 repurpose/not_retryable.
+    const h = harness({
+      run: runRow({
+        status: "failed",
+        failureCode: "repurpose/processing_failed",
+        sourceKind: "upload",
+      }),
+      media: {
+        id: MEDIA,
+        status: "failed",
+        failureReason: "media/corrupt",
+        uploadedAt: new Date(),
+      },
+    });
+    h.reconciler.retryPossible.mockResolvedValueOnce(false);
+
+    const view = await h.service.get(WS, RUN);
+    expect(view.status).toBe("failed");
+    expect(view.canRetry).toBe(false);
+    expect(h.reconciler.retryPossible).toHaveBeenCalledWith(
+      expect.objectContaining({ id: RUN }),
+      "repurpose/processing_failed",
+    );
+  });
+
+  it("is true on a failed run a retry would restart", async () => {
+    const h = harness({
+      run: runRow({ status: "failed", failureCode: "repurpose/source_blocked" }),
+    });
+    const view = await h.service.get(WS, RUN);
+    expect(view.canRetry).toBe(true);
+  });
+
+  it("asks about the failure the view shows, before the reconciler has written it", async () => {
+    const h = harness({
+      media: {
+        id: MEDIA,
+        status: "failed",
+        failureReason: "media/too_long",
+        uploadedAt: new Date(),
+      },
+    });
+    h.reconciler.retryPossible.mockResolvedValueOnce(false);
+    const view = await h.service.get(WS, RUN);
+    expect(h.reconciler.retryPossible).toHaveBeenCalledWith(
+      expect.anything(),
+      "repurpose/source_too_long",
+    );
+    expect(view.canRetry).toBe(false);
+  });
+
+  it("does not ask for a run that has not failed", async () => {
+    const h = harness({ run: runRow({ status: "analyzing" }), transcript: { id: TRANSCRIPT } });
+    const view = await h.service.get(WS, RUN);
+    expect(h.reconciler.retryPossible).not.toHaveBeenCalled();
+    expect(view.canRetry).toBe(false);
+  });
+
+  it("falls back on the status when the plan cannot be read right now", async () => {
+    // A database blink must not take the button off a run a retry would restart.
+    const h = harness({
+      run: runRow({ status: "failed", failureCode: "repurpose/source_blocked" }),
+    });
+    h.reconciler.retryPossible.mockRejectedValueOnce(new Error("pool"));
+    const view = await h.service.get(WS, RUN);
+    expect(view.canRetry).toBe(true);
+  });
+
+  it("is false on a retry that failed the run straight back, when another would be refused too", async () => {
+    const h = harness({
+      run: runRow({ status: "failed", failureCode: "repurpose/transcription_failed" }),
+    });
+    h.reconciler.redrive.mockImplementationOnce(async (value: RepurposeRun) => {
+      const failed = { ...value, status: "failed", failureCode: "repurpose/no_credits" };
+      h.setRun(failed as RepurposeRun);
+      return failed as RepurposeRun;
+    });
+    h.reconciler.retryPossible.mockResolvedValueOnce(false);
+
+    const view = await h.service.retry(WS, USER, RUN);
+    expect(view.status).toBe("failed");
+    expect(view.canRetry).toBe(false);
+    expect(h.reconciler.retryPossible).toHaveBeenCalledWith(
+      expect.anything(),
+      "repurpose/no_credits",
+    );
+  });
+});
+
+describe("cancelJobs", () => {
+  it("cancels each job, and carries on past one that finished meanwhile", async () => {
+    const h = harness();
+    h.jobs.cancel.mockRejectedValueOnce(
+      new AppException("jobs/invalid_state", "finished", HttpStatus.CONFLICT),
+    );
+    await h.service.cancelJobs(runRow({ status: "failed" }), ["01JCJ0BA", "01JCJ0BB"]);
+    expect(h.jobs.cancel).toHaveBeenCalledWith("01JCJ0BA", WS);
+    expect(h.jobs.cancel).toHaveBeenCalledWith("01JCJ0BB", WS);
   });
 });
 

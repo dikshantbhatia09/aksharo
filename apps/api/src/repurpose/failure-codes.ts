@@ -71,6 +71,15 @@ const OUT_OF_CREDITS: ReadonlySet<string> = new Set([
   "credits/needs_credits",
 ]);
 
+/**
+ * `ai.highlights`' code for a transcript whose words carry no timings (a Sarvam
+ * transcript from before the 2026-09-17 fix, CLAUDE.md §9): no moment can be
+ * placed in it. It used to come back as an empty result, and the page said "We
+ * did not find a moment worth suggesting", which blamed the video for a broken
+ * transcript and never named the fix — transcribing it again.
+ */
+export const TRANSCRIPT_UNTIMED_JOB_CODE = "worker/transcript_untimed";
+
 function sourceReason(code: string | null | undefined): RunFailureCode | undefined {
   if (code === null || code === undefined) return undefined;
   // eslint-disable-next-line security/detect-object-injection -- lookup in a frozen table; an unknown key simply misses
@@ -116,7 +125,9 @@ export function runFailureCode(input: {
         ? "repurpose/no_credits"
         : "repurpose/transcription_failed";
     case "highlights":
-      return "repurpose/highlights_failed";
+      return input.jobErrorCode === TRANSCRIPT_UNTIMED_JOB_CODE
+        ? "repurpose/transcript_untimed"
+        : "repurpose/highlights_failed";
   }
 }
 

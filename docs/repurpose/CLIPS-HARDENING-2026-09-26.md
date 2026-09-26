@@ -43,7 +43,19 @@ where that state says it is:
 
 It runs on every `GET` of a run and of the run list (throttled per run), and at
 the end of every completion handler. It is idempotent: every enqueue goes
-through the existing jobKey dedupe. No scheduler is needed.
+through the existing jobKey dedupe. No scheduler is needed: an in-process
+watchdog reconciles every unsettled run every `REPURPOSE_RECONCILE_INTERVAL_MS`
+(default 30 s, `0` disables; not tied to `MONTAJ_SCHEDULER_DISABLED`), so work
+refused "for now" resumes whether or not a page is open.
+
+Jobs have ceilings: queued past the plan's `maxQueueWaitMs`, an acquire running
+past its payload `timeoutMs` + 10 min, or any other stage running past
+60 min + 2x the media duration counts as stalled (`stage_timeout`); a retry
+cancels the stale job first. An upload run whose file never arrives within 24 h
+fails with `repurpose/upload_missing`; a transcript without word timings fails
+highlights with `repurpose/transcript_untimed`. `canRetry` on a run is computed
+from the same plan the retry endpoint uses, so the page never offers a retry
+the server would refuse.
 
 ### 2. One failure vocabulary, end to end
 
@@ -90,7 +102,11 @@ the faces seen during the clip's interval, picks the dominant face track
 (largest, most frequent), and sends its median horizontal centre as
 `reframe.centerX` in the `media.clip` payload (contract `media.clip@1`,
 optional field). The worker crops the 9:16 window around it, clamped to the
-frame, at `profile.maxHeight` (1920 → a 1080 × 1920 mezzanine). No faces →
+frame, never scaled up, at most `profile.maxHeight` (1920) tall: a 2160p
+landscape source gives 1216 × 2160 scaled to 1080 × 1920, 1440p gives
+810 × 1440, 1080p gives 608 × 1080, a 1080 × 1920 portrait source 1080 × 1920.
+A clip whose source's face track is still being made waits up to ~3 min for it
+rather than being framed on the centre for good. No faces →
 `basis: "centre"`. The clip project then gets its own `ai.faces` track on the
 cropped picture (a re-cut clears the old one), so captions avoid the face in
 the editor, every export, the share page and the run page's preview, which
@@ -102,9 +118,13 @@ concurrency lane.
 ### 6. Acquisition picks what it can afford
 
 `chooseFormat` (apps/worker-media/src/yt-dlp.ts) picks concrete streams from
-the probe's own format list: tallest ≤ 1080p that fits 90 % of the byte cap,
-H.264 over VP9 over AV1, HTTPS over HLS, original audio; down to 360p before
-refusing. The download fetches exactly those ids.
+the probe's own format list: the largest picture by its SHORT side (so a
+portrait Short counts as 1080, not 1920), up to 2160p, that fits 90 % of the
+byte cap; codec (H.264 > VP9 > AV1), protocol and audio only break ties at an
+equal size; down to 360p before refusing; nothing above 1080p when no size is
+known. The download fetches exactly those ids. With no format list the
+fallback is `-f bv*+ba/b -S res:1080,+codec:avc:m4a`. A Stop mid-download
+aborts the downloader (the progress ack says the job is settled).
 
 ### 7. Highlights look at the whole video
 

@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
 
-import { sourceRefused, unreadableMedia } from "../errors.js";
+import { sourceRefused, transientFailure, unreadableMedia } from "../errors.js";
 import { ffprobe, readProbe } from "../ffmpeg/ffprobe.js";
 import { toolVersion } from "../media-tools.js";
 import { withWorkspace } from "../workspace.js";
@@ -152,8 +152,19 @@ export async function processAcquire(context: JobContext): Promise<ProcessorOutc
       limits,
     );
 
+    // A stop that came while the file was checked. Hashing first would only
+    // delay the same answer, and on a paid plan's multi-gigabyte file that is
+    // a minute or more of the one acquisition slot every run shares.
+    throwIfStopped(context.signal);
     context.report(85, "saving your video");
-    const checksum = await sha256(outputPath);
+    const checksum = await sha256(outputPath, context.signal);
+    // The last moment a stop can still save something: the run was stopped
+    // (or the worker is going away) after the download itself finished, and
+    // nothing kills an upload. Stored now, the bytes would sit in raw under a
+    // media row the API has already failed, with no scheduler running to
+    // purge them — and this worker cannot delete an object (`storage.ts`), on
+    // purpose. A stop that lands during the upload itself is past this point.
+    throwIfStopped(context.signal);
     // The key comes from the payload the API built out of ids it owns; this
     // worker does not construct one from anything the source said.
     await context.raw.putFile({
@@ -278,11 +289,35 @@ function isOneVideo(url: URL, shape: VideoPath): boolean {
   );
 }
 
-async function sha256(path: string): Promise<string> {
+/**
+ * End the job if it was stopped: its run was stopped (the runtime then ends it
+ * without reporting anything), or the worker is going away. Retryable, so a
+ * shutdown runs the job again.
+ */
+function throwIfStopped(signal: AbortSignal): void {
+  if (signal.aborted) {
+    throw transientFailure("media/cancelled", "the download was stopped before it was saved", {
+      reason: "media/source_failed",
+    });
+  }
+}
+
+/**
+ * The file's SHA-256, read chunk by chunk and given up as soon as `signal` is
+ * aborted — a paid plan's file is gigabytes, and a stopped run should not wait
+ * for all of them to be read.
+ *
+ * Exported for its tests; the processor is the only caller.
+ */
+export async function sha256(path: string, signal: AbortSignal): Promise<string> {
   const hash = createHash("sha256");
   // eslint-disable-next-line security/detect-non-literal-fs-filename -- the path is inside this job's own scratch directory
   await stat(path);
   // eslint-disable-next-line security/detect-non-literal-fs-filename -- as above
-  for await (const chunk of createReadStream(path)) hash.update(chunk as Buffer);
+  for await (const chunk of createReadStream(path)) {
+    // Throwing out of the loop closes the stream.
+    throwIfStopped(signal);
+    hash.update(chunk as Buffer);
+  }
   return hash.digest("hex");
 }

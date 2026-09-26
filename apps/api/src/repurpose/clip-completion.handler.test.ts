@@ -68,6 +68,8 @@ interface Options {
   jobs?: Row[];
   chunkWriteFails?: boolean;
   deleteFails?: boolean;
+  /** The clip's run no longer exists. */
+  runGone?: boolean;
 }
 
 function harness(options: Options = {}) {
@@ -124,7 +126,7 @@ function harness(options: Options = {}) {
         candidateId: CAND,
         title: "A moment",
         // A snapshot, as read at the start of `handle`.
-        run: { ...run },
+        run: options.runGone === true ? null : { ...run },
         candidate: { id: CAND },
       })),
       update: clipUpdate,
@@ -396,11 +398,41 @@ describe("RepurposeClipCompletionHandler — a finished cut", () => {
     expect(h.completeAcquisition).not.toHaveBeenCalled();
   });
 
-  it("turns a cut away only when the run was cancelled", async () => {
-    const h = harness({ run: { status: "cancelled" } });
+  it("keeps a cut that finishes after the run was stopped, and leaves the run stopped", async () => {
+    // The Stop dialog promises that clips being cut "still finish and stay", and
+    // `stopRunJobs` leaves `media.clip` running for it. The handler used to turn
+    // the cut away: the clip read failed, with no retry on a stopped run, and
+    // the worker's picture was orphaned in the derived store.
+    const h = harness({
+      run: { status: "cancelled", currentStage: "styles_formats", progress: 65 },
+    });
     const outcome = await h.handler.handle(context(clipResult()));
-    expect(outcome.data?.["applied"]).toBe(false);
+
+    expect(outcome.data).toMatchObject({ applied: true, clipId: CLIP });
+    expect(h.clipUpdate).toHaveBeenCalledWith({
+      where: { id: CLIP },
+      data: expect.objectContaining({ mezzanineKey: MEZZANINE, mezzanineJobId: JOB }) as unknown,
+    });
+    expect(h.prisma.clipVariant.upsert).toHaveBeenCalledTimes(1);
+    // The child project is made editable like any other clip's.
+    expect(h.raw.put).toHaveBeenCalledTimes(1);
+    expect(h.completeAcquisition).toHaveBeenCalledTimes(1);
+    // ...and the run stays exactly as the person left it.
+    expect(h.run).toMatchObject({
+      status: "cancelled",
+      currentStage: "styles_formats",
+      progress: 65,
+    });
+    expect(h.runUpdate).not.toHaveBeenCalled();
+  });
+
+  it("turns a cut away only when its run no longer exists", async () => {
+    const h = harness({ runGone: true });
+    const outcome = await h.handler.handle(context(clipResult()));
+    expect(outcome.data).toMatchObject({ applied: false, reason: "run_not_found" });
     expect(h.clipUpdate).not.toHaveBeenCalled();
+    expect(h.raw.put).not.toHaveBeenCalled();
+    expect(h.completeAcquisition).not.toHaveBeenCalled();
   });
 });
 

@@ -2,18 +2,26 @@
 
 from __future__ import annotations
 
+import json
 import math
 import os
+from collections.abc import Iterator
+from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pytest
+from numpy.typing import NDArray
 
+from worker_ai.passes import faces as faces_module
 from worker_ai.passes.faces import (
     FACE_TRACK_VERSION,
+    MAX_FACES_PER_SAMPLE,
     FaceBox,
     FaceSample,
     YuNetOnnxDetector,
     decode_yunet,
+    detect_face_track,
     face_track_document,
     nms,
 )
@@ -106,6 +114,143 @@ def test_the_track_document_keeps_empty_samples_and_rounds_boxes() -> None:
         "source": {"width": 540, "height": 960},
         "samples": [[0, [[0.1235, 0.2, 0.3, 0.4]]], [250, []]],
     }
+
+
+# ---------------------------------------------------------------------------
+# A bounded file: the API, the renderer and the browser read all of it
+# ---------------------------------------------------------------------------
+
+
+def _document(*samples: FaceSample) -> dict[str, Any]:
+    return face_track_document(list(samples), interval_ms=250, source_width=960, source_height=540)
+
+
+def _crowd(count: int, *, h: float = 0.05) -> tuple[FaceBox, ...]:
+    """`count` faces, each a little wider than the one before, laid out left to right."""
+    return tuple(
+        FaceBox(x=(n % 40) / 40, y=0.5, w=0.01 + n * 0.0005, h=h, score=0.9) for n in range(count)
+    )
+
+
+def test_faces_too_small_for_any_reader_are_not_written() -> None:
+    """Both readers drop faces under 0.06; the floor is half that, for a cover fit's enlargement."""
+    tiny = FaceBox(0.1, 0.1, 0.02, 0.029, 0.99)
+    floor = FaceBox(0.3, 0.1, 0.02, 0.03, 0.9)
+    under_the_readers = FaceBox(0.5, 0.1, 0.03, 0.05, 0.9)
+
+    document = _document(FaceSample(t_ms=0, boxes=(tiny, floor, under_the_readers)))
+
+    assert document["samples"] == [[0, [[0.5, 0.1, 0.03, 0.05], [0.3, 0.1, 0.02, 0.03]]]]
+
+
+def test_a_crowd_keeps_its_largest_faces_largest_first() -> None:
+    """Every NMS survivor used to be written, so a crowd shot set the file's size."""
+    crowd = _crowd(60)
+
+    document = _document(FaceSample(t_ms=0, boxes=crowd))
+
+    [[_, written]] = document["samples"]
+    assert len(written) == MAX_FACES_PER_SAMPLE
+    largest = sorted(crowd, key=lambda box: box.w * box.h, reverse=True)[:MAX_FACES_PER_SAMPLE]
+    assert written == [
+        [round(box.x, 4), round(box.y, 4), round(box.w, 4), round(box.h, 4)] for box in largest
+    ]
+
+
+def test_a_video_call_gallery_keeps_every_tile() -> None:
+    """A 5 x 5 gallery is 25 real faces at about 8% of the frame; none may be cut."""
+    gallery = tuple(
+        FaceBox(x=col / 5 + 0.06, y=row / 5 + 0.06, w=0.045, h=0.08, score=0.9)
+        for row in range(5)
+        for col in range(5)
+    )
+
+    [[_, written]] = _document(FaceSample(t_ms=0, boxes=gallery))["samples"]
+
+    assert len(written) == 25
+
+
+#: Coordinates with no zero in any of their first eight decimals, so none is
+#: written shorter than the file's precision allows - at four decimals or at
+#: any precision a later change might pick. All are at least `MIN_FACE_HEIGHT`.
+_WIDEST = (
+    0.12345678,
+    0.87654321,
+    0.23456789,
+    0.98765432,
+    0.34567891,
+    0.65432198,
+    0.45678912,
+    0.54321987,
+)
+
+
+def _widest_crowd(count: int) -> tuple[FaceBox, ...]:
+    """`count` faces as wide as a box can be written: every coordinate at full precision.
+
+    The detector clamps boxes to the frame, so no coordinate is negative or
+    past 1, and "0." plus the decimals is the most any of them takes.
+    """
+    k = len(_WIDEST)
+    return tuple(
+        FaceBox(
+            x=_WIDEST[n % k],
+            y=_WIDEST[(n + 1) % k],
+            w=_WIDEST[(n + 2) % k],
+            h=_WIDEST[(n + 3) % k],
+            score=0.9,
+        )
+        for n in range(count)
+    )
+
+
+def test_a_sample_is_about_a_kilobyte_however_crowded_the_frame() -> None:
+    """At four samples a second that is a ceiling near 15 MB an hour, whatever the frame holds.
+
+    Measured on the widest sample the file can hold: every box at full
+    precision, and timestamps from the end of a six-hour source. A crowd whose
+    coordinates rounded to fewer digits understated the ceiling, and would
+    have passed a change that breaks it, like a fifth decimal.
+    """
+    six_hours_ms = 6 * 3_600_000
+    samples = [FaceSample(t_ms=six_hours_ms - n * 250, boxes=_widest_crowd(200)) for n in range(40)]
+    # The fixture is the worst case: no coordinate loses a digit to a trailing zero.
+    assert {len(json.dumps(round(value, 4))) for value in _WIDEST} == {len("0.1234")}
+
+    body = json.dumps(_document(*samples), separators=(",", ":"))
+
+    assert len(body) / len(samples) < 1_100
+
+
+class _Crowded(YuNetOnnxDetector):
+    """A detector that sees the same crowd in every frame."""
+
+    def __init__(self, faces: tuple[FaceBox, ...]) -> None:
+        super().__init__("unused", session=_FakeSession(_outputs()))
+        self.faces = faces
+
+    def detect(self, frame: NDArray[np.uint8]) -> list[FaceBox]:
+        return list(self.faces)
+
+
+def test_the_track_is_bounded_as_it_is_read_not_only_when_written(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Six hours of a crowd would otherwise sit in memory until the file is written."""
+    frame = np.zeros((360, 640, 3), dtype=np.uint8)
+
+    def frames(_path: Path, *, interval_ms: int) -> Iterator[tuple[int, NDArray[np.uint8]]]:
+        yield from ((n * interval_ms, frame) for n in range(3))
+
+    monkeypatch.setattr(faces_module, "iter_bgr_frames", frames)
+    speck = FaceBox(0.0, 0.0, 0.01, 0.01, 0.99)
+
+    samples = detect_face_track(Path("unused.mp4"), _Crowded((speck, *_crowd(50))))
+
+    assert [sample.t_ms for sample in samples] == [0, 250, 500]
+    for sample in samples:
+        assert len(sample.boxes) == MAX_FACES_PER_SAMPLE
+        assert speck not in sample.boxes
 
 
 @pytest.mark.skipif(

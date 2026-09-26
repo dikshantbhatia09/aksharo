@@ -44,6 +44,11 @@ export interface RunProjection {
   readonly message: string;
   readonly failureCode: string | null;
   readonly canCancel: boolean;
+  /**
+   * Whether the status allows a retry at all. The run's own view narrows it
+   * with the retry plan (`RepurposeService.retryPossible`): a failed upload
+   * whose file could not be read is `failed`, and still has nothing to retry.
+   */
   readonly canRetry: boolean;
 }
 

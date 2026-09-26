@@ -25,7 +25,7 @@ import {
   sourceRawPurged,
   stalledCode,
 } from "./clip-state.js";
-import { loadFaceTrack, reframeFromTrack } from "./reframe.js";
+import { awaitingFaceDetection, loadFaceTrack, reframeFromTrack } from "./reframe.js";
 import {
   CLIP_HANDLE_MS,
   CLIP_MAX_HEIGHT,
@@ -50,7 +50,7 @@ import { ENV } from "../config/config.module.js";
 import { newestChunkRows } from "../edg/chunk-rows.js";
 import { JOB_ERROR_CODES } from "../jobs/jobs.errors.js";
 import { JobsService } from "../jobs/jobs.service.js";
-import { FacesTrigger } from "../media/faces.js";
+import { FacesTrigger, facesJobKey } from "../media/faces.js";
 import { workspaceRoom } from "../realtime/realtime.protocol.js";
 import { RealtimePublisher } from "../realtime/realtime.publisher.js";
 import { EntitlementService } from "../workspaces/entitlement.service.js";
@@ -100,7 +100,9 @@ const MEZZANINE_URL_TTL_SECONDS = 3_600;
  * How long a parsed source face track is kept, and how many. See
  * {@link RepurposeClipsService.faceTrackOf}: long enough to cover a run page
  * polling while its clips wait for a slot, few enough that a handful of
- * hour-long tracks (a few MB each, parsed) is all it ever holds.
+ * hour-long tracks (a few MB each, parsed) is all it ever holds. No one track
+ * is larger than `FACE_TRACK_MAX_BYTES` (`reframe.ts`), which is read — and so
+ * kept — by nobody.
  */
 const FACE_TRACK_CACHE_MS = 5 * 60_000;
 const FACE_TRACK_CACHE_SIZE = 8;
@@ -135,6 +137,9 @@ const FAILED_AFTER_TRANSCRIPT: ReadonlySet<string> = new Set([
  *     for a clip cut before, too (a retry, a re-cut): the refused request is
  *     recorded on the row ({@link markCutRequested}), since no job exists to
  *     say a cut is owed.
+ *   * **A clip waits for its source's face track**, the same way and for a
+ *     few minutes at most: one cut before detection lands is framed on the
+ *     centre for good (`reframe.ts`, {@link awaitingFaceDetection}).
  *   * **Everything that can refuse, refuses before a row exists.** Run state,
  *     candidate, rate, source media: all checked before `repurpose_clips` is
  *     written, and a row this call created is removed again if the enqueue then
@@ -299,8 +304,9 @@ export class RepurposeClipsService {
 
   /**
    * Cut a clip again whose last cut failed — including one whose cut landed but
-   * whose child project's media failed — or that is still waiting for a slot.
-   * A lane that is still full leaves it `waiting`, recorded, for the reconcile.
+   * whose child project's media failed — or that is still waiting (for a slot,
+   * or for its source's face track). A lane that is still full, or a track still
+   * being made, leaves it `waiting`, recorded, for the reconcile.
    */
   async retryClip(
     workspaceId: string,
@@ -363,9 +369,10 @@ export class RepurposeClipsService {
    * run reconciler and for the clip list's own polling; never throws for a clip
    * it could not enqueue.
    *
-   * Stops at the first plan-lane refusal: the rest would be refused for the
-   * same reason, and they keep their place for the next pass. Idempotent — every
-   * enqueue dedupes on the clip's job key.
+   * Stops at the first clip told to wait — a full plan lane, or a source whose
+   * face track is still being made: every clip of a run shares both, so the
+   * rest would wait for the same reason, and they keep their place for the next
+   * pass. Idempotent — every enqueue dedupes on the clip's job key.
    */
   async reconcileClips(runId: string): Promise<{ readonly enqueued: readonly string[] }> {
     const run = await this.prisma.repurposeRun.findUnique({ where: { id: runId } });
@@ -558,8 +565,9 @@ export class RepurposeClipsService {
    * Build, check and enqueue one clip's `media.clip`.
    *
    * @returns `cutting` when a job is live for it (new or deduplicated), or
-   *   `waiting` when the plan lane refused it — which leaves the clip exactly
-   *   as it was, for the next reconcile.
+   *   `waiting` when it is not cut yet — the plan lane refused it, or the
+   *   source's face track is still being made ({@link awaitingFaceDetection}) —
+   *   which leaves the clip exactly as it was, for the next reconcile.
    * @throws anything else: a payload that does not parse, a queue that is down.
    */
   private async enqueueCut(
@@ -580,7 +588,26 @@ export class RepurposeClipsService {
       );
     }
 
-    const reframe = reframeFromTrack(await this.faceTrackOf(media), {
+    const track = await this.faceTrackOf(media);
+    // A source with no track has had detection queued by now (by the read
+    // above, or an earlier one). Cut now, the clip would be framed on the centre
+    // for good — nothing re-frames a clip that is ready at the current profile —
+    // which on deploy was every clip of every source proxied before `ai.faces`.
+    // So it waits, like a clip the lane refused, and the next reconcile cuts it
+    // with the track; bounded, so detection that fails or stalls costs the
+    // framing, never the clip.
+    if (
+      track === undefined &&
+      media.facesKey === null &&
+      (await this.faceDetectionPending(media.id, media.durationMs))
+    ) {
+      this.logger.log(
+        { runId: run.id, clipId: clip.id, mediaId: media.id },
+        "the source's face track is still being made; the clip waits for the next reconcile",
+      );
+      return "waiting";
+    }
+    const reframe = reframeFromTrack(track, {
       fromMs: Math.max(0, candidate.startMs - CLIP_HANDLE_MS),
       toMs: Math.min(sourceDurationMs, endMs + CLIP_HANDLE_MS),
     });
@@ -680,10 +707,37 @@ export class RepurposeClipsService {
   }
 
   /**
-   * {@link ClipFacts.updatedAt}: the record that a cut was asked for and the
-   * plan's lane refused it, so the clip reads `waiting` and the next reconcile
-   * cuts it — rather than still reading `failed` (or, for a re-cut, the request
-   * vanishing) because its newest job is the old one.
+   * {@link awaitingFaceDetection} for the source's newest `ai.faces` job —
+   * including one {@link faceTrackOf} queued a moment ago. The source's
+   * duration sets how long detection is given to run. A lookup that fails does
+   * not hold the cut: framing never costs a clip.
+   */
+  private async faceDetectionPending(
+    mediaId: string,
+    sourceDurationMs: number | null,
+  ): Promise<boolean> {
+    try {
+      const job = await this.prisma.job.findFirst({
+        where: { type: "ai.faces", jobKey: facesJobKey(mediaId) },
+        orderBy: [{ queuedAt: "desc" }, { id: "desc" }],
+        select: { status: true, queuedAt: true, startedAt: true, finishedAt: true },
+      });
+      return awaitingFaceDetection(job, sourceDurationMs);
+    } catch (error) {
+      this.logger.warn(
+        { mediaId, err: error },
+        "could not look up the source's face detection; clip cut on centre",
+      );
+      return false;
+    }
+  }
+
+  /**
+   * {@link ClipFacts.updatedAt}: the record that a cut was asked for and could
+   * not start — the plan's lane refused it, or it waits for the source's face
+   * track — so the clip reads `waiting` and the next reconcile cuts it, rather
+   * than still reading `failed` (or, for a re-cut, the request vanishing)
+   * because its newest job is the old one.
    */
   private async markCutRequested(clipId: string): Promise<void> {
     await this.prisma.repurposeClip.update({

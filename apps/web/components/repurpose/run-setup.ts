@@ -85,13 +85,48 @@ export function recallRunSetup(runId: string): RunSetup | undefined {
 }
 
 /**
- * `/repurpose/new`, pre-filled with a setup and, when the link itself is worth
- * keeping (it needs fixing, not replacing), the link.
+ * The link a YouTube run was started from, read back from the run's own
+ * display text, for when this browser did not remember it.
+ *
+ * That is not rare. A run started in another browser or device, in a private
+ * window, or before setups were remembered at all (2026-09-26) has no entry
+ * here, and "Start again with this video" then opened an empty "Paste a link"
+ * form under a button that promised this video. The API never stores the URL
+ * (§17.4), but it writes a YouTube run's display as `youtube.com · <video id>`
+ * (`youtubeResult` in its `source-url.ts`) and never changes it, and the id is
+ * all the canonical link needs. Anything else gives no link: guessing one
+ * would be a button that cannot keep its promise.
  */
-export function newRunHref(setup: RunSetup | undefined, options: { keepLink: boolean }): string {
-  if (setup === undefined) return "/repurpose/new";
+export function linkFromSourceDisplay(display: string | null | undefined): string | undefined {
+  if (display === null || display === undefined) return undefined;
+  const id = /^youtube\.com · ([A-Za-z0-9_-]{11})$/.exec(display.trim())?.[1];
+  return id === undefined ? undefined : `https://www.youtube.com/watch?v=${id}`;
+}
+
+/**
+ * `/repurpose/new`, pre-filled with a setup and, when the link itself is worth
+ * keeping (it needs fixing, or the same video is wanted afresh), the link.
+ *
+ * The link carried is the setup's own (as the person pasted it), else `link`
+ * (`linkFromSourceDisplay`), so a run this browser never saw still keeps it.
+ *
+ * `upload` opens the form on its upload tab: a failed upload run's way out is
+ * most likely another file, and landing on "Paste a link" made the button's
+ * own label untrue. That and the link hold even with no setup remembered in
+ * this browser, so they are the two things carried without one.
+ */
+export function newRunHref(
+  setup: RunSetup | undefined,
+  options: { readonly keepLink: boolean; readonly upload?: boolean; readonly link?: string },
+): string {
   const params = new URLSearchParams();
-  if (options.keepLink && setup.link !== undefined) params.set("url", setup.link);
+  if (options.upload === true) params.set("source", "upload");
+  const link = setup?.link ?? options.link;
+  if (options.keepLink && link !== undefined) params.set("url", link);
+  if (setup === undefined) {
+    const query = params.toString();
+    return query === "" ? "/repurpose/new" : `/repurpose/new?${query}`;
+  }
   if (setup.sourceLanguage !== undefined) params.set("lang", setup.sourceLanguage);
   params.set("out", setup.outputLanguage);
   params.set("script", setup.scriptMode);
@@ -132,11 +167,16 @@ export function startFormFromParams(
   const method = params.get("method") === "manual" ? "manual" : "ai";
   const n = Number(params.get("n"));
   const lang = params.get("lang");
+  const url = params.get("url") ?? "";
   return {
     ...EMPTY_START_FORM,
-    url: params.get("url") ?? "",
+    // A link that came with the URL is what the form is about, whatever else
+    // it says; otherwise `source=upload` (a failed upload run) opens that tab.
+    tab: url === "" && params.get("source") === "upload" ? "upload" : "link",
+    url,
     sourceLanguage: lang !== null && isLanguageTag(lang) ? lang : fallbackLanguage,
-    outputLanguage: out !== null && OUTPUT_LANGUAGES.has(out) ? out : EMPTY_START_FORM.outputLanguage,
+    outputLanguage:
+      out !== null && OUTPUT_LANGUAGES.has(out) ? out : EMPTY_START_FORM.outputLanguage,
     scriptMode: script !== null && SCRIPT_MODES.has(script) ? script : EMPTY_START_FORM.scriptMode,
     styleId: RECOMMENDED_STYLES.some((entry) => entry.id === style)
       ? (style as string)

@@ -39,7 +39,6 @@ import { ClipPreview } from "@/components/repurpose/ClipPreview";
 import { CLIP_STATE_COPY, clipFailureCopy } from "@/components/repurpose/copy";
 import { formatClock } from "@/components/repurpose/moment-time";
 import { describeRefusal } from "@/components/repurpose/refusal";
-import { newRunHref, recallRunSetup } from "@/components/repurpose/run-setup";
 import { useStableUrl } from "@/components/repurpose/use-stable-url";
 
 const CLIP_STATES: ReadonlySet<string> = new Set(["waiting", "cutting", "ready", "failed"]);
@@ -62,6 +61,23 @@ export interface CandidateCardProps {
   readonly onActivatePreview: () => void;
   /** The run was cancelled: nothing new can be cut from it. */
   readonly runStopped?: boolean;
+  /**
+   * Where a new run of the same video starts (the link, or for an upload the
+   * file, with the setup kept), for a clip whose original is no longer kept.
+   * The run page works it out, because only the run knows its source: this
+   * card used to build it from this browser's memory alone, and for a run it
+   * never saw that opened an empty form under "Start again from the link".
+   * Left out when there is nothing to start again from; the card then offers
+   * only its sentence.
+   */
+  readonly startAgain?: { readonly href: string; readonly label: string };
+  /**
+   * Why a new run of the same video cannot start yet, said in place of the
+   * reassurance when the original is gone and `startAgain` is left out: a link
+   * run that is still open blocks a new run of its own link, so the card says
+   * what unblocks it rather than "start again" with no button to do it.
+   */
+  readonly startAgainNote?: string;
 }
 
 export function CandidateCard({
@@ -71,6 +87,8 @@ export function CandidateCard({
   previewActive,
   onActivatePreview,
   runStopped = false,
+  startAgain,
+  startAgainNote,
 }: CandidateCardProps): React.JSX.Element {
   const createClip = useCreateRepurposeClip();
   const retryClip = useRetryRepurposeClip();
@@ -240,7 +258,11 @@ export function CandidateCard({
               <span className="text-fg-2">
                 {runStopped && failure.retryable
                   ? CLIP_STATE_COPY.stoppedFailed
-                  : failure.reassurance}
+                  : failure.startAgain === true &&
+                      startAgain === undefined &&
+                      startAgainNote !== undefined
+                    ? startAgainNote
+                    : failure.reassurance}
               </span>
             </span>
           </p>
@@ -257,19 +279,21 @@ export function CandidateCard({
             >
               {retryClip.isPending ? "Trying again…" : "Try again"}
             </Button>
-          ) : (
+          ) : failure.startAgain === true && startAgain !== undefined ? (
             // The original is gone, so a retry would only be refused: the way
-            // forward is a new run from the same link, with the setup kept.
+            // forward is a new run of the same video, with the setup kept.
             <Button variant="secondary" size="sm" asChild>
               <Link
-                href={newRunHref(recallRunSetup(runId), { keepLink: true })}
+                href={startAgain.href}
                 className="no-underline"
                 data-testid={`restart-clip-${candidate.id}`}
               >
-                Start again from the link
+                {startAgain.label}
               </Link>
             </Button>
-          )}
+          ) : // No retry and no new run that would help (a clip that came out too
+          // large would come out the same): the sentence says what will.
+          null}
           {retryError === null ? null : (
             <p
               role="alert"

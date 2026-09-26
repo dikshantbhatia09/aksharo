@@ -113,6 +113,65 @@ describe("each failure's recommended action", () => {
     expect(copy.title).toMatch(/longer than your plan allows/);
     expect(`${copy.title} ${copy.reassurance}`).not.toMatch(/\d+ ?(minutes|min|MB)/);
   });
+
+  // An upload run whose file never arrived used to wait at "Add a video"
+  // forever; the API now fails it. The way on is a file — but not "Upload it
+  // again": the likeliest cause is a file already in another project, which the
+  // workspace-wide de-duplication matches and stops, so the same file into a
+  // new run would only wait a day and end here again.
+  it("offers another file when an upload never arrived, and says why the same one may not work", () => {
+    const copy = safeErrorCopy("repurpose/upload_missing");
+    expect(copy.action).toBe("choose_another");
+    expect(copy.actionLabel).toBe("Choose another video");
+    expect(copy.reassurance).toMatch(/No credits were used/);
+    expect(copy.reassurance).toMatch(/already in one of your projects cannot be sent here again/);
+    expect(`${copy.title} ${copy.reassurance} ${copy.actionLabel}`).not.toMatch(
+      /upload (it|the file) again/i,
+    );
+  });
+
+  // It used to end as "we did not find a moment worth suggesting", which blamed
+  // the video for a transcript that had no timings to place a moment in.
+  it("names a transcript with no timings, and offers the same video started afresh", () => {
+    const copy = safeErrorCopy("repurpose/transcript_untimed");
+    expect(copy.action).toBe("start_again");
+    expect(copy.title).toMatch(/no timings/);
+    expect(copy.startAgainHint).toMatch(/fresh transcript/);
+    expect(`${copy.title} ${copy.reassurance}`).not.toMatch(/worth suggesting|strong moment/);
+  });
+
+  // The start form never mentions credits and a new link run transcribes by
+  // itself, so a card that says nothing about cost reads as free — beside
+  // "No credits were used" on the upload card, especially.
+  it("says a fresh transcript uses credits", () => {
+    expect(safeErrorCopy("repurpose/transcript_untimed").startAgainHint).toMatch(
+      /fresh transcript, which uses credits like any new video/,
+    );
+  });
+
+  // An upload run has no "Start again" to offer (its card leads with another
+  // video), so a reassurance that said "starting again with the same video
+  // makes a fresh transcript" described a button that was not there. That
+  // promise lives in `startAgainHint`, shown only beside the button.
+  it("keeps every promise about starting again out of the reassurance", () => {
+    for (const [code, copy] of Object.entries(SAFE_ERROR_COPY)) {
+      if (copy.action !== "start_again") continue;
+      expect(copy.reassurance, code).not.toMatch(/\bstart(ing)? again\b/i);
+    }
+  });
+
+  // `canRetry: false` (a deleted source, an unreadable upload) takes "Try
+  // again" off the card, so a reassurance that promised it would be wrong
+  // there. That promise lives in `retryHint`, shown only beside the button.
+  it("keeps every promise that trying again helps out of the reassurance", () => {
+    for (const [code, copy] of Object.entries(SAFE_ERROR_COPY)) {
+      expect(copy.reassurance, code).not.toMatch(/\btry(ing)? again\b/i);
+    }
+    expect(safeErrorCopy("repurpose/source_unavailable").retryHint).toMatch(/try again/);
+    expect(safeErrorCopy("repurpose/source_blocked").retryHint).toMatch(/few minutes/);
+    expect(safeErrorCopy("repurpose/stage_timeout").retryHint).toMatch(/Trying again/);
+    expect(safeErrorCopy("repurpose/no_credits").retryHint).toMatch(/once you have enough/);
+  });
 });
 
 describe("clip failure copy", () => {
@@ -125,20 +184,121 @@ describe("clip failure copy", () => {
   });
 
   it("names every code a failed cut can carry", () => {
-    // The `media.clip` worker's own codes, the job ledger's, and the API's
-    // "the original is gone" — none of them may fall through to the catch-all.
+    // The `media.clip` worker's own codes (its tool failures included), the job
+    // ledger's, the clip project's media check, and the API's own "the
+    // original is gone" and "the cut stopped responding" — none of them may
+    // fall through to the catch-all.
     for (const code of [
       "media/unreadable",
+      "media/corrupt",
       "media/source_unavailable",
       "media/encode_failed",
       "media/encode_incomplete",
       "media/source_missing",
+      "media/tool_timeout",
+      "media/tool_signal",
+      "media/tool_spawn",
+      "media/cancelled",
+      "media/unsupported",
+      "media/no_streams",
+      "media/probe_failed",
+      "media/too_large",
+      "media/too_long",
       "jobs/queue_timeout",
       "jobs/cancelled",
       "repurpose/source_expired",
+      "repurpose/clip_stalled",
     ]) {
       expect(Object.hasOwn(CLIP_FAILURE_COPY, code), code).toBe(true);
     }
+  });
+
+  // The API defined `repurpose/clip_stalled` as a clip state and the card
+  // said "This clip could not be made". Read the codes from their sources, as
+  // the run codes are read from the contract, so a new one fails here first.
+  it("has copy for every code the API's clip state and the worker's tool failures produce", () => {
+    const dto = readFileSync(
+      join(__dirname, "../../../api/src/repurpose/repurpose-clips.dto.ts"),
+      "utf8",
+    );
+    const clipErrors = new Map(
+      [...dto.matchAll(/^\s*(\w+): "(repurpose\/[a-z_]+)",\r?$/gm)].map(
+        (match) => [match[1] ?? "", match[2] ?? ""] as const,
+      ),
+    );
+    const clipState = readFileSync(
+      join(__dirname, "../../../api/src/repurpose/clip-state.ts"),
+      "utf8",
+    );
+    const stateNames = [...clipState.matchAll(/REPURPOSE_CLIP_ERRORS\.(\w+)/g)].map(
+      (match) => match[1] ?? "",
+    );
+    expect(stateNames).toContain("cutStalled");
+
+    const clipWorker = readFileSync(
+      join(__dirname, "../../../worker-media/src/processors/clip.ts"),
+      "utf8",
+    );
+    const toolBlock = /const TOOL_FAILURES[^=]*= new Set\(\[([\s\S]*?)\]\)/.exec(clipWorker)?.[1];
+    if (toolBlock === undefined) throw new Error("TOOL_FAILURES not found in the clip worker");
+    const toolCodes = [...toolBlock.matchAll(/"(media\/[a-z_]+)"/g)].map((match) => match[1] ?? "");
+    expect(toolCodes.length).toBeGreaterThanOrEqual(4);
+
+    for (const code of [...stateNames.map((name) => clipErrors.get(name) ?? name), ...toolCodes]) {
+      expect(Object.hasOwn(CLIP_FAILURE_COPY, code), code).toBe(true);
+      expect(clipFailureCopy(code).title, code).not.toBe("This clip could not be made");
+    }
+  });
+
+  // The clip's failure code is also its project's media failure reason
+  // (`clipStateOf`), and the API's clip completion writes `media/too_large`
+  // there itself — which fell through to "This clip could not be made" with a
+  // retry that cuts the same size again. Every reason the worker can report and
+  // the API accepts is read from both lists, as the run codes are read from the
+  // contract; the download-only `media/source_*` reasons never reach a clip.
+  it("has copy for every media failure reason a clip's own media can carry", () => {
+    const reasonsIn = (source: string, where: string): string[] => {
+      const block = /export const MEDIA_FAILURE_REASONS = \[([\s\S]*?)\] as const;/.exec(
+        source,
+      )?.[1];
+      if (block === undefined) throw new Error(`MEDIA_FAILURE_REASONS not found in ${where}`);
+      return [...block.matchAll(/"(media\/[a-z_]+)"/g)].map((match) => match[1] ?? "");
+    };
+    const worker = reasonsIn(
+      readFileSync(join(__dirname, "../../../worker-media/src/errors.ts"), "utf8"),
+      "the media worker",
+    );
+    const api = reasonsIn(
+      readFileSync(join(__dirname, "../../../api/src/media/media.constants.ts"), "utf8"),
+      "the API",
+    );
+    expect(worker).toContain("media/too_large");
+    expect(api).toContain("media/too_large");
+
+    const reasons = [...new Set([...worker, ...api])].filter(
+      (code) => !code.startsWith("media/source_"),
+    );
+    expect(reasons.length).toBeGreaterThanOrEqual(6);
+    for (const code of reasons) {
+      expect(Object.hasOwn(CLIP_FAILURE_COPY, code), code).toBe(true);
+      expect(clipFailureCopy(code).title, code).not.toBe("This clip could not be made");
+    }
+  });
+
+  it("offers no retry for a clip that came out too large, and says a shorter moment fits", () => {
+    const copy = clipFailureCopy("media/too_large");
+    expect(copy.title).toBe("This clip came out too large to open in the editor");
+    expect(copy.reassurance).toMatch(/shorter moment/);
+    expect(copy.retryable).toBe(false);
+    // The same moment from the same video comes out the same size again.
+    expect(copy.startAgain).not.toBe(true);
+  });
+
+  it("says a stalled cut stopped partway, and that trying again starts it afresh", () => {
+    const copy = clipFailureCopy("repurpose/clip_stalled");
+    expect(copy.title).toBe("This clip stopped partway through");
+    expect(copy.reassurance).toMatch(/starts it afresh/);
+    expect(copy.retryable).toBe(true);
   });
 
   it("gives a refused create on a moment's own card the reason it really has: a stopped run", () => {
@@ -148,6 +308,11 @@ describe("clip failure copy", () => {
   it("offers no retry when the original video is gone, since it would only be refused", () => {
     expect(clipFailureCopy("repurpose/source_expired").retryable).toBe(false);
     expect(clipFailureCopy("media/source_missing").retryable).toBe(false);
+    // A new run gets the original afresh, so that is offered instead. Said as
+    // "the same video", since an upload run's original expires too.
+    expect(clipFailureCopy("repurpose/source_expired").startAgain).toBe(true);
+    expect(clipFailureCopy("media/source_missing").startAgain).toBe(true);
+    expect(clipFailureCopy("repurpose/source_expired").reassurance).not.toMatch(/link/);
     expect(clipFailureCopy("media/encode_failed").retryable).toBe(true);
     expect(clipFailureCopy(null).retryable).toBe(true);
   });
@@ -159,6 +324,7 @@ describe("every sentence on the clips pipeline", () => {
       ...Object.values(SAFE_ERROR_COPY).flatMap((copy) => [
         copy.title,
         copy.reassurance,
+        copy.retryHint ?? "",
         copy.actionLabel,
       ]),
       ...Object.values(STAGE_COPY).flatMap((copy) => [copy.title, copy.helper]),

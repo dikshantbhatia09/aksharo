@@ -64,6 +64,8 @@ export interface RunReconciler {
   reconcile(run: RepurposeRun): Promise<RepurposeRun>;
   reconcileIfDue(run: RepurposeRun, options?: ReconcileReadOptions): Promise<RepurposeRun>;
   redrive(run: RepurposeRun): Promise<RepurposeRun>;
+  /** Whether `redrive` would restart anything for this failure, or refuse it. */
+  retryPossible(run: RepurposeRun, failureCode: string | null): Promise<boolean>;
 }
 
 export interface ReconcileReadOptions {
@@ -761,7 +763,35 @@ export class RepurposeService {
     await this.assertAvailable(workspaceId);
     const run = await this.reconciled(await this.require(workspaceId, runId));
     const counts = await this.counts(run.id);
-    return this.toView(run, counts, await this.observe(run));
+    const observed = await this.observe(run);
+    return this.toView(run, counts, observed, await this.retryPossible(run, observed));
+  }
+
+  /**
+   * For a run shown as failed: whether "Try again" would restart anything
+   * (`RepurposeReconciler.retryPossible`, the same plan the retry follows).
+   * Undefined — the status alone decides — for any other run, or when that
+   * cannot be read right now: a database blink should not take the button
+   * away from a run a retry would restart.
+   *
+   * Only the run's own view asks. A list does not draw the error card, and a
+   * snapshot per failed run on every home-page poll is not worth it.
+   */
+  private async retryPossible(
+    run: RepurposeRun,
+    observed: Observation | null,
+  ): Promise<boolean | undefined> {
+    const status = observed?.status ?? run.status;
+    if (!isRetryable(status) || this.reconciler === undefined) return undefined;
+    try {
+      return await this.reconciler.retryPossible(run, observed?.failureCode ?? run.failureCode);
+    } catch (error) {
+      this.logger.warn(
+        { runId: run.id, err: error },
+        "could not work out whether a retry would run",
+      );
+      return undefined;
+    }
   }
 
   /**
@@ -938,13 +968,28 @@ export class RepurposeService {
       },
       select: { id: true, type: true },
     });
-    for (const job of live) {
+    await this.cancelJobs(
+      run,
+      live.map((job) => job.id),
+    );
+  }
+
+  /**
+   * Cancel these jobs of `run`, one by one, which releases their credit holds
+   * and their plan-lane slots (`JobsService.cancel`). Best effort: a job that
+   * finished in the meantime answers 409, and a completion that lands anyway is
+   * turned away by its handler. Public for the reconciler, which cancels a
+   * run's stalled jobs once it has failed the run for them, and before a retry
+   * starts the stage again.
+   */
+  async cancelJobs(run: RepurposeRun, jobIds: readonly string[]): Promise<void> {
+    for (const jobId of jobIds) {
       try {
-        await this.jobs.cancel(job.id, run.workspaceId);
+        await this.jobs.cancel(jobId, run.workspaceId);
       } catch (error) {
         this.logger.warn(
-          { runId: run.id, jobId: job.id, type: job.type, err: error },
-          "could not cancel a job of a cancelled run; its completion is turned away",
+          { runId: run.id, jobId, status: run.status, err: error },
+          "could not cancel a job of the run; its completion is turned away",
         );
       }
     }
@@ -1005,7 +1050,16 @@ export class RepurposeService {
       },
     });
 
-    return this.toView(retried, await this.counts(run.id), await this.observe(retried));
+    // Usually open again, but a retry can fail the run straight back (no
+    // credits for the transcription it restarted), and that view must not
+    // offer a retry the next press would refuse either.
+    const observed = await this.observe(retried);
+    return this.toView(
+      retried,
+      await this.counts(run.id),
+      observed,
+      await this.retryPossible(retried, observed),
+    );
   }
 
   /** The only way this module reads a run: workspace and id, together. */
@@ -1065,6 +1119,11 @@ export class RepurposeService {
     run: RepurposeRun,
     counts: { candidateCount: number; clipCount: number; variantCount: number },
     observed: Observation | null = null,
+    /**
+     * Whether a retry would restart anything ({@link retryPossible}). Only ever
+     * narrows the projection's answer; undefined leaves it to the status.
+     */
+    retryPossible?: boolean,
   ): RunView {
     const shown =
       observed === null
@@ -1085,7 +1144,7 @@ export class RepurposeService {
       message: projection.message,
       failureCode: shown.failureCode,
       canCancel: projection.canCancel,
-      canRetry: projection.canRetry,
+      canRetry: projection.canRetry && retryPossible !== false,
       ...counts,
       createdAt: run.createdAt.toISOString(),
       updatedAt: run.updatedAt.toISOString(),

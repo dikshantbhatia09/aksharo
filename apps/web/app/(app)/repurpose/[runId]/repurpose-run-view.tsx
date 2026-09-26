@@ -41,9 +41,14 @@ import type { StageKey } from "@/components/repurpose/copy";
 
 import { AddMomentForm } from "@/components/repurpose/AddMomentForm";
 import { CandidateCard } from "@/components/repurpose/CandidateCard";
+import { CLIP_STATE_COPY } from "@/components/repurpose/copy";
 import { describeRefusal, type Refusal } from "@/components/repurpose/refusal";
-import { canAddMoments, runActivity } from "@/components/repurpose/run-activity";
-import { newRunHref, recallRunSetup } from "@/components/repurpose/run-setup";
+import { canAddMoments, runActivity, serverIsWorking } from "@/components/repurpose/run-activity";
+import {
+  linkFromSourceDisplay,
+  newRunHref,
+  recallRunSetup,
+} from "@/components/repurpose/run-setup";
 import { PersistentPreview, RunActionBar } from "@/components/repurpose/RunActionBar";
 import { RunStageRail } from "@/components/repurpose/RunStageRail";
 import { StageErrorCard, StagePanel } from "@/components/repurpose/StagePanel";
@@ -144,8 +149,9 @@ export function RepurposeRunView({ runId }: { readonly runId: string }): React.J
   const activity = runActivity(run);
   const failed = activity === "failed";
   // "We'll keep working" is only true while the server is: not on a run that
-  // is waiting for the person, and not on one that stopped.
-  const busy = activity === "working" && run.status !== "draft";
+  // is waiting for the person or for its upload, and not on one that stopped.
+  // The same rule as Home's banner (`serverIsWorking`).
+  const busy = serverIsWorking(run);
 
   const stageIndex = run.stages.findIndex((entry) => entry.stage === expanded);
   const candidates = candidatesQuery.data?.candidates ?? [];
@@ -171,12 +177,53 @@ export function RepurposeRunView({ runId }: { readonly runId: string }): React.J
   const showPanel = !failed || candidates.length > 0 || clips.length > 0 || momentsVisible;
 
   const setup = recallRunSetup(run.id);
+  // The link this run came from: as this browser remembered it, else read
+  // back from the run's own display (a run started in another browser, or
+  // before setups were remembered). An upload has none, and neither does a
+  // link run whose display names no video.
+  const link =
+    run.sourceKind === "upload"
+      ? undefined
+      : (setup?.link ?? linkFromSourceDisplay(run.sourceDisplay));
+  // The same link and setup in a fresh run: to correct the link ("Check the
+  // link"), or as it is ("Start again with this video"). With no link to carry
+  // it would open an empty form under a button that promised this video, so
+  // those buttons are not offered and the card falls back to another video.
+  const sameLinkHref = link === undefined ? undefined : newRunHref(setup, { keepLink: true, link });
   const chooseAnother = (): void => {
-    router.push(newRunHref(setup, { keepLink: false }));
+    // An upload run's way out is most likely another file, so the form opens
+    // on its upload tab.
+    router.push(newRunHref(setup, { keepLink: false, upload: run.sourceKind === "upload" }));
   };
-  const checkLink = (): void => {
-    router.push(newRunHref(setup, { keepLink: true }));
+  const sameLinkAgain = (): void => {
+    if (sameLinkHref !== undefined) router.push(sameLinkHref);
   };
+  // A clip whose original is no longer kept can only be cut in a new run of
+  // the same video: the link again, or for an upload, the file again.
+  //
+  // Not while a link run is still open: the API allows one open run per link
+  // (`duplicateOf` skips only published, failed and stopped runs), so the new
+  // run would be refused with "Open the existing run" — this one. The card
+  // then says to stop this run first (or, once it cannot be stopped, to wait
+  // for it to finish); after that it offers the new run. An upload has no
+  // link to collide on.
+  const linkRunOpen =
+    run.sourceKind !== "upload" && (activity === "working" || activity === "needs_you");
+  const clipStartAgain =
+    run.sourceKind === "upload"
+      ? {
+          href: newRunHref(setup, { keepLink: false, upload: true }),
+          label: "Upload the video again",
+        }
+      : sameLinkHref === undefined || linkRunOpen
+        ? undefined
+        : { href: sameLinkHref, label: "Start again from the link" };
+  const clipStartAgainNote =
+    sameLinkHref === undefined || !linkRunOpen
+      ? undefined
+      : run.canCancel
+        ? CLIP_STATE_COPY.sourceGoneStopFirst
+        : CLIP_STATE_COPY.sourceGoneRunOpen;
   const openMomentForm = (): void => {
     setMomentFormOpened(true);
     momentFormRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -294,10 +341,17 @@ export function RepurposeRunView({ runId }: { readonly runId: string }): React.J
               retrying={retry.isPending}
               retryError={retryError?.text ?? null}
               existingRunId={retryError?.existingRunId ?? null}
+              // `canRetry` is false when the API knows the retry would only be
+              // refused (a deleted source, an upload it could not read): the
+              // card then leads with its way out rather than a dead button.
               {...(run.canRetry ? { onRetry: tryAgain } : {})}
               onChooseAnother={chooseAnother}
-              // Only a link can be checked; an upload has none to pre-fill.
-              {...(run.sourceKind === "upload" ? {} : { onCheckLink: checkLink })}
+              // Only a link can be checked or started again; an upload (or a
+              // run whose link cannot be recovered) has none to pre-fill, so its
+              // card offers another video instead.
+              {...(sameLinkHref === undefined
+                ? {}
+                : { onCheckLink: sameLinkAgain, onStartAgain: sameLinkAgain })}
               {...(momentsAllowed ? { onAddMoment: openMomentForm } : {})}
             />
           )}
@@ -341,6 +395,10 @@ export function RepurposeRunView({ runId }: { readonly runId: string }): React.J
                             if (clip !== undefined) setActivePreview(clip.id);
                           }}
                           runStopped={activity === "stopped"}
+                          {...(clipStartAgain === undefined ? {} : { startAgain: clipStartAgain })}
+                          {...(clipStartAgainNote === undefined
+                            ? {}
+                            : { startAgainNote: clipStartAgainNote })}
                         />
                       );
                     })}
@@ -383,7 +441,10 @@ export function RepurposeRunView({ runId }: { readonly runId: string }): React.J
                   run.canCancel
                     ? "Nothing is posted anywhere without your confirmation."
                     : failed
-                      ? "Nothing further will be spent unless you try again."
+                      ? // No "unless you try again" on a run that cannot be.
+                        run.canRetry
+                        ? "Nothing further will be spent unless you try again."
+                        : "Nothing further will be spent on this run."
                       : "This run has finished; nothing further will be spent."
                 }
                 {...(run.canCancel

@@ -372,6 +372,190 @@ describe("makeHandler and BullMQ's own retries", () => {
   });
 });
 
+describe("makeHandler when the row is settled while the job runs", () => {
+  // Stopping a run cancels its jobs in the API, but BullMQ cannot remove a job
+  // a worker holds: a started download ran on for up to 40 minutes on the one
+  // acquisition slot, then uploaded a file nobody would keep.
+  let now = 0;
+  beforeEach(() => {
+    now = 1_000_000;
+    vi.spyOn(Date, "now").mockImplementation(() => now);
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  /** An API that takes the pickup, then answers every call as `reason`: the run was stopped. */
+  function stoppedAfterPickup(reason = "already_completed"): Recorded {
+    const calls: { path: string; body: Record<string, unknown> }[] = [];
+    const fetchImpl = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      const path = new URL(String(url)).pathname;
+      calls.push({ path, body: JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown> });
+      const pickup = calls.length === 1;
+      return new Response(
+        JSON.stringify(
+          pickup
+            ? { applied: true, jobId: JOB, status: "running" }
+            : { applied: false, jobId: JOB, status: "cancelled", reason },
+        ),
+        { status: 200 },
+      );
+    });
+    return {
+      calls,
+      services: {
+        ...h.services,
+        callbacks: new CallbackClient("http://api.test", "s".repeat(40), {
+          fetch: fetchImpl as unknown as typeof globalThis.fetch,
+        }),
+      },
+    };
+  }
+
+  /** Resolves when `signal` aborts, or after a second: whichever comes first. */
+  const abortedWithin = async (signal: AbortSignal): Promise<boolean> =>
+    new Promise((resolve) => {
+      const timer = setTimeout(() => resolve(false), 1_000);
+      signal.addEventListener(
+        "abort",
+        () => {
+          clearTimeout(timer);
+          resolve(true);
+        },
+        { once: true },
+      );
+    });
+
+  it("aborts the processor when a progress answer says the row is settled, and reports nothing", async () => {
+    for (const reason of ["already_completed", "stale_attempt"]) {
+      const api = stoppedAfterPickup(reason);
+      let sawAbort = false;
+      const handler = makeHandler(
+        "media.acquire",
+        async (context) => {
+          now += MIN_PROGRESS_POST_MS;
+          context.report(50, "getting your video"); // answered: settled
+          sawAbort = await abortedWithin(context.signal);
+          now += MIN_PROGRESS_POST_MS;
+          context.report(80); // nothing is posted after the row settled
+          // What the downloader's kill looks like from here.
+          throw transientFailure("media/cancelled", "yt-dlp was cancelled");
+        },
+        api.services,
+        new AbortController().signal,
+      );
+      // The final attempt: without the stop, this failure would be reported.
+      const job = fakeJob(envelope(), 2, 3, "media.acquire");
+
+      const thrown = await handler(job).catch((error: unknown) => error);
+      expect(sawAbort, reason).toBe(true);
+      expect(thrown, reason).toBeInstanceOf(UnrecoverableError);
+      expect((thrown as Error).message, reason).toContain(`settled (${reason})`);
+      // The pickup and the one post that learned it: no media patch, no completion.
+      expect(
+        api.calls.map((call) => call.path),
+        reason,
+      ).toEqual([`/internal/jobs/${JOB}/progress`, `/internal/jobs/${JOB}/progress`]);
+      expect(job.updateData, reason).not.toHaveBeenCalled();
+    }
+  });
+
+  it("delivers nothing when the work finished anyway after the row settled", async () => {
+    // The media PATCH is not checked against the job: sent, it would write
+    // this attempt's facts onto an asset whose job is closed.
+    const api = stoppedAfterPickup();
+    const handler = makeHandler(
+      "media.probe",
+      async (context) => {
+        now += MIN_PROGRESS_POST_MS;
+        context.report(50);
+        await abortedWithin(context.signal);
+        return { result: { ok: true }, mediaPatch: { durationMs: 10_000 } };
+      },
+      api.services,
+      new AbortController().signal,
+    );
+    await expect(handler(fakeJob(envelope(), 0, 3))).rejects.toBeInstanceOf(UnrecoverableError);
+    expect(api.calls.every((call) => call.path.endsWith("/progress"))).toBe(true);
+  });
+
+  it("waits for a beat still on the wire before delivering, in case it says the row settled", async () => {
+    // `stop()` only ends the timer: a beat sent just before the processor
+    // returned used to answer after the settled check, and the media PATCH —
+    // not checked against the job by the API — went out first.
+    for (const ending of ["succeeds", "fails"] as const) {
+      const calls: string[] = [];
+      const fetchImpl = vi.fn(async (url: string | URL | Request) => {
+        const path = new URL(String(url)).pathname;
+        calls.push(path);
+        if (calls.length === 1) {
+          return new Response(JSON.stringify({ applied: true, jobId: JOB, status: "running" }));
+        }
+        if (path.endsWith("/progress")) {
+          // The answer that says the run was stopped lands after the processor is done.
+          await new Promise((resolve) => setTimeout(resolve, 25));
+          return new Response(
+            JSON.stringify({
+              applied: false,
+              jobId: JOB,
+              status: "cancelled",
+              reason: "already_completed",
+            }),
+          );
+        }
+        return new Response(JSON.stringify({ applied: true, jobId: JOB, status: "succeeded" }));
+      });
+      const services: Services = {
+        ...h.services,
+        callbacks: new CallbackClient("http://api.test", "s".repeat(40), {
+          fetch: fetchImpl as unknown as typeof globalThis.fetch,
+        }),
+      };
+      const handler = makeHandler(
+        "media.probe",
+        async (context) => {
+          now += MIN_PROGRESS_POST_MS;
+          context.report(50); // on the wire as the processor returns
+          if (ending === "fails") throw transientFailure("media/tool_failed", "ffprobe exited 1");
+          return { result: { ok: true }, mediaPatch: { durationMs: 10_000 } };
+        },
+        services,
+        new AbortController().signal,
+      );
+      // The final attempt, so a failure would otherwise be reported and marked on the media.
+      const job = fakeJob(envelope(), 2, 3);
+
+      await expect(handler(job), ending).rejects.toBeInstanceOf(UnrecoverableError);
+      expect(calls, ending).toEqual([
+        `/internal/jobs/${JOB}/progress`,
+        `/internal/jobs/${JOB}/progress`,
+      ]);
+    }
+  });
+
+  it("keeps a shutdown retryable: only the API's answer ends the job for good", async () => {
+    const shutdown = new AbortController();
+    const handler = makeHandler(
+      "media.acquire",
+      async (context) => {
+        setImmediate(() => {
+          shutdown.abort();
+        });
+        await abortedWithin(context.signal);
+        throw transientFailure("media/cancelled", "yt-dlp was cancelled");
+      },
+      h.services,
+      shutdown.signal,
+    );
+    const thrown = await handler(fakeJob(envelope(), 0, 3, "media.acquire")).catch(
+      (error: unknown) => error,
+    );
+    expect(thrown).toBeInstanceOf(MediaJobError);
+    expect(thrown).not.toBeInstanceOf(UnrecoverableError);
+    expect(thrown).toMatchObject({ code: "media/cancelled", retryable: true });
+  });
+});
+
 describe("makeHandler when the API cannot hear the outcome", () => {
   /**
    * An API that is unreachable for the durable callbacks until `up()`, with the

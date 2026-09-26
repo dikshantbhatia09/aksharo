@@ -189,6 +189,18 @@ describe("RepurposeHighlightsCompletionHandler — a failure", () => {
     );
   });
 
+  it("says a transcript with no word timings is the problem, not the video", async () => {
+    // The worker's code for a transcript whose words are all 0/0 (a Sarvam
+    // transcript from before the 2026-09-17 fix). Answered with no moments, the
+    // page used to say none was worth suggesting.
+    await h.handler.handleFailure(failedWith("worker/transcript_untimed"));
+    expect(h.runs.failRun).toHaveBeenCalledWith(
+      expect.objectContaining({ id: RUN }),
+      "repurpose/transcript_untimed",
+      "finding_clips",
+    );
+  });
+
   it("does nothing for a job that names no run", async () => {
     const ctx = { ...failedWith("x"), job: { ...job(), params: {} } as Job };
     await h.handler.handleFailure(ctx);

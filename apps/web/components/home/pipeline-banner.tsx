@@ -4,9 +4,9 @@
  * The studio's first card: the clips pipeline, as the premium canvas draws it.
  *
  * A plain card carrying the pitch, a link field that starts a run,
- * the numbered stage rail, and — when a run is moving, waiting for the person,
- * or has just failed — one line saying which run, where it is, and a way into it
- * (`bannerRun`).
+ * the numbered stage rail, and — when a run is moving, waiting for the person
+ * or for its upload, or has just failed — one line saying which run, where it
+ * is, and a way into it (`bannerRun`).
  *
  * Two places where the canvas and the product do not line up, and what this
  * does about each:
@@ -35,7 +35,7 @@ import { BRAND } from "@montaj/config";
 import { Button, cn } from "@montaj/ui";
 
 import { STAGE_COPY, safeErrorCopy, type StageKey } from "@/components/repurpose/copy";
-import { runActivity } from "@/components/repurpose/run-activity";
+import { runActivity, serverIsWorking } from "@/components/repurpose/run-activity";
 
 /** The flag that gates the entire guided surface (REP-006). */
 export const REPURPOSE_FLOW_FLAG = "repurpose_flow";
@@ -54,7 +54,7 @@ const RECENT_FAILURE_MS = 24 * 60 * 60 * 1000;
 
 export interface BannerRun {
   readonly run: RepurposeRunView;
-  readonly kind: "failed" | "working" | "needs_you";
+  readonly kind: "failed" | "working" | "needs_you" | "awaiting_video";
 }
 
 /**
@@ -62,12 +62,18 @@ export interface BannerRun {
  *
  *   1. the newest run, if it failed in the last day — the thing the person
  *      most needs to hear about, and which used to be invisible here;
- *   2. a run that is working;
- *   3. a run waiting for the person (moments to pick, videos to review).
+ *   2. a run the server is working on;
+ *   3. a run waiting for the person (moments to pick, videos to review);
+ *   4. an upload run whose video has not arrived (`draft`).
  *
  * A stopped or finished run is never reported. This used to pick any run whose
  * stage projected as `running`, which is also true of a cancelled run and of
  * one sitting at "ready to review" for a week — so an old run hid a new failure.
+ *
+ * A `draft` run is last, and never "working" (`serverIsWorking`, the run page's
+ * own rule): nothing on the server moves it until its file arrives, and a file
+ * whose upload never started or failed never does. Counted as work, one such
+ * run sat here at 0% indefinitely, hiding a newer run that was ready to review.
  */
 export function bannerRun(
   runs: readonly RepurposeRunView[],
@@ -81,10 +87,12 @@ export function bannerRun(
   ) {
     return { run: newest, kind: "failed" };
   }
-  const working = runs.find((run) => runActivity(run) === "working");
+  const working = runs.find((run) => serverIsWorking(run));
   if (working !== undefined) return { run: working, kind: "working" };
   const waiting = runs.find((run) => runActivity(run) === "needs_you");
-  return waiting === undefined ? undefined : { run: waiting, kind: "needs_you" };
+  if (waiting !== undefined) return { run: waiting, kind: "needs_you" };
+  const awaiting = runs.find((run) => run.status === "draft");
+  return awaiting === undefined ? undefined : { run: awaiting, kind: "awaiting_video" };
 }
 
 function stageState(
@@ -233,6 +241,14 @@ export function PipelineBanner({ className }: { className?: string }): React.JSX
               <>
                 {run.sourceDisplay ?? "Your video"} is waiting for you
                 {run.message === "" ? "" : `: ${run.message}`}
+              </>
+            ) : chosen.kind === "awaiting_video" ? (
+              // No stage number and no bar: nothing is under way to measure.
+              // True both while the file is still being sent and when it never
+              // will be, which the run page (and, in time, the run) says.
+              <>
+                {run.sourceDisplay ?? (run.sourceKind === "upload" ? "Your upload" : "Your video")}{" "}
+                has not arrived yet.
               </>
             ) : (
               <>

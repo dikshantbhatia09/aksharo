@@ -126,32 +126,87 @@ export interface SourceMetadata {
   readonly formatSelector?: string | null;
 }
 
-/**
- * The tallest picture worth fetching. Every output this product makes is at
- * most 1080 px on its short side (a 9:16 clip is 1080 x 1920 cut from the
- * middle of the frame), so a 4K source costs 3x the bytes, a slower download
- * and a heavier decode for pixels the export throws away - and, on a long
- * video, blows the plan's byte cap: an 18-minute talk is 556 MB in 4K AV1 and
- * 187 MB in 1080p H.264 (2026-09-25, the failure that prompted this).
+/*
+ * Every size below is the picture's SHORT side — yt-dlp's own `res` — never
+ * its `height`. yt-dlp reports a vertical video's real pixel height, so a
+ * 1080 x 1920 Short is "1920 tall", and a cap on height fetched it at
+ * 480 x 854: under the old fixed 720 x 1280 clip, and upscaled 2.25x by every
+ * 1080 x 1920 export.
  */
-export const MAX_SOURCE_HEIGHT = 1080;
 
-/** The shortest picture worth making a clip from, when the source offers better. */
-export const MIN_SOURCE_HEIGHT = 360;
+/**
+ * The largest picture worth fetching, when its streams fit both budgets (the
+ * byte cap, and {@link ASSUMED_DOWNLOAD_BYTES_PER_S} over the time limit).
+ *
+ * A clip keeps a landscape source's full height and cuts a 9:16 window out of
+ * it (`clipFrame`), so the clip is exactly as tall as the source: 2160p gives a
+ * 1216 x 2160 window scaled to the canvas's 1080 x 1920, 1440p gives
+ * 810 x 1440, and 1080p only 608 x 1080 — a picture every export then scales
+ * up 1.78x. Of landscape sources only 2160p fills the canvas (a portrait one
+ * does at 1080 x 1920), so it is worth its bytes whenever they fit; anything
+ * larger is scaled away.
+ */
+export const MAX_SOURCE_SHORT_SIDE = 2160;
+
+/**
+ * The largest picture fetched without showing that it fits. Above this a
+ * stream has to prove two things: that it fits the plan's byte cap — 4K is the
+ * stream that blew it, an 18-minute talk being 556 MB in 4K AV1 against the
+ * Free plan's 500 MB (2026-09-25) — and that it can arrive inside the
+ * download's time limit. So the fallback selector, and a source whose formats
+ * give neither a size nor a bitrate, get nothing larger.
+ *
+ * At or under it, only the byte cap decides, as it did before anything larger
+ * was fetched at all.
+ */
+export const DEFAULT_MAX_SHORT_SIDE = 1080;
+
+/** The smallest picture worth making a clip from, when the source offers better. */
+export const MIN_SOURCE_SHORT_SIDE = 360;
 
 /** Estimates are estimates: leave room under the cap for what actually lands. */
 const BUDGET_HEADROOM = 0.9;
 
-/** When the source lists no usable formats: the same preferences, as a selector. */
-export const FALLBACK_FORMAT =
-  `bv*[height<=${String(MAX_SOURCE_HEIGHT)}][vcodec^=avc1]+ba[ext=m4a]/` +
-  `bv*[height<=${String(MAX_SOURCE_HEIGHT)}]+ba/b[height<=${String(MAX_SOURCE_HEIGHT)}]/b`;
+/**
+ * The download speed a picture above {@link DEFAULT_MAX_SHORT_SIDE} is planned
+ * for: 8 Mbit/s, a modest connection. The byte cap is not the only brake — the
+ * download also has a fixed time limit (40 minutes, whatever the plan), and a
+ * paid plan's cap is large enough to admit a 3-hour talk in 4K (about 5.4 GB,
+ * 18 Mbit/s sustained to land in time) when 1080p of it is 1.9 GB. A timed-out
+ * download is retried, holding the one shared acquisition slot each time, and
+ * then fails the run that 1080p would have finished. So a larger picture must
+ * also arrive in time at this speed; an 18-minute talk in 1440p (284 MB) needs
+ * under 1 Mbit/s, and one hour of 4K about 6.
+ */
+export const ASSUMED_DOWNLOAD_BYTES_PER_S = 1_000_000;
+
+/**
+ * When the source lists no usable formats: yt-dlp's own chooser, told the
+ * same preferences through {@link FALLBACK_SORT}.
+ *
+ * Not a format filter. A filter compares one field with a constant, never
+ * height with width, so `[height<=1080]` is a portrait video's LONG side and
+ * nothing in filter syntax can say "short side". The sort can: its `res` is
+ * the smaller dimension.
+ */
+export const FALLBACK_FORMAT = "bv*+ba/b";
+
+/**
+ * The fallback's order: the largest picture at or under
+ * {@link DEFAULT_MAX_SHORT_SIDE} on its short side (the smallest above it when
+ * there is nothing under), then H.264 before VP9 before AV1 and AAC first —
+ * yt-dlp's documented `+codec:avc:m4a`. Checked offline against 2026.08.19's
+ * own selector: a landscape list takes 1920 x 1080 H.264 + m4a, a Short's takes
+ * 1080 x 1920, where the old height filter took 480 x 854.
+ */
+export const FALLBACK_SORT = `res:${String(DEFAULT_MAX_SHORT_SIDE)},+codec:avc:m4a`;
 
 /** One entry of the probe's `formats` array, as far as the chooser reads it. */
 export interface ProbeFormat {
   readonly format_id?: unknown;
   readonly vcodec?: unknown;
   readonly acodec?: unknown;
+  readonly width?: unknown;
   readonly height?: unknown;
   readonly ext?: unknown;
   readonly protocol?: unknown;
@@ -166,7 +221,10 @@ export interface ProbeFormat {
 
 export interface FormatChoice {
   readonly selector: string;
+  /** As yt-dlp reports it: a portrait video's long side. For reporting only. */
   readonly height: number | null;
+  /** The size every rule here is decided on: the smaller of width and height. */
+  readonly shortSide: number | null;
   /** Estimated size of the chosen streams together; `null` when the source did not say. */
   readonly bytes: number | null;
 }
@@ -195,6 +253,21 @@ const acodecOf = (format: ProbeFormat): string =>
   typeof format.acodec === "string" ? format.acodec : "none";
 const heightOf = (format: ProbeFormat): number | null =>
   typeof format.height === "number" && format.height > 0 ? format.height : null;
+const widthOf = (format: ProbeFormat): number | null =>
+  typeof format.width === "number" && format.width > 0 ? format.width : null;
+
+/**
+ * The picture's short side, as yt-dlp's `res` measures it. A format that gives
+ * no width is taken to be landscape, which is what its height meant before
+ * widths were read at all.
+ */
+function shortSideOf(format: ProbeFormat): number | null {
+  const height = heightOf(format);
+  if (height === null) return null;
+  const width = widthOf(format);
+  return width === null ? height : Math.min(width, height);
+}
+
 const isHls = (format: ProbeFormat): boolean =>
   typeof format.protocol === "string" && format.protocol.includes("m3u8");
 
@@ -223,21 +296,35 @@ function pickAudio(formats: readonly ProbeFormat[]): ProbeFormat | undefined {
 }
 
 /**
- * Pick the streams to download: the tallest picture at or under
- * {@link MAX_SOURCE_HEIGHT} whose video and audio together fit the plan's
- * byte budget, preferring H.264 (cheapest to decode downstream) over VP9 over
- * AV1, a direct HTTPS stream over HLS, and the original audio track over a
- * dub. A long video steps down to 720p or 480p rather than failing. When
- * nothing fits, the smallest option is returned so the limit check refuses it
- * with the real reason. Sizes come from the source, or from the bitrate; a
- * source that gives neither gets its best stream, and the byte cap still
+ * Pick the streams to download: the largest picture — by its short side, up
+ * to {@link MAX_SOURCE_SHORT_SIDE} — whose video and audio together fit the
+ * plan's byte budget. The tallest that fits wins: 1440p AV1 inside the budget
+ * beats 1080p H.264, because the clip is only ever as tall as its source. Only
+ * between pictures of the same size does the rest decide: H.264 (cheapest to
+ * decode downstream) over VP9 over AV1, a direct HTTPS stream over HLS, and
+ * the original audio track over a dub. A picture above
+ * {@link DEFAULT_MAX_SHORT_SIDE} must also be able to arrive inside the
+ * download's time limit at {@link ASSUMED_DOWNLOAD_BYTES_PER_S}, or the choice
+ * falls to the largest picture at or under it that fits the cap. A long video
+ * steps down through the sizes, as far as {@link MIN_SOURCE_SHORT_SIDE},
+ * rather than failing. When nothing fits, the smallest option is returned so
+ * the limit check refuses it with the real reason. Sizes come from the
+ * source, or from the bitrate; a source that gives neither gets its best
+ * stream at or under {@link DEFAULT_MAX_SHORT_SIDE}, and the byte cap still
  * applies during and after the download.
+ *
+ * On the 18-minute talk that prompted the budget (youtube 5eW6Eagr9XA, Free
+ * plan): 4K AV1 + audio is 556 MB and over it, so this takes 1440p AV1 +
+ * audio at 284 MB — an 810 x 1440 clip rather than the 608 x 1080 a 1080p cap
+ * gave. Three hours of the same on an 8 GB plan fits the cap in 4K (5.6 GB),
+ * but not the 40 minutes at 8 Mbit/s (2.2 GB), and nor does 1440p (2.8 GB):
+ * that takes 1080p H.264 at 1.9 GB.
  *
  * Exported for its tests; the probe is the only caller.
  */
 export function chooseFormat(
   formats: readonly ProbeFormat[],
-  maxBytes: number,
+  limits: Pick<AcquireLimits, "maxBytes" | "timeoutMs">,
   durationS: number | null,
 ): FormatChoice | null {
   const usable = formats.filter(
@@ -245,10 +332,17 @@ export function chooseFormat(
   );
   const audio = pickAudio(usable);
 
-  const candidates: (FormatChoice & { readonly rank: number; readonly hls: boolean })[] = [];
+  const candidates: (FormatChoice & {
+    readonly shortSide: number;
+    readonly rank: number;
+    readonly hls: boolean;
+  })[] = [];
   for (const format of usable) {
+    const shortSide = shortSideOf(format);
+    if (vcodecOf(format) === "none" || shortSide === null || shortSide > MAX_SOURCE_SHORT_SIDE) {
+      continue;
+    }
     const height = heightOf(format);
-    if (vcodecOf(format) === "none" || height === null || height > MAX_SOURCE_HEIGHT) continue;
     const videoBytes = sizeOf(format, durationS);
     if (acodecOf(format) === "none") {
       if (audio === undefined) continue;
@@ -256,6 +350,7 @@ export function chooseFormat(
       candidates.push({
         selector: `${String(format.format_id)}+${String(audio.format_id)}`,
         height,
+        shortSide,
         bytes: videoBytes === null || audioBytes === null ? null : videoBytes + audioBytes,
         rank: codecRank(vcodecOf(format)),
         hls: isHls(format),
@@ -264,6 +359,7 @@ export function chooseFormat(
       candidates.push({
         selector: String(format.format_id),
         height,
+        shortSide,
         bytes: videoBytes,
         rank: codecRank(vcodecOf(format)),
         hls: isHls(format),
@@ -272,29 +368,51 @@ export function chooseFormat(
   }
   if (candidates.length === 0) return null;
   // A clip cut from a postage stamp is not a clip. Below the floor only when the
-  // source itself has nothing taller.
-  const watchable = candidates.filter((candidate) => (candidate.height ?? 0) >= MIN_SOURCE_HEIGHT);
+  // source itself has nothing larger.
+  const watchable = candidates.filter((candidate) => candidate.shortSide >= MIN_SOURCE_SHORT_SIDE);
   const pool = watchable.length > 0 ? watchable : candidates;
 
   pool.sort(
     (a, b) =>
-      (b.height ?? 0) - (a.height ?? 0) ||
+      b.shortSide - a.shortSide ||
       a.rank - b.rank ||
       Number(a.bytes === null) - Number(b.bytes === null) ||
       Number(a.hls) - Number(b.hls) ||
       (a.bytes ?? 0) - (b.bytes ?? 0),
   );
-  const budget = maxBytes * BUDGET_HEADROOM;
+  const budget = limits.maxBytes * BUDGET_HEADROOM;
+  // What lands in the time limit at the assumed speed. Only a picture above
+  // the default has to fit it: the rule is there so a larger picture never
+  // costs a download that 1080p would have finished. At or under, the byte cap
+  // alone decides, exactly as it did before anything larger was fetched.
+  const inTime = ASSUMED_DOWNLOAD_BYTES_PER_S * (limits.timeoutMs / 1000) * BUDGET_HEADROOM;
+  const fits = (candidate: {
+    readonly shortSide: number;
+    readonly bytes: number | null;
+  }): boolean =>
+    candidate.bytes !== null &&
+    candidate.bytes <= budget &&
+    (candidate.shortSide <= DEFAULT_MAX_SHORT_SIDE || candidate.bytes <= inTime);
   const sized = pool.filter((candidate) => candidate.bytes !== null);
+  // The least of what there is, when everything is larger than the default:
+  // the first of the smallest size, which is its preferred codec and protocol
+  // (the pool's last is the least preferred of them — AV1 over HLS, say).
+  const smallest = pool.at(-1)?.shortSide;
   // Decide on known sizes whenever there are any: a size-unknown stream at a
-  // height whose known-size sibling is over the cap is over the cap too.
+  // size whose known-size sibling is over the cap is over the cap too. With no
+  // sizes at all, nothing shows that 4K fits, so it is not the gamble taken.
   const chosen =
     sized.length > 0
-      ? (sized.find((candidate) => (candidate.bytes ?? 0) <= budget) ??
-        [...sized].sort((a, b) => (a.bytes ?? 0) - (b.bytes ?? 0))[0])
-      : pool[0];
+      ? (sized.find(fits) ?? [...sized].sort((a, b) => (a.bytes ?? 0) - (b.bytes ?? 0))[0])
+      : (pool.find((candidate) => candidate.shortSide <= DEFAULT_MAX_SHORT_SIDE) ??
+        pool.find((candidate) => candidate.shortSide === smallest));
   if (chosen === undefined) return null;
-  return { selector: chosen.selector, height: chosen.height, bytes: chosen.bytes };
+  return {
+    selector: chosen.selector,
+    height: chosen.height,
+    shortSide: chosen.shortSide,
+    bytes: chosen.bytes,
+  };
 }
 
 /** Thrown at boot when the pinned downloader is absent, wrong or unverified. */
@@ -331,13 +449,11 @@ export function buildArgs(input: {
   readonly ffmpegPath?: string;
 }): string[] {
   const format = input.format ?? FALLBACK_FORMAT;
+  const fallback = format === FALLBACK_FORMAT;
   // The selector reaches argv as one entry either way; this keeps it to what
   // `chooseFormat` produces (format ids joined by `+`) or the fixed fallback.
   const ids = format.split("+");
-  if (
-    format !== FALLBACK_FORMAT &&
-    (ids.length > 2 || !ids.every((id) => /^[\w-]{1,32}$/.test(id)))
-  ) {
+  if (!fallback && (ids.length > 2 || !ids.every((id) => /^[\w-]{1,32}$/.test(id)))) {
     throw new DownloaderUnusableError(
       `refusing an unexpected format selector ${JSON.stringify(format)}`,
     );
@@ -371,6 +487,9 @@ export function buildArgs(input: {
     ...ffmpegLocationArgs(input.ffmpegPath),
     "-f",
     format,
+    // Exact ids need no order. The fallback leaves the choice to yt-dlp, and
+    // only its sort can rank by the short side (see FALLBACK_FORMAT).
+    ...(fallback ? ["-S", FALLBACK_SORT] : []),
     // Bounded retries inside one attempt; BullMQ owns the retries between them.
     "--retries",
     "3",
@@ -589,7 +708,7 @@ export async function probeSource(input: {
   const durationSeconds = typeof parsed["duration"] === "number" ? parsed["duration"] : null;
   const liveStatus = parsed["live_status"];
   const choice = Array.isArray(parsed["formats"])
-    ? chooseFormat(parsed["formats"] as ProbeFormat[], input.limits.maxBytes, durationSeconds)
+    ? chooseFormat(parsed["formats"] as ProbeFormat[], input.limits, durationSeconds)
     : null;
   const metadata: SourceMetadata = {
     provider: asString(parsed["extractor_key"]) ?? asString(parsed["extractor"]) ?? "unknown",

@@ -31,7 +31,12 @@ from worker_ai.highlights.windows import (
     usable_words,
 )
 from worker_ai.processors import JobFailureError
-from worker_ai.processors.highlights import HIGHLIGHT_MODEL, discover, process_highlights
+from worker_ai.processors.highlights import (
+    HIGHLIGHT_MODEL,
+    UntimedTranscriptError,
+    discover,
+    process_highlights,
+)
 
 from .conftest import MEDIA_ID, PROJECT_ID, WORKSPACE_ID
 from .test_processors import RecordingCallbacks, context_for
@@ -492,13 +497,79 @@ async def test_a_transcript_with_no_words_gets_no_proposals() -> None:
     assert result["model"] == HIGHLIGHT_MODEL
 
 
-async def test_words_without_usable_timing_get_no_proposals() -> None:
-    """Sarvam transcripts written before 2026-09-17 have every word at 0-0 (§9)."""
-    words = [{"wid": f"z{n}", "text": "shabd", "startMs": 0, "endMs": 0} for n in range(400)]
+def untimed_words(start_ms: int | None, end_ms: int | None) -> list[dict[str, Any]]:
+    return [
+        {"wid": f"z{n}", "text": "shabd", "startMs": start_ms, "endMs": end_ms} for n in range(400)
+    ]
 
-    result = await discover_in(words)
 
-    assert result["proposals"] == []
+@pytest.mark.parametrize(
+    ("start_ms", "end_ms"),
+    [
+        pytest.param(0, 0, id="every-word-at-0-0"),  # Sarvam before 2026-09-17 (§9)
+        pytest.param(None, None, id="no-timing-at-all"),
+    ],
+)
+async def test_words_without_usable_timing_fail_the_job_rather_than_find_no_moment(
+    start_ms: int | None, end_ms: int | None
+) -> None:
+    """An empty answer here made the run say "no moment worth suggesting".
+
+    That blamed the video for what transcribing it again fixes, so the run has
+    to fail with a code whose page names that remedy.
+    """
+    api = TranscriptApi({**words_response([]), "words": untimed_words(start_ms, end_ms)})
+
+    with pytest.raises(JobFailureError) as raised:
+        await run(api)
+
+    assert raised.value.code == "worker/transcript_untimed"
+    # The same words give the same answer: running it again cannot help.
+    assert raised.value.retryable is False
+    assert api.completions == []
+
+
+def test_discover_names_an_untimed_transcript_instead_of_answering_empty() -> None:
+    with pytest.raises(UntimedTranscriptError) as raised:
+        discover(untimed_words(0, 0), options())
+
+    assert (raised.value.spoken, raised.value.timed) == (400, 0)
+
+
+@pytest.mark.parametrize(
+    "wid", ["", "   ", "x" * 101, None], ids=["empty", "blank", "long", "none"]
+)
+def test_a_malformed_id_is_not_reported_as_a_missing_timing(wid: str | None) -> None:
+    """Well-timed speech that nothing can cite is not an untimed transcript.
+
+    The untimed check counted every speech item against the timed words it
+    could cite, so these words - timed perfectly - failed the run and sent the
+    user to transcribe again, which would not have changed them.
+    """
+    words = [{**word, "wid": wid} for word in talk(NEUTRAL * 10)]
+
+    assert discover(words, options()) == ([], 0)
+
+
+def test_words_with_a_malformed_id_do_not_outvote_the_timed_ones() -> None:
+    """Twice as many uncitable words as good ones used to fail the whole run as untimed."""
+    cited = talk(NEUTRAL * 10)
+    uncited = [{**word, "wid": "x" * 101} for word in talk(NEUTRAL * 20)]
+    expected = discover(cited, options())
+    assert len(expected[0]) == 5  # a real answer, not two empty ones agreeing
+
+    assert discover(cited + uncited, options()) == expected
+
+
+async def test_a_few_zero_length_words_do_not_make_a_transcript_untimed() -> None:
+    """Aligners produce the odd zero-length word; a third of them is still a timed talk."""
+    words = talk([NEUTRAL[i % 3] for i in range(40)])
+    for word in words[::3]:
+        word["endMs"] = word["startMs"]
+
+    proposals = (await discover_in(words))["proposals"]
+
+    assert len(proposals) == 5
 
 
 def music(count: int, *, start_ms: int = 0, step_ms: int = 700) -> list[dict[str, Any]]:

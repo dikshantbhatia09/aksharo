@@ -1,11 +1,15 @@
 import { spawn } from "node:child_process";
+import { createHash } from "node:crypto";
 import { EventEmitter, once } from "node:events";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { PassThrough } from "node:stream";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { MediaJobError } from "../errors.js";
-import { processAcquire } from "./acquire.js";
+import { processAcquire, sha256 } from "./acquire.js";
 
 import type { JobContext } from "../runtime.js";
 import type { Settings } from "../settings.js";
@@ -43,10 +47,15 @@ class FakeChild extends EventEmitter {
   }
 }
 
-/** The probe answers with `dump`; the download runs `onDownload`. */
+/**
+ * The probe answers with `dump`; the download runs `onDownload`. ffprobe of
+ * what landed runs `onFfprobe` (none given: it fails), and `--version` answers
+ * the pinned release.
+ */
 function fakeYtDlp(
   dump: Record<string, unknown>,
-  onDownload: (child: FakeChild) => Promise<void>,
+  onDownload: (child: FakeChild, args: readonly string[]) => Promise<void>,
+  onFfprobe?: (child: FakeChild) => Promise<void>,
 ): { readonly downloads: (readonly string[])[] } {
   const downloads: (readonly string[])[] = [];
   spawnMock.mockImplementation(((_binary: string, args: readonly string[]) => {
@@ -57,13 +66,45 @@ function fakeYtDlp(
         void child.exit(0);
         return;
       }
+      if (args.includes("-show_streams")) {
+        void (onFfprobe?.(child) ?? child.exit(1));
+        return;
+      }
+      if (args.includes("--version")) {
+        child.stdout.write("2026.08.19\n");
+        void child.exit(0);
+        return;
+      }
       downloads.push(args);
-      void onDownload(child);
+      void onDownload(child, args);
     });
     return child as unknown as ChildProcess;
   }) as unknown as typeof spawn);
   return { downloads };
 }
+
+/** A download that lands a small file where it was told to, and exits 0. */
+async function landFile(child: FakeChild, args: readonly string[]): Promise<void> {
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- the `-o` path the processor built inside its own scratch directory
+  await writeFile(args[args.indexOf("-o") + 1] ?? "", Buffer.alloc(4_096, 1));
+  await child.exit(0);
+}
+
+/** ffprobe's answer for an ordinary 18-minute 1080p file. */
+const PROBED = {
+  streams: [
+    {
+      index: 0,
+      codec_type: "video",
+      codec_name: "h264",
+      width: 1920,
+      height: 1080,
+      avg_frame_rate: "30/1",
+    },
+    { index: 1, codec_type: "audio", codec_name: "aac", channels: 2, sample_rate: "44100" },
+  ],
+  format: { format_name: "mov,mp4,m4a,3gp,3g2,mj2", duration: "1078.0", size: "4096" },
+};
 
 const DUMP = {
   id: "5eW6Eagr9XA",
@@ -234,5 +275,72 @@ describe("processAcquire", () => {
     await failure(processAcquire(ctx));
     // 2 (checking) and 5 (starting), then the download mapped onto 5-70.
     expect(ctx.reported).toEqual([2, 5, 31, 70, 70, 70]);
+  });
+
+  it("stores what landed when nothing stopped it", async () => {
+    // The control for the next test: the same flow reaches the upload.
+    fakeYtDlp(DUMP, landFile, async (child) => {
+      child.stdout.write(JSON.stringify(PROBED));
+      await child.exit(0);
+    });
+    const putFile = vi.fn(async () => 4_096);
+    const outcome = await processAcquire({
+      ...context(),
+      raw: { putFile } as unknown as JobContext["raw"],
+    });
+    expect(putFile).toHaveBeenCalledTimes(1);
+    expect(outcome.result).toMatchObject({ sizeBytes: 4_096, key: "ws/W/p/P/media/M/raw.mp4" });
+  });
+
+  it("neither hashes nor uploads a download whose run was stopped after the bytes landed", async () => {
+    // Nothing kills an upload, and the stop arrived after the downloader and
+    // ffprobe had both finished: stored, the file would sit in raw under a
+    // media row the API has already failed, with no scheduler to purge it.
+    const stop = new AbortController();
+    fakeYtDlp(DUMP, landFile, async (child) => {
+      child.stdout.write(JSON.stringify(PROBED));
+      await child.exit(0);
+      stop.abort("already_completed");
+    });
+    const putFile = vi.fn(async () => 4_096);
+    const ctx = context();
+    const error = await failure(
+      processAcquire({
+        ...ctx,
+        raw: { putFile } as unknown as JobContext["raw"],
+        signal: stop.signal,
+      }),
+    );
+    expect(putFile).not.toHaveBeenCalled();
+    // Not even hashed: 85 is "saving your video", which starts with the hash —
+    // on a paid plan's multi-gigabyte file, a minute of the shared slot.
+    expect(ctx.reported).not.toContain(85);
+    // Retryable, so a shutdown runs it again; the runtime ends a stopped run's
+    // job without reporting it (runtime.test.ts).
+    expect(error).toMatchObject({ code: "media/cancelled", retryable: true });
+    expect(error.message).toBe("the download was stopped before it was saved");
+  });
+});
+
+describe("sha256", () => {
+  it("gives up on the file as soon as the job is stopped, rather than reading all of it", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "acquire-hash-"));
+    try {
+      // Several of the stream's 64 KiB chunks, so there is a loop to leave.
+      const bytes = Buffer.alloc(1024 * 1024, 7);
+      const path = join(dir, "source.mp4");
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- a file in this test's own temp directory
+      await writeFile(path, bytes);
+      // The control: an unstopped job gets the file's real digest.
+      await expect(sha256(path, new AbortController().signal)).resolves.toBe(
+        createHash("sha256").update(bytes).digest("hex"),
+      );
+      const stop = new AbortController();
+      stop.abort("already_completed");
+      const error = await failure(sha256(path, stop.signal));
+      expect(error).toMatchObject({ code: "media/cancelled", retryable: true });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 });

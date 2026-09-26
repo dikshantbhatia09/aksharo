@@ -130,18 +130,32 @@ export class RepurposeClipCompletionHandler implements JobCompletionHandler, OnM
       return { actualTenths: 0, data: { applied: false, reason: "clip_not_found" } };
     }
 
-    // Only a cancelled run turns a finished cut away: the person stopped it. A
-    // failed run still gets its clip — dropping it here is how one clip's
-    // failure used to throw away every sibling cut still in flight.
-    if (!clip.run || clip.run.status === "cancelled") {
+    // A finished cut is kept, whatever became of its run. A failed run gets its
+    // clip: dropping it here is how one clip's failure used to throw away every
+    // sibling cut still in flight. So does a stopped one: Stop ends what the run
+    // would do next, not the clips the person already asked for — its dialog
+    // promises that clips being cut "still finish and stay", and `stopRunJobs`
+    // leaves `media.clip` running for exactly that. Turning the cut away here
+    // broke the promise: the clip read failed, a stopped run offers no retry,
+    // and the worker's picture sat orphaned in the derived store. Every cut that
+    // lands on a stopped run was asked for while it was live (create, retry and
+    // reconcile all refuse a cancelled run), and nothing below moves its status:
+    // `advanceRun` only moves the statuses a cut advances, and the reconcile
+    // leaves a settled run alone. Only a run that no longer exists has nowhere
+    // to put the clip.
+    //
+    // The kept clip goes through the whole child pipeline, as on a live run:
+    // skipping it would leave the child's media `pending` for good, and a stopped
+    // run offers no retry to repair that. So whether a clip of a stopped run may
+    // then start a paid transcription (its transcript slice could not be cloned)
+    // is `AutoTranscribeTrigger`'s cancelled-run guard to decide, not this
+    // handler's.
+    if (!clip.run) {
       this.logger.warn(
-        { clipId: clip.id, runId: clip.runId, runStatus: clip.run?.status },
-        "media.clip completed for a run that is cancelled; ignoring completion",
+        { clipId: clip.id, runId: clip.runId },
+        "media.clip completed for a run that no longer exists; ignoring completion",
       );
-      return {
-        actualTenths: 0,
-        data: { applied: false, reason: `run_${clip.run?.status ?? "not_found"}` },
-      };
+      return { actualTenths: 0, data: { applied: false, reason: "run_not_found" } };
     }
 
     // 1. Update clip mezzanine facts

@@ -88,6 +88,88 @@ describe("<StageErrorCard /> recommends the failure's own action", () => {
     expect(primaries()).toEqual([screen.getByTestId("stage-error-choose-another")]);
   });
 
+  // The API now says `canRetry: false` when the retry could only be refused —
+  // a run whose source was deleted carries `source_unavailable`, whose copy
+  // said "It may work if you try again" over a card with no such button.
+  it("leads with the way out, and promises no retry, when the run cannot be retried", () => {
+    render(
+      <StageErrorCard
+        code="repurpose/source_unavailable"
+        supportCode="01JS"
+        onChooseAnother={() => undefined}
+        onCheckLink={() => undefined}
+      />,
+    );
+    expect(screen.queryByTestId("stage-error-retry")).toBeNull();
+    expect(primaries()).toEqual([screen.getByTestId("stage-error-choose-another")]);
+    expect(screen.getByTestId("stage-error-choose-another")).toHaveTextContent(
+      "Choose another video",
+    );
+    expect(screen.getByTestId("stage-error-reassurance")).toHaveTextContent(
+      "Everything you had before is still here.",
+    );
+    expect(screen.getByRole("alert")).not.toHaveTextContent(/try again/i);
+  });
+
+  it("keeps the retry's own promise beside a retry the run offers", () => {
+    renderCard("repurpose/source_unavailable");
+    expect(screen.getByTestId("stage-error-reassurance")).toHaveTextContent(
+      "Everything you had before is still here. It may work if you try again.",
+    );
+  });
+
+  it("starts the same video afresh when its transcript has no timings", async () => {
+    const user = userEvent.setup();
+    const onStartAgain = vi.fn();
+    const handlers = renderCard("repurpose/transcript_untimed", { onStartAgain });
+    expect(primaries()).toEqual([screen.getByTestId("stage-error-start-again")]);
+    expect(screen.getByTestId("stage-error-start-again")).toHaveTextContent(
+      "Start again with this video",
+    );
+    // What starting again costs, said beside the button that does it.
+    expect(screen.getByTestId("stage-error-reassurance")).toHaveTextContent(
+      "makes a fresh transcript, which uses credits like any new video.",
+    );
+    // Retrying the run would only find the same untimed transcript again.
+    expect(screen.queryByTestId("stage-error-retry")).toBeNull();
+    await user.click(screen.getByTestId("stage-error-start-again"));
+    expect(onStartAgain).toHaveBeenCalledOnce();
+    expect(handlers.onCheckLink).not.toHaveBeenCalled();
+  });
+
+  it("offers another video for an untimed transcript with no link to start again from", () => {
+    render(
+      <StageErrorCard
+        code="repurpose/transcript_untimed"
+        supportCode="01JS"
+        onChooseAnother={() => undefined}
+      />,
+    );
+    expect(screen.queryByTestId("stage-error-start-again")).toBeNull();
+    expect(primaries()).toEqual([screen.getByTestId("stage-error-choose-another")]);
+    // An upload run has no "Start again", so the card does not describe one.
+    expect(screen.getByTestId("stage-error-reassurance")).toHaveTextContent(
+      "without timings we cannot tell where a moment starts or ends.",
+    );
+    expect(screen.getByRole("alert")).not.toHaveTextContent(/start(ing)? again|fresh transcript/i);
+  });
+
+  // Not "Upload it again": a file already in one of the person's projects is
+  // matched to that copy and never arrives, so the same file into a new run
+  // would wait a day and fail the same way.
+  it("offers another video when an upload never arrived, and says why the same file may not work", () => {
+    renderCard("repurpose/upload_missing");
+    expect(primaries()).toEqual([screen.getByTestId("stage-error-choose-another")]);
+    expect(screen.getByTestId("stage-error-choose-another")).toHaveTextContent(
+      "Choose another video",
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent("We never received your video");
+    expect(screen.getByTestId("stage-error-reassurance")).toHaveTextContent(
+      /already in one of your projects/,
+    );
+    expect(screen.getByRole("alert")).not.toHaveTextContent(/upload it again/i);
+  });
+
   it("shows progress while the retry is in flight", () => {
     renderCard("repurpose/source_unavailable", { retrying: true });
     expect(screen.getByTestId("stage-error-retry")).toBeDisabled();

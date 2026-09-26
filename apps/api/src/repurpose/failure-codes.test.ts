@@ -5,6 +5,7 @@ import { SAFE_ERROR_CODES } from "@montaj/repurpose-contracts";
 import {
   LEGACY_RUN_FAILURE_CODES,
   STAGE_OF_FAILURE,
+  TRANSCRIPT_UNTIMED_JOB_CODE,
   jobErrorCodeOf,
   runFailureCode,
 } from "./failure-codes.js";
@@ -127,6 +128,24 @@ describe("runFailureCode — transcription and discovery", () => {
       expect(runFailureCode({ failedAt: "highlights", jobErrorCode })).toBe(
         "repurpose/highlights_failed",
       );
+    }
+  });
+
+  it("names a transcript with no word timings as such, not as nothing found", () => {
+    // It used to come back empty, and the page said no moment was worth
+    // suggesting: blaming the video for a broken transcript.
+    expect(
+      runFailureCode({ failedAt: "highlights", jobErrorCode: TRANSCRIPT_UNTIMED_JOB_CODE }),
+    ).toBe("repurpose/transcript_untimed");
+    expect(TRANSCRIPT_UNTIMED_JOB_CODE).toBe("worker/transcript_untimed");
+  });
+
+  it("reads the untimed code only from discovery", () => {
+    for (const failedAt of ["acquire", "processing", "transcription"] as const) {
+      expect(
+        runFailureCode({ failedAt, jobErrorCode: TRANSCRIPT_UNTIMED_JOB_CODE }),
+        failedAt,
+      ).not.toBe("repurpose/transcript_untimed");
     }
   });
 });

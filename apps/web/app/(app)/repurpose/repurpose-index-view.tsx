@@ -27,21 +27,23 @@ import { Button, EmptyState, PageHeader, Skeleton, cn } from "@montaj/ui";
 import { REPURPOSE_FLOW_FLAG } from "@/components/home/pipeline-banner";
 import { formatRelative } from "@/components/projects/project-table";
 import { safeErrorCopy } from "@/components/repurpose/copy";
-import { runActivity } from "@/components/repurpose/run-activity";
+import { runActivity, serverIsWorking } from "@/components/repurpose/run-activity";
 
 /**
  * Work is happening on the server. Not "a stage projects as running", which is
- * also true of a run the person stopped and of one waiting for their review.
+ * also true of a run the person stopped and of one waiting for their review —
+ * nor an upload run still waiting for its file (`draft`), which nothing on the
+ * server moves and which could otherwise sit on top as "In progress" forever.
  */
 function isLive(run: RepurposeRunView): boolean {
-  return runActivity(run) === "working";
+  return serverIsWorking(run);
 }
 
 /** The words before a row's message, so its state is never the dot's colour alone. */
 function statePrefix(run: RepurposeRunView): string {
   switch (runActivity(run)) {
     case "working":
-      return "In progress · ";
+      return run.status === "draft" ? "Waiting for its video · " : "In progress · ";
     case "needs_you":
       return "Waiting for you · ";
     case "failed":

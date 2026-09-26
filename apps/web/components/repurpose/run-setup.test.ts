@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { newRunHref, recallRunSetup, rememberRunSetup, setupOf, startFormFromParams } from "./run-setup";
+import {
+  linkFromSourceDisplay,
+  newRunHref,
+  recallRunSetup,
+  rememberRunSetup,
+  setupOf,
+  startFormFromParams,
+} from "./run-setup";
 import { EMPTY_START_FORM, RECOMMENDED_STYLES } from "./SourceStartForm";
 
 /**
@@ -33,7 +40,11 @@ describe("remembering a run's setup", () => {
   });
 
   it("never carries the rights confirmation", () => {
-    const setup = setupOf({ ...EMPTY_START_FORM, url: " https://youtu.be/x ", rightsAttested: true });
+    const setup = setupOf({
+      ...EMPTY_START_FORM,
+      url: " https://youtu.be/x ",
+      rightsAttested: true,
+    });
     expect(setup).not.toHaveProperty("rightsAttested");
     expect(setup.link).toBe("https://youtu.be/x");
   });
@@ -65,6 +76,49 @@ describe("newRunHref and startFormFromParams", () => {
     expect(newRunHref(undefined, { keepLink: true })).toBe("/repurpose/new");
   });
 
+  // A run this browser never saw (another device, a private window, or one
+  // started before setups were remembered) lost its link on "Start again with
+  // this video": the form opened on an empty "Paste a link".
+  it("carries a link it is given even when no setup was remembered", () => {
+    const link = "https://www.youtube.com/watch?v=kE0oUEzVVes";
+    const form = startFormFromParams(
+      new URL(newRunHref(undefined, { keepLink: true, link }), "https://app.test").searchParams,
+      "en",
+    );
+    expect(form.url).toBe(link);
+    expect(form.tab).toBe("link");
+    // Only when the link is wanted: "Choose another video" still clears it.
+    expect(newRunHref(undefined, { keepLink: false, link })).toBe("/repurpose/new");
+    // The link as the person pasted it wins over the one rebuilt from the run.
+    const kept = new URL(newRunHref(SETUP, { keepLink: true, link }), "https://app.test");
+    expect(kept.searchParams.get("url")).toBe(SETUP.link);
+  });
+
+  // A failed upload run's "Upload it again" landed on "Paste a link".
+  it("opens the upload tab for a failed upload run, remembered setup or not", () => {
+    const { link: _link, ...uploadSetup } = SETUP;
+    const again = startFormFromParams(
+      new URL(newRunHref(uploadSetup, { keepLink: false, upload: true }), "https://app.test")
+        .searchParams,
+      undefined,
+    );
+    expect(again.tab).toBe("upload");
+    expect(again.styleId).toBe(STYLE);
+
+    expect(newRunHref(undefined, { keepLink: false, upload: true })).toBe(
+      "/repurpose/new?source=upload",
+    );
+    expect(startFormFromParams(new URLSearchParams("source=upload"), "en").tab).toBe("upload");
+  });
+
+  it("stays on the link tab unless asked, and whenever a link is carried", () => {
+    expect(startFormFromParams(new URLSearchParams(""), "en").tab).toBe("link");
+    expect(
+      startFormFromParams(new URLSearchParams("source=upload&url=https%3A%2F%2Fyoutu.be%2Fx"), "en")
+        .tab,
+    ).toBe("link");
+  });
+
   it("ignores values nobody could have picked, since anyone can craft the URL", () => {
     const form = startFormFromParams(
       new URLSearchParams("style=not-a-style&out=klingon&script=morse&n=999&lang=<script>"),
@@ -81,5 +135,33 @@ describe("newRunHref and startFormFromParams", () => {
     const form = startFormFromParams(new URLSearchParams("method=manual&n=5"), "en");
     expect(form.method).toBe("manual");
     expect(form.requestedCandidates).toBe(0);
+  });
+});
+
+describe("linkFromSourceDisplay", () => {
+  // The display the API writes for a YouTube run (`youtubeResult` in its
+  // `source-url.ts`), as production's own runs carry it.
+  it("rebuilds the canonical link from a YouTube run's display", () => {
+    expect(linkFromSourceDisplay("youtube.com · kE0oUEzVVes")).toBe(
+      "https://www.youtube.com/watch?v=kE0oUEzVVes",
+    );
+    expect(linkFromSourceDisplay(" youtube.com · a-b_c123XYZ ")).toBe(
+      "https://www.youtube.com/watch?v=a-b_c123XYZ",
+    );
+  });
+
+  it("gives no link for anything else, rather than a guess", () => {
+    for (const display of [
+      null,
+      undefined,
+      "",
+      "My holiday.mp4",
+      "cdn.example.com/video.mp4",
+      "youtube.com · short",
+      "youtube.com · kE0oUEzVVes&list=PL1",
+      "evil.com · kE0oUEzVVes",
+    ]) {
+      expect(linkFromSourceDisplay(display), String(display)).toBeUndefined();
+    }
   });
 });

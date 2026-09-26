@@ -19,13 +19,19 @@ units. Decoding follows OpenCV's own `FaceDetectorYN` for this model version:
 Frames come from the 540p proxy, decoded by ffmpeg straight to raw `bgr24` and
 read one frame at a time, so memory stays one frame deep whatever the clip's
 length (the same reason `frame_sampling.sample_frames` streams).
+
+The track is bounded per sample (:func:`bound_faces`): faces too small for any
+reader to use are dropped and at most :data:`MAX_FACES_PER_SAMPLE` are kept.
+Without that the file's size was set by what the video showed - a crowd shot
+put every face YuNet found into every sample - and the API, the renderer and
+the browser all read the whole file into memory.
 """
 
 from __future__ import annotations
 
 import math
 import subprocess
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -38,9 +44,12 @@ from worker_ai.passes.frame_sampling import _read_exact, probe_video_size
 
 __all__ = [
     "FACE_TRACK_VERSION",
+    "MAX_FACES_PER_SAMPLE",
+    "MIN_FACE_HEIGHT",
     "FaceBox",
     "FaceSample",
     "YuNetOnnxDetector",
+    "bound_faces",
     "detect_face_track",
     "face_track_document",
     "iter_bgr_frames",
@@ -52,6 +61,20 @@ FACE_TRACK_VERSION = 1
 #: Four samples a second: a caption is up for one to three seconds, so this is
 #: several looks per caption, at a quarter of the frame sampler's 10 Hz cost.
 DEFAULT_INTERVAL_MS = 250
+
+#: Faces shorter than this share of the source frame are not kept. Both readers
+#: drop faces under 0.06 (`placement.ts` and `apps/api/src/repurpose/reframe.ts`,
+#: `MIN_FACE_HEIGHT`), but `placement.ts` measures on the canvas after a cover
+#: fit, which enlarges a source whose aspect is narrower than the canvas's; half
+#: of 0.06 leaves room for a 2x enlargement. Beyond that (a 9:16 source cover-
+#: fitted onto 16:9 is 3.16x) a face of 12-19 source px on the 640 px proxy
+#: frame is lost - YuNet's own floor is close to that anyway.
+MIN_FACE_HEIGHT = 0.03
+
+#: The most faces one sample keeps, largest first. Not fewer: a 5 x 5 video-call
+#: gallery is 25 faces at about 8% of the frame each, all of which placement
+#: steers a caption around. At ~30 bytes a box this caps a sample near 1 KB.
+MAX_FACES_PER_SAMPLE = 32
 
 _INPUT_SIZE = 640
 _STRIDES = (8, 16, 32)
@@ -241,15 +264,33 @@ def _iou(
     return inter / union if union > 0 else 0.0
 
 
+def bound_faces(boxes: Iterable[FaceBox]) -> tuple[FaceBox, ...]:
+    """The faces of one sample worth keeping: at least :data:`MIN_FACE_HEIGHT`
+    tall, at most :data:`MAX_FACES_PER_SAMPLE` of them, largest area first.
+
+    Largest first because both readers want the subject, and the subject is the
+    big face: `reframe.ts` follows the biggest face that stays on screen, and a
+    caption moved off a large face matters more than off a distant one. Stable
+    on ties, so the same detections always give the same file.
+    """
+    usable = [box for box in boxes if box.h >= MIN_FACE_HEIGHT]
+    usable.sort(key=lambda box: box.w * box.h, reverse=True)
+    return tuple(usable[:MAX_FACES_PER_SAMPLE])
+
+
 def detect_face_track(
     path: Path,
     detector: YuNetOnnxDetector,
     *,
     interval_ms: int = DEFAULT_INTERVAL_MS,
 ) -> list[FaceSample]:
-    """One `FaceSample` per `interval_ms` over the whole of `path`."""
+    """One `FaceSample` per `interval_ms` over the whole of `path`.
+
+    Bounded as each frame is read, not only when the file is written: a six-hour
+    crowd shot would otherwise hold every detection in memory until the end.
+    """
     return [
-        FaceSample(t_ms=t_ms, boxes=tuple(detector.detect(frame)))
+        FaceSample(t_ms=t_ms, boxes=bound_faces(detector.detect(frame)))
         for t_ms, frame in iter_bgr_frames(path, interval_ms=interval_ms)
     ]
 
@@ -262,7 +303,10 @@ def face_track_document(
     source_height: int,
 ) -> dict[str, Any]:
     """The `faces.json` body: compact, four decimals, empty samples kept so a
-    reader can tell "looked, found nothing" from "never looked"."""
+    reader can tell "looked, found nothing" from "never looked".
+
+    Each sample is bounded here too (:func:`bound_faces` is idempotent), so the
+    file's size limit holds whoever built the samples."""
     return {
         "version": FACE_TRACK_VERSION,
         "intervalMs": interval_ms,
@@ -272,7 +316,7 @@ def face_track_document(
                 sample.t_ms,
                 [
                     [round(box.x, 4), round(box.y, 4), round(box.w, 4), round(box.h, 4)]
-                    for box in sample.boxes
+                    for box in bound_faces(sample.boxes)
                 ],
             ]
             for sample in samples

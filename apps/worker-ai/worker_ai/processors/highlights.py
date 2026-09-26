@@ -13,9 +13,11 @@ the order they arrive in (``rank = index + 1``), so they are sent best first.
 It never invents a moment. A words fetch that fails raises a retryable
 :class:`JobFailureError` - the first version swallowed it and reported a made-up
 "Key Video Highlight" at 0-30 s as a success, which then could not be re-run. A
-transcript with no usable words gets no proposals: the contract documents an
+transcript with nothing said in it gets no proposals: the contract documents an
 empty list as a legitimate answer, and the run page offers "add a moment by
-time" for it.
+time" for it. A transcript whose words have no timings is not that: it fails,
+``worker/transcript_untimed``, because "no strong moment" would blame the video
+for what transcribing it again fixes.
 """
 
 from __future__ import annotations
@@ -57,7 +59,7 @@ from worker_ai.highlights.windows import (
 from worker_ai.logging_setup import get_logger
 from worker_ai.processors.context import JobContext, JobFailureError, ProcessorOutcome
 
-__all__ = ["HIGHLIGHT_MODEL", "discover", "process_highlights"]
+__all__ = ["HIGHLIGHT_MODEL", "UntimedTranscriptError", "discover", "process_highlights"]
 
 _log = get_logger(__name__)
 
@@ -68,6 +70,19 @@ HIGHLIGHT_MODEL: Final[str] = "montaj-highlight-v2"
 _MAX_WINDOWS_REPORTED: Final[int] = 10_000
 #: 4xx answers that are about load, not about this request, so worth asking again.
 _TRANSIENT_CLIENT_STATUSES: Final = frozenset({408, 429})
+
+
+class UntimedTranscriptError(ValueError):
+    """Most of what was said has no usable timing, so no moment can be placed.
+
+    Raised by :func:`discover`, which stays a plain function for offline use;
+    :func:`process_highlights` turns it into the job's failure code.
+    """
+
+    def __init__(self, *, spoken: int, timed: int) -> None:
+        super().__init__(f"{timed} of {spoken} spoken words have a usable timing")
+        self.spoken = spoken
+        self.timed = timed
 
 
 @dataclass(frozen=True, slots=True)
@@ -161,22 +176,31 @@ def discover(
 
     Synchronous and deterministic: no network, no clock, no randomness, so the
     same words and options always give the same answer.
+
+    Raises :class:`UntimedTranscriptError` when most citable spoken words have
+    no usable timing; a transcript with nothing said in it (or nothing a
+    proposal could cite) is an empty answer instead.
     """
-    words = usable_words(raw_words)
-    if not words:
+    # Nothing said - no words, or only music notes and sound labels - is the
+    # empty answer the contract documents, and the run offers "add a moment by
+    # time" for it. So is speech with no id a proposal could cite (the API's
+    # words endpoint always sends one): that is not a timing fault, and naming
+    # it as one would send the user to transcribe again for nothing.
+    spoken = spoken_count(raw_words)
+    if spoken == 0:
         return [], 0
     # Sarvam transcripts written before 2026-09-17 have every word at 0-0 (§9).
-    # Cutting windows from timings like that would cut the wrong video, so the
-    # honest answer is none. Counted over speech only: a song intro's notes are
-    # timed, but they are not words, and are no reason to refuse the talk.
+    # Cutting windows from timings like that would cut the wrong video, and an
+    # empty answer would tell the user the video has no strong moment when it is
+    # the transcript that is wrong. Counted over citable speech only, so the two
+    # sides differ by timing alone: a song intro's notes are timed, but they are
+    # not words, and are no reason to refuse the talk; a word with a malformed id
+    # is in neither. A word with no timing at all never reaches `words`, so it
+    # counts as untimed too - which also means `words` is not empty past this check.
+    words = usable_words(raw_words)
     timed = sum(1 for word in words if word.end_ms > word.start_ms)
-    spoken = spoken_count(raw_words)
     if timed * 2 < spoken:
-        _log.warning(
-            "most transcript words have no usable timing; proposing nothing",
-            extra={"words": spoken, "timedWords": timed},
-        )
-        return [], 0
+        raise UntimedTranscriptError(spoken=spoken, timed=timed)
 
     min_ms, max_ms = options.min_duration_ms, options.max_duration_ms
     speech_end_ms = max(word.end_ms for word in words)
@@ -251,9 +275,28 @@ async def process_highlights(context: JobContext) -> ProcessorOutcome:
     # Up to a few seconds of CPU for a long source. On the event loop it would
     # stall every other AI queue this process serves - their progress calls,
     # heartbeats and BullMQ lock renewals - for as long as it ran.
-    proposals, windows_considered = await asyncio.to_thread(
-        discover, raw_words, payload.options, duration_ms
-    )
+    try:
+        proposals, windows_considered = await asyncio.to_thread(
+            discover, raw_words, payload.options, duration_ms
+        )
+    except UntimedTranscriptError as error:
+        # Not retryable: the same words give the same answer. The API fails the
+        # run with `repurpose/transcript_untimed`, whose page names the remedy -
+        # transcribe the video again - instead of "no strong moment".
+        _log.warning(
+            "most transcript words have no usable timing",
+            extra={
+                "runId": payload.run_id,
+                "transcriptId": payload.transcript_id,
+                "words": error.spoken,
+                "timedWords": error.timed,
+            },
+        )
+        raise JobFailureError(
+            "worker/transcript_untimed",
+            f"transcript {payload.transcript_id} cannot be cut into moments: {error}",
+            retryable=False,
+        ) from error
     _log.info(
         "highlight discovery finished",
         extra={

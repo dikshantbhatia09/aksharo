@@ -1,10 +1,28 @@
 import { HttpStatus } from "@nestjs/common";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { REPURPOSE_SCHEMA_VERSION } from "@montaj/repurpose-contracts";
 
-import { RepurposeReconciler, decideRunAction, planRetry, youtubeUrlOf } from "./reconciler.js";
-import { QUEUE_DOWN_BACKOFF_MS, RECONCILE_INTERVAL_MS } from "./repurpose.constants.js";
+import {
+  RepurposeReconciler,
+  acquireCeilingMs,
+  decideRunAction,
+  isStalled,
+  planRetry,
+  stalledJobIds,
+  workCeilingMs,
+  youtubeUrlOf,
+} from "./reconciler.js";
+import {
+  ACQUIRE_RUNNING_MARGIN_MS,
+  ACQUIRE_TIMEOUT_MS,
+  DEFAULT_RECONCILE_WATCHDOG_MS,
+  QUEUE_DOWN_BACKOFF_MS,
+  RECONCILE_INTERVAL_MS,
+  STAGE_RUNNING_BASE_MS,
+  UPLOAD_WINDOW_MS,
+  reconcileWatchdogIntervalMs,
+} from "./repurpose.constants.js";
 import { AppException, ERROR_CODES } from "../common/errors/error-codes.js";
 
 import type { JobFacts, RunSnapshot } from "./reconciler.js";
@@ -23,6 +41,23 @@ const TRANSCRIPT = "01JCTRANSCR1PT000000000000";
 const URL = "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
 const FIRST_KEY = `media.acquire:${RUN}:youtube:dQw4w9WgXcQ`;
 
+/**
+ * "Now" for every test. A job's age is measured against the clock, and the fake
+ * jobs below are stamped from 10:00, so the real clock would read every running
+ * one as stalled on any afternoon.
+ */
+const NOW = Date.parse("2026-09-26T10:30:00Z");
+const MINUTE = 60_000;
+
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(NOW);
+});
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllEnvs();
+});
+
 // ---------------------------------------------------------------------------
 // The decision (§1's table), as a pure function
 // ---------------------------------------------------------------------------
@@ -35,8 +70,33 @@ const failedWith = (errorCode: string | null): JobFacts => ({
   started: true,
 });
 
+/** A job that has been `running` since `minutesAgo` before {@link NOW}. */
+const runningFor = (minutesAgo: number, extra: Partial<JobFacts> = {}): JobFacts => ({
+  id: "01JCJ0BSTALE00000000000000",
+  status: "running",
+  errorCode: null,
+  started: true,
+  queuedAt: NOW - minutesAgo * MINUTE - 1_000,
+  startedAt: NOW - minutesAgo * MINUTE,
+  maxQueueWaitMs: 30 * MINUTE,
+  ...extra,
+});
+
+/** A job still `queued` since `minutesAgo`, under the Free plan's 30-minute queue wait. */
+const queuedFor = (minutesAgo: number): JobFacts => ({
+  id: "01JCJ0BQUEUED0000000000000",
+  status: "queued",
+  errorCode: null,
+  started: false,
+  queuedAt: NOW - minutesAgo * MINUTE,
+  startedAt: null,
+  maxQueueWaitMs: 30 * MINUTE,
+});
+
 function snapshot(overrides: Partial<RunSnapshot> = {}): RunSnapshot {
   return {
+    now: NOW,
+    sourceRequestedAt: NOW - 90 * MINUTE,
     sourceKind: "youtube_url",
     sourceDeleted: false,
     media: { status: "pending", failureReason: null, arrived: false, durationMs: null },
@@ -281,6 +341,14 @@ describe("decideRunAction — finding moments", () => {
     ).toEqual({ kind: "fail", failedAt: "highlights", code: "repurpose/highlights_failed" });
   });
 
+  it("fails a discovery that found the transcript has no timings with its own code", () => {
+    expect(
+      decideRunAction(
+        snapshot({ ...transcribed, highlightsJob: failedWith("worker/transcript_untimed") }),
+      ),
+    ).toEqual({ kind: "fail", failedAt: "highlights", code: "repurpose/transcript_untimed" });
+  });
+
   it("looks again when a finished discovery's result was turned away", () => {
     // Applied results move the run in the same transaction; a succeeded job with
     // the run still finding means the result never landed.
@@ -293,6 +361,198 @@ describe("decideRunAction — finding moments", () => {
     expect(
       decideRunAction(snapshot({ ...transcribed, highlightsJob: done, candidateCount: 3 })),
     ).toEqual({ kind: "candidates_ready" });
+  });
+});
+
+describe("decideRunAction — a step that stopped making progress", () => {
+  // `readyMedia` is ten minutes long: the ceiling is an hour plus twenty minutes.
+  const transcribed = { media: readyMedia, acquireJob: done, transcriptId: TRANSCRIPT } as const;
+  const timedOut = (failedAt: string) => ({
+    kind: "fail",
+    failedAt,
+    code: "repurpose/stage_timeout",
+  });
+
+  it("fails discovery still running long past the point it could finish", () => {
+    // It used to wait on "Finding promising moments" for good: a worker that
+    // died, or a report lost to an API restart, leaves the job `running`.
+    expect(decideRunAction(snapshot({ ...transcribed, highlightsJob: runningFor(81) }))).toEqual(
+      timedOut("highlights"),
+    );
+    expect(decideRunAction(snapshot({ ...transcribed, highlightsJob: runningFor(79) }))).toEqual({
+      kind: "wait",
+    });
+  });
+
+  it("fails discovery still queued past the plan's queue wait: nothing is taking it", () => {
+    expect(decideRunAction(snapshot({ ...transcribed, highlightsJob: queuedFor(31) }))).toEqual(
+      timedOut("highlights"),
+    );
+    expect(decideRunAction(snapshot({ ...transcribed, highlightsJob: queuedFor(29) }))).toEqual({
+      kind: "wait",
+    });
+  });
+
+  it("fails a transcription a worker lost", () => {
+    const ready = { media: readyMedia, acquireJob: done } as const;
+    expect(decideRunAction(snapshot({ ...ready, transcribeJob: runningFor(81) }))).toEqual(
+      timedOut("transcription"),
+    );
+    expect(decideRunAction(snapshot({ ...ready, transcribeJob: runningFor(79) }))).toEqual({
+      kind: "wait",
+    });
+  });
+
+  it("gives a longer video longer", () => {
+    // Two hours of video: an hour plus four.
+    const long = { media: { ...readyMedia, durationMs: 120 * MINUTE }, acquireJob: done } as const;
+    expect(decideRunAction(snapshot({ ...long, transcribeJob: runningFor(299) }))).toEqual({
+      kind: "wait",
+    });
+    expect(decideRunAction(snapshot({ ...long, transcribeJob: runningFor(301) }))).toEqual(
+      timedOut("transcription"),
+    );
+  });
+
+  it("fails a download still running long after its own deadline", () => {
+    // A forty-minute deadline in its payload, and ten minutes' margin.
+    expect(
+      decideRunAction(snapshot({ acquireJob: runningFor(51, { timeoutMs: 40 * MINUTE }) })),
+    ).toEqual(timedOut("acquire"));
+    expect(
+      decideRunAction(snapshot({ acquireJob: runningFor(49, { timeoutMs: 40 * MINUTE }) })),
+    ).toEqual({ kind: "wait" });
+  });
+
+  it("fails a download still queued past the plan's queue wait: the acquisition worker is not consuming", () => {
+    expect(decideRunAction(snapshot({ acquireJob: queuedFor(31) }))).toEqual(timedOut("acquire"));
+  });
+
+  it("fails a probe or proxy still running long past the point it could finish", () => {
+    // Nothing measured yet, so the ceiling is the hour alone.
+    for (const sourceKind of ["youtube_url", "upload"] as const) {
+      const action = decideRunAction(
+        snapshot({
+          sourceKind,
+          media: { ...readyMedia, status: "probing", durationMs: null },
+          acquireJob: sourceKind === "upload" ? null : done,
+          processingJob: runningFor(61),
+        }),
+      );
+      expect(action, sourceKind).toEqual(timedOut("processing"));
+    }
+  });
+
+  it("never reads a job it has no timings for as stalled", () => {
+    expect(decideRunAction(snapshot({ ...transcribed, highlightsJob: live }))).toEqual({
+      kind: "wait",
+    });
+  });
+});
+
+describe("isStalled, the ceilings and stalledJobIds", () => {
+  it("measures a running job from when a worker started it, else from when it was queued", () => {
+    expect(isStalled(runningFor(61), 60 * MINUTE, NOW)).toBe(true);
+    expect(isStalled(runningFor(59), 60 * MINUTE, NOW)).toBe(false);
+    expect(
+      isStalled(
+        { ...runningFor(0), startedAt: null, queuedAt: NOW - 61 * MINUTE },
+        60 * MINUTE,
+        NOW,
+      ),
+    ).toBe(true);
+  });
+
+  it("never reads a finished job, or a queued one with no queue wait, as stalled", () => {
+    expect(isStalled({ ...runningFor(600), status: "succeeded" }, MINUTE, NOW)).toBe(false);
+    expect(isStalled({ ...runningFor(600), status: "failed" }, MINUTE, NOW)).toBe(false);
+    expect(isStalled({ ...queuedFor(600), maxQueueWaitMs: null }, MINUTE, NOW)).toBe(false);
+  });
+
+  it("gives a download its own deadline plus a margin, and the rest an hour plus twice the video", () => {
+    expect(acquireCeilingMs({ ...live, timeoutMs: 20 * MINUTE })).toBe(
+      20 * MINUTE + ACQUIRE_RUNNING_MARGIN_MS,
+    );
+    expect(acquireCeilingMs(live)).toBe(ACQUIRE_TIMEOUT_MS + ACQUIRE_RUNNING_MARGIN_MS);
+    expect(workCeilingMs(null)).toBe(STAGE_RUNNING_BASE_MS);
+    expect(workCeilingMs(10 * MINUTE)).toBe(STAGE_RUNNING_BASE_MS + 20 * MINUTE);
+  });
+
+  it("names the stalled jobs among those the run read, and only those", () => {
+    expect(
+      stalledJobIds(
+        snapshot({
+          media: readyMedia,
+          acquireJob: { ...done, id: "ACQUIRE" },
+          transcribeJob: runningFor(81, { id: "TRANSCRIBE" }),
+        }),
+      ),
+    ).toEqual(["TRANSCRIBE"]);
+    expect(
+      stalledJobIds(
+        snapshot({ media: readyMedia, acquireJob: done, transcribeJob: runningFor(10) }),
+      ),
+    ).toEqual([]);
+  });
+
+  it("leaves the media's probe or proxy out when asked to (the fail path), and names it otherwise", () => {
+    // They free nothing, and a late probe is the only way an upload gets prepared.
+    const preparing = snapshot({
+      sourceKind: "upload",
+      media: { ...readyMedia, status: "uploaded", durationMs: null },
+      acquireJob: null,
+      processingJob: { ...queuedFor(45), id: "PROBE" },
+    });
+    expect(stalledJobIds(preparing, { preparation: false })).toEqual([]);
+    expect(stalledJobIds(preparing)).toEqual(["PROBE"]);
+  });
+});
+
+describe("decideRunAction — an upload that never arrived", () => {
+  const dayOld = { sourceRequestedAt: NOW - UPLOAD_WINDOW_MS - MINUTE } as const;
+  const notArrived = (status: "pending" | "uploading") =>
+    ({ status, failureReason: null, arrived: false, durationMs: null }) as const;
+
+  it("fails an upload run still without its file a day after it was asked for", () => {
+    // No row (the upload never started, or matched a file already in the
+    // workspace), or one stuck mid-upload (failed and dismissed).
+    for (const media of [null, notArrived("pending"), notArrived("uploading")]) {
+      expect(
+        decideRunAction(snapshot({ ...dayOld, sourceKind: "upload", media, acquireJob: null })),
+        media?.status ?? "no row",
+      ).toEqual({ kind: "fail", failedAt: "acquire", code: "repurpose/upload_missing" });
+    }
+  });
+
+  it("keeps waiting inside the window: the browser's upload queue resumes a closed tab", () => {
+    expect(
+      decideRunAction(
+        snapshot({
+          sourceKind: "upload",
+          media: notArrived("uploading"),
+          acquireJob: null,
+          sourceRequestedAt: NOW - UPLOAD_WINDOW_MS + MINUTE,
+        }),
+      ),
+    ).toEqual({ kind: "wait" });
+  });
+
+  it("leaves a file that arrived to its preparation, however long ago it was asked for", () => {
+    expect(
+      decideRunAction(
+        snapshot({
+          ...dayOld,
+          sourceKind: "upload",
+          media: { ...readyMedia, status: "probing" },
+          acquireJob: null,
+          processingJob: live,
+        }),
+      ),
+    ).toEqual({ kind: "wait" });
+  });
+
+  it("never applies to a link, whose download has a deadline of its own", () => {
+    expect(decideRunAction(snapshot({ ...dayOld }))).toEqual({ kind: "wait" });
   });
 });
 
@@ -396,6 +656,30 @@ describe("planRetry", () => {
     ).toMatchObject({ kind: "impossible" });
   });
 
+  it("refuses an upload whose preparation stalled while it is still open, then transcribes once it lands", () => {
+    const stalled = {
+      sourceKind: "upload",
+      acquireJob: null,
+      processingJob: queuedFor(45),
+    } as const;
+    const refused = planRetry(
+      snapshot({ ...stalled, media: { ...readyMedia, status: "uploaded", durationMs: null } }),
+      { failureCode: "repurpose/stage_timeout" },
+    );
+    // Not "could not be read": nothing says the file is at fault.
+    expect(refused).toEqual({
+      kind: "impossible",
+      reason:
+        "This file is still waiting to be prepared. Try again once it has been, or upload it again.",
+    });
+    // The worker came back and the probe ran late: the same run can go on.
+    expect(
+      planRetry(snapshot({ ...stalled, processingJob: null, media: readyMedia }), {
+        failureCode: "repurpose/stage_timeout",
+      }),
+    ).toEqual({ kind: "transcribe" });
+  });
+
   it("fetches a link again into a fresh row when its preparation ended", () => {
     expect(
       planRetry(
@@ -415,6 +699,40 @@ describe("planRetry", () => {
         failureCode: "repurpose/source_unavailable",
       }),
     ).toMatchObject({ kind: "impossible" });
+  });
+
+  it("refuses a run whose transcript has no timings: looking again reads the same words", () => {
+    expect(
+      planRetry(snapshot({ media: readyMedia, acquireJob: done, transcriptId: TRANSCRIPT }), {
+        failureCode: "repurpose/transcript_untimed",
+      }),
+    ).toMatchObject({ kind: "impossible" });
+  });
+
+  it("refuses an upload that never arrived: nothing on the run can send it", () => {
+    const upload = { sourceKind: "upload", media: null, acquireJob: null } as const;
+    expect(planRetry(snapshot(upload), { failureCode: "repurpose/upload_missing" })).toMatchObject({
+      kind: "impossible",
+    });
+    // Whatever it failed with, once the window has passed.
+    expect(
+      planRetry(snapshot({ ...upload, sourceRequestedAt: NOW - UPLOAD_WINDOW_MS - MINUTE }), {
+        failureCode: "repurpose/stage_timeout",
+      }),
+    ).toMatchObject({ kind: "impossible" });
+    // Inside it, a timed-out run still goes back to waiting for the file.
+    expect(planRetry(snapshot(upload), { failureCode: "repurpose/stage_timeout" })).toEqual({
+      kind: "resume",
+    });
+  });
+
+  it("fetches again, rather than resuming, a download open long past its own deadline", () => {
+    // "Resume" would watch a download nothing is running, for good.
+    expect(
+      planRetry(snapshot({ acquireJob: runningFor(51, { timeoutMs: 40 * MINUTE }) }), {
+        failureCode: "repurpose/stage_timeout",
+      }),
+    ).toEqual({ kind: "acquire", reuseMedia: true });
   });
 
   it("refuses an upload that could not be read: only a new upload helps", () => {
@@ -441,6 +759,7 @@ describe("planRetry", () => {
 // ---------------------------------------------------------------------------
 
 interface FakeJob {
+  id: string;
   type: string;
   jobKey: string;
   projectId: string;
@@ -449,6 +768,7 @@ interface FakeJob {
   startedAt: Date | null;
   finishedAt: Date | null;
   queuedAt: Date;
+  maxQueueWaitMs: number | null;
   params: Record<string, unknown>;
 }
 
@@ -467,6 +787,7 @@ interface World {
     failureReason: string | null;
     uploadedAt: Date | null;
     durationMs: number | null;
+    createdAt: Date;
   } | null;
   transcript: { id: string } | null;
   candidates: number;
@@ -477,9 +798,16 @@ interface World {
 
 let clock = Date.parse("2026-09-26T10:00:00Z");
 
+/** A distinct job id per fake job. */
+function jobId(): string {
+  return `01JCJ0B${String(clock).padStart(19, "0")}`;
+}
+
 function acquireJob(overrides: Partial<FakeJob> = {}, mediaId = MEDIA): FakeJob {
   clock += 1_000;
   return {
+    id: jobId(),
+    maxQueueWaitMs: 30 * MINUTE,
     type: "media.acquire",
     jobKey: FIRST_KEY,
     projectId: PROJECT,
@@ -504,6 +832,8 @@ function acquireJob(overrides: Partial<FakeJob> = {}, mediaId = MEDIA): FakeJob 
 function job(type: string, jobKey: string, overrides: Partial<FakeJob> = {}): FakeJob {
   clock += 1_000;
   return {
+    id: jobId(),
+    maxQueueWaitMs: 30 * MINUTE,
     type,
     jobKey,
     projectId: PROJECT,
@@ -531,6 +861,7 @@ function runRow(overrides: Partial<RepurposeRun> = {}): RepurposeRun {
     failureCode: null,
     completedAt: null,
     // Before every fake job: the run was last written when it was created.
+    createdAt: new Date("2026-09-26T09:00:00Z"),
     updatedAt: new Date("2026-09-26T09:00:00Z"),
     ...overrides,
   } as RepurposeRun;
@@ -552,6 +883,7 @@ function world(overrides: Partial<World> = {}): World {
       failureReason: null,
       uploadedAt: null,
       durationMs: null,
+      createdAt: new Date("2026-09-26T09:00:00Z"),
     },
     transcript: null,
     candidates: 0,
@@ -632,6 +964,10 @@ function fakePrisma(w: World) {
       repurposeRun: {
         findUnique: vi.fn(async () => ({ ...w.run })),
         updateMany: updateRun,
+        // The watchdog's listing: every run that has not settled.
+        findMany: vi.fn(async (args: { where: { status: { notIn: readonly string[] } } }) =>
+          args.where.status.notIn.includes(w.run.status) ? [] : [{ ...w.run }],
+        ),
       },
     } as unknown as PrismaService,
   };
@@ -673,6 +1009,27 @@ function harness(w: World) {
       },
     ),
     duplicateOf: vi.fn(async (): Promise<AppException | null> => null),
+    flagEnabled: vi.fn(async (_workspaceId: string, _flag: string) => true),
+    // `JobsService.cancel`, and the one failure handler whose write the
+    // reconciler reads back: a cancelled download marks its media failed.
+    cancelJobs: vi.fn(async (run: RepurposeRun, ids: readonly string[]) => {
+      for (const id of ids) {
+        const row = w.jobs.find((candidate) => candidate.id === id);
+        if (row === undefined || !["queued", "running"].includes(row.status)) continue;
+        clock += 1_000;
+        row.status = "cancelled";
+        row.finishedAt = new Date(clock);
+        row.error = { code: "jobs/cancelled" };
+        calls.push(`cancel:${row.type}:${run.status}`);
+        if (
+          row.type === "media.acquire" &&
+          w.media !== null &&
+          ["pending", "uploading"].includes(w.media.status)
+        ) {
+          w.media = { ...w.media, status: "failed", failureReason: "media/source_failed" };
+        }
+      }
+    }),
   };
   const autoTranscribe = {
     maybeEnqueue: vi.fn(async (): Promise<{ jobId: string } | undefined> => ({ jobId: "j" })),
@@ -684,7 +1041,7 @@ function harness(w: World) {
     autoTranscribe as unknown as AutoTranscribeTrigger,
     clips as unknown as RepurposeClipsService,
   );
-  return { reconciler, runs, autoTranscribe, clips, findJobs, updateRun, calls };
+  return { reconciler, runs, autoTranscribe, clips, findJobs, updateRun, calls, prisma };
 }
 
 let w: World;
@@ -701,7 +1058,8 @@ describe("RepurposeReconciler — wiring", () => {
 
   it("reconciles a read at most once per interval per run", async () => {
     const h = harness(w);
-    const now = Date.parse("2026-09-26T12:00:00Z");
+    // The shared clock: two hours on, the download it watches would have stalled.
+    const now = NOW;
     await h.reconciler.reconcileIfDue(w.run, {}, now);
     const onePass = h.findJobs.mock.calls.length;
     expect(onePass).toBeGreaterThan(0);
@@ -1167,6 +1525,148 @@ describe("RepurposeReconciler — moving a run from durable state", () => {
   });
 });
 
+describe("RepurposeReconciler — a job that stopped making progress", () => {
+  const since = (minutesAgo: number) => ({
+    queuedAt: new Date(NOW - minutesAgo * MINUTE - 1_000),
+    startedAt: new Date(NOW - minutesAgo * MINUTE),
+  });
+
+  it("fails the run, then cancels the lost job to give back its lane slot and credit hold", async () => {
+    // Production runs no scheduler: this used to read "Creating the transcript"
+    // for good, holding one of a Free workspace's two lane slots.
+    w.media = { ...w.media!, status: "ready", uploadedAt: new Date(), durationMs: 600_000 };
+    w.jobs = [
+      acquireJob({ status: "succeeded" }),
+      job("ai.transcribe", `transcribe:${PROJECT}:${MEDIA}`, since(90)),
+    ];
+    const h = harness(w);
+
+    const out = await h.reconciler.reconcile(w.run);
+    // Failed first, so the cancel's failure handler finds a run already answered.
+    expect(h.calls).toEqual(["fail:repurpose/stage_timeout", "cancel:ai.transcribe:failed"]);
+    expect(h.runs.failRun).toHaveBeenCalledWith(
+      expect.anything(),
+      "repurpose/stage_timeout",
+      "finding_clips",
+    );
+    expect(out.status).toBe("failed");
+    expect(w.jobs[1]?.status).toBe("cancelled");
+    expect(h.autoTranscribe.maybeEnqueue).not.toHaveBeenCalled();
+  });
+
+  it("fails a download the acquisition worker never picked up", async () => {
+    w.jobs = [
+      acquireJob({ status: "queued", startedAt: null, queuedAt: new Date(NOW - 45 * MINUTE) }),
+    ];
+    const h = harness(w);
+    await h.reconciler.reconcile(w.run);
+    expect(h.runs.failRun).toHaveBeenCalledWith(
+      expect.anything(),
+      "repurpose/stage_timeout",
+      "getting_video",
+    );
+    expect(h.runs.cancelJobs).toHaveBeenCalledWith(expect.objectContaining({ status: "failed" }), [
+      w.jobs[0]?.id,
+    ]);
+  });
+
+  it("fails an upload whose probe sat queued, but leaves the probe queued for when worker-media is back", async () => {
+    // Cancelling it removed the BullMQ job and left the media `uploaded` for
+    // good: nothing re-probes an uploaded file, so a worker-media outage past
+    // the queue wait made every upload in it unusable.
+    w = world({
+      run: runRow({ sourceKind: "upload", sourceFingerprint: null }),
+      jobs: [
+        job("media.probe", `media.probe:${MEDIA}`, {
+          status: "queued",
+          startedAt: null,
+          queuedAt: new Date(NOW - 45 * MINUTE),
+        }),
+      ],
+    });
+    w.media = { ...w.media!, status: "uploaded", uploadedAt: new Date(NOW - 46 * MINUTE) };
+    const h = harness(w);
+
+    await h.reconciler.reconcile(w.run);
+    expect(h.runs.failRun).toHaveBeenCalledWith(
+      expect.anything(),
+      "repurpose/stage_timeout",
+      "getting_video",
+    );
+    expect(h.runs.cancelJobs).not.toHaveBeenCalled();
+    expect(w.jobs[0]?.status).toBe("queued");
+
+    // The worker comes back, the probe and proxy run, and Try again works.
+    w.jobs[0] = { ...w.jobs[0]!, status: "succeeded", finishedAt: new Date(NOW) };
+    w.media = { ...w.media, status: "ready", durationMs: 600_000 };
+    await expect(h.reconciler.retryPossible(w.run, "repurpose/stage_timeout")).resolves.toBe(true);
+    const out = await h.reconciler.redrive(w.run);
+    expect(out.status).toBe("draft");
+    expect(h.autoTranscribe.maybeEnqueue).toHaveBeenCalledTimes(1);
+    expect(h.runs.cancelJobs).not.toHaveBeenCalled();
+  });
+
+  it("cancels nothing when the run had moved on before it could be failed", async () => {
+    w.media = { ...w.media!, status: "ready", uploadedAt: new Date(), durationMs: 600_000 };
+    w.jobs = [
+      acquireJob({ status: "succeeded" }),
+      job("ai.transcribe", `transcribe:${PROJECT}:${MEDIA}`, since(90)),
+    ];
+    const h = harness(w);
+    h.runs.failRun.mockResolvedValueOnce(null);
+    await h.reconciler.reconcile(w.run);
+    expect(h.runs.cancelJobs).not.toHaveBeenCalled();
+  });
+
+  it("leaves a job that is slow but inside its ceiling running", async () => {
+    w.media = { ...w.media!, status: "ready", uploadedAt: new Date(), durationMs: 600_000 };
+    w.jobs = [
+      acquireJob({ status: "succeeded" }),
+      job("ai.transcribe", `transcribe:${PROJECT}:${MEDIA}`, since(70)),
+    ];
+    const h = harness(w);
+    await h.reconciler.reconcile(w.run);
+    expect(h.runs.failRun).not.toHaveBeenCalled();
+    expect(h.runs.cancelJobs).not.toHaveBeenCalled();
+  });
+});
+
+describe("RepurposeReconciler — an upload that never arrived", () => {
+  it("fails the run with upload_missing a day after it was created with no file", async () => {
+    w = world({
+      run: runRow({
+        sourceKind: "upload",
+        sourceFingerprint: null,
+        createdAt: new Date(NOW - UPLOAD_WINDOW_MS - MINUTE),
+      }),
+      media: null,
+      jobs: [],
+    });
+    const h = harness(w);
+    await h.reconciler.reconcile(w.run);
+    expect(h.runs.failRun).toHaveBeenCalledWith(
+      expect.anything(),
+      "repurpose/upload_missing",
+      "getting_video",
+    );
+  });
+
+  it("measures a stuck upload from its ticket, not from when the run was made", async () => {
+    w = world({
+      run: runRow({
+        sourceKind: "upload",
+        sourceFingerprint: null,
+        createdAt: new Date(NOW - 2 * UPLOAD_WINDOW_MS),
+      }),
+      jobs: [],
+    });
+    w.media = { ...w.media!, status: "uploading", createdAt: new Date(NOW - 60 * MINUTE) };
+    const h = harness(w);
+    await h.reconciler.reconcile(w.run);
+    expect(h.runs.failRun).not.toHaveBeenCalled();
+  });
+});
+
 describe("RepurposeReconciler.redrive — Try again", () => {
   it("looks for moments again, with the run already reading 'analyzing' when the job is queued", async () => {
     w = world({
@@ -1336,6 +1836,80 @@ describe("RepurposeReconciler.redrive — Try again", () => {
     const out = await h.reconciler.redrive(w.run);
     expect(out.status).toBe("draft");
     expect(h.runs.reacquire).not.toHaveBeenCalled();
+    expect(h.runs.cancelJobs).not.toHaveBeenCalled();
+  });
+
+  it("cancels a lost discovery before it looks again, so the new job is not deduped onto it", async () => {
+    const HKEY = `ai.highlights:${RUN}:${TRANSCRIPT}:1:default`;
+    w = world({
+      run: runRow({
+        status: "failed",
+        failureCode: "repurpose/stage_timeout",
+        currentStage: "finding_clips",
+      }),
+      transcript: { id: TRANSCRIPT },
+      jobs: [
+        acquireJob({ status: "succeeded" }),
+        job("ai.highlights", HKEY, {
+          queuedAt: new Date(NOW - 90 * MINUTE),
+          startedAt: new Date(NOW - 90 * MINUTE),
+        }),
+      ],
+    });
+    w.media = { ...w.media!, status: "ready", uploadedAt: new Date(), durationMs: 600_000 };
+    const h = harness(w);
+
+    const out = await h.reconciler.redrive(w.run);
+    expect(h.calls).toEqual(["cancel:ai.highlights:failed", "discover:analyzing"]);
+    expect(out.status).toBe("analyzing");
+  });
+
+  it("fetches a lost download again into a fresh row, reading the plan again after the cancel", async () => {
+    // Before the cancel the plan was "fetch into the pending row"; the cancel's
+    // failure handler failed that row, so the fetch must reserve a fresh one.
+    w = world({
+      run: runRow({ status: "failed", failureCode: "repurpose/stage_timeout" }),
+      jobs: [
+        acquireJob({
+          queuedAt: new Date(NOW - 60 * MINUTE),
+          startedAt: new Date(NOW - 60 * MINUTE),
+        }),
+      ],
+    });
+    const h = harness(w);
+
+    const out = await h.reconciler.redrive(w.run);
+    expect(h.calls).toEqual(["cancel:media.acquire:failed", "reacquire:draft"]);
+    expect(h.runs.reacquire).toHaveBeenCalledWith(
+      expect.objectContaining({ id: RUN }),
+      URL,
+      undefined,
+    );
+    expect(out.status).toBe("draft");
+  });
+
+  it("cancels nothing when the retry is refused", async () => {
+    w = world({
+      run: runRow({
+        status: "failed",
+        failureCode: "repurpose/stage_timeout",
+        sourceKind: "upload",
+        sourceFingerprint: null,
+      }),
+      jobs: [
+        job("media.probe", `media.probe:${MEDIA}`, {
+          queuedAt: new Date(NOW - 90 * MINUTE),
+          startedAt: new Date(NOW - 90 * MINUTE),
+        }),
+      ],
+    });
+    w.media = { ...w.media!, status: "probing", uploadedAt: new Date() };
+    const h = harness(w);
+
+    await expect(h.reconciler.redrive(w.run)).rejects.toMatchObject({
+      code: "repurpose/not_retryable",
+    });
+    expect(h.runs.cancelJobs).not.toHaveBeenCalled();
   });
 
   it("answers 409 when there is no stage a retry could restart", async () => {
@@ -1359,6 +1933,207 @@ describe("RepurposeReconciler.redrive — Try again", () => {
     expect((refused as AppException).httpStatus).toBe(HttpStatus.CONFLICT);
     expect((refused as AppException).code).toBe("repurpose/not_retryable");
     expect(w.run.status).toBe("failed");
+  });
+});
+
+describe("RepurposeReconciler.retryPossible — the page offers only a retry that would run", () => {
+  it("says no for an upload whose file could not be read", async () => {
+    // "Try again" was the card's main button, and every press answered 409.
+    w = world({
+      run: runRow({
+        status: "failed",
+        failureCode: "repurpose/processing_failed",
+        sourceKind: "upload",
+        sourceFingerprint: null,
+      }),
+      jobs: [],
+    });
+    w.media = {
+      ...w.media!,
+      status: "failed",
+      failureReason: "media/corrupt",
+      uploadedAt: new Date(),
+    };
+    const h = harness(w);
+    await expect(h.reconciler.retryPossible(w.run, "repurpose/processing_failed")).resolves.toBe(
+      false,
+    );
+  });
+
+  it("says no for a run whose source project was deleted", async () => {
+    w = world({
+      run: runRow({ status: "failed", failureCode: "repurpose/source_unavailable" }),
+      project: null,
+    });
+    const h = harness(w);
+    await expect(h.reconciler.retryPossible(w.run, "repurpose/source_unavailable")).resolves.toBe(
+      false,
+    );
+  });
+
+  it("says no for a transcript with no timings, whose copy points at starting again", async () => {
+    w = world({
+      run: runRow({ status: "failed", failureCode: "repurpose/transcript_untimed" }),
+      transcript: { id: TRANSCRIPT },
+    });
+    const h = harness(w);
+    await expect(h.reconciler.retryPossible(w.run, "repurpose/transcript_untimed")).resolves.toBe(
+      false,
+    );
+  });
+
+  it("says yes for a link that can be fetched again", async () => {
+    w = world({
+      run: runRow({ status: "failed", failureCode: "repurpose/source_blocked" }),
+      jobs: [acquireJob({ status: "failed", error: { code: "media/source_blocked" } })],
+    });
+    w.media = { ...w.media!, status: "failed", failureReason: "media/source_blocked" };
+    const h = harness(w);
+    await expect(h.reconciler.retryPossible(w.run, "repurpose/source_blocked")).resolves.toBe(true);
+  });
+});
+
+describe("RepurposeReconciler — the watchdog", () => {
+  beforeEach(() => {
+    w.media = { ...w.media!, status: "ready", uploadedAt: new Date(), durationMs: 600_000 };
+    w.jobs = [acquireJob({ status: "succeeded" })];
+  });
+
+  it("starts a transcription the lane refused once it frees, with nobody reading the run", async () => {
+    // Nothing else wakes it: the completion that frees the lane swallows the
+    // refusal, and the page promised "we'll keep working" after it was closed.
+    const h = harness(w);
+    h.autoTranscribe.maybeEnqueue.mockResolvedValueOnce(undefined);
+
+    await h.reconciler.sweepOnce(NOW);
+    expect(h.autoTranscribe.maybeEnqueue).toHaveBeenCalledTimes(1);
+    await h.reconciler.sweepOnce(NOW + DEFAULT_RECONCILE_WATCHDOG_MS);
+    expect(h.autoTranscribe.maybeEnqueue).toHaveBeenCalledTimes(2);
+    expect(h.runs.failRun).not.toHaveBeenCalled();
+  });
+
+  it("lists only runs that have not settled", async () => {
+    const h = harness(w);
+    await h.reconciler.sweepOnce(NOW);
+    const listing = vi.mocked(h.prisma.repurposeRun.findMany).mock.calls[0]?.[0] as {
+      where: { status: { notIn: string[] } };
+    };
+    expect(listing.where.status.notIn).toEqual(
+      expect.arrayContaining(["failed", "cancelled", "published", "partially_published"]),
+    );
+  });
+
+  it("leaves a workspace whose repurposing is switched off alone", async () => {
+    // The kill switch has to stop background work too: it spends credits.
+    const h = harness(w);
+    h.runs.flagEnabled.mockResolvedValue(false);
+    await h.reconciler.sweepOnce(NOW);
+    expect(h.findJobs).not.toHaveBeenCalled();
+    expect(h.autoTranscribe.maybeEnqueue).not.toHaveBeenCalled();
+  });
+
+  it("skips a workspace whose flags cannot be read, and never throws", async () => {
+    const h = harness(w);
+    h.runs.flagEnabled.mockRejectedValueOnce(new Error("redis went away"));
+    await expect(h.reconciler.sweepOnce(NOW)).resolves.toBeUndefined();
+    expect(h.findJobs).not.toHaveBeenCalled();
+  });
+
+  it("never throws when the listing fails; the next pass tries again", async () => {
+    const h = harness(w);
+    vi.mocked(h.prisma.repurposeRun.findMany).mockRejectedValueOnce(new Error("pool"));
+    await expect(h.reconciler.sweepOnce(NOW)).resolves.toBeUndefined();
+    await h.reconciler.sweepOnce(NOW);
+    expect(h.autoTranscribe.maybeEnqueue).toHaveBeenCalledTimes(1);
+  });
+
+  it("never runs two passes at once", async () => {
+    const h = harness(w);
+    await Promise.all([h.reconciler.sweepOnce(NOW), h.reconciler.sweepOnce(NOW)]);
+    expect(h.prisma.repurposeRun.findMany).toHaveBeenCalledTimes(1);
+  });
+
+  it("runs on its own timer from boot, independent of the scheduler, and stops at shutdown", async () => {
+    vi.stubEnv("REPURPOSE_RECONCILE_INTERVAL_MS", "30000");
+    vi.stubEnv("MONTAJ_SCHEDULER_DISABLED", "1");
+    vi.useRealTimers();
+    vi.useFakeTimers({ toFake: ["Date", "setInterval", "clearInterval"], now: NOW });
+    const h = harness(w);
+
+    h.reconciler.onApplicationBootstrap();
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(h.prisma.repurposeRun.findMany).toHaveBeenCalledTimes(1);
+
+    await h.reconciler.onModuleDestroy();
+    await vi.advanceTimersByTimeAsync(90_000);
+    expect(h.prisma.repurposeRun.findMany).toHaveBeenCalledTimes(1);
+  });
+
+  it("stops a pass at the next run once shutdown begins, and starts no new one", async () => {
+    // A pass can cover up to 200 runs, one after another, while Nest tears
+    // down the Prisma client they read through.
+    const h = harness(w);
+    const second = { ...w.run, id: "01JCRN0000000000000000000B", workspaceId: "01JCWS0B" };
+    vi.mocked(h.prisma.repurposeRun.findMany).mockResolvedValueOnce([{ ...w.run }, second]);
+    let release: (on: boolean) => void = () => undefined;
+    h.runs.flagEnabled.mockImplementationOnce(
+      () => new Promise<boolean>((resolve) => (release = resolve)),
+    );
+    const reconciled = vi.spyOn(h.reconciler, "reconcileIfDue");
+
+    const pass = h.reconciler.sweepOnce(NOW);
+    await vi.waitFor(() => expect(h.runs.flagEnabled).toHaveBeenCalledTimes(1));
+    const shutdown = h.reconciler.onModuleDestroy();
+    release(true);
+    await shutdown;
+    await pass;
+
+    // The run it was on finishes; the one after it is left for the next boot.
+    expect(reconciled).toHaveBeenCalledTimes(1);
+    expect(reconciled).toHaveBeenCalledWith(expect.objectContaining({ id: RUN }), {}, NOW);
+    expect(h.runs.flagEnabled).toHaveBeenCalledTimes(1);
+
+    await h.reconciler.sweepOnce(NOW);
+    expect(h.prisma.repurposeRun.findMany).toHaveBeenCalledTimes(1);
+  });
+
+  it("stays off when REPURPOSE_RECONCILE_INTERVAL_MS is 0 (tests, one-shot processes)", async () => {
+    vi.stubEnv("REPURPOSE_RECONCILE_INTERVAL_MS", "0");
+    vi.useRealTimers();
+    vi.useFakeTimers({ toFake: ["Date", "setInterval", "clearInterval"], now: NOW });
+    const h = harness(w);
+
+    h.reconciler.onApplicationBootstrap();
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(h.prisma.repurposeRun.findMany).not.toHaveBeenCalled();
+    await h.reconciler.onModuleDestroy();
+  });
+});
+
+describe("reconcileWatchdogIntervalMs", () => {
+  it("is on by default, every thirty seconds", () => {
+    expect(reconcileWatchdogIntervalMs({})).toBe(DEFAULT_RECONCILE_WATCHDOG_MS);
+    expect(reconcileWatchdogIntervalMs({ REPURPOSE_RECONCILE_INTERVAL_MS: " " })).toBe(
+      DEFAULT_RECONCILE_WATCHDOG_MS,
+    );
+  });
+
+  it("is off at 0", () => {
+    expect(reconcileWatchdogIntervalMs({ REPURPOSE_RECONCILE_INTERVAL_MS: "0" })).toBe(0);
+  });
+
+  it("takes a whole number of milliseconds, and falls back on what it cannot read", () => {
+    expect(reconcileWatchdogIntervalMs({ REPURPOSE_RECONCILE_INTERVAL_MS: "45000" })).toBe(45_000);
+    expect(reconcileWatchdogIntervalMs({ REPURPOSE_RECONCILE_INTERVAL_MS: "soon" })).toBe(
+      DEFAULT_RECONCILE_WATCHDOG_MS,
+    );
+    expect(reconcileWatchdogIntervalMs({ REPURPOSE_RECONCILE_INTERVAL_MS: "-5" })).toBe(
+      DEFAULT_RECONCILE_WATCHDOG_MS,
+    );
+  });
+
+  it("never runs more often than once a second", () => {
+    expect(reconcileWatchdogIntervalMs({ REPURPOSE_RECONCILE_INTERVAL_MS: "10" })).toBe(1_000);
   });
 });
 

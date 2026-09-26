@@ -125,6 +125,12 @@ export interface StageErrorCardProps {
   readonly onChooseAnother?: () => void;
   /** Start again with this same link and setup, to correct the link. */
   readonly onCheckLink?: () => void;
+  /**
+   * Start again with this same link and setup as a fresh run, nothing to
+   * correct (`start_again`). Only a link run has one: an upload has no link to
+   * carry, so without it the card offers another video.
+   */
+  readonly onStartAgain?: () => void;
   /** Open "Add a moment by time" on this page. */
   readonly onAddMoment?: () => void;
   readonly retrying?: boolean;
@@ -148,6 +154,12 @@ export interface StageErrorCardProps {
  * primary. "Choose another video" is always there too, as the quiet way out,
  * unless it already IS the recommendation. A code whose action the page cannot
  * perform (no retry allowed, no link to check) falls back to that way out.
+ *
+ * "No retry allowed" is the run's own `canRetry`, which the API sets false when
+ * the retry could only be refused (a deleted source, an upload whose file could
+ * not be read). The page then omits `onRetry`, so a retry code's card leads with
+ * the way out instead of a button that always fails — and drops the sentence
+ * that says trying again may work (`retryHint`).
  */
 export function StageErrorCard({
   code,
@@ -155,6 +167,7 @@ export function StageErrorCard({
   onRetry,
   onChooseAnother,
   onCheckLink,
+  onStartAgain,
   onAddMoment,
   retrying = false,
   retryError = null,
@@ -163,12 +176,14 @@ export function StageErrorCard({
   const copy = safeErrorCopy(code);
   const showRetry = copy.action === "retry" && onRetry !== undefined;
   const showCheckLink = copy.action === "edit_settings" && onCheckLink !== undefined;
+  const showStartAgain = copy.action === "start_again" && onStartAgain !== undefined;
   const showAddMoment = copy.action === "add_moment" && onAddMoment !== undefined;
   // Out of credits: the balance is the recommendation, and trying again is the
   // step after it, so it stays on the card as a secondary.
   const showCredits = copy.action === "check_credits";
   const showRetryAfterCredits = showCredits && onRetry !== undefined;
-  const recommended = showRetry || showCheckLink || showAddMoment || showCredits;
+  const recommended = showRetry || showCheckLink || showStartAgain || showAddMoment || showCredits;
+  const retryOffered = showRetry || showRetryAfterCredits;
   // The way out says what it does; only a code whose recommendation IS the way
   // out lends it its own label.
   const chooseAnotherLabel =
@@ -190,7 +205,11 @@ export function StageErrorCard({
         />
         {copy.title}
       </p>
-      <p className="mt-1 text-sm text-fg-1">{copy.reassurance}</p>
+      <p className="mt-1 text-sm text-fg-1" data-testid="stage-error-reassurance">
+        {copy.reassurance}
+        {retryOffered && copy.retryHint !== undefined ? ` ${copy.retryHint}` : ""}
+        {showStartAgain && copy.startAgainHint !== undefined ? ` ${copy.startAgainHint}` : ""}
+      </p>
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
         {/* One primary: the recommended action. Retrying when it can help,
@@ -202,6 +221,11 @@ export function StageErrorCard({
         )}
         {showCheckLink && (
           <Button variant="primary" size="sm" onClick={onCheckLink} data-testid="stage-error-check-link">
+            {copy.actionLabel}
+          </Button>
+        )}
+        {showStartAgain && (
+          <Button variant="primary" size="sm" onClick={onStartAgain} data-testid="stage-error-start-again">
             {copy.actionLabel}
           </Button>
         )}

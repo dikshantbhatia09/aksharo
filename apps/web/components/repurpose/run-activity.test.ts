@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { RepurposeStage } from "@montaj/api-client";
 
-import { canAddMoments, runActivity } from "./run-activity";
+import { canAddMoments, runActivity, serverIsWorking } from "./run-activity";
 
 describe("runActivity", () => {
   it("separates work in progress from a run waiting on the person", () => {
@@ -18,6 +18,25 @@ describe("runActivity", () => {
     expect(runActivity({ status: "failed" })).toBe("failed");
     expect(runActivity({ status: "cancelled" })).toBe("stopped");
     expect(runActivity({ status: "published" })).toBe("done");
+  });
+});
+
+describe("serverIsWorking", () => {
+  it("is true only while the server moves the run, never for a draft waiting on its upload", () => {
+    for (const status of [
+      "acquiring",
+      "preparing_media",
+      "transcribing",
+      "analyzing",
+      "materializing",
+    ]) {
+      expect(serverIsWorking({ status }), status).toBe(true);
+    }
+    // Nothing on the server moves a draft: it waits for a file that may never come.
+    expect(serverIsWorking({ status: "draft" })).toBe(false);
+    for (const status of ["candidates_ready", "failed", "cancelled", "published"]) {
+      expect(serverIsWorking({ status }), status).toBe(false);
+    }
   });
 });
 
