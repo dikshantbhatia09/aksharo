@@ -5511,6 +5511,527 @@
         ]
       }
     },
+    "/projects/{projectId}/render-preview": {
+      "get": {
+        "description": "A signed proxy URL, the face track when there is one, and the render projection (null until the project has an editing document). 409 until the proxy exists.",
+        "operationId": "getProjectRenderPreview",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "The captions preview of a project, as the share viewer renders it",
+        "tags": [
+          "projects"
+        ]
+      }
+    },
+    "/projects/{projectId}/edg": {
+      "get": {
+        "description": "The hot state is under 64 KB. Segments are paged — `nextCursor` continues at `/edg/segments` — because a long-form project has thousands and an editor opens on the first screenful.",
+        "operationId": "getProjectEdg",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EdgDocumentDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`common/not_found`, or `edg/not_initialised`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "The hot document, its revision and the first page of segments",
+        "tags": [
+          "edg"
+        ]
+      }
+    },
+    "/projects/{projectId}/edg/segments": {
+      "get": {
+        "description": "The cursor is the previous page's last `seq`, so an edit three pages back cannot make a later page skip a caption.",
+        "operationId": "listEdgSegments",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SegmentPageDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`common/not_found`, or `edg/not_initialised`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "One page of segments, ordered by `seq`",
+        "tags": [
+          "edg"
+        ]
+      }
+    },
+    "/projects/{projectId}/edg/passes": {
+      "get": {
+        "operationId": "listEdgPasses",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PassListDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`common/not_found`, or `edg/not_initialised`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Every AI pass on the document, with its items",
+        "tags": [
+          "edg"
+        ]
+      }
+    },
+    "/projects/{projectId}/edg/passes/{passId}/items": {
+      "get": {
+        "operationId": "listEdgPassItems",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "passId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PassItemListDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`common/not_found`, or `edg/not_initialised`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "One pass's proposals, optionally filtered by review state",
+        "tags": [
+          "edg"
+        ]
+      }
+    },
+    "/projects/{projectId}/edg/revisions": {
+      "get": {
+        "description": "A revision with no ops replaced the state wholesale (a snapshot restore); a client that finds one between its base and now must reload rather than replay.",
+        "operationId": "listEdgRevisions",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevisionPageDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`common/not_found`, or `edg/not_initialised`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "The op log from `from` onwards",
+        "tags": [
+          "edg"
+        ]
+      }
+    },
+    "/projects/{projectId}/edg/snapshots": {
+      "get": {
+        "operationId": "listEdgSnapshots",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SnapshotListDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`common/not_found`, or `edg/not_initialised`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Revisions a snapshot was taken at, newest first",
+        "tags": [
+          "edg"
+        ]
+      }
+    },
+    "/projects/{projectId}/edg/ops": {
+      "post": {
+        "description": "A batch written against an older revision is rebased server-side and applied; the ops that had to be rewritten come back under `rebased`. Two writers who typed different text into the same caption cannot be reconciled by the server, so that is a 409 `edg/conflict` carrying `{latestRevision, opsSince, conflicts}` — never the document. More than 200 revisions behind is `edg/too_stale`: reload.",
+        "operationId": "applyEdgOps",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OpBatchRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpBatchResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`common/forbidden` — a viewer may not write."
+          },
+          "404": {
+            "description": "`common/not_found`, or `edg/not_initialised`."
+          },
+          "409": {
+            "description": "`edg/conflict` or `edg/too_stale`."
+          },
+          "429": {
+            "description": "`common/rate_limited` — the workspace op budget."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Apply a batch of ops (CONTRACTS §2)",
+        "tags": [
+          "edg"
+        ]
+      }
+    },
+    "/projects/{projectId}/edg/resegment": {
+      "post": {
+        "description": "The server mints the `Resegment` op, so the audited record of what happened carries an id this API can vouch for. Every previous segment id is tombstoned; style, position and `hidden` are inherited by whichever new segment overlaps.",
+        "operationId": "resegmentEdg",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResegmentRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpBatchResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`common/not_found`, or `edg/not_initialised`."
+          },
+          "409": {
+            "description": "`edg/conflict` or `edg/too_stale`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Re-run segmentation over the whole document",
+        "tags": [
+          "edg"
+        ]
+      }
+    },
+    "/projects/{projectId}/edg/import": {
+      "post": {
+        "description": "The desktop's 'Upload to cloud' (brief C04 §3): creates a new cloud project from a local one's already-edited document, handed over verbatim rather than replayed as ops. Never a merge — a project that already has a document refuses with `edg/already_imported`.",
+        "operationId": "importEdgDocument",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportResultDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`common/not_found`, or `edg/not_initialised`."
+          },
+          "409": {
+            "description": "`edg/already_imported`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Write a whole EDG document as revision 1 of a fresh project",
+        "tags": [
+          "edg"
+        ]
+      }
+    },
+    "/projects/{projectId}/edg/snapshots/{revision}/restore": {
+      "post": {
+        "description": "History is never rewritten: the restore is appended, so restoring a later snapshot undoes it. The transcript is not rolled back — words live in their own table and a spelling fixed after the snapshot stays fixed. A snapshot that names a word the transcript no longer has live is refused with `edg/restore_invalid` and the dangling ids, rather than written as a caption nothing can render.",
+        "operationId": "restoreEdgSnapshot",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "revision",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RestoreResultDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "404": {
+            "description": "`edg/snapshot_not_found`."
+          },
+          "409": {
+            "description": "`edg/restore_invalid` — `details.danglingWordIds` names the words."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Restore a snapshot as a new revision",
+        "tags": [
+          "edg"
+        ]
+      }
+    },
     "/projects/{projectId}/media": {
       "get": {
         "description": "Includes imported subtitle sidecars, which carry the role `subtitle`.",
@@ -7504,497 +8025,6 @@
         "summary": "Create the seeded sample project (\"Welcome to Aksharo\")",
         "tags": [
           "projects"
-        ]
-      }
-    },
-    "/projects/{projectId}/edg": {
-      "get": {
-        "description": "The hot state is under 64 KB. Segments are paged — `nextCursor` continues at `/edg/segments` — because a long-form project has thousands and an editor opens on the first screenful.",
-        "operationId": "getProjectEdg",
-        "parameters": [
-          {
-            "name": "projectId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/EdgDocumentDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Missing or invalid access token."
-          },
-          "404": {
-            "description": "`common/not_found`, or `edg/not_initialised`."
-          }
-        },
-        "security": [
-          {
-            "access-token": []
-          }
-        ],
-        "summary": "The hot document, its revision and the first page of segments",
-        "tags": [
-          "edg"
-        ]
-      }
-    },
-    "/projects/{projectId}/edg/segments": {
-      "get": {
-        "description": "The cursor is the previous page's last `seq`, so an edit three pages back cannot make a later page skip a caption.",
-        "operationId": "listEdgSegments",
-        "parameters": [
-          {
-            "name": "projectId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SegmentPageDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Missing or invalid access token."
-          },
-          "404": {
-            "description": "`common/not_found`, or `edg/not_initialised`."
-          }
-        },
-        "security": [
-          {
-            "access-token": []
-          }
-        ],
-        "summary": "One page of segments, ordered by `seq`",
-        "tags": [
-          "edg"
-        ]
-      }
-    },
-    "/projects/{projectId}/edg/passes": {
-      "get": {
-        "operationId": "listEdgPasses",
-        "parameters": [
-          {
-            "name": "projectId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PassListDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Missing or invalid access token."
-          },
-          "404": {
-            "description": "`common/not_found`, or `edg/not_initialised`."
-          }
-        },
-        "security": [
-          {
-            "access-token": []
-          }
-        ],
-        "summary": "Every AI pass on the document, with its items",
-        "tags": [
-          "edg"
-        ]
-      }
-    },
-    "/projects/{projectId}/edg/passes/{passId}/items": {
-      "get": {
-        "operationId": "listEdgPassItems",
-        "parameters": [
-          {
-            "name": "projectId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "passId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PassItemListDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Missing or invalid access token."
-          },
-          "404": {
-            "description": "`common/not_found`, or `edg/not_initialised`."
-          }
-        },
-        "security": [
-          {
-            "access-token": []
-          }
-        ],
-        "summary": "One pass's proposals, optionally filtered by review state",
-        "tags": [
-          "edg"
-        ]
-      }
-    },
-    "/projects/{projectId}/edg/revisions": {
-      "get": {
-        "description": "A revision with no ops replaced the state wholesale (a snapshot restore); a client that finds one between its base and now must reload rather than replay.",
-        "operationId": "listEdgRevisions",
-        "parameters": [
-          {
-            "name": "projectId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/RevisionPageDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Missing or invalid access token."
-          },
-          "404": {
-            "description": "`common/not_found`, or `edg/not_initialised`."
-          }
-        },
-        "security": [
-          {
-            "access-token": []
-          }
-        ],
-        "summary": "The op log from `from` onwards",
-        "tags": [
-          "edg"
-        ]
-      }
-    },
-    "/projects/{projectId}/edg/snapshots": {
-      "get": {
-        "operationId": "listEdgSnapshots",
-        "parameters": [
-          {
-            "name": "projectId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SnapshotListDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Missing or invalid access token."
-          },
-          "404": {
-            "description": "`common/not_found`, or `edg/not_initialised`."
-          }
-        },
-        "security": [
-          {
-            "access-token": []
-          }
-        ],
-        "summary": "Revisions a snapshot was taken at, newest first",
-        "tags": [
-          "edg"
-        ]
-      }
-    },
-    "/projects/{projectId}/edg/ops": {
-      "post": {
-        "description": "A batch written against an older revision is rebased server-side and applied; the ops that had to be rewritten come back under `rebased`. Two writers who typed different text into the same caption cannot be reconciled by the server, so that is a 409 `edg/conflict` carrying `{latestRevision, opsSince, conflicts}` — never the document. More than 200 revisions behind is `edg/too_stale`: reload.",
-        "operationId": "applyEdgOps",
-        "parameters": [
-          {
-            "name": "projectId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/OpBatchRequestDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/OpBatchResponseDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Missing or invalid access token."
-          },
-          "403": {
-            "description": "`common/forbidden` — a viewer may not write."
-          },
-          "404": {
-            "description": "`common/not_found`, or `edg/not_initialised`."
-          },
-          "409": {
-            "description": "`edg/conflict` or `edg/too_stale`."
-          },
-          "429": {
-            "description": "`common/rate_limited` — the workspace op budget."
-          }
-        },
-        "security": [
-          {
-            "access-token": []
-          }
-        ],
-        "summary": "Apply a batch of ops (CONTRACTS §2)",
-        "tags": [
-          "edg"
-        ]
-      }
-    },
-    "/projects/{projectId}/edg/resegment": {
-      "post": {
-        "description": "The server mints the `Resegment` op, so the audited record of what happened carries an id this API can vouch for. Every previous segment id is tombstoned; style, position and `hidden` are inherited by whichever new segment overlaps.",
-        "operationId": "resegmentEdg",
-        "parameters": [
-          {
-            "name": "projectId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ResegmentRequestDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/OpBatchResponseDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Missing or invalid access token."
-          },
-          "404": {
-            "description": "`common/not_found`, or `edg/not_initialised`."
-          },
-          "409": {
-            "description": "`edg/conflict` or `edg/too_stale`."
-          }
-        },
-        "security": [
-          {
-            "access-token": []
-          }
-        ],
-        "summary": "Re-run segmentation over the whole document",
-        "tags": [
-          "edg"
-        ]
-      }
-    },
-    "/projects/{projectId}/edg/import": {
-      "post": {
-        "description": "The desktop's 'Upload to cloud' (brief C04 §3): creates a new cloud project from a local one's already-edited document, handed over verbatim rather than replayed as ops. Never a merge — a project that already has a document refuses with `edg/already_imported`.",
-        "operationId": "importEdgDocument",
-        "parameters": [
-          {
-            "name": "projectId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ImportRequestDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ImportResultDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Missing or invalid access token."
-          },
-          "404": {
-            "description": "`common/not_found`, or `edg/not_initialised`."
-          },
-          "409": {
-            "description": "`edg/already_imported`."
-          }
-        },
-        "security": [
-          {
-            "access-token": []
-          }
-        ],
-        "summary": "Write a whole EDG document as revision 1 of a fresh project",
-        "tags": [
-          "edg"
-        ]
-      }
-    },
-    "/projects/{projectId}/edg/snapshots/{revision}/restore": {
-      "post": {
-        "description": "History is never rewritten: the restore is appended, so restoring a later snapshot undoes it. The transcript is not rolled back — words live in their own table and a spelling fixed after the snapshot stays fixed. A snapshot that names a word the transcript no longer has live is refused with `edg/restore_invalid` and the dangling ids, rather than written as a caption nothing can render.",
-        "operationId": "restoreEdgSnapshot",
-        "parameters": [
-          {
-            "name": "projectId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "revision",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/RestoreResultDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Missing or invalid access token."
-          },
-          "404": {
-            "description": "`edg/snapshot_not_found`."
-          },
-          "409": {
-            "description": "`edg/restore_invalid` — `details.danglingWordIds` names the words."
-          }
-        },
-        "security": [
-          {
-            "access-token": []
-          }
-        ],
-        "summary": "Restore a snapshot as a new revision",
-        "tags": [
-          "edg"
         ]
       }
     },
@@ -25340,6 +25370,61 @@
         "tags": [
           "repurpose"
         ]
+      },
+      "post": {
+        "description": "3 s to 3 min, inside the video. The same bounds twice are one moment.",
+        "operationId": "addRepurposeCandidate",
+        "parameters": [
+          {
+            "name": "runId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "startMs": {
+                    "type": "number"
+                  },
+                  "endMs": {
+                    "type": "number"
+                  },
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 160
+                  }
+                },
+                "required": [
+                  "startMs",
+                  "endMs"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Add a moment by its start and end time",
+        "tags": [
+          "repurpose"
+        ]
       }
     },
     "/repurpose/runs/{runId}/preview": {
@@ -25373,6 +25458,7 @@
     },
     "/repurpose/runs/{runId}/clips": {
       "post": {
+        "description": "201 with the clip. A clip asked for while the plan's jobs are all busy is kept as `waiting` and cut as soon as one finishes; that is not an error.",
         "operationId": "createRepurposeClip",
         "parameters": [
           {
@@ -25384,6 +25470,25 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "candidateId": {
+                    "type": "string",
+                    "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                  }
+                },
+                "required": [
+                  "candidateId"
+                ]
+              }
+            }
+          }
+        },
         "responses": {
           "201": {
             "description": ""
@@ -25394,12 +25499,13 @@
             "access-token": []
           }
         ],
-        "summary": "Select a candidate and create a clip",
+        "summary": "Cut a 9:16 clip from one moment",
         "tags": [
           "repurpose"
         ]
       },
       "get": {
+        "description": "Each clip carries a derived `state`: waiting, cutting, ready or failed.",
         "operationId": "listRepurposeClips",
         "parameters": [
           {
@@ -25422,6 +25528,43 @@
           }
         ],
         "summary": "List clips and variants for a run",
+        "tags": [
+          "repurpose"
+        ]
+      }
+    },
+    "/repurpose/runs/{runId}/clips/{clipId}/retry": {
+      "post": {
+        "operationId": "retryRepurposeClip",
+        "parameters": [
+          {
+            "name": "runId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "clipId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Cut a clip again whose cut failed, or that is still waiting",
         "tags": [
           "repurpose"
         ]

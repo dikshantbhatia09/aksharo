@@ -29,7 +29,7 @@ from typing import Any
 
 from worker_ai.alignment import AlignerRegistry
 from worker_ai.cache import NullResultCache, ResultCache, content_hash
-from worker_ai.callbacks import CallbackClient, JobUsage
+from worker_ai.callbacks import CallbackAck, CallbackClient, JobUsage
 from worker_ai.diarisation import DiariserRegistry
 from worker_ai.lid import LanguageIdentifier, TextClassifier
 from worker_ai.llm.providers.base import LlmProvider
@@ -70,8 +70,10 @@ class ProcessorOutcome:
 class JobFailureError(Exception):
     """A processor's own failure, carrying the CONTRACTS section 8 error code.
 
-    ``retryable=False`` completes the job as failed immediately and sends it to
-    the dead-letter path; ``True`` lets BullMQ retry until its attempts run out.
+    ``retryable=False`` completes the job as failed immediately, sends it to the
+    dead-letter path, and is raised to BullMQ as its ``UnrecoverableError`` so
+    the job is not run again (``runtime.make_handler``); ``True`` lets BullMQ
+    retry until its attempts run out.
     """
 
     def __init__(self, code: str, message: str, *, retryable: bool = True) -> None:
@@ -206,6 +208,15 @@ class JobContext:
             )
         return default
 
+    async def start(self, *, message: str | None = None) -> CallbackAck | None:
+        """The first progress call (0%), unthrottled, and the API's answer to it.
+
+        The answer is the runtime's only chance to learn, before doing any work,
+        that the row is already settled (``applied: false``). ``None`` when the
+        call itself failed, which - like every progress call - is not fatal.
+        """
+        return await self._post_progress(0, message=message)
+
     async def progress(
         self, percent: float, *, message: str | None = None, eta_ms: int | None = None
     ) -> None:
@@ -241,12 +252,12 @@ class JobContext:
 
     async def _post_progress(
         self, percent: float, *, message: str | None = None, eta_ms: int | None = None
-    ) -> None:
+    ) -> CallbackAck | None:
         """The one call site that touches the progress endpoint."""
         self._last_progress = percent
         self._last_progress_at = time.monotonic()
         try:
-            await self.services.callbacks.progress(
+            return await self.services.callbacks.progress(
                 self.envelope.job_id,
                 self.envelope.attempt_id,
                 percent,
@@ -263,3 +274,4 @@ class JobContext:
                     "reason": str(error)[:200],
                 },
             )
+            return None

@@ -1,8 +1,12 @@
-"""Highlight discovery (Wave 4). REP-005 adds the contract; the processor follows.
+"""Highlight discovery (Wave 4): the ``ai.highlights@1`` contract and its parts.
 
-Only the ``ai.highlights@1`` schema mirror lives here today. ``ai.highlights`` is a
-registered queue with no processor, so it answers ``worker/not_implemented``, and
-the ``highlight_discovery`` flag is seeded off.
+- ``contracts`` - the schema mirror of ``packages/repurpose-contracts``;
+- ``windows`` - sentence units and candidate windows over the whole transcript,
+  and the spread-aware choice between them;
+- ``scoring`` - the content signals a window is scored on;
+- ``text`` - sentence ends in Latin and Devanagari, titles and excerpts.
+
+The processor that puts them together is ``worker_ai.processors.highlights``.
 """
 
 from __future__ import annotations

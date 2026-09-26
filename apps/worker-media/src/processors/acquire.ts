@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
 
-import { unreadableMedia } from "../errors.js";
+import { sourceRefused, unreadableMedia } from "../errors.js";
 import { ffprobe, readProbe } from "../ffmpeg/ffprobe.js";
 import { toolVersion } from "../media-tools.js";
 import { withWorkspace } from "../workspace.js";
@@ -38,10 +38,11 @@ import type { JobContext, ProcessorOutcome } from "../runtime.js";
  *   * **Nothing from the source chooses a path.** The output template points into
  *     a directory `withWorkspace` made, and the storage key is rebuilt from the
  *     envelope's ids. A remote title with `../` in it is just a title.
- *   * **Limits are checked twice.** Once against the metadata, so an oversized
- *     video costs one request rather than a partial download; once against the
- *     file, because a source can lie and `--max-filesize` is advisory on some
- *     sites.
+ *   * **Limits are checked three times.** Against the metadata, so an oversized
+ *     video costs one request rather than a partial download; against the bytes
+ *     on disk while they arrive (`download` kills the downloader past the cap,
+ *     which `--max-filesize` never does for a fragmented stream); and against
+ *     the file, because a source can lie.
  *   * **The completion handler enqueues `media.probe`, not this processor.** What
  *     happens next is policy, and policy does not belong in a worker that any pod
  *     can run — the same rule `probe.ts` follows.
@@ -82,6 +83,12 @@ export async function processAcquire(context: JobContext): Promise<ProcessorOutc
   const { settings, envelope } = context;
   const payload = envelope.payload as unknown as AcquirePayload;
 
+  // The API refuses a direct media URL at creation, because nothing yet stops
+  // a downloader on this machine from being pointed at an address only this
+  // machine can reach. A replayed or hand-built job must not get round that.
+  if (payload.source.kind !== "youtube_url") {
+    throw unreadableMedia("that kind of link cannot be fetched yet", "media/unsupported");
+  }
   assertAcquirableUrl(payload.source.normalizedUrl);
   const limits = payload.limits;
 
@@ -97,16 +104,23 @@ export async function processAcquire(context: JobContext): Promise<ProcessorOutc
 
     context.report(5, "getting your video");
     const outputPath = workspace.path(OUTPUT_NAME);
+    let downloaded = 0;
     await download({
       binary: settings.ytDlpPath,
       url: payload.source.normalizedUrl,
       outputPath,
       limits,
       format: metadata.formatSelector ?? null,
+      // The file the boot check ran, so the merge uses it too; a bare name
+      // that is on no PATH directory is left for yt-dlp to look for itself.
+      ffmpegPath: settings.ffmpegLocation ?? settings.ffmpegPath,
       signal: context.signal,
       onProgress: (percent) => {
+        // A split download counts 0-100% for the picture and again for the
+        // sound; the rail only ever moves forward.
+        downloaded = Math.max(downloaded, percent);
         // 5-70% of the job is the download; the rest is probing and uploading.
-        context.report(5 + Math.round(percent * 0.65), "getting your video");
+        context.report(5 + Math.round(downloaded * 0.65), "getting your video");
       },
     });
 
@@ -115,7 +129,7 @@ export async function processAcquire(context: JobContext): Promise<ProcessorOutc
     // before a single byte reaches the workspace's storage.
     const sizeBytes = await workspace.size(OUTPUT_NAME);
     if (sizeBytes > limits.maxBytes) {
-      throw unreadableMedia("that video is larger than your plan allows", "media/unsupported");
+      throw sourceRefused("media/too_large", "that video is larger than your plan allows");
     }
     if (sizeBytes === 0) {
       throw unreadableMedia("that download produced an empty file", "media/corrupt");
@@ -184,14 +198,43 @@ export async function processAcquire(context: JobContext): Promise<ProcessorOutc
   });
 }
 
+/** `/watch?v=<id>`, `/<id>` (a short link) or `/embed/<id>`. */
+type VideoPath = "watch" | "short" | "embed";
+
+/**
+ * Where the downloader may be pointed, and the one path shape each host may
+ * carry. `URL` has already lower-cased the host. The hosts are the API's
+ * (`YOUTUBE_HOSTS` and `YOUTUBE_SHORT_HOSTS` in `apps/api/src/repurpose/source-url.ts`).
+ */
+const ACQUIRABLE_HOSTS: ReadonlyMap<string, VideoPath> = new Map<string, VideoPath>([
+  ["youtube.com", "watch"],
+  ["www.youtube.com", "watch"],
+  ["m.youtube.com", "watch"],
+  ["music.youtube.com", "watch"],
+  ["youtube-nocookie.com", "embed"],
+  ["www.youtube-nocookie.com", "embed"],
+  ["youtu.be", "short"],
+  ["www.youtu.be", "short"],
+]);
+
+/** A YouTube video id: exactly 11 characters of the URL-safe alphabet (as the API's `VIDEO_ID`). */
+const VIDEO_ID = /^[A-Za-z0-9_-]{11}$/;
+
 /**
  * The worker's own URL check.
  *
  * The API has already normalised this (REP-009), and a worker that trusted that
  * would be trusting a payload — which §8.2 says explicitly not to do. A job can
  * be replayed from the dead-letter queue a month after the code that built it
- * changed, so the boundary re-checks: HTTPS, no credentials, and a host the
- * downloader is allowed to be pointed at.
+ * changed, so the boundary re-checks: HTTPS, no credentials, no port, a host
+ * the downloader is allowed to be pointed at, and one video on it.
+ *
+ * The host is not enough on its own. yt-dlp's generic extractor will follow a
+ * redirect anywhere, including to an address only this machine can reach, and
+ * an allowed host has paths that are redirects (`/redirect?q=`,
+ * `/attribution_link?u=`) or that the YouTube extractor does not claim. So the
+ * path must be a video's: `/watch?v=<id>` and nothing else — the only form the
+ * API has ever produced — or its `youtu.be/<id>` and `/embed/<id>` equivalents.
  */
 export function assertAcquirableUrl(value: string): URL {
   let url: URL;
@@ -206,7 +249,33 @@ export function assertAcquirableUrl(value: string): URL {
   if (url.username !== "" || url.password !== "") {
     throw unreadableMedia("that link carries a username or password", "media/unsupported");
   }
+  const shape = ACQUIRABLE_HOSTS.get(url.hostname);
+  if (url.port !== "" || shape === undefined) {
+    throw unreadableMedia("that link is not on a site we can fetch from", "media/unsupported");
+  }
+  if (!isOneVideo(url, shape)) {
+    throw unreadableMedia("that link is not a single video", "media/unsupported");
+  }
   return url;
+}
+
+function isOneVideo(url: URL, shape: VideoPath): boolean {
+  if (url.hash !== "") return false;
+  if (shape === "watch") {
+    const params = [...url.searchParams.keys()];
+    return (
+      url.pathname === "/watch" &&
+      params.length === 1 &&
+      params[0] === "v" &&
+      VIDEO_ID.test(url.searchParams.get("v") ?? "")
+    );
+  }
+  const prefix = shape === "short" ? "/" : "/embed/";
+  return (
+    url.search === "" &&
+    url.pathname.startsWith(prefix) &&
+    VIDEO_ID.test(url.pathname.slice(prefix.length))
+  );
 }
 
 async function sha256(path: string): Promise<string> {

@@ -1,11 +1,12 @@
 import { createHmac } from "node:crypto";
 
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   ATTEMPT_HEADER,
   CallbackClient,
   CallbackError,
+  DURABLE_CALLBACK_BUDGET_MS,
   SIGNATURE_HEADER,
   TIMESTAMP_HEADER,
   internalSignatureHeaders,
@@ -178,6 +179,153 @@ describe("CallbackClient", () => {
     });
     await expect(client.progress(JOB, ATTEMPT, 10)).rejects.toThrow(/after 3 attempts/);
     expect(fetchImpl).toHaveBeenCalledTimes(3);
+  });
+
+  describe("durable callbacks (a completion, a media write-back)", () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    /** Unreachable until `outageMs` has passed, then healthy. */
+    function restartingApi(outageMs: number): ReturnType<typeof vi.fn> {
+      const until = Date.now() + outageMs;
+      return vi.fn(async () => {
+        if (Date.now() < until) throw new TypeError("fetch failed");
+        return ok({ applied: true, jobId: JOB, status: "failed" });
+      });
+    }
+
+    it("delivers a completion through an API restart that outlasts the heartbeat budget", async () => {
+      // Four tries over ~3 s used to be all a terminal completion got. An API
+      // restart through the tunnel takes 10-15 s, the completion was dropped,
+      // and the job sat `running` with the run spinning forever.
+      vi.useFakeTimers();
+      const fetchImpl = restartingApi(60_000);
+      const client = new CallbackClient("http://api.test", SECRET, {
+        fetch: fetchImpl as unknown as typeof globalThis.fetch,
+      });
+      const delivered = client.complete(JOB, ATTEMPT, { status: "failed", finalAttempt: true });
+      await vi.advanceTimersByTimeAsync(90_000);
+      await expect(delivered).resolves.toMatchObject({ applied: true });
+      expect(fetchImpl.mock.calls.length).toBeGreaterThan(4);
+    });
+
+    it("delivers a media write-back the same way", async () => {
+      vi.useFakeTimers();
+      let calls = 0;
+      const until = Date.now() + 30_000;
+      const fetchImpl = vi.fn(async () => {
+        calls += 1;
+        return Date.now() < until ? new Response("restarting", { status: 502 }) : ok();
+      });
+      const client = new CallbackClient("http://api.test", SECRET, {
+        fetch: fetchImpl as unknown as typeof globalThis.fetch,
+      });
+      const delivered = client.patchMedia("01JCMED1A00000000000000000", ATTEMPT, {
+        status: "failed",
+        failureReason: "media/source_failed",
+      });
+      await vi.advanceTimersByTimeAsync(60_000);
+      await expect(delivered).resolves.toBeUndefined();
+      expect(calls).toBeGreaterThan(4);
+    });
+
+    it("gives up once the budget is spent, and never starts a try past it", async () => {
+      // Asserted on when each try started, not on how many fit in a window: the
+      // waits are jittered, so a count is right only most of the time.
+      vi.useFakeTimers();
+      const start = Date.now();
+      const tries: number[] = [];
+      const fetchImpl = vi.fn(async () => {
+        tries.push(Date.now() - start);
+        return new Response("down", { status: 503 });
+      });
+      const client = new CallbackClient("http://api.test", SECRET, {
+        fetch: fetchImpl as unknown as typeof globalThis.fetch,
+      });
+      let settledAt: number | null = null;
+      const outcome = expect(
+        client.complete(JOB, ATTEMPT, { status: "succeeded" }).finally(() => {
+          settledAt = Date.now() - start;
+        }),
+      ).rejects.toThrow(/failed after \d+ attempts/);
+
+      // No wait is longer than 15 s, so nothing can give up 20 s before the end.
+      await vi.advanceTimersByTimeAsync(DURABLE_CALLBACK_BUDGET_MS - 20_000);
+      expect(settledAt).toBeNull();
+
+      await vi.advanceTimersByTimeAsync(60_000);
+      await outcome;
+      expect(tries.length).toBeGreaterThan(4);
+      // Every try starts inside the budget...
+      expect(Math.max(...tries)).toBeLessThanOrEqual(DURABLE_CALLBACK_BUDGET_MS);
+      // ...it stops only when the next wait (at most 15 s) would have crossed it...
+      expect(Math.max(...tries)).toBeGreaterThan(DURABLE_CALLBACK_BUDGET_MS - 15_000);
+      // ...and it says so straight away, not one wait later.
+      expect(settledAt).toBe(Math.max(...tries));
+    });
+
+    it("gives a plain 500 only the heartbeat's few tries: the API is up and its handler threw", async () => {
+      // A completion handler that throws answers 500 every time. Two minutes
+      // of that per BullMQ attempt held the single acquire slot for six, and
+      // re-drove the failing handler about ten times an attempt.
+      vi.useFakeTimers();
+      const fetchImpl = vi.fn(async () => new Response("handler threw", { status: 500 }));
+      const client = new CallbackClient("http://api.test", SECRET, {
+        fetch: fetchImpl as unknown as typeof globalThis.fetch,
+      });
+      const outcome = expect(client.complete(JOB, ATTEMPT, { status: "succeeded" })).rejects.toThrow(
+        /after 4 attempts/,
+      );
+      await vi.advanceTimersByTimeAsync(60_000);
+      await outcome;
+      expect(fetchImpl).toHaveBeenCalledTimes(4);
+    });
+
+    it("reads a gateway or tunnel answering for a missing API as a restart, and waits it out", async () => {
+      // 530 is Cloudflare with no tunnel to the origin; 504 a gateway timeout.
+      vi.useFakeTimers();
+      for (const status of [504, 530]) {
+        const until = Date.now() + 30_000;
+        const fetchImpl = vi.fn(async () =>
+          Date.now() < until ? new Response("no origin", { status }) : ok(),
+        );
+        const client = new CallbackClient("http://api.test", SECRET, {
+          fetch: fetchImpl as unknown as typeof globalThis.fetch,
+        });
+        const delivered = client.complete(JOB, ATTEMPT, { status: "failed" });
+        await vi.advanceTimersByTimeAsync(60_000);
+        await expect(delivered, String(status)).resolves.toMatchObject({ applied: true });
+        expect(fetchImpl.mock.calls.length, String(status)).toBeGreaterThan(4);
+      }
+    });
+
+    it("still refuses to retry a 4xx, however durable", async () => {
+      const fetchImpl = vi.fn(async () => new Response("nope", { status: 400 }));
+      const client = new CallbackClient("http://api.test", SECRET, {
+        fetch: fetchImpl as unknown as typeof globalThis.fetch,
+      });
+      await expect(
+        client.patchMedia("01JCMED1A00000000000000000", ATTEMPT, { durationMs: 1 }),
+      ).rejects.toMatchObject({ statusCode: 400 });
+      expect(fetchImpl).toHaveBeenCalledTimes(1);
+    });
+
+    it("keeps a heartbeat to its own short budget", async () => {
+      // Progress is not durable: the next beat carries the news, and a worker
+      // must not stall its encode for two minutes on a dropped heartbeat.
+      vi.useFakeTimers();
+      const fetchImpl = restartingApi(60_000);
+      const client = new CallbackClient("http://api.test", SECRET, {
+        fetch: fetchImpl as unknown as typeof globalThis.fetch,
+      });
+      const outcome = expect(client.progress(JOB, ATTEMPT, 50)).rejects.toThrow(
+        /after 4 attempts/,
+      );
+      await vi.advanceTimersByTimeAsync(60_000);
+      await outcome;
+      expect(fetchImpl).toHaveBeenCalledTimes(4);
+    });
   });
 
   it("PATCHes the media allow-list at the internal media route", async () => {

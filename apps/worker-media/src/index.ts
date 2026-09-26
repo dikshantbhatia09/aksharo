@@ -103,6 +103,7 @@ async function main(): Promise<void> {
     const downloader = await assertYtDlpUsable({
       binary: settings.ytDlpPath,
       verifyDigest: settings.ytDlpVerifyDigest,
+      allowUnpinned: settings.ytDlpAllowUnpinned,
     });
     logger.info("media tool available", {
       tool: "yt-dlp",

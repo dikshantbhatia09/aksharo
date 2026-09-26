@@ -1,8 +1,21 @@
+import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { readFile } from "node:fs/promises";
+import { readFile, readdir, stat } from "node:fs/promises";
+import { basename, dirname, join } from "node:path";
 
-import { type MediaJobError, redact, stderrTail, transientFailure, unreadableMedia } from "./errors.js";
+import {
+  type MediaFailureReason,
+  type MediaJobError,
+  redact,
+  sourceRefused,
+  stderrTail,
+  transientFailure,
+} from "./errors.js";
 import { run } from "./ffmpeg/run.js";
+import { logger } from "./logger.js";
+
+import type { ChildProcessByStdio } from "node:child_process";
+import type { Readable } from "node:stream";
 
 /**
  * The external-source downloader (REP-010), and every rule that keeps it safe.
@@ -14,8 +27,10 @@ import { run } from "./ffmpeg/run.js";
  * specific way that goes wrong:
  *
  * - **The version is PINNED and CHECKSUMMED.** `EXPECTED_VERSION` is the release
- *   ADR 0002 §7 names, and `assertYtDlpUsable` refuses to start against anything
- *   else. A downloader that updates itself at container boot is an unreviewed
+ *   ADR 0002 §7 names, and `assertYtDlpUsable` refuses to start against
+ *   anything else (a package-manager build may be let through with a warning,
+ *   but only when its deployment asks for that by name — see there). A
+ *   downloader that updates itself at container boot is an unreviewed
  *   executable change entering the acquisition path between two deploys of
  *   identical images.
  * - **`--update` is impossible**, because `NEVER_ALLOWED_ARGS` is checked against
@@ -31,9 +46,14 @@ import { run } from "./ffmpeg/run.js";
  * - **Playlists are refused, not truncated.** `--no-playlist` plus an explicit
  *   check: silently importing entry one of a playlist is a different thing from
  *   what the user asked for.
- * - **Every limit is enforced twice** — once against the metadata, once against
- *   what actually landed. A source can lie about its duration, and a server can
- *   keep sending bytes after `--max-filesize`.
+ * - **Every limit is enforced more than once** — against the metadata, against
+ *   the bytes on disk while they arrive, and against what actually landed. A
+ *   source can lie about its duration, and `--max-filesize` is only a check on
+ *   one HTTP response: it never fires for an HLS/DASH stream fetched in
+ *   fragments, and for a split download it applies to each part, not the sum.
+ * - **Both output streams are read.** yt-dlp prints progress AND its
+ *   `--max-filesize` abort to stdout, and on that abort it exits 0 without
+ *   writing the file; only ERROR and WARNING lines go to stderr.
  *
  * Nothing in this file runs while `source_youtube_acquire` is disabled, which is
  * how it is seeded. The binary is NOT vendored into the repository; the media
@@ -283,6 +303,16 @@ export class DownloaderUnusableError extends Error {
 }
 
 /**
+ * Write to the pipes in UTF-8, whatever the host's code page.
+ *
+ * Without it yt-dlp encodes for the Windows ANSI code page, and Node reads the
+ * pipe as UTF-8: YouTube's "you’re not a bot" and "channel’s members" arrived
+ * with U+FFFD for the apostrophe (measured against 2026.08.19 on this host), so
+ * a phrase with a non-ASCII character in it could never match.
+ */
+const UTF8_OUTPUT = ["--encoding", "utf-8"] as const;
+
+/**
  * The argument list, in full, for one download.
  *
  * Every entry is a literal except `url`, and the numeric limits, which are
@@ -297,6 +327,8 @@ export function buildArgs(input: {
   readonly limits: AcquireLimits;
   /** From {@link chooseFormat}: a bare `id` or `id+id`, validated here. */
   readonly format?: string | null;
+  /** The ffmpeg this worker checked at boot (`FFMPEG_PATH`), for the merge. */
+  readonly ffmpegPath?: string;
 }): string[] {
   const format = input.format ?? FALLBACK_FORMAT;
   // The selector reaches argv as one entry either way; this keeps it to what
@@ -312,10 +344,15 @@ export function buildArgs(input: {
   }
   const args = [
     // No terminal, no colours, no progress bar to parse: progress comes from
-    // --newline on stderr, which is a format rather than a moving cursor.
+    // --newline on stdout, which is a format rather than a moving cursor.
+    //
+    // No --no-warnings either: a warning is how yt-dlp says a client was
+    // skipped or formats may be missing, which is the first thing an operator
+    // needs when YouTube changes. Warnings go to the operator log, and decide
+    // a failure only as a block (see `classify`).
     "--no-colors",
     "--newline",
-    "--no-warnings",
+    ...UTF8_OUTPUT,
     // A playlist URL imports ONE video, and only when it also names one.
     "--no-playlist",
     // Never write next to the binary, never read a config file, never touch the
@@ -331,6 +368,7 @@ export function buildArgs(input: {
     // One file, merged into a container the existing media pipeline accepts.
     "--merge-output-format",
     "mp4",
+    ...ffmpegLocationArgs(input.ffmpegPath),
     "-f",
     format,
     // Bounded retries inside one attempt; BullMQ owns the retries between them.
@@ -349,11 +387,26 @@ export function buildArgs(input: {
   return args;
 }
 
+/**
+ * `--ffmpeg-location` for a configured path, and nothing for a bare name.
+ *
+ * The merge has to use the ffmpeg this worker verified at boot, not whichever
+ * one happens to be first on PATH. But yt-dlp reads the location as a path and
+ * treats one that is not on disk as "no ffmpeg at all" (it warns and continues
+ * without it, and then refuses to merge), so the default `ffmpeg` — resolved
+ * through PATH by both processes alike — is left for yt-dlp to find itself.
+ */
+function ffmpegLocationArgs(ffmpegPath: string | undefined): string[] {
+  if (ffmpegPath === undefined || !/[\\/]/.test(ffmpegPath)) return [];
+  return ["--ffmpeg-location", ffmpegPath];
+}
+
 /** The metadata-only argument list: no bytes are fetched. */
 export function buildProbeArgs(url: string): string[] {
   const args = [
+    // Warnings are kept for the operator log; see `buildArgs`.
     "--no-colors",
-    "--no-warnings",
+    ...UTF8_OUTPUT,
     "--no-playlist",
     "--ignore-config",
     "--no-cache-dir",
@@ -411,24 +464,59 @@ export async function sha256File(path: string): Promise<string> {
  * version and is not the right binary.
  *
  * `verifyDigest` is false only where there is nothing to verify against: a
- * developer machine with a package-manager build. Production passes it true, and
- * with {@link EXPECTED_SHA256} still null that is a refusal to start, which is
- * the correct state until someone records the publisher's digest.
+ * package-manager build (`WORKER_MEDIA_YT_DLP_VERIFY=0`), which is what this
+ * product's own host runs. The image passes it true, and with
+ * {@link EXPECTED_SHA256} still null that is a refusal to start, which is the
+ * correct state until someone records the publisher's digest.
+ *
+ * The version pin holds with verification off too (ADR 0002 §7), unless
+ * `allowUnpinned` says otherwise (`WORKER_MEDIA_YT_DLP_ALLOW_UNPINNED=1`). That
+ * is a separate switch because it is a separate trade-off: a package-manager
+ * build is updated by its package manager, and a YouTube change is fixed by
+ * exactly that update within days, but refusing to boot on it kills the
+ * acquisition worker while every health check stays green. Running an
+ * unreviewed downloader against user-supplied URLs instead is a decision for
+ * the owner of a deployment to make by name — not a side effect of turning the
+ * digest check off. With it set, another version is a warning; with the digest
+ * being verified it is refused regardless, because no other binary can match.
  */
 export async function assertYtDlpUsable(input: {
   readonly binary: string;
   readonly verifyDigest: boolean;
+  /** Only with `verifyDigest` false. See above. */
+  readonly allowUnpinned?: boolean;
 }): Promise<{ readonly version: string; readonly sha256: string | null }> {
   const version = await ytDlpVersion(input.binary);
+  if (version === "") {
+    // Something ran and printed nothing: whatever it is, it is not yt-dlp.
+    throw new DownloaderUnusableError(
+      `Cannot start acquisition: ${input.binary} reports no version, so it is not the downloader.`,
+    );
+  }
+  if (version !== EXPECTED_VERSION && !input.verifyDigest && input.allowUnpinned === true) {
+    logger.warn("downloader is not the pinned release; continuing, as allowed", {
+      tool: "yt-dlp",
+      version,
+      pinned: EXPECTED_VERSION,
+    });
+    return { version, sha256: null };
+  }
   if (version !== EXPECTED_VERSION) {
     throw new DownloaderUnusableError(
       [
-        `Cannot start acquisition: the downloader reports ${version || "no version"},`,
+        `Cannot start acquisition: the downloader reports ${version},`,
         `and this build is pinned to ${EXPECTED_VERSION} (ADR 0002 §7).`,
         "",
         "The pin is not advisory. Acquisition runs an executable this repository",
         "does not build, against URLs a user supplies, so the version that runs",
         "has to be the version that was reviewed.",
+        ...(input.verifyDigest
+          ? []
+          : [
+              "",
+              "For a package-manager build, WORKER_MEDIA_YT_DLP_ALLOW_UNPINNED=1 runs",
+              "another version with a warning; that is a decision to make on purpose.",
+            ]),
       ].join("\n"),
     );
   }
@@ -476,7 +564,10 @@ export async function probeSource(input: {
     ...(input.signal === undefined ? {} : { signal: input.signal }),
   });
 
+  logWarnings(result.stderr);
   if (result.code !== 0) {
+    // stderr only: stdout is the JSON dump, whose description text could say
+    // anything ("live stream", "private video") about a video that is neither.
     throw classify(result.stderr, "could not read the source");
   }
 
@@ -484,16 +575,19 @@ export async function probeSource(input: {
   try {
     parsed = JSON.parse(result.stdout) as Record<string, unknown>;
   } catch {
-    throw transientFailure("media/acquire_metadata", "the source description was not readable");
+    throw transientFailure("media/acquire_metadata", "the source description was not readable", {
+      reason: "media/source_failed",
+    });
   }
 
   // A playlist dump carries `entries`; a single video does not. Refusing here is
   // what makes `--no-playlist` a guarantee rather than a preference.
   if (Array.isArray(parsed["entries"])) {
-    throw unreadableMedia("that link points to a playlist, not one video", "media/unsupported");
+    throw sourceRefused("media/source_playlist", "that link points to a playlist, not one video");
   }
 
   const durationSeconds = typeof parsed["duration"] === "number" ? parsed["duration"] : null;
+  const liveStatus = parsed["live_status"];
   const choice = Array.isArray(parsed["formats"])
     ? chooseFormat(parsed["formats"] as ProbeFormat[], input.limits.maxBytes, durationSeconds)
     : null;
@@ -503,7 +597,14 @@ export async function probeSource(input: {
     title: asString(parsed["title"]),
     channel: asString(parsed["channel"]) ?? asString(parsed["uploader"]),
     durationMs: durationSeconds === null ? null : Math.round(durationSeconds * 1000),
-    isLive: parsed["is_live"] === true || parsed["live_status"] === "is_live",
+    // A premiere that has not started has no picture yet, and a stream that
+    // has just ended with no duration is still being processed into a video:
+    // both are "live" to the person choosing what to do next (try it after).
+    isLive:
+      parsed["is_live"] === true ||
+      liveStatus === "is_live" ||
+      liveStatus === "is_upcoming" ||
+      (liveStatus === "post_live" && durationSeconds === null),
     // The size of what will be fetched. The top-level `filesize_approx` is the
     // size of yt-dlp's own default pick (the largest format), which is what
     // refused an 18-minute talk as "larger than your plan" when its 1080p
@@ -523,24 +624,53 @@ export async function probeSource(input: {
   return metadata;
 }
 
+/** The user-facing sentence for a source over the plan's byte cap. */
+const TOO_LARGE = "that video is larger than your plan allows";
+
 /** The limit checks, run against metadata before the download and after it. */
 export function assertWithinLimits(metadata: SourceMetadata, limits: AcquireLimits): void {
   if (metadata.isLive) {
-    throw unreadableMedia("we cannot use a live stream", "media/unsupported");
+    throw sourceRefused("media/source_live", "we cannot use a live stream");
   }
   if (metadata.durationMs !== null && metadata.durationMs > limits.maxDurationMs) {
-    throw unreadableMedia("that video is longer than your plan allows", "media/too_long");
+    throw sourceRefused("media/too_long", "that video is longer than your plan allows");
   }
   if (metadata.approximateBytes !== null && metadata.approximateBytes > limits.maxBytes) {
-    throw unreadableMedia("that video is larger than your plan allows", "media/unsupported");
+    throw sourceRefused("media/too_large", TOO_LARGE);
   }
 }
+
+/** How often the scratch directory is measured while a download runs. */
+export const SIZE_CHECK_INTERVAL_MS = 2_000;
+
+/** How long a killed downloader gets to exit before SIGKILL — `run()`'s grace for ffmpeg. */
+const KILL_GRACE_MS = 5_000;
+
+/**
+ * Downloader lines kept for classifying a failure. Progress lines are not kept:
+ * a long download prints thousands, and they would push out the one line that
+ * says why it stopped.
+ */
+const OUTPUT_LINES = 200;
+
+/** A line longer than this is flushed as it stands rather than buffered forever. */
+const MAX_LINE_CHARS = 64 * 1024;
 
 /**
  * Download one video to `outputPath`.
  *
  * Returns nothing: what landed is measured by the caller with ffprobe and a
  * checksum, because the only trustworthy description of a file is the file.
+ *
+ * Three ways this ends without a file, each named rather than left to surface as
+ * an `ENOENT` later (which is retryable, and so fetched the whole video three
+ * times before saying "failed"):
+ *
+ * - yt-dlp's own `--max-filesize` abort, which it prints to stdout and then
+ *   exits 0 — for a split download it skips the oversize part and never merges;
+ * - this function's size watch, which kills the downloader once the bytes on
+ *   disk pass the cap (the only cap that holds for a fragmented stream);
+ * - any other exit, classified from what the downloader printed.
  */
 export async function download(input: {
   readonly binary: string;
@@ -548,33 +678,275 @@ export async function download(input: {
   readonly outputPath: string;
   readonly limits: AcquireLimits;
   readonly format?: string | null;
+  /** Passed to yt-dlp as `--ffmpeg-location` (see {@link buildArgs}). */
+  readonly ffmpegPath?: string;
   readonly onProgress?: (percent: number) => void;
   readonly signal?: AbortSignal;
+  /** Tests shorten it; production measures every {@link SIZE_CHECK_INTERVAL_MS}. */
+  readonly sizeCheckIntervalMs?: number;
 }): Promise<void> {
-  const result = await run(
+  const result = await runDownloader(
     input.binary,
     buildArgs({
       url: input.url,
       outputPath: input.outputPath,
       limits: input.limits,
       ...(input.format === undefined ? {} : { format: input.format }),
+      ...(input.ffmpegPath === undefined ? {} : { ffmpegPath: input.ffmpegPath }),
     }),
     {
       timeoutMs: input.limits.timeoutMs,
+      outputPath: input.outputPath,
+      maxBytes: input.limits.maxBytes,
+      sizeCheckIntervalMs: input.sizeCheckIntervalMs ?? SIZE_CHECK_INTERVAL_MS,
+      onLine: (line) => {
+        const percent = parseProgress(line);
+        if (percent !== null) input.onProgress?.(percent);
+      },
       ...(input.signal === undefined ? {} : { signal: input.signal }),
-      ...(input.onProgress === undefined
-        ? {}
-        : {
-            onStderr: (chunk: string) => {
-              const percent = parseProgress(chunk);
-              if (percent !== null) input.onProgress?.(percent);
-            },
-          }),
     },
   );
+  logWarnings(result.output);
 
   if (result.code !== 0) {
-    throw classify(result.stderr, "we could not download that video");
+    throw classify(result.output, "we could not download that video");
+  }
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- a name this module chose, in a directory `withWorkspace` made
+  const landed = await stat(input.outputPath).then(
+    (facts) => facts.isFile(),
+    () => false,
+  );
+  if (!landed) {
+    // Exit 0 and no file: yt-dlp skipped something rather than failing. The
+    // reason — nearly always the max-filesize abort — is in what it printed.
+    throw classify(
+      result.output,
+      "the download finished without a file",
+      "media/acquire_no_output",
+    );
+  }
+}
+
+interface DownloaderResult {
+  readonly code: number;
+  /** stdout and stderr lines in arrival order, progress lines left out. Unredacted. */
+  readonly output: string;
+}
+
+/**
+ * Run the downloader, reading BOTH streams line by line, and watch the disk.
+ *
+ * Not `run()`: that keeps only a stderr tail and gives stdout to nobody until
+ * the process exits, and yt-dlp's progress and its size abort are on stdout. The
+ * spawn rules are `run()`'s — no shell, a timeout that kills and then kills
+ * harder, an abort that kills — and it rejects on the same terms, plus one:
+ * writing more than `maxBytes` is a {@link sourceRefused} `media/too_large`.
+ */
+async function runDownloader(
+  binary: string,
+  args: readonly string[],
+  options: {
+    readonly timeoutMs: number;
+    readonly outputPath: string;
+    readonly maxBytes: number;
+    readonly sizeCheckIntervalMs: number;
+    readonly onLine: (line: string) => void;
+    readonly signal?: AbortSignal;
+  },
+): Promise<DownloaderResult> {
+  return new Promise<DownloaderResult>((resolve, reject) => {
+    let child: ChildProcessByStdio<null, Readable, Readable>;
+    try {
+      child = spawn(binary, [...args], { windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
+    } catch (error) {
+      reject(
+        transientFailure("media/tool_spawn", `could not start ${binary}`, {
+          cause: error,
+          reason: "media/source_failed",
+        }),
+      );
+      return;
+    }
+
+    const kept: string[] = [];
+    const keep = (line: string): void => {
+      options.onLine(line);
+      if (isProgressLine(line)) return;
+      kept.push(line);
+      if (kept.length > OUTPUT_LINES) kept.shift();
+    };
+    const stdout = lineReader(keep);
+    const stderr = lineReader(keep);
+    const output = (): string => kept.join("\n");
+
+    let settled = false;
+    let killedBy: "timeout" | "abort" | "oversize" | null = null;
+    let measuring = false;
+
+    const finish = (fn: () => void): void => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      clearInterval(watch);
+      options.signal?.removeEventListener("abort", onAbort);
+      fn();
+    };
+
+    const kill = (why: "timeout" | "abort" | "oversize"): void => {
+      if (killedBy !== null) return;
+      killedBy = why;
+      child.kill("SIGTERM");
+      setTimeout(() => child.kill("SIGKILL"), KILL_GRACE_MS).unref();
+    };
+
+    const timer = setTimeout(() => kill("timeout"), options.timeoutMs);
+    timer.unref();
+
+    // The cap that holds whatever the format: `--max-filesize` never fires for
+    // a fragmented stream, and for a split download it is per part.
+    const watch = setInterval(() => {
+      if (measuring || killedBy !== null) return;
+      measuring = true;
+      void downloadedBytes(options.outputPath)
+        .then((bytes) => {
+          if (bytes > options.maxBytes) kill("oversize");
+        })
+        .finally(() => {
+          measuring = false;
+        });
+    }, options.sizeCheckIntervalMs);
+    watch.unref();
+
+    const onAbort = (): void => kill("abort");
+    if (options.signal?.aborted === true) onAbort();
+    options.signal?.addEventListener("abort", onAbort, { once: true });
+
+    child.stdout.setEncoding("utf8");
+    child.stdout.on("data", (chunk: string) => stdout.push(chunk));
+    child.stderr.setEncoding("utf8");
+    child.stderr.on("data", (chunk: string) => stderr.push(chunk));
+
+    child.on("error", (error) => {
+      finish(() =>
+        reject(
+          transientFailure("media/tool_spawn", `${binary} failed to run`, {
+            cause: error,
+            reason: "media/source_failed",
+          }),
+        ),
+      );
+    });
+
+    child.on("close", (code, signal) => {
+      stdout.end();
+      stderr.end();
+      const tail = stderrTail(output());
+      if (killedBy === "oversize") {
+        finish(() => reject(sourceRefused("media/too_large", TOO_LARGE, tail)));
+        return;
+      }
+      if (killedBy !== null) {
+        const timedOut = killedBy === "timeout";
+        finish(() =>
+          reject(
+            transientFailure(
+              timedOut ? "media/tool_timeout" : "media/cancelled",
+              timedOut
+                ? `${binary} exceeded ${String(options.timeoutMs)} ms and was killed`
+                : `${binary} was cancelled`,
+              { detail: tail, reason: "media/source_failed" },
+            ),
+          ),
+        );
+        return;
+      }
+      if (code === null) {
+        finish(() =>
+          reject(
+            transientFailure("media/tool_signal", `${binary} was killed by ${signal ?? "a signal"}`, {
+              detail: tail,
+              reason: "media/source_failed",
+            }),
+          ),
+        );
+        return;
+      }
+      finish(() => resolve({ code, output: output() }));
+    });
+  });
+}
+
+/**
+ * Bytes the downloader has fetched so far, in the job's own scratch directory.
+ *
+ * Two kinds of file are left out, because counting them would double a
+ * legitimate download and kill it: `*.temp.*` (a merge or fixup writing a
+ * second copy of what is already here) and the finished output itself (which
+ * sits next to its parts until yt-dlp deletes them). The finished file is
+ * measured after the download instead.
+ */
+async function downloadedBytes(outputPath: string): Promise<number> {
+  const dir = dirname(outputPath);
+  const finished = basename(outputPath);
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- the job's own scratch directory
+  const entries = await readdir(dir, { withFileTypes: true }).catch(() => []);
+  let total = 0;
+  for (const entry of entries) {
+    if (!entry.isFile() || entry.name === finished || entry.name.includes(".temp.")) continue;
+    // A fragment can be appended and deleted between the listing and the stat.
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- as above
+    total += await stat(join(dir, entry.name)).then(
+      (facts) => facts.size,
+      () => 0,
+    );
+  }
+  return total;
+}
+
+/**
+ * Split a stream into lines as it arrives. yt-dlp ends a progress update with
+ * `\r` as well as `\n` (its max-filesize line even starts with one), so all
+ * three endings count.
+ */
+function lineReader(onLine: (line: string) => void): {
+  push(chunk: string): void;
+  end(): void;
+} {
+  let pending = "";
+  const emit = (line: string): void => {
+    if (line.trim() !== "") onLine(line);
+  };
+  return {
+    push(chunk) {
+      pending += chunk;
+      const lines = pending.split(/\r\n|\r|\n/);
+      pending = lines.pop() ?? "";
+      for (const line of lines) emit(line);
+      if (pending.length > MAX_LINE_CHARS) {
+        emit(pending);
+        pending = "";
+      }
+    },
+    end() {
+      emit(pending);
+      pending = "";
+    },
+  };
+}
+
+/**
+ * The downloader's warnings, for the operator. They never decide a failure and
+ * never reach the user; they are how a YouTube change announces itself ("some
+ * formats may be missing") before it becomes one.
+ */
+function logWarnings(output: string): void {
+  const seen = new Set<string>();
+  for (const line of output.split(/\r?\n/)) {
+    const warning = line.trim();
+    if (!isWarning(warning) || seen.has(warning)) continue;
+    seen.add(warning);
+    logger.warn("downloader warning", { tool: "yt-dlp", warning: redact(warning).slice(0, 500) });
+    if (seen.size >= 10) return;
   }
 }
 
@@ -596,35 +968,179 @@ export function parseProgress(chunk: string): number | null {
 }
 
 /**
- * Turn the downloader's stderr into one of OUR failures.
- *
- * The distinction that matters is retryable versus not: a private or deleted
- * video will be just as private next time, and retrying it three times only
- * delays the message the user needs. Everything unrecognised stays retryable,
- * because guessing "permanent" on a transient network fault loses a job.
+ * A progress update, with a percentage or — when the server sent no length —
+ * just a byte count (`[download]    2.99MiB at 1.02MiB/s`). Neither says why a
+ * download stopped, so neither is kept for {@link classify}.
  */
-export function classify(stderr: string, message: string): MediaJobError {
-  const tail = stderrTail(stderr);
-  const haystack = tail.toLowerCase();
-  const permanent = [
-    "private video",
-    "video unavailable",
-    "this video is unavailable",
-    "removed by the uploader",
-    "account associated with this video has been terminated",
-    "sign in to confirm your age",
-    "age-restricted",
-    "members-only",
-    "is not a valid url",
-    "unsupported url",
-  ];
-  if (permanent.some((phrase) => haystack.includes(phrase))) {
-    return unreadableMedia(message, "media/unsupported", tail);
+function isProgressLine(line: string): boolean {
+  return parseProgress(line) !== null || /^\s*\[download\] +~?[\d.]{1,9}[KMGT]?i?B /.test(line);
+}
+
+/** The user-facing sentence for a block, however it was recognised. */
+const BLOCKED = "the video site is refusing our requests for now";
+
+/**
+ * What the downloader says when it refuses, and what that means for the user.
+ *
+ * Lower-case phrases, matched against the ERROR lines only (see {@link classify}
+ * for the one thing a warning may decide). **Order matters, first match wins**:
+ * YouTube's rate-limit error begins "Video unavailable" and its bot check begins
+ * "Sign in", so the block has to be recognised before "removed" and "private"
+ * are, or a one-hour block against this server reads as a permanent fact about
+ * the user's video.
+ */
+const REFUSALS: readonly {
+  readonly reason: MediaFailureReason;
+  readonly message: string;
+  readonly phrases: readonly string[];
+}[] = [
+  {
+    // Not retried by BullMQ either: a retry five seconds later hits the same
+    // block and makes it worse. The run page offers the retry, later.
+    reason: "media/source_blocked",
+    message: BLOCKED,
+    phrases: [
+      // "you're" arrives with either apostrophe, or mangled by a code page.
+      "not a bot",
+      "rate-limited",
+      "rate limited",
+      "http error 429",
+      "too many requests",
+      "captcha",
+      "try again later",
+    ],
+  },
+  {
+    reason: "media/source_age_restricted",
+    message: "that video is age-restricted",
+    phrases: ["confirm your age", "age-restricted", "age restricted", "inappropriate for some"],
+  },
+  {
+    reason: "media/source_private",
+    message: "that video is private or needs a sign-in",
+    phrases: [
+      "private video",
+      "video is private",
+      "members-only",
+      "members only",
+      "join this channel",
+      // "…available to this channel's members on level: …", matched without the
+      // apostrophe, which a code page can mangle.
+      "members on level",
+      "granted access",
+      "premium members",
+      "requires payment",
+      "sign in to view",
+      "login required",
+    ],
+  },
+  {
+    reason: "media/source_live",
+    message: "that video is a live stream",
+    phrases: ["live event", "live stream", "livestream", "premieres in", "premiere will begin"],
+  },
+  {
+    reason: "media/source_removed",
+    message: "that video has been removed or is unavailable",
+    phrases: [
+      "video unavailable",
+      "video is unavailable",
+      "no longer available",
+      "removed by the uploader",
+      "has been removed",
+      "has been terminated",
+      "does not exist",
+      // Blocked where this server is: as permanent, for us, as a removal.
+      "available in your country",
+      "available from your location",
+      "geo restriction",
+      "geo-restricted",
+    ],
+  },
+  {
+    reason: "media/unsupported",
+    message: "that link is not a video we can use",
+    phrases: ["unsupported url", "is not a valid url", "incomplete youtube id"],
+  },
+];
+
+/**
+ * The block, as a WARNING says it. Narrower than the block's ERROR phrases:
+ * "try again later" in a warning is too loose to stop the retries on. No
+ * apostrophes, for the reason `--encoding` is passed (see {@link buildArgs}).
+ */
+const BLOCK_WARNING_PHRASES = [
+  "not a bot",
+  "rate-limited",
+  "rate limited",
+  "http error 429",
+  "too many requests",
+  "captcha",
+] as const;
+
+/**
+ * Turn the downloader's output into one of OUR failures.
+ *
+ * Reads stdout and stderr together, because the size abort is on stdout. The
+ * distinction that matters is retryable versus not: a private or deleted video
+ * will be just as private next time, and retrying it three times only delays
+ * the message the user needs. Everything unrecognised stays retryable, because
+ * guessing "permanent" on a transient network fault loses a job, and carries
+ * `media/source_failed` for when its retries run out.
+ *
+ * ERROR lines are the evidence, matched against {@link REFUSALS}; output with
+ * no ERROR line at all (a crash) is matched whole, warnings aside. A warning
+ * that one client wanted a sign-in is routine while another client succeeds,
+ * and must never make a failure "private" or "removed".
+ *
+ * The one thing a warning can decide is the block, and only when no ERROR line
+ * named anything. YouTube often says it per client, as warnings ("Sign in to
+ * confirm you're not a bot", a 429), and then yt-dlp gives up with a generic
+ * ERROR ("Requested format is not available", "HTTP Error 403"). Retried, that
+ * went back to YouTube twice more inside fifteen seconds — the hammering a
+ * block is refused to stop. Read as a block, the user is told to try later,
+ * which is the right advice for the rare transient fault it mislabels too.
+ */
+export function classify(
+  output: string,
+  message: string,
+  transientCode = "media/acquire_failed",
+): MediaJobError {
+  const lines = output.split(/\r?\n/).filter((line) => line.trim() !== "");
+  const errors = lines.filter((line) => line.trim().startsWith("ERROR:"));
+  const evidence = errors.length > 0 ? errors : lines.filter((line) => !isWarning(line));
+  const detail = stderrTail(evidence.join("\n"));
+
+  // Anywhere, on either stream: yt-dlp prints it as a `[download]` line, not
+  // an ERROR, and then exits 0.
+  if (lines.some((line) => line.toLowerCase().includes("larger than max-filesize"))) {
+    return sourceRefused("media/too_large", TOO_LARGE, detail);
   }
-  if (haystack.includes("file is larger than max-filesize")) {
-    return unreadableMedia("that video is larger than your plan allows", "media/unsupported", tail);
+
+  const haystack = evidence.join("\n").toLowerCase();
+  const refusal = REFUSALS.find(({ phrases }) =>
+    phrases.some((phrase) => haystack.includes(phrase)),
+  );
+  if (refusal !== undefined) return sourceRefused(refusal.reason, refusal.message, detail);
+
+  const blockWarning = lines.find(
+    (line) =>
+      isWarning(line) &&
+      BLOCK_WARNING_PHRASES.some((phrase) => line.toLowerCase().includes(phrase)),
+  );
+  if (blockWarning !== undefined) {
+    return sourceRefused(
+      "media/source_blocked",
+      BLOCKED,
+      stderrTail([blockWarning, ...evidence].join("\n")),
+    );
   }
-  return transientFailure("media/acquire_failed", message, { detail: redact(tail) });
+
+  return transientFailure(transientCode, message, { detail, reason: "media/source_failed" });
+}
+
+function isWarning(line: string): boolean {
+  return line.trim().startsWith("WARNING:");
 }
 
 function asString(value: unknown): string | null {

@@ -4,8 +4,9 @@
  * The studio's first card: the clips pipeline, as the premium canvas draws it.
  *
  * A plain card carrying the pitch, a link field that starts a run,
- * the numbered stage rail, and — when a run is actually moving — one line
- * saying which run, how far in, and a way into it.
+ * the numbered stage rail, and — when a run is moving, waiting for the person,
+ * or has just failed — one line saying which run, where it is, and a way into it
+ * (`bannerRun`).
  *
  * Two places where the canvas and the product do not line up, and what this
  * does about each:
@@ -23,7 +24,7 @@
  *    cohort every route behind this card answers 404, so the card renders
  *    nothing rather than advertising a surface that is not there.
  */
-import { ArrowRight, Check, Link2 } from "lucide-react";
+import { AlertTriangle, ArrowRight, Check, Link2 } from "lucide-react";
 import NextLink from "next/link";
 import { useRouter } from "next/navigation";
 import * as React from "react";
@@ -33,7 +34,8 @@ import type { RepurposeRunView, RepurposeStageView } from "@montaj/api-client";
 import { BRAND } from "@montaj/config";
 import { Button, cn } from "@montaj/ui";
 
-import { STAGE_COPY, type StageKey } from "@/components/repurpose/copy";
+import { STAGE_COPY, safeErrorCopy, type StageKey } from "@/components/repurpose/copy";
+import { runActivity } from "@/components/repurpose/run-activity";
 
 /** The flag that gates the entire guided surface (REP-006). */
 export const REPURPOSE_FLOW_FLAG = "repurpose_flow";
@@ -47,9 +49,42 @@ const STAGE_ORDER: readonly StageKey[] = [
   "publish",
 ];
 
-/** A run that is neither finished nor abandoned — the one worth reporting. */
-function liveRun(runs: readonly RepurposeRunView[]): RepurposeRunView | undefined {
-  return runs.find((run) => run.stages.some((stage) => stage.state === "running"));
+/** How long a failure stays on Home before it is just history on `/repurpose`. */
+const RECENT_FAILURE_MS = 24 * 60 * 60 * 1000;
+
+export interface BannerRun {
+  readonly run: RepurposeRunView;
+  readonly kind: "failed" | "working" | "needs_you";
+}
+
+/**
+ * The one run worth a line on Home, in this order:
+ *
+ *   1. the newest run, if it failed in the last day — the thing the person
+ *      most needs to hear about, and which used to be invisible here;
+ *   2. a run that is working;
+ *   3. a run waiting for the person (moments to pick, videos to review).
+ *
+ * A stopped or finished run is never reported. This used to pick any run whose
+ * stage projected as `running`, which is also true of a cancelled run and of
+ * one sitting at "ready to review" for a week — so an old run hid a new failure.
+ */
+export function bannerRun(
+  runs: readonly RepurposeRunView[],
+  now: number = Date.now(),
+): BannerRun | undefined {
+  const newest = runs[0];
+  if (
+    newest !== undefined &&
+    runActivity(newest) === "failed" &&
+    now - Date.parse(newest.updatedAt) < RECENT_FAILURE_MS
+  ) {
+    return { run: newest, kind: "failed" };
+  }
+  const working = runs.find((run) => runActivity(run) === "working");
+  if (working !== undefined) return { run: working, kind: "working" };
+  const waiting = runs.find((run) => runActivity(run) === "needs_you");
+  return waiting === undefined ? undefined : { run: waiting, kind: "needs_you" };
 }
 
 function stageState(
@@ -68,7 +103,8 @@ export function PipelineBanner({ className }: { className?: string }): React.JSX
 
   if (!enabled) return null;
 
-  const run = liveRun(runs.data?.items ?? []);
+  const chosen = bannerRun(runs.data?.items ?? []);
+  const run = chosen?.run;
   const currentIndex = run === undefined ? -1 : STAGE_ORDER.indexOf(run.currentStage as StageKey);
 
   const start = (): void => {
@@ -92,9 +128,8 @@ export function PipelineBanner({ className }: { className?: string }): React.JSX
             One long video, nine posts
           </h2>
           <p className="text-fg-1 m-0 max-w-[60ch] text-sm">
-            Paste a YouTube link. {BRAND.name} fetches and transcribes it, then looks for the
-            moments worth posting. Cutting those into captioned clips is the next step we are
-            building.
+            Paste a YouTube link. {BRAND.name} fetches and transcribes it, finds the moments worth
+            posting, and cuts each one into a 9:16 clip you caption and export in the editor.
           </p>
         </div>
 
@@ -136,6 +171,7 @@ export function PipelineBanner({ className }: { className?: string }): React.JSX
           const state = stageState(run, key);
           const active = state === "running";
           const done = state === "complete";
+          const stoppedHere = state === "failed";
           return (
             <li key={key}>
               <NextLink
@@ -150,44 +186,74 @@ export function PipelineBanner({ className }: { className?: string }): React.JSX
                     ? "border-accent text-fg-0 font-medium"
                     : done
                       ? "border-border text-fg-1"
-                      : "border-border text-fg-2",
+                      : stoppedHere
+                        ? "border-rejected/60 text-rejected"
+                        : "border-border text-fg-2",
                 )}
                 aria-current={active ? "step" : undefined}
                 data-state={state}
                 data-testid={`pipeline-stage-${key}`}
               >
                 <span className="text-fg-2 font-mono text-2xs" aria-hidden="true">
-                  {done ? <Check className="size-3" /> : String(index + 1).padStart(2, "0")}
+                  {done ? (
+                    <Check className="size-3" />
+                  ) : stoppedHere ? (
+                    <AlertTriangle className="text-rejected size-3" />
+                  ) : (
+                    String(index + 1).padStart(2, "0")
+                  )}
                 </span>
                 {/* eslint-disable-next-line security/detect-object-injection -- `key` is one of the five STAGE_ORDER literals */}
                 {STAGE_COPY[key].title}
                 {done ? <span className="sr-only"> (done)</span> : null}
+                {stoppedHere ? <span className="sr-only"> (needs attention)</span> : null}
               </NextLink>
             </li>
           );
         })}
       </ol>
 
-      {run === undefined ? (
+      {chosen === undefined || run === undefined ? (
         <p className="text-fg-2 m-0 text-xs">
           Nothing running right now. Paste a link above to start.
         </p>
       ) : (
-        <div className="flex flex-wrap items-center gap-3" data-testid="pipeline-live">
+        <div
+          className="flex flex-wrap items-center gap-3"
+          data-testid="pipeline-live"
+          data-kind={chosen.kind}
+        >
           <span className="text-fg-1 text-xs">
-            {run.sourceDisplay ?? "Your video"} is at stage{" "}
-            {String(Math.max(1, currentIndex + 1))} of {String(STAGE_ORDER.length)}
-            {run.message === "" ? "" : `, ${run.message}`}
+            {chosen.kind === "failed" ? (
+              <>
+                {run.sourceDisplay ?? "Your video"} needs attention:{" "}
+                {safeErrorCopy(run.failureCode).title}.
+              </>
+            ) : chosen.kind === "needs_you" ? (
+              <>
+                {run.sourceDisplay ?? "Your video"} is waiting for you
+                {run.message === "" ? "" : `: ${run.message}`}
+              </>
+            ) : (
+              <>
+                {run.sourceDisplay ?? "Your video"} is at stage{" "}
+                {String(Math.max(1, currentIndex + 1))} of {String(STAGE_ORDER.length)}
+                {run.message === "" ? "" : `, ${run.message}`}
+              </>
+            )}
           </span>
-          <span
-            className="bg-bg-2 block h-1 w-[120px] overflow-hidden rounded-full"
-            aria-hidden="true"
-          >
+          {/* Progress means something only while work is happening. */}
+          {chosen.kind === "working" ? (
             <span
-              className="bg-accent block h-full rounded-full"
-              style={{ width: `${String(Math.min(100, Math.max(0, run.progress)))}%` }}
-            />
-          </span>
+              className="bg-bg-2 block h-1 w-[120px] overflow-hidden rounded-full"
+              aria-hidden="true"
+            >
+              <span
+                className="bg-accent block h-full rounded-full"
+                style={{ width: `${String(Math.min(100, Math.max(0, run.progress)))}%` }}
+              />
+            </span>
+          ) : null}
           <NextLink
             href={`/repurpose/${run.id}`}
             className="text-fg-1 hover:text-fg-0 ml-auto inline-flex min-h-8 items-center gap-1.5 text-xs font-medium no-underline"

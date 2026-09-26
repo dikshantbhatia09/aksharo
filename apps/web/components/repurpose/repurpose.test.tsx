@@ -253,10 +253,22 @@ describe("start form validation", () => {
     expect(validateStartForm({ ...withLink, rightsAttested: false }).rights).toBeDefined();
   });
 
-  it("requires https, because a link is fetched server-side", () => {
+  // 2026-09-26: `/repurpose` and Home accept a scheme-less link on purpose and
+  // hand it here, where it used to be refused. It is normalised to https now —
+  // the API still refuses anything that is not — and only a non-link fails.
+  it("accepts a scheme-less or http link, because it is sent as https", () => {
+    expect(validateStartForm({ ...withLink, url: "youtube.com/watch?v=dQw4w9WgXcQ" }).url).toBeUndefined();
     expect(
       validateStartForm({ ...withLink, url: "http://www.youtube.com/watch?v=x" }).url,
-    ).toBeDefined();
+    ).toBeUndefined();
+    expect(
+      validateStartForm({ ...withLink, url: "Watch this https://youtu.be/dQw4w9WgXcQ" }).url,
+    ).toBeUndefined();
+  });
+
+  it("still refuses something that is not a web link", () => {
+    expect(validateStartForm({ ...withLink, url: "dQw4w9WgXcQ" }).url).toBeDefined();
+    expect(validateStartForm({ ...withLink, url: "ftp://example.com/video.mp4" }).url).toBeDefined();
   });
 
   it("requires the spoken language rather than guessing it", () => {
@@ -284,6 +296,20 @@ describe("start form validation", () => {
     const problems = validateStartForm(upload);
     expect(problems.file).toBeDefined();
     expect(problems.rights).toBeUndefined();
+  });
+
+  // 2026-09-26: an over-cap upload created its run first and was only then
+  // refused by the upload, leaving the run on "Getting your video" for ever.
+  it("refuses an upload over the plan's cap before any run exists", () => {
+    const file = new File(["x"], "talk.mp4", { type: "video/mp4" });
+    Object.defineProperty(file, "size", { value: 600 * 1024 * 1024 });
+    const upload: StartFormValue = { ...EMPTY_START_FORM, tab: "upload", sourceLanguage: "en", file };
+    expect(validateStartForm(upload, { maxFileBytes: 500 * 1024 * 1024 }).file).toBe(
+      "This file is larger than your plan allows (up to 500 MB). Choose a smaller copy.",
+    );
+    expect(validateStartForm(upload, { maxFileBytes: 1024 * 1024 * 1024 }).file).toBeUndefined();
+    // An entitlement that has not loaded never blocks.
+    expect(validateStartForm(upload).file).toBeUndefined();
   });
 });
 

@@ -5,20 +5,20 @@ import type { Env } from "@montaj/config";
 import {
   type HighlightsPayload,
   MediaAcquirePayloadSchema,
-  type MediaClipPayload,
   REPURPOSE_SCHEMA_VERSION,
   highlightsJobKey,
   mediaAcquireJobKey,
-  mediaClipJobKey,
 } from "@montaj/repurpose-contracts";
 
+import { runFailureCode } from "./failure-codes.js";
 import {
   ACQUIRE_QUOTE_TENTHS,
   ACQUIRE_TIMEOUT_MS,
   ACQUIRED_FILENAME,
   ACQUIRED_MIME,
-  CLIP_PROFILE_VERSION,
   DEFAULT_STAGE_DEADLINES_MS,
+  LIST_RECONCILE_CONCURRENCY,
+  PRE_CANDIDATE_STATUSES,
   REPURPOSE_ERRORS,
   REPURPOSE_FLAGS,
   STAGE_TIMEOUT_CUSTOMER_MESSAGE,
@@ -39,6 +39,7 @@ import { RealtimePublisher } from "../realtime/realtime.publisher.js";
 import { StylesService } from "../styles/styles.service.js";
 import { EntitlementService } from "../workspaces/entitlement.service.js";
 
+import type { RunFailureCode } from "./failure-codes.js";
 import type {
   CreateRunInput,
   CreateRunResponse,
@@ -46,8 +47,121 @@ import type {
   RunPage,
   RunView,
 } from "./repurpose.dto.js";
+import type { Stage } from "./repurpose.projection.js";
 import type { AcquisitionProject } from "../media/media.service.js";
 import type { $Enums, RepurposeRun } from "@prisma/client";
+
+/**
+ * What this service needs from `RepurposeReconciler` (`reconciler.ts`).
+ *
+ * The reconciler moves a run by calling this service's producers, so it
+ * depends on this service; this service reads runs through it. Constructor
+ * injection both ways is a cycle, so the reconciler registers itself at boot
+ * ({@link RepurposeService.useReconciler}), the way completion handlers
+ * register with `JobCompletionRegistry`.
+ */
+export interface RunReconciler {
+  reconcile(run: RepurposeRun): Promise<RepurposeRun>;
+  reconcileIfDue(run: RepurposeRun, options?: ReconcileReadOptions): Promise<RepurposeRun>;
+  redrive(run: RepurposeRun): Promise<RepurposeRun>;
+}
+
+export interface ReconcileReadOptions {
+  /**
+   * A list read (the home page, `/repurpose`): cheaper — a run already cutting
+   * or reviewing its clips is left to its own page and its clip completions.
+   */
+  readonly forList?: boolean;
+}
+
+/**
+ * What a run is actually doing when its stored status lags behind it: derived
+ * from its source project (see `observe`). `failureCode` is set when the
+ * derivation is a failure the reconciler has not written yet.
+ */
+interface Observation {
+  readonly status: $Enums.RepurposeRunStatus;
+  readonly failureCode: string | null;
+}
+
+/** How a request to start discovery ended. Never a throw: every outcome is recorded. */
+export type DiscoveryStart =
+  | { readonly outcome: "queued"; readonly jobId: string }
+  /** A manual-mode run: no suggestions were asked for; it went straight to picking moments. */
+  | { readonly outcome: "manual" }
+  /** The run is past discovery, or stopped: nothing to start. */
+  | { readonly outcome: "moved_on" }
+  /**
+   * Refused for now (the queue or the database is briefly down): the run keeps
+   * waiting and the reconciler retries.
+   */
+  | { readonly outcome: "deferred" }
+  /** Could not be started at all: the run now says `repurpose/highlights_failed`. */
+  | { readonly outcome: "failed" };
+
+function prismaCodeOf(error: unknown): unknown {
+  return typeof error === "object" && error !== null && "code" in error
+    ? (error as { code?: unknown }).code
+    : undefined;
+}
+
+/** A unique constraint refused the write (Prisma `P2002`). */
+export function isUniqueViolation(error: unknown): boolean {
+  return prismaCodeOf(error) === "P2002";
+}
+
+/**
+ * Prisma codes for a database that is briefly unreachable or busy: cannot
+ * reach it (P1001), timed out (P1002, P1008), closed the connection (P1017),
+ * no free connection in the pool (P2024), a write conflict or deadlock (P2034).
+ * Each clears on its own, which is what a local restart or a load spike on this
+ * one-laptop API looks like.
+ */
+const TRANSIENT_DATABASE_CODES: ReadonlySet<string> = new Set([
+  "P1001",
+  "P1002",
+  "P1008",
+  "P1017",
+  "P2024",
+  "P2034",
+]);
+
+export function isTransientDatabaseError(error: unknown): boolean {
+  const code = prismaCodeOf(error);
+  return typeof code === "string" && TRANSIENT_DATABASE_CODES.has(code);
+}
+
+/** A refusal that means "not now", not "never": a full plan lane, a queue that is down. */
+export function isRefusal(error: unknown): boolean {
+  return (
+    error instanceof AppException &&
+    (error.httpStatus === HttpStatus.TOO_MANY_REQUESTS ||
+      error.httpStatus === HttpStatus.SERVICE_UNAVAILABLE)
+  );
+}
+
+/** `work` over `items`, at most `limit` at a time, results in order. */
+async function mapLimited<T, R>(
+  items: readonly T[],
+  limit: number,
+  work: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const results: R[] = new Array<R>(items.length);
+  let next = 0;
+  const lane = async (): Promise<void> => {
+    while (next < items.length) {
+      const index = next;
+      next += 1;
+      // eslint-disable-next-line security/detect-object-injection -- index bounded by items.length
+      results[index] = await work(items[index] as T);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, lane));
+  return results;
+}
+
+/** Reads a cancel makes of a run that keeps moving under it before it gives up. */
+const CANCEL_ATTEMPTS = 3;
 
 /**
  * REP-006: create, list, read, cancel and retry a repurposing run.
@@ -70,6 +184,7 @@ import type { $Enums, RepurposeRun } from "@prisma/client";
 @Injectable()
 export class RepurposeService {
   private readonly logger = new Logger(RepurposeService.name);
+  private reconciler: RunReconciler | undefined;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -84,6 +199,51 @@ export class RepurposeService {
     @Inject(CREDITS_FACADE) private readonly credits: CreditsFacade,
     @Optional() @Inject(DERIVED_STORE) private readonly derivedStore?: ObjectStore,
   ) {}
+
+  /** Called once, at boot, by `RepurposeReconciler` (see {@link RunReconciler}). */
+  useReconciler(reconciler: RunReconciler): void {
+    this.reconciler = reconciler;
+  }
+
+  /**
+   * Reconcile one run now, for a completion or an event that just changed what
+   * it stands on. Never throws: whatever called this has already done its own
+   * work, and the next read of the run reconciles again anyway.
+   */
+  async reconcileRun(runId: string): Promise<void> {
+    if (this.reconciler === undefined) return;
+    try {
+      const run = await this.prisma.repurposeRun.findUnique({ where: { id: runId } });
+      if (run !== null) await this.reconciler.reconcile(run);
+    } catch (error) {
+      this.logger.warn({ runId, err: error }, "could not reconcile the run after a completion");
+    }
+  }
+
+  /** A read's view of `run`, reconciled first when it is due. */
+  private async reconciled(
+    run: RepurposeRun,
+    options: ReconcileReadOptions = {},
+  ): Promise<RepurposeRun> {
+    return this.reconciler === undefined ? run : this.reconciler.reconcileIfDue(run, options);
+  }
+
+  /**
+   * For a completion that handed work on while the person was pressing Stop.
+   * `cancel` stops the jobs that exist when it looks; a job queued a moment
+   * after — the probe an acquisition's completion enqueues after reading the
+   * run as live — would otherwise run on, through the proxy, to a paid
+   * transcription of a video they stopped. Called once that work is queued, so
+   * one of the two always sees the other.
+   *
+   * @returns whether the run is cancelled.
+   */
+  async stopIfCancelled(runId: string): Promise<boolean> {
+    const run = await this.prisma.repurposeRun.findUnique({ where: { id: runId } });
+    if (run === null || run.status !== "cancelled") return false;
+    await this.stopRunJobs(run);
+    return true;
+  }
 
   /**
    * Is a rollout flag on for this workspace?
@@ -257,6 +417,12 @@ export class RepurposeService {
           "could not remove the source project after a failed run create",
         );
       });
+      // Two creates for one link at once: `resolveSource`'s check passed for
+      // both and `repurpose_runs_live_source_idx` refused the second. That is
+      // the same refusal in our own words, not a raw database conflict.
+      if (isUniqueViolation(error) && source.fingerprint !== null) {
+        throw (await this.duplicateOf(workspaceId, source.fingerprint)) ?? error;
+      }
       throw error;
     }
 
@@ -368,21 +534,8 @@ export class RepurposeService {
       );
     }
 
-    const live = await this.prisma.repurposeRun.findFirst({
-      where: {
-        workspaceId,
-        sourceFingerprint: parsed.source.sourceFingerprint,
-        status: { notIn: ["published", "failed", "cancelled"] },
-      },
-      select: { id: true },
-    });
-    if (live !== null) {
-      throw new AppException(
-        REPURPOSE_ERRORS.sourceDuplicate,
-        "You are already working on this video.",
-        HttpStatus.CONFLICT,
-      );
-    }
+    const duplicate = await this.duplicateOf(workspaceId, parsed.source.sourceFingerprint);
+    if (duplicate !== null) throw duplicate;
 
     return {
       kind: parsed.source.kind,
@@ -391,6 +544,39 @@ export class RepurposeService {
       normalizedUrl: parsed.source.normalizedUrl,
       title: parsed.source.display,
     };
+  }
+
+  /**
+   * The refusal for a link that already has a live run — with that run's id, so
+   * the page can open it rather than leave the person locked out of their own
+   * link. A finished run (`review_ready`) is still live to
+   * `repurpose_runs_live_source_idx`, so "open the one you have" is the only
+   * useful answer.
+   *
+   * Public because a retry's reopen can lose the same race `create` can, and
+   * answers it with the same refusal (`RepurposeReconciler.reopen`).
+   */
+  async duplicateOf(
+    workspaceId: string,
+    fingerprint: string,
+    exceptRunId?: string,
+  ): Promise<AppException | null> {
+    const live = await this.prisma.repurposeRun.findFirst({
+      where: {
+        workspaceId,
+        sourceFingerprint: fingerprint,
+        status: { notIn: ["published", "failed", "cancelled"] },
+        ...(exceptRunId === undefined ? {} : { id: { not: exceptRunId } }),
+      },
+      select: { id: true },
+    });
+    if (live === null) return null;
+    return new AppException(
+      REPURPOSE_ERRORS.sourceDuplicate,
+      "You are already working on this video.",
+      HttpStatus.CONFLICT,
+      { existingRunId: live.id },
+    );
   }
 
   /**
@@ -416,12 +602,30 @@ export class RepurposeService {
       readonly fingerprint: string | null;
       readonly normalizedUrl: string;
     },
+    /**
+     * A fetch after the first (a retry, or the reconciler replacing one whose
+     * enqueue was refused). Its job key names the media row it fetches into, so
+     * each attempt is its own job — the first one's key stays as it always was
+     * — and two callers restarting the same row still collapse to one job.
+     * `into` is a pending row to reuse; without it a fresh row is reserved.
+     */
+    refetch?: {
+      readonly into?: {
+        readonly id: string;
+        readonly bucket: $Enums.StorageBucket;
+        readonly storageKey: string;
+      };
+    },
   ): Promise<string> {
     const limits = mediaLimitsFor(await this.entitlements.forWorkspace(workspaceId));
-    const reserved = await this.media.reserveAcquisition(project, {
-      filename: ACQUIRED_FILENAME,
-      mime: ACQUIRED_MIME,
-    });
+    let target = refetch?.into;
+    if (target === undefined) {
+      const reserved = await this.media.reserveAcquisition(project, {
+        filename: ACQUIRED_FILENAME,
+        mime: ACQUIRED_MIME,
+      });
+      target = { id: reserved.media.id, bucket: reserved.bucket, storageKey: reserved.key };
+    }
 
     // Parsed, not assembled: the contract is the wire format both runtimes agree
     // on, so building the object and hoping is not good enough (§8.1).
@@ -429,13 +633,13 @@ export class RepurposeService {
       schemaVersion: REPURPOSE_SCHEMA_VERSION,
       runId: run.id,
       projectId: project.id,
-      mediaId: reserved.media.id,
+      mediaId: target.id,
       source: {
         kind: source.kind === "youtube_url" ? "youtube_url" : "direct_media_url",
         normalizedUrl: source.normalizedUrl,
         sourceId: source.fingerprint,
       },
-      destination: { bucket: reserved.bucket, key: reserved.key },
+      destination: { bucket: target.bucket, key: target.storageKey },
       limits: {
         maxBytes: limits.maxFileBytes,
         maxDurationMs: limits.maxDurationMs,
@@ -443,16 +647,62 @@ export class RepurposeService {
       },
     });
 
+    const firstKey = mediaAcquireJobKey(run.id, source.fingerprint ?? run.id);
     const enqueued = await this.jobs.enqueue({
       type: "media.acquire",
       workspaceId,
       projectId: project.id,
       params: payload,
-      jobKey: mediaAcquireJobKey(run.id, source.fingerprint ?? run.id),
+      jobKey: refetch === undefined ? firstKey : `${firstKey}:${target.id}`,
       worstCaseTenths: ACQUIRE_QUOTE_TENTHS,
       reason: `media.acquire · ${run.id}`,
     });
     return enqueued.job.id;
+  }
+
+  /**
+   * Fetch a link run's source again, from the address an earlier fetch carried
+   * (the run row never keeps it, §17.4). The plan's limits are resolved afresh,
+   * so a person who upgraded after "too large for your plan" gets the new cap.
+   *
+   * @param into a pending media row nothing is fetching into; omitted, a fresh
+   *   row is reserved and becomes the source's newest media.
+   * @throws when links are switched off for the workspace, or the enqueue is refused.
+   */
+  async reacquire(
+    run: RepurposeRun,
+    normalizedUrl: string,
+    into?: {
+      readonly id: string;
+      readonly bucket: $Enums.StorageBucket;
+      readonly storageKey: string;
+    },
+  ): Promise<string> {
+    if (!(await this.flagEnabled(run.workspaceId, REPURPOSE_FLAGS.youtubeAcquire))) {
+      throw new AppException(
+        REPURPOSE_ERRORS.sourceUnsupported,
+        "Links are not available yet. Upload the video file instead.",
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+    const project = await this.prisma.project.findFirst({
+      where: { id: run.sourceProjectId, workspaceId: run.workspaceId, deletedAt: null },
+      select: { id: true, workspaceId: true, status: true },
+    });
+    if (project === null) {
+      throw new AppException(
+        REPURPOSE_ERRORS.notRetryable,
+        "This video's project was deleted. Start a new video with the link.",
+        HttpStatus.CONFLICT,
+      );
+    }
+    return this.startAcquisition(
+      run.workspaceId,
+      project,
+      run,
+      { kind: run.sourceKind, fingerprint: run.sourceFingerprint, normalizedUrl },
+      into === undefined ? {} : { into },
+    );
   }
 
   async list(workspaceId: string, input: ListRunsInput): Promise<RunPage> {
@@ -471,22 +721,35 @@ export class RepurposeService {
     });
 
     const page = runs.slice(0, input.limit);
-    // Same derivation `get()` uses, and for the same reason: without it, a run
-    // whose transcript already exists still reads "Add a video to get started"
-    // on any list view, because nothing writes `status` past `draft` for these
-    // early stages (see `observedStatus`). The home page pipeline banner is a
-    // list view, so it needs this exactly as much as the run's own detail page.
-    const observed = await Promise.all(page.map((run) => this.observedStatus(run)));
+    // The home page's banner is a list read, and the only thing looking at a run
+    // the person has navigated away from — so a list read reconciles too
+    // (throttled per run, and never a finished one), or a run that stalled
+    // behind a closed tab would never move. A few runs at a time, not the whole
+    // page at once: see `LIST_RECONCILE_CONCURRENCY`.
+    //
+    // Then the same derivation `get()` uses, and for the same reason: without
+    // it, a run whose transcript already exists still reads "Add a video to get
+    // started" on any list view, because nothing writes `status` past `draft`
+    // for these early stages (see `observe`). The home page pipeline banner is
+    // a list view, so it needs this exactly as much as the run's own page.
+    const views = await mapLimited(page, LIST_RECONCILE_CONCURRENCY, async (run) => {
+      const current = await this.reconciled(run, { forList: true });
+      return { current, observed: await this.observe(current) };
+    });
+    const current = views.map((view) => view.current);
+    const observed = views.map((view) => view.observed);
     return {
-      items: page.map((run, index) =>
+      items: current.map((run, index) =>
         this.toView(
           run,
           {
-            candidateCount: run._count.candidates,
-            clipCount: run._count.clips,
+            // eslint-disable-next-line security/detect-object-injection -- index bounded by current.map
+            candidateCount: page[index]?._count.candidates ?? 0,
+            // eslint-disable-next-line security/detect-object-injection -- as above
+            clipCount: page[index]?._count.clips ?? 0,
             variantCount: 0,
           },
-          // eslint-disable-next-line security/detect-object-injection -- index bounded by page.map
+          // eslint-disable-next-line security/detect-object-injection -- index bounded by current.map
           observed[index],
         ),
       ),
@@ -496,9 +759,9 @@ export class RepurposeService {
 
   async get(workspaceId: string, runId: string): Promise<RunView> {
     await this.assertAvailable(workspaceId);
-    const run = await this.require(workspaceId, runId);
+    const run = await this.reconciled(await this.require(workspaceId, runId));
     const counts = await this.counts(run.id);
-    return this.toView(run, counts, await this.observedStatus(run));
+    return this.toView(run, counts, await this.observe(run));
   }
 
   /**
@@ -519,13 +782,14 @@ export class RepurposeService {
    * Returns null when the stored status is already ahead of what the project can
    * tell us, or when the run is finished, cancelled or failed: a derived view
    * must never walk a terminal run backwards.
+   *
+   * A source media that FAILED is a failure, never "Add a video to get started"
+   * (2026-09-26): the reconciler writes it to the run on the next pass, and a
+   * read that lands before that pass says the same thing it will.
    */
-  private async observedStatus(run: RepurposeRun): Promise<$Enums.RepurposeRunStatus | null> {
-    if (["failed", "cancelled", "published", "partially_published"].includes(run.status)) {
-      return null;
-    }
-    // Only the earliest stages are derivable today; once discovery exists it
-    // owns the transition out of `transcribing` and this stops at that line.
+  private async observe(run: RepurposeRun): Promise<Observation | null> {
+    // Only the earliest stages are derivable; from `analyzing` on, discovery
+    // and the clips own the status and write it themselves.
     if (!["draft", "acquiring", "preparing_media", "transcribing"].includes(run.status)) {
       return null;
     }
@@ -534,7 +798,7 @@ export class RepurposeService {
       this.prisma.mediaAsset.findFirst({
         where: { projectId: run.sourceProjectId, role: "primary" },
         orderBy: { createdAt: "desc" },
-        select: { status: true },
+        select: { status: true, failureReason: true, uploadedAt: true },
       }),
       this.prisma.transcript.findFirst({
         where: { projectId: run.sourceProjectId },
@@ -543,20 +807,29 @@ export class RepurposeService {
       }),
     ]);
 
-    if (transcript !== null) return "analyzing";
+    const as = (status: $Enums.RepurposeRunStatus): Observation => ({ status, failureCode: null });
+    if (transcript !== null) return as("analyzing");
     if (media === null) return null;
     switch (media.status) {
       case "pending":
       case "uploading":
-        return run.sourceKind === "upload" ? "draft" : "acquiring";
+        return as(run.sourceKind === "upload" ? "draft" : "acquiring");
       case "uploaded":
       case "probing":
-        return "preparing_media";
+        return as("preparing_media");
       case "ready":
-        // Media is ready and no transcript exists yet: either it is being made,
-        // or auto-transcription never started. Both read as "transcribing" to a
-        // person, and the support code is how the difference gets diagnosed.
-        return "transcribing";
+        // Media is ready and no transcript exists yet: it is being made, or the
+        // reconciler is about to start it (or fail the run for want of credits).
+        return as("transcribing");
+      case "failed":
+        return {
+          status: "failed",
+          failureCode: runFailureCode({
+            failedAt:
+              run.sourceKind !== "upload" && media.uploadedAt === null ? "acquire" : "processing",
+            mediaReason: media.failureReason,
+          }),
+        };
       default:
         return null;
     }
@@ -564,37 +837,56 @@ export class RepurposeService {
 
   async cancel(workspaceId: string, userId: string, runId: string): Promise<RunView> {
     await this.assertAvailable(workspaceId);
-    const run = await this.require(workspaceId, runId);
+    let run = await this.require(workspaceId, runId);
 
-    // Cancelling twice is not an error: the caller wanted it stopped and it is.
-    if (run.status === "cancelled") return this.toView(run, await this.counts(run.id));
+    // Conditional on the status it was read in, like every other writer of a
+    // run: a failure or a completion that lands between the read and this write
+    // is the real answer, and a blind write turned a run that had just failed
+    // into a cancelled one and lost its code. A run that moved on and can still
+    // be stopped is read again and stopped where it now is.
+    for (let attempt = 1; ; attempt += 1) {
+      // Cancelling twice is not an error: the caller wanted it stopped and it is.
+      if (run.status === "cancelled") return this.toView(run, await this.counts(run.id));
 
-    if (!isCancellable(run.status)) {
-      throw new AppException(
-        REPURPOSE_ERRORS.notCancellable,
-        "This run has already finished.",
-        HttpStatus.CONFLICT,
-      );
+      if (!isCancellable(run.status)) {
+        throw new AppException(
+          REPURPOSE_ERRORS.notCancellable,
+          "This run has already finished.",
+          HttpStatus.CONFLICT,
+        );
+      }
+
+      // `run.status` is the raw stored column, which for the early stages is
+      // never written past "draft" (§4.2, `observedStatus`) -- a run visibly on
+      // "Finding promising moments" when the person clicked Stop is still
+      // `status: "draft"` in the row. Freezing on `stageForStatus(run.status)`
+      // unconditionally therefore always froze a cancelled run at "getting_video"
+      // regardless of how far it had actually gotten, because the intent --
+      // "the stage it stopped on is kept" -- was implemented against the wrong
+      // status. The observed status is what the person was actually looking at.
+      const observed = await this.observe(run);
+      const { count } = await this.prisma.repurposeRun.updateMany({
+        where: { id: run.id, status: run.status },
+        data: {
+          status: "cancelled",
+          cancelledAt: new Date(),
+          // The stage it stopped on is kept, so the rail can still show where.
+          currentStage: stageForStatus(observed?.status ?? run.status),
+        },
+      });
+      if (count > 0) break;
+      if (attempt >= CANCEL_ATTEMPTS) {
+        // Moving under us on every read: not something a person can do anything
+        // about but ask again.
+        throw new AppException(
+          REPURPOSE_ERRORS.notCancellable,
+          "This run is changing right now. Try stopping it again in a moment.",
+          HttpStatus.CONFLICT,
+        );
+      }
+      run = await this.require(workspaceId, runId);
     }
-
-    // `run.status` is the raw stored column, which for the early stages is
-    // never written past "draft" (§4.2, `observedStatus`) -- a run visibly on
-    // "Finding promising moments" when the person clicked Stop is still
-    // `status: "draft"` in the row. Freezing on `stageForStatus(run.status)`
-    // unconditionally therefore always froze a cancelled run at "getting_video"
-    // regardless of how far it had actually gotten, because the intent --
-    // "the stage it stopped on is kept" -- was implemented against the wrong
-    // status. The observed status is what the person was actually looking at.
-    const observed = await this.observedStatus(run);
-    const cancelled = await this.prisma.repurposeRun.update({
-      where: { id: run.id },
-      data: {
-        status: "cancelled",
-        cancelledAt: new Date(),
-        // The stage it stopped on is kept, so the rail can still show where.
-        currentStage: stageForStatus(observed ?? run.status),
-      },
-    });
+    const cancelled = await this.require(workspaceId, runId);
 
     await this.audit.record({
       action: "repurpose.run.cancelled",
@@ -605,15 +897,81 @@ export class RepurposeService {
       data: { fromStatus: run.status },
     });
     await this.publishStage(cancelled);
+    // After the run reads `cancelled`, so each cancelled job's failure handler
+    // finds a stopped run and leaves it as it is.
+    await this.stopRunJobs(cancelled);
 
     // Completed artefacts are deliberately left alone: cancelling stops future
     // work, it does not delete what the person already has (§4.2).
     return this.toView(cancelled, await this.counts(run.id));
   }
 
+  /**
+   * "Nothing else will happen" has to be true: the download, the probe and
+   * proxy of the source, the transcription (the step that spends credits) and
+   * discovery still in flight for this run are cancelled, which releases their
+   * credit holds and their lane. Best effort — a job that finishes in the
+   * meantime answers 409; a download or a discovery that lands anyway is turned
+   * away by its completion handler, which checks for a stopped run.
+   *
+   * The probe and proxy matter because a proxy's success is what starts the
+   * transcription (`MediaProxyCompletionHandler` → `AutoTranscribeTrigger`),
+   * with no look at the run: a Stop pressed while the video was still being
+   * prepared used to start a paid transcription minutes later. A cancelled job's
+   * late completion is answered `already_completed` before any handler runs.
+   *
+   * Clip cuts are left to finish: a clip the person asked for is theirs, and a
+   * cancelled run keeps what it already made.
+   */
+  private async stopRunJobs(run: RepurposeRun): Promise<void> {
+    const live = await this.prisma.job.findMany({
+      where: {
+        workspaceId: run.workspaceId,
+        status: { in: ["queued", "running"] },
+        OR: [
+          { type: "media.acquire", jobKey: { startsWith: `media.acquire:${run.id}:` } },
+          { type: "ai.highlights", jobKey: { startsWith: `ai.highlights:${run.id}:` } },
+          // Every run makes its own source project, so these touch no one else's.
+          { type: { in: ["media.probe", "media.proxy"] }, projectId: run.sourceProjectId },
+          { type: "ai.transcribe", projectId: run.sourceProjectId },
+        ],
+      },
+      select: { id: true, type: true },
+    });
+    for (const job of live) {
+      try {
+        await this.jobs.cancel(job.id, run.workspaceId);
+      } catch (error) {
+        this.logger.warn(
+          { runId: run.id, jobId: job.id, type: job.type, err: error },
+          "could not cancel a job of a cancelled run; its completion is turned away",
+        );
+      }
+    }
+  }
+
+  /**
+   * "Try again" runs the stage that failed again (§3): fetches the link again,
+   * restarts the transcription, or looks for moments again — whichever the
+   * durable state says is missing (`RepurposeReconciler.redrive`). It used to
+   * set the run back to `draft` and enqueue nothing, so the run said "in
+   * progress" forever and also locked its link.
+   *
+   * A refusal that only means "not now" (a full plan lane) leaves the run open
+   * for the reconciler to finish; the answer is the run as it now stands.
+   */
   async retry(workspaceId: string, userId: string, runId: string): Promise<RunView> {
     await this.assertAvailable(workspaceId);
-    const run = await this.require(workspaceId, runId);
+    // Looked up first: another workspace's run is a 404 whatever else is true.
+    const found = await this.require(workspaceId, runId);
+    const reconciler = this.reconciler;
+    if (reconciler === undefined) {
+      // Only reachable in a harness that never booted the module.
+      throw new Error("RepurposeService.retry needs the run reconciler, which is not registered");
+    }
+    // A failure the durable state already shows (a failed download the
+    // throttled read has not written yet) is one the person can retry now.
+    const run = await reconciler.reconcile(found);
 
     if (!isRetryable(run.status)) {
       throw new AppException(
@@ -628,32 +986,11 @@ export class RepurposeService {
     // `repurpose_runs_live_source_idx` and surface as a raw database conflict
     // instead of a sentence, so it is checked first and refused in our own words.
     if (run.sourceFingerprint !== null) {
-      const live = await this.prisma.repurposeRun.findFirst({
-        where: {
-          workspaceId,
-          sourceFingerprint: run.sourceFingerprint,
-          id: { not: run.id },
-          status: { notIn: ["published", "failed", "cancelled"] },
-        },
-        select: { id: true },
-      });
-      if (live !== null) {
-        throw new AppException(
-          REPURPOSE_ERRORS.sourceDuplicate,
-          "You are already working on this video.",
-          HttpStatus.CONFLICT,
-        );
-      }
+      const duplicate = await this.duplicateOf(workspaceId, run.sourceFingerprint, run.id);
+      if (duplicate !== null) throw duplicate;
     }
 
-    // Clearing the failure and returning the run to the stage that owns the work
-    // is the whole of retry today. Re-enqueueing arrives with each stage's
-    // producer: acquisition in Wave 3, discovery in Wave 4, materialisation in
-    // Wave 6. Until then a retried run waits rather than pretending to progress.
-    const retried = await this.prisma.repurposeRun.update({
-      where: { id: run.id },
-      data: { status: "draft", failureCode: null, progress: 0 },
-    });
+    const retried = await reconciler.redrive(run);
 
     await this.audit.record({
       action: "repurpose.run.retried",
@@ -661,11 +998,14 @@ export class RepurposeService {
       resourceId: run.id,
       actorId: userId,
       workspaceId,
-      data: { fromStage: run.currentStage, fromFailureCode: run.failureCode },
+      data: {
+        fromStage: run.currentStage,
+        fromFailureCode: run.failureCode,
+        toStatus: retried.status,
+      },
     });
-    await this.publishStage(retried);
 
-    return this.toView(retried, await this.counts(run.id));
+    return this.toView(retried, await this.counts(run.id), await this.observe(retried));
   }
 
   /** The only way this module reads a run: workspace and id, together. */
@@ -706,8 +1046,11 @@ export class RepurposeService {
    * copy of the projection over in the handler — is how two surfaces start
    * disagreeing about what a run is doing.
    */
-  async publishStage(run: RepurposeRun): Promise<void> {
-    const projection = projectRun(run);
+  async publishStage(
+    run: RepurposeRun,
+    extras: { readonly candidateCount?: number } = {},
+  ): Promise<void> {
+    const projection = projectRun({ ...run, ...extras });
     await this.realtime.publish(workspaceRoom(run.workspaceId), "repurpose.stage.changed", {
       runId: run.id,
       status: run.status,
@@ -721,9 +1064,13 @@ export class RepurposeService {
   private toView(
     run: RepurposeRun,
     counts: { candidateCount: number; clipCount: number; variantCount: number },
-    observed: $Enums.RepurposeRunStatus | null = null,
+    observed: Observation | null = null,
   ): RunView {
-    const projection = projectRun(observed === null ? run : { ...run, status: observed });
+    const shown =
+      observed === null
+        ? run
+        : { ...run, status: observed.status, failureCode: observed.failureCode ?? run.failureCode };
+    const projection = projectRun({ ...shown, candidateCount: counts.candidateCount });
     return {
       id: run.id,
       workspaceId: run.workspaceId,
@@ -731,12 +1078,12 @@ export class RepurposeService {
       sourceKind: run.sourceKind,
       sourceDisplay: run.sourceDisplay,
       mode: run.mode,
-      status: observed ?? run.status,
+      status: shown.status,
       currentStage: projection.currentStage,
       progress: projection.progress,
       stages: projection.stages.map((stage) => ({ ...stage })),
       message: projection.message,
-      failureCode: run.failureCode,
+      failureCode: shown.failureCode,
       canCancel: projection.canCancel,
       canRetry: projection.canRetry,
       ...counts,
@@ -745,7 +1092,46 @@ export class RepurposeService {
     };
   }
 
-  async startHighlightDiscovery(run: RepurposeRun, transcriptId: string): Promise<string> {
+  /**
+   * Look for moments in the source's transcript (`ai.highlights`).
+   *
+   * Never fire-and-forget (2026-09-26): this used to be called from an
+   * in-memory event with every error logged and dropped, which left a run on
+   * "Finding promising moments" for good the first time an enqueue was
+   * refused. Now every outcome is recorded — a refusal leaves the run waiting
+   * with no job, which the reconciler notices and starts again; anything else
+   * fails the run with `repurpose/highlights_failed`, which a retry restarts.
+   *
+   * The run reads `analyzing` BEFORE the job exists, and only if it is still in
+   * an early status: a completion can land within a second of the enqueue, and
+   * writing `analyzing` after it used to drag a finished discovery back to 45%.
+   */
+  async startHighlightDiscovery(run: RepurposeRun, transcriptId: string): Promise<DiscoveryStart> {
+    if (run.mode === "manual") {
+      // "I know the timestamps": no suggestions were asked for (the form sends
+      // zero), so there is nothing to discover — the person picks the moments.
+      const next = {
+        status: "candidates_ready" as const,
+        currentStage: "finding_clips",
+        progress: 55,
+      };
+      const { count } = await this.prisma.repurposeRun.updateMany({
+        where: { id: run.id, status: { in: [...PRE_CANDIDATE_STATUSES] } },
+        data: next,
+      });
+      if (count === 0) return { outcome: "moved_on" };
+      await this.publishStage({ ...run, ...next }, { candidateCount: 0 });
+      return { outcome: "manual" };
+    }
+
+    const analyzing = { status: "analyzing" as const, currentStage: "finding_clips", progress: 45 };
+    const { count } = await this.prisma.repurposeRun.updateMany({
+      where: { id: run.id, status: { in: [...PRE_CANDIDATE_STATUSES] } },
+      data: analyzing,
+    });
+    if (count === 0) return { outcome: "moved_on" };
+    if (run.status !== "analyzing") await this.publishStage({ ...run, ...analyzing });
+
     const transcript = await this.prisma.transcript.findUnique({
       where: { id: transcriptId },
       select: { id: true, currentRevision: true },
@@ -790,27 +1176,77 @@ export class RepurposeService {
       featureVersion: "features-v1",
     };
 
-    const enqueued = await this.jobs.enqueue({
-      type: "ai.highlights",
+    try {
+      const enqueued = await this.jobs.enqueue({
+        type: "ai.highlights",
+        workspaceId: run.workspaceId,
+        projectId: run.sourceProjectId,
+        params: payload,
+        jobKey: highlightsJobKey(run.id, transcriptId, revision, "default"),
+        worstCaseTenths: 0,
+        reason: `ai.highlights · ${run.id}`,
+        // Free, and the second half of a run the workspace was already admitted
+        // for: the transcription that just finished can still be counted as in
+        // flight here (its handler runs before its row flips), so on the Free
+        // plan's two-job lane this was refused as often as not.
+        skipAdmission: true,
+      });
+      return { outcome: "queued", jobId: enqueued.job.id };
+    } catch (error) {
+      // "Not now": the queue is down, or the database blinked (a local restart,
+      // a full pool). Failing the run for either would make the person press
+      // Retry for something that clears by itself.
+      if (isRefusal(error) || isTransientDatabaseError(error)) {
+        this.logger.warn(
+          { runId: run.id, transcriptId, err: error },
+          "discovery refused for now; the run waits and the reconciler starts it again",
+        );
+        return { outcome: "deferred" };
+      }
+      this.logger.error({ runId: run.id, transcriptId, err: error }, "could not start discovery");
+      await this.failRun({ ...run, ...analyzing }, "repurpose/highlights_failed", "finding_clips");
+      return { outcome: "failed" };
+    }
+  }
+
+  /**
+   * Fail a run that has no moments yet, with a code from the one failure
+   * vocabulary (`failure-codes.ts`) and the stage it stopped on.
+   *
+   * Conditional on the run still being in an early status, which makes it safe
+   * to call from any completion, at least once: a run the person stopped, one
+   * already failed, or one that has moved on to its clips is left exactly as it
+   * is. A clip's failure never comes through here.
+   *
+   * @returns the failed run, or null when it had already moved on.
+   */
+  async failRun(
+    run: RepurposeRun,
+    code: RunFailureCode,
+    stage: Stage,
+  ): Promise<RepurposeRun | null> {
+    const { count } = await this.prisma.repurposeRun.updateMany({
+      where: { id: run.id, status: { in: [...PRE_CANDIDATE_STATUSES] } },
+      data: { status: "failed", failureCode: code, currentStage: stage, completedAt: new Date() },
+    });
+    if (count === 0) return null;
+
+    const failed = await this.prisma.repurposeRun.findUnique({ where: { id: run.id } });
+    if (failed === null) return null;
+    this.logger.log(
+      { runId: run.id, failureCode: code, stage, fromStatus: run.status },
+      "run failed",
+    );
+    await this.audit.record({
+      action: "repurpose.run.failed",
+      resource: "repurpose_run",
+      resourceId: run.id,
+      actorKind: "system",
       workspaceId: run.workspaceId,
-      projectId: run.sourceProjectId,
-      params: payload,
-      jobKey: highlightsJobKey(run.id, transcriptId, revision, "default"),
-      worstCaseTenths: 0,
-      reason: `ai.highlights · ${run.id}`,
+      data: { failureCode: code, stage, fromStatus: run.status },
     });
-
-    const updated = await this.prisma.repurposeRun.update({
-      where: { id: run.id },
-      data: {
-        status: "analyzing",
-        currentStage: "finding_clips",
-        progress: 45,
-      },
-    });
-    await this.publishStage(updated);
-
-    return enqueued.job.id;
+    await this.publishStage(failed);
+    return failed;
   }
 
   async listCandidates(workspaceId: string, runId: string) {
@@ -824,158 +1260,6 @@ export class RepurposeService {
       runId: run.id,
       candidates,
     };
-  }
-
-  async createClip(workspaceId: string, userId: string, runId: string, candidateId: string) {
-    await this.assertAvailable(workspaceId);
-    const run = await this.require(workspaceId, runId);
-    const candidate = await this.prisma.clipCandidate.findFirst({
-      where: { id: candidateId, runId: run.id },
-    });
-    if (!candidate) {
-      throw new AppException(
-        REPURPOSE_ERRORS.notFound,
-        "Clip candidate not found",
-        HttpStatus.NOT_FOUND,
-      );
-    }
-
-    let clip = await this.prisma.repurposeClip.findUnique({
-      where: { candidateId: candidate.id },
-    });
-
-    if (!clip) {
-      clip = await this.prisma.repurposeClip.create({
-        data: {
-          id: ulid(),
-          runId: run.id,
-          candidateId: candidate.id,
-          title: candidate.title,
-          sourceStartMs: candidate.startMs,
-          sourceEndMs: candidate.endMs,
-        },
-      });
-    }
-
-    const media = await this.prisma.mediaAsset.findFirst({
-      where: { projectId: run.sourceProjectId, role: "primary" },
-      orderBy: { createdAt: "desc" },
-    });
-
-    if (!media || !media.storageKey) {
-      throw new AppException(
-        REPURPOSE_ERRORS.sourceUnsupported,
-        "Source media asset is not ready",
-        HttpStatus.BAD_REQUEST,
-      );
-    }
-
-    const destKey = `ws/${workspaceId}/p/${run.sourceProjectId}/repurpose/${run.id}/clips/${candidate.id}/master.mp4`;
-
-    // No `subtitles`: the mezzanine is the clip project's primary media, and
-    // captions burned into it sat under every caption the editor drew and every
-    // export (2026-09-25). Captions come from the clip's editing document; the
-    // run page overlays the clip transcript as a text track for its preview.
-    const payload: MediaClipPayload = {
-      schemaVersion: 1,
-      runId: run.id,
-      candidateId: candidate.id,
-      clipId: clip.id,
-      source: {
-        bucket: "s3",
-        key: media.storageKey,
-      },
-      sourceDurationMs: media.durationMs ?? candidate.endMs + 5000,
-      startMs: candidate.startMs,
-      endMs: candidate.endMs,
-      handleMs: 500,
-      destination: {
-        bucket: "s3",
-        key: destKey,
-      },
-      profile: {
-        container: "mp4",
-        videoCodec: "h264",
-        audioCodec: "aac",
-        maxHeight: 1080,
-      },
-      profileVersion: CLIP_PROFILE_VERSION,
-    };
-
-    const enqueued = await this.jobs.enqueue({
-      type: "media.clip",
-      workspaceId,
-      projectId: run.sourceProjectId,
-      params: payload,
-      jobKey: mediaClipJobKey(
-        candidate.id,
-        `${candidate.startMs}-${candidate.endMs}`,
-        CLIP_PROFILE_VERSION,
-      ),
-      worstCaseTenths: 0,
-      reason: `media.clip · ${clip.id}`,
-    });
-
-    const updated = await this.prisma.repurposeRun.update({
-      where: { id: run.id },
-      data: {
-        status: "materializing",
-        currentStage: "styles_formats",
-        progress: 65,
-      },
-    });
-    await this.publishStage(updated);
-
-    return {
-      clipId: clip.id,
-      jobId: enqueued.job.id,
-      status: "materializing",
-    };
-  }
-
-  async listClips(workspaceId: string, runId: string) {
-    await this.assertAvailable(workspaceId);
-    const run = await this.require(workspaceId, runId);
-    const clips = await this.prisma.repurposeClip.findMany({
-      where: { runId: run.id },
-      include: {
-        candidate: true,
-        variants: {
-          include: {
-            project: {
-              include: {
-                mediaAssets: true,
-                exports: { orderBy: { createdAt: "desc" } },
-              },
-            },
-          },
-        },
-      },
-      orderBy: { createdAt: "asc" },
-    });
-
-    const enriched = await Promise.all(
-      clips.map(async (clip) => {
-        let mezzanineUrl: string | null = null;
-        if (clip.mezzanineKey && this.derivedStore) {
-          try {
-            mezzanineUrl = await this.derivedStore.presignGet(clip.mezzanineKey, 3600);
-          } catch {
-            // ignore
-          }
-        }
-        return {
-          ...clip,
-          mezzanineUrl,
-        };
-      }),
-    );
-
-    const serialized = JSON.parse(
-      JSON.stringify(enriched, (_, v) => (typeof v === "bigint" ? v.toString() : v)),
-    );
-
-    return { runId: run.id, clips: serialized };
   }
 
   async getPreview(workspaceId: string, runId: string) {
@@ -1022,7 +1306,10 @@ export class RepurposeService {
       "preparing_media",
       "transcribing",
       "analyzing",
-      "materializing",
+      // Not `materializing`: that is a run cutting its clips, and a clip that
+      // failed — or one waiting for the plan's lane to free — is the clip's,
+      // never the run's (clips hardening 2026-09-26, §4). Timing the run out
+      // there hid every finished clip behind a failure card.
       "rendering",
       "publishing",
     ];
@@ -1038,7 +1325,7 @@ export class RepurposeService {
 
     for (const run of runs) {
       // 1. Derive current stage the same way get()/list() do
-      const observed = await this.observedStatus(run);
+      const observed = (await this.observe(run))?.status ?? null;
       const effectiveStatus = observed ?? run.status;
 
       // Skip terminal runs
@@ -1205,15 +1492,19 @@ export class RepurposeService {
         "Repurpose run exceeded stage deadline; moving to failed state and releasing holds",
       );
 
-      // 1. Move run to terminal failed state
-      await this.prisma.repurposeRun.update({
-        where: { id: run.id },
+      // 1. Move run to terminal failed state -- only if it is still where it was
+      // read. Measuring a run takes a dozen queries, and a completion or the
+      // reconciler that moved it meanwhile gave the real answer, which a
+      // timeout must not overwrite.
+      const { count: timedOut } = await this.prisma.repurposeRun.updateMany({
+        where: { id: run.id, status: run.status },
         data: {
           status: "failed",
           failureCode: REPURPOSE_ERRORS.stageTimeout,
           currentStage,
         },
       });
+      if (timedOut === 0) continue;
 
       // 2. Publish realtime event with customer-readable message
       await this.realtime.publish(workspaceRoom(run.workspaceId), "repurpose.stage.changed", {

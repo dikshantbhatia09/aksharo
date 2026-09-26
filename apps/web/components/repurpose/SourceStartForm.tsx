@@ -28,6 +28,7 @@
  *     attached to the control rather than as a detached alert.
  */
 import { ChevronRight } from "lucide-react";
+import NextLink from "next/link";
 import * as React from "react";
 
 import { Button, Field, Input, cn } from "@montaj/ui";
@@ -35,6 +36,7 @@ import { Button, Field, Input, cn } from "@montaj/ui";
 import { PICKABLE_STYLES } from "@/components/editor/panels/system-styles";
 import { LanguagePicker } from "@/components/projects/language-picker";
 import { WritingScriptPicker } from "@/components/projects/writing-script-picker";
+import { isPlausibleLink, normaliseSourceLink } from "@/components/repurpose/source-link";
 
 export interface StartFormValue {
   readonly tab: "link" | "upload";
@@ -100,19 +102,43 @@ export interface StartFormProblems {
   readonly style?: string;
 }
 
-/** Everything wrong with the form right now, keyed by field. */
-export function validateStartForm(value: StartFormValue): StartFormProblems {
+/** A plan's file cap as a person reads it: "500 MB", "2 GB". */
+function formatPlanBytes(bytes: number): string {
+  const gb = bytes / (1024 * 1024 * 1024);
+  if (gb >= 1) return `${gb % 1 === 0 ? gb.toFixed(0) : gb.toFixed(1)} GB`;
+  return `${String(Math.round(bytes / (1024 * 1024)))} MB`;
+}
+
+/**
+ * Everything wrong with the form right now, keyed by field.
+ *
+ * `maxFileBytes` is the plan's upload cap, when the entitlement has loaded. An
+ * upload over it used to create a run first and only then be refused by the
+ * upload itself, leaving a run on "Getting your video" for ever (clips
+ * hardening, 2026-09-26); now it is refused here, before anything exists.
+ */
+export function validateStartForm(
+  value: StartFormValue,
+  limits: { readonly maxFileBytes?: number } = {},
+): StartFormProblems {
   const problems: { -readonly [K in keyof StartFormProblems]: string } = {};
+  const cap = limits.maxFileBytes;
 
   if (value.tab === "link") {
-    const url = value.url.trim();
+    // Validate what will be SENT: a scheme-less or http link is normalised to
+    // https first, the way `/repurpose` and Home already let people paste it.
+    const url = normaliseSourceLink(value.url);
     if (url === "") problems.url = "Paste a link to your video.";
-    else if (!url.startsWith("https://")) problems.url = "Links must start with https://";
+    else if (!isPlausibleLink(url)) {
+      problems.url = "Paste the link to one YouTube video, like youtube.com/watch?v=…";
+    }
     if (!value.rightsAttested) {
       problems.rights = "Please confirm you own this video or have permission to use it.";
     }
   } else if (value.file === null) {
     problems.file = "Choose a video from your device.";
+  } else if (cap !== undefined && Number.isFinite(cap) && cap > 0 && value.file.size > cap) {
+    problems.file = `This file is larger than your plan allows (up to ${formatPlanBytes(cap)}). Choose a smaller copy.`;
   }
 
   if (value.sourceLanguage === undefined) {
@@ -135,6 +161,13 @@ export interface SourceStartFormProps {
   readonly submitting?: boolean;
   /** A server-side refusal, already in plain language. */
   readonly serverError?: string | null;
+  /**
+   * The live run this link already belongs to, when the refusal was "you are
+   * already working on this video": the way out is that run, not a dead end.
+   */
+  readonly existingRunId?: string | null;
+  /** The plan's upload cap, once known; an upload over it is refused here. */
+  readonly maxFileBytes?: number;
   readonly className?: string;
 }
 
@@ -144,11 +177,16 @@ export function SourceStartForm({
   onSubmit,
   submitting = false,
   serverError = null,
+  existingRunId = null,
+  maxFileBytes,
   className,
 }: SourceStartFormProps): React.JSX.Element {
   const [showProblems, setShowProblems] = React.useState(false);
   const [advancedOpen, setAdvancedOpen] = React.useState(false);
-  const problems = validateStartForm(value);
+  const problems = validateStartForm(
+    value,
+    maxFileBytes === undefined ? {} : { maxFileBytes },
+  );
   const visible = showProblems ? problems : {};
 
   const set = <K extends keyof StartFormValue>(key: K, next: StartFormValue[K]): void => {
@@ -184,7 +222,15 @@ export function SourceStartForm({
   };
 
   return (
-    <form onSubmit={submit} data-testid="repurpose-start-form" className={cn("space-y-6", className)}>
+    // `noValidate`: the browser's own `type="url"` check blocks a scheme-less
+    // link before `validateStartForm` can normalise it, and says so in a
+    // tooltip no screen reader is pointed at.
+    <form
+      onSubmit={submit}
+      noValidate
+      data-testid="repurpose-start-form"
+      className={cn("space-y-6", className)}
+    >
       <section className="space-y-4" aria-labelledby="repurpose-source-heading">
         <h2 id="repurpose-source-heading" className="text-base text-fg-0">
           Your video
@@ -484,6 +530,13 @@ export function SourceStartForm({
               </label>
             ))}
           </div>
+          {value.method === "manual" && (
+            // Says where the timestamps go, since this form has no field for them.
+            <p className="mt-1 text-xs text-fg-2" data-testid="method-manual-hint">
+              Once the transcript is ready, you add each moment by its start and end time on the
+              next page.
+            </p>
+          )}
         </fieldset>
 
         <div className="border-t border-border pt-4">
@@ -537,9 +590,22 @@ export function SourceStartForm({
       </section>
 
       {serverError !== null && (
-        <p role="alert" className="text-sm text-rejected" data-testid="start-server-error">
-          {serverError}
-        </p>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <p role="alert" className="m-0 text-sm text-rejected" data-testid="start-server-error">
+            {serverError}
+          </p>
+          {existingRunId === null ? null : (
+            <Button variant="secondary" size="sm" asChild>
+              <NextLink
+                href={`/repurpose/${existingRunId}`}
+                className="no-underline"
+                data-testid="start-existing-run"
+              >
+                Open the existing run
+              </NextLink>
+            </Button>
+          )}
+        </div>
       )}
 
       <Button type="submit" variant="primary" disabled={submitting} data-testid="start-run">

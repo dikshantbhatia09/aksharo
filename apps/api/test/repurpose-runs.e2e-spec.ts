@@ -34,6 +34,7 @@ import { PLAN_SEEDS } from "../prisma/seed-data.js";
 import { IdempotencyService } from "../src/public-api/v1/idempotency.service.js";
 import { withIdempotency } from "../src/public-api/v1/idempotent.helper.js";
 import { RepurposeHighlightsCompletionHandler } from "../src/repurpose/highlights-completion.handler.js";
+import { RepurposeReconciler } from "../src/repurpose/reconciler.js";
 import { beginnerSafetyViolations } from "../src/repurpose/repurpose.projection.js";
 import { RepurposeService } from "../src/repurpose/repurpose.service.js";
 import { EntitlementService } from "../src/workspaces/entitlement.service.js";
@@ -49,7 +50,9 @@ import type { JobsService } from "../src/jobs/jobs.service.js";
 import type { MediaService } from "../src/media/media.service.js";
 import type { ProjectsService } from "../src/projects/projects.service.js";
 import type { RealtimePublisher } from "../src/realtime/realtime.publisher.js";
+import type { RepurposeClipsService } from "../src/repurpose/repurpose-clips.service.js";
 import type { StylesService } from "../src/styles/styles.service.js";
+import type { AutoTranscribeTrigger } from "../src/transcripts/auto-transcribe.trigger.js";
 import type { Job, PrismaClient } from "@prisma/client";
 import type { Request } from "express";
 
@@ -222,7 +225,7 @@ async function makeService(): Promise<RepurposeService> {
 
   const env = { FEATURE_FLAGS_JSON: {} } as unknown as Env;
 
-  return new RepurposeService(
+  const service = new RepurposeService(
     prisma as unknown as PrismaService,
     fakeProjects(),
     fakeMedia(),
@@ -235,6 +238,15 @@ async function makeService(): Promise<RepurposeService> {
     fakeCredits(),
     undefined,
   );
+  // Retry re-drives a run through the reconciler (2026-09-26); the module
+  // registers it at boot, a hand-built harness has to do the same.
+  new RepurposeReconciler(
+    prisma as unknown as PrismaService,
+    service,
+    { maybeEnqueue: async () => undefined } as unknown as AutoTranscribeTrigger,
+    { reconcileClips: async () => undefined } as unknown as RepurposeClipsService,
+  ).onModuleInit();
+  return service;
 }
 
 /** Set a rollout flag's row, then drop the entitlement cache that reads it. */
@@ -977,10 +989,13 @@ describe.skipIf(!CAN_RUN)("repurpose run CRUD (REP-006)", () => {
         code: "repurpose/source_already_running",
       });
 
-      // Once the newer one is out of the way, the retry goes through.
+      // Once the newer one is out of the way, the retry goes through - and it
+      // really fetches again (2026-09-26: it used to reset the row and queue
+      // nothing, so the run sat "in progress" forever).
       await service.cancel(WORKSPACE_A, USER_A, second.run.id);
       await expect(service.retry(WORKSPACE_A, USER_A, first.run.id)).resolves.toMatchObject({
-        status: "draft",
+        status: "acquiring",
+        failureCode: null,
       });
     });
 

@@ -1,8 +1,6 @@
 import { HttpStatus, Inject, Injectable } from "@nestjs/common";
 import { ulid } from "ulid";
 
-import type { EdgProjection } from "@montaj/render-core";
-
 import {
   SHARE_AUTO_DISABLE_REPORT_THRESHOLD,
   SHARE_ERRORS,
@@ -13,9 +11,9 @@ import { generateShareToken, ShareSessionSigner } from "./token.js";
 import { PasswordService } from "../auth/password.service.js";
 import { CommonAuditService } from "../common/audit/audit.service.js";
 import { AppException, PrismaService } from "../common/index.js";
-import { DERIVED_STORE, DOWNLOAD_URL_TTL_SECONDS } from "../common/storage/index.js";
+import { DERIVED_STORE } from "../common/storage/index.js";
 import { EdgRepository } from "../edg/index.js";
-import { buildRenderProjection } from "../exports/projection.js";
+import { buildRenderPreview, type RenderPreview } from "../projects/render-preview.js";
 
 import type { CreateShareLinkDto } from "./share.dto.js";
 import type { ObjectStore } from "../common/index.js";
@@ -404,19 +402,11 @@ export class ShareLinksService {
    *
    * Reuses `EdgRepository.projectionOf` unchanged (the same call
    * `ExportsModule` makes to render) so the public viewer and the real
-   * exporter can never disagree about what a caption looks like.
+   * exporter can never disagree about what a caption looks like. The building
+   * itself is `buildRenderPreview`, shared with the workspace-side
+   * `GET /projects/{id}/render-preview` a run page's clip preview reads.
    */
-  async preview(
-    token: string,
-    sessionValue: string | undefined,
-  ): Promise<{
-    readonly proxyUrl: string;
-    /** `faces.json`, so the viewer keeps captions off faces as the export does. */
-    readonly facesUrl?: string;
-    readonly durationMs: number | null;
-    readonly aspect: string;
-    readonly projection: EdgProjection | null;
-  }> {
+  async preview(token: string, sessionValue: string | undefined): Promise<RenderPreview> {
     const { project, unlocked } = await this.resolve(token, sessionValue);
     if (!unlocked) {
       throw new AppException(
@@ -426,49 +416,17 @@ export class ShareLinksService {
       );
     }
 
-    const media = await this.prisma.mediaAsset.findFirst({
-      where: { projectId: project.id, role: "primary", status: "ready" },
-      orderBy: { createdAt: "desc" },
-    });
-    if (media === null || media.proxyKey === null || media.proxyKey === "") {
+    const preview = await buildRenderPreview(
+      { prisma: this.prisma, edg: this.edg, derived: this.derivedStore },
+      project,
+    );
+    if (preview === null) {
       throw new AppException(
         SHARE_ERRORS.notFound,
         "This project has no playable preview yet.",
         HttpStatus.CONFLICT,
       );
     }
-
-    const edgDocument = await this.prisma.edgDocument.findUnique({
-      where: { projectId: project.id },
-      select: { id: true },
-    });
-
-    const proxyUrl = await this.derivedStore.presignGet(media.proxyKey, DOWNLOAD_URL_TTL_SECONDS);
-    let projection: EdgProjection | null = null;
-    if (edgDocument !== null) {
-      const edg = await this.edg.projectionOf(edgDocument.id);
-      const chunks = await this.edg.loadChunks(edg.transcript.transcriptId);
-      const built = buildRenderProjection(edg, chunks);
-      projection = {
-        canvas: built.canvas,
-        styles: edg.styles as EdgProjection["styles"],
-        ...(edg.render === undefined ? {} : { render: edg.render as EdgProjection["render"] }),
-        segments: built.segments,
-        words: built.words,
-        ...(built.speakerColours === undefined ? {} : { speakerColours: built.speakerColours }),
-      };
-    }
-
-    const facesUrl =
-      media.facesKey === null
-        ? undefined
-        : await this.derivedStore.presignGet(media.facesKey, DOWNLOAD_URL_TTL_SECONDS);
-    return {
-      proxyUrl,
-      ...(facesUrl === undefined ? {} : { facesUrl }),
-      durationMs: media.durationMs,
-      aspect: project.aspect,
-      projection,
-    };
+    return preview;
   }
 }

@@ -71,6 +71,15 @@ export class AutoTranscribeTrigger {
     });
     if (project === null || project.edgDocument !== null) return undefined;
 
+    // A clips run cancelled after its download finished still reaches here when
+    // the proxy completes. Starting a paid transcription for it is spending the
+    // user's credits on something they stopped.
+    const cancelledRun = await this.prisma.repurposeRun.findFirst({
+      where: { sourceProjectId: project.id, status: "cancelled" },
+      select: { id: true },
+    });
+    if (cancelledRun !== null) return undefined;
+
     const transcripts = await this.prisma.transcript.count({ where: { projectId: project.id } });
     if (transcripts > 0) {
       await this.buildDocument(project.id, media.id);

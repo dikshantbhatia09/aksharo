@@ -342,6 +342,8 @@ export class MediaService {
         audio16kKey: null,
         audio48kKey: null,
         waveformKey: null,
+        // The faces were found in the old picture; the new one gets its own.
+        facesKey: null,
         thumbKeys: [],
         rawPurgedAt: null,
         derivedPurgedAt: null,

@@ -145,6 +145,15 @@ export function messageForStatus(status: $Enums.RepurposeRunStatus): string {
   return MESSAGE_BY_STATUS[status];
 }
 
+/**
+ * `candidates_ready` with nothing to pick (2026-09-26). An empty suggestion list
+ * is a legitimate answer — a manual-mode run asks for none, and discovery can
+ * find no moment worth cutting — and "your suggested moments are ready" over an
+ * empty list read as a page that had failed to load them. The page offers adding
+ * a moment by its times instead.
+ */
+export const NO_CANDIDATES_MESSAGE = "Your video is ready. Add the moments you want to clip.";
+
 export function progressForStatus(status: $Enums.RepurposeRunStatus): number {
   // eslint-disable-next-line security/detect-object-injection -- lookup on a closed enum key, not attacker-controlled
   return PROGRESS_BY_STATUS[status];
@@ -197,6 +206,8 @@ export function projectRun(input: {
   readonly currentStage: string;
   readonly failureCode: string | null;
   readonly progress?: number;
+  /** When known: `candidates_ready` with none says so rather than promising some. */
+  readonly candidateCount?: number;
 }): RunProjection {
   const stored = (STAGES as readonly string[]).includes(input.currentStage)
     ? (input.currentStage as Stage)
@@ -234,7 +245,10 @@ export function projectRun(input: {
         ? input.progress
         : progressForStatus(input.status),
     stages,
-    message: messageForStatus(input.status),
+    message:
+      input.status === "candidates_ready" && input.candidateCount === 0
+        ? NO_CANDIDATES_MESSAGE
+        : messageForStatus(input.status),
     failureCode: input.failureCode,
     canCancel: isCancellable(input.status),
     canRetry: isRetryable(input.status),

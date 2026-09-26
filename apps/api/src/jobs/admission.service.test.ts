@@ -112,6 +112,30 @@ describe("admit", () => {
     });
   });
 
+  it("does not count background face detection against the lane", async () => {
+    // Two `ai.faces` jobs used to fill the Free plan's two-job lane, and the
+    // transcription or highlight discovery behind them was refused (2026-09-26).
+    db.plans.set(WS, "free");
+    for (let index = 0; index < PLAN_CONCURRENCY_LANE.free; index += 1) {
+      db.job({ workspaceId: WS, status: "running", type: "ai.faces" });
+    }
+    db.job({ workspaceId: WS, status: "queued", type: "ai.transcribe" });
+
+    const decision = await admission.admit({ workspaceId: WS, worstCaseTenths: 10 });
+    expect(decision.inFlightJobs).toBe(1);
+  });
+
+  it("still counts every other job type against the lane", async () => {
+    db.plans.set(WS, "free");
+    db.job({ workspaceId: WS, status: "running", type: "media.proxy" });
+    db.job({ workspaceId: WS, status: "queued", type: "ai.highlights" });
+
+    const failure = await admission
+      .admit({ workspaceId: WS, worstCaseTenths: 1 })
+      .catch((error: unknown) => error);
+    expect((failure as AppException).code).toBe("jobs/concurrency_cap");
+  });
+
   it("checks the lane before the credit cap, so the cheaper answer wins", async () => {
     db.plans.set(WS, "free");
     for (let index = 0; index < PLAN_CONCURRENCY_LANE.free; index += 1) {

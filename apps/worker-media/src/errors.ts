@@ -85,13 +85,41 @@ export function unreadableMedia(
 }
 
 /**
+ * An external source said no in a way the user can act on: too big, private,
+ * removed, a playlist, or a site that is refusing this server for now.
+ *
+ * Never retried by BullMQ — the answer will be the same in ten seconds, and for
+ * a bot check or a rate limit a quick retry makes the block worse. The job's
+ * error `code` IS the reason, so the API can read it off either the media row or
+ * the job (the same convention `proxy.handler.ts`'s `failureReasonOf` reads).
+ */
+export function sourceRefused(
+  reason: MediaFailureReason,
+  message: string,
+  detail?: string,
+): MediaJobError {
+  return new MediaJobError(reason, message, {
+    retryable: false,
+    reason,
+    ...(detail === undefined ? {} : { detail }),
+  });
+}
+
+/**
  * Everything that might work next time: the store was slow, the signed URL had
  * expired, ffmpeg was killed by the host.
+ *
+ * `reason` is what the user is told if the retries run out; without one the
+ * runtime falls back to its queue's default.
  */
 export function transientFailure(
   code: string,
   message: string,
-  options: { readonly detail?: string; readonly cause?: unknown } = {},
+  options: {
+    readonly detail?: string;
+    readonly cause?: unknown;
+    readonly reason?: MediaFailureReason;
+  } = {},
 ): MediaJobError {
   return new MediaJobError(code, message, { retryable: true, ...options });
 }

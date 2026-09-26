@@ -12,9 +12,16 @@
  * one says what it is waiting for. That is the honest version of the "mock
  * fixture panel" the plan allows, and it needs no development-only branch that
  * could ship by accident.
+ *
+ * Clips hardening (2026-09-26) changed three things about what a failure does
+ * here. A failed run shows its error card ABOVE its moments and clips, never
+ * instead of them, so a finished clip cannot disappear behind someone else's
+ * failure. The card's action is the failure's own: the same link again, another
+ * video with the setup kept, or the link pre-filled to fix. And every clip
+ * carries its own state and its own "Try again".
  */
-import { Download, Loader2 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import * as React from "react";
 
 import {
@@ -22,17 +29,21 @@ import {
   type RepurposeCandidateItem,
   type RepurposeClipItem,
   useCancelRepurposeRun,
-  useCreateRepurposeClip,
   useRepurposeCandidates,
   useRepurposeClips,
+  useRepurposePreview,
   useRepurposeRun,
   useRetryRepurposeRun,
 } from "@montaj/api-client";
-import { Badge, Button, PageHeader, Skeleton } from "@montaj/ui";
+import { Button, PageHeader, Skeleton } from "@montaj/ui";
 
 import type { StageKey } from "@/components/repurpose/copy";
 
-import { ClipPreview } from "@/components/repurpose/ClipPreview";
+import { AddMomentForm } from "@/components/repurpose/AddMomentForm";
+import { CandidateCard } from "@/components/repurpose/CandidateCard";
+import { describeRefusal, type Refusal } from "@/components/repurpose/refusal";
+import { canAddMoments, runActivity } from "@/components/repurpose/run-activity";
+import { newRunHref, recallRunSetup } from "@/components/repurpose/run-setup";
 import { PersistentPreview, RunActionBar } from "@/components/repurpose/RunActionBar";
 import { RunStageRail } from "@/components/repurpose/RunStageRail";
 import { StageErrorCard, StagePanel } from "@/components/repurpose/StagePanel";
@@ -46,22 +57,50 @@ const STAGE_WAITING_NOTE: Readonly<Record<StageKey, string>> = Object.freeze({
   publish: "Connect accounts and choose where each video goes. Nothing is posted without you.",
 });
 
-/** `m:ss` for a position in the source video. */
-function formatClock(ms: number): string {
-  const minutes = Math.floor(ms / 60000);
-  const seconds = Math.floor((ms % 60000) / 1000);
-  return `${String(minutes)}:${String(seconds).padStart(2, "0")}`;
-}
+/** Statuses after discovery has had its say: an empty list now means "none found". */
+const ANALYSIS_DONE: ReadonlySet<string> = new Set([
+  "candidates_ready",
+  "materializing",
+  "rendering",
+  "review_ready",
+  "changes_requested",
+  "approved",
+  "publishing",
+  "partially_published",
+  "published",
+]);
+
+/** Discovery is under way: moments are expected any moment, so the list polls. */
+const DISCOVERING: ReadonlySet<string> = new Set(["transcribing", "analyzing"]);
 
 export function RepurposeRunView({ runId }: { readonly runId: string }): React.JSX.Element {
+  const router = useRouter();
   const query = useRepurposeRun(runId);
   const cancel = useCancelRepurposeRun();
   const retry = useRetryRepurposeRun();
-  const candidatesQuery = useRepurposeCandidates(runId);
-  const clipsQuery = useRepurposeClips(runId);
-  const createClip = useCreateRepurposeClip();
+  // Every hook sits above the early returns, so the options read the run
+  // through `query.data` rather than the narrowed `run` below.
+  const candidatesQuery = useRepurposeCandidates(runId, {
+    poll: DISCOVERING.has(query.data?.status ?? ""),
+    ...(query.data === undefined ? {} : { expectedCount: query.data.candidateCount }),
+  });
+  // A stopped run's waiting clips never start, so they are not polled for.
+  const clipsQuery = useRepurposeClips(runId, { runStopped: query.data?.status === "cancelled" });
+  // A manual run shows the form from the start (disabled until the transcript
+  // exists), except once it has failed before that point: then it never will.
+  const momentsVisible =
+    query.data !== undefined &&
+    !["cancelled", "published"].includes(query.data.status) &&
+    ((query.data.mode === "manual" && query.data.status !== "failed") || canAddMoments(query.data));
+  // Only for the source's length, which bounds "Add a moment by time".
+  const sourcePreview = useRepurposePreview(momentsVisible ? runId : null);
   const [openStage, setOpenStage] = React.useState<StageKey | null>(null);
   const [blockedNote, setBlockedNote] = React.useState<string | null>(null);
+  const [retryError, setRetryError] = React.useState<Refusal | null>(null);
+  // The one clip whose preview holds a live caption stage (`ClipPreview`).
+  const [activePreview, setActivePreview] = React.useState<string | null>(null);
+  const [momentFormOpened, setMomentFormOpened] = React.useState(false);
+  const momentFormRef = React.useRef<HTMLDivElement>(null);
 
   if (query.isPending) {
     return (
@@ -102,10 +141,99 @@ export function RepurposeRunView({ runId }: { readonly runId: string }): React.J
   const run = query.data;
   const currentStage = run.currentStage as StageKey;
   const expanded = openStage ?? currentStage;
-  const busy = !["draft", "published", "failed", "cancelled"].includes(run.status);
+  const activity = runActivity(run);
+  const failed = activity === "failed";
+  // "We'll keep working" is only true while the server is: not on a run that
+  // is waiting for the person, and not on one that stopped.
+  const busy = activity === "working" && run.status !== "draft";
 
   const stageIndex = run.stages.findIndex((entry) => entry.stage === expanded);
   const candidates = candidatesQuery.data?.candidates ?? [];
+  const clips = clipsQuery.data?.clips ?? [];
+  const momentsAllowed = canAddMoments(run);
+  // The run's own count says moments exist that the (separately polled) list
+  // does not hold yet. For those few seconds the list is behind, not empty:
+  // "we did not find a moment" under "your moments are ready" was wrong.
+  const momentsLoading = candidates.length === 0 && run.candidateCount > 0;
+  // Manual runs are MADE of moments added by time, so the form is always open
+  // there; after an empty discovery it is the way forward, so it opens too.
+  // Once the person uses it, it stays open (`onOpenChange`), so adding the first
+  // moment — or discovery landing mid-typing — does not fold it away.
+  const momentFormOpen =
+    momentFormOpened ||
+    run.mode === "manual" ||
+    (candidates.length === 0 && run.candidateCount === 0);
+  const sourceDurationMs =
+    sourcePreview.data !== undefined && sourcePreview.data.durationMs > 0
+      ? sourcePreview.data.durationMs
+      : null;
+  // A failed run with nothing to show below its card shows only the card.
+  const showPanel = !failed || candidates.length > 0 || clips.length > 0 || momentsVisible;
+
+  const setup = recallRunSetup(run.id);
+  const chooseAnother = (): void => {
+    router.push(newRunHref(setup, { keepLink: false }));
+  };
+  const checkLink = (): void => {
+    router.push(newRunHref(setup, { keepLink: true }));
+  };
+  const openMomentForm = (): void => {
+    setMomentFormOpened(true);
+    momentFormRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+  };
+  const tryAgain = (): void => {
+    setRetryError(null);
+    retry.mutate(run.id, {
+      onError: (error) => {
+        // Refused because the same link was started again meanwhile: the way
+        // forward is that run, so the card links to it.
+        setRetryError(describeRefusal(error, "retry"));
+        // A 409 usually means the run already moved on; show where it is.
+        if (isApiError(error) && error.status === 409) void query.refetch();
+      },
+    });
+  };
+
+  let emptyNote: { readonly text: string; readonly testId: string } | null = null;
+  if (candidates.length === 0) {
+    if (candidatesQuery.isError) {
+      emptyNote = {
+        text: "Your moments could not be loaded. Refresh the page to try again.",
+        testId: "candidates-error",
+      };
+    } else if (momentsLoading) {
+      // The list's own poll (`expectedCount`) catches up within seconds.
+      emptyNote = { text: "Loading your moments…", testId: "candidates-loading" };
+    } else if (run.mode === "manual" && momentsAllowed) {
+      emptyNote = {
+        text: "Add each moment you want as a clip by its start and end time.",
+        testId: "candidates-empty",
+      };
+    } else if (run.mode === "manual" && !failed && expanded === "finding_clips") {
+      // Nothing is being suggested on a manual run, so "suggested moments
+      // appear here" would promise something that is not coming.
+      emptyNote = {
+        text: "Once the transcript is ready, add each moment you want by its start and end time.",
+        testId: "candidates-manual-wait",
+      };
+    } else if (
+      ANALYSIS_DONE.has(run.status) &&
+      candidatesQuery.isSuccess &&
+      run.candidateCount === 0
+    ) {
+      // Discovery finished and found nothing. Say so, and hand over the tool
+      // that still works, rather than promising moments that are not coming.
+      emptyNote = {
+        text: "We did not find a moment worth suggesting in this video. Add one by its start and end time below.",
+        testId: "candidates-empty",
+      };
+    } else if (failed && momentsAllowed) {
+      emptyNote = {
+        text: "You can still add a moment by its start and end time.",
+        testId: "candidates-empty",
+      };
+    }
+  }
 
   return (
     <div
@@ -123,12 +251,19 @@ export function RepurposeRunView({ runId }: { readonly runId: string }): React.J
               {run.sourceDisplay ?? (run.sourceKind === "upload" ? "Your upload" : "Your video")}
             </span>
           }
-          description={<span data-testid="run-status">{run.message}</span>}
+          description={
+            <span data-testid="run-status">
+              {/* The card below says what went wrong; the header only says
+                  where the run is, instead of "Something went wrong" twice. */}
+              {failed ? "This run stopped before it finished." : run.message}
+            </span>
+          }
         />
 
         <div className="flex flex-col gap-2">
           <RunStageRail
             stages={run.stages}
+            activity={activity}
             onOpenStage={(stage) => {
               setBlockedNote(null);
               setOpenStage(stage);
@@ -148,31 +283,33 @@ export function RepurposeRunView({ runId }: { readonly runId: string }): React.J
         </div>
 
         <div className="flex flex-col gap-4">
-          {run.status === "failed" ? (
+          {failed && (
+            // ABOVE the moments and clips, never instead of them: a finished
+            // clip must not disappear because something else went wrong.
             <StageErrorCard
               code={run.failureCode}
               // The run id IS the support code: it is already in every log line
               // and every audit row for this run.
               supportCode={run.id}
               retrying={retry.isPending}
-              onRetry={
-                run.canRetry
-                  ? () => {
-                      retry.mutate(run.id);
-                    }
-                  : undefined
-              }
-              onChooseAnother={() => {
-                window.location.assign("/repurpose/new");
-              }}
+              retryError={retryError?.text ?? null}
+              existingRunId={retryError?.existingRunId ?? null}
+              {...(run.canRetry ? { onRetry: tryAgain } : {})}
+              onChooseAnother={chooseAnother}
+              // Only a link can be checked; an upload has none to pre-fill.
+              {...(run.sourceKind === "upload" ? {} : { onCheckLink: checkLink })}
+              {...(momentsAllowed ? { onAddMoment: openMomentForm } : {})}
             />
-          ) : (
+          )}
+
+          {showPanel && (
             <StagePanel
               stage={expanded}
               index={stageIndex < 0 ? undefined : stageIndex + 1}
               // eslint-disable-next-line security/detect-object-injection -- bounded stage index
               note={run.stages[stageIndex]?.label}
-              message={run.message}
+              // A failed run's card already says what happened.
+              {...(failed ? {} : { message: run.message })}
               busy={busy && expanded === currentStage}
             >
               {candidates.length > 0 ? (
@@ -180,8 +317,9 @@ export function RepurposeRunView({ runId }: { readonly runId: string }): React.J
                   <p className="m-0 text-sm text-fg-1" data-testid={`stage-note-${expanded}`}>
                     {candidates.length === 1
                       ? "1 moment found."
-                      : `${String(candidates.length)} moments found.`}{" "}
-                    Create a vertical 9:16 clip from any of them.
+                      : `${String(candidates.length)} moments found.`}
+                    {/* A stopped run makes no new clips; it only keeps what it made. */}
+                    {activity === "stopped" ? "" : " Create a vertical 9:16 clip from any of them."}
                   </p>
 
                   <ul
@@ -189,132 +327,54 @@ export function RepurposeRunView({ runId }: { readonly runId: string }): React.J
                     data-testid="candidates-list"
                   >
                     {candidates.map((cand: RepurposeCandidateItem) => {
-                      const matchingClip = clipsQuery.data?.clips?.find(
-                        (c: RepurposeClipItem) => c.candidateId === cand.id,
+                      const clip = clips.find(
+                        (entry: RepurposeClipItem) => entry.candidateId === cand.id,
                       );
-                      const isCreating =
-                        createClip.isPending && createClip.variables?.candidateId === cand.id;
-                      // Never invent a score: a candidate without one shows none.
-                      const score = cand.potentialScore ?? cand.score;
-                      const title = cand.title ?? cand.headline ?? "Suggested moment";
-                      // The clip's own project: where its captions live and are exported.
-                      const clipProjectId = matchingClip?.variants?.[0]?.projectId;
-
                       return (
-                        <li
+                        <CandidateCard
                           key={cand.id}
-                          className="flex flex-col gap-3 rounded-md border border-border bg-bg-0 p-4"
-                          data-testid={`candidate-card-${cand.id}`}
-                        >
-                          <div className="flex flex-wrap items-start justify-between gap-3">
-                            <div className="min-w-0 flex-[1_1_240px]">
-                              <div className="flex flex-wrap items-center gap-2">
-                                {score === undefined || score === null ? null : (
-                                  <Badge tone="neutral">Potential {String(score)}%</Badge>
-                                )}
-                                <span className="font-mono text-2xs text-fg-2">
-                                  {formatClock(cand.startMs)} – {formatClock(cand.endMs)} (
-                                  {String(Math.round((cand.endMs - cand.startMs) / 1000))}s)
-                                </span>
-                              </div>
-                              <h3 className="mt-1.5 text-sm font-semibold text-fg-0">{title}</h3>
-                              {(cand.transcriptExcerpt || cand.reason) && (
-                                <p className="mt-1 line-clamp-2 text-sm text-fg-2">
-                                  {cand.transcriptExcerpt ?? cand.reason}
-                                </p>
-                              )}
-                            </div>
-
-                            <div className="flex shrink-0 items-center gap-2">
-                              {matchingClip ? (
-                                matchingClip.mezzanineUrl ? (
-                                  <>
-                                    {/* The captioned video is an export from the clip's own
-                                        project; the download is the clean picture it starts from. */}
-                                    {clipProjectId === undefined ? null : (
-                                      <Button variant="secondary" size="sm" asChild>
-                                        <Link
-                                          href={`/p/${clipProjectId}`}
-                                          className="no-underline"
-                                          aria-label={`Open in editor: ${title}`}
-                                          data-testid={`open-clip-${cand.id}`}
-                                        >
-                                          Open in editor
-                                        </Link>
-                                      </Button>
-                                    )}
-                                    <Button variant="ghost" size="sm" asChild>
-                                      <a
-                                        href={matchingClip.mezzanineUrl}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        download={`clip-${cand.id}.mp4`}
-                                        className="no-underline"
-                                        title="The 9:16 video without captions. Export from the editor for a captioned one."
-                                        aria-label={`Download video without captions: ${title}`}
-                                        data-testid={`download-clip-${cand.id}`}
-                                      >
-                                        <Download strokeWidth={1.75} aria-hidden="true" />
-                                        Download video
-                                      </a>
-                                    </Button>
-                                  </>
-                                ) : (
-                                  <span
-                                    role="status"
-                                    className="inline-flex items-center gap-1.5 text-xs text-fg-1"
-                                  >
-                                    <Loader2
-                                      className="size-4 animate-spin text-fg-2"
-                                      strokeWidth={1.75}
-                                      aria-hidden="true"
-                                    />
-                                    Cutting the 9:16 clip…
-                                  </span>
-                                )
-                              ) : (
-                                // Secondary, not primary: a list of candidates
-                                // would otherwise put a rani button on every row.
-                                <Button
-                                  variant="secondary"
-                                  size="sm"
-                                  disabled={isCreating}
-                                  aria-label={isCreating ? undefined : `Create 9:16 clip: ${title}`}
-                                  onClick={() =>
-                                    createClip.mutate({
-                                      runId,
-                                      candidateId: cand.id,
-                                      aspect: "r9x16",
-                                    })
-                                  }
-                                  data-testid={`create-clip-${cand.id}`}
-                                >
-                                  {isCreating ? "Queuing…" : "Create 9:16 clip"}
-                                </Button>
-                              )}
-                            </div>
-                          </div>
-
-                          {matchingClip?.mezzanineUrl && (
-                            <div className="max-w-[220px] overflow-hidden rounded-sm border border-border bg-ink">
-                              <ClipPreview
-                                videoUrl={matchingClip.mezzanineUrl}
-                                projectId={clipProjectId}
-                                label={`${title}, 9:16 clip`}
-                                testId={`clip-video-${cand.id}`}
-                              />
-                            </div>
-                          )}
-                        </li>
+                          runId={runId}
+                          candidate={cand}
+                          clip={clip}
+                          previewActive={clip !== undefined && activePreview === clip.id}
+                          onActivatePreview={() => {
+                            if (clip !== undefined) setActivePreview(clip.id);
+                          }}
+                          runStopped={activity === "stopped"}
+                        />
                       );
                     })}
                   </ul>
                 </div>
-              ) : (
+              ) : emptyNote === null ? (
                 <p className="m-0 text-sm text-fg-2" data-testid={`stage-note-${expanded}`}>
                   {/* eslint-disable-next-line security/detect-object-injection -- bounded stage index */}
                   {STAGE_WAITING_NOTE[expanded]}
                 </p>
+              ) : (
+                <p
+                  className="m-0 text-sm text-fg-1"
+                  data-testid={emptyNote.testId}
+                  {...(emptyNote.testId === "candidates-error"
+                    ? { role: "alert" }
+                    : emptyNote.testId === "candidates-loading"
+                      ? { role: "status" }
+                      : {})}
+                >
+                  {emptyNote.text}
+                </p>
+              )}
+
+              {momentsVisible && (
+                <div ref={momentFormRef} className="mt-4">
+                  <AddMomentForm
+                    runId={run.id}
+                    durationMs={sourceDurationMs}
+                    available={momentsAllowed}
+                    open={momentFormOpen}
+                    onOpenChange={setMomentFormOpened}
+                  />
+                </div>
               )}
 
               <RunActionBar
@@ -322,7 +382,9 @@ export function RepurposeRunView({ runId }: { readonly runId: string }): React.J
                 note={
                   run.canCancel
                     ? "Nothing is posted anywhere without your confirmation."
-                    : "This run has finished; nothing further will be spent."
+                    : failed
+                      ? "Nothing further will be spent unless you try again."
+                      : "This run has finished; nothing further will be spent."
                 }
                 {...(run.canCancel
                   ? {
@@ -330,6 +392,17 @@ export function RepurposeRunView({ runId }: { readonly runId: string }): React.J
                         label: cancel.isPending ? "Stopping…" : "Stop this run",
                         disabled: cancel.isPending,
                         testId: "run-cancel",
+                        // A stopped run cannot be started again: it asks first.
+                        // What it says is what the API does — the download,
+                        // transcript and discovery stop; a cut already under
+                        // way finishes; a clip waiting for a slot never starts.
+                        confirm: {
+                          title: "Stop this run?",
+                          description:
+                            "Getting the video and finding moments stop, and this run cannot be started again. Clips already being cut still finish and stay, like the ones already made; clips still waiting for a slot are not made.",
+                          confirmLabel: "Stop this run",
+                          testId: "run-cancel-confirm",
+                        },
                         onClick: () => {
                           cancel.mutate(run.id);
                         },

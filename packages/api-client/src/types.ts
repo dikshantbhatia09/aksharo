@@ -1368,7 +1368,55 @@ export interface RepurposeClipItem {
   mezzanineKey?: string | null;
   mezzanineUrl?: string | null;
   status?: string;
+  /**
+   * Where the cut is, derived by the API from the clip row and its newest
+   * `media.clip` job (clips hardening, 2026-09-26). Optional only because an
+   * API older than that answers without it.
+   */
+  state?: RepurposeClipState;
+  /** Why the newest cut failed, when `state` is `failed`. A code, never prose. */
+  failureCode?: string | null;
   /** The clip's formats; each is its own editable project (`GET .../clips`). */
   variants?: Array<{ id: string; projectId: string; aspect: string }>;
   [key: string]: unknown;
+}
+
+/**
+ * One clip's cut, as the run page shows it.
+ *
+ * `waiting` is not an error: the workspace's plan lane was full, and the cut
+ * starts on its own once a slot frees up.
+ */
+export type RepurposeClipState = "waiting" | "cutting" | "ready" | "failed";
+
+/** `POST /repurpose/runs/{runId}/candidates` — a moment the person picked by time. */
+export interface CreateRepurposeCandidateRequest {
+  /** 3 s to 3 min long, inside the source video; the API checks both again. */
+  startMs: number;
+  endMs: number;
+  title?: string;
+}
+
+/**
+ * `GET /projects/{projectId}/render-preview` — what a read-only `CaptionStage`
+ * needs to draw a project the way its exports will: the same shape the share
+ * viewer's preview answers with.
+ */
+export interface ProjectRenderPreview {
+  proxyUrl: string;
+  /** `faces.json`, once `ai.faces` has run: captions keep off faces. */
+  facesUrl?: string;
+  durationMs?: number | null;
+  aspect?: string;
+  /**
+   * `EdgProjection` (`@montaj/render-core`), or `null` while the project's
+   * editing document does not exist yet. Opaque here so this package does not
+   * depend on the renderer; the caller passes it straight to `CaptionStage`.
+   */
+  projection: unknown;
+}
+
+/** `details` on a 409 `repurpose/source_already_running`. */
+export interface RepurposeSourceAlreadyRunningDetails {
+  existingRunId?: string;
 }

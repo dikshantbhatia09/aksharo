@@ -40,6 +40,13 @@ export const API_OPERATIONS = [
     summary: "Add a comment as a workspace member",
   },
   {
+    operationId: "addRepurposeCandidate",
+    method: "POST",
+    path: "/repurpose/runs/{runId}/candidates",
+    tags: ["repurpose"],
+    summary: "Add a moment by its start and end time",
+  },
+  {
     operationId: "addShareComment",
     method: "POST",
     path: "/s/{token}/comments",
@@ -674,7 +681,7 @@ export const API_OPERATIONS = [
     method: "POST",
     path: "/repurpose/runs/{runId}/clips",
     tags: ["repurpose"],
-    summary: "Select a candidate and create a clip",
+    summary: "Cut a 9:16 clip from one moment",
   },
   {
     operationId: "createRepurposeRun",
@@ -1067,6 +1074,13 @@ export const API_OPERATIONS = [
     path: "/projects/{projectId}/insights",
     tags: ["insights"],
     summary: "The most recent chapters/summary/hooks result per kind",
+  },
+  {
+    operationId: "getProjectRenderPreview",
+    method: "GET",
+    path: "/projects/{projectId}/render-preview",
+    tags: ["projects"],
+    summary: "The captions preview of a project, as the share viewer renders it",
   },
   {
     operationId: "getProjectTranscript",
@@ -1907,6 +1921,13 @@ export const API_OPERATIONS = [
     path: "/projects/{projectId}/prompted-edits/{planId}/retry",
     tags: ["prompted-edits"],
     summary: "Retry a failed prompted-edit plan's current chain step",
+  },
+  {
+    operationId: "retryRepurposeClip",
+    method: "POST",
+    path: "/repurpose/runs/{runId}/clips/{clipId}/retry",
+    tags: ["repurpose"],
+    summary: "Cut a clip again whose cut failed, or that is still waiting",
   },
   {
     operationId: "retryRepurposeRun",

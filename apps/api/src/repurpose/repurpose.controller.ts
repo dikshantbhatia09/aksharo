@@ -1,6 +1,25 @@
-import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Post,
+  Query,
+  Req,
+  UseGuards,
+} from "@nestjs/common";
 import { ApiBearerAuth, ApiBody, ApiOkResponse, ApiOperation, ApiTags } from "@nestjs/swagger";
 
+import {
+  AddCandidateDto,
+  CLIP_RATE_LIMITS,
+  CreateClipDto,
+  addCandidateSchema,
+  createClipSchema,
+} from "./repurpose-clips.dto.js";
+import { RepurposeClipsService } from "./repurpose-clips.service.js";
 import { REPURPOSE_RATE_LIMITS } from "./repurpose.constants.js";
 import {
   CreateRunDto,
@@ -25,7 +44,9 @@ import { IdempotencyService } from "../public-api/v1/idempotency.service.js";
 import { withIdempotency } from "../public-api/v1/idempotent.helper.js";
 import { WorkspaceMemberGuard } from "../workspaces/workspace-member.guard.js";
 
+import type { RepurposeClipItemView } from "./repurpose-clips.service.js";
 import type { CreateRunResponse, RunPage, RunView } from "./repurpose.dto.js";
+import type { ClipCandidate } from "@prisma/client";
 import type { Request } from "express";
 
 /**
@@ -62,6 +83,7 @@ import type { Request } from "express";
 export class RepurposeController {
   constructor(
     private readonly repurpose: RepurposeService,
+    private readonly clips: RepurposeClipsService,
     private readonly idempotency: IdempotencyService,
   ) {}
 
@@ -181,25 +203,79 @@ export class RepurposeController {
     return this.repurpose.getPreview(workspaceId, runId);
   }
 
+  /**
+   * Naturally idempotent, so no `Idempotency-Key` is needed: one clip per
+   * moment, and a second request for a clip being cut or already cut returns it.
+   */
   @Post(":runId/clips")
   @Roles("editor")
+  @UseGuards(RateLimitGuard)
+  @RateLimit(CLIP_RATE_LIMITS.mutate)
   @ApiOperation({
-    summary: "Select a candidate and create a clip",
+    summary: "Cut a 9:16 clip from one moment",
+    description:
+      "201 with the clip. A clip asked for while the plan's jobs are all busy is kept " +
+      "as `waiting` and cut as soon as one finishes; that is not an error.",
     operationId: "createRepurposeClip",
   })
+  @ApiBody(zodBody(createClipSchema))
   async createClip(
     @CurrentWorkspace() workspaceId: string,
     @CurrentUser("userId") userId: string,
     @Param("runId") runId: string,
-    @Body() body: { candidateId: string },
-  ) {
-    return this.repurpose.createClip(workspaceId, userId, runId, body.candidateId);
+    @Body() body: CreateClipDto,
+  ): Promise<RepurposeClipItemView> {
+    return this.clips.createClip(workspaceId, userId, runId, body);
+  }
+
+  @Post(":runId/clips/:clipId/retry")
+  @Roles("editor")
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(RateLimitGuard)
+  @RateLimit(CLIP_RATE_LIMITS.mutate)
+  @ApiOperation({
+    summary: "Cut a clip again whose cut failed, or that is still waiting",
+    operationId: "retryRepurposeClip",
+  })
+  async retryClip(
+    @CurrentWorkspace() workspaceId: string,
+    @CurrentUser("userId") userId: string,
+    @Param("runId") runId: string,
+    @Param("clipId") clipId: string,
+  ): Promise<RepurposeClipItemView> {
+    return this.clips.retryClip(workspaceId, userId, runId, clipId);
   }
 
   @Get(":runId/clips")
   @Roles("viewer")
-  @ApiOperation({ summary: "List clips and variants for a run", operationId: "listRepurposeClips" })
-  async listClips(@CurrentWorkspace() workspaceId: string, @Param("runId") runId: string) {
-    return this.repurpose.listClips(workspaceId, runId);
+  @ApiOperation({
+    summary: "List clips and variants for a run",
+    description: "Each clip carries a derived `state`: waiting, cutting, ready or failed.",
+    operationId: "listRepurposeClips",
+  })
+  async listClips(
+    @CurrentWorkspace() workspaceId: string,
+    @Param("runId") runId: string,
+  ): Promise<{ readonly runId: string; readonly clips: RepurposeClipItemView[] }> {
+    return this.clips.listClips(workspaceId, runId);
+  }
+
+  @Post(":runId/candidates")
+  @Roles("editor")
+  @UseGuards(RateLimitGuard)
+  @RateLimit(CLIP_RATE_LIMITS.mutate)
+  @ApiOperation({
+    summary: "Add a moment by its start and end time",
+    description: "3 s to 3 min, inside the video. The same bounds twice are one moment.",
+    operationId: "addRepurposeCandidate",
+  })
+  @ApiBody(zodBody(addCandidateSchema))
+  async addCandidate(
+    @CurrentWorkspace() workspaceId: string,
+    @CurrentUser("userId") userId: string,
+    @Param("runId") runId: string,
+    @Body() body: AddCandidateDto,
+  ): Promise<ClipCandidate> {
+    return this.clips.addManualCandidate(workspaceId, userId, runId, body);
   }
 }

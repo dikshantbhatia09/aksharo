@@ -1,5 +1,5 @@
-import { existsSync } from "node:fs";
-import { dirname, join, parse } from "node:path";
+import { accessSync, constants, existsSync, statSync } from "node:fs";
+import { dirname, extname, join, parse } from "node:path";
 
 import { config as loadDotenvFile } from "dotenv";
 
@@ -35,6 +35,16 @@ export interface Settings {
   /** BullMQ key prefix, shared with the API's producer side. */
   readonly queuePrefix: string;
   readonly ffmpegPath: string;
+  /**
+   * `ffmpegPath` as the file this worker actually runs, found the way `spawn`
+   * finds it; `undefined` when it is on no PATH directory.
+   *
+   * For yt-dlp's `--ffmpeg-location`, so the merge uses the ffmpeg the boot
+   * check verified. The default `FFMPEG_PATH` is the bare name `ffmpeg`, which
+   * yt-dlp reads as a path that does not exist (and then merges with nothing),
+   * so without this the flag was never passed on the host that runs production.
+   */
+  readonly ffmpegLocation: string | undefined;
   readonly ffprobePath: string;
   /** The pinned downloader (REP-010). Its version is checked before first use. */
   readonly ytDlpPath: string;
@@ -47,6 +57,13 @@ export interface Settings {
    * different claims, and only the second one may run a user's URL.
    */
   readonly ytDlpVerifyDigest: boolean;
+  /**
+   * Run a package-manager downloader that is not the pinned release, with a
+   * warning, rather than refusing to boot (`WORKER_MEDIA_YT_DLP_ALLOW_UNPINNED=1`).
+   * Off unless asked for by name, and ignored while the digest is verified; see
+   * `assertYtDlpUsable` for the trade-off it makes.
+   */
+  readonly ytDlpAllowUnpinned: boolean;
   /** Where scratch files go; `undefined` means the OS temp directory. */
   readonly tempDir: string | undefined;
   /** How long a signed read URL for the source object stays valid. */
@@ -107,6 +124,7 @@ export function resolveSettings(source: NodeJS.ProcessEnv = process.env): Settin
     );
   }
 
+  const ffmpegPath = source["FFMPEG_PATH"]?.trim() || "ffmpeg";
   return {
     // `loadServiceEnv` and not `loadEnv`: this worker needs Redis, the two
     // object stores, the callback secret and API_ORIGIN. It opens no database
@@ -116,12 +134,15 @@ export function resolveSettings(source: NodeJS.ProcessEnv = process.env): Settin
     queues: requested.length === 0 ? MEDIA_QUEUES : (requested as MediaQueue[]),
     concurrency: positiveInteger(source["WORKER_MEDIA_CONCURRENCY"], DEFAULT_CONCURRENCY),
     queuePrefix: queuePrefix(source),
-    ffmpegPath: source["FFMPEG_PATH"]?.trim() || "ffmpeg",
+    ffmpegPath,
+    ffmpegLocation: findExecutable(ffmpegPath, { env: source }),
     ffprobePath: source["FFPROBE_PATH"]?.trim() || "ffprobe",
     ytDlpPath: source["YT_DLP_PATH"]?.trim() || "yt-dlp",
     // Explicit opt-out, not opt-in: a deployment that forgets to set this gets
     // the safe behaviour, and the unsafe one has to be asked for by name.
     ytDlpVerifyDigest: source["WORKER_MEDIA_YT_DLP_VERIFY"] !== "0",
+    // The same rule, for the same reason.
+    ytDlpAllowUnpinned: source["WORKER_MEDIA_YT_DLP_ALLOW_UNPINNED"] === "1",
     tempDir: source["WORKER_MEDIA_TEMP_DIR"]?.trim() || undefined,
     sourceUrlTtlSeconds: positiveInteger(
       source["WORKER_MEDIA_SOURCE_URL_TTL"],
@@ -139,6 +160,56 @@ export function resolveSettings(source: NodeJS.ProcessEnv = process.env): Settin
 export function queuePrefix(source: NodeJS.ProcessEnv = process.env): string {
   const raw = source["MONTAJ_QUEUE_PREFIX"]?.trim();
   return raw === undefined || raw === "" ? "bull" : raw;
+}
+
+/**
+ * The file `spawn(name)` would run, or `undefined` when there is none.
+ *
+ * A name with a path in it is returned as it is. A bare name is looked up the
+ * way libuv does it: on Windows the working directory first, then each PATH
+ * directory, appending `.com` and then `.exe` (after the name as written, when
+ * it already has an extension); elsewhere each PATH directory, for an
+ * executable file. Exported for its tests, which pass the platform and PATH.
+ */
+export function findExecutable(
+  name: string,
+  options: {
+    readonly env?: NodeJS.ProcessEnv;
+    readonly platform?: NodeJS.Platform;
+    readonly cwd?: string;
+  } = {},
+): string | undefined {
+  if (/[\\/]/.test(name)) return name;
+  const env = options.env ?? process.env;
+  const windows = (options.platform ?? process.platform) === "win32";
+  // `process.env` ignores case on Windows; a plain object handed in does not.
+  const searchPath = env["PATH"] ?? env["Path"] ?? "";
+  const directories = searchPath
+    .split(windows ? ";" : ":")
+    .map((entry) => entry.trim().replace(/^"(.*)"$/, "$1"))
+    .filter((entry) => entry !== "");
+  const candidates = windows
+    ? [...(extname(name) === "" ? [] : [name]), `${name}.com`, `${name}.exe`]
+    : [name];
+
+  for (const directory of windows ? [options.cwd ?? process.cwd(), ...directories] : directories) {
+    for (const candidate of candidates) {
+      const path = join(directory, candidate);
+      if (isRunnableFile(path, windows)) return path;
+    }
+  }
+  return undefined;
+}
+
+function isRunnableFile(path: string, windows: boolean): boolean {
+  try {
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- a PATH directory joined with a configured tool name, not user input
+    if (!statSync(path).isFile()) return false;
+    if (!windows) accessSync(path, constants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function split(value: string | undefined): string[] {

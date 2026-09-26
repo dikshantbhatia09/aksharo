@@ -22,11 +22,19 @@ import * as React from "react";
 import type { RepurposeStageView } from "@montaj/api-client";
 import { cn } from "@montaj/ui";
 
+import type { RunActivity } from "@/components/repurpose/run-activity";
 
 import { STAGE_COPY, type StageKey } from "@/components/repurpose/copy";
 
 export interface RunStageRailProps {
   readonly stages: readonly RepurposeStageView[];
+  /**
+   * What the run is doing (`runActivity`). The API marks the current stage
+   * `running` for a run that is waiting on the person and for one they
+   * stopped; this is what lets the rail say "Your turn" or "Stopped" there
+   * instead of "In progress".
+   */
+  readonly activity?: RunActivity;
   /** Opening a completed stage is a read; it never changes server state. */
   readonly onOpenStage?: (stage: StageKey) => void;
   /** Explains a prerequisite when someone reaches ahead. */
@@ -53,19 +61,31 @@ export function RunStageNode({
   stage,
   index,
   total,
+  activity,
   onOpen,
   onBlocked,
 }: {
   readonly stage: RepurposeStageView;
   readonly index: number;
   readonly total: number;
+  readonly activity?: RunActivity;
   readonly onOpen?: (stage: StageKey) => void;
   readonly onBlocked?: (stage: StageKey, reason: string) => void;
 }): React.JSX.Element {
   const key = stage.stage as StageKey;
   // eslint-disable-next-line security/detect-object-injection -- lookup on a closed literal key, not attacker-controlled
   const copy = STAGE_COPY[key];
-  const reachable = stage.state === "complete" || stage.state === "running";
+  // A failed step is where the run stopped, so it opens like the current one;
+  // it used to answer "opens once the earlier steps are done" about step 1.
+  const reachable = stage.state !== "waiting";
+  // A stopped run's last step is not in progress, and nothing is "current".
+  const stopped = stage.state === "running" && activity === "stopped";
+  const current = stage.state === "running" && !stopped;
+  const word = stopped
+    ? "Stopped"
+    : current && activity === "needs_you"
+      ? "Your turn"
+      : STATE_WORD[stage.state];
 
   const activate = (): void => {
     if (reachable) {
@@ -76,12 +96,16 @@ export function RunStageNode({
   };
 
   return (
-    <li data-testid={`stage-node-${stage.stage}`} data-state={stage.state}>
+    <li
+      data-testid={`stage-node-${stage.stage}`}
+      data-state={stage.state}
+      {...(stopped ? { "data-stopped": "true" } : {})}
+    >
       <button
         type="button"
         onClick={activate}
-        aria-current={stage.state === "running" ? "step" : undefined}
-        aria-label={`Step ${String(index + 1)} of ${String(total)}: ${copy.title}. ${STATE_WORD[stage.state]}.`}
+        aria-current={current ? "step" : undefined}
+        aria-label={`Step ${String(index + 1)} of ${String(total)}: ${copy.title}. ${word}.`}
         className={cn(
           // The canvas's stage pill: a 20 px state dot, then the title, on an
           // outlined chip at least 32 px tall. Not a card — the rail is a row
@@ -92,7 +116,8 @@ export function RunStageNode({
           // hover is the system's neutral tint, never an accent border.
           "flex min-h-8 shrink-0 items-center gap-2 rounded-sm border px-2.5 py-1",
           "text-xs whitespace-nowrap transition-colors duration-[160ms] ease-[var(--ease-out-soft)]",
-          stage.state === "running" && "border-accent/60 bg-accent/14 text-accent-200",
+          current && "border-accent/60 bg-accent/14 text-accent-200",
+          stopped && "border-border text-fg-1",
           stage.state === "complete" && "border-border text-fg-1 hover:bg-neutral-100/7 hover:text-fg-0",
           stage.state === "failed" && "border-rejected/60 text-rejected",
           stage.state === "waiting" && "border-border text-fg-2",
@@ -103,17 +128,18 @@ export function RunStageNode({
           className={cn(
             "flex size-5 shrink-0 items-center justify-center rounded-full text-2xs",
             stage.state === "complete" && "bg-bg-2 text-accepted",
-            stage.state === "running" && "bg-accent text-on-accent",
+            current && "bg-accent text-on-accent",
+            stopped && "bg-bg-2 text-fg-1",
             stage.state === "failed" && "bg-rejected/20 text-rejected",
             stage.state === "waiting" && "bg-bg-2 text-fg-2",
           )}
           data-testid={`stage-icon-${stage.stage}`}
         >
-          {STATE_ICON[stage.state]}
+          {stopped ? "■" : STATE_ICON[stage.state]}
         </span>
         {copy.title}
         {/* The word, not just the colour or the glyph (§13.3). */}
-        <span className="sr-only">{STATE_WORD[stage.state]}</span>
+        <span className="sr-only">{word}</span>
       </button>
     </li>
   );
@@ -121,6 +147,7 @@ export function RunStageNode({
 
 export function RunStageRail({
   stages,
+  activity,
   onOpenStage,
   onBlockedStage,
   className,
@@ -140,6 +167,7 @@ export function RunStageRail({
             stage={stage}
             index={index}
             total={stages.length}
+            {...(activity === undefined ? {} : { activity })}
             {...(onOpenStage === undefined ? {} : { onOpen: onOpenStage })}
             {...(onBlockedStage === undefined ? {} : { onBlocked: onBlockedStage })}
           />

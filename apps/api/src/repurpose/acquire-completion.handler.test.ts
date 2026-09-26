@@ -78,12 +78,26 @@ function context(result: Record<string, unknown>): JobCompletionContext {
   };
 }
 
+/** A terminal failure, as `JobsService` reports it to the handler. */
+function failure(code: string | null): JobCompletionContext {
+  const error =
+    code === null ? undefined : { code, message: "the worker's words", retryable: false };
+  return {
+    job: job(),
+    attemptId: "01JCATTEMPT000000000000000",
+    result: undefined,
+    usage: undefined,
+    completion: { status: "failed", ...(error === undefined ? {} : { error }) },
+  } as unknown as JobCompletionContext;
+}
+
 interface Harness {
   handler: RepurposeAcquireCompletionHandler;
   completeAcquisition: ReturnType<typeof vi.fn>;
   mediaUpdateMany: ReturnType<typeof vi.fn>;
-  runUpdate: ReturnType<typeof vi.fn>;
-  publishStage: ReturnType<typeof vi.fn>;
+  failRun: ReturnType<typeof vi.fn>;
+  reconcileRun: ReturnType<typeof vi.fn>;
+  stopIfCancelled: ReturnType<typeof vi.fn>;
   registry: JobCompletionRegistry;
 }
 
@@ -91,6 +105,10 @@ function harness(
   options: {
     asset?: Record<string, unknown> | null;
     run?: Record<string, unknown> | null;
+    /** What the worker wrote on the media row before reporting, if anything. */
+    failureReason?: string | null;
+    /** The source project's newest primary media, when a retry replaced this one. */
+    newestMediaId?: string;
   } = {},
 ): Harness {
   const asset =
@@ -101,19 +119,23 @@ function harness(
           bucket: "s3",
           storageKey: RAW_KEY,
           status: "pending",
+          failureReason: options.failureReason ?? null,
           project: { id: PROJECT, workspaceId: WS, status: "draft" },
         }
       : options.asset;
-  const run = options.run === undefined ? { id: RUN, status: "draft" } : options.run;
+  const run =
+    options.run === undefined
+      ? { id: RUN, status: "draft", sourceProjectId: PROJECT, workspaceId: WS }
+      : options.run;
 
   const mediaUpdateMany = vi.fn(async () => ({ count: 1 }));
-  const runUpdate = vi.fn(async (args: { data: Record<string, unknown> }) => ({
-    id: RUN,
-    ...args.data,
-  }));
   const prisma = {
-    mediaAsset: { findUnique: vi.fn(async () => asset), updateMany: mediaUpdateMany },
-    repurposeRun: { findUnique: vi.fn(async () => run), update: runUpdate },
+    mediaAsset: {
+      findUnique: vi.fn(async () => asset),
+      findFirst: vi.fn(async () => ({ id: options.newestMediaId ?? MEDIA })),
+      updateMany: mediaUpdateMany,
+    },
+    repurposeRun: { findUnique: vi.fn(async () => run) },
   } as unknown as PrismaService;
 
   const completeAcquisition = vi.fn(async () => ({
@@ -122,12 +144,22 @@ function harness(
   }));
   const media = { completeAcquisition } as unknown as MediaService;
 
-  const publishStage = vi.fn(async () => undefined);
-  const runs = { publishStage } as unknown as RepurposeService;
+  const failRun = vi.fn(async () => null);
+  const reconcileRun = vi.fn(async () => undefined);
+  const stopIfCancelled = vi.fn(async () => false);
+  const runs = { failRun, reconcileRun, stopIfCancelled } as unknown as RepurposeService;
 
   const registry = new JobCompletionRegistry();
   const handler = new RepurposeAcquireCompletionHandler(prisma, media, runs, registry);
-  return { handler, completeAcquisition, mediaUpdateMany, runUpdate, publishStage, registry };
+  return {
+    handler,
+    completeAcquisition,
+    mediaUpdateMany,
+    failRun,
+    reconcileRun,
+    stopIfCancelled,
+    registry,
+  };
 }
 
 let h: Harness;
@@ -165,6 +197,52 @@ describe("RepurposeAcquireCompletionHandler", () => {
     expect(call.contentHash).toBe("a".repeat(64));
 
     expect(outcome.data?.["probeJobId"]).toBe("01JCPR0BE000000000000000AA");
+    // And the run is moved from what now exists, without waiting for a read.
+    expect(h.reconcileRun).toHaveBeenCalledWith(RUN);
+  });
+
+  it("does not hand on a download for a run the person stopped", async () => {
+    // Probe → proxy → transcription would spend credits on a run they
+    // cancelled, whose page says "Nothing else will happen".
+    h = harness({ run: { id: RUN, status: "cancelled", sourceProjectId: PROJECT } });
+    const outcome = await h.handler.handle(context(acquireResult()));
+
+    expect(h.completeAcquisition).not.toHaveBeenCalled();
+    expect(outcome.data).toMatchObject({ applied: false, reason: "run_cancelled" });
+    const write = h.mediaUpdateMany.mock.calls[0]?.[0] as {
+      where: Record<string, unknown>;
+      data: Record<string, unknown>;
+    };
+    expect(write.data["status"]).toBe("failed");
+    // The bytes the worker uploaded go at the next raw purge.
+    expect(write.data["rawPurgeAt"]).toBeInstanceOf(Date);
+    expect(h.reconcileRun).not.toHaveBeenCalled();
+  });
+
+  it("stops the probe it just queued when the run was stopped meanwhile", async () => {
+    // Stop pressed between this handler's look at the run and the probe being
+    // queued: `cancel` could not see the probe yet, and past the probe is a
+    // paid transcription of a video the person stopped.
+    h.stopIfCancelled.mockResolvedValueOnce(true);
+    const outcome = await h.handler.handle(context(acquireResult()));
+
+    expect(h.stopIfCancelled).toHaveBeenCalledWith(RUN);
+    // Asked only once the probe exists, so one of the two always sees the other.
+    expect(h.stopIfCancelled.mock.invocationCallOrder[0]).toBeGreaterThan(
+      h.completeAcquisition.mock.invocationCallOrder[0] ?? Infinity,
+    );
+    expect(h.reconcileRun).not.toHaveBeenCalled();
+    expect(outcome.data).toMatchObject({ runCancelled: true });
+  });
+
+  it("refuses a result for a media row the job does not fetch into", async () => {
+    // A worker that mixed up two concurrent downloads would complete another
+    // run's media -- possibly another workspace's -- with these bytes.
+    await expect(
+      h.handler.handle(context(acquireResult({ mediaId: "01JCMED1A0000000000000000Z" }))),
+    ).rejects.toThrow(/fetches into/);
+    expect(h.completeAcquisition).not.toHaveBeenCalled();
+    expect(h.mediaUpdateMany).not.toHaveBeenCalled();
   });
 
   it("never puts the source URL in the audit trail", async () => {
@@ -189,31 +267,85 @@ describe("RepurposeAcquireCompletionHandler", () => {
   });
 
   describe("a download that will not be retried", () => {
-    it("fails the run with a safe code and tells the open tab", async () => {
-      await h.handler.handleFailure(context({}));
+    function mediaWrite(): Record<string, unknown> {
+      return (h.mediaUpdateMany.mock.calls[0]?.[0] as { data: Record<string, unknown> }).data;
+    }
 
-      expect(h.mediaUpdateMany).toHaveBeenCalledTimes(1);
-      const runData = h.runUpdate.mock.calls[0]?.[0] as { data: Record<string, unknown> };
-      expect(runData.data["status"]).toBe("failed");
-      // A code from SAFE_ERROR_CODES, never the downloader's own sentence.
-      expect(runData.data["failureCode"]).toBe("repurpose/source_unavailable");
-      expect(h.publishStage).toHaveBeenCalledTimes(1);
+    it("fails the run with the code for the reason the worker recorded", async () => {
+      // The run used to say "We could not get that video" whatever happened, so
+      // a video that was only too big for the plan read "choose another".
+      h = harness({ failureReason: "media/too_large" });
+      await h.handler.handleFailure(failure("media/unreadable"));
+
+      expect(h.failRun).toHaveBeenCalledWith(
+        expect.objectContaining({ id: RUN }),
+        "repurpose/source_too_large",
+        "getting_video",
+      );
     });
 
-    it("leaves a run that is already finished alone", async () => {
+    it.each([
+      ["media/source_private", "repurpose/source_private"],
+      ["media/source_blocked", "repurpose/source_blocked"],
+      ["media/too_long", "repurpose/source_too_long"],
+    ])(
+      "reads the job's code %s when the worker's own write never landed",
+      async (code, runCode) => {
+        await h.handler.handleFailure(failure(code));
+
+        // The media row gets the reason too, so every later read agrees.
+        expect(mediaWrite()).toMatchObject({ status: "failed", failureReason: code });
+        expect(h.failRun).toHaveBeenCalledWith(expect.anything(), runCode, "getting_video");
+      },
+    );
+
+    it.each(["jobs/queue_timeout", "media/unreadable", null])(
+      "names a failure it cannot place (%s) 'could not get it', never 'unsupported'",
+      async (code) => {
+        await h.handler.handleFailure(failure(code));
+
+        expect(mediaWrite()).toMatchObject({
+          status: "failed",
+          failureReason: "media/source_failed",
+        });
+        // A code from SAFE_ERROR_CODES, never the downloader's own sentence.
+        expect(h.failRun).toHaveBeenCalledWith(
+          expect.anything(),
+          "repurpose/source_unavailable",
+          "getting_video",
+        );
+      },
+    );
+
+    it("leaves a run the person stopped alone, and purges whatever bytes arrived", async () => {
       // The callback is at-least-once, and a cancelled run must not be dragged
       // back into `failed` by a download that was already on its way out.
-      h = harness({ run: { id: RUN, status: "cancelled" } });
-      await h.handler.handleFailure(context({}));
-      expect(h.runUpdate).not.toHaveBeenCalled();
-      expect(h.publishStage).not.toHaveBeenCalled();
+      h = harness({ run: { id: RUN, status: "cancelled", sourceProjectId: PROJECT } });
+      await h.handler.handleFailure(failure("jobs/cancelled"));
+
+      expect(mediaWrite()["rawPurgeAt"]).toBeInstanceOf(Date);
+      expect(h.failRun).not.toHaveBeenCalled();
+    });
+
+    it("leaves a run that has moved on alone", async () => {
+      for (const status of ["failed", "candidates_ready", "published"]) {
+        h = harness({ run: { id: RUN, status, sourceProjectId: PROJECT } });
+        await h.handler.handleFailure(failure("media/source_blocked"));
+        expect(h.failRun, status).not.toHaveBeenCalled();
+      }
+    });
+
+    it("ignores a late failure of a download a retry has already replaced", async () => {
+      h = harness({ newestMediaId: "01JCMED1A0000000000000000B" });
+      await h.handler.handleFailure(failure("media/source_blocked"));
+      expect(h.failRun).not.toHaveBeenCalled();
     });
 
     it("does nothing when the job's own params no longer parse", async () => {
-      const ctx = { ...context({}), job: { ...job(), params: { nonsense: true } } as Job };
+      const ctx = { ...failure(null), job: { ...job(), params: { nonsense: true } } as Job };
       await h.handler.handleFailure(ctx);
       expect(h.mediaUpdateMany).not.toHaveBeenCalled();
-      expect(h.runUpdate).not.toHaveBeenCalled();
+      expect(h.failRun).not.toHaveBeenCalled();
     });
   });
 });

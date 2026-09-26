@@ -1,16 +1,41 @@
 import { HttpStatus, Injectable } from "@nestjs/common";
 
+import { QUEUE_NAMES } from "./contracts/queue-names.js";
 import { planLimits } from "./jobs.config.js";
 import { JOB_ERROR_CODES } from "./jobs.errors.js";
 import { resolveWorkspacePlan } from "./plan.js";
 import { AppException } from "../common/errors/error-codes.js";
 import { PrismaService } from "../common/prisma/prisma.service.js";
 
+import type { QueueName } from "./contracts/queue-names.js";
 import type { PlanLimits } from "./jobs.config.js";
 import type { Prisma } from "@prisma/client";
 
 /** Job states that occupy a workspace's lane and hold its credits. */
 export const IN_FLIGHT_STATUSES = ["queued", "running"] as const;
+
+/**
+ * Job types that run in the background and never take a plan's lane.
+ *
+ * `ai.faces` is free, skips admission itself (`FacesTrigger`) and is queued the
+ * moment a proxy lands — for every upload, every repurposed source and every
+ * clip. Counted, two of them filled the Free plan's two-job lane, and the
+ * transcription or highlight discovery queued right behind them was refused:
+ * paid, user-visible work lost to invisible, optional work (clips hardening
+ * 2026-09-26, §5). It still holds its own row and still runs; it just no
+ * longer counts against anyone else.
+ */
+export const BACKGROUND_JOB_TYPES: ReadonlySet<QueueName> = new Set<QueueName>(["ai.faces"]);
+
+/**
+ * The job types that DO occupy the lane, spelled as a list rather than as
+ * "not the background ones": a queue added to CONTRACTS §3 counts until
+ * someone decides otherwise, which is the safe default for a denial-of-wallet
+ * control.
+ */
+const LANE_JOB_TYPES: readonly QueueName[] = QUEUE_NAMES.filter(
+  (type) => !BACKGROUND_JOB_TYPES.has(type),
+);
 
 export interface AdmissionDecision {
   readonly limits: PlanLimits;
@@ -28,7 +53,7 @@ export interface AdmissionDecision {
  *   one that stops a runaway script from spending a year's credits in a minute.
  * - **Concurrency lane.** The *count* of in-flight jobs may not exceed the plan
  *   lane, so a workspace cannot fill a queue with free jobs and starve everybody
- *   else behind it.
+ *   else behind it. {@link BACKGROUND_JOB_TYPES} are not counted.
  *
  * **B02b: the credit sum is `credit_holds`, not `jobs.credits_charged_tenths`.**
  * Before B02 the ledger did not exist and that column was the only number there
@@ -74,6 +99,7 @@ export class AdmissionService {
     const where: Prisma.JobWhereInput = {
       workspaceId: input.workspaceId,
       status: { in: [...IN_FLIGHT_STATUSES] },
+      type: { in: [...LANE_JOB_TYPES] },
     };
 
     const [count, holdsSum] = await Promise.all([

@@ -26,9 +26,29 @@ import { Button, EmptyState, PageHeader, Skeleton, cn } from "@montaj/ui";
 
 import { REPURPOSE_FLOW_FLAG } from "@/components/home/pipeline-banner";
 import { formatRelative } from "@/components/projects/project-table";
+import { safeErrorCopy } from "@/components/repurpose/copy";
+import { runActivity } from "@/components/repurpose/run-activity";
 
+/**
+ * Work is happening on the server. Not "a stage projects as running", which is
+ * also true of a run the person stopped and of one waiting for their review.
+ */
 function isLive(run: RepurposeRunView): boolean {
-  return run.stages.some((stage) => stage.state === "running");
+  return runActivity(run) === "working";
+}
+
+/** The words before a row's message, so its state is never the dot's colour alone. */
+function statePrefix(run: RepurposeRunView): string {
+  switch (runActivity(run)) {
+    case "working":
+      return "In progress · ";
+    case "needs_you":
+      return "Waiting for you · ";
+    case "failed":
+      return "Needs attention · ";
+    default:
+      return "";
+  }
 }
 
 const PAGE_TITLE = "One long video, nine posts";
@@ -170,8 +190,9 @@ export function RepurposeIndexView(): React.JSX.Element {
                     </span>
                     <span className="text-xs text-fg-2">
                       {/* The dot is decoration; the state is said in words. */}
-                      {running ? "In progress · " : ""}
-                      {run.message}
+                      {statePrefix(run)}
+                      {/* A failure names itself, not "Something went wrong". */}
+                      {run.status === "failed" ? safeErrorCopy(run.failureCode).title : run.message}
                     </span>
                     <span className="ml-auto font-mono text-2xs text-fg-2">
                       {formatRelative(run.updatedAt)}

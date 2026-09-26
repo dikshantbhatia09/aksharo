@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   FORBIDDEN_USER_FACING_WORDS,
+  NO_CANDIDATES_MESSAGE,
   STAGES,
   beginnerSafetyViolations,
   isCancellable,
@@ -181,5 +182,19 @@ describe("what a person reads", () => {
   it("tells a failed run that the work is safe", () => {
     // §3.4: say what happened, and whether their work survived.
     expect(messageForStatus("failed").toLowerCase()).toContain("safe");
+  });
+
+  it("does not promise suggested moments to a run that has none", () => {
+    // A manual run asks for none, and discovery can find none worth cutting;
+    // "your suggested moments are ready" over an empty list read as broken.
+    const empty = run({ status: "candidates_ready", candidateCount: 0 });
+    expect(empty.message).toBe(NO_CANDIDATES_MESSAGE);
+    expect(beginnerSafetyViolations(empty.message)).toEqual([]);
+
+    expect(run({ status: "candidates_ready", candidateCount: 3 }).message).toBe(
+      messageForStatus("candidates_ready"),
+    );
+    // Unknown (a realtime payload that did not count): the usual sentence.
+    expect(run({ status: "candidates_ready" }).message).toBe(messageForStatus("candidates_ready"));
   });
 });

@@ -10,9 +10,7 @@ Every model is ``extra="forbid"``: an unknown key in a payload means the produce
 and the consumer disagree about the contract, and guessing which one is right is
 how a worker ends up analysing the wrong revision of a transcript.
 
-No processor consumes this yet. ``ai.highlights`` is a registered queue that
-answers ``worker/not_implemented`` until Wave 4 (``queues.py``), and the
-``highlight_discovery`` flag is seeded off.
+``worker_ai.processors.highlights`` consumes the payload and produces the result.
 """
 
 from __future__ import annotations
@@ -52,6 +50,7 @@ _ULID_PATTERN: Final[str] = r"^[0-9A-HJKMNP-TV-Z]{26}$"
 _STORAGE_KEY_PATTERN: Final[str] = r"^[A-Za-z0-9][A-Za-z0-9/_.-]*$"
 
 Ulid = Annotated[str, StringConstraints(pattern=_ULID_PATTERN)]
+
 
 #: A string the TypeScript side declares as `z.string().trim().min(n)`. Zod trims
 #: BEFORE it measures, so `"   "` fails there; Pydantic's `min_length` measures the

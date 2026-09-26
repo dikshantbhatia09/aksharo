@@ -20,28 +20,41 @@ moves the row to `failed`, and the second attempt's completion is then rejected 
 ``already_completed`` — the retry would be invisible to the product. The rule that
 falls out of that:
 
-| Failure                        | Completion posted?         | Exception re-raised? |
-| ------------------------------ | -------------------------- | -------------------- |
-| retryable, attempts remain     | **no**                     | yes — BullMQ retries |
-| retryable, final attempt       | yes, `finalAttempt: true`  | yes — BullMQ fails   |
-| non-retryable (any attempt)    | yes, `error.retryable:false` | yes                |
-| envelope does not parse        | no (there is no jobId)     | yes                  |
+| Failure                     | Completion posted?           | Raised to BullMQ                |
+| --------------------------- | ---------------------------- | ------------------------------- |
+| retryable, attempts remain  | **no**                       | the error — BullMQ retries      |
+| retryable, final attempt    | yes, `finalAttempt: true`    | the error — BullMQ fails        |
+| non-retryable (any attempt) | yes, `error.retryable:false` | `UnrecoverableError` — no retry |
+| ... and the post failed     | tried; the API never had it  | the error — the retry reports   |
+| envelope does not parse     | no (there is no jobId)       | `UnrecoverableError` — no retry |
+| API says the row is settled | no (it would be rejected)    | `UnrecoverableError` — no retry |
 
 `finalAttempt` and `error.retryable=false` are exactly the two flags
 ``markDeadLetterIfFinal`` in ``jobs.service.ts`` reads, so a job that has run out of
-road lands in the DLQ with its last error attached. The exception is always
-re-raised so BullMQ's own accounting matches the API's.
+road lands in the DLQ with its last error attached. Something is always raised so
+BullMQ's own accounting matches the API's.
+
+BullMQ does not know about ``retryable``: it retries ANY exception until the
+job's attempts run out, unless the exception is its ``UnrecoverableError``.
+Re-raising a non-retryable :class:`JobFailureError` as itself therefore ran the
+job again after the API had already dead-lettered the row — the second attempt
+redid all the work and its completion was rejected as ``already_completed``.
+The same is true of a job whose row the API has already settled (a sweeper
+failed it, a user cancelled it, an earlier attempt completed it): the first
+progress call's ack says so, and the job stops there instead of running.
 """
 
 from __future__ import annotations
 
 import asyncio
 from collections.abc import Awaitable, Callable
-from typing import Any
+from typing import Any, Final, TypeGuard
+
+from bullmq import UnrecoverableError
 
 from worker_ai.alignment import AlignerRegistry
 from worker_ai.cache import MemoryResultCache, NullResultCache, RedisResultCache, ResultCache
-from worker_ai.callbacks import CallbackClient, JobCompletion, JobError
+from worker_ai.callbacks import CallbackAck, CallbackClient, JobCompletion, JobError
 from worker_ai.clean.processor import process_clean
 from worker_ai.diarisation import DiariserRegistry
 from worker_ai.lid import (
@@ -105,6 +118,11 @@ Processor = Callable[[JobContext], Awaitable[ProcessorOutcome | None]]
 
 #: What BullMQ calls: ``(job, token) -> result``.
 Handler = Callable[[Any, str | None], Awaitable[dict[str, Any]]]
+
+#: The ``reason`` values on an ``applied: false`` ack (``staleReason`` in
+#: ``jobs.service.ts``) that mean this delivery can no longer change anything:
+#: the row is terminal, or a newer attempt owns it.
+SETTLED_REASONS: Final = frozenset({"already_completed", "stale_attempt"})
 
 PROCESSORS: dict[str, Processor] = {
     "ai.vad": process_vad,
@@ -279,8 +297,12 @@ def make_handler(queue: str, services: Services) -> Handler:
     async def handle(job: Any, token: str | None = None) -> dict[str, Any]:
         del token  # BullMQ renews the lock itself; A10 uses this for long ASR runs.
         # A malformed envelope is a producer bug with no jobId to report against,
-        # so it fails loudly here and never reaches a callback.
-        envelope = parse_envelope(job.data)
+        # so it fails loudly here and never reaches a callback. It is the same
+        # bytes on every attempt, so it is not retried either.
+        try:
+            envelope = parse_envelope(job.data)
+        except ValueError as error:
+            raise UnrecoverableError(str(error)) from error
         context = JobContext(
             envelope=envelope,
             queue=queue,
@@ -291,8 +313,19 @@ def make_handler(queue: str, services: Services) -> Handler:
         log_fields = {**envelope.log_fields(), "queue": queue}
         _log.info("job received", extra={**log_fields, "bullJobId": getattr(job, "id", None)})
 
+        ack = await context.start(message=f"{queue} started")
+        if _is_settled(ack):
+            # Nothing this attempt does can be recorded, and for `ai.transcribe`
+            # running it anyway means paying a vendor for a result nobody keeps.
+            _log.warning(
+                "job is already settled by the API; not running it",
+                extra={**log_fields, "reason": ack.reason},
+            )
+            raise UnrecoverableError(
+                f"{queue} job {envelope.job_id} is already settled ({ack.reason})"
+            )
+
         try:
-            await context.progress(0, message=f"{queue} started")
             outcome = await processor(context)
             result = outcome.result if outcome is not None else {}
             usage = outcome.usage if outcome is not None else None
@@ -305,7 +338,16 @@ def make_handler(queue: str, services: Services) -> Handler:
             _log.info("job succeeded", extra=log_fields)
             return result
         except JobFailureError as failure:
-            await _report_failure(context, failure.code, failure.message, failure.retryable)
+            reported = await _report_failure(
+                context, failure.code, failure.message, failure.retryable
+            )
+            if not failure.retryable and reported:
+                # The API has dead-lettered the row already; BullMQ must not run
+                # the job again, and only its own error type tells it that.
+                raise UnrecoverableError(failure.message) from failure
+            # Unreported, the row would stay running for good (no stuck-job sweep
+            # runs in production), so BullMQ's retry is what reports it: the next
+            # attempt fails the same way and posts again, or finds the row settled.
             raise
         except Exception as error:
             # Anything unclassified is treated as transient: a bug that always
@@ -318,8 +360,12 @@ def make_handler(queue: str, services: Services) -> Handler:
     return handle
 
 
-async def _report_failure(context: JobContext, code: str, message: str, retryable: bool) -> None:
-    """Post a failed completion when — and only when — the API should see one."""
+async def _report_failure(context: JobContext, code: str, message: str, retryable: bool) -> bool:
+    """Post a failed completion when — and only when — the API should see one.
+
+    True when the API answered it. Any answer counts, ``applied: false``
+    included: that means the row is already settled, which is all a report is for.
+    """
     log_fields = {**context.envelope.log_fields(), "queue": context.queue, "code": code}
 
     if retryable and not context.final_attempt:
@@ -329,7 +375,7 @@ async def _report_failure(context: JobContext, code: str, message: str, retryabl
             "job failed; leaving it to BullMQ to retry",
             extra={**log_fields, "attemptsMade": context.attempts_made},
         )
-        return
+        return False
 
     _log.error("job failed", extra={**log_fields, "retryable": retryable})
     try:
@@ -347,6 +393,17 @@ async def _report_failure(context: JobContext, code: str, message: str, retryabl
             "could not report the failure to the API",
             extra={**log_fields, "reason": str(error)[:200]},
         )
+        return False
+    return True
+
+
+def _is_settled(ack: CallbackAck | None) -> TypeGuard[CallbackAck]:
+    """True when the API answered the first progress call with "this row is done".
+
+    ``None`` (the call failed) is not an answer: the job runs, as it always has,
+    and the completion callback is where a real refusal would surface.
+    """
+    return isinstance(ack, CallbackAck) and not ack.applied and ack.reason in SETTLED_REASONS
 
 
 def _int_attr(job: object, name: str, default: int) -> int:

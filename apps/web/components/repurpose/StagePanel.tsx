@@ -8,6 +8,7 @@
  * by the workspace that renders them, not by each panel guessing.
  */
 import { AlertTriangle, Check } from "lucide-react";
+import Link from "next/link";
 import * as React from "react";
 
 import { Button, cn } from "@montaj/ui";
@@ -118,9 +119,22 @@ export interface StageErrorCardProps {
   readonly code: string | null;
   /** Maps to the run, so support can find it without asking for a screenshot. */
   readonly supportCode: string;
+  /** Run the failed step again. Pass it only when the run says it can retry. */
   readonly onRetry?: () => void;
+  /** Start again with another video (the setup kept, the link not). */
   readonly onChooseAnother?: () => void;
+  /** Start again with this same link and setup, to correct the link. */
+  readonly onCheckLink?: () => void;
+  /** Open "Add a moment by time" on this page. */
+  readonly onAddMoment?: () => void;
   readonly retrying?: boolean;
+  /** Why the last "Try again" was refused, already one plain sentence. */
+  readonly retryError?: string | null;
+  /**
+   * The live run the retry was refused for: the same link was started again
+   * since this one failed, so that run is where the work is.
+   */
+  readonly existingRunId?: string | null;
 }
 
 /**
@@ -129,17 +143,36 @@ export interface StageErrorCardProps {
  * Four things, always in this order: what happened, whether their work is safe,
  * one recommended action, and a support code. A raw error never appears — the
  * code is looked up, and an unknown code still produces a sentence.
+ *
+ * The recommended action is the code's own (`copy.ts`), and it is the card's one
+ * primary. "Choose another video" is always there too, as the quiet way out,
+ * unless it already IS the recommendation. A code whose action the page cannot
+ * perform (no retry allowed, no link to check) falls back to that way out.
  */
 export function StageErrorCard({
   code,
   supportCode,
   onRetry,
   onChooseAnother,
+  onCheckLink,
+  onAddMoment,
   retrying = false,
+  retryError = null,
+  existingRunId = null,
 }: StageErrorCardProps): React.JSX.Element {
   const copy = safeErrorCopy(code);
-  const retryable = copy.action === "retry";
-  const showRetry = retryable && onRetry !== undefined;
+  const showRetry = copy.action === "retry" && onRetry !== undefined;
+  const showCheckLink = copy.action === "edit_settings" && onCheckLink !== undefined;
+  const showAddMoment = copy.action === "add_moment" && onAddMoment !== undefined;
+  // Out of credits: the balance is the recommendation, and trying again is the
+  // step after it, so it stays on the card as a secondary.
+  const showCredits = copy.action === "check_credits";
+  const showRetryAfterCredits = showCredits && onRetry !== undefined;
+  const recommended = showRetry || showCheckLink || showAddMoment || showCredits;
+  // The way out says what it does; only a code whose recommendation IS the way
+  // out lends it its own label.
+  const chooseAnotherLabel =
+    copy.action === "choose_another" ? copy.actionLabel : "Choose another video";
 
   return (
     <div
@@ -167,18 +200,65 @@ export function StageErrorCard({
             {retrying ? "Trying again…" : copy.actionLabel}
           </Button>
         )}
+        {showCheckLink && (
+          <Button variant="primary" size="sm" onClick={onCheckLink} data-testid="stage-error-check-link">
+            {copy.actionLabel}
+          </Button>
+        )}
+        {showAddMoment && (
+          <Button variant="primary" size="sm" onClick={onAddMoment} data-testid="stage-error-add-moment">
+            {copy.actionLabel}
+          </Button>
+        )}
+        {showCredits && (
+          <Button variant="primary" size="sm" asChild>
+            <Link href="/billing" className="no-underline" data-testid="stage-error-credits">
+              {copy.actionLabel}
+            </Link>
+          </Button>
+        )}
+        {showRetryAfterCredits && (
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={onRetry}
+            disabled={retrying}
+            data-testid="stage-error-retry"
+          >
+            {retrying ? "Trying again…" : "Try again"}
+          </Button>
+        )}
         {onChooseAnother !== undefined && (
           <Button
             // The only action on the card becomes its primary.
-            variant={showRetry ? "ghost" : "primary"}
+            variant={recommended ? "ghost" : "primary"}
             size="sm"
             onClick={onChooseAnother}
             data-testid="stage-error-choose-another"
           >
-            {retryable ? "Choose another video" : copy.actionLabel}
+            {chooseAnotherLabel}
           </Button>
         )}
       </div>
+
+      {retryError === null ? null : (
+        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2">
+          <p className="m-0 text-sm text-fg-1" aria-live="polite" data-testid="stage-error-retry-error">
+            {retryError}
+          </p>
+          {existingRunId === null ? null : (
+            <Button variant="secondary" size="sm" asChild>
+              <Link
+                href={`/repurpose/${existingRunId}`}
+                className="no-underline"
+                data-testid="stage-error-existing-run"
+              >
+                Open the existing run
+              </Link>
+            </Button>
+          )}
+        </div>
+      )}
 
       <p className="mt-4 text-2xs text-fg-2" data-testid="support-code">
         Support code: <span className="font-mono select-all">{supportCode}</span>

@@ -239,6 +239,24 @@ export class ErasureCascadeService {
       }
     }
 
+    // Clip mezzanines (repurposing): cut from the person's footage and kept in
+    // the derived store under the source project's prefix, but recorded on the
+    // clip row rather than any media row, so the loop above never saw them.
+    const clips = await this.prisma.repurposeClip.findMany({
+      where: { run: { workspaceId }, mezzanineKey: { not: null } },
+      select: { mezzanineKey: true },
+    });
+    const mezzanineKeys = clips
+      .map((clip) => clip.mezzanineKey)
+      .filter((key): key is string => key !== null && key !== "");
+    if (mezzanineKeys.length > 0) {
+      try {
+        derivedObjectsDeleted += await this.derived.deleteMany(mezzanineKeys);
+      } catch (error) {
+        this.logger.warn({ err: describe(error) }, "clip mezzanines not erased");
+      }
+    }
+
     const exports = await this.prisma.export.findMany({
       where: { workspaceId, storageKey: { not: null } },
       select: { storageKey: true },

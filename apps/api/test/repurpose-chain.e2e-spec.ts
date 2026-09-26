@@ -19,6 +19,7 @@ import { PLAN_SEEDS } from "../prisma/seed-data.js";
 import { RepurposeClipCompletionHandler } from "../src/repurpose/clip-completion.handler.js";
 import { RepurposeHighlightsCompletionHandler } from "../src/repurpose/highlights-completion.handler.js";
 import { RepurposeTranscriptCompletedListener } from "../src/repurpose/listeners/transcript-completed.listener.js";
+import { RepurposeClipsService } from "../src/repurpose/repurpose-clips.service.js";
 import { beginnerSafetyViolations, isCancellable } from "../src/repurpose/repurpose.projection.js";
 import { RepurposeService } from "../src/repurpose/repurpose.service.js";
 import { EntitlementService } from "../src/workspaces/entitlement.service.js";
@@ -26,12 +27,14 @@ import { workspacesRedisKeys } from "../src/workspaces/workspaces.constants.js";
 
 import type { TestDatabase } from "./db-harness.js";
 import type { CommonAuditService } from "../src/common/audit/audit.service.js";
+import type { RateLimitService } from "../src/common/index.js";
 import type { PrismaService } from "../src/common/prisma/prisma.service.js";
 import type { RedisService } from "../src/common/redis/redis.service.js";
 import type { ObjectStore } from "../src/common/storage/index.js";
 import type { CreditsFacade } from "../src/credits/credits.facade.js";
 import type { JobCompletionContext, JobCompletionRegistry } from "../src/jobs/completion-handlers.js";
 import type { JobsService } from "../src/jobs/jobs.service.js";
+import type { FacesTrigger } from "../src/media/faces.js";
 import type { MediaService } from "../src/media/media.service.js";
 import type { ProjectsService } from "../src/projects/projects.service.js";
 import type { RealtimePublisher } from "../src/realtime/realtime.publisher.js";
@@ -80,6 +83,7 @@ let db: TestDatabase;
 let prisma: PrismaClient;
 let redis: Redis;
 let service: RepurposeService;
+let clipsService: RepurposeClipsService;
 let highlightsHandler: RepurposeHighlightsCompletionHandler;
 let clipHandler: RepurposeClipCompletionHandler;
 let transcriptListener: RepurposeTranscriptCompletedListener;
@@ -279,6 +283,22 @@ describe.skipIf(!CAN_RUN)("repurpose full chain execution and failure paths", ()
       undefined,
     );
 
+    // Clips moved to their own service on 2026-09-26 (face framing, per-clip
+    // failure and retry, waiting on a full plan lane).
+    clipsService = new RepurposeClipsService(
+      prisma as unknown as PrismaService,
+      fakeJobs(),
+      entitlements,
+      realtime,
+      audit,
+      { maybeEnqueue: async () => undefined } as unknown as FacesTrigger,
+      {
+        consume: async () => ({ allowed: true, remaining: 1, retryAfterSec: 0 }),
+      } as unknown as RateLimitService,
+      env,
+      fakeStore("r2", () => derivedObjects),
+    );
+
     const registry = fakeRegistry();
     highlightsHandler = new RepurposeHighlightsCompletionHandler(
       prisma as unknown as PrismaService,
@@ -459,12 +479,10 @@ describe.skipIf(!CAN_RUN)("repurpose full chain execution and failure paths", ()
     const chosenCandidate = candidates.candidates[0]!;
 
     // 5. Select candidate and enqueue media.clip
-    const clipResult = await service.createClip(
-      WORKSPACE_A,
-      USER_A,
-      runId,
-      chosenCandidate.id,
-    );
+    const clip = await clipsService.createClip(WORKSPACE_A, USER_A, runId, {
+      candidateId: chosenCandidate.id,
+    });
+    const clipResult = { clipId: clip.id };
     expect(clipResult.clipId).toBeDefined();
 
     const clipJob = enqueued.find((j) => j.type === "media.clip");
@@ -476,7 +494,9 @@ describe.skipIf(!CAN_RUN)("repurpose full chain execution and failure paths", ()
     expect(run.currentStage).toBe("styles_formats");
 
     // 6. Faked worker result for media.clip completion
-    const mezzanineKey = `ws/${WORKSPACE_A}/clips/${clipResult.clipId}/master.mp4`;
+    // The key this job asked for: the handler refuses a result that names any
+    // other object (a worker cannot attach arbitrary storage to a clip).
+    const mezzanineKey = (clipJob?.params["destination"] as { key: string }).key;
     const mediaClipResult = {
       schemaVersion: REPURPOSE_SCHEMA_VERSION,
       clipId: clipResult.clipId,
@@ -502,6 +522,9 @@ describe.skipIf(!CAN_RUN)("repurpose full chain execution and failure paths", ()
         workspaceId: WORKSPACE_A,
         projectId: sourceProjectId,
         type: "media.clip",
+        // What the API itself put on the job; the handler trusts this, not the
+        // worker's echo of the clip id.
+        params: clipJob?.params ?? {},
       } as any,
       attemptId: id("ATT02"),
       result: mediaClipResult,
@@ -654,14 +677,14 @@ describe.skipIf(!CAN_RUN)("repurpose full chain execution and failure paths", ()
 
     const failedRun = await service.get(WORKSPACE_A, runId);
     expect(failedRun.status).toBe("failed");
-    expect(failedRun.failureCode).toBe("repurpose/analysis_failed");
+    expect(failedRun.failureCode).toBe("repurpose/highlights_failed");
     expect(failedRun.canRetry).toBe(true);
     expect(failedRun.canCancel).toBe(false);
     expect(failedRun.message).toBe("Something went wrong. Your work is safe.");
     expect(beginnerSafetyViolations(failedRun.message)).toEqual([]);
   });
 
-  it("handles failure path: media.clip fails terminally", async () => {
+  it("a media.clip that fails terminally fails only that clip, never the run", async () => {
     const createdRun = await service.create(WORKSPACE_A, USER_A, {
       source: UPLOAD_SOURCE,
       setup: SETUP,
@@ -694,12 +717,10 @@ describe.skipIf(!CAN_RUN)("repurpose full chain execution and failure paths", ()
 
     await clipHandler.handleFailure(failContext);
 
-    const failedRun = await service.get(WORKSPACE_A, runId);
-    expect(failedRun.status).toBe("failed");
-    expect(failedRun.failureCode).toBe("repurpose/clip_failed");
-    expect(failedRun.canRetry).toBe(true);
-    expect(failedRun.canCancel).toBe(false);
-    expect(failedRun.message).toBe("Something went wrong. Your work is safe.");
-    expect(beginnerSafetyViolations(failedRun.message)).toEqual([]);
+    // One clip failing used to fail the whole run and hide every other clip
+    // behind an error card (2026-09-26 audit). The clip carries its own state.
+    const run = await service.get(WORKSPACE_A, runId);
+    expect(run.status).not.toBe("failed");
+    expect(run.failureCode).toBeNull();
   });
 });

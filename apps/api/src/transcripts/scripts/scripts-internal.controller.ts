@@ -1,4 +1,13 @@
-import { Body, Controller, HttpCode, HttpStatus, Param, Post, UseGuards } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  HttpCode,
+  HttpStatus,
+  NotFoundException,
+  Param,
+  Post,
+  UseGuards,
+} from "@nestjs/common";
 import { ApiExcludeController } from "@nestjs/swagger";
 
 import type { Word } from "@montaj/edg/schemas";
@@ -57,7 +66,10 @@ export class ScriptsInternalController {
       select: { id: true, projectId: true, currentRevision: true, language: true },
     });
     if (!transcript) {
-      return { transcriptId, revision: 1, words: [], durationMs: 0 };
+      // A 404, not an empty transcript: "no words" and "no such transcript" are
+      // different answers, and ai.highlights turned the second into a made-up
+      // highlight before 2026-09-26.
+      throw new NotFoundException(`No transcript ${transcriptId}`);
     }
     const revision = body?.revision ?? transcript.currentRevision;
     const chunkRows = await newestChunkRows(this.prisma, transcriptId, { maxRevision: revision });

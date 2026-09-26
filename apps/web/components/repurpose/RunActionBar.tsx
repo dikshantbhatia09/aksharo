@@ -11,7 +11,9 @@
 import * as React from "react";
 
 import type { RepurposeRunView } from "@montaj/api-client";
-import { Button, ProgressBar, cn } from "@montaj/ui";
+import { Button, ConfirmAction, ProgressBar, cn } from "@montaj/ui";
+
+import { safeErrorCopy } from "@/components/repurpose/copy";
 
 
 export interface RunAction {
@@ -19,6 +21,16 @@ export interface RunAction {
   readonly onClick: () => void;
   readonly disabled?: boolean;
   readonly testId: string;
+  /**
+   * For an action that cannot be undone (stopping a run): the button then
+   * asks first, through `ConfirmAction`, and `onClick` runs on the confirm.
+   */
+  readonly confirm?: {
+    readonly title: string;
+    readonly description: string;
+    readonly confirmLabel: string;
+    readonly testId: string;
+  };
 }
 
 export function RunActionBar({
@@ -57,7 +69,7 @@ export function RunActionBar({
           {primary.label}
         </Button>
       )}
-      {secondary !== undefined && (
+      {secondary === undefined ? null : secondary.confirm === undefined ? (
         <Button
           variant="secondary"
           size="sm"
@@ -67,6 +79,24 @@ export function RunActionBar({
         >
           {secondary.label}
         </Button>
+      ) : (
+        <ConfirmAction
+          trigger={
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={secondary.disabled ?? false}
+              data-testid={secondary.testId}
+            >
+              {secondary.label}
+            </Button>
+          }
+          title={secondary.confirm.title}
+          description={secondary.confirm.description}
+          confirmLabel={secondary.confirm.confirmLabel}
+          confirmTestId={secondary.confirm.testId}
+          onConfirm={secondary.onClick}
+        />
       )}
       {note === undefined ? null : <p className="m-0 text-xs text-fg-2">{note}</p>}
     </div>
@@ -87,6 +117,20 @@ export function PersistentPreview({
   readonly run: RepurposeRunView;
   readonly className?: string;
 }): React.JSX.Element {
+  // A run that stopped is not "0% complete" and its preview is not coming: the
+  // projection zeroes progress on failure, and the old copy promised both.
+  const stoppedLine =
+    run.status === "failed"
+      ? safeErrorCopy(run.failureCode).title
+      : run.status === "cancelled"
+        ? "You stopped this run"
+        : null;
+  const placeholder =
+    stoppedLine ??
+    (["draft", "acquiring", "preparing_media"].includes(run.status)
+      ? "Preview appears once your video is ready"
+      : "No preview yet");
+
   return (
     <aside
       aria-label="This video"
@@ -105,7 +149,7 @@ export function PersistentPreview({
       >
         {/* A poster arrives with the media; until then the box holds its shape so
             nothing jumps when it does (§13.6). */}
-        Preview appears once your video is ready
+        {placeholder}
       </div>
 
       <dl className="m-0 flex flex-col gap-2 text-sm">
@@ -130,10 +174,18 @@ export function PersistentPreview({
       </dl>
 
       <div>
-        <ProgressBar value={run.progress} label="How far along your video is" />
-        <p className="mt-1.5 text-xs text-fg-2" data-testid="preview-progress">
-          {run.progress}% complete
-        </p>
+        {stoppedLine === null ? (
+          <>
+            <ProgressBar value={run.progress} label="How far along your video is" />
+            <p className="mt-1.5 text-xs text-fg-2" data-testid="preview-progress">
+              {run.progress}% complete
+            </p>
+          </>
+        ) : (
+          <p className="m-0 text-xs text-fg-2" data-testid="preview-progress">
+            Stopped
+          </p>
+        )}
       </div>
     </aside>
   );

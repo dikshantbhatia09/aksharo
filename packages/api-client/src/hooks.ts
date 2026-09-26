@@ -25,12 +25,15 @@ import * as React from "react";
 import { useApiClient, useApiContext, useWorkspaceId } from "./context.js";
 import { endpoints } from "./endpoints.js";
 import { ApiError, CLIENT_ERROR_CODES, isApiError } from "./errors.js";
+import { defineEndpoint } from "./http.js";
 import { queryKeys } from "./query-keys.js";
 
 import type { ApiClient } from "./http.js";
 import type {
+  CreateRepurposeCandidateRequest,
   CreateRepurposeRunRequest,
   CreateRepurposeRunResponse,
+  ProjectRenderPreview,
   RepurposeCandidateItem,
   RepurposeClipItem,
   RepurposeRunPage,
@@ -1884,6 +1887,18 @@ export function useAudioAssetUrls(assetIds: readonly string[]): ReadonlyMap<stri
 // Repurposing runs (REP-006)
 // ---------------------------------------------------------------------------
 
+/** Statuses in which a run moves on its own, without the person doing anything. */
+const RUN_STATUSES_THAT_MOVE: ReadonlySet<string> = new Set([
+  "draft",
+  "acquiring",
+  "preparing_media",
+  "transcribing",
+  "analyzing",
+  "materializing",
+  "rendering",
+  "publishing",
+]);
+
 /**
  * Is the guided repurposing surface available to this workspace?
  *
@@ -1898,8 +1913,20 @@ export function useRepurposeRuns(enabled = true): UseQueryResult<RepurposeRunPag
     queryKey: queryKeys.repurposeRuns(workspaceId ?? "none"),
     enabled: enabled && workspaceId !== null,
     retry: retryPolicy,
+    // Home's banner and `/repurpose` read this list, and several of a run's
+    // steps (probe, proxy, transcript) move it without any realtime event of
+    // its own — so while something is working it is re-read now and then. A
+    // run waiting on the person, or finished, costs nothing.
+    refetchInterval: (query) => runListPollDelay(query.state.data?.items ?? []),
     queryFn: () => client.call(endpoints.repurpose.list),
   });
+}
+
+/** `useRepurposeRuns`' poll: every 20 s while any run is moving on its own. */
+export function runListPollDelay(
+  runs: readonly Pick<RepurposeRunView, "status">[],
+): number | false {
+  return runs.some((run) => RUN_STATUSES_THAT_MOVE.has(run.status)) ? 20_000 : false;
 }
 
 /**
@@ -1971,6 +1998,14 @@ function useRunCommand(
       if (workspaceId === null) return;
       queryClient.setQueryData(queryKeys.repurposeRun(workspaceId, run.id), run);
       void queryClient.invalidateQueries({ queryKey: queryKeys.repurposeRuns(workspaceId) });
+      // A retry re-runs the failed stage and a cancel stops the cuts in flight,
+      // so the run's candidates and clips change underneath it too.
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.repurposeCandidates(workspaceId, run.id),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.repurposeClips(workspaceId, run.id),
+      });
     },
   });
 }
@@ -1983,29 +2018,122 @@ export function useRetryRepurposeRun(): UseMutationResult<RepurposeRunView, Erro
   return useRunCommand(endpoints.repurpose.retry);
 }
 
+/**
+ * A run's suggested (and hand-picked) moments.
+ *
+ * Realtime invalidates this when discovery finishes, but a socket that is down
+ * or missed the event used to leave the page saying "your moments are ready"
+ * over an empty list until a reload (clips hardening, 2026-09-26). So it polls,
+ * boundedly, in exactly the two situations where moments are expected:
+ *
+ *   * `poll` — the caller knows discovery is under way (the run is transcribing
+ *     or analyzing);
+ *   * `expectedCount` — the run's own (polled) projection says it has more
+ *     candidates than this list holds.
+ *
+ * Neither holds once the list has caught up, so a settled run costs nothing.
+ */
 export function useRepurposeCandidates(
   runId: string | null,
+  options: {
+    readonly poll?: boolean;
+    readonly expectedCount?: number;
+    readonly pollMs?: number;
+  } = {},
 ): UseQueryResult<{ runId: string; candidates: RepurposeCandidateItem[] }> {
   const client = useApiClient();
   const workspaceId = useWorkspaceId();
+  const pollMs = options.pollMs ?? 5_000;
   return useQuery({
     queryKey: queryKeys.repurposeCandidates(workspaceId ?? "none", runId ?? "none"),
     enabled: workspaceId !== null && runId !== null,
     retry: retryPolicy,
+    refetchInterval: (query) =>
+      candidatesPollDelay(options, query.state.data?.candidates.length ?? 0, pollMs),
     queryFn: () => client.call(endpoints.repurpose.candidates, { params: { runId: runId ?? "" } }),
   });
 }
 
+/** `useRepurposeCandidates`' poll: `pollMs` while moments are expected, else none. */
+export function candidatesPollDelay(
+  options: { readonly poll?: boolean; readonly expectedCount?: number },
+  loaded: number,
+  pollMs: number,
+): number | false {
+  if (options.poll === true) return pollMs;
+  return options.expectedCount !== undefined && loaded < options.expectedCount ? pollMs : false;
+}
+
+/**
+ * Is any clip in this list still on its way to a picture?
+ *
+ * `waiting` counts while the run is live: the API enqueues a waiting clip on
+ * its own once the plan lane frees up, and the page has to notice when it does.
+ * Not on a stopped run (`waitingStarts: false`) — the API never enqueues for a
+ * cancelled run, so its waiting clips wait for good, while a cut already in
+ * flight is left to finish. A clip from an API older than the `state` field is
+ * still moving until its mezzanine exists.
+ */
+export function clipsStillMoving(
+  clips: readonly RepurposeClipItem[],
+  options: { readonly waitingStarts?: boolean } = {},
+): boolean {
+  const waitingStarts = options.waitingStarts ?? true;
+  return clips.some((clip) =>
+    clip.state === undefined
+      ? (clip.mezzanineKey ?? clip.mezzanineUrl ?? null) === null
+      : clip.state === "cutting" || (waitingStarts && clip.state === "waiting"),
+  );
+}
+
+/**
+ * How often a settled clip list is re-read anyway: well inside the hour its
+ * mezzanine URLs are signed for (`MEZZANINE_URL_TTL_SECONDS`), so the page's
+ * posters, previews and "Download video" links never go stale on a tab left
+ * open. `useStableUrl` keeps a playing video on the URL it started with.
+ */
+export const CLIP_URL_REFRESH_MS = 10 * 60_000;
+
+/** `useRepurposeClips`' poll: `pollMs` while a clip moves, a slow refresh while any has a URL. */
+export function clipsPollDelay(
+  clips: readonly RepurposeClipItem[],
+  options: { readonly waitingStarts?: boolean },
+  pollMs: number,
+): number | false {
+  if (clipsStillMoving(clips, options)) return pollMs;
+  return clips.some((clip) => typeof clip.mezzanineUrl === "string") ? CLIP_URL_REFRESH_MS : false;
+}
+
+/**
+ * A run's cut clips, polled quickly only while one of them is still being cut.
+ *
+ * It used to poll every 3 s forever — including on a run that had failed at
+ * download, and on a finished list, where every poll presigned fresh URLs and
+ * restarted any preview that was playing. A settled list is still re-read now
+ * and then ({@link CLIP_URL_REFRESH_MS}), and when the tab comes back into
+ * focus, because its URLs expire and nothing else would ever renew them.
+ *
+ * `runStopped`: the run was cancelled, so a waiting clip will never start and
+ * is not worth polling for.
+ */
 export function useRepurposeClips(
   runId: string | null,
+  options: { readonly pollMs?: number; readonly runStopped?: boolean } = {},
 ): UseQueryResult<{ runId: string; clips: RepurposeClipItem[] }> {
   const client = useApiClient();
   const workspaceId = useWorkspaceId();
+  const pollMs = options.pollMs ?? 3_000;
+  const waitingStarts = options.runStopped !== true;
   return useQuery({
     queryKey: queryKeys.repurposeClips(workspaceId ?? "none", runId ?? "none"),
     enabled: workspaceId !== null && runId !== null,
     retry: retryPolicy,
-    refetchInterval: 3000,
+    refetchInterval: (query) =>
+      clipsPollDelay(query.state.data?.clips ?? [], { waitingStarts }, pollMs),
+    // A tab left in the background polls nothing, and comes back holding URLs
+    // that may have expired an hour ago.
+    refetchOnWindowFocus: true,
+    staleTime: 60_000,
     queryFn: () => client.call(endpoints.repurpose.clips, { params: { runId: runId ?? "" } }),
   });
 }
@@ -2026,8 +2154,25 @@ export function useRepurposePreview(runId: string | null): UseQueryResult<{
   });
 }
 
+/**
+ * `POST /repurpose/runs/{runId}/clips` as the API answers it since the clips
+ * hardening (2026-09-26): the clip itself, in the list's own shape, with its
+ * `state`. `endpoints.repurpose.createClip` still carries the old
+ * `{ clipId, jobId, status }` until the OpenAPI index is regenerated, and a
+ * caller reading those fields would get `undefined`.
+ */
+const createRepurposeClipEndpoint = defineEndpoint<
+  { candidateId: string; aspect?: string },
+  RepurposeClipItem
+>({
+  method: "POST",
+  path: "/repurpose/runs/{runId}/clips",
+  auth: "bearer",
+  operationId: "createRepurposeClip",
+});
+
 export function useCreateRepurposeClip(): UseMutationResult<
-  { clipId: string; jobId: string; status: string },
+  RepurposeClipItem,
   Error,
   { readonly runId: string; readonly candidateId: string; readonly aspect?: string }
 > {
@@ -2036,20 +2181,183 @@ export function useCreateRepurposeClip(): UseMutationResult<
   const workspaceId = useWorkspaceId();
   return useMutation({
     mutationFn: (input) =>
-      client.call(endpoints.repurpose.createClip, {
+      client.call(createRepurposeClipEndpoint, {
         params: { runId: input.runId },
         body: { candidateId: input.candidateId, aspect: input.aspect },
       }),
-    onSuccess: (_, input) => {
+    // Settled, not success: a refused create can still have left a clip row
+    // behind (or found one), and the list has to show it either way.
+    onSettled: (_data, _error, input) => {
       if (workspaceId === null) return;
       void queryClient.invalidateQueries({
         queryKey: queryKeys.repurposeClips(workspaceId, input.runId),
       });
       void queryClient.invalidateQueries({
         queryKey: queryKeys.repurposeRun(workspaceId, input.runId),
+        exact: true,
       });
     },
   });
+}
+
+// ---------------------------------------------------------------------------
+// Clips pipeline hardening (2026-09-26): per-clip retry, moments picked by
+// time, and the styled preview. These routes land with the same change on the
+// API, ahead of the regenerated OpenAPI index, so they are described here
+// rather than in `endpoints.ts` (which the contract test holds to that index).
+// ---------------------------------------------------------------------------
+
+export type {
+  CreateRepurposeCandidateRequest,
+  ProjectRenderPreview,
+  RepurposeClipState,
+  RepurposeSourceAlreadyRunningDetails,
+} from "./types.js";
+
+const retryRepurposeClipEndpoint = defineEndpoint<void, RepurposeClipItem>({
+  method: "POST",
+  path: "/repurpose/runs/{runId}/clips/{clipId}/retry",
+  auth: "bearer",
+});
+
+const createRepurposeCandidateEndpoint = defineEndpoint<
+  CreateRepurposeCandidateRequest,
+  RepurposeCandidateItem
+>({
+  method: "POST",
+  path: "/repurpose/runs/{runId}/candidates",
+  auth: "bearer",
+});
+
+const projectRenderPreviewEndpoint = defineEndpoint<void, ProjectRenderPreview>({
+  method: "GET",
+  path: "/projects/{projectId}/render-preview",
+  auth: "bearer",
+});
+
+/** Cut a failed (or still waiting) clip again. Only that clip; the run is untouched. */
+export function useRetryRepurposeClip(): UseMutationResult<
+  RepurposeClipItem,
+  Error,
+  { readonly runId: string; readonly clipId: string }
+> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  const workspaceId = useWorkspaceId();
+  return useMutation({
+    mutationFn: (input) =>
+      client.call(retryRepurposeClipEndpoint, {
+        params: { runId: input.runId, clipId: input.clipId },
+      }),
+    onSettled: (_data, _error, input) => {
+      if (workspaceId === null) return;
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.repurposeClips(workspaceId, input.runId),
+      });
+    },
+  });
+}
+
+/**
+ * Add a moment by its start and end time — the manual path ("I know the
+ * timestamps"), and the way out when discovery suggested nothing.
+ */
+export function useCreateRepurposeCandidate(): UseMutationResult<
+  RepurposeCandidateItem,
+  Error,
+  { readonly runId: string; readonly body: CreateRepurposeCandidateRequest }
+> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  const workspaceId = useWorkspaceId();
+  return useMutation({
+    mutationFn: (input) =>
+      client.call(createRepurposeCandidateEndpoint, {
+        params: { runId: input.runId },
+        body: input.body,
+      }),
+    onSuccess: (_data, input) => {
+      if (workspaceId === null) return;
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.repurposeCandidates(workspaceId, input.runId),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.repurposeRun(workspaceId, input.runId),
+        exact: true,
+      });
+    },
+  });
+}
+
+/**
+ * How long a render preview is trusted before asking again: under five minutes,
+ * the shortest the API signs a preview's proxy and face-track URLs for (the
+ * public viewer's `DOWNLOAD_URL_TTL_SECONDS`). It used to be 45 minutes, so a
+ * clip played more than five minutes after the page loaded mounted its stage
+ * on an expired URL. Only a fresh observer (a remount) reads this; a stage
+ * about to play checks its URL's own lifetime (`ClipPreview`).
+ */
+export const RENDER_PREVIEW_STALE_MS = 4 * 60_000;
+/** Polls spent waiting for a new clip's proxy, document and face track. */
+const RENDER_PREVIEW_MAX_POLLS = 30;
+
+/**
+ * Everything a read-only `CaptionStage` needs to draw a project as it exports.
+ *
+ * A clip cut a moment ago has none of it yet: its proxy (409 until then), its
+ * editing document (`projection: null`) and its face track (`facesUrl` absent)
+ * each arrive a little later. So the query keeps asking — every `pollMs`, and
+ * at most `RENDER_PREVIEW_MAX_POLLS` times, because a video with no faces in it
+ * never gets a track and must not poll for ever. Any other error is final.
+ *
+ * `wantFaces: false` stops waiting for the face track. A page of clips only
+ * needs to know whether each can be drawn styled; only the one being played
+ * uses its track, and every poll here rebuilds the whole projection on the
+ * server, so ten clips each waiting out a track that never comes was ~300
+ * projection builds per page view.
+ */
+export function useProjectRenderPreview(
+  projectId: string | undefined,
+  options: {
+    readonly enabled?: boolean;
+    readonly pollMs?: number;
+    readonly wantFaces?: boolean;
+  } = {},
+): UseQueryResult<ProjectRenderPreview> {
+  const client = useApiClient();
+  const workspaceId = useWorkspaceId();
+  const pollMs = options.pollMs ?? 10_000;
+  const wantFaces = options.wantFaces ?? true;
+  return useQuery({
+    queryKey: [...queryKeys.project(workspaceId ?? "none", projectId ?? "none"), "render-preview"],
+    enabled: (options.enabled ?? true) && workspaceId !== null && projectId !== undefined,
+    retry: retryPolicy,
+    staleTime: RENDER_PREVIEW_STALE_MS,
+    refetchInterval: (query) => renderPreviewPollDelay(query.state, pollMs, { wantFaces }),
+    queryFn: () =>
+      client.call(projectRenderPreviewEndpoint, { params: { projectId: projectId ?? "" } }),
+  });
+}
+
+/** `useProjectRenderPreview`' poll, from the query's own state. */
+export function renderPreviewPollDelay(
+  state: {
+    readonly data: ProjectRenderPreview | undefined;
+    readonly error: unknown;
+    readonly dataUpdateCount: number;
+    readonly errorUpdateCount: number;
+  },
+  pollMs: number,
+  options: { readonly wantFaces?: boolean } = {},
+): number | false {
+  const { data, error, dataUpdateCount, errorUpdateCount } = state;
+  if (dataUpdateCount + errorUpdateCount >= RENDER_PREVIEW_MAX_POLLS) return false;
+  if (error !== null && error !== undefined) {
+    return isApiError(error) && error.status === 409 ? pollMs : false;
+  }
+  if (data === undefined) return false;
+  if (data.projection === null) return pollMs;
+  return (options.wantFaces ?? true) && data.facesUrl === undefined ? pollMs : false;
 }
 
 /**

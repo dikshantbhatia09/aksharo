@@ -5,6 +5,7 @@ import {
   MediaJobError,
   describeError,
   redact,
+  sourceRefused,
   stderrTail,
   transientFailure,
   unreadableMedia,
@@ -80,6 +81,26 @@ describe("MediaJobError", () => {
     const error = transientFailure("media/store_unavailable", "the store said no");
     expect(error.retryable).toBe(true);
     expect(error.reason).toBeUndefined();
+  });
+
+  it("lets a transient failure say what the user is told if its retries run out", () => {
+    // An unrecognised download failure is retried, and when it is terminal it is
+    // "the download failed", not the probe's "we could not read your file".
+    const error = transientFailure("media/acquire_failed", "nope", {
+      reason: "media/source_failed",
+    });
+    expect(error.retryable).toBe(true);
+    expect(error.reason).toBe("media/source_failed");
+  });
+
+  it("marks a refused source terminal, with the reason as its code too", () => {
+    // The code doubles as the reason so the API can read it off the job as well
+    // as off the media row (proxy.handler's failureReasonOf does exactly that).
+    const error = sourceRefused("media/source_blocked", "not now", "ERROR: not a bot");
+    expect(error.retryable).toBe(false);
+    expect(error.reason).toBe("media/source_blocked");
+    expect(error.code).toBe("media/source_blocked");
+    expect(error.detail).toBe("ERROR: not a bot");
   });
 });
 

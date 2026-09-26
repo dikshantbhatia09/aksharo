@@ -38,6 +38,57 @@ export const REPURPOSE_ERRORS = {
   stageTimeout: "repurpose/stage_timeout",
 } as const;
 
+/**
+ * Statuses a run holds before it has moments to pick from — the stretch the
+ * source, transcription and discovery producers own.
+ *
+ * Every write those producers make is conditional on the run still being in
+ * here, so none of them can drag a run back: a discovery that completes after
+ * the person already cut a clip, or a failure that lands after they pressed
+ * Stop, finds the run elsewhere and changes nothing. `analyzing` is included so
+ * a re-drive of discovery (the reconciler, a retry) still passes.
+ */
+export const PRE_CANDIDATE_STATUSES = [
+  "draft",
+  "acquiring",
+  "preparing_media",
+  "transcribing",
+  "analyzing",
+] as const;
+
+/** Statuses nothing moves a run out of again, apart from a retry out of `failed`. */
+export const SETTLED_RUN_STATUSES = [
+  "failed",
+  "cancelled",
+  "published",
+  "partially_published",
+] as const;
+
+/**
+ * How often a READ of a run may also reconcile it (`RepurposeReconciler`). The
+ * run page polls every few seconds and the home page lists every run; each
+ * reconcile is a handful of queries and possibly an admission check, and the
+ * durable state it reads does not change that often.
+ */
+export const RECONCILE_INTERVAL_MS = 5_000;
+
+/**
+ * How long reads leave a run alone after the job queue itself refused one of
+ * its enqueues. Every attempt while Redis is down writes a dead job row (and,
+ * for a transcription, a credit reserve and its release) before the queue says
+ * no, so retrying on every 5 s poll for the length of an outage is bloat that
+ * cannot succeed. A full plan lane writes nothing and is not backed off.
+ */
+export const QUEUE_DOWN_BACKOFF_MS = 60_000;
+
+/**
+ * How many runs one list read reconciles at once. The home page lists up to
+ * `RUN_PAGE_MAX` runs, and each reconcile is several queries: all of them at
+ * once, on every poll, is enough to exhaust the pool on this one-laptop API
+ * and time out requests that have nothing to do with runs.
+ */
+export const LIST_RECONCILE_CONCURRENCY = 3;
+
 /** Per-stage timeout deadlines (CORE-023). Moving a run past its deadline to failed. */
 export const DEFAULT_STAGE_DEADLINES_MS: Readonly<Record<string, number>> = Object.freeze({
   getting_video: 40 * 60 * 1000,
@@ -119,4 +170,7 @@ export const RUN_PAGE_MAX = 50;
  * project's editor drew. In the job key, so a re-cut is never deduplicated
  * against an old-profile cut still in flight.
  */
-export const CLIP_PROFILE_VERSION = "2";
+// "3" (2026-09-26): framed on the speaking face (`reframe.centerX`) and cut at
+// up to 1080 x 1920 instead of a centre crop at 720 x 1280. A new version is
+// what makes an existing clip re-cut on its next request.
+export const CLIP_PROFILE_VERSION = "3";
