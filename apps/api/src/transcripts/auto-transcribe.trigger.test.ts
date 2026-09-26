@@ -39,6 +39,8 @@ function harness(
     media?: Partial<typeof READY_PRIMARY> | null;
     project?: Partial<typeof FRESH_PROJECT> | null;
     transcriptCount?: number;
+    /** A clips run on this project that the person cancelled. */
+    cancelledRun?: boolean;
     transcribe?: () => Promise<{ jobId: string }>;
     ensure?: () => Promise<{ status: string; edgId?: string }>;
   } = {},
@@ -50,6 +52,9 @@ function harness(
     mediaAsset: { findUnique: vi.fn(async () => media) },
     project: { findFirst: vi.fn(async () => project) },
     transcript: { count: vi.fn(async () => overrides.transcriptCount ?? 0) },
+    repurposeRun: {
+      findFirst: vi.fn(async () => (overrides.cancelledRun === true ? { id: "01RUN" } : null)),
+    },
   } as unknown as PrismaService;
   const ensure = vi.fn(overrides.ensure ?? (async () => ({ status: "created", edgId: "01EDG" })));
   const trigger = new AutoTranscribeTrigger(
@@ -77,6 +82,12 @@ describe("AutoTranscribeTrigger", () => {
       userId: "01USER",
       languages: ["hi-Latn"],
     });
+  });
+
+  it("spends nothing on a clips run the person cancelled after its download", async () => {
+    const { trigger, transcribe } = harness({ cancelledRun: true });
+    await expect(trigger.maybeEnqueue("01MEDIA")).resolves.toBeUndefined();
+    expect(transcribe).not.toHaveBeenCalled();
   });
 
   it("leaves a project that already has an editing document alone", async () => {
