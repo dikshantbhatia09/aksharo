@@ -339,6 +339,13 @@ export const SAFE_ERROR_CODES = [
   "repurpose/no_credits",
   /** A stage stopped making progress; retrying restarts it. */
   "repurpose/stage_timeout",
+  /** An upload run whose file never arrived (the upload never started or failed). */
+  "repurpose/upload_missing",
+  /**
+   * The transcript has no word timings (a pre-2026-09-17 Sarvam transcript),
+   * so no moment can be placed; starting the video again transcribes it afresh.
+   */
+  "repurpose/transcript_untimed",
 ] as const;
 export const SafeErrorSchema = z.strictObject({
   code: z.enum(SAFE_ERROR_CODES),
