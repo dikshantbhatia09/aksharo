@@ -1324,6 +1324,20 @@ export interface RepurposeRunView {
   failureDetail?: RepurposeRunFailureDetail | null;
   /** `POST .../next-window` has more of the video after this window to process. */
   nextWindowAvailable?: boolean;
+  /**
+   * Why a run that has not failed is not moving, and until when (Wave B,
+   * 2026-09-27): YouTube is refusing this server's downloads, and the run
+   * continues by itself at `until`. Null when nothing holds it; absent from
+   * an older API.
+   */
+  waitingFor?: RepurposeRunWaitingFor | null;
+}
+
+/** See {@link RepurposeRunView.waitingFor}. */
+export interface RepurposeRunWaitingFor {
+  reason: "source_busy";
+  /** ISO time the run continues by itself. */
+  until: string;
 }
 
 /** Which part of the source a run takes: the most-replayed stretch, the start, or a picked start. */

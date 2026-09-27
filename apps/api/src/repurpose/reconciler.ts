@@ -34,6 +34,7 @@ import {
 } from "./repurpose.constants.js";
 import { progressForStatus, stageForStatus } from "./repurpose.projection.js";
 import { RepurposeService, isRefusal, isUniqueViolation } from "./repurpose.service.js";
+import { MAX_BLOCKED_FETCHES, SOURCE_BLOCKED_REASON, SourceGate } from "./source-gate.js";
 import { AppException, ERROR_CODES } from "../common/errors/error-codes.js";
 import { PrismaService } from "../common/prisma/prisma.service.js";
 import { queuePolicyFor } from "../jobs/jobs.config.js";
@@ -153,12 +154,25 @@ export interface RunSnapshot {
   readonly highlightsJob: JobFacts | null;
   /** Moments the run already has, suggested or added by hand. */
   readonly candidateCount: number;
+  /**
+   * Until when YouTube downloads wait (`SourceGate`, ms since the epoch); null
+   * or absent when the gate is not open. Only read for a link run.
+   */
+  readonly sourceGateUntil?: number | null;
+  /**
+   * How many of this run's downloads YouTube refused (`media/source_blocked`).
+   * Under {@link MAX_BLOCKED_FETCHES} the run waits the gate out and fetches
+   * again; absent reads as none.
+   */
+  readonly blockedFetches?: number;
 }
 
 export type RunAction =
   | { readonly kind: "wait" }
   | { readonly kind: "fail"; readonly failedAt: FailedAt; readonly code: RunFailureCode }
   | { readonly kind: "acquire" }
+  /** Fetch the link again into a fresh media row: YouTube refused the last one. */
+  | { readonly kind: "refetch" }
   | { readonly kind: "transcribe" }
   | { readonly kind: "discover" }
   | { readonly kind: "candidates_ready" };
@@ -378,6 +392,28 @@ function uploadNotArrived(snapshot: RunSnapshot): boolean {
   return status === undefined || status === "pending" || status === "uploading";
 }
 
+/** The source gate is holding YouTube downloads at `snapshot.now`. */
+function gateOpen(snapshot: RunSnapshot): boolean {
+  const until = snapshot.sourceGateUntil ?? null;
+  return until !== null && until > snapshot.now;
+}
+
+/**
+ * A download YouTube refused (its bot check, a 429) that the run waits out
+ * instead of failing: the gate is open, so it waits, and once it closes it
+ * fetches again into a fresh row. Null when the refusal is the run's failure -
+ * another reason, the run's budget of refusals spent, or no address to fetch.
+ */
+function blockedFetchAction(
+  snapshot: RunSnapshot,
+  mediaReason: string | null,
+  jobErrorCode: string | null,
+): RunAction | null {
+  if (mediaReason !== SOURCE_BLOCKED_REASON && jobErrorCode !== SOURCE_BLOCKED_REASON) return null;
+  if ((snapshot.blockedFetches ?? 0) >= MAX_BLOCKED_FETCHES || !snapshot.canRefetch) return null;
+  return gateOpen(snapshot) ? WAIT : { kind: "refetch" };
+}
+
 /** The source project is gone: the run fails as a video we no longer have. */
 const SOURCE_GONE: RunAction = {
   kind: "fail",
@@ -436,16 +472,27 @@ export function decideRunAction(snapshot: RunSnapshot): RunAction {
     // The worker marks the media failed, with its reason, before it reports
     // the job — so this can be seen a moment before the job says so.
     if (media.status === "failed") {
-      return fail("acquire", media.failureReason, snapshot.acquireJob?.errorCode ?? null);
+      const errorCode = snapshot.acquireJob?.errorCode ?? null;
+      return (
+        blockedFetchAction(snapshot, media.failureReason, errorCode) ??
+        fail("acquire", media.failureReason, errorCode)
+      );
     }
     const job = presentJob(snapshot.acquireJob);
     if (job === null) {
       // Nothing is fetching into it: its enqueue was refused (a full lane on a
-      // retry), so fetch it now. With no address yet, `create` is between
-      // reserving the row and queueing the job that carries the address.
-      return media.status === "pending" && snapshot.canRefetch ? { kind: "acquire" } : WAIT;
+      // retry), or it waits for the source gate, so fetch it now - unless the
+      // gate is still open. With no address yet, `create` is between reserving
+      // the row and queueing the job that carries the address.
+      if (media.status !== "pending" || !snapshot.canRefetch || gateOpen(snapshot)) return WAIT;
+      return { kind: "acquire" };
     }
-    if (isOver(job)) return fail("acquire", media.failureReason, job.errorCode);
+    if (isOver(job)) {
+      return (
+        blockedFetchAction(snapshot, media.failureReason, job.errorCode) ??
+        fail("acquire", media.failureReason, job.errorCode)
+      );
+    }
     // Queued or running, or succeeded with the hand-off to probing in flight —
     // unless it is still open long after its own deadline: the acquisition
     // worker died, or never started (CLAUDE.md §8), and nothing reports it.
@@ -819,6 +866,8 @@ export class RepurposeReconciler
     private readonly clips: RepurposeClipsService,
     /** Reads whether a queued job is waiting for disk; absent in unit harnesses. */
     private readonly jobs?: JobsService,
+    /** YouTube's circuit breaker; absent in unit harnesses (never open there). */
+    private readonly gate?: SourceGate,
   ) {}
 
   /**
@@ -1130,9 +1179,16 @@ export class RepurposeReconciler
       }
 
       case "acquire":
+      case "refetch":
         if (state.refetchUrl === null || state.media === null) return run;
         try {
-          await this.runs.reacquire(run, state.refetchUrl, state.media);
+          // `refetch`: YouTube refused the last fetch, whose row is failed; a
+          // fresh row is reserved (and waits, should the gate have opened again).
+          await this.runs.reacquire(
+            run,
+            state.refetchUrl,
+            action.kind === "acquire" ? state.media : undefined,
+          );
         } catch (error) {
           if (error instanceof AppException && error.code === REPURPOSE_ERRORS.noCredits) {
             // The balance no longer pays for a minute of the window: waiting
@@ -1406,6 +1462,13 @@ export class RepurposeReconciler
         transcribeJob: unansweredFactsOf(forMedia(transcribeJobs), run.updatedAt),
         highlightsJob: unansweredFactsOf(highlightsJobs[0], run.updatedAt),
         candidateCount,
+        sourceGateUntil:
+          run.sourceKind === "upload" || this.gate === undefined
+            ? null
+            : (await this.gate.state(now)).openUntil,
+        blockedFetches: acquireJobs.filter(
+          (job) => job.status === "failed" && jobErrorCodeOf(job.error) === SOURCE_BLOCKED_REASON,
+        ).length,
       },
     };
   }

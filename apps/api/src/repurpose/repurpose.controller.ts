@@ -213,6 +213,29 @@ export class RepurposeController {
     return this.repurpose.nextWindow(workspaceId, userId, runId);
   }
 
+  @Post(":runId/source")
+  @Roles("editor")
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(RateLimitGuard)
+  @RateLimit(REPURPOSE_RATE_LIMITS.create)
+  @ApiOperation({
+    summary: "Upload the file instead of fetching the link",
+    description:
+      "200 with the run, now waiting for an upload into its source project " +
+      "(`sourceProjectId`, through the ordinary media upload). For a link run whose " +
+      "video never arrived. 409 `repurpose/source_not_replaceable` when the run already " +
+      "has its video, is not a link run, or its download is running right now.",
+    operationId: "useRepurposeUpload",
+  })
+  @ApiOkResponse(zodResponse(runViewSchema, "The run, waiting for the upload."))
+  async useUpload(
+    @CurrentWorkspace() workspaceId: string,
+    @CurrentUser("userId") userId: string,
+    @Param("runId") runId: string,
+  ): Promise<RunView> {
+    return this.repurpose.useUpload(workspaceId, userId, runId);
+  }
+
   @Get(":runId/candidates")
   @Roles("viewer")
   @ApiOperation({

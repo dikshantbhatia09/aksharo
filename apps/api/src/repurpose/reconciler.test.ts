@@ -28,6 +28,7 @@ import { AppException, ERROR_CODES } from "../common/errors/error-codes.js";
 import type { JobFacts, RunSnapshot } from "./reconciler.js";
 import type { RepurposeClipsService } from "./repurpose-clips.service.js";
 import type { RepurposeService } from "./repurpose.service.js";
+import type { SourceGate } from "./source-gate.js";
 import type { PrismaService } from "../common/prisma/prisma.service.js";
 import type { JobsService } from "../jobs/jobs.service.js";
 import type { AutoTranscribeTrigger } from "../transcripts/auto-transcribe.trigger.js";
@@ -148,14 +149,14 @@ describe("decideRunAction — getting the video", () => {
       snapshot({
         media: {
           status: "failed",
-          failureReason: "media/source_blocked",
+          failureReason: "media/source_private",
           arrived: false,
           durationMs: null,
         },
         acquireJob: live,
       }),
     );
-    expect(action).toMatchObject({ kind: "fail", code: "repurpose/source_blocked" });
+    expect(action).toMatchObject({ kind: "fail", code: "repurpose/source_private" });
   });
 
   it("fails a download that ended without a reason as 'could not get it'", () => {
@@ -207,6 +208,99 @@ describe("decideRunAction — getting the video", () => {
         code: "repurpose/source_unavailable",
       });
     }
+  });
+});
+
+describe("decideRunAction — YouTube refusing this machine (the source gate)", () => {
+  const blockedMedia = {
+    status: "failed",
+    failureReason: "media/source_blocked",
+    arrived: false,
+    durationMs: null,
+  } as const;
+  const pendingMedia = {
+    status: "pending",
+    failureReason: null,
+    arrived: false,
+    durationMs: null,
+  } as const;
+
+  it("waits out a refused download while the gate is open, instead of failing", () => {
+    const action = decideRunAction(
+      snapshot({
+        media: blockedMedia,
+        acquireJob: failedWith("media/source_blocked"),
+        blockedFetches: 1,
+        sourceGateUntil: NOW + 10 * MINUTE,
+      }),
+    );
+    expect(action).toEqual({ kind: "wait" });
+  });
+
+  it("fetches again into a fresh row once the gate has closed", () => {
+    for (const acquireJob of [failedWith("media/source_blocked"), live]) {
+      expect(
+        decideRunAction(
+          snapshot({ media: blockedMedia, acquireJob, blockedFetches: 1, sourceGateUntil: null }),
+        ),
+      ).toEqual({ kind: "refetch" });
+    }
+    // A gate whose wait is over reads as closed.
+    expect(
+      decideRunAction(
+        snapshot({
+          media: blockedMedia,
+          acquireJob: failedWith("media/source_blocked"),
+          blockedFetches: 2,
+          sourceGateUntil: NOW - MINUTE,
+        }),
+      ),
+    ).toEqual({ kind: "refetch" });
+  });
+
+  it("fails as blocked once the run has spent its refusals, or has no address to fetch", () => {
+    expect(
+      decideRunAction(
+        snapshot({
+          media: blockedMedia,
+          acquireJob: failedWith("media/source_blocked"),
+          blockedFetches: 3,
+        }),
+      ),
+    ).toMatchObject({ kind: "fail", code: "repurpose/source_blocked" });
+    expect(
+      decideRunAction(
+        snapshot({
+          media: blockedMedia,
+          acquireJob: failedWith("media/source_blocked"),
+          blockedFetches: 1,
+          canRefetch: false,
+        }),
+      ),
+    ).toMatchObject({ kind: "fail", code: "repurpose/source_blocked" });
+  });
+
+  it("holds a row nothing is fetching into while the gate is open, and fetches once it closes", () => {
+    expect(
+      decideRunAction(
+        snapshot({ media: pendingMedia, acquireJob: null, sourceGateUntil: NOW + MINUTE }),
+      ),
+    ).toEqual({ kind: "wait" });
+    expect(decideRunAction(snapshot({ media: pendingMedia, acquireJob: null }))).toEqual({
+      kind: "acquire",
+    });
+  });
+
+  it("never waits out any other refusal", () => {
+    expect(
+      decideRunAction(
+        snapshot({
+          media: { ...blockedMedia, failureReason: "media/source_private" },
+          acquireJob: failedWith("media/source_private"),
+          sourceGateUntil: NOW + 10 * MINUTE,
+        }),
+      ),
+    ).toMatchObject({ kind: "fail", code: "repurpose/source_private" });
   });
 });
 
@@ -1084,14 +1178,34 @@ function harness(w: World) {
   };
   const clips = { reconcileClips: vi.fn(async () => ({ enqueued: [] })) };
   const jobs = { diskHeldSince: vi.fn(async (): Promise<number | null> => null) };
+  const gate = {
+    state: vi.fn(
+      async (): Promise<{ openUntil: number | null; trips: number }> => ({
+        openUntil: null,
+        trips: 0,
+      }),
+    ),
+  };
   const reconciler = new RepurposeReconciler(
     prisma,
     runs as unknown as RepurposeService,
     autoTranscribe as unknown as AutoTranscribeTrigger,
     clips as unknown as RepurposeClipsService,
     jobs as unknown as JobsService,
+    gate as unknown as SourceGate,
   );
-  return { reconciler, runs, autoTranscribe, clips, jobs, findJobs, updateRun, calls, prisma };
+  return {
+    reconciler,
+    runs,
+    autoTranscribe,
+    clips,
+    jobs,
+    gate,
+    findJobs,
+    updateRun,
+    calls,
+    prisma,
+  };
 }
 
 let w: World;
@@ -1262,6 +1376,35 @@ describe("RepurposeReconciler — moving a run from durable state", () => {
       "repurpose/no_credits",
       "getting_video",
     );
+  });
+
+  it("fetches a download YouTube refused again into a FRESH row once the gate is closed", async () => {
+    w.media = {
+      ...w.media!,
+      status: "failed",
+      failureReason: "media/source_blocked",
+      uploadedAt: null,
+    };
+    w.jobs = [acquireJob({ status: "failed", error: { code: "media/source_blocked" } })];
+    const h = harness(w);
+    await h.reconciler.reconcile(w.run);
+    expect(h.runs.failRun).not.toHaveBeenCalled();
+    expect(h.runs.reacquire).toHaveBeenCalledWith(expect.objectContaining({ id: RUN }), URL, undefined);
+  });
+
+  it("keeps a download YouTube refused waiting while the gate is open", async () => {
+    w.media = {
+      ...w.media!,
+      status: "failed",
+      failureReason: "media/source_blocked",
+      uploadedAt: null,
+    };
+    w.jobs = [acquireJob({ status: "failed", error: { code: "media/source_blocked" } })];
+    const h = harness(w);
+    h.gate.state.mockResolvedValue({ openUntil: Date.now() + 10 * MINUTE, trips: 1 });
+    await h.reconciler.reconcile(w.run);
+    expect(h.runs.failRun).not.toHaveBeenCalled();
+    expect(h.runs.reacquire).not.toHaveBeenCalled();
   });
 
   it("keeps waiting when the restart hit a database error, which clears by itself", async () => {

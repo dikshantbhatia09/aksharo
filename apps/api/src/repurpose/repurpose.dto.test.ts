@@ -305,6 +305,7 @@ describe("run view DTO — what the page reads about windows (2026-09-27)", () =
         window: null,
         failureDetail: null,
         nextWindowAvailable: false,
+        waitingFor: null,
       }).success,
     ).toBe(true);
     expect(
@@ -314,6 +315,7 @@ describe("run view DTO — what the page reads about windows (2026-09-27)", () =
         window: { startMs: 0, endMs: 1_200_000, sourceDurationMs: 2_077_000, policy: "first" },
         failureDetail: { durationMs: 2_077_000, maxDurationMs: 1_200_000 },
         nextWindowAvailable: true,
+        waitingFor: { reason: "source_busy", until: "2026-09-27T10:15:00.000Z" },
       }).success,
     ).toBe(true);
     // Missing is not the same as null: every run view carries all four.

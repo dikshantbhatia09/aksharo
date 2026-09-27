@@ -6,6 +6,7 @@ import { RepurposeAcquireCompletionHandler } from "./acquire-completion.handler.
 import { JobCompletionRegistry } from "../jobs/completion-handlers.js";
 
 import type { RepurposeService } from "./repurpose.service.js";
+import type { SourceGate } from "./source-gate.js";
 import type { PrismaService } from "../common/prisma/prisma.service.js";
 import type { JobCompletionContext } from "../jobs/completion-handlers.js";
 import type { MediaService } from "../media/media.service.js";
@@ -111,6 +112,7 @@ interface Harness {
   recordFailureDetail: ReturnType<typeof vi.fn>;
   reconcileRun: ReturnType<typeof vi.fn>;
   stopIfCancelled: ReturnType<typeof vi.fn>;
+  gate: { trip: ReturnType<typeof vi.fn>; passed: ReturnType<typeof vi.fn> };
   registry: JobCompletionRegistry;
   /** The order the writes happened in. */
   order: string[];
@@ -126,6 +128,10 @@ function harness(
     newestMediaId?: string;
     /** What the source project is called now. */
     projectTitle?: string;
+    /** Wire YouTube's circuit breaker in, as production does. */
+    withGate?: boolean;
+    /** This run's earlier downloads YouTube refused. */
+    blockedBefore?: number;
   } = {},
 ): Harness {
   const order: string[] = [];
@@ -188,15 +194,27 @@ function harness(
   const recordFailureDetail = vi.fn(async () => undefined);
   const reconcileRun = vi.fn(async () => undefined);
   const stopIfCancelled = vi.fn(async () => false);
+  const blockedFetches = vi.fn(async () => options.blockedBefore ?? 0);
   const runs = {
     failRun,
     recordFailureDetail,
     reconcileRun,
     stopIfCancelled,
+    blockedFetches,
   } as unknown as RepurposeService;
+  const gate = {
+    trip: vi.fn(async () => Date.now() + 15 * 60_000),
+    passed: vi.fn(async () => undefined),
+  };
 
   const registry = new JobCompletionRegistry();
-  const handler = new RepurposeAcquireCompletionHandler(prisma, media, runs, registry);
+  const handler = new RepurposeAcquireCompletionHandler(
+    prisma,
+    media,
+    runs,
+    registry,
+    options.withGate === true ? (gate as unknown as SourceGate) : undefined,
+  );
   return {
     handler,
     completeAcquisition,
@@ -208,6 +226,7 @@ function harness(
     recordFailureDetail,
     reconcileRun,
     stopIfCancelled,
+    gate,
     registry,
     order,
   };
@@ -223,6 +242,12 @@ describe("RepurposeAcquireCompletionHandler", () => {
     h.handler.onModuleInit();
     expect(h.registry.handlerFor("media.acquire")).toBe(h.handler);
     expect(h.handler.jobType).toBe("media.acquire");
+  });
+
+  it("closes the source gate when a download gets through", async () => {
+    h = harness({ withGate: true });
+    await h.handler.handle(context(acquireResult()));
+    expect(h.gate.passed).toHaveBeenCalledTimes(1);
   });
 
   it("hands an acquired source to the ordinary upload tail", async () => {
@@ -378,6 +403,38 @@ describe("RepurposeAcquireCompletionHandler", () => {
 
       expect(mediaWrite()["rawPurgeAt"]).toBeInstanceOf(Date);
       expect(h.failRun).not.toHaveBeenCalled();
+    });
+
+    it("opens the source gate and lets the run wait when YouTube refuses the download", async () => {
+      h = harness({ withGate: true, blockedBefore: 0 });
+      await h.handler.handleFailure(failure("media/source_blocked"));
+      expect(h.gate.trip).toHaveBeenCalledTimes(1);
+      // The reconciler fetches again once the gate closes.
+      expect(h.failRun).not.toHaveBeenCalled();
+    });
+
+    it("fails the run as blocked once it has been refused three times", async () => {
+      h = harness({ withGate: true, blockedBefore: 2 });
+      await h.handler.handleFailure(failure("media/source_blocked"));
+      expect(h.gate.trip).toHaveBeenCalledTimes(1);
+      expect(h.failRun).toHaveBeenCalledWith(
+        expect.anything(),
+        "repurpose/source_blocked",
+        "getting_video",
+        null,
+      );
+    });
+
+    it("never opens the gate for any other refusal", async () => {
+      h = harness({ withGate: true });
+      await h.handler.handleFailure(failure("media/source_private"));
+      expect(h.gate.trip).not.toHaveBeenCalled();
+      expect(h.failRun).toHaveBeenCalledWith(
+        expect.anything(),
+        "repurpose/source_private",
+        "getting_video",
+        null,
+      );
     });
 
     it("leaves a run that has moved on alone", async () => {

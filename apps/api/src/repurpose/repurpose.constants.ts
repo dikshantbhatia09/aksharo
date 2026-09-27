@@ -42,6 +42,11 @@ export const REPURPOSE_ERRORS = {
   noCredits: "repurpose/no_credits",
   /** 409 on "process the next window": nothing of the source is left after this one. */
   noNextWindow: "repurpose/no_next_window",
+  /**
+   * 409 on "upload the file instead": the run already has its video, is not a
+   * link run, or its download is running right now.
+   */
+  sourceNotReplaceable: "repurpose/source_not_replaceable",
 } as const;
 
 /**

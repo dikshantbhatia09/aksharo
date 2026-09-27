@@ -1,4 +1,4 @@
-import { Injectable, Logger, type OnModuleInit } from "@nestjs/common";
+import { Injectable, Logger, Optional, type OnModuleInit } from "@nestjs/common";
 
 import {
   type MediaAcquireResult,
@@ -10,6 +10,7 @@ import { STAGE_OF_FAILURE, failureDetailOf, runFailureCode } from "./failure-cod
 import { ACQUIRE_MAX_DURATION_MS, PRE_CANDIDATE_STATUSES } from "./repurpose.constants.js";
 import { cleanSourceTitle, sourceProjectTitle } from "./repurpose.projection.js";
 import { RepurposeService, isUniqueViolation } from "./repurpose.service.js";
+import { MAX_BLOCKED_FETCHES, SourceGate } from "./source-gate.js";
 import { PrismaService } from "../common/prisma/prisma.service.js";
 import { JobCompletionRegistry } from "../jobs/completion-handlers.js";
 import { MEDIA_FAILURE_REASONS } from "../media/media.constants.js";
@@ -82,6 +83,8 @@ export class RepurposeAcquireCompletionHandler implements JobCompletionHandler, 
     private readonly media: MediaService,
     private readonly runs: RepurposeService,
     private readonly registry: JobCompletionRegistry,
+    /** YouTube's circuit breaker; absent in hand-built harnesses. */
+    @Optional() private readonly gate?: SourceGate,
   ) {}
 
   onModuleInit(): void {
@@ -101,6 +104,8 @@ export class RepurposeAcquireCompletionHandler implements JobCompletionHandler, 
       );
     }
     const result = parsed.data;
+    // A download got through: YouTube is answering this machine again.
+    await this.gate?.passed();
 
     // The row written is the one the API queued this job for, never one the
     // worker names: a worker that mixed up two concurrent downloads would
@@ -327,6 +332,26 @@ export class RepurposeAcquireCompletionHandler implements JobCompletionHandler, 
       mediaReason: media?.failureReason ?? null,
       jobErrorCode,
     });
+    if (
+      code === "repurpose/source_blocked" &&
+      run.sourceKind !== "upload" &&
+      this.gate !== undefined
+    ) {
+      // YouTube refused this machine (its bot check, a 429): every download
+      // waits (`SourceGate`), and this run waits with them and fetches again
+      // by itself - up to MAX_BLOCKED_FETCHES refusals, after which the
+      // refusal is its failure. This job's row is written failed after this
+      // handler returns, so it is counted by hand.
+      await this.gate.trip();
+      const blocked = (await this.runs.blockedFetches(run)) + 1;
+      if (open && blocked < MAX_BLOCKED_FETCHES) {
+        this.logger.log(
+          { runId: run.id, jobId: context.job.id, blocked },
+          "YouTube refused the download; the run waits for the source gate and fetches again",
+        );
+        return;
+      }
+    }
     // The numbers behind a refusal ("34:37 against a 20:00 window", "900 MB
     // against 500 MB"), which the worker reports beside its code. With none,
     // the column is cleared rather than left showing an earlier failure's.

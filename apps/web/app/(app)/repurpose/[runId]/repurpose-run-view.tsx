@@ -70,6 +70,7 @@ import {
 } from "@/components/repurpose/run-window";
 import { PersistentPreview, RunActionBar } from "@/components/repurpose/RunActionBar";
 import { RunStageRail } from "@/components/repurpose/RunStageRail";
+import { SourceUploadOffer } from "@/components/repurpose/SourceUploadOffer";
 import { StageErrorCard, StagePanel } from "@/components/repurpose/StagePanel";
 
 /** What each not-yet-built stage honestly says while it waits. */
@@ -501,6 +502,10 @@ export function RepurposeRunView({ runId }: { readonly runId: string }): React.J
               {...(momentsAllowed ? { onAddMoment: openMomentForm } : {})}
             />
           )}
+
+          {/* Waiting for YouTube, or a download a copy of the file gets round:
+              the file can go up into this same run (Wave B). */}
+          <SourceUploadOffer run={run} />
 
           {showPanel && (
             <StagePanel

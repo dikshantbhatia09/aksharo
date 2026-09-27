@@ -2216,6 +2216,7 @@ export type {
   RepurposeNextWindowResponse,
   RepurposeNoCreditsDetails,
   RepurposeRunFailureDetail,
+  RepurposeRunWaitingFor,
   RepurposeRunWindow,
   RepurposeSourceAlreadyRunningDetails,
   RepurposeWindowPolicy,
@@ -2270,6 +2271,36 @@ export function useNextWindow(): UseMutationResult<RepurposeRunView, Error, stri
     mutationFn: (runId: string) => requestNextWindow(client, runId),
     onSuccess: (run) => {
       if (workspaceId !== null) cacheNextWindow(queryClient, workspaceId, run);
+    },
+  });
+}
+
+const useRepurposeUploadEndpoint = defineEndpoint<void, RepurposeRunView>({
+  method: "POST",
+  path: "/repurpose/runs/{runId}/source",
+  auth: "bearer",
+});
+
+/**
+ * "Upload the file instead" (Wave B): a link run whose video never arrived -
+ * YouTube refused this server, the video is private, or it is waiting for
+ * YouTube - becomes an upload run over the same source project. Resolves with
+ * the run; then upload the file into `run.sourceProjectId` through the
+ * ordinary upload queue, exactly as a new upload run does.
+ *
+ * Rejects with 409 `repurpose/source_not_replaceable` when the run already has
+ * its video, is not a link run, or its download is running right now.
+ */
+export function useRepurposeUpload(): UseMutationResult<RepurposeRunView, Error, string> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  const workspaceId = useWorkspaceId();
+  return useMutation({
+    mutationFn: (runId: string) => client.call(useRepurposeUploadEndpoint, { params: { runId } }),
+    onSuccess: (run) => {
+      if (workspaceId === null) return;
+      queryClient.setQueryData(queryKeys.repurposeRun(workspaceId, run.id), run);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.repurposeRuns(workspaceId) });
     },
   });
 }

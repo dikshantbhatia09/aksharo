@@ -221,6 +221,17 @@ export const runViewSchema = z.object({
     .nullable(),
   /** `POST .../next-window` has something after this window to process. */
   nextWindowAvailable: z.boolean(),
+  /**
+   * Why a run that is not failed is not moving, and until when: YouTube is
+   * refusing this server's downloads, and the run continues by itself after
+   * `until` (`SourceGate`). Null when nothing is holding it.
+   */
+  waitingFor: z
+    .object({
+      reason: z.literal("source_busy"),
+      until: z.string(),
+    })
+    .nullable(),
 });
 
 /** `POST /repurpose/runs/{id}/next-window`: the new run over the next part of the source. */

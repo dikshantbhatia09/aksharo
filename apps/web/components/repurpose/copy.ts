@@ -507,7 +507,8 @@ export const REFUSAL_COPY = Object.freeze({
     "repurpose/not_available": "The clips pipeline is not on for this workspace yet.",
     // Refused before anything was created: not even one minute is affordable.
     // With the balance in the refusal, `DETAIL_COPY.creditsLeftRefusal` says it.
-    "repurpose/no_credits": "You are out of credits. Processing a video needs at least a minute's worth.",
+    "repurpose/no_credits":
+      "You are out of credits. Processing a video needs at least a minute's worth.",
     // Trying the same form again cannot help, so the sentence does not say to.
     "common/validation_failed":
       "Something in the form was not accepted. Check the link and your choices.",
@@ -568,7 +569,31 @@ export const REFUSAL_COPY = Object.freeze({
     network: "We could not reach the server. Check your connection and try again.",
     fallback: "The next part could not be started. Try again in a moment.",
   },
+  /** "Upload the file instead", on a link run whose video never arrived. */
+  useUpload: {
+    "repurpose/source_not_replaceable":
+      "This run already has its video, or is downloading it right now. Refresh the page.",
+    "repurpose/not_found": "This run is no longer available. Refresh the page.",
+    "common/rate_limited": "That was a lot of requests at once. Wait a moment, then try again.",
+    network: "We could not reach the server. Check your connection and try again.",
+    fallback: "That did not work. Try again in a moment.",
+  },
 } satisfies Record<string, Record<string, string> & { network: string; fallback: string }>);
+
+/**
+ * The run page's way round YouTube (Wave B): while YouTube is refusing this
+ * server the run waits and continues by itself, and a person who has the file
+ * can upload it instead - into the same run, keeping its settings.
+ */
+export const SOURCE_UPLOAD_COPY = Object.freeze({
+  /** `run.waitingFor`: the run is not stuck, and says when it goes on. */
+  waiting: (time: string): string =>
+    `YouTube is turning our server away for a while. This run will try again by itself at ${time}, so you can leave this page.`,
+  /** Beside a download that could not be done. */
+  offer: "Have the video file? Upload it instead, and this run carries on with it.",
+  button: "Upload the file instead",
+  starting: "Starting the upload…",
+});
 
 export type RefusalContext = keyof typeof REFUSAL_COPY;
 

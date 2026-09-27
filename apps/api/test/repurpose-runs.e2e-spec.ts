@@ -963,6 +963,115 @@ describe.skipIf(!CAN_RUN)("repurpose run CRUD (REP-006)", () => {
     });
   });
 
+  describe("YouTube refusing this machine, and uploading the file instead (Wave B)", () => {
+    const LINK = {
+      kind: "url",
+      url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+      rightsAttested: true,
+    } as const;
+
+    async function acquireRow(
+      runId: string,
+      projectId: string,
+      suffix: string,
+      status: "failed" | "running" | "queued",
+      code?: string,
+    ): Promise<void> {
+      await prisma.job.create({
+        data: {
+          id: id(`JQ${suffix}`),
+          workspaceId: WORKSPACE_A,
+          projectId,
+          type: "media.acquire",
+          status,
+          priority: 3,
+          jobKey: `media.acquire:${runId}:youtube:dQw4w9WgXcQ:${suffix}`,
+          params: { runId },
+          attemptId: id(`JA${suffix}`),
+          attemptNo: 1,
+          queuedAt: new Date(),
+          ...(status === "queued" ? {} : { startedAt: new Date() }),
+          ...(status === "failed"
+            ? { finishedAt: new Date(), error: { code: code ?? "media/source_failed" } }
+            : {}),
+        },
+      });
+    }
+
+    it("counts only the downloads YouTube refused, and keeps the run getting its video", async () => {
+      await setFlag("source_youtube_acquire", true);
+      const created = await service.create(WORKSPACE_A, USER_A, { source: LINK, setup: SETUP });
+      const run = await prisma.repurposeRun.findUniqueOrThrow({ where: { id: created.run.id } });
+      await prisma.mediaAsset.updateMany({
+        where: { projectId: created.projectId },
+        data: { status: "failed", failureReason: "media/source_blocked" },
+      });
+      await acquireRow(run.id, created.projectId, "B1", "failed", "media/source_blocked");
+      await acquireRow(run.id, created.projectId, "B2", "failed", "media/source_blocked");
+      await acquireRow(run.id, created.projectId, "P1", "failed", "media/source_private");
+
+      // The JSON-path filter on `jobs.error`, against the real column.
+      expect(await service.blockedFetches(run)).toBe(2);
+
+      // Two refusals of three: the run waits them out and fetches again, into
+      // a fresh row, rather than failing.
+      enqueued = [];
+      const view = await service.get(WORKSPACE_A, run.id);
+      expect(view.status).toBe("acquiring");
+      expect(view.failureCode).toBeNull();
+      expect(enqueued.filter((job) => job.type === "media.acquire")).toHaveLength(1);
+      expect(await prisma.mediaAsset.count({ where: { projectId: created.projectId } })).toBe(2);
+    });
+
+    it("turns a link run whose video never arrived into an upload run, once", async () => {
+      await setFlag("source_youtube_acquire", true);
+      const created = await service.create(WORKSPACE_A, USER_A, { source: LINK, setup: SETUP });
+      await prisma.mediaAsset.updateMany({
+        where: { projectId: created.projectId },
+        data: { status: "failed", failureReason: "media/source_private" },
+      });
+      await prisma.repurposeRun.update({
+        where: { id: created.run.id },
+        data: { status: "failed", failureCode: "repurpose/source_private" },
+      });
+
+      const view = await service.useUpload(WORKSPACE_A, USER_A, created.run.id);
+      expect(view).toMatchObject({ sourceKind: "upload", status: "draft", failureCode: null });
+      const stored = await prisma.repurposeRun.findUniqueOrThrow({ where: { id: created.run.id } });
+      expect(stored.sourceFingerprint).toBeNull();
+      // The refused download's reservation is gone: the upload is the only source.
+      expect(await prisma.mediaAsset.count({ where: { projectId: created.projectId } })).toBe(0);
+      // The same link can be started again elsewhere.
+      await expect(
+        service.create(WORKSPACE_A, USER_A, { source: LINK, setup: SETUP }),
+      ).resolves.toBeTruthy();
+
+      await expect(service.useUpload(WORKSPACE_A, USER_A, created.run.id)).rejects.toMatchObject({
+        code: "repurpose/source_not_replaceable",
+      });
+    });
+
+    it("never interrupts a download that is running, nor replaces a video that arrived", async () => {
+      await setFlag("source_youtube_acquire", true);
+      const created = await service.create(WORKSPACE_A, USER_A, { source: LINK, setup: SETUP });
+      await acquireRow(created.run.id, created.projectId, "R1", "running");
+      await expect(service.useUpload(WORKSPACE_A, USER_A, created.run.id)).rejects.toMatchObject({
+        code: "repurpose/source_not_replaceable",
+      });
+      await prisma.job.updateMany({
+        where: { jobKey: { startsWith: `media.acquire:${created.run.id}:` } },
+        data: { status: "succeeded", finishedAt: new Date() },
+      });
+      await prisma.mediaAsset.updateMany({
+        where: { projectId: created.projectId },
+        data: { status: "probing", uploadedAt: new Date() },
+      });
+      await expect(service.useUpload(WORKSPACE_A, USER_A, created.run.id)).rejects.toMatchObject({
+        code: "repurpose/source_not_replaceable",
+      });
+    });
+  });
+
   describe("cancel and retry", () => {
     it("stops a run, keeps the stage it stopped on, and is safe to repeat", async () => {
       const run = await service.create(WORKSPACE_A, USER_A, {

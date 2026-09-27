@@ -9,6 +9,7 @@ import { RepurposeClipsService } from "./repurpose-clips.service.js";
 import { RepurposeStuckRunsSweepTask } from "./repurpose-stuck-runs-sweep.task.js";
 import { RepurposeController } from "./repurpose.controller.js";
 import { RepurposeService } from "./repurpose.service.js";
+import { SourceGate } from "./source-gate.js";
 import { JobsModule } from "../jobs/jobs.module.js";
 import { MediaModule } from "../media/media.module.js";
 import { ProjectsModule } from "../projects/projects.module.js";
@@ -45,6 +46,7 @@ import { WorkspacesModule } from "../workspaces/workspaces.module.js";
     IdempotencyService,
     RepurposeClipsService,
     RepurposeReconciler,
+    SourceGate,
     // A second binding of a stateless class (`MediaModule` provides the first
     // and does not export it), as `TranscriptsModule` does with its guard.
     AutoTranscribeTrigger,

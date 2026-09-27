@@ -1153,3 +1153,19 @@ bare code). Deployed as **64984aca** (`deploy-20260927b.ps1`, undo
   disk holds. `jobs.lease-reaper` settles `running` rows that BullMQ no longer
   holds (delivering a result the worker kept when there is one) with
   `jobs/stalled`, which a run reads as `stage_timeout`.
+- **Wave B (deploy-20260927c): YouTube refusals are a wait, and a file is
+  always a way out.** `SourceGate` (`apps/api/src/repurpose/source-gate.ts`,
+  Redis) opens on `media/source_blocked` for 15 min, doubling per refusal in a
+  row (max 2 h); while open, nothing is fetched from YouTube, runs read
+  "getting your video" with `waitingFor {reason: "source_busy", until}` on the
+  run view, and one fetch goes first when it is due to close (half-open probe).
+  A run waits out up to 3 refusals (`MAX_BLOCKED_FETCHES`, counted from its
+  `media.acquire` rows' `error.code`) before it fails as `source_blocked`.
+  Redis down = gate closed. "Upload the file instead"
+  (`POST /repurpose/runs/:id/source`) turns a link run whose video never
+  arrived into an upload run over the same source project; the web then
+  uploads through its ordinary queue. Refused (409
+  `repurpose/source_not_replaceable`) while a download is running or once the
+  video has arrived. Not built: the pre-run preview card (`media.inspect`) —
+  it would double the YouTube requests the gate exists to save — and in-app
+  notifications.

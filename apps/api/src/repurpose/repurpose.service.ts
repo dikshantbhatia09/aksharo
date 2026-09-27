@@ -36,10 +36,12 @@ import {
   isCancellable,
   isRetryable,
   nextWindowAvailable,
+  progressForStatus,
   projectRun,
   stageForStatus,
   windowView,
 } from "./repurpose.projection.js";
+import { MAX_BLOCKED_FETCHES, SOURCE_BLOCKED_REASON, SourceGate } from "./source-gate.js";
 import { SOURCE_REJECTION_MESSAGES, parseSourceUrl } from "./source-url.js";
 import { CommonAuditService } from "../common/audit/audit.service.js";
 import { AppException, PrismaService } from "../common/index.js";
@@ -408,6 +410,8 @@ export class RepurposeService {
     @Inject(ENV) private readonly env: Env,
     @Inject(CREDITS_FACADE) private readonly credits: CreditsFacade,
     @Optional() @Inject(DERIVED_STORE) private readonly derivedStore?: ObjectStore,
+    /** YouTube's circuit breaker; absent in hand-built harnesses (fetches then always go). */
+    @Optional() private readonly gate?: SourceGate,
   ) {}
 
   /** Called once, at boot, by `RepurposeReconciler` (see {@link RunReconciler}). */
@@ -665,7 +669,10 @@ export class RepurposeService {
     for (const job of downloads) {
       if (job.projectId === null || newestWindow.has(job.projectId)) continue;
       const payload = MediaAcquirePayloadSchema.safeParse(job.params);
-      newestWindow.set(job.projectId, payload.success ? (payload.data.window?.maxMs ?? null) : null);
+      newestWindow.set(
+        job.projectId,
+        payload.success ? (payload.data.window?.maxMs ?? null) : null,
+      );
     }
 
     let tenths = 0;
@@ -1070,7 +1077,7 @@ export class RepurposeService {
         readonly storageKey: string;
       };
     },
-  ): Promise<string> {
+  ): Promise<string | null> {
     const { limits } = budget;
     // A picked start over a source whose length is known is cut to what is left
     // of it (`acquireWindowMaxMs`). The length comes with the request when the
@@ -1121,6 +1128,17 @@ export class RepurposeService {
       },
     });
 
+    // YouTube refused this machine a moment ago (`SourceGate`): the row is
+    // reserved and waits, nothing is queued, and the reconciler fetches into it
+    // once the gate lets a fetch through. Not a refusal of the run.
+    if (source.kind === "youtube_url" && this.gate !== undefined && !(await this.gate.mayFetch())) {
+      this.logger.log(
+        { runId: run.id, mediaId: target.id },
+        "YouTube is refusing downloads; this fetch waits for the source gate",
+      );
+      return null;
+    }
+
     const firstKey = mediaAcquireJobKey(run.id, source.fingerprint ?? run.id);
     const enqueued = await this.jobs.enqueue({
       type: "media.acquire",
@@ -1163,6 +1181,8 @@ export class RepurposeService {
    *
    * @param into a pending media row nothing is fetching into; omitted, a fresh
    *   row is reserved and becomes the source's newest media.
+   * @returns the job id, or null when YouTube is refusing downloads and the
+   *   fetch waits for the source gate (the row is reserved all the same).
    * @throws when links are switched off for the workspace, when the balance no
    *   longer pays for a minute (402 `repurpose/no_credits`), or the enqueue is refused.
    */
@@ -1174,7 +1194,7 @@ export class RepurposeService {
       readonly bucket: $Enums.StorageBucket;
       readonly storageKey: string;
     },
-  ): Promise<string> {
+  ): Promise<string | null> {
     if (!(await this.flagEnabled(run.workspaceId, REPURPOSE_FLAGS.youtubeAcquire))) {
       throw new AppException(
         REPURPOSE_ERRORS.sourceUnsupported,
@@ -1396,7 +1416,48 @@ export class RepurposeService {
     const run = await this.reconciled(await this.require(workspaceId, runId));
     const counts = await this.counts(run.id);
     const observed = await this.observe(run);
-    return this.toView(run, counts, observed, await this.retryPossible(run, observed));
+    return this.toView(
+      run,
+      counts,
+      observed,
+      await this.retryPossible(run, observed),
+      await this.waitingFor(run, observed),
+    );
+  }
+
+  /**
+   * A link run still getting its video while YouTube is refusing this server
+   * (`SourceGate`): it waits, and continues by itself at `until`. Only the
+   * run's own view asks; a list shows the run as getting its video.
+   */
+  private async waitingFor(
+    run: RepurposeRun,
+    observed: Observation | null,
+  ): Promise<RunView["waitingFor"]> {
+    const status = observed?.status ?? run.status;
+    if (run.sourceKind === "upload" || this.gate === undefined) return null;
+    if (status !== "draft" && status !== "acquiring") return null;
+    const { openUntil } = await this.gate.state();
+    return openUntil === null
+      ? null
+      : { reason: "source_busy", until: new Date(openUntil).toISOString() };
+  }
+
+  /**
+   * How many of this run's downloads YouTube refused (`media/source_blocked`).
+   * Up to {@link MAX_BLOCKED_FETCHES} the run waits out the source gate and
+   * fetches again by itself; past it, the refusal is the run's failure.
+   */
+  async blockedFetches(run: Pick<RepurposeRun, "id" | "workspaceId">): Promise<number> {
+    return this.prisma.job.count({
+      where: {
+        workspaceId: run.workspaceId,
+        type: "media.acquire",
+        jobKey: { startsWith: `media.acquire:${run.id}:` },
+        status: "failed",
+        error: { path: ["code"], equals: SOURCE_BLOCKED_REASON },
+      },
+    });
   }
 
   /**
@@ -1488,14 +1549,22 @@ export class RepurposeService {
       case "probing":
         // The transcription already running on the audio written back ahead
         // of the video encode (W5) is what the person is waiting for.
-        return as(
-          (await this.transcribingEarly(run, media)) ? "transcribing" : "preparing_media",
-        );
+        return as((await this.transcribingEarly(run, media)) ? "transcribing" : "preparing_media");
       case "ready":
         // Media is ready and no transcript exists yet: it is being made, or the
         // reconciler is about to start it (or fail the run for want of credits).
         return as("transcribing");
       case "failed":
+        // YouTube refused the download, and the run waits the refusal out and
+        // fetches again by itself (`SourceGate`): still getting the video.
+        if (
+          run.sourceKind !== "upload" &&
+          media.uploadedAt === null &&
+          media.failureReason === SOURCE_BLOCKED_REASON &&
+          (await this.blockedFetches(run)) < MAX_BLOCKED_FETCHES
+        ) {
+          return as("acquiring");
+        }
         return {
           status: "failed",
           failureCode: runFailureCode({
@@ -1737,6 +1806,121 @@ export class RepurposeService {
     );
   }
 
+  /**
+   * "Upload the file instead" (clips Wave B, 2026-09-27): a link run whose
+   * video never arrived - YouTube refused this machine, the video is private
+   * or removed, or it is still waiting for the source gate - becomes an upload
+   * run over the same source project, so the person's settings, and the run
+   * page they are on, carry on with a file from their own disk.
+   *
+   * The browser then uploads through its ordinary queue into
+   * `sourceProjectId` (which calls `media/init` itself, as a new upload run
+   * does), and the reconciler takes the run from there like any upload.
+   *
+   * Only while nothing of the video exists: the media rows the downloads
+   * reserved have no bytes, and are removed so that the file uploaded next is
+   * the source's only primary media. A download that is running right now is
+   * not interrupted (it may be about to land); one still queued is cancelled.
+   *
+   * @throws 409 `repurpose/source_not_replaceable` for an upload run, a run
+   *   that has its video (or moments), or one whose download is running.
+   */
+  async useUpload(workspaceId: string, userId: string, runId: string): Promise<RunView> {
+    await this.assertAvailable(workspaceId);
+    const found = await this.require(workspaceId, runId);
+    const run = await this.reconciled(found);
+    const notReplaceable = (message: string) =>
+      new AppException(REPURPOSE_ERRORS.sourceNotReplaceable, message, HttpStatus.CONFLICT);
+
+    if (run.sourceKind === "upload") {
+      throw notReplaceable("This run is already waiting for an upload.");
+    }
+    if (!(
+      (PRE_CANDIDATE_STATUSES as readonly string[]).includes(run.status) || run.status === "failed"
+    )) {
+      throw notReplaceable("This run already has its video.");
+    }
+    const [media, transcript, candidates] = await Promise.all([
+      this.prisma.mediaAsset.findMany({
+        where: { projectId: run.sourceProjectId, role: "primary" },
+        select: { id: true, status: true, uploadedAt: true },
+      }),
+      this.prisma.transcript.count({ where: { projectId: run.sourceProjectId } }),
+      this.prisma.clipCandidate.count({ where: { runId: run.id } }),
+    ]);
+    if (
+      transcript > 0 ||
+      candidates > 0 ||
+      media.some(
+        (row) =>
+          row.uploadedAt !== null || !["pending", "uploading", "failed"].includes(row.status),
+      )
+    ) {
+      throw notReplaceable("This run already has its video.");
+    }
+    const downloads = await this.prisma.job.findMany({
+      where: {
+        workspaceId,
+        type: "media.acquire",
+        jobKey: { startsWith: `media.acquire:${run.id}:` },
+        status: { in: ["queued", "running"] },
+      },
+      select: { id: true, status: true },
+    });
+    if (downloads.some((job) => job.status === "running")) {
+      throw notReplaceable(
+        "The video is downloading right now. Wait for it, or stop this run and upload the file in a new one.",
+      );
+    }
+
+    // The run first: a queued download cancelled below reports to a run that
+    // is an upload by then, and its failure handler leaves it alone.
+    const { count } = await this.prisma.repurposeRun.updateMany({
+      where: { id: run.id, status: run.status, sourceKind: run.sourceKind },
+      data: {
+        sourceKind: "upload",
+        // No longer a download of that video: the live-source key is freed,
+        // and the link can be started again elsewhere.
+        sourceFingerprint: null,
+        status: "draft",
+        failureCode: null,
+        failureDetail: Prisma.DbNull,
+        completedAt: null,
+        currentStage: stageForStatus("draft"),
+        progress: progressForStatus("draft"),
+        windowPolicy: null,
+        windowStartMs: null,
+        windowEndMs: null,
+      },
+    });
+    if (count === 0) throw notReplaceable("This run changed a moment ago. Refresh the page.");
+    await this.cancelJobs(
+      run,
+      downloads.map((job) => job.id),
+    );
+    // Rows with no bytes behind them: the refused downloads' reservations.
+    await this.prisma.mediaAsset.deleteMany({
+      where: {
+        projectId: run.sourceProjectId,
+        role: "primary",
+        uploadedAt: null,
+        status: { in: ["pending", "uploading", "failed"] },
+      },
+    });
+
+    const converted = (await this.prisma.repurposeRun.findUnique({ where: { id: run.id } })) ?? run;
+    await this.audit.record({
+      action: "repurpose.run.source_replaced",
+      resource: "repurpose_run",
+      resourceId: run.id,
+      actorId: userId,
+      workspaceId,
+      data: { from: run.sourceKind, fromStatus: run.status, fromFailureCode: run.failureCode },
+    });
+    await this.publishStage(converted);
+    return this.toView(converted, await this.counts(run.id), await this.observe(converted));
+  }
+
   /** The only way this module reads a run: workspace and id, together. */
   private async require(workspaceId: string, runId: string): Promise<RepurposeRun> {
     const run = await this.prisma.repurposeRun.findFirst({ where: { id: runId, workspaceId } });
@@ -1799,6 +1983,8 @@ export class RepurposeService {
      * narrows the projection's answer; undefined leaves it to the status.
      */
     retryPossible?: boolean,
+    /** What is holding the run, when something is ({@link waitingFor}). */
+    waitingFor: RunView["waitingFor"] = null,
   ): RunView {
     const shown =
       observed === null
@@ -1829,6 +2015,7 @@ export class RepurposeService {
       // column until its next failure overwrites it, and must not show it.
       failureDetail: shown.status === "failed" ? failureDetailOf(run.failureDetail) : null,
       nextWindowAvailable: nextWindowAvailable(run),
+      waitingFor,
     };
   }
 
@@ -2411,15 +2598,15 @@ export class RepurposeService {
 function getStageDeadline(deadlines: Record<string, number>, stage: string): number {
   switch (stage) {
     case "getting_video":
-      return deadlines.getting_video ?? (30 * 60 * 1000);
+      return deadlines.getting_video ?? 30 * 60 * 1000;
     case "finding_clips":
-      return deadlines.finding_clips ?? (30 * 60 * 1000);
+      return deadlines.finding_clips ?? 30 * 60 * 1000;
     case "styles_formats":
-      return deadlines.styles_formats ?? (30 * 60 * 1000);
+      return deadlines.styles_formats ?? 30 * 60 * 1000;
     case "review":
-      return deadlines.review ?? (30 * 60 * 1000);
+      return deadlines.review ?? 30 * 60 * 1000;
     case "publish":
-      return deadlines.publish ?? (30 * 60 * 1000);
+      return deadlines.publish ?? 30 * 60 * 1000;
     default:
       return 30 * 60 * 1000;
   }
