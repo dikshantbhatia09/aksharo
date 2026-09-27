@@ -42,6 +42,14 @@ export const JobErrorSchema = z.object({
   message: z.string().min(1).max(2_000),
   /** `false` sends the job straight to the dead-letter path (A08b). */
   retryable: z.boolean().default(true),
+  /**
+   * Numbers behind a refusal (2026-09-27), e.g. `{durationMs, maxDurationMs}`
+   * for a video over the plan, so the page can say "34:37 - your plan processes
+   * 20:00" instead of a bare refusal. Flat, small, never user text.
+   */
+  facts: z
+    .record(z.string().max(64), z.union([z.number(), z.string().max(200), z.boolean(), z.null()]))
+    .optional(),
 });
 
 export type JobError = z.infer<typeof JobErrorSchema>;

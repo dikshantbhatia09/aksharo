@@ -66,9 +66,30 @@ export const MediaAcquirePayloadSchema = z.strictObject({
   destination: StorageObjectSchema,
   limits: z.strictObject({
     maxBytes: z.int().positive().max(10_000_000_000),
+    /**
+     * The longest SOURCE this job may fetch. With a {@link window} this is the
+     * abuse ceiling (`maxSourceDurationMs`, 12 h), not the plan's allowance:
+     * a longer source is cut down to the window instead of refused.
+     */
     maxDurationMs: z.int().positive().max(86_400_000),
     timeoutMs: z.int().positive().max(3_600_000),
   }),
+  /**
+   * The part of the source to fetch (2026-09-27). Optional, so a job built
+   * before it existed - and every short video - downloads the whole source.
+   * When the source is longer than `maxMs`, the worker takes `maxMs` of it:
+   * from `startMs` (`range`), from YouTube's most-replayed peak when the
+   * metadata has one (`most_replayed`, falling back to the start), or from the
+   * start (`first`). Downstream everything runs on the landed file's own clock;
+   * the result's `section` says where that file sits in the source.
+   */
+  window: z
+    .strictObject({
+      maxMs: z.int().positive().max(86_400_000),
+      startMs: MillisecondsSchema.optional(),
+      policy: z.enum(["first", "most_replayed", "range"]),
+    })
+    .optional(),
 });
 
 export const MediaAcquireResultSchema = z.strictObject({
@@ -87,6 +108,18 @@ export const MediaAcquireResultSchema = z.strictObject({
     channel: z.union([z.string().trim().max(200), z.null()]),
     durationMs: z.union([MillisecondsSchema, z.null()]),
   }),
+  /**
+   * Where the landed file sits in the source, when only a window of it was
+   * fetched (2026-09-27). Absent when the whole source landed.
+   */
+  section: z
+    .strictObject({
+      startMs: MillisecondsSchema,
+      endMs: z.int().positive(),
+      sourceDurationMs: z.int().positive(),
+      policy: z.enum(["first", "most_replayed", "range"]),
+    })
+    .optional(),
   /** The pinned downloader that produced this, reported for support and audit. */
   toolVersion: z.string().trim().min(1).max(100),
   /**
