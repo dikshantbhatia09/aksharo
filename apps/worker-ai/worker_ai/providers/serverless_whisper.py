@@ -33,6 +33,7 @@ from typing import Any
 
 import httpx2
 
+from worker_ai.languages import whisper_language
 from worker_ai.logging_setup import get_logger
 from worker_ai.providers.base import (
     AlignmentRequest,
@@ -112,8 +113,10 @@ class ServerlessWhisperProvider(Provider):
             "model": self.model,
             **request.options,
         }
-        if request.language:
-            body["language"] = request.language
+        # The endpoint runs Whisper, which takes a bare code (`en-IN` -> `en`).
+        language = whisper_language(request.language)
+        if language is not None:
+            body["language"] = language
         if request.hints:
             body["hints"] = list(request.hints)
 

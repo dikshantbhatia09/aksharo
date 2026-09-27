@@ -23,6 +23,7 @@ import tempfile
 from collections.abc import Callable, Iterable
 from typing import Any, Protocol
 
+from worker_ai.languages import whisper_language
 from worker_ai.logging_setup import get_logger
 from worker_ai.providers.base import (
     AlignmentRequest,
@@ -277,7 +278,7 @@ class LocalWhisperProvider(Provider):
                 import whisper
             except ImportError as error:
                 raise ProviderError(
-                    'openai-whisper is not installed; run pip install openai-whisper',
+                    "openai-whisper is not installed; run pip install openai-whisper",
                     provider=self.name,
                     retryable=False,
                 ) from error
@@ -312,8 +313,9 @@ class LocalWhisperProvider(Provider):
         model = await self._load()
         audio_path, is_temp = await asyncio.to_thread(_prepare_cleaned_audio, request.audio_uri)
         try:
-            req_lang = request.language
-            whisper_lang = "hi" if req_lang and req_lang.lower().startswith("hi") else req_lang
+            # A bare code Whisper accepts (`en-IN` -> `en`, `hi-Latn` -> `hi`), or
+            # None to let it detect: a region or script tag fails every chunk.
+            whisper_lang = whisper_language(request.language)
             prompt = _build_initial_prompt(request.hints)
 
             if self.engine in ("openai-whisper", "whisper"):

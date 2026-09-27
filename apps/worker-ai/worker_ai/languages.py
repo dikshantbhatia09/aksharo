@@ -18,10 +18,12 @@ from __future__ import annotations
 __all__ = [
     "CODE_MIX_TAGS",
     "INDIC_LANGUAGES",
+    "WHISPER_LANGUAGES",
     "base_tag",
     "is_code_mix_tag",
     "normalise_language",
     "same_language",
+    "whisper_language",
 ]
 
 #: ISO-639-3 (and a few vendor spellings) to the ISO-639-1 tag the table uses.
@@ -173,3 +175,133 @@ def same_language(left: str | None, right: str | None) -> bool:
     """
     first, second = base_tag(left), base_tag(right)
     return bool(first) and first == second
+
+
+#: The language codes Whisper (openai-whisper and faster-whisper alike) accepts,
+#: as faster-whisper lists them when refusing anything else. Bare ISO-639-1 codes
+#: only: a region (`en-IN`), a script (`hi-Latn`) or a code-mix lane (`hi-en`)
+#: is refused outright and fails every chunk it is given.
+WHISPER_LANGUAGES: frozenset[str] = frozenset(
+    [
+        "af",
+        "am",
+        "ar",
+        "as",
+        "az",
+        "ba",
+        "be",
+        "bg",
+        "bn",
+        "bo",
+        "br",
+        "bs",
+        "ca",
+        "cs",
+        "cy",
+        "da",
+        "de",
+        "el",
+        "en",
+        "es",
+        "et",
+        "eu",
+        "fa",
+        "fi",
+        "fo",
+        "fr",
+        "gl",
+        "gu",
+        "ha",
+        "haw",
+        "he",
+        "hi",
+        "hr",
+        "ht",
+        "hu",
+        "hy",
+        "id",
+        "is",
+        "it",
+        "ja",
+        "jw",
+        "ka",
+        "kk",
+        "km",
+        "kn",
+        "ko",
+        "la",
+        "lb",
+        "ln",
+        "lo",
+        "lt",
+        "lv",
+        "mg",
+        "mi",
+        "mk",
+        "ml",
+        "mn",
+        "mr",
+        "ms",
+        "mt",
+        "my",
+        "ne",
+        "nl",
+        "nn",
+        "no",
+        "oc",
+        "pa",
+        "pl",
+        "ps",
+        "pt",
+        "ro",
+        "ru",
+        "sa",
+        "sd",
+        "si",
+        "sk",
+        "sl",
+        "sn",
+        "so",
+        "sq",
+        "sr",
+        "su",
+        "sv",
+        "sw",
+        "ta",
+        "te",
+        "tg",
+        "th",
+        "tk",
+        "tl",
+        "tr",
+        "tt",
+        "uk",
+        "ur",
+        "uz",
+        "vi",
+        "yi",
+        "yo",
+        "zh",
+        "yue",
+    ]
+)
+
+
+def whisper_language(tag: str | None) -> str | None:
+    """The language to pin a Whisper decode to, or ``None`` to let it detect.
+
+    Whisper takes a bare code: ``en-IN`` is ``en``, ``hi-Latn`` and the Hinglish
+    lane ``hi-en`` are ``hi`` (Whisper writes Hindi speech in either script; the
+    post-processing picks the script). A language Whisper does not know is
+    ``None`` rather than passed through, because passing it through fails the
+    whole transcription (2026-09-27: every chunk after the first of a 35-minute
+    ``en-IN`` video, "'en-IN' is not a valid language code") while detection at
+    worst picks a neighbouring language.
+    """
+    base = base_tag(tag)
+    if not base:
+        return None
+    if base in CODE_MIX_TAGS:
+        return "hi"
+    code = base.split("-")[0]
+    return code if code in WHISPER_LANGUAGES else None
