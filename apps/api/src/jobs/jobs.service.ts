@@ -886,6 +886,28 @@ export class JobsService {
     }
   }
 
+  /**
+   * When worker-media first put this queued job back for want of scratch disk
+   * (`diskHeldSince`, which it writes into the BullMQ job's own data and
+   * which spends no attempt), or null when it has not - or when the queue
+   * cannot say. A job held for disk stays `queued` on purpose; the run
+   * reconciler reads this before calling one past its queue wait stalled.
+   */
+  async diskHeldSince(
+    job: Pick<Job, "id" | "type" | "attemptId" | "status">,
+  ): Promise<number | null> {
+    if (job.status !== "queued" || !isQueueName(job.type) || job.attemptId === null) return null;
+    try {
+      const entry = await this.queues.queue(job.type).getJob(bullJobId(job.id, job.attemptId));
+      const since = (entry?.data as { readonly diskHeldSince?: unknown } | undefined)
+        ?.diskHeldSince;
+      return typeof since === "number" && Number.isFinite(since) ? since : null;
+    } catch (error) {
+      this.logger.debug({ jobId: job.id, err: describe(error) }, "queue entry not read");
+      return null;
+    }
+  }
+
   /** Best effort: a job already picked up, or already gone, is not an error. */
   private async removeFromQueue(job: Job): Promise<void> {
     if (!isQueueName(job.type) || job.attemptId === null) return;

@@ -20,14 +20,23 @@ import { zodDto } from "../common/validation/zod-validation.pipe.js";
  * rather than carrying a second copy of shapes CONTRACTS §2 has frozen.
  */
 
-/** A BCP-47-ish tag: two or three letters, then optional script/region subtags. */
-const LanguageTag = z
-  .string()
-  .trim()
-  .min(2)
-  .max(35)
-  // eslint-disable-next-line security/detect-unsafe-regex -- bounded or disjoint-alternation pattern, reviewed and timed against adversarial input -- not exponential; see the WP report
-  .regex(/^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$/, "Not a BCP-47 language tag.");
+/**
+ * A BCP-47-ish tag: two or three letters, then optional script/region subtags.
+ * Or `"auto"`, the "detect it" choice a clips project may carry
+ * (`AUTO_DETECT_LANGUAGE`): accepted so a page that sends the project's own
+ * language back is not refused, and sent to the worker as no hint at all
+ * (`languageHints`).
+ */
+const LanguageTag = z.union([
+  z.literal("auto"),
+  z
+    .string()
+    .trim()
+    .min(2)
+    .max(35)
+    // eslint-disable-next-line security/detect-unsafe-regex -- bounded or disjoint-alternation pattern, reviewed and timed against adversarial input -- not exponential; see the WP report
+    .regex(/^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$/, "Not a BCP-47 language tag."),
+]);
 
 const CaptionPreferences = z.object({
   maxLines: z.number().int().min(1).max(3).optional(),

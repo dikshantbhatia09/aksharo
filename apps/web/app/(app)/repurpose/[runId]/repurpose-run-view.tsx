@@ -19,6 +19,13 @@
  * failure. The card's action is the failure's own: the same link again, another
  * video with the setup kept, or the link pre-filled to fix. And every clip
  * carries its own state and its own "Try again".
+ *
+ * Plan limits (2026-09-27) added three more. A plan limits the minutes a run
+ * processes, so a long video's run says which part it processed and offers
+ * the next part as a new run. A refusal carries its numbers ("This video is
+ * 34:37. Your plan processes 20:00 per video.") and a too-long link offers a
+ * part of it rather than only another video. And the run is titled by the
+ * video's real title, not "youtube.com · <id>".
  */
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -29,6 +36,8 @@ import {
   type RepurposeCandidateItem,
   type RepurposeClipItem,
   useCancelRepurposeRun,
+  useEntitlement,
+  useNextWindow,
   useRepurposeCandidates,
   useRepurposeClips,
   useRepurposePreview,
@@ -48,7 +57,17 @@ import {
   linkFromSourceDisplay,
   newRunHref,
   recallRunSetup,
+  rememberRunSetup,
 } from "@/components/repurpose/run-setup";
+import {
+  nextWindowOffer,
+  retryWindowOf,
+  runFailureDetail,
+  runTitle,
+  runWindowOf,
+  windowPhase,
+  windowSummary,
+} from "@/components/repurpose/run-window";
 import { PersistentPreview, RunActionBar } from "@/components/repurpose/RunActionBar";
 import { RunStageRail } from "@/components/repurpose/RunStageRail";
 import { StageErrorCard, StagePanel } from "@/components/repurpose/StagePanel";
@@ -83,6 +102,13 @@ export function RepurposeRunView({ runId }: { readonly runId: string }): React.J
   const query = useRepurposeRun(runId);
   const cancel = useCancelRepurposeRun();
   const retry = useRetryRepurposeRun();
+  const nextWindow = useNextWindow();
+  // The plan's window, for how much "Process the next …" promises. Unknown
+  // until it loads (or on an API older than windows), when this run's own
+  // part stands in for it.
+  const entitlement = useEntitlement();
+  const planWindowMs = Number(entitlement.data?.entitlements["clipsWindowMs"]);
+  const [nextWindowError, setNextWindowError] = React.useState<Refusal | null>(null);
   // Every hook sits above the early returns, so the options read the run
   // through `query.data` rather than the narrowed `run` below.
   const candidatesQuery = useRepurposeCandidates(runId, {
@@ -241,6 +267,51 @@ export function RepurposeRunView({ runId }: { readonly runId: string }): React.J
     });
   };
 
+  // The numbers behind a refusal, and the part of the video this run
+  // processed (both absent on an API older than 2026-09-27).
+  const failureDetail = runFailureDetail(run);
+  const processed = runWindowOf(run);
+  const nextOffer = nextWindowOffer(
+    run,
+    Number.isFinite(planWindowMs) && planWindowMs > 0 ? planWindowMs : undefined,
+  );
+  // A too-long link's "Pick where to start": a fresh run of the same link and
+  // setup, the cursor in "Start at", and the length so a start past the end is
+  // caught at the field. An upload has no window to pick.
+  const pickStartHref =
+    link === undefined
+      ? undefined
+      : newRunHref(setup, {
+          keepLink: true,
+          link,
+          pickStart: true,
+          ...(failureDetail?.durationMs === undefined
+            ? {}
+            : { lengthMs: failureDetail.durationMs }),
+        });
+  const processNextWindow = (): void => {
+    setNextWindowError(null);
+    nextWindow.mutate(run.id, {
+      onSuccess: (created) => {
+        // The next part keeps this run's setup, so its own failure card can
+        // offer it back, with the start the server gave it: where this part
+        // ended (`nextWindow` in the API). Its card then says a retry fetches
+        // from there, which it does, rather than "the most-replayed part".
+        if (setup !== undefined) {
+          const { startMs: _startMs, ...carried } = setup;
+          rememberRunSetup(
+            created.id,
+            processed === null ? carried : { ...carried, startMs: processed.endMs },
+          );
+        }
+        router.push(`/repurpose/${created.id}`);
+      },
+      onError: (error) => {
+        setNextWindowError(describeRefusal(error, "nextWindow"));
+      },
+    });
+  };
+
   let emptyNote: { readonly text: string; readonly testId: string } | null = null;
   if (candidates.length === 0) {
     if (candidatesQuery.isError) {
@@ -294,8 +365,10 @@ export function RepurposeRunView({ runId }: { readonly runId: string }): React.J
           eyebrow="Clips pipeline"
           className="[&>div]:w-full"
           title={
-            <span className="block truncate">
-              {run.sourceDisplay ?? (run.sourceKind === "upload" ? "Your upload" : "Your video")}
+            // The video's real title when the API has it; the full text on
+            // hover, since a long one is truncated to one line.
+            <span className="block truncate" title={runTitle(run)} data-testid="run-title">
+              {runTitle(run)}
             </span>
           }
           description={
@@ -306,6 +379,63 @@ export function RepurposeRunView({ runId }: { readonly runId: string }): React.J
             </span>
           }
         />
+
+        {processed === null ? null : (
+          // Which part of the video this run is about, so "20 moments" reads
+          // against 20 minutes of a 3-hour podcast, and the way to the next part.
+          <div className="flex flex-col gap-2" data-testid="run-window">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+              <p className="m-0 text-sm text-fg-1" data-testid="run-window-summary">
+                {windowSummary(processed, windowPhase(run))}
+              </p>
+              {nextOffer === null ? null : (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={nextWindow.isPending}
+                  onClick={processNextWindow}
+                  data-testid="run-next-window"
+                >
+                  {nextWindow.isPending ? "Starting…" : nextOffer.label}
+                </Button>
+              )}
+            </div>
+            {nextWindowError === null ? null : (
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                <p
+                  className="m-0 text-sm text-fg-1"
+                  role="alert"
+                  data-testid="run-next-window-error"
+                >
+                  {nextWindowError.text}
+                </p>
+                {nextWindowError.existingRunId === undefined ||
+                nextWindowError.existingRunId === run.id ? null : (
+                  <Button variant="secondary" size="sm" asChild>
+                    <Link
+                      href={`/repurpose/${nextWindowError.existingRunId}`}
+                      className="no-underline"
+                      data-testid="run-next-window-existing"
+                    >
+                      Open the existing run
+                    </Link>
+                  </Button>
+                )}
+                {nextWindowError.seeCredits === true ? (
+                  <Button variant="secondary" size="sm" asChild>
+                    <Link
+                      href="/billing"
+                      className="no-underline"
+                      data-testid="run-next-window-credits"
+                    >
+                      See your credits
+                    </Link>
+                  </Button>
+                ) : null}
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="flex flex-col gap-2">
           <RunStageRail
@@ -338,8 +468,24 @@ export function RepurposeRunView({ runId }: { readonly runId: string }): React.J
               // The run id IS the support code: it is already in every log line
               // and every audit row for this run.
               supportCode={run.id}
+              detail={failureDetail}
+              // Too long: the most-replayed part is a retry the server windows
+              // (only a link can be windowed, and only if it can be retried);
+              // a start of their own is a fresh run of the same link.
+              {...(run.canRetry && run.sourceKind !== "upload" ? { onUseWindow: tryAgain } : {})}
+              // Which part that retry fetches, so its label does not promise
+              // the most-replayed part to a run that asked for its own start.
+              retryWindow={retryWindowOf(run, setup)}
+              {...(pickStartHref === undefined
+                ? {}
+                : {
+                    onPickStart: () => {
+                      router.push(pickStartHref);
+                    },
+                  })}
               retrying={retry.isPending}
               retryError={retryError?.text ?? null}
+              retrySeeCredits={retryError?.seeCredits === true}
               existingRunId={retryError?.existingRunId ?? null}
               // `canRetry` is false when the API knows the retry would only be
               // refused (a deleted source, an upload it could not read): the

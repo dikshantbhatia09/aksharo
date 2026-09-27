@@ -1,19 +1,66 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { assertAcquirableUrl } from "./processors/acquire.js";
+import { logger } from "./logger.js";
+import { assertAcquirableUrl, readWindow } from "./processors/acquire.js";
 import {
+  DownloaderUnusableError,
+  EXPECTED_EJS_VERSION,
   EXPECTED_SHA256,
   EXPECTED_VERSION,
   NEVER_ALLOWED_ARGS,
+  REQUIRED_ARGS,
+  assertDownloaderHeader,
+  assertLockedDown,
   assertNoForbiddenArgs,
   assertWithinLimits,
   buildArgs,
+  buildHeaderArgs,
   buildProbeArgs,
   classify,
+  formatSeconds,
+  isTooSlow,
+  mostReplayedPeakMs,
+  parseMediaTime,
   parseProgress,
+  planSection,
+  readDownloaderHeader,
 } from "./yt-dlp.js";
 
-import type { AcquireLimits, SourceMetadata } from "./yt-dlp.js";
+import type {
+  AcquireLimits,
+  AcquireWindow,
+  DownloadPace,
+  SectionPlan,
+  SourceMetadata,
+} from "./yt-dlp.js";
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+const NODE = "C:/Program Files/nodejs/node.exe";
+
+/**
+ * The pinned venv's own `-v` header, captured offline on the production host
+ * (2026-09-27) with the lock-down every list carries.
+ */
+const REAL_HEADER = [
+  "[debug] Command-line config: ['-v', '--encoding', 'utf-8', '--ignore-config', '--no-cache-dir', '--no-js-runtimes', '--js-runtimes', 'node:C:\\\\Program Files\\\\nodejs\\\\node.exe', '--no-remote-components', '--no-plugin-dirs']",
+  "[debug] Encodings: locale cp1252, fs utf-8, pref utf-8, out cp1252 (No ANSI), error cp1252 (No ANSI), screen cp1252 (No ANSI)",
+  "[debug] yt-dlp version stable@2026.08.19 from yt-dlp/yt-dlp [594bd50c2] (pip)",
+  "[debug] Python 3.12.10 (CPython AMD64 64bit) - Windows-11-10.0.26200-SP0 (OpenSSL 3.0.16 11 Feb 2025)",
+  "[debug] exe versions: ffmpeg 9.0-full_build-www.gyan.dev (setts), ffprobe 9.0-full_build-www.gyan.dev",
+  "[debug] Optional libraries: Cryptodome-3.23.0, brotli-1.2.0, certifi-2026.07.22, mutagen-1.48.1, requests-2.34.2, sqlite3-3.49.1, urllib3-2.8.0, websockets-17.1, yt_dlp_ejs-0.8.0",
+  "[debug] JS runtimes: node-24.19.0",
+  "[debug] Proxy map: {}",
+  "[debug] Request Handlers: urllib, requests, websockets",
+  "[debug] Plugin directories: none (disabled)",
+  "[debug] Loaded 1744 extractors",
+  "",
+  "Usage: yt-dlp [OPTIONS] URL [URL...]",
+  "",
+  "yt-dlp: error: You must provide at least one URL.",
+].join("\n");
 
 /**
  * REP-010's security surface, tested where it is decidable.
@@ -78,12 +125,162 @@ describe("the argument list", () => {
     for (const builder of [
       () => buildArgs({ url: "https://youtu.be/x", outputPath: "/tmp/o.mp4", limits: LIMITS }),
       () => buildProbeArgs("https://youtu.be/x"),
+      () => buildHeaderArgs(NODE),
+      () =>
+        buildArgs({
+          url: "https://youtu.be/x",
+          outputPath: "/tmp/o.mp4",
+          limits: LIMITS,
+          jsRuntime: NODE,
+          section: { startMs: 0, endMs: 1_200_000 },
+        }),
     ]) {
       const args = builder();
       for (const forbidden of NEVER_ALLOWED_ARGS) {
         expect(args, forbidden).not.toContain(forbidden);
       }
     }
+  });
+
+  it("clears every JavaScript runtime, then names the one node, in every list", () => {
+    // A deno installed later must not quietly become the runtime YouTube's
+    // scripts run in; clearing the defaults first is what stops it.
+    for (const args of [
+      buildArgs({
+        url: "https://youtu.be/x",
+        outputPath: "/tmp/o.mp4",
+        limits: LIMITS,
+        jsRuntime: NODE,
+      }),
+      buildProbeArgs("https://youtu.be/x", { jsRuntime: NODE }),
+      buildHeaderArgs(NODE),
+    ]) {
+      const cleared = args.indexOf("--no-js-runtimes");
+      const named = args.indexOf("--js-runtimes");
+      expect(cleared).toBeGreaterThanOrEqual(0);
+      expect(named).toBeGreaterThan(cleared);
+      expect(args[named + 1]).toBe(`node:${NODE}`);
+      expect(args.filter((arg) => arg === "--js-runtimes")).toHaveLength(1);
+      if (args.includes("--")) expect(named).toBeLessThan(args.indexOf("--"));
+    }
+  });
+
+  it("enables no runtime at all when none is configured, rather than yt-dlp's default", () => {
+    for (const args of [
+      buildArgs({ url: "https://youtu.be/x", outputPath: "/tmp/o.mp4", limits: LIMITS }),
+      buildProbeArgs("https://youtu.be/x"),
+      buildHeaderArgs(undefined),
+    ]) {
+      expect(args).toContain("--no-js-runtimes");
+      expect(args).not.toContain("--js-runtimes");
+    }
+  });
+
+  it("never fetches remote components or searches plugin directories", () => {
+    for (const args of [
+      buildArgs({
+        url: "https://youtu.be/x",
+        outputPath: "/tmp/o.mp4",
+        limits: LIMITS,
+        jsRuntime: NODE,
+      }),
+      buildProbeArgs("https://youtu.be/x", { jsRuntime: NODE }),
+      buildHeaderArgs(NODE),
+    ]) {
+      for (const required of REQUIRED_ARGS) expect(args, required).toContain(required);
+      expect(args).not.toContain("--remote-components");
+      expect(args).not.toContain("--plugin-dirs");
+    }
+  });
+
+  it("refuses remote components, plugin directories and any runtime it did not write", () => {
+    const refused: (readonly string[])[] = [
+      ["--no-js-runtimes", "--remote-components", "ejs:github"],
+      ["--no-js-runtimes", "--remote-components=ejs:npm"],
+      ["--no-js-runtimes", "--plugin-dirs", "C:/plugins"],
+      // Another runtime, or node found on PATH rather than by path.
+      ["--no-js-runtimes", "--js-runtimes", "deno"],
+      ["--no-js-runtimes", "--js-runtimes", "node"],
+      ["--no-js-runtimes", "--js-runtimes", "node:relative/node.exe"],
+      // The `=` spelling, a second runtime, and one not cleared first.
+      ["--no-js-runtimes", `--js-runtimes=node:${NODE}`],
+      ["--no-js-runtimes", "--js-runtimes", `node:${NODE}`, "--js-runtimes", "node:/usr/bin/node"],
+      ["--js-runtimes", `node:${NODE}`, "--no-js-runtimes"],
+    ];
+    for (const args of refused) {
+      expect(() => {
+        assertNoForbiddenArgs(args);
+      }, args.join(" ")).toThrow(DownloaderUnusableError);
+    }
+    // The form the builders write, on either platform's absolute path.
+    for (const path of [NODE, "/usr/bin/node"]) {
+      expect(() => {
+        assertNoForbiddenArgs(["--no-js-runtimes", "--js-runtimes", `node:${path}`]);
+      }).not.toThrow();
+    }
+  });
+
+  it("refuses a list that lost its lock-down, or carries it only after `--`", () => {
+    const whole = buildProbeArgs("https://youtu.be/x");
+    for (const required of REQUIRED_ARGS) {
+      expect(() => {
+        assertLockedDown(whole.filter((arg) => arg !== required));
+      }, required).toThrow(/without/);
+    }
+    expect(() => {
+      assertLockedDown(["--", ...REQUIRED_ARGS]);
+    }).toThrow(/without/);
+    expect(() => {
+      assertLockedDown(whole);
+    }).not.toThrow();
+  });
+
+  it("fetches a section as one bounded time range, before the URL", () => {
+    const args = buildArgs({
+      url: "https://youtu.be/x",
+      outputPath: "/tmp/o.mp4",
+      limits: LIMITS,
+      format: "137+140",
+      section: { startMs: 610_500, endMs: 1_810_500 },
+    });
+    const at = args.indexOf("--download-sections");
+    expect(args[at + 1]).toBe("*610.500-1810.500");
+    expect(at).toBeLessThan(args.indexOf("--"));
+    // Only one caller-derived value besides the URL and the output path.
+    expect(args.filter((arg) => arg.startsWith("*"))).toEqual(["*610.500-1810.500"]);
+    // The whole-file list has none.
+    expect(
+      buildArgs({ url: "https://youtu.be/x", outputPath: "/tmp/o.mp4", limits: LIMITS }),
+    ).not.toContain("--download-sections");
+  });
+
+  it("refuses a section that is not two ordered whole milliseconds inside a day", () => {
+    for (const section of [
+      { startMs: -1, endMs: 1_000 },
+      { startMs: 1.5, endMs: 1_000 },
+      { startMs: 5_000, endMs: 5_000 },
+      { startMs: 5_000, endMs: 4_000 },
+      { startMs: 0, endMs: 86_400_001 },
+      { startMs: Number.NaN, endMs: 1_000 },
+    ]) {
+      expect(
+        () =>
+          buildArgs({
+            url: "https://youtu.be/x",
+            outputPath: "/tmp/o.mp4",
+            limits: LIMITS,
+            section,
+          }),
+        JSON.stringify(section),
+      ).toThrow(DownloaderUnusableError);
+    }
+  });
+
+  it("formats seconds from checked integers only", () => {
+    expect(formatSeconds(0)).toBe("0.000");
+    expect(formatSeconds(1_200_000)).toBe("1200.000");
+    expect(formatSeconds(61_001)).toBe("61.001");
+    expect(() => formatSeconds(0.5)).toThrow(DownloaderUnusableError);
   });
 
   it("refuses a list that somebody added a forbidden flag to", () => {
@@ -220,6 +417,308 @@ describe("limits", () => {
     // and refusing here would reject every source with sparse metadata.
     expect(() => {
       assertWithinLimits({ ...SAFE_METADATA, approximateBytes: null, durationMs: null }, LIMITS);
+    }).not.toThrow();
+  });
+
+  it("carries the numbers behind a refusal, so the page can state them", () => {
+    // "This video is 34:37; your plan processes 20:00" needs both numbers.
+    const refusal = (metadata: SourceMetadata): unknown => {
+      try {
+        assertWithinLimits(metadata, LIMITS);
+      } catch (error) {
+        return error;
+      }
+      return null;
+    };
+    expect(refusal({ ...SAFE_METADATA, durationMs: 2_077_000 })).toMatchObject({
+      facts: {
+        durationMs: 2_077_000,
+        maxDurationMs: 1_200_000,
+        approximateBytes: 100_000_000,
+        maxBytes: 524_288_000,
+      },
+    });
+    // What is not known is left out, never sent as a number.
+    const unsized = refusal({ ...SAFE_METADATA, durationMs: 2_077_000, approximateBytes: null });
+    expect((unsized as { facts: Record<string, unknown> }).facts).not.toHaveProperty(
+      "approximateBytes",
+    );
+    expect(refusal({ ...SAFE_METADATA, approximateBytes: 2_000_000_000 })).toMatchObject({
+      reason: "media/too_large",
+      facts: { approximateBytes: 2_000_000_000, maxBytes: 524_288_000 },
+    });
+  });
+});
+
+describe("the window", () => {
+  // A 34:37 video against the Free plan's 20:00.
+  const DURATION = 2_077_000;
+  const TWENTY = 1_200_000;
+
+  /** Twenty minutes of `durationMs` (the 34:37 video unless said), by `policy`. */
+  const plan = (
+    window: Omit<AcquireWindow, "maxMs">,
+    replayedPeakMs: number | null,
+    durationMs = DURATION,
+  ): SectionPlan | null =>
+    planSection({ durationMs, window: { maxMs: TWENTY, ...window }, replayedPeakMs });
+
+  it("leaves a source that fits alone", () => {
+    expect(plan({ policy: "first" }, null, 1_078_000)).toBeNull();
+    expect(plan({ policy: "most_replayed" }, 5_000, TWENTY)).toBeNull();
+    expect(plan({ policy: "range" }, null, 1_078_000)).toBeNull();
+    expect(plan({ policy: "range", startMs: 0 }, null, 1_078_000)).toBeNull();
+  });
+
+  it("honours a start picked on a source that fits, from there to the end", () => {
+    // 5:00 on a 17:58 video is 5:00-17:58, not the whole video from 0:00.
+    expect(plan({ policy: "range", startMs: 300_000 }, null, 1_078_000)).toEqual({
+      startMs: 300_000,
+      endMs: 1_078_000,
+      sourceDurationMs: 1_078_000,
+      policy: "range",
+    });
+    // A start with less than a section after it takes the whole video.
+    expect(plan({ policy: "range", startMs: 1_075_000 }, null, 1_078_000)).toBeNull();
+  });
+
+  it("takes the first minutes by default", () => {
+    expect(plan({ policy: "first" }, 1_500_000)).toEqual({
+      startMs: 0,
+      endMs: TWENTY,
+      sourceDurationMs: DURATION,
+      policy: "first",
+    });
+  });
+
+  it("centres on the most-replayed moment, slid to fit inside the video", () => {
+    // Peak at 15:00: 5:00-25:00.
+    expect(plan({ policy: "most_replayed" }, 900_000)).toEqual({
+      startMs: 300_000,
+      endMs: 1_500_000,
+      sourceDurationMs: DURATION,
+      policy: "most_replayed",
+    });
+    // Peak at 33:00 would run off the end: the last full 20 minutes.
+    expect(plan({ policy: "most_replayed" }, 1_980_000)).toMatchObject({
+      startMs: DURATION - TWENTY,
+      endMs: DURATION,
+    });
+    // Peak at 0:30 would start before it: from the start.
+    expect(plan({ policy: "most_replayed" }, 30_000)).toMatchObject({ startMs: 0, endMs: TWENTY });
+  });
+
+  it("says it took the start when there was no heatmap to centre on", () => {
+    expect(plan({ policy: "most_replayed" }, null)).toEqual({
+      startMs: 0,
+      endMs: TWENTY,
+      sourceDurationMs: DURATION,
+      policy: "first",
+    });
+  });
+
+  it("honours a chosen start, cutting the window short at the end rather than moving it", () => {
+    // "Process the next 20 minutes" of a 34:37 video is 20:00-34:37.
+    expect(plan({ policy: "range", startMs: TWENTY }, null)).toEqual({
+      startMs: TWENTY,
+      endMs: DURATION,
+      sourceDurationMs: DURATION,
+      policy: "range",
+    });
+    // A start with nothing after it takes the last full window instead.
+    expect(plan({ policy: "range", startMs: DURATION - 2_000 }, null)).toMatchObject({
+      startMs: DURATION - TWENTY,
+      endMs: DURATION,
+      policy: "range",
+    });
+    // A range with no start is the start.
+    expect(plan({ policy: "range" }, null)).toMatchObject({ startMs: 0, policy: "first" });
+  });
+
+  it("reads the most-replayed peak out of the heatmap, ignoring rows it cannot trust", () => {
+    const heatmap = [
+      { start_time: 0, end_time: 20.77, value: 1 },
+      { start_time: 600, end_time: 620, value: 0.4 },
+      "not a row",
+      { start_time: 900, end_time: 890, value: 9 },
+      { start_time: 5_000, end_time: 5_020, value: 9 },
+      { start_time: 1_200, end_time: "x", value: 9 },
+      { start_time: 1_500, end_time: 1_520, value: Number.POSITIVE_INFINITY },
+    ];
+    // Backwards, past the end, non-numeric and infinite rows are all skipped.
+    expect(mostReplayedPeakMs(heatmap, DURATION)).toBe(10_385);
+    // The earliest of equal peaks, so a video always gets the same window.
+    expect(
+      mostReplayedPeakMs(
+        [
+          { start_time: 100, end_time: 110, value: 1 },
+          { start_time: 200, end_time: 210, value: 1 },
+        ],
+        DURATION,
+      ),
+    ).toBe(105_000);
+    expect(mostReplayedPeakMs(undefined, DURATION)).toBeNull();
+    expect(mostReplayedPeakMs([], DURATION)).toBeNull();
+  });
+
+  it("refuses a malformed window from the payload before anything runs", () => {
+    expect(readWindow(undefined)).toBeUndefined();
+    expect(readWindow({ maxMs: TWENTY, policy: "range", startMs: 5_000 })).toEqual({
+      maxMs: TWENTY,
+      policy: "range",
+      startMs: 5_000,
+    });
+    for (const window of [
+      { maxMs: 0, policy: "first" },
+      { maxMs: -5, policy: "first" },
+      { maxMs: 1.5, policy: "first" },
+      { maxMs: TWENTY, policy: "loudest" },
+      { maxMs: TWENTY, policy: "range", startMs: -1 },
+      { maxMs: 86_400_001, policy: "first" },
+      "twenty minutes",
+    ]) {
+      expect(() => readWindow(window), JSON.stringify(window)).toThrow(/window/);
+    }
+  });
+});
+
+describe("the section's pace", () => {
+  // Twenty minutes of video, 100 MB: at 2x it must land within 10 min + 15 s.
+  const PACE: DownloadPace = { mediaMs: 1_200_000, expectedBytes: 100_000_000, minRealtime: 2 };
+  const bytes = (landed: number): { bytes: number; mediaMs: null } => ({
+    bytes: landed,
+    mediaMs: null,
+  });
+
+  it("gives up past the deadline, whatever has landed short of all of it", () => {
+    expect(isTooSlow(PACE, bytes(99_000_000), 615_001)).toBe(true);
+    expect(isTooSlow({ ...PACE, expectedBytes: null }, bytes(0), 615_001)).toBe(true);
+    expect(isTooSlow({ ...PACE, expectedBytes: null }, bytes(0), 600_000)).toBe(false);
+  });
+
+  it("never calls a section with all of its media slow, past the deadline or not", () => {
+    // ffmpeg writing its index after the last frame, or yt-dlp tidying up.
+    expect(isTooSlow(PACE, { bytes: 0, mediaMs: 1_200_000 }, 700_000)).toBe(false);
+    expect(isTooSlow(PACE, bytes(100_000_000), 700_000)).toBe(false);
+  });
+
+  it("judges nothing by what has landed during the warm-up", () => {
+    expect(isTooSlow(PACE, bytes(0), 59_999)).toBe(false);
+  });
+
+  it("knows a reader throttled to real time after a minute, not after ten", () => {
+    // At 60 s, 2x needs (60 - 15) x 2 = 90 s of video landed: 7.5 MB.
+    expect(isTooSlow(PACE, bytes(5_000_000), 60_000)).toBe(true); // 60 s of video: 1.3x
+    expect(isTooSlow(PACE, bytes(10_000_000), 60_000)).toBe(false); // 120 s: 2.7x
+  });
+
+  it("judges by ffmpeg's own media time when it has printed one, not the average bitrate", () => {
+    // A quiet stretch well below the video's average bitrate: 3 MB is 36 s by
+    // the estimate, but ffmpeg has written 150 s — 3.3x, on pace.
+    expect(isTooSlow(PACE, { bytes: 3_000_000, mediaMs: 150_000 }, 60_000)).toBe(false);
+    // And the other way: bytes that look ahead, media time that is not.
+    expect(isTooSlow(PACE, { bytes: 50_000_000, mediaMs: 60_000 }, 60_000)).toBe(true);
+  });
+});
+
+describe("ffmpeg's media time", () => {
+  it("reads time= out of a stats line, as ffmpeg 9 prints it", () => {
+    expect(
+      parseMediaTime(
+        "frame= 7220 fps=120 q=-1.0 size=   81920KiB time=00:04:00.66 bitrate=2788.4kbits/s speed=4.01x elapsed=0:01:00.01",
+      ),
+    ).toBe(240_660);
+    // Audio only: no frame count.
+    expect(parseMediaTime("size=    1024KiB time=01:02:03.5 bitrate= 135.2kbits/s speed=2x")).toBe(
+      3_723_500,
+    );
+  });
+
+  it("reads nothing out of any other line, or out of time=N/A", () => {
+    expect(parseMediaTime("frame=    0 fps=0.0 q=0.0 size=       0KiB time=N/A bitrate=N/A")).toBeNull();
+    expect(parseMediaTime("[download] Destination: source.mp4")).toBeNull();
+    expect(parseMediaTime("title: the time=00:01:00.00 of my life")).toBeNull();
+  });
+});
+
+describe("the downloader's own header", () => {
+  it("reads the version, the solver, the runtime and the plugins out of it", () => {
+    expect(readDownloaderHeader(REAL_HEADER)).toEqual({
+      version: "2026.08.19",
+      ejsVersion: "0.8.0",
+      jsRuntimes: "node-24.19.0",
+      nodeVersion: "24.19.0",
+      nodeUnsupported: false,
+      pluginDirectories: "none (disabled)",
+      plugins: [],
+    });
+  });
+
+  it("accepts the pinned venv as it is installed on the production host", () => {
+    expect(() => {
+      assertDownloaderHeader(readDownloaderHeader(REAL_HEADER), { jsRuntime: NODE });
+    }).not.toThrow();
+    expect(EXPECTED_EJS_VERSION).toBe("0.8.0");
+  });
+
+  it("refuses when the named node does not show up, or is too old for the solver", () => {
+    for (const runtimes of ["none (disabled)", "none", "node-18.0.0 (unsupported)"]) {
+      const header = readDownloaderHeader(
+        REAL_HEADER.replace("JS runtimes: node-24.19.0", `JS runtimes: ${runtimes}`),
+      );
+      expect(() => {
+        assertDownloaderHeader(header, { jsRuntime: NODE });
+      }, runtimes).toThrow(DownloaderUnusableError);
+    }
+  });
+
+  it("refuses a runtime with no solver, or a solver that is not the pinned one", () => {
+    const missing = readDownloaderHeader(REAL_HEADER.replace(", yt_dlp_ejs-0.8.0", ""));
+    expect(() => {
+      assertDownloaderHeader(missing, { jsRuntime: NODE });
+    }).toThrow(/yt-dlp-ejs is not installed/);
+    const other = readDownloaderHeader(REAL_HEADER.replace("yt_dlp_ejs-0.8.0", "yt_dlp_ejs-0.9.1"));
+    expect(() => {
+      assertDownloaderHeader(other, { jsRuntime: NODE });
+    }).toThrow(/pinned to 0\.8\.0/);
+    // Only where another yt-dlp is allowed anyway: they ship together.
+    const warn = vi.spyOn(logger, "warn").mockImplementation(() => undefined);
+    expect(() => {
+      assertDownloaderHeader(other, { jsRuntime: NODE, unpinnedAllowed: true });
+    }).not.toThrow();
+    expect(warn).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses a downloader that loads plugins, runtime or not", () => {
+    for (const header of [
+      REAL_HEADER.replace(
+        "Plugin directories: none (disabled)",
+        "Plugin directories: C:/yt-dlp-plugins",
+      ),
+      REAL_HEADER.replace(
+        "[debug] Loaded 1744 extractors",
+        "[debug] Extractor Plugins: SneakyIE\n[debug] Loaded 1745 extractors",
+      ),
+    ]) {
+      expect(() => {
+        assertDownloaderHeader(readDownloaderHeader(header), {});
+      }).toThrow(/plugins/);
+    }
+  });
+
+  it("refuses something that answered -v without describing itself", () => {
+    expect(() => {
+      assertDownloaderHeader(readDownloaderHeader("2026.08.19\n"), {});
+    }).toThrow(/no debug header/);
+  });
+
+  it("needs neither node nor the solver when no runtime is configured", () => {
+    const bare = REAL_HEADER.replace(
+      "JS runtimes: node-24.19.0",
+      "JS runtimes: none (disabled)",
+    ).replace(", yt_dlp_ejs-0.8.0", "");
+    expect(() => {
+      assertDownloaderHeader(readDownloaderHeader(bare), {});
     }).not.toThrow();
   });
 });
@@ -410,6 +909,8 @@ describe("failure classification", () => {
       reason: "media/too_large",
       code: "media/too_large",
       retryable: false,
+      // Both numbers are in yt-dlp's own line, and the page states them.
+      facts: { approximateBytes: 538_391_240, maxBytes: 524_288_000 },
     });
   });
 
@@ -461,6 +962,38 @@ describe("failure classification", () => {
       "nope",
     );
     expect(error.reason).toBe("media/source_private");
+  });
+
+  it("reads a 429 from ffmpeg's reader as a block, where yt-dlp's only ERROR names ffmpeg", () => {
+    // A section download: yt-dlp hands the fetch to ffmpeg, which prints the
+    // reason, and yt-dlp then says only that ffmpeg failed. Read as an unnamed
+    // failure, the caller fetched the whole video from the refused address.
+    const output = [
+      "[info] x: Downloading 1 time ranges: 0.0-1200.0",
+      "[download] Destination: source.mp4",
+      "[https @ 000001d3c4a8f2c0] HTTP error 429 Too Many Requests",
+      "[in#0 @ 000001d3c4a7e100] Error opening input: Server returned 4XX Client Error, but not one of 40{0,1,3,4}",
+      "ERROR: ffmpeg exited with code 1",
+    ].join("\n");
+    expect(classify(output, "nope")).toMatchObject({
+      reason: "media/source_blocked",
+      code: "media/source_blocked",
+      retryable: false,
+    });
+    expect(classify(output, "nope").detail).toContain("HTTP error 429");
+  });
+
+  it("leaves a 403 from ffmpeg's reader, or a 429 in a title, to be retried", () => {
+    // An expired stream URL looks like this too, and the whole file may get it.
+    for (const output of [
+      "[https @ 000001d3c4a8f2c0] HTTP error 403 Forbidden\nERROR: ffmpeg exited with code 1",
+      "[download] Destination: HTTP error 429 too many requests (live).mp4\nERROR: ffmpeg exited with code 1",
+    ]) {
+      expect(classify(output, "nope"), output).toMatchObject({
+        retryable: true,
+        code: "media/acquire_failed",
+      });
+    }
   });
 
   it("gives an unrecognised failure a retry, and a reason for when retries run out", () => {

@@ -267,7 +267,15 @@ export const QUEUE_POLICY_OVERRIDES: Readonly<Record<string, Partial<QueuePolicy
   {
     "media.probe": { lockDurationMs: 600_000, stalledIntervalMs: 60_000 },
     "media.proxy": { lockDurationMs: 600_000, stalledIntervalMs: 60_000 },
-    "media.acquire": { lockDurationMs: 600_000, stalledIntervalMs: 60_000 },
+    // Acquisition retries ONCE, a minute later (2026-09-27): every attempt is a
+    // request to YouTube from the one home IP, and three attempts five seconds
+    // apart is how one failure becomes a block.
+    "media.acquire": {
+      attempts: 2,
+      backoffMs: 60_000,
+      lockDurationMs: 600_000,
+      stalledIntervalMs: 60_000,
+    },
     "media.clip": { lockDurationMs: 300_000, stalledIntervalMs: 60_000 },
     "ai.highlights": { lockDurationMs: 600_000, stalledIntervalMs: 60_000 },
     "ai.faces": { lockDurationMs: 600_000, stalledIntervalMs: 60_000 },

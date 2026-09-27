@@ -12,6 +12,8 @@ export const JOB_ERROR_CODES = {
   concurrencyCap: "jobs/concurrency_cap",
   /** Waited longer than `maxQueueWaitMs` in `queued`; the hold was released. */
   queueTimeout: "jobs/queue_timeout",
+  /** Settled by the lease reaper: its worker stopped heartbeating (`lease-reaper.task.ts`). */
+  stalled: "jobs/stalled",
   /** No such job, or it belongs to another workspace (THREAT-MODEL T5). */
   notFound: "jobs/not_found",
   /** `type` is not one of the CONTRACTS §3 queues. */

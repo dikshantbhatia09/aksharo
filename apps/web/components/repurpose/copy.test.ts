@@ -7,6 +7,7 @@ import {
   BACKGROUND_NOTE,
   CLIP_FAILURE_COPY,
   CLIP_STATE_COPY,
+  DETAIL_COPY,
   REFUSAL_COPY,
   SAFE_ERROR_COPY,
   STAGE_COPY,
@@ -64,7 +65,6 @@ describe("each failure's recommended action", () => {
   it("offers another video when this one can never work", () => {
     for (const code of [
       "source_too_large",
-      "source_too_long",
       "source_private",
       "source_age_restricted",
       "source_live",
@@ -112,6 +112,22 @@ describe("each failure's recommended action", () => {
     const copy = safeErrorCopy("repurpose/source_too_long");
     expect(copy.title).toMatch(/longer than your plan allows/);
     expect(`${copy.title} ${copy.reassurance}`).not.toMatch(/\d+ ?(minutes|min|MB)/);
+  });
+
+  // A plan limits the minutes a run processes, not the video's length (owner
+  // decision, 2026-09-27): a long link used to end on "Choose another video",
+  // which is a dead end for the product's ordinary input.
+  it("offers part of a too-long video, and says what fits only where no part is offered", () => {
+    const copy = safeErrorCopy("repurpose/source_too_long");
+    expect(copy.action).toBe("use_window");
+    // A retry fetches the part the run asked for, which is not always the
+    // most-replayed one, so the label promises part of it and no more.
+    expect(copy.actionLabel).toBe("Process part of it");
+    expect(copy.actionLabel).not.toMatch(/most-replayed/);
+    expect(copy.windowHint).toMatch(/part of it/);
+    // An upload cannot be windowed, so its card falls back to another video.
+    expect(copy.fallbackHint).toMatch(/shorter video/);
+    expect(copy.reassurance).not.toMatch(/shorter video/);
   });
 
   // An upload run whose file never arrived used to wait at "Add a video"
@@ -325,12 +341,39 @@ describe("every sentence on the clips pipeline", () => {
         copy.title,
         copy.reassurance,
         copy.retryHint ?? "",
+        copy.startAgainHint ?? "",
+        copy.windowHint ?? "",
+        copy.fallbackHint ?? "",
         copy.actionLabel,
       ]),
       ...Object.values(STAGE_COPY).flatMap((copy) => [copy.title, copy.helper]),
       ...Object.values(CLIP_STATE_COPY),
       ...Object.values(CLIP_FAILURE_COPY).flatMap((copy) => [copy.title, copy.reassurance]),
       ...Object.values(REFUSAL_COPY).flatMap((context) => Object.values(context)),
+      // The sentences built from numbers, with numbers in them.
+      DETAIL_COPY.tooLongWindow("34:37", "20:00"),
+      DETAIL_COPY.tooLongLimit("13:02:11", "12 hours"),
+      DETAIL_COPY.tooLongLength("34:37"),
+      DETAIL_COPY.tooLarge("556 MB", "500 MB"),
+      DETAIL_COPY.tooLargeCapOnly("500 MB"),
+      DETAIL_COPY.creditsLeftReassurance("3.5 credits"),
+      DETAIL_COPY.creditsLeftRefusal("0.4 credits"),
+      DETAIL_COPY.useWindow("20 minutes"),
+      DETAIL_COPY.useWindow(undefined),
+      DETAIL_COPY.useWindowFrom("20 minutes", "12:10"),
+      DETAIL_COPY.useWindowFrom(undefined, "12:10"),
+      DETAIL_COPY.autoWindowHint,
+      DETAIL_COPY.pickStart,
+      DETAIL_COPY.processed("12:10", "32:10", "34:37", "most replayed"),
+      DETAIL_COPY.processing("12:10", "32:10", "34:37", "most replayed"),
+      DETAIL_COPY.part("12:10", "32:10", "34:37", "most replayed"),
+      DETAIL_COPY.partRange("12:10", "32:10"),
+      DETAIL_COPY.startPastCeiling("12 hours"),
+      DETAIL_COPY.startPastEnd("34:37"),
+      DETAIL_COPY.nextWindow("20 minutes"),
+      ...Object.values(DETAIL_COPY.policy),
+      DETAIL_COPY.windowLine(undefined),
+      DETAIL_COPY.windowLine("20 minutes"),
       BACKGROUND_NOTE,
     ];
     for (const text of everything) {

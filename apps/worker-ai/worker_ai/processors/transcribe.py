@@ -44,6 +44,7 @@ the API stores in ``jobs.result``. A11 changes one function — :func:`_result`.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 from contextlib import suppress
 from dataclasses import dataclass
 from typing import Any
@@ -65,6 +66,7 @@ from worker_ai.lid import (
     ProviderLanguageIdentifier,
     decide_language,
     lid_windows,
+    pinned_language,
 )
 from worker_ai.logging_setup import get_logger
 from worker_ai.metrics import METRICS, MetricKey
@@ -80,6 +82,7 @@ from worker_ai.providers.base import (
     TranscriptionResult,
     Word,
 )
+from worker_ai.providers.local_whisper import ENGLISH_FAMILY, weights_label
 from worker_ai.providers.registry import ProviderUnavailableError
 from worker_ai.routing import RoutingDecision, RoutingError, resolve_chain
 from worker_ai.transcript import TranscriptChunk, assemble_chunk, identity_post_process
@@ -99,6 +102,11 @@ _log = get_logger(__name__)
 #: saturates a serverless instance without queueing on it.
 MAX_CHUNK_PARALLELISM = 4
 
+#: Providers whose own language answer is the acoustic signal: a local Whisper
+#: detects the language of the very chunk it transcribes — trusted only from
+#: its general weights (see `_acoustic_signal`).
+_SELF_IDENTIFYING = frozenset({"local-whisper"})
+
 
 @dataclass(slots=True)
 class _Progress:
@@ -116,6 +124,10 @@ class _Run:
     decision: RoutingDecision
     provider: Provider
     lid: LidDecision | None = None
+    #: The language the caller's hint pins (:func:`~worker_ai.lid.pinned_language`),
+    #: or ``None`` for "auto". Sent with the LID probe, which otherwise goes out
+    #: before there is a decision to send.
+    pinned: str | None = None
     cache_hits: int = 0
     fallbacks: tuple[tuple[str, str], ...] = ()
     #: Paise already spent on work that was discarded — the LID probe when it
@@ -131,6 +143,7 @@ async def process_transcribe(context: JobContext) -> ProcessorOutcome:
     plan, regions = _plan(context, audio)
     hint = _language_hint(context)
     run = await _open(context, language=hint, code_mix=is_code_mix_tag(hint))
+    run.pinned = pinned_language(hint)
 
     # One heartbeat for the whole vendor phase. Every call from here to the end
     # of `_transcribe_all` can sit inside a provider for minutes — the LID probe
@@ -175,8 +188,16 @@ async def process_transcribe(context: JobContext) -> ProcessorOutcome:
 
 
 def _language_hint(context: JobContext) -> str | None:
-    """The caller's language hint, if any. It always wins over LID (`09 §1.1`)."""
-    return context.payload_str("language") or None
+    """The caller's language hint, if any. It always wins over LID (`09 §1.1`).
+
+    ``"auto"`` is not one (:func:`~worker_ai.lid.pinned_language`): it routes
+    the probe to the default lane, lets both LID signals decide, and the
+    transcript reports what they decided — never ``"auto"``. A real hint is
+    returned as sent (``hi-Latn`` stays ``hi-Latn``), because the transcript
+    reports the hint verbatim and the API reads the script subtag from it.
+    """
+    raw = context.payload_str("language")
+    return raw if pinned_language(raw) is not None else None
 
 
 def _plan(
@@ -293,6 +314,7 @@ async def _probe_and_route(
         code_mix=decision.code_mix,
     )
     rerouted.lid = decision
+    rerouted.pinned = run.pinned
     rerouted.cache_hits = run.cache_hits
     rerouted.fallbacks = run.fallbacks
 
@@ -334,7 +356,37 @@ async def _acoustic_signal(
     run: _Run,
     probe: TranscriptionResult,
 ) -> LanguageSignal:
-    """Signal 1: a dedicated LID model when one is installed, else the provider."""
+    """Signal 1: a dedicated LID model when one is installed, else the provider.
+
+    Not when the probe ran on ``local-whisper``: its answer already *is* a
+    Whisper detection over this audio. The dedicated identifier is a CPU copy of
+    the default weights (``runtime.build_language_identifier``), which here is
+    the Hinglish fine-tune that calls every language English — and it has
+    failed every call on faster-whisper 1.2 (``clip_timestamps`` is not a
+    ``detect_language`` argument there) after spending the load anyway.
+
+    And the local answer counts only when the general weights gave it
+    (``raw["family"] == "en"``). The same fine-tune serves the English lanes
+    whenever ``WORKER_AI_WHISPER_MODEL_EN`` is unset or will not load, and its
+    "en at 1.0" about Hinglish audio would, as the acoustic signal, send every
+    auto-detected Hinglish job down the English lane labelled English. Its
+    answer is recorded as no opinion instead, and the text signal decides.
+    """
+    provider = run.decision.candidate.provider
+    if provider in _SELF_IDENTIFYING:
+        if probe.raw.get("family") == ENGLISH_FAMILY:
+            return await ProviderLanguageIdentifier(
+                probe.language, probe.language_confidence, provider=provider
+            ).identify(str(audio.path), ())
+        return LanguageSignal(
+            source="provider",
+            language="",
+            detail={
+                "provider": provider,
+                "ignored": "the default weights report every language as English",
+                "weights": weights_label(str(probe.raw.get("model") or "")),
+            },
+        )
     identifier = context.services.language_id
     if identifier is not None and identifier.available() is None:
         windows = lid_windows(audio.duration_ms, regions)
@@ -351,7 +403,7 @@ async def _acoustic_signal(
     return await ProviderLanguageIdentifier(
         probe.language,
         probe.language_confidence,
-        provider=run.decision.candidate.provider,
+        provider=provider,
     ).identify(str(audio.path), ())
 
 
@@ -510,12 +562,18 @@ async def _transcribe_chunk(
         audio_uri = str(chunk_path)
 
     last: ProviderError | None = None
+    # Whether any candidate failed in a way a later attempt could fix. The job
+    # is retried on that, not on the last candidate's error alone: a Hinglish
+    # chunk that met a Sarvam 429 and then a local-whisper refusal would
+    # otherwise be failed for good, although Sarvam would answer on retry.
+    retryable = False
     start_rank = run.decision.rank
     for decision in run.chain[start_rank:]:
+        provider = run.provider if decision is run.decision else await _provider(context, decision)
         # The cache is keyed on the candidate that would answer, not on the lane's
         # primary: a result produced by a fallback is a *different transcript* and
         # must never be served back for the provider that was down at the time.
-        key = _cache_key(context, audio, entry, run, decision)
+        key = _cache_key(context, audio, entry, run, decision, provider)
         if key is not None:
             cached = await context.services.cache.get(key)
             METRICS.record_cache(hit=cached is not None)
@@ -529,14 +587,11 @@ async def _transcribe_chunk(
                         "provider": decision.candidate.provider,
                     },
                 )
-                _adopt(run, decision, provider=None)
+                # The provider is adopted with the decision, so the next chunk
+                # never calls the old primary with the fallback's options.
+                _adopt(run, decision, provider=provider)
                 return cached
 
-        provider = (
-            run.provider
-            if decision is run.decision
-            else await _provider(context, decision)
-        )
         request = TranscriptionRequest(
             audio_uri=audio_uri,
             language=_request_language(run),
@@ -556,6 +611,7 @@ async def _transcribe_chunk(
             result = await provider.transcribe(request)
         except ProviderError as error:
             last = error
+            retryable = retryable or error.retryable
             METRICS.record_call(metric, outcome="error")
             _log.warning(
                 "provider failed; advancing the routing chain",
@@ -585,16 +641,16 @@ async def _transcribe_chunk(
         )
         context.record(result.submissions)
         if key is not None:
-            await context.services.cache.set(key, result)
+            # Stored under the weights that actually answered, which differ
+            # from the ones the lookup assumed when the English weights failed
+            # to load during this very call and the default weights stood in.
+            served = _cache_key(context, audio, entry, run, decision, provider, served=result)
+            await context.services.cache.set(served or key, result)
         return result
 
     del regions
     message = str(last) if last is not None else "every routed provider refused the chunk"
-    raise JobFailureError(
-        "worker/provider_failed",
-        message,
-        retryable=bool(last is not None and last.retryable),
-    )
+    raise JobFailureError("worker/provider_failed", message, retryable=retryable)
 
 
 def _adopt(run: _Run, decision: RoutingDecision, *, provider: Provider | None) -> None:
@@ -620,6 +676,9 @@ def _cache_key(
     entry: ChunkPlanEntry,
     run: _Run,
     decision: RoutingDecision,
+    provider: Provider,
+    *,
+    served: TranscriptionResult | None = None,
 ) -> str | None:
     if context.services.cache.name == "none":
         return None
@@ -636,18 +695,71 @@ def _cache_key(
         content=digest,
         language=_request_language(run) or "",
         provider=decision.candidate.provider,
-        model=decision.candidate.model,
+        model=_cache_model(decision, provider, _request_language(run), served)
+        + _hints_variant(context),
         mode=decision.candidate.mode or "",
         offset_ms=entry.start_ms,
         duration_ms=entry.end_ms - entry.start_ms,
     )
 
 
+def _cache_model(
+    decision: RoutingDecision,
+    provider: Provider,
+    language: str | None,
+    served: TranscriptionResult | None = None,
+) -> str:
+    """The cache's "model": the table's name, plus the weights a local model runs.
+
+    ``local-whisper`` resolves a lane's ``model`` to one of two sets of weights,
+    and with ``WORKER_AI_WHISPER_MODEL_EN`` unset the English name runs the
+    Hinglish fine-tune. Keyed on the name alone, a fine-tune transcript made
+    then would be served back for 30 days after the English weights arrived.
+    A lookup can only predict the weights; a result names the ones that ran.
+    """
+    model = decision.candidate.model
+    weights_for = getattr(provider, "weights_for", None)
+    if not callable(weights_for):
+        return model
+    ran = served.raw.get("model") if served is not None else None
+    if ran:
+        return model + "@" + str(ran)
+    routed = decision.candidate.provider_options().get("model")
+    return model + "@" + str(weights_for(language=language, routed_model=routed))
+
+
+def _hints_variant(context: JobContext) -> str:
+    """A short digest of the job's hints, or ``""`` when it has none.
+
+    Every adapter turns the hints into decoding bias (Whisper's
+    ``initial_prompt``, Scribe's ``keyterms``, AssemblyAI's ``word_boost``), and
+    they carry the workspace's glossary. Left out of the key, a second workspace
+    repurposing the same YouTube video would be served a transcript biased by
+    the first workspace's private terms. A job without hints keeps the key it
+    always had, so the shared cache still works for the audio alone.
+    """
+    hints = _hints(context)
+    if not hints:
+        return ""
+    digest = hashlib.sha256("\n".join(hints).encode("utf-8")).hexdigest()
+    return "#hints=" + digest[:16]
+
+
 def _request_language(run: _Run) -> str | None:
-    """What to tell the provider: the LID answer, or nothing (auto-detect)."""
+    """What to tell the provider: the LID answer, the pin, or nothing (detect).
+
+    The probe goes out before LID has decided, so without the pin it would be
+    a detection even on a job whose language the user fixed — and, the pin
+    keeping the lane, that probe is *kept*. On a real multilingual model that
+    is the whole first chunk (up to ten minutes, or the entire transcript of a
+    short video) of an ``en-IN`` job decoded as Hindi or Urdu when the accent
+    tips detection, while every later chunk is pinned to English. A pinned job's
+    decision is its pin whatever the probe hears, so pinning the probe loses
+    nothing; only "auto" probes with no language.
+    """
     if run.lid is not None and run.lid.language:
         return run.lid.language
-    return None
+    return run.pinned
 
 
 def _needs_cutting(entry: ChunkPlanEntry, audio: MediaAudio) -> bool:
@@ -930,6 +1042,9 @@ def _result(
     }
     if run.decision.candidate.mode:
         engine_versions["asrMode"] = run.decision.candidate.mode
+    weights = _served_weights(results)
+    if weights:
+        engine_versions["asrWeights"] = weights
     if aligner is not None:
         engine_versions["aligner"] = aligner.name
         model = str(getattr(aligner, "model", "") or "")
@@ -970,5 +1085,25 @@ def _result(
         payload["alignerModel"] = aligner.name
     if diarisation is not None:
         payload["diarisation"] = diarisation.to_wire()
-    del results
     return payload
+
+
+def _served_weights(results: tuple[TranscriptionResult, ...]) -> str:
+    """The local weights that actually transcribed the job, in chunk order.
+
+    ``asr`` and ``model`` name the routing table's choice (``large-v3-turbo``),
+    which is not what ran when ``WORKER_AI_WHISPER_MODEL_EN`` is unset or its
+    weights would not load — the default weights stand in. This is the record
+    that says so, as each directory's last component (never a full path, with
+    a user's home in it). Two names means the weights changed mid-job, e.g.
+    the English ones failed after the first chunk. Empty for a vendor, which
+    names no weights.
+    """
+    names: list[str] = []
+    for result in results:
+        weights = result.raw.get("model") if "family" in result.raw else None
+        if weights:
+            label = weights_label(str(weights))
+            if label not in names:
+                names.append(label)
+    return ",".join(names)

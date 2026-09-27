@@ -1,7 +1,8 @@
 import { HttpStatus, Inject, Injectable, Logger, Optional } from "@nestjs/common";
+import { Prisma } from "@prisma/client";
 import { ulid } from "ulid";
 
-import type { Env } from "@montaj/config";
+import { TENTHS_PER_CREDIT, type Env } from "@montaj/config";
 import {
   type HighlightsPayload,
   MediaAcquirePayloadSchema,
@@ -10,46 +11,253 @@ import {
   mediaAcquireJobKey,
 } from "@montaj/repurpose-contracts";
 
-import { runFailureCode } from "./failure-codes.js";
+import { failureDetailOf, runFailureCode } from "./failure-codes.js";
 import {
+  ACQUIRE_MAX_BYTES,
+  ACQUIRE_MAX_DURATION_MS,
   ACQUIRE_QUOTE_TENTHS,
-  ACQUIRE_TIMEOUT_MS,
   ACQUIRED_FILENAME,
   ACQUIRED_MIME,
   DEFAULT_STAGE_DEADLINES_MS,
+  DEFAULT_WINDOW_POLICY,
   LIST_RECONCILE_CONCURRENCY,
+  MIN_WINDOW_MS,
   PRE_CANDIDATE_STATUSES,
   REPURPOSE_ERRORS,
   REPURPOSE_FLAGS,
   STAGE_TIMEOUT_CUSTOMER_MESSAGE,
+  WINDOW_POLICIES,
+  WINDOW_TOLERANCE_MS,
+  acquireTimeoutMs,
 } from "./repurpose.constants.js";
-import { isCancellable, isRetryable, projectRun, stageForStatus } from "./repurpose.projection.js";
+import { createRunSchema } from "./repurpose.dto.js";
+import {
+  formatClock,
+  isCancellable,
+  isRetryable,
+  nextWindowAvailable,
+  projectRun,
+  stageForStatus,
+  windowView,
+} from "./repurpose.projection.js";
 import { SOURCE_REJECTION_MESSAGES, parseSourceUrl } from "./source-url.js";
 import { CommonAuditService } from "../common/audit/audit.service.js";
 import { AppException, PrismaService } from "../common/index.js";
 import { DERIVED_STORE, type ObjectStore } from "../common/storage/index.js";
 import { ENV } from "../config/config.module.js";
 import { CREDITS_FACADE, type CreditsFacade } from "../credits/credits.facade.js";
+import { PLAN_ENQUEUED_CAP_TENTHS } from "../jobs/jobs.config.js";
 import { JobsService } from "../jobs/jobs.service.js";
+import { resolveWorkspacePlan } from "../jobs/plan.js";
 import { MediaService } from "../media/media.service.js";
-import { mediaLimitsFor } from "../projects/plan-limits.js";
+import { clipsLimitsFor } from "../projects/plan-limits.js";
 import { ProjectsService } from "../projects/projects.service.js";
 import { workspaceRoom } from "../realtime/realtime.protocol.js";
 import { RealtimePublisher } from "../realtime/realtime.publisher.js";
 import { StylesService } from "../styles/styles.service.js";
+import { audioReadyEarly, firstTranscriptionJobKey } from "../transcripts/first-transcription.js";
+import { quoteTranscription } from "../transcripts/transcripts.quote.js";
 import { EntitlementService } from "../workspaces/entitlement.service.js";
 
-import type { RunFailureCode } from "./failure-codes.js";
+import type { RunFailureCode, RunFailureDetail } from "./failure-codes.js";
+import type { WindowPolicy } from "./repurpose.constants.js";
 import type {
   CreateRunInput,
   CreateRunResponse,
   ListRunsInput,
+  NextWindowResponse,
   RunPage,
   RunView,
 } from "./repurpose.dto.js";
 import type { Stage } from "./repurpose.projection.js";
 import type { AcquisitionProject } from "../media/media.service.js";
+import type { PlanClipsLimits } from "../projects/plan-limits.js";
 import type { $Enums, RepurposeRun } from "@prisma/client";
+
+/**
+ * The longest window, in whole seconds, whose transcription `tenths` pays for
+ * (2026-09-27). The landed file may run {@link WINDOW_TOLERANCE_MS} past its
+ * window (a section starts on a keyframe), and the transcription is charged on
+ * the file, so the window is sized for the longer file: a Free workspace with
+ * exactly 20 credits gets 19:45, not a 20-minute download that then fails its
+ * transcription for want of 0.1 credit.
+ *
+ * The rate is `quoteTranscription`'s, never restated here (1 credit a minute,
+ * billed in 0.1-minute steps).
+ */
+export function affordableWindowMs(tenths: number): number {
+  if (!Number.isFinite(tenths) || tenths <= 0) return 0;
+  const perMinute = quoteTranscription(60_000).tenths;
+  let windowMs = Math.floor(((tenths / perMinute) * 60_000) / 1_000) * 1_000 - WINDOW_TOLERANCE_MS;
+  // The quote rounds up to a billing step, so the first guess can be a step
+  // over: walk back a second at a time (a handful of steps at most).
+  while (windowMs > 0 && quoteTranscription(windowMs + WINDOW_TOLERANCE_MS).tenths > tenths) {
+    windowMs -= 1_000;
+  }
+  return Math.max(0, windowMs);
+}
+
+/**
+ * How much of a link one run processes: the plan's window, cut to what the
+ * balance pays for and to what the plan's enqueued-credit cap would admit as
+ * one transcription (`jobs/enqueue_cap`). The cap matters: a window bigger than
+ * it would download fine, then have its transcription refused "for now" every
+ * time the reconciler tried, and spin for good.
+ */
+export function runWindowMs(input: {
+  readonly clipsWindowMs: number;
+  readonly balanceTenths: number;
+  readonly enqueuedCapTenths: number;
+}): number {
+  return Math.min(
+    input.clipsWindowMs,
+    affordableWindowMs(input.balanceTenths),
+    affordableWindowMs(input.enqueuedCapTenths),
+  );
+}
+
+/** A balance in tenths as the credits a person reads (one decimal), never negative. */
+export function creditsOf(tenths: number): number {
+  return Math.max(0, Math.floor(tenths)) / TENTHS_PER_CREDIT;
+}
+
+/** What a run asks the downloader for, before any budget is applied. */
+export interface WindowRequest {
+  readonly policy: WindowPolicy;
+  readonly startMs?: number;
+  /**
+   * How long the whole source is, when an earlier fetch of it said so. Only a
+   * range reads it: see {@link acquireWindowMaxMs}.
+   */
+  readonly sourceDurationMs?: number;
+}
+
+/** A request's window: a start is a range; otherwise the policy asked for, or the default. */
+function windowRequestOf(setup: CreateRunInput["setup"]["window"]): WindowRequest {
+  if (setup?.startMs !== undefined) return { policy: "range", startMs: setup.startMs };
+  return { policy: setup?.policy ?? DEFAULT_WINDOW_POLICY };
+}
+
+/**
+ * What a run asked for, read back off its row for a fetch after the first (a
+ * retry, the reconciler): a picked start stays picked, an automatic one is
+ * chosen again. A run from before windows existed has neither and gets the
+ * default - which is what makes a retry of an old "too long for your plan"
+ * failure work now.
+ */
+function windowRequestOfRun(run: RepurposeRun): WindowRequest {
+  const policy = (WINDOW_POLICIES as readonly string[]).includes(run.windowPolicy ?? "")
+    ? (run.windowPolicy as WindowPolicy)
+    : DEFAULT_WINDOW_POLICY;
+  if (policy === "range") {
+    return run.windowStartMs === null
+      ? { policy: DEFAULT_WINDOW_POLICY }
+      : {
+          policy,
+          startMs: run.windowStartMs,
+          ...(run.sourceDurationMs === null ? {} : { sourceDurationMs: run.sourceDurationMs }),
+        };
+  }
+  return { policy };
+}
+
+/**
+ * `window.maxMs` for a download: the budget's window, within the contract, and
+ * for a range over a source of known length never past the source's end.
+ *
+ * That last cut is what keeps a range a range. The downloader takes a section
+ * only when the source is LONGER than `maxMs`, and fetches a source that fits
+ * whole from 0:00, start or no start. So the next window of a 15-minute video
+ * from 7:45, sent with a 19:45 budget, used to fetch - and charge for - all 15
+ * minutes again, and duplicate the first window's moments. Sent as the 7:15
+ * that is left, the source is longer than the window whenever the start is past
+ * 0:00, and the downloader cuts from the start.
+ */
+export function acquireWindowMaxMs(windowMs: number, window: WindowRequest): number {
+  const within = Math.min(windowMs, ACQUIRE_MAX_DURATION_MS);
+  const { startMs, sourceDurationMs } = window;
+  if (window.policy !== "range" || startMs === undefined || startMs <= 0) return within;
+  if (sourceDurationMs === undefined) return within;
+  const left = sourceDurationMs - startMs;
+  // A start at or past the end has nothing to cut to; the downloader places it.
+  return left > 0 ? Math.min(within, left) : within;
+}
+
+/**
+ * The worst-case transcription quote, in tenths, of a link run still on its way
+ * to its transcription: its probed file when there is one, else the window its
+ * download asked for, with the file slack the probe allows. Zero for a run whose
+ * media failed (it is failing, not transcribing) or that says nothing either way.
+ */
+export function pendingQuoteTenths(input: {
+  readonly mediaStatus: string | null;
+  readonly mediaDurationMs: number | null;
+  readonly windowMaxMs: number | null;
+}): number {
+  if (input.mediaStatus === "failed") return 0;
+  if (input.mediaDurationMs !== null && input.mediaDurationMs > 0) {
+    return quoteTranscription(input.mediaDurationMs).tenths;
+  }
+  if (input.windowMaxMs !== null && input.windowMaxMs > 0) {
+    return quoteTranscription(input.windowMaxMs + WINDOW_TOLERANCE_MS).tenths;
+  }
+  return 0;
+}
+
+/** The plan and the window a link fetch goes out with. */
+interface AcquisitionBudget {
+  readonly windowMs: number;
+  readonly limits: PlanClipsLimits;
+}
+
+/** What a run's source is, once `resolveSource` has accepted it. */
+interface ResolvedSource {
+  readonly kind: $Enums.RepurposeSourceKind;
+  readonly display: string | null;
+  readonly fingerprint: string | null;
+  readonly title: string;
+  /**
+   * The canonical URL to fetch — held only as long as this request, and handed
+   * straight to the acquisition job. The run row still does not persist it
+   * (§17.4): `media.acquire`'s payload is where the contract puts the address,
+   * and that job is the only thing that needs it.
+   */
+  readonly normalizedUrl: string | null;
+}
+
+/** A language tag worth reasoning in: a real tag, never `"auto"` or blank. */
+function usableLanguage(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const tag = value.trim();
+  return tag.length >= 2 && tag.length <= 64 && tag.toLowerCase() !== "auto" ? tag : null;
+}
+
+/**
+ * The language discovery reasons in (2026-09-27): what the transcript turned
+ * out to be, not what the form said. The form's pick is a hint - now `"auto"`
+ * by default for clips - and a video sent as Hinglish that detection heard as
+ * English has English words to find moments in. The run's own pick is the
+ * fallback for a transcript that records none; English the last resort.
+ */
+export function discoveryLanguage(transcriptLanguage: unknown, configured: unknown): string {
+  return usableLanguage(transcriptLanguage) ?? usableLanguage(configured) ?? "en";
+}
+
+/** 409 `repurpose/no_next_window`: there is no further part of this video to process. */
+function noNextWindow(message: string): AppException {
+  return new AppException(REPURPOSE_ERRORS.noNextWindow, message, HttpStatus.CONFLICT);
+}
+
+/**
+ * The canonical watch URL for a YouTube run's `youtube:{videoId}` fingerprint:
+ * the reconciler's `youtubeUrlOf`, which cannot be imported from here (the
+ * reconciler imports this module, and its DI metadata needs this class defined).
+ */
+function youtubeWatchUrl(kind: string, fingerprint: string | null): string | null {
+  if (kind !== "youtube_url" || fingerprint === null) return null;
+  const match = /^youtube:([\w-]{11})$/.exec(fingerprint);
+  return match === null ? null : `https://www.youtube.com/watch?v=${match[1] ?? ""}`;
+}
 
 /**
  * What this service needs from `RepurposeReconciler` (`reconciler.ts`).
@@ -321,11 +529,192 @@ export class RepurposeService {
     await this.assertAvailable(workspaceId);
     await this.assertEntitled(workspaceId);
 
-    const runId = ulid();
     // Everything that can refuse, refuses BEFORE the project row exists. That is
     // the only ordering in which a refusal leaves nothing behind at all.
     const source = await this.resolveSource(workspaceId, input);
     await this.assertStyleExists(workspaceId, input.setup.caption.styleId);
+    // A link starts downloading the moment the run exists, so how much of it to
+    // process - and whether the balance pays for a minute of it - is settled
+    // here too. An upload's length is only known once its probe has run, and
+    // its transcription is refused for credits then, as any upload's is.
+    const budget = source.normalizedUrl === null ? null : await this.acquisitionBudget(workspaceId);
+
+    return this.startRun(workspaceId, userId, input, source, budget);
+  }
+
+  /**
+   * How much of a link this workspace may process now (2026-09-27): the plan's
+   * window, cut to what the balance and the plan's enqueued-credit cap pay for
+   * ({@link runWindowMs}). The balance is read the way a transcription's
+   * reservation reads it (`credit_accounts.balance_tenths`, open holds already
+   * off it), and the cap for the plan admission control uses, which is the
+   * subscription's (`resolveWorkspacePlan`), not a week pass's.
+   *
+   * Nothing is reserved at this point - the transcription's hold is taken when
+   * it is queued, after the download - so the workspace's OTHER link runs still
+   * on their way to a transcription are counted off the balance first, each at
+   * its worst case ({@link pendingTranscriptionTenths}). Without that, two links
+   * pasted back to back on Free each saw 20 credits, each fetched 19:45, and the
+   * second failed `no_credits` at transcription: the late failure this check
+   * exists to prevent. Two creates in the same instant can still both pass, as
+   * nothing is written until the run row; a real run-level hold is Phase 3.
+   *
+   * @param exceptRunId the run being fetched again (a retry), whose own earlier
+   *   window is not a claim on the balance - this fetch replaces it.
+   * @throws AppException 402 `repurpose/no_credits`, `{ creditsLeft }`, when not
+   *   even a minute is affordable: better refused now than downloaded, prepared
+   *   and then failed at transcription. `creditsLeft` is what is left for THIS
+   *   run once the others are counted.
+   */
+  private async acquisitionBudget(
+    workspaceId: string,
+    exceptRunId?: string,
+  ): Promise<AcquisitionBudget> {
+    const [entitlement, plan, account, pendingTenths] = await Promise.all([
+      this.entitlements.forWorkspace(workspaceId),
+      resolveWorkspacePlan(this.prisma, workspaceId),
+      this.prisma.creditAccount.findUnique({
+        where: { workspaceId },
+        select: { balanceTenths: true },
+      }),
+      this.pendingTranscriptionTenths(workspaceId, exceptRunId),
+    ]);
+    const limits = clipsLimitsFor(entitlement);
+    const balanceTenths = account?.balanceTenths ?? 0;
+    const availableTenths = balanceTenths - pendingTenths;
+    const windowMs = runWindowMs({
+      clipsWindowMs: limits.clipsWindowMs,
+      balanceTenths: availableTenths,
+      // eslint-disable-next-line security/detect-object-injection -- a PlanKey enum value from the database
+      enqueuedCapTenths: PLAN_ENQUEUED_CAP_TENTHS[plan],
+    });
+    if (windowMs < MIN_WINDOW_MS) {
+      const creditsLeft = creditsOf(availableTenths);
+      throw new AppException(
+        REPURPOSE_ERRORS.noCredits,
+        pendingTenths > 0
+          ? `Processing a video takes 1 credit a minute. This workspace has ${String(creditsOf(balanceTenths))} left, and the videos it is already fetching need ${String(creditsOf(pendingTenths))} of them. Add credits, or wait for those to finish.`
+          : `Processing a video takes 1 credit a minute, and this workspace has ${String(creditsLeft)} left. Add credits to start it.`,
+        HttpStatus.PAYMENT_REQUIRED,
+        { creditsLeft },
+      );
+    }
+    return { windowMs, limits };
+  }
+
+  /**
+   * What the workspace's other link runs will still take from the balance for
+   * their transcriptions, in tenths: every live run before its moments whose
+   * source has neither a transcript nor a transcription job that is queued,
+   * running or done (those already hold, or have spent, their credits - the
+   * balance has them off already), at {@link pendingQuoteTenths}.
+   *
+   * One query when there are none, which is the usual case.
+   */
+  private async pendingTranscriptionTenths(
+    workspaceId: string,
+    exceptRunId?: string,
+  ): Promise<number> {
+    const runs = await this.prisma.repurposeRun.findMany({
+      where: {
+        workspaceId,
+        sourceKind: { not: "upload" },
+        status: { in: [...PRE_CANDIDATE_STATUSES] },
+        ...(exceptRunId === undefined ? {} : { id: { not: exceptRunId } }),
+      },
+      select: { sourceProjectId: true },
+    });
+    if (runs.length === 0) return 0;
+    const projectIds = [...new Set(runs.map((run) => run.sourceProjectId))];
+
+    const [transcripts, transcriptions, media, downloads] = await Promise.all([
+      this.prisma.transcript.findMany({
+        where: { projectId: { in: projectIds } },
+        select: { projectId: true },
+      }),
+      this.prisma.job.findMany({
+        where: {
+          projectId: { in: projectIds },
+          type: { in: ["ai.transcribe", "ai.align"] },
+          status: { in: ["queued", "running", "succeeded"] },
+        },
+        select: { projectId: true },
+      }),
+      this.prisma.mediaAsset.findMany({
+        where: { projectId: { in: projectIds }, role: "primary" },
+        orderBy: { createdAt: "desc" },
+        select: { projectId: true, status: true, durationMs: true },
+      }),
+      this.prisma.job.findMany({
+        where: { projectId: { in: projectIds }, type: "media.acquire" },
+        orderBy: { queuedAt: "desc" },
+        select: { projectId: true, params: true },
+      }),
+    ]);
+
+    const settled = new Set<string | null>([
+      ...transcripts.map((row) => row.projectId),
+      ...transcriptions.map((row) => row.projectId),
+    ]);
+    // Newest first, so the first row seen per project is the one that counts.
+    const newestMedia = new Map<string, (typeof media)[number]>();
+    for (const row of media) {
+      if (!newestMedia.has(row.projectId)) newestMedia.set(row.projectId, row);
+    }
+    const newestWindow = new Map<string, number | null>();
+    for (const job of downloads) {
+      if (job.projectId === null || newestWindow.has(job.projectId)) continue;
+      const payload = MediaAcquirePayloadSchema.safeParse(job.params);
+      newestWindow.set(job.projectId, payload.success ? (payload.data.window?.maxMs ?? null) : null);
+    }
+
+    let tenths = 0;
+    for (const projectId of projectIds) {
+      if (settled.has(projectId)) continue;
+      const row = newestMedia.get(projectId);
+      tenths += pendingQuoteTenths({
+        mediaStatus: row?.status ?? null,
+        mediaDurationMs: row?.durationMs ?? null,
+        windowMaxMs: newestWindow.get(projectId) ?? null,
+      });
+    }
+    return tenths;
+  }
+
+  /**
+   * Make the run: its source project, its row, and for a link its download.
+   * Shared by `create` and `nextWindow`, which have already refused whatever
+   * they refuse; everything past the project is compensated.
+   */
+  private async startRun(
+    workspaceId: string,
+    userId: string,
+    input: CreateRunInput,
+    source: ResolvedSource,
+    budget: AcquisitionBudget | null,
+    origin: {
+      /**
+       * The attestation the source was fetched under, when it is not this
+       * request's: when, by whom, and on which run it was given.
+       */
+      readonly attestation?: {
+        readonly at: Date;
+        readonly by: string | null;
+        readonly of: string;
+      };
+      /** The run whose next window this is (`POST .../next-window`). */
+      readonly nextWindowOf?: string;
+      /** The source's length, when an earlier run of it measured it. */
+      readonly sourceDurationMs?: number;
+    } = {},
+  ): Promise<CreateRunResponse> {
+    const runId = ulid();
+    const window: WindowRequest = {
+      ...windowRequestOf(input.setup.window),
+      ...(origin.sourceDurationMs === undefined
+        ? {}
+        : { sourceDurationMs: origin.sourceDurationMs }),
+    };
 
     const project = await this.projects.create(workspaceId, userId, {
       title: input.title ?? source.title,
@@ -363,7 +752,19 @@ export class RepurposeService {
           sourceUrlEncrypted: null,
           ...(source.kind === "upload"
             ? {}
-            : { rightsAttestedAt: new Date(), rightsAttestedBy: userId }),
+            : {
+                rightsAttestedAt: origin.attestation?.at ?? new Date(),
+                rightsAttestedBy: origin.attestation === undefined ? userId : origin.attestation.by,
+              }),
+          // What the download is asked for. A picked start is part of the
+          // live-source key (`repurpose_runs_live_source_idx`), which is what
+          // lets the next window of a video run beside the first.
+          ...(budget === null
+            ? {}
+            : {
+                windowPolicy: window.policy,
+                ...(window.startMs === undefined ? {} : { windowStartMs: window.startMs }),
+              }),
           mode: input.setup.discovery.mode,
           status: "draft",
           currentStage: "getting_video",
@@ -389,11 +790,18 @@ export class RepurposeService {
       // admission limit refuses the run outright rather than leaving a project,
       // a run and a media row behind for a download nothing ever queued.
       if (source.normalizedUrl !== null) {
-        acquireJobId = await this.startAcquisition(workspaceId, project, run, {
-          kind: source.kind,
-          fingerprint: source.fingerprint,
-          normalizedUrl: source.normalizedUrl,
-        });
+        acquireJobId = await this.startAcquisition(
+          workspaceId,
+          project,
+          run,
+          {
+            kind: source.kind,
+            fingerprint: source.fingerprint,
+            normalizedUrl: source.normalizedUrl,
+          },
+          budget ?? (await this.acquisitionBudget(workspaceId)),
+          window,
+        );
       }
     } catch (error) {
       // Best effort, and deliberately not fatal: a cleanup that fails must not
@@ -423,7 +831,10 @@ export class RepurposeService {
       // both and `repurpose_runs_live_source_idx` refused the second. That is
       // the same refusal in our own words, not a raw database conflict.
       if (isUniqueViolation(error) && source.fingerprint !== null) {
-        throw (await this.duplicateOf(workspaceId, source.fingerprint)) ?? error;
+        throw (
+          (await this.duplicateOf(workspaceId, source.fingerprint, undefined, window.startMs)) ??
+          error
+        );
       }
       throw error;
     }
@@ -441,6 +852,23 @@ export class RepurposeService {
         mode: run.mode,
         duplicateUpload: upload?.duplicate ?? false,
         acquireJobId,
+        ...(budget === null
+          ? {}
+          : {
+              windowMs: budget.windowMs,
+              windowPolicy: window.policy,
+              ...(window.startMs === undefined ? {} : { windowStartMs: window.startMs }),
+            }),
+        ...(origin.nextWindowOf === undefined ? {} : { nextWindowOf: origin.nextWindowOf }),
+        // A fetch under someone else's attestation says so: the actor above is
+        // who asked for this run, these are who attested to the video and where.
+        ...(origin.attestation === undefined
+          ? {}
+          : {
+              rightsAttestedBy: origin.attestation.by,
+              rightsAttestedAt: origin.attestation.at.toISOString(),
+              rightsAttestationOf: origin.attestation.of,
+            }),
       },
     });
 
@@ -472,23 +900,15 @@ export class RepurposeService {
    * An upload is trivially fine. A link has to survive the REP-009 normaliser,
    * the acquisition flag, and the "is this already running" check — in that
    * order, so a caller never learns about a duplicate run from a malformed URL.
+   *
+   * @param options.checkDuplicate false for `nextWindow`, which looks for the
+   *   run of its own window itself and answers with it rather than refusing.
    */
   private async resolveSource(
     workspaceId: string,
     input: CreateRunInput,
-  ): Promise<{
-    readonly kind: $Enums.RepurposeSourceKind;
-    readonly display: string | null;
-    readonly fingerprint: string | null;
-    readonly title: string;
-    /**
-     * The canonical URL to fetch — held only as long as this request, and handed
-     * straight to the acquisition job. The run row still does not persist it
-     * (§17.4): `media.acquire`'s payload is where the contract puts the address,
-     * and that job is the only thing that needs it.
-     */
-    readonly normalizedUrl: string | null;
-  }> {
+    options: { readonly checkDuplicate?: boolean } = {},
+  ): Promise<ResolvedSource> {
     if (input.source.kind === "upload") {
       return {
         kind: "upload",
@@ -536,8 +956,15 @@ export class RepurposeService {
       );
     }
 
-    const duplicate = await this.duplicateOf(workspaceId, parsed.source.sourceFingerprint);
-    if (duplicate !== null) throw duplicate;
+    if (options.checkDuplicate !== false) {
+      const duplicate = await this.duplicateOf(
+        workspaceId,
+        parsed.source.sourceFingerprint,
+        undefined,
+        input.setup.window?.startMs,
+      );
+      if (duplicate !== null) throw duplicate;
+    }
 
     return {
       kind: parsed.source.kind,
@@ -555,6 +982,13 @@ export class RepurposeService {
    * `repurpose_runs_live_source_idx`, so "open the one you have" is the only
    * useful answer.
    *
+   * Windows (2026-09-27): a run that asked for no particular start collides
+   * with any live run of the video - pasting a link twice is still one
+   * request. A run over a picked start (`windowStartMs`, "process the next 20
+   * minutes") collides only with a live run at that same start, or one whose
+   * start is not known (still downloading, or the whole video): it may run
+   * beside the window before it.
+   *
    * Public because a retry's reopen can lose the same race `create` can, and
    * answers it with the same refusal (`RepurposeReconciler.reopen`).
    */
@@ -562,6 +996,7 @@ export class RepurposeService {
     workspaceId: string,
     fingerprint: string,
     exceptRunId?: string,
+    windowStartMs?: number | null,
   ): Promise<AppException | null> {
     const live = await this.prisma.repurposeRun.findFirst({
       where: {
@@ -569,6 +1004,9 @@ export class RepurposeService {
         sourceFingerprint: fingerprint,
         status: { notIn: ["published", "failed", "cancelled"] },
         ...(exceptRunId === undefined ? {} : { id: { not: exceptRunId } }),
+        ...(typeof windowStartMs === "number"
+          ? { OR: [{ windowStartMs }, { windowStartMs: null }] }
+          : {}),
       },
       select: { id: true },
     });
@@ -594,6 +1032,18 @@ export class RepurposeService {
    * one download (§9.5). The limits are resolved here, from the plan in force at
    * confirmation time, and travel in the payload — a worker never reads
    * entitlements.
+   *
+   * Windows (2026-09-27): `limits.maxDurationMs` is the plan's source CEILING
+   * (12 h), not its allowance, and `window` says how much of a longer source to
+   * take and from where. A source within the window is fetched whole, exactly
+   * as before. The timeout grows with the window (`acquireTimeoutMs`).
+   *
+   * **Deploy the acquire worker that reads `window` before this API.** An older
+   * worker never looks at `window`, so it now fetches whole videos up to that
+   * 12-hour ceiling and the plan's byte cap - hours of bandwidth and disk, and
+   * YouTube's rate limit - only for the probe to refuse each one as longer than
+   * its window (`probe.handler.ts`). The API cannot tell which worker takes the
+   * job, so the order of the deploy is the only guard.
    */
   private async startAcquisition(
     workspaceId: string,
@@ -604,6 +1054,8 @@ export class RepurposeService {
       readonly fingerprint: string | null;
       readonly normalizedUrl: string;
     },
+    budget: AcquisitionBudget,
+    window: WindowRequest,
     /**
      * A fetch after the first (a retry, or the reconciler replacing one whose
      * enqueue was refused). Its job key names the media row it fetches into, so
@@ -619,7 +1071,22 @@ export class RepurposeService {
       };
     },
   ): Promise<string> {
-    const limits = mediaLimitsFor(await this.entitlements.forWorkspace(workspaceId));
+    const { limits } = budget;
+    // A picked start over a source whose length is known is cut to what is left
+    // of it (`acquireWindowMaxMs`). The length comes with the request when the
+    // caller has it (the next window, a retry of a landed run), else from any
+    // earlier run of the same video in this workspace.
+    const measured =
+      window.policy === "range" &&
+      window.startMs !== undefined &&
+      window.startMs > 0 &&
+      window.sourceDurationMs === undefined
+        ? await this.measuredSourceDurationMs(workspaceId, source.fingerprint)
+        : null;
+    const maxMs = acquireWindowMaxMs(
+      budget.windowMs,
+      measured === null ? window : { ...window, sourceDurationMs: measured },
+    );
     let target = refetch?.into;
     if (target === undefined) {
       const reserved = await this.media.reserveAcquisition(project, {
@@ -643,9 +1110,14 @@ export class RepurposeService {
       },
       destination: { bucket: target.bucket, key: target.storageKey },
       limits: {
-        maxBytes: limits.maxFileBytes,
-        maxDurationMs: limits.maxDurationMs,
-        timeoutMs: ACQUIRE_TIMEOUT_MS,
+        maxBytes: Math.min(limits.maxFileBytes, ACQUIRE_MAX_BYTES),
+        maxDurationMs: Math.min(limits.maxSourceDurationMs, ACQUIRE_MAX_DURATION_MS),
+        timeoutMs: acquireTimeoutMs(maxMs),
+      },
+      window: {
+        maxMs,
+        policy: window.policy,
+        ...(window.startMs === undefined ? {} : { startMs: window.startMs }),
       },
     });
 
@@ -663,13 +1135,36 @@ export class RepurposeService {
   }
 
   /**
+   * The length an earlier download of this video in this workspace reported
+   * (`repurpose_runs.source_duration_ms`), newest first; null when none has.
+   */
+  private async measuredSourceDurationMs(
+    workspaceId: string,
+    fingerprint: string | null,
+  ): Promise<number | null> {
+    if (fingerprint === null) return null;
+    const earlier = await this.prisma.repurposeRun.findFirst({
+      where: { workspaceId, sourceFingerprint: fingerprint, sourceDurationMs: { not: null } },
+      orderBy: { updatedAt: "desc" },
+      select: { sourceDurationMs: true },
+    });
+    const measured = earlier?.sourceDurationMs;
+    return typeof measured === "number" && measured > 0 ? measured : null;
+  }
+
+  /**
    * Fetch a link run's source again, from the address an earlier fetch carried
    * (the run row never keeps it, §17.4). The plan's limits are resolved afresh,
    * so a person who upgraded after "too large for your plan" gets the new cap.
    *
+   * The window is worked out afresh too, over the start the run asked for
+   * (`windowRequestOfRun`): a run from before windows existed that failed
+   * "too long for your plan" now fetches a window of the video, which fits.
+   *
    * @param into a pending media row nothing is fetching into; omitted, a fresh
    *   row is reserved and becomes the source's newest media.
-   * @throws when links are switched off for the workspace, or the enqueue is refused.
+   * @throws when links are switched off for the workspace, when the balance no
+   *   longer pays for a minute (402 `repurpose/no_credits`), or the enqueue is refused.
    */
   async reacquire(
     run: RepurposeRun,
@@ -698,13 +1193,150 @@ export class RepurposeService {
         HttpStatus.CONFLICT,
       );
     }
+    // This run's own earlier window is not a claim on the balance: this fetch
+    // replaces it.
+    const budget = await this.acquisitionBudget(run.workspaceId, run.id);
     return this.startAcquisition(
       run.workspaceId,
       project,
       run,
       { kind: run.sourceKind, fingerprint: run.sourceFingerprint, normalizedUrl },
+      budget,
+      windowRequestOfRun(run),
       into === undefined ? {} : { into },
     );
+  }
+
+  /**
+   * "Process the next window" (2026-09-27): a NEW run over the same video,
+   * starting where this run's window ended, with this run's settings. The
+   * window's length is worked out afresh (plan, balance), and admission applies
+   * as for any run.
+   *
+   * Idempotent: pressed twice, or from two tabs, the live run already over that
+   * start is the answer, not a second download.
+   *
+   * @throws 409 `repurpose/no_next_window` when there is nothing after this
+   *   window: a source processed whole, a section that has not landed yet, an
+   *   upload, or less than {@link NEXT_WINDOW_MIN_MS} left.
+   * @throws 402 `repurpose/no_credits` when the balance does not pay for a minute.
+   */
+  async nextWindow(
+    workspaceId: string,
+    userId: string,
+    runId: string,
+  ): Promise<NextWindowResponse> {
+    await this.assertAvailable(workspaceId);
+    const run = await this.require(workspaceId, runId);
+
+    const url = youtubeWatchUrl(run.sourceKind, run.sourceFingerprint);
+    if (url === null) {
+      throw noNextWindow("Only a YouTube link can be processed a part at a time.");
+    }
+    const window = windowView(run);
+    if (window === null) {
+      // "Still being fetched" only while it is: a run from before windows, one
+      // processed whole, and one whose section was not recorded (it lost the
+      // start to another live run of the video) all have no part to continue
+      // from, however long ago they finished.
+      throw noNextWindow(
+        (await this.isFetching(run))
+          ? "This video is still being fetched. Try again once it has arrived."
+          : "This run has no recorded part of the video to continue from: it covered all of it, or started before parts were recorded. Paste the link again to choose a start.",
+      );
+    }
+    if (!nextWindowAvailable(run)) {
+      throw noNextWindow(
+        `There is nothing left after ${formatClock(window.endMs)} of this ${formatClock(window.sourceDurationMs)} video.`,
+      );
+    }
+    const startMs = window.endMs;
+
+    const existing = await this.liveRunAt(workspaceId, run.sourceFingerprint, startMs);
+    if (existing !== null) return { run: await this.get(workspaceId, existing) };
+
+    // This run's own settings, through the same schema a create goes through:
+    // the frozen config carries a `styleVersion` the request does not, and the
+    // parse drops it and fills in anything an older run never recorded.
+    const config = (run.config as Record<string, unknown> | null) ?? {};
+    const parsed = createRunSchema.safeParse({
+      source: { kind: "url", url, rightsAttested: true },
+      setup: {
+        sourceLanguage:
+          typeof config["sourceLanguage"] === "string" ? config["sourceLanguage"] : "auto",
+        caption: config["caption"],
+        discovery: config["discovery"] ?? { mode: run.mode },
+        window: { startMs },
+      },
+    });
+    if (!parsed.success) {
+      // Only a row older than its own schema gets here; a 500 would say nothing.
+      this.logger.warn(
+        { runId: run.id, issues: parsed.error.issues.slice(0, 3) },
+        "a run's frozen settings no longer make a valid run",
+      );
+      throw noNextWindow("This video's settings cannot start another part. Paste the link again.");
+    }
+    const input = parsed.data;
+
+    // The style is not checked against today's catalogue: it is the one this
+    // video's first window was made with, and the next should look the same.
+    const source = await this.resolveSource(workspaceId, input, { checkDuplicate: false });
+    const budget = await this.acquisitionBudget(workspaceId);
+    try {
+      const created = await this.startRun(workspaceId, userId, input, source, budget, {
+        // The same video, fetched under the attestation its first window was
+        // made with. The row keeps who attested and when - recording the
+        // person who pressed "next" as having attested would put a statement
+        // in their name that they never made - and the audit event names both:
+        // its actor is who pressed, and it says whose attestation was relied on.
+        ...(run.rightsAttestedAt === null
+          ? {}
+          : { attestation: { at: run.rightsAttestedAt, by: run.rightsAttestedBy, of: run.id } }),
+        nextWindowOf: run.id,
+        // What is left of the video is known now, and the download is cut to it.
+        sourceDurationMs: window.sourceDurationMs,
+      });
+      return { run: created.run };
+    } catch (error) {
+      // Lost a race to another press: the run that won is the answer.
+      if (error instanceof AppException && error.code === REPURPOSE_ERRORS.sourceDuplicate) {
+        const winner = await this.liveRunAt(workspaceId, run.sourceFingerprint, startMs);
+        if (winner !== null) return { run: await this.get(workspaceId, winner) };
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Whether a link run's download is still under way: live, and its source not
+   * landed yet (no media row, or one still pending). The stored status never
+   * moves past `draft` on its own, so it is read the way the page reads it.
+   */
+  private async isFetching(run: RepurposeRun): Promise<boolean> {
+    if (run.sourceKind === "upload") return false;
+    if (!["draft", "acquiring"].includes(run.status)) return false;
+    const observed = (await this.observe(run))?.status ?? run.status;
+    return observed === "draft" || observed === "acquiring";
+  }
+
+  /** The live run of this video over exactly this start, if there is one. */
+  private async liveRunAt(
+    workspaceId: string,
+    fingerprint: string | null,
+    windowStartMs: number,
+  ): Promise<string | null> {
+    if (fingerprint === null) return null;
+    const live = await this.prisma.repurposeRun.findFirst({
+      where: {
+        workspaceId,
+        sourceFingerprint: fingerprint,
+        windowStartMs,
+        status: { notIn: ["published", "failed", "cancelled"] },
+      },
+      select: { id: true },
+    });
+    return live?.id ?? null;
   }
 
   async list(workspaceId: string, input: ListRunsInput): Promise<RunPage> {
@@ -828,7 +1460,15 @@ export class RepurposeService {
       this.prisma.mediaAsset.findFirst({
         where: { projectId: run.sourceProjectId, role: "primary" },
         orderBy: { createdAt: "desc" },
-        select: { status: true, failureReason: true, uploadedAt: true },
+        select: {
+          id: true,
+          status: true,
+          failureReason: true,
+          uploadedAt: true,
+          audio16kKey: true,
+          hasAudio: true,
+          durationMs: true,
+        },
       }),
       this.prisma.transcript.findFirst({
         where: { projectId: run.sourceProjectId },
@@ -846,7 +1486,11 @@ export class RepurposeService {
         return as(run.sourceKind === "upload" ? "draft" : "acquiring");
       case "uploaded":
       case "probing":
-        return as("preparing_media");
+        // The transcription already running on the audio written back ahead
+        // of the video encode (W5) is what the person is waiting for.
+        return as(
+          (await this.transcribingEarly(run, media)) ? "transcribing" : "preparing_media",
+        );
       case "ready":
         // Media is ready and no transcript exists yet: it is being made, or the
         // reconciler is about to start it (or fail the run for want of credits).
@@ -863,6 +1507,30 @@ export class RepurposeService {
       default:
         return null;
     }
+  }
+
+  /** A first transcription is in flight on `media`'s early audio. */
+  private async transcribingEarly(
+    run: RepurposeRun,
+    media: {
+      readonly id: string;
+      readonly status: $Enums.MediaStatus;
+      readonly audio16kKey: string | null;
+      readonly hasAudio: boolean | null;
+      readonly durationMs: number | null;
+    },
+  ): Promise<boolean> {
+    if (!audioReadyEarly(media)) return false;
+    const live = await this.prisma.job.findFirst({
+      where: {
+        projectId: run.sourceProjectId,
+        type: "ai.transcribe",
+        jobKey: firstTranscriptionJobKey(run.sourceProjectId, media.id),
+        status: { in: ["queued", "running"] },
+      },
+      select: { id: true },
+    });
+    return live !== null;
   }
 
   async cancel(workspaceId: string, userId: string, runId: string): Promise<RunView> {
@@ -1030,8 +1698,15 @@ export class RepurposeService {
     // have been started again. Moving this one back into that set would violate
     // `repurpose_runs_live_source_idx` and surface as a raw database conflict
     // instead of a sentence, so it is checked first and refused in our own words.
+    // Window-aware: the next window of the same video, running meanwhile, does
+    // not stop this one being tried again (`duplicateOf`).
     if (run.sourceFingerprint !== null) {
-      const duplicate = await this.duplicateOf(workspaceId, run.sourceFingerprint, run.id);
+      const duplicate = await this.duplicateOf(
+        workspaceId,
+        run.sourceFingerprint,
+        run.id,
+        run.windowStartMs,
+      );
       if (duplicate !== null) throw duplicate;
     }
 
@@ -1148,6 +1823,12 @@ export class RepurposeService {
       ...counts,
       createdAt: run.createdAt.toISOString(),
       updatedAt: run.updatedAt.toISOString(),
+      sourceTitle: run.sourceTitle ?? null,
+      window: windowView(run),
+      // Only beside the failure it explains: a run that was retried keeps the
+      // column until its next failure overwrites it, and must not show it.
+      failureDetail: shown.status === "failed" ? failureDetailOf(run.failureDetail) : null,
+      nextWindowAvailable: nextWindowAvailable(run),
     };
   }
 
@@ -1193,7 +1874,7 @@ export class RepurposeService {
 
     const transcript = await this.prisma.transcript.findUnique({
       where: { id: transcriptId },
-      select: { id: true, currentRevision: true },
+      select: { id: true, currentRevision: true, language: true },
     });
     const revision = transcript?.currentRevision ?? 1;
 
@@ -1204,8 +1885,7 @@ export class RepurposeService {
 
     const config = (run.config as Record<string, unknown>) ?? {};
     const discovery = (config["discovery"] as Record<string, unknown>) ?? {};
-    const sourceLanguage =
-      typeof config["sourceLanguage"] === "string" ? config["sourceLanguage"] : "en";
+    const sourceLanguage = discoveryLanguage(transcript?.language, config["sourceLanguage"]);
 
     const proxyKey = media?.storageKey
       ? media.storageKey.replace(/raw\.[^.]+$/, "proxy540.mp4")
@@ -1229,7 +1909,7 @@ export class RepurposeService {
         contentGoal:
           (discovery["contentGoal"] as "reach" | "education" | "authority" | "engagement") ||
           "reach",
-        language: sourceLanguage || "hi-Latn",
+        language: sourceLanguage,
       },
       promptVersion: "highlights-v1",
       featureVersion: "features-v1",
@@ -1277,16 +1957,32 @@ export class RepurposeService {
    * already failed, or one that has moved on to its clips is left exactly as it
    * is. A clip's failure never comes through here.
    *
+   * The numbers behind the failure go with it (`failure_detail`, 2026-09-27):
+   * `detail` when the caller has them, `null` to say there are none. Left out,
+   * they are worked out here where they can be - the balance for
+   * `no_credits` - and for `source_too_long` the ones the probe put on the run
+   * as it refused the file are kept, since the reconciler, which writes that
+   * failure, never sees them. Anything else is cleared, so a run that failed
+   * twice never shows the first failure's numbers under the second's code.
+   *
    * @returns the failed run, or null when it had already moved on.
    */
   async failRun(
     run: RepurposeRun,
     code: RunFailureCode,
     stage: Stage,
+    detail?: RunFailureDetail | null,
   ): Promise<RepurposeRun | null> {
+    const failureDetail = await this.failureDetailFor(run, code, detail);
     const { count } = await this.prisma.repurposeRun.updateMany({
       where: { id: run.id, status: { in: [...PRE_CANDIDATE_STATUSES] } },
-      data: { status: "failed", failureCode: code, currentStage: stage, completedAt: new Date() },
+      data: {
+        status: "failed",
+        failureCode: code,
+        currentStage: stage,
+        completedAt: new Date(),
+        ...(failureDetail === undefined ? {} : { failureDetail }),
+      },
     });
     if (count === 0) return null;
 
@@ -1306,6 +2002,49 @@ export class RepurposeService {
     });
     await this.publishStage(failed);
     return failed;
+  }
+
+  /**
+   * The `failure_detail` write for {@link failRun}: a value, `DbNull` to clear,
+   * or undefined to leave the column as it is.
+   */
+  private async failureDetailFor(
+    run: RepurposeRun,
+    code: RunFailureCode,
+    detail: RunFailureDetail | null | undefined,
+  ): Promise<Prisma.InputJsonValue | typeof Prisma.DbNull | undefined> {
+    if (detail !== undefined) return detail === null ? Prisma.DbNull : { ...detail };
+    if (code === "repurpose/source_too_long") return undefined;
+    if (code === "repurpose/no_credits") {
+      try {
+        const account = await this.prisma.creditAccount.findUnique({
+          where: { workspaceId: run.workspaceId },
+          select: { balanceTenths: true },
+        });
+        return { creditsLeft: creditsOf(account?.balanceTenths ?? 0) };
+      } catch (error) {
+        // The failure is the news; the number is a courtesy.
+        this.logger.warn({ runId: run.id, err: error }, "could not read the balance for a failure");
+      }
+    }
+    return Prisma.DbNull;
+  }
+
+  /**
+   * Attach the numbers to a failure that another writer recorded first (the
+   * reconciler can fail a run from its media row before the download's own
+   * failure report arrives with them). Only while the run still shows that
+   * failure: never onto a run that was retried meanwhile, or failed otherwise.
+   */
+  async recordFailureDetail(
+    runId: string,
+    code: RunFailureCode,
+    detail: RunFailureDetail,
+  ): Promise<void> {
+    await this.prisma.repurposeRun.updateMany({
+      where: { id: runId, status: "failed", failureCode: code },
+      data: { failureDetail: { ...detail } },
+    });
   }
 
   async listCandidates(workspaceId: string, runId: string) {
@@ -1561,6 +2300,8 @@ export class RepurposeService {
           status: "failed",
           failureCode: REPURPOSE_ERRORS.stageTimeout,
           currentStage,
+          // A timeout has no numbers; an earlier failure's must not show under it.
+          failureDetail: Prisma.DbNull,
         },
       });
       if (timedOut === 0) continue;

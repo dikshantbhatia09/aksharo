@@ -1,5 +1,7 @@
 import { Injectable, Logger, type OnModuleInit } from "@nestjs/common";
 
+import { MediaAcquirePayloadSchema } from "@montaj/repurpose-contracts";
+
 import { MEDIA_JOB_KEYS, MEDIA_JOB_QUOTES } from "./media.constants.js";
 import { ProbeResultSchema } from "./probe-result.js";
 import { PrismaService } from "../common/prisma/prisma.service.js";
@@ -7,6 +9,7 @@ import { JobCompletionRegistry } from "../jobs/completion-handlers.js";
 import { JobsService } from "../jobs/jobs.service.js";
 import { mediaLimitsFor } from "../projects/plan-limits.js";
 import { ReplaceMediaAlignTrigger } from "../replace-media/replace-media-align.trigger.js";
+import { PRE_CANDIDATE_STATUSES, WINDOW_TOLERANCE_MS } from "../repurpose/repurpose.constants.js";
 import { EntitlementService } from "../workspaces/entitlement.service.js";
 
 import type { ProbeResult, ProxyJobPayload } from "./probe-result.js";
@@ -84,7 +87,32 @@ export class MediaProbeCompletionHandler implements JobCompletionHandler, OnModu
     }
 
     const limits = mediaLimitsFor(await this.entitlements.forWorkspace(context.job.workspaceId));
-    const tooLong = probe.durationMs > limits.maxDurationMs;
+    // A clips run's download is held to the window it asked for, not to the
+    // plan's upload cap: a 20-minute window of a 3-hour video is exactly what
+    // a Free run is allowed, and the cap would refuse it (2026-09-27).
+    const windowMs = await this.windowOf(media);
+    const maxDurationMs = windowMs === null ? limits.maxDurationMs : windowMs + WINDOW_TOLERANCE_MS;
+    const tooLong = probe.durationMs > maxDurationMs;
+
+    if (tooLong && windowMs !== null) {
+      // Before the media reads failed, so the reconciler failing the run from
+      // it finds the numbers already there ("34:37 against a 20:00 window").
+      // An old worker that ignored the window is the realistic way to get here.
+      // A run already failed only gets them if that failure is this one: a
+      // reconcile that got there first wrote `source_too_long` from the media row.
+      await this.prisma.repurposeRun.updateMany({
+        where: {
+          sourceProjectId: media.projectId,
+          OR: [
+            { status: { in: [...PRE_CANDIDATE_STATUSES] } },
+            { status: "failed", failureCode: "repurpose/source_too_long" },
+          ],
+        },
+        data: {
+          failureDetail: { durationMs: probe.durationMs, maxDurationMs: windowMs, windowMs },
+        },
+      });
+    }
 
     await this.prisma.mediaAsset.update({
       where: { id: media.id },
@@ -101,15 +129,19 @@ export class MediaProbeCompletionHandler implements JobCompletionHandler, OnModu
           jobId: context.job.id,
           mediaId: media.id,
           durationMs: probe.durationMs,
-          maxDurationMs: limits.maxDurationMs,
+          maxDurationMs,
+          windowMs,
         },
-        "media rejected on the plan's duration cap",
+        windowMs === null
+          ? "media rejected on the plan's duration cap"
+          : "fetched media is longer than the window it was fetched for",
       );
       return {
         data: {
           mediaId: media.id,
           durationMs: probe.durationMs,
-          maxDurationMs: limits.maxDurationMs,
+          maxDurationMs,
+          ...(windowMs === null ? {} : { windowMs }),
           plan: limits.planKey,
           failureReason: "media/too_long",
           proxyEnqueued: false,
@@ -143,6 +175,41 @@ export class MediaProbeCompletionHandler implements JobCompletionHandler, OnModu
         ...(realignJob === undefined ? {} : { realignJobId: realignJob.jobId }),
       },
     };
+  }
+
+  /**
+   * The window this media was fetched for, when it is a clips run's download of
+   * part of a longer video; null for everything else (an upload, a clip, a run
+   * from before windows), which keeps the plan's upload cap.
+   *
+   * Read from the `media.acquire` job that fetched into THIS row - its payload
+   * is what the worker was actually told - and, if that row has been pruned,
+   * from the section the run recorded when the download landed.
+   */
+  private async windowOf(media: MediaAsset): Promise<number | null> {
+    const run = await this.prisma.repurposeRun.findFirst({
+      where: { sourceProjectId: media.projectId },
+      select: { id: true, windowStartMs: true, windowEndMs: true },
+    });
+    if (run === null) return null;
+
+    const acquire = await this.prisma.job.findFirst({
+      where: {
+        type: "media.acquire",
+        projectId: media.projectId,
+        params: { path: ["mediaId"], equals: media.id },
+      },
+      orderBy: { queuedAt: "desc" },
+      select: { params: true },
+    });
+    if (acquire !== null) {
+      const payload = MediaAcquirePayloadSchema.safeParse(acquire.params);
+      if (payload.success) return payload.data.window?.maxMs ?? null;
+    }
+    if (run.windowStartMs !== null && run.windowEndMs !== null) {
+      return Math.max(0, run.windowEndMs - run.windowStartMs);
+    }
+    return null;
   }
 }
 

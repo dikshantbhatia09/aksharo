@@ -1,4 +1,4 @@
-import { Body, Controller, HttpStatus, Param, Patch, UseGuards } from "@nestjs/common";
+import { Body, Controller, HttpStatus, Logger, Param, Patch, UseGuards } from "@nestjs/common";
 import { ApiExcludeController } from "@nestjs/swagger";
 import { z } from "zod";
 
@@ -8,6 +8,7 @@ import { PrismaService } from "../common/prisma/prisma.service.js";
 import { mediaPrefix } from "../common/storage/storage.keys.js";
 import { zodDto } from "../common/validation/zod-validation.pipe.js";
 import { MEDIA_FAILURE_REASONS } from "../media/media.constants.js";
+import { AutoTranscribeTrigger } from "../transcripts/auto-transcribe.trigger.js";
 
 import type { Prisma } from "@prisma/client";
 
@@ -95,7 +96,18 @@ const DERIVED_KEY_FIELDS = ["proxyKey", "audio16kKey", "audio48kKey", "waveformK
 @UseGuards(InternalSignatureGuard)
 @Controller("internal/media")
 export class InternalMediaController {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(InternalMediaController.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    /**
+     * Starts the first transcription the moment the proxy writes the ASR
+     * audio back, ahead of its video encode (clips pipeline W5). Absent where
+     * the lease reaper delivers a kept patch; the proxy's completion asks
+     * again then.
+     */
+    private readonly autoTranscribe?: AutoTranscribeTrigger,
+  ) {}
 
   @Patch(":id")
   async patch(@Param("id") id: string, @Body() body: MediaPatchDto): Promise<MediaPatchAck> {
@@ -127,7 +139,28 @@ export class InternalMediaController {
       where: { id },
       select: { status: true },
     });
+    if (body.audio16kKey !== undefined && updated.status !== "failed") {
+      await this.startTranscription(id);
+    }
     return { mediaId: id, status: updated.status };
+  }
+
+  /**
+   * Ask for the first transcription on the audio just written. The trigger
+   * decides whether one may start (it refuses the lane's last slot, a project
+   * with no language, a workspace with no credits) and swallows its refusals;
+   * this never fails the worker's write-back either way.
+   */
+  private async startTranscription(mediaId: string): Promise<void> {
+    if (this.autoTranscribe === undefined) return;
+    try {
+      await this.autoTranscribe.maybeEnqueue(mediaId, { firstAttemptOnly: true });
+    } catch (error) {
+      this.logger.warn(
+        { mediaId, err: error instanceof Error ? error.message : String(error) },
+        "could not start the transcription on the early audio; the proxy's completion asks again",
+      );
+    }
   }
 }
 

@@ -24,8 +24,21 @@ const ENTITLEMENT = {
   entitlements: { flags: { repurpose_flow: true } },
 };
 
+/**
+ * The fields the API adds with plan limits (2026-09-27), as a run that has
+ * none of them: spread in, so these fixtures compile whether the client's
+ * `RepurposeRunView` declares them yet or not.
+ */
+const NO_PLAN_LIMIT_FACTS = {
+  sourceTitle: null,
+  window: null,
+  failureDetail: null,
+  nextWindowAvailable: false,
+};
+
 function run(id: string, status: string, overrides: Partial<RepurposeRunView> = {}): RepurposeRunView {
   return {
+    ...NO_PLAN_LIMIT_FACTS,
     id,
     workspaceId: "01JWORKSPACE",
     sourceProjectId: "01JPROJECT",
@@ -114,5 +127,40 @@ describe("<RepurposeIndexView /> run list", () => {
     expect(screen.getByTestId("repurpose-run-01WORK")).toHaveTextContent(
       "In progress · Creating the transcript.",
     );
+  });
+});
+
+describe("<RepurposeIndexView /> names each run by its video's title", () => {
+  it("uses the real title, and the display for a run the API has none for", async () => {
+    // Added on top of the typed view: an API older than titles has no such field.
+    const titled = Object.assign(run("01TITLED", "candidates_ready"), {
+      sourceTitle: "How we ship every day",
+    });
+    renderList([titled, run("01PLAIN", "candidates_ready")]);
+    expect(await screen.findByTestId("repurpose-run-title-01TITLED")).toHaveTextContent(
+      "How we ship every day",
+    );
+    expect(screen.getByTestId("repurpose-run-title-01PLAIN")).toHaveTextContent(
+      "youtube.com · 01PLAIN",
+    );
+  });
+
+  // "Process the next 20 minutes" makes runs that share a title: each row
+  // says which part it is, or two parts of one podcast read as one run twice.
+  it("tells two parts of one video apart by the part each covers", async () => {
+    const MIN = 60_000;
+    const part = (id: string, startMs: number): RepurposeRunView =>
+      run(id, "candidates_ready", {
+        sourceTitle: "A three-hour podcast",
+        window: { startMs, endMs: startMs + 20 * MIN, sourceDurationMs: 180 * MIN, policy: "range" },
+      });
+    renderList([part("01PART2", 20 * MIN), part("01PART1", 0), run("01WHOLE", "candidates_ready")]);
+
+    expect(await screen.findByTestId("repurpose-run-part-01PART2")).toHaveTextContent(
+      "Part 20:00–40:00",
+    );
+    expect(screen.getByTestId("repurpose-run-part-01PART1")).toHaveTextContent("Part 0:00–20:00");
+    // A whole video is not "part" of anything.
+    expect(screen.queryByTestId("repurpose-run-part-01WHOLE")).toBeNull();
   });
 });

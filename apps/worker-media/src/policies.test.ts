@@ -138,15 +138,23 @@ describe("policy table (mirrors apps/api/src/jobs/jobs.config.ts)", () => {
 });
 
 describe("the resolved media policies", () => {
-  it("gives media queues appropriate lock duration and three attempts", () => {
+  it("gives media queues appropriate lock duration and three attempts, acquisition two", () => {
     for (const queue of MEDIA_QUEUES) {
       const policy = queuePolicyFor(queue);
       const expectedLock = queue === "media.clip" ? 300_000 : 600_000;
       expect(policy.lockDurationMs, queue).toBe(expectedLock);
       expect(policy.stalledIntervalMs, queue).toBe(60_000);
-      expect(policy.attempts, queue).toBe(3);
+      expect(policy.attempts, queue).toBe(queue === "media.acquire" ? 2 : 3);
       expect(policy.maxStalledCount, queue).toBe(1);
     }
+  });
+
+  it("retries an acquisition once, a minute later, never three times in fifteen seconds", () => {
+    // Every attempt is a request to YouTube from the one home IP: three tries
+    // five seconds apart is how one failure becomes a block.
+    expect(queuePolicyFor("media.acquire")).toMatchObject({ attempts: 2, backoffMs: 60_000 });
+    // The rest of the media family keeps its quick retries.
+    expect(queuePolicyFor("media.proxy")).toMatchObject({ attempts: 3, backoffMs: 5_000 });
   });
 
   it("falls back to the default for a family it has never heard of", () => {

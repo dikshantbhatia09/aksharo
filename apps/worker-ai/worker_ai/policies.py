@@ -120,7 +120,14 @@ QUEUE_POLICY_BY_FAMILY: Final[dict[str, QueuePolicy]] = {
 QUEUE_POLICY_OVERRIDES: Final[dict[str, dict[str, int]]] = {
     "media.probe": {"lockDurationMs": 600_000, "stalledIntervalMs": 60_000},
     "media.proxy": {"lockDurationMs": 600_000, "stalledIntervalMs": 60_000},
-    "media.acquire": {"lockDurationMs": 600_000, "stalledIntervalMs": 60_000},
+    # Acquisition retries once, a minute later: every attempt is a request to
+    # YouTube from the one home IP (2026-09-27).
+    "media.acquire": {
+        "attempts": 2,
+        "backoffMs": 60_000,
+        "lockDurationMs": 600_000,
+        "stalledIntervalMs": 60_000,
+    },
     "media.clip": {"lockDurationMs": 300_000, "stalledIntervalMs": 60_000},
     "ai.highlights": {"lockDurationMs": 600_000, "stalledIntervalMs": 60_000},
     "ai.faces": {"lockDurationMs": 600_000, "stalledIntervalMs": 60_000},

@@ -44,6 +44,33 @@ export const MEDIA_FAILURE_REASONS = [
 
 export type MediaFailureReason = (typeof MEDIA_FAILURE_REASONS)[number];
 
+/**
+ * The numbers behind a refusal — `{durationMs, maxDurationMs, approximateBytes,
+ * maxBytes}` — carried to the API as the job error's `facts` (`JobErrorSchema`
+ * in `apps/api/src/jobs/contracts/completion.ts`).
+ *
+ * A refusal without them is a dead end: the page could only say "longer than
+ * your plan allows", never "this video is 34:37 and your plan processes 20:00",
+ * which is the sentence that tells the user what to do next. Flat and small on
+ * purpose, and never user text: the API renders them, the worker only measures.
+ */
+export type RefusalFacts = Readonly<Record<string, number | string | boolean | null>>;
+
+/**
+ * The facts that are actually known, or `undefined` when none are.
+ *
+ * An unknown size is left out rather than sent as `null`: "we could not tell"
+ * and "zero" must not reach a sentence that states a number.
+ */
+export function knownFacts(
+  values: Readonly<Record<string, number | null | undefined>>,
+): RefusalFacts | undefined {
+  const known = Object.entries(values).filter(
+    (entry): entry is [string, number] => typeof entry[1] === "number" && Number.isFinite(entry[1]),
+  );
+  return known.length === 0 ? undefined : Object.fromEntries(known);
+}
+
 export interface MediaFailureOptions {
   /** BullMQ should try again; the default for anything that is not clearly the file. */
   readonly retryable?: boolean;
@@ -51,6 +78,8 @@ export interface MediaFailureOptions {
   readonly reason?: MediaFailureReason;
   /** Redacted ffmpeg stderr tail, for the operator. */
   readonly detail?: string;
+  /** The numbers behind a refusal, for the page to state (see {@link RefusalFacts}). */
+  readonly facts?: RefusalFacts;
   readonly cause?: unknown;
 }
 
@@ -61,6 +90,7 @@ export class MediaJobError extends Error {
   readonly retryable: boolean;
   readonly reason: MediaFailureReason | undefined;
   readonly detail: string | undefined;
+  readonly facts: RefusalFacts | undefined;
 
   constructor(code: string, message: string, options: MediaFailureOptions = {}) {
     super(message, options.cause === undefined ? undefined : { cause: options.cause });
@@ -68,6 +98,7 @@ export class MediaJobError extends Error {
     this.retryable = options.retryable ?? true;
     this.reason = options.reason;
     this.detail = options.detail;
+    this.facts = options.facts;
   }
 }
 
@@ -92,16 +123,22 @@ export function unreadableMedia(
  * a bot check or a rate limit a quick retry makes the block worse. The job's
  * error `code` IS the reason, so the API can read it off either the media row or
  * the job (the same convention `proxy.handler.ts`'s `failureReasonOf` reads).
+ *
+ * `facts` are the measured numbers behind a limit refusal (see
+ * {@link RefusalFacts}); a refusal about the video itself — private, removed —
+ * has none.
  */
 export function sourceRefused(
   reason: MediaFailureReason,
   message: string,
   detail?: string,
+  facts?: RefusalFacts,
 ): MediaJobError {
   return new MediaJobError(reason, message, {
     retryable: false,
     reason,
     ...(detail === undefined ? {} : { detail }),
+    ...(facts === undefined ? {} : { facts }),
   });
 }
 

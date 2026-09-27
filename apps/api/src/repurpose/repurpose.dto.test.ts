@@ -6,7 +6,7 @@ import {
   RunConfigSchema,
 } from "@montaj/repurpose-contracts";
 
-import { createRunSchema, listRunsSchema } from "./repurpose.dto.js";
+import { createRunSchema, listRunsSchema, runViewSchema } from "./repurpose.dto.js";
 
 /**
  * The DTO layer against `@montaj/repurpose-contracts` (REP-001's open question).
@@ -197,5 +197,126 @@ describe("list DTO", () => {
 
   it("refuses a cursor that is not an id", () => {
     expect(listRunsSchema.safeParse({ cursor: "../../etc" }).success).toBe(false);
+  });
+});
+
+describe("create-run DTO — windows and 'auto' (2026-09-27)", () => {
+  const link = {
+    source: {
+      kind: "url",
+      url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+      rightsAttested: true,
+    },
+    setup: {
+      sourceLanguage: "auto",
+      caption: { styleId: "punch-pop" },
+      discovery: {},
+    },
+  };
+
+  it("accepts 'auto' as the spoken language, for detection to decide", () => {
+    expect(createRunSchema.parse(link).setup.sourceLanguage).toBe("auto");
+  });
+
+  it("accepts a start, a policy, or neither", () => {
+    for (const window of [
+      undefined,
+      {},
+      { startMs: 600_000 },
+      { policy: "first" },
+      { policy: "most_replayed" },
+      { startMs: 0, policy: "range" },
+    ]) {
+      const parsed = createRunSchema.safeParse({ ...link, setup: { ...link.setup, window } });
+      expect(parsed.success, JSON.stringify(window)).toBe(true);
+    }
+  });
+
+  it("refuses a start with a policy that is not the part the person picked", () => {
+    const parsed = createRunSchema.safeParse({
+      ...link,
+      setup: { ...link.setup, window: { startMs: 600_000, policy: "most_replayed" } },
+    });
+    expect(parsed.success).toBe(false);
+  });
+
+  it("refuses a picked range with no start", () => {
+    const parsed = createRunSchema.safeParse({
+      ...link,
+      setup: { ...link.setup, window: { policy: "range" } },
+    });
+    expect(parsed.success).toBe(false);
+  });
+
+  it("refuses a negative, fractional or impossible start, and a length the caller chose", () => {
+    for (const window of [
+      { startMs: -1 },
+      { startMs: 1.5 },
+      { startMs: 90_000_000 },
+      { maxMs: 60_000 },
+    ]) {
+      const parsed = createRunSchema.safeParse({ ...link, setup: { ...link.setup, window } });
+      expect(parsed.success, JSON.stringify(window)).toBe(false);
+    }
+  });
+
+  it("keeps a frozen 'auto' a run config the other runtimes accept", () => {
+    const parsed = createRunSchema.parse(link);
+    const config = {
+      schemaVersion: 1,
+      sourceLanguage: parsed.setup.sourceLanguage,
+      caption: { ...parsed.setup.caption, styleVersion: 1 },
+      discovery: parsed.setup.discovery,
+      formats: [{ aspect: "9:16", destinations: [], reframe: "auto" }],
+      enhancements: { audioClean: false, autoZoom: false, autoTextFx: false, music: "off" },
+    };
+    const result = RunConfigSchema.safeParse(config);
+    expect(result.success ? [] : result.error.issues).toEqual([]);
+  });
+});
+
+describe("run view DTO — what the page reads about windows (2026-09-27)", () => {
+  it("describes the new fields, nullable where a run may not have them yet", () => {
+    const base = {
+      id: "01ARZ3NDEKTSV4RRFFQ69G5FB6",
+      workspaceId: "01ARZ3NDEKTSV4RRFFQ69G5FB0",
+      sourceProjectId: "01ARZ3NDEKTSV4RRFFQ69G5FAX",
+      sourceKind: "youtube_url",
+      sourceDisplay: "youtube.com · dQw4w9WgXcQ",
+      mode: "ai",
+      status: "failed",
+      currentStage: "getting_video",
+      progress: 0,
+      stages: [],
+      message: "x",
+      failureCode: "repurpose/source_too_long",
+      canCancel: false,
+      canRetry: true,
+      candidateCount: 0,
+      clipCount: 0,
+      variantCount: 0,
+      createdAt: "2026-09-27T00:00:00.000Z",
+      updatedAt: "2026-09-27T00:00:00.000Z",
+    };
+    expect(
+      runViewSchema.safeParse({
+        ...base,
+        sourceTitle: null,
+        window: null,
+        failureDetail: null,
+        nextWindowAvailable: false,
+      }).success,
+    ).toBe(true);
+    expect(
+      runViewSchema.safeParse({
+        ...base,
+        sourceTitle: "A talk",
+        window: { startMs: 0, endMs: 1_200_000, sourceDurationMs: 2_077_000, policy: "first" },
+        failureDetail: { durationMs: 2_077_000, maxDurationMs: 1_200_000 },
+        nextWindowAvailable: true,
+      }).success,
+    ).toBe(true);
+    // Missing is not the same as null: every run view carries all four.
+    expect(runViewSchema.safeParse(base).success).toBe(false);
   });
 });

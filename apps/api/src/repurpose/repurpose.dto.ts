@@ -6,6 +6,8 @@ import {
   DEFAULT_REQUESTED_CANDIDATES,
   RUN_PAGE_MAX,
   RUN_PAGE_SIZE,
+  WINDOW_POLICIES,
+  WINDOW_START_MAX_MS,
 } from "./repurpose.constants.js";
 import { STAGES } from "./repurpose.projection.js";
 import { zodDto } from "../common/index.js";
@@ -91,12 +93,48 @@ export const createRunSourceSchema = z.discriminatedUnion("kind", [
   }),
 ]);
 
+/**
+ * Which part of a long link to process (2026-09-27). Optional: without it the
+ * run takes YouTube's most-replayed stretch when there is one, else the start.
+ * A `startMs` is a start the person picked, which is what `range` means - so a
+ * start with another policy, or `range` without a start, is a contradiction and
+ * refused rather than guessed at. The length is never the caller's: it is the
+ * plan's window, cut to what the balance pays for.
+ */
+export const windowSetupSchema = z
+  .object({
+    startMs: z.number().int().min(0).max(WINDOW_START_MAX_MS).optional(),
+    policy: z.enum(WINDOW_POLICIES).optional(),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (value.startMs !== undefined && value.policy !== undefined && value.policy !== "range") {
+      context.addIssue({
+        code: "custom",
+        path: ["policy"],
+        message: "A start time means the part you picked; leave the policy out or say range.",
+      });
+    }
+    if (value.policy === "range" && value.startMs === undefined) {
+      context.addIssue({
+        code: "custom",
+        path: ["startMs"],
+        message: "Say where the part you picked starts.",
+      });
+    }
+  });
+
 export const createRunSchema = z.object({
   source: createRunSourceSchema,
   setup: z.object({
-    sourceLanguage: language,
+    /**
+     * A BCP-47 tag, or `"auto"`: the clips default (2026-09-27), which lets the
+     * transcription detect the language instead of trusting a remembered pick.
+     */
+    sourceLanguage: z.union([z.literal("auto"), language]),
     caption: captionSetupSchema,
     discovery: discoverySetupSchema,
+    window: windowSetupSchema.optional(),
   }),
   /** Optional title; defaults to the source's safe display form. */
   title: shortLabel.optional(),
@@ -156,7 +194,37 @@ export const runViewSchema = z.object({
   variantCount: z.number().int().min(0),
   createdAt: z.string(),
   updatedAt: z.string(),
+  /** The video's real title, once the download reported it. */
+  sourceTitle: z.string().nullable(),
+  /**
+   * The part of the source this run processed, in the source's own clock; null
+   * until the section landed, and for a source processed whole.
+   */
+  window: z
+    .object({
+      startMs: z.number().int().min(0),
+      endMs: z.number().int().min(0),
+      sourceDurationMs: z.number().int().min(0),
+      policy: z.enum(WINDOW_POLICIES),
+    })
+    .nullable(),
+  /** The numbers behind `failureCode`, while the run is failed; null otherwise. */
+  failureDetail: z
+    .object({
+      durationMs: z.number().optional(),
+      maxDurationMs: z.number().optional(),
+      maxBytes: z.number().optional(),
+      approximateBytes: z.number().optional(),
+      windowMs: z.number().optional(),
+      creditsLeft: z.number().optional(),
+    })
+    .nullable(),
+  /** `POST .../next-window` has something after this window to process. */
+  nextWindowAvailable: z.boolean(),
 });
+
+/** `POST /repurpose/runs/{id}/next-window`: the new run over the next part of the source. */
+export const nextWindowResponseSchema = z.object({ run: runViewSchema });
 
 export const runPageSchema = z.object({
   items: z.array(runViewSchema),
@@ -188,3 +256,5 @@ export type ListRunsInput = z.infer<typeof listRunsSchema>;
 export type RunView = z.infer<typeof runViewSchema>;
 export type RunPage = z.infer<typeof runPageSchema>;
 export type CreateRunResponse = z.infer<typeof createRunResponseSchema>;
+export type NextWindowResponse = z.infer<typeof nextWindowResponseSchema>;
+export type WindowSetup = z.infer<typeof windowSetupSchema>;

@@ -6,6 +6,7 @@ import {
   recallRunSetup,
   rememberRunSetup,
   setupOf,
+  startContextFromParams,
   startFormFromParams,
 } from "./run-setup";
 import { EMPTY_START_FORM, RECOMMENDED_STYLES } from "./SourceStartForm";
@@ -163,5 +164,79 @@ describe("linkFromSourceDisplay", () => {
     ]) {
       expect(linkFromSourceDisplay(display), String(display)).toBeUndefined();
     }
+  });
+});
+
+/**
+ * Plan limits (2026-09-27): the spoken language may be "Detect automatically"
+ * (`auto`), a link may carry where its window starts, and a too-long run's
+ * "Pick where to start" hands the link, the video's length and the cursor to
+ * "Start at".
+ */
+describe("the start and the detected language through the query string", () => {
+  it("carries 'Detect automatically' back to the form, which a language tag check refused", () => {
+    const href = newRunHref({ ...SETUP, sourceLanguage: "auto" }, { keepLink: true });
+    const form = startFormFromParams(new URL(href, "https://app.test").searchParams, "en");
+    expect(form.sourceLanguage).toBe("auto");
+  });
+
+  it("remembers a link run's start, and hands it back with the link only", () => {
+    const setup = setupOf({
+      ...EMPTY_START_FORM,
+      url: "https://youtu.be/dQw4w9WgXcQ",
+      startAt: "12:10",
+    });
+    expect(setup.startMs).toBe(730_000);
+
+    const kept = new URL(newRunHref(setup, { keepLink: true }), "https://app.test").searchParams;
+    expect(kept.get("start")).toBe("12:10");
+    expect(startFormFromParams(kept, undefined).startAt).toBe("12:10");
+    // Another video starts from nothing.
+    const another = new URL(newRunHref(setup, { keepLink: false }), "https://app.test");
+    expect(another.searchParams.get("start")).toBeNull();
+    // An upload has no window, so no start is remembered for it.
+    expect(
+      setupOf({ ...EMPTY_START_FORM, tab: "upload", url: "https://youtu.be/x", startAt: "1:00" })
+        .startMs,
+    ).toBeUndefined();
+  });
+
+  it("drops a start that is not a time, since anyone can craft the URL", () => {
+    const params = new URLSearchParams("url=https%3A%2F%2Fyoutu.be%2Fx&start=soon");
+    expect(startFormFromParams(params, "en").startAt).toBe("");
+    // And one without a link is about no video at all.
+    expect(startFormFromParams(new URLSearchParams("start=1:00"), "en").startAt).toBe("");
+  });
+
+  it("sends 'Pick where to start' with the link, the length and the cursor, setup or not", () => {
+    const link = "https://www.youtube.com/watch?v=kE0oUEzVVes";
+    const href = newRunHref(undefined, {
+      keepLink: true,
+      link,
+      pickStart: true,
+      lengthMs: 2_077_000,
+    });
+    const params = new URL(href, "https://app.test").searchParams;
+    expect(params.get("url")).toBe(link);
+    // The length is that link's, so it travels with the link it belongs to.
+    expect(startContextFromParams(params)).toEqual({
+      focusStartAt: true,
+      knownLength: { link, durationMs: 2_077_000 },
+    });
+  });
+
+  it("ignores a length nobody could have sent, a length with no link, and a pick with no link", () => {
+    expect(startContextFromParams(new URLSearchParams("len=2077000"))).toEqual({
+      focusStartAt: false,
+    });
+    expect(startContextFromParams(new URLSearchParams("url=x&pick=start&len=-5"))).toEqual({
+      focusStartAt: true,
+    });
+    expect(
+      startContextFromParams(new URLSearchParams(`url=x&len=${String(48 * 3_600_000)}`)),
+    ).toEqual({ focusStartAt: false });
+    expect(startContextFromParams(new URLSearchParams("pick=start"))).toEqual({
+      focusStartAt: false,
+    });
   });
 });

@@ -46,6 +46,58 @@ export function mediaLimitsFor(entitlement: EntitlementView): PlanMediaLimits {
   };
 }
 
+/**
+ * What a clips run may process (2026-09-27), read off the entitlement.
+ *
+ * A clips product's ordinary input is a 30-minute to 3-hour video, and the
+ * upload cap (`maxDurationMs`, Free 20 min) used to refuse every one of them. A
+ * plan now limits the MINUTES PROCESSED per run: a longer source is cut down to
+ * a window of it, never refused, up to the abuse ceiling.
+ */
+export interface PlanClipsLimits {
+  /** The most of a source one run processes (`entitlements.clipsWindowMs`). */
+  readonly clipsWindowMs: number;
+  /** The longest source a run may look at at all (`entitlements.maxSourceDurationMs`). */
+  readonly maxSourceDurationMs: number;
+  /** Largest download, in bytes: the same cap an upload has. */
+  readonly maxFileBytes: number;
+  readonly planKey: string;
+}
+
+/** Free-plan clips values from `prisma/seed-data.ts`; the floor for every fallback. */
+export const FREE_PLAN_CLIPS_LIMITS = {
+  clipsWindowMs: 20 * 60 * 1000,
+  maxSourceDurationMs: 12 * 60 * 60 * 1000,
+} as const;
+
+/**
+ * Read {@link PlanClipsLimits} off an entitlement document.
+ *
+ * A missing `clipsWindowMs` falls back to the plan's own `maxDurationMs` before
+ * Free's: the seeded windows are exactly those numbers, and an entitlement cached
+ * from before the migration (60 s, `ENTITLEMENT_CACHE_TTL_SEC`) must not shrink a
+ * Studio run to Free's 20 minutes. Neither fallback is ever "unlimited", and the
+ * window never exceeds the ceiling.
+ */
+export function clipsLimitsFor(entitlement: EntitlementView): PlanClipsLimits {
+  const values = entitlement.entitlements;
+  const media = mediaLimitsFor(entitlement);
+  const maxSourceDurationMs = positiveInteger(
+    values["maxSourceDurationMs"],
+    FREE_PLAN_CLIPS_LIMITS.maxSourceDurationMs,
+  );
+  const clipsWindowMs = positiveInteger(
+    values["clipsWindowMs"],
+    positiveInteger(values["maxDurationMs"], FREE_PLAN_CLIPS_LIMITS.clipsWindowMs),
+  );
+  return {
+    clipsWindowMs: Math.min(clipsWindowMs, maxSourceDurationMs),
+    maxSourceDurationMs,
+    maxFileBytes: media.maxFileBytes,
+    planKey: entitlement.planKey,
+  };
+}
+
 /** `days` after `from`, as an instant. */
 export function addDays(from: Date, days: number): Date {
   return new Date(from.getTime() + days * 24 * 60 * 60 * 1000);

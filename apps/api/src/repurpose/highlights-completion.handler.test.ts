@@ -179,7 +179,7 @@ describe("RepurposeHighlightsCompletionHandler — a result", () => {
 
 describe("RepurposeHighlightsCompletionHandler — a failure", () => {
   it("fails the run with highlights_failed, the code the page has a sentence for", async () => {
-    await h.handler.handleFailure(failedWith("jobs/queue_timeout"));
+    await h.handler.handleFailure(failedWith("common/internal"));
 
     // Not the legacy `repurpose/analysis_failed`, which rendered "Something went wrong".
     expect(h.runs.failRun).toHaveBeenCalledWith(

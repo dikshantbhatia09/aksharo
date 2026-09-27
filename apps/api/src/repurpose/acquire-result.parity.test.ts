@@ -3,10 +3,15 @@ import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { MediaAcquireResultSchema, REPURPOSE_SCHEMA_VERSION } from "@montaj/repurpose-contracts";
+import {
+  MediaAcquirePayloadSchema,
+  MediaAcquireResultSchema,
+  REPURPOSE_SCHEMA_VERSION,
+} from "@montaj/repurpose-contracts";
 
 // Vitest runs with `apps/api` as cwd.
 const ACQUIRE_SOURCE = resolve(process.cwd(), "..", "worker-media/src/processors/acquire.ts");
+const YT_DLP_SOURCE = resolve(process.cwd(), "..", "worker-media/src/yt-dlp.ts");
 
 /**
  * `media.acquire`'s result, on both sides of the wire.
@@ -30,8 +35,38 @@ function workerResultKeys(): string[] {
   const block = source.slice(start, source.indexOf("\n      },", start));
   // Top-level keys of that object literal are indented by eight spaces; nested
   // ones (`sourceMetadata`) are deeper and are deliberately not collected here.
-  return [...block.matchAll(/^ {8}(\w+)[,:]/gm)].map((match) => match[1] as string);
+  const always = [...block.matchAll(/^ {8}(\w+)[,:]/gm)].map((match) => match[1] as string);
+  // An optional field goes out as a conditional spread,
+  // `...(x === null ? {} : { key: value })`, so a result without it has no key.
+  const optional = [...block.matchAll(/^ {8}\.\.\.\(.*\? \{\} : \{ (\w+)[:, }]/gm)].map(
+    (match) => match[1] as string,
+  );
+  return [...always, ...optional];
 }
+
+const readWorker = (which: "acquire" | "yt-dlp"): string =>
+  which === "acquire" ? readFileSync(ACQUIRE_SOURCE, "utf8") : readFileSync(YT_DLP_SOURCE, "utf8");
+
+/**
+ * The keys a function's returned object or an interface in a worker source
+ * spells out: the lines at exactly `indent` spaces between `marker` and the
+ * next closing brace at the margin. Deeper lines (a nested object) are not
+ * collected.
+ */
+function declaredKeys(source: string, marker: string, indent: number): string[] {
+  const start = source.indexOf(marker);
+  if (start < 0) throw new Error(`could not find ${marker}`);
+  const margin = " ".repeat(indent);
+  return source
+    .slice(start, source.indexOf("\n}", start))
+    .split(/\r?\n/)
+    .filter((line) => line.startsWith(margin) && !line.startsWith(`${margin} `))
+    .map((line) => /^\s*(?:readonly )?(\w+)\??:/.exec(line)?.[1])
+    .filter((key): key is string => key !== undefined);
+}
+
+const contractSection = MediaAcquireResultSchema.shape.section.unwrap();
+const contractWindow = MediaAcquirePayloadSchema.shape.window.unwrap();
 
 function workerSchemaVersion(): number {
   const source = readFileSync(ACQUIRE_SOURCE, "utf8");
@@ -73,5 +108,64 @@ describe("media.acquire result parity", () => {
       deduplicated: false,
     });
     expect(parsed.success).toBe(true);
+  });
+
+  it("sends a section with exactly the contract's fields", () => {
+    // `sectionResult` in acquire.ts builds it field by field.
+    expect(declaredKeys(readWorker("acquire"), "function sectionResult", 4).sort()).toEqual(
+      Object.keys(contractSection.shape).sort(),
+    );
+    const parsed = MediaAcquireResultSchema.safeParse({
+      schemaVersion: workerSchemaVersion(),
+      mediaId: "01ARZ3NDEKTSV4RRFFQ69G5FB6",
+      bucket: "s3",
+      key: "ws/01ARZ3NDEKTSV4RRFFQ69G5FB0/p/01ARZ3NDEKTSV4RRFFQ69G5FAX/media/m/raw.mp4",
+      filename: "source.mp4",
+      mime: "video/mp4",
+      sizeBytes: 104_000_000,
+      checksum: "0".repeat(64),
+      sourceMetadata: {
+        provider: "Youtube",
+        sourceId: "aDpIra7NFuE",
+        title: "A long podcast",
+        channel: "Example Channel",
+        durationMs: 1_200_412,
+      },
+      // Twenty minutes around the most-replayed moment of a 34:37 video.
+      section: {
+        startMs: 730_000,
+        endMs: 1_930_000,
+        sourceDurationMs: 2_077_000,
+        policy: "most_replayed",
+      },
+      toolVersion: "yt-dlp 2026.08.19",
+      probeToolVersion: "ffprobe version 9.0",
+      deduplicated: false,
+    });
+    expect(parsed.success).toBe(true);
+  });
+});
+
+describe("media.acquire payload parity", () => {
+  it("reads every field the contract sends, the window included", () => {
+    // `AcquirePayload` in acquire.ts. `schemaVersion` is the envelope's
+    // concern; the worker does not read it.
+    const contract = Object.keys(MediaAcquirePayloadSchema.shape).filter(
+      (key) => key !== "schemaVersion",
+    );
+    expect(
+      declaredKeys(readWorker("acquire"), "export interface AcquirePayload", 2).sort(),
+    ).toEqual(contract.sort());
+  });
+
+  it("knows the window's fields and every one of its policies", () => {
+    expect(declaredKeys(readWorker("yt-dlp"), "export interface AcquireWindow", 2).sort()).toEqual(
+      Object.keys(contractWindow.shape).sort(),
+    );
+    const source = readFileSync(ACQUIRE_SOURCE, "utf8");
+    const policies = /const WINDOW_POLICIES[^=]*= \[([^\]]*)\]/.exec(source)?.[1] ?? "";
+    expect([...policies.matchAll(/"(\w+)"/g)].map((match) => match[1]).sort()).toEqual(
+      [...contractWindow.shape.policy.options].sort(),
+    );
   });
 });

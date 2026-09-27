@@ -5,7 +5,9 @@ import { SAFE_ERROR_CODES } from "@montaj/repurpose-contracts";
 import {
   LEGACY_RUN_FAILURE_CODES,
   STAGE_OF_FAILURE,
+  FAILURE_DETAIL_KEYS,
   TRANSCRIPT_UNTIMED_JOB_CODE,
+  failureDetailOf,
   jobErrorCodeOf,
   runFailureCode,
 } from "./failure-codes.js";
@@ -66,7 +68,7 @@ describe("runFailureCode — a download that failed", () => {
     ).toBe("repurpose/source_blocked");
   });
 
-  it.each(["jobs/queue_timeout", "jobs/cancelled", "media/unreadable", "common/internal"])(
+  it.each(["jobs/cancelled", "media/unreadable", "common/internal"])(
     "treats a job code %s that names nothing about the source as 'could not get it'",
     (jobErrorCode) => {
       expect(runFailureCode({ failedAt: "acquire", jobErrorCode })).toBe(
@@ -114,7 +116,7 @@ describe("runFailureCode — transcription and discovery", () => {
     },
   );
 
-  it.each(["asr/provider_failed", "jobs/queue_timeout", "jobs/cancelled", null])(
+  it.each(["asr/provider_failed", "jobs/cancelled", null])(
     "says a transcription that ended with %s failed",
     (jobErrorCode) => {
       expect(runFailureCode({ failedAt: "transcription", jobErrorCode })).toBe(
@@ -124,7 +126,7 @@ describe("runFailureCode — transcription and discovery", () => {
   );
 
   it("always writes highlights_failed for discovery, never the legacy analysis_failed", () => {
-    for (const jobErrorCode of [null, "jobs/queue_timeout", "highlights/words_unavailable"]) {
+    for (const jobErrorCode of [null, "highlights/words_unavailable"]) {
       expect(runFailureCode({ failedAt: "highlights", jobErrorCode })).toBe(
         "repurpose/highlights_failed",
       );
@@ -198,4 +200,71 @@ describe("jobErrorCodeOf", () => {
       expect(jobErrorCodeOf(error)).toBeNull();
     },
   );
+});
+
+describe("failureDetailOf — the numbers a run may keep and show (2026-09-27)", () => {
+  it("keeps the known numbers", () => {
+    const all = {
+      durationMs: 2_077_000,
+      maxDurationMs: 1_200_000,
+      maxBytes: 524_288_000,
+      approximateBytes: 943_718_400,
+      windowMs: 1_200_000,
+      creditsLeft: 0.5,
+    };
+    expect(failureDetailOf(all)).toEqual(all);
+  });
+
+  it("drops what is not one of them, or not a number worth showing", () => {
+    expect(
+      failureDetailOf({
+        durationMs: "34:37",
+        maxDurationMs: -1,
+        maxBytes: Number.POSITIVE_INFINITY,
+        approximateBytes: Number.NaN,
+        title: "never echoed",
+        windowMs: 0,
+      }),
+    ).toEqual({ windowMs: 0 });
+  });
+
+  it("is null for nothing usable", () => {
+    for (const facts of [undefined, null, "x", 3, [], {}, { title: "x" }]) {
+      expect(failureDetailOf(facts), JSON.stringify(facts)).toBeNull();
+    }
+  });
+
+  it("names every key a run view may carry", () => {
+    expect([...FAILURE_DETAIL_KEYS].sort()).toEqual([
+      "approximateBytes",
+      "creditsLeft",
+      "durationMs",
+      "maxBytes",
+      "maxDurationMs",
+      "windowMs",
+    ]);
+  });
+});
+
+describe("runFailureCode - work that stopped making progress", () => {
+  const stages = ["acquire", "processing", "transcription", "highlights"] as const;
+
+  it.each(["jobs/stalled", "jobs/queue_timeout", "worker/disk_full"])(
+    "says %s is a stage that stalled, at every stage",
+    (jobErrorCode) => {
+      for (const failedAt of stages) {
+        expect(runFailureCode({ failedAt, jobErrorCode })).toBe("repurpose/stage_timeout");
+      }
+    },
+  );
+
+  it("still names the source when the worker wrote a source reason first", () => {
+    expect(
+      runFailureCode({
+        failedAt: "acquire",
+        mediaReason: "media/too_long",
+        jobErrorCode: "jobs/stalled",
+      }),
+    ).toBe("repurpose/source_too_long");
+  });
 });

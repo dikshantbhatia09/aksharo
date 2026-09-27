@@ -61,7 +61,6 @@ from worker_ai.lid import (
     GpuLanguageIdentifier,
     IndicLidClassifier,
     LanguageIdentifier,
-    WhisperLanguageIdentifier,
 )
 from worker_ai.llm.registry import build_llm_providers
 from worker_ai.logging_setup import get_logger
@@ -277,13 +276,20 @@ def build_cache(settings: Settings) -> ResultCache:
 def build_language_identifier(settings: Settings) -> LanguageIdentifier | None:
     """Signal 1 of the two-signal LID (D14): the best acoustic model available.
 
-    faster-whisper when the ``local-asr`` extra is installed, otherwise the D15
-    model server, otherwise ``None`` — and ``None`` means ``ai.transcribe`` uses
-    the language the routed ASR provider reported, which every adapter returns.
+    The D15 model server when one is configured, otherwise ``None`` — and
+    ``None`` means ``ai.transcribe`` uses the language the routed ASR provider
+    reported, which every adapter returns.
+
+    Not an in-process faster-whisper identifier any more (2026-09-27). It loaded
+    a CPU copy of ``settings.whisper_model`` per process — the Hinglish
+    fine-tune, which calls every language English — on a machine with a
+    gigabyte or two of RAM to spare beside production, and then failed every
+    call on faster-whisper 1.2 (``clip_timestamps`` is not a ``detect_language``
+    argument there). A local-whisper probe already is a Whisper detection over
+    the same audio (``processors.transcribe._acoustic_signal``), so nothing is
+    lost. ``WhisperLanguageIdentifier`` stays for a machine that can afford a
+    second model and moves it to the 1.2 API first.
     """
-    whisper = WhisperLanguageIdentifier(model_name=settings.whisper_model)
-    if whisper.available() is None:
-        return whisper
     gpu = GpuLanguageIdentifier(settings.gpu_provider_url, token=settings.gpu_provider_token)
     if gpu.available() is None:
         return gpu

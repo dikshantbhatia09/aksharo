@@ -17,6 +17,8 @@ const MEDIA = "01JCMED1A00000000000000000";
 const RUN = "01JCRN0000000000000000000A";
 const JOB = "01JCJ0B0000000000000000000";
 const RAW_KEY = `ws/${WS}/p/${PROJECT}/media/${MEDIA}/raw.mp4`;
+/** The placeholder a link run's project is created under (`sourceDisplay`). */
+const DISPLAY = "youtube.com · dQw4w9WgXcQ";
 
 function acquireResult(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
@@ -79,9 +81,16 @@ function context(result: Record<string, unknown>): JobCompletionContext {
 }
 
 /** A terminal failure, as `JobsService` reports it to the handler. */
-function failure(code: string | null): JobCompletionContext {
+function failure(code: string | null, facts?: Record<string, unknown>): JobCompletionContext {
   const error =
-    code === null ? undefined : { code, message: "the worker's words", retryable: false };
+    code === null
+      ? undefined
+      : {
+          code,
+          message: "the worker's words",
+          retryable: false,
+          ...(facts === undefined ? {} : { facts }),
+        };
   return {
     job: job(),
     attemptId: "01JCATTEMPT000000000000000",
@@ -95,10 +104,16 @@ interface Harness {
   handler: RepurposeAcquireCompletionHandler;
   completeAcquisition: ReturnType<typeof vi.fn>;
   mediaUpdateMany: ReturnType<typeof vi.fn>;
+  mediaUpdate: ReturnType<typeof vi.fn>;
+  runUpdate: ReturnType<typeof vi.fn>;
+  projectUpdateMany: ReturnType<typeof vi.fn>;
   failRun: ReturnType<typeof vi.fn>;
+  recordFailureDetail: ReturnType<typeof vi.fn>;
   reconcileRun: ReturnType<typeof vi.fn>;
   stopIfCancelled: ReturnType<typeof vi.fn>;
   registry: JobCompletionRegistry;
+  /** The order the writes happened in. */
+  order: string[];
 }
 
 function harness(
@@ -109,8 +124,11 @@ function harness(
     failureReason?: string | null;
     /** The source project's newest primary media, when a retry replaced this one. */
     newestMediaId?: string;
+    /** What the source project is called now. */
+    projectTitle?: string;
   } = {},
 ): Harness {
+  const order: string[] = [];
   const asset =
     options.asset === undefined
       ? {
@@ -120,34 +138,62 @@ function harness(
           storageKey: RAW_KEY,
           status: "pending",
           failureReason: options.failureReason ?? null,
-          project: { id: PROJECT, workspaceId: WS, status: "draft" },
+          project: {
+            id: PROJECT,
+            workspaceId: WS,
+            status: "draft",
+            title: options.projectTitle ?? DISPLAY,
+          },
         }
       : options.asset;
   const run =
     options.run === undefined
-      ? { id: RUN, status: "draft", sourceProjectId: PROJECT, workspaceId: WS }
+      ? {
+          id: RUN,
+          status: "draft",
+          sourceProjectId: PROJECT,
+          workspaceId: WS,
+          sourceDisplay: DISPLAY,
+        }
       : options.run;
 
   const mediaUpdateMany = vi.fn(async () => ({ count: 1 }));
+  const mediaUpdate = vi.fn(async () => {
+    order.push("media.update");
+    return {};
+  });
+  const runUpdate = vi.fn(async () => {
+    order.push("run.update");
+    return {};
+  });
+  const projectUpdateMany = vi.fn(async () => ({ count: 1 }));
   const prisma = {
     mediaAsset: {
       findUnique: vi.fn(async () => asset),
       findFirst: vi.fn(async () => ({ id: options.newestMediaId ?? MEDIA })),
       updateMany: mediaUpdateMany,
+      update: mediaUpdate,
     },
-    repurposeRun: { findUnique: vi.fn(async () => run) },
+    repurposeRun: { findUnique: vi.fn(async () => run), update: runUpdate },
+    project: { updateMany: projectUpdateMany },
   } as unknown as PrismaService;
 
-  const completeAcquisition = vi.fn(async () => ({
-    media: { id: MEDIA },
-    probeJobId: "01JCPR0BE000000000000000AA",
-  }));
+  const completeAcquisition = vi.fn(async () => {
+    order.push("completeAcquisition");
+    return { media: { id: MEDIA }, probeJobId: "01JCPR0BE000000000000000AA" };
+  });
   const media = { completeAcquisition } as unknown as MediaService;
 
-  const failRun = vi.fn(async () => null);
+  const failRun = vi.fn(async (): Promise<unknown> => null);
+  const recordFailureDetail = vi.fn(async () => undefined);
   const reconcileRun = vi.fn(async () => undefined);
   const stopIfCancelled = vi.fn(async () => false);
-  const runs = { failRun, reconcileRun, stopIfCancelled } as unknown as RepurposeService;
+  const runs = {
+    failRun,
+    recordFailureDetail,
+    reconcileRun,
+    stopIfCancelled,
+  } as unknown as RepurposeService;
 
   const registry = new JobCompletionRegistry();
   const handler = new RepurposeAcquireCompletionHandler(prisma, media, runs, registry);
@@ -155,10 +201,15 @@ function harness(
     handler,
     completeAcquisition,
     mediaUpdateMany,
+    mediaUpdate,
+    runUpdate,
+    projectUpdateMany,
     failRun,
+    recordFailureDetail,
     reconcileRun,
     stopIfCancelled,
     registry,
+    order,
   };
 }
 
@@ -281,6 +332,7 @@ describe("RepurposeAcquireCompletionHandler", () => {
         expect.objectContaining({ id: RUN }),
         "repurpose/source_too_large",
         "getting_video",
+        null,
       );
     });
 
@@ -295,11 +347,11 @@ describe("RepurposeAcquireCompletionHandler", () => {
 
         // The media row gets the reason too, so every later read agrees.
         expect(mediaWrite()).toMatchObject({ status: "failed", failureReason: code });
-        expect(h.failRun).toHaveBeenCalledWith(expect.anything(), runCode, "getting_video");
+        expect(h.failRun).toHaveBeenCalledWith(expect.anything(), runCode, "getting_video", null);
       },
     );
 
-    it.each(["jobs/queue_timeout", "media/unreadable", null])(
+    it.each(["common/internal", "media/unreadable", null])(
       "names a failure it cannot place (%s) 'could not get it', never 'unsupported'",
       async (code) => {
         await h.handler.handleFailure(failure(code));
@@ -313,6 +365,7 @@ describe("RepurposeAcquireCompletionHandler", () => {
           expect.anything(),
           "repurpose/source_unavailable",
           "getting_video",
+          null,
         );
       },
     );
@@ -347,5 +400,279 @@ describe("RepurposeAcquireCompletionHandler", () => {
       expect(h.mediaUpdateMany).not.toHaveBeenCalled();
       expect(h.failRun).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe("RepurposeAcquireCompletionHandler — what the download learned (2026-09-27)", () => {
+  const SECTION = {
+    startMs: 730_000,
+    endMs: 1_930_000,
+    sourceDurationMs: 2_077_000,
+    policy: "most_replayed",
+  };
+
+  it("records the section of a longer video on the run and its offset on the media row", async () => {
+    await h.handler.handle(
+      context(
+        acquireResult({
+          sourceMetadata: {
+            provider: "youtube",
+            sourceId: "youtube:dQw4w9WgXcQ",
+            title: "A talk",
+            channel: "A channel",
+            durationMs: 2_077_000,
+          },
+          section: SECTION,
+        }),
+      ),
+    );
+
+    expect(h.runUpdate).toHaveBeenCalledWith({
+      where: { id: RUN },
+      data: {
+        sourceTitle: "A talk",
+        sourceDurationMs: 2_077_000,
+        windowStartMs: 730_000,
+        windowEndMs: 1_930_000,
+        windowPolicy: "most_replayed",
+      },
+    });
+    expect(h.mediaUpdate).toHaveBeenCalledWith({
+      where: { id: MEDIA },
+      data: { sourceOffsetMs: 730_000 },
+    });
+  });
+
+  it("records it BEFORE the probe is queued, which holds the file to that window", async () => {
+    await h.handler.handle(context(acquireResult({ section: SECTION })));
+    expect(h.order.indexOf("run.update")).toBeGreaterThanOrEqual(0);
+    expect(h.order.indexOf("run.update")).toBeLessThan(h.order.indexOf("completeAcquisition"));
+  });
+
+  it("renames the placeholder project to the real title and the part it covers", async () => {
+    await h.handler.handle(context(acquireResult({ section: SECTION })));
+    expect(h.projectUpdateMany).toHaveBeenCalledWith({
+      where: { id: PROJECT, title: DISPLAY, deletedAt: null },
+      data: { title: "A talk · 12:10–32:10" },
+    });
+  });
+
+  it("names a video fetched whole by its title alone, at offset 0", async () => {
+    await h.handler.handle(context(acquireResult()));
+
+    expect(h.runUpdate).toHaveBeenCalledWith({
+      where: { id: RUN },
+      data: { sourceTitle: "A talk", sourceDurationMs: 600_000 },
+    });
+    expect(h.mediaUpdate).toHaveBeenCalledWith({
+      where: { id: MEDIA },
+      data: { sourceOffsetMs: 0 },
+    });
+    expect(h.projectUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { title: "A talk" } }),
+    );
+  });
+
+  it("leaves a project someone has renamed since", async () => {
+    h = harness({ projectTitle: "My podcast, episode 4" });
+    await h.handler.handle(context(acquireResult()));
+    expect(h.projectUpdateMany).not.toHaveBeenCalled();
+    // The run still learns the title.
+    expect(h.runUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ sourceTitle: "A talk" }) }),
+    );
+  });
+
+  it("cleans a remote title before it shows it anywhere", async () => {
+    await h.handler.handle(
+      context(
+        acquireResult({
+          sourceMetadata: {
+            provider: "youtube",
+            sourceId: "youtube:dQw4w9WgXcQ",
+            title: "  A\u0000 talk\n\tpart   two ",
+            channel: null,
+            durationMs: 600_000,
+          },
+        }),
+      ),
+    );
+    expect(h.runUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ sourceTitle: "A talk part two" }),
+      }),
+    );
+  });
+
+  it("renames nothing when the source reported no title", async () => {
+    await h.handler.handle(
+      context(
+        acquireResult({
+          sourceMetadata: {
+            provider: "youtube",
+            sourceId: null,
+            title: null,
+            channel: null,
+            durationMs: null,
+          },
+        }),
+      ),
+    );
+    expect(h.projectUpdateMany).not.toHaveBeenCalled();
+    expect(h.runUpdate).toHaveBeenCalledWith({ where: { id: RUN }, data: {} });
+  });
+
+  it("reads a section that does not describe one as the whole source", async () => {
+    await h.handler.handle(
+      context(acquireResult({ section: { ...SECTION, endMs: SECTION.startMs } })),
+    );
+    const data = (h.runUpdate.mock.calls[0]?.[0] as { data: Record<string, unknown> }).data;
+    expect(data).not.toHaveProperty("windowStartMs");
+    expect(h.mediaUpdate).toHaveBeenCalledWith({
+      where: { id: MEDIA },
+      data: { sourceOffsetMs: 0 },
+    });
+  });
+
+  it("keeps the facts, and goes on, when another live run already covers that start", async () => {
+    // Two runs of one video that the downloader placed on the same peak: the
+    // live-source index refuses the second start. The file is still good.
+    h.runUpdate.mockRejectedValueOnce(
+      Object.assign(new Error("Unique constraint failed"), { code: "P2002" }),
+    );
+    const outcome = await h.handler.handle(context(acquireResult({ section: SECTION })));
+
+    expect(h.runUpdate).toHaveBeenLastCalledWith({
+      where: { id: RUN },
+      data: { sourceTitle: "A talk", sourceDurationMs: 2_077_000 },
+    });
+    expect(h.completeAcquisition).toHaveBeenCalledTimes(1);
+    expect(outcome.data?.["probeJobId"]).toBe("01JCPR0BE000000000000000AA");
+  });
+
+  it("drops a length the INTEGER columns cannot hold, and still hands the file on", async () => {
+    // 30 days in ms is past what the column holds; written, Prisma throws, the
+    // job stays running and the worker retries the same poison result for good.
+    const THIRTY_DAYS = 30 * 24 * 60 * 60_000;
+    await h.handler.handle(
+      context(
+        acquireResult({
+          sourceMetadata: {
+            provider: "youtube",
+            sourceId: "youtube:dQw4w9WgXcQ",
+            title: "A talk",
+            channel: null,
+            durationMs: THIRTY_DAYS,
+          },
+          section: { ...SECTION, sourceDurationMs: THIRTY_DAYS },
+        }),
+      ),
+    );
+
+    expect(h.runUpdate).toHaveBeenCalledWith({
+      where: { id: RUN },
+      data: { sourceTitle: "A talk" },
+    });
+    expect(h.mediaUpdate).toHaveBeenCalledWith({
+      where: { id: MEDIA },
+      data: { sourceOffsetMs: 0 },
+    });
+    expect(h.completeAcquisition).toHaveBeenCalledTimes(1);
+  });
+
+  it("reads a section with a start or end past a day as no section at all", async () => {
+    const DAY_AND_A_BIT = 24 * 60 * 60_000 + 1;
+    for (const section of [
+      {
+        ...SECTION,
+        startMs: DAY_AND_A_BIT,
+        endMs: DAY_AND_A_BIT + 60_000,
+        sourceDurationMs: 2 * DAY_AND_A_BIT,
+      },
+      { ...SECTION, endMs: DAY_AND_A_BIT, sourceDurationMs: 2 * DAY_AND_A_BIT },
+      { ...SECTION, sourceDurationMs: DAY_AND_A_BIT },
+    ]) {
+      h = harness();
+      await h.handler.handle(context(acquireResult({ section })));
+      const data = (h.runUpdate.mock.calls[0]?.[0] as { data: Record<string, unknown> }).data;
+      expect(data).not.toHaveProperty("windowStartMs");
+      expect(data).not.toHaveProperty("windowEndMs");
+    }
+  });
+
+  it("does not swallow any other write failure, so the completion is retried", async () => {
+    h.runUpdate.mockRejectedValueOnce(new Error("connection reset"));
+    await expect(h.handler.handle(context(acquireResult({ section: SECTION })))).rejects.toThrow(
+      "connection reset",
+    );
+    expect(h.completeAcquisition).not.toHaveBeenCalled();
+  });
+});
+
+describe("RepurposeAcquireCompletionHandler — the numbers behind a refusal (2026-09-27)", () => {
+  it("fails the run with the worker's facts, only the known numbers", async () => {
+    h = harness({ failureReason: "media/too_long" });
+    h.failRun.mockResolvedValueOnce({ id: RUN, status: "failed" });
+    await h.handler.handleFailure(
+      failure("media/too_long", {
+        durationMs: 43_300_000,
+        maxDurationMs: 43_200_000,
+        youtubeTitle: "never echoed",
+        approximateBytes: -1,
+      }),
+    );
+
+    expect(h.failRun).toHaveBeenCalledWith(
+      expect.objectContaining({ id: RUN }),
+      "repurpose/source_too_long",
+      "getting_video",
+      { durationMs: 43_300_000, maxDurationMs: 43_200_000 },
+    );
+    expect(h.recordFailureDetail).not.toHaveBeenCalled();
+  });
+
+  it("puts them on the failure the reconciler wrote first, from the media row", async () => {
+    h = harness({
+      failureReason: "media/too_large",
+      run: { id: RUN, status: "failed", sourceProjectId: PROJECT },
+    });
+    await h.handler.handleFailure(
+      failure("media/too_large", { maxBytes: 524_288_000, approximateBytes: 943_718_400 }),
+    );
+
+    expect(h.failRun).not.toHaveBeenCalled();
+    expect(h.recordFailureDetail).toHaveBeenCalledWith(RUN, "repurpose/source_too_large", {
+      maxBytes: 524_288_000,
+      approximateBytes: 943_718_400,
+    });
+  });
+
+  it("also when the reconciler won the race between the read and the write", async () => {
+    h = harness({ failureReason: "media/too_large" });
+    h.failRun.mockResolvedValueOnce(null);
+    await h.handler.handleFailure(failure("media/too_large", { maxBytes: 524_288_000 }));
+    expect(h.recordFailureDetail).toHaveBeenCalledWith(RUN, "repurpose/source_too_large", {
+      maxBytes: 524_288_000,
+    });
+  });
+
+  it("records nothing more when the failure it just wrote carried the numbers", async () => {
+    h = harness({ failureReason: "media/too_large" });
+    h.failRun.mockResolvedValueOnce({ id: RUN, status: "failed" });
+    await h.handler.handleFailure(failure("media/too_large", { maxBytes: 524_288_000 }));
+    expect(h.recordFailureDetail).not.toHaveBeenCalled();
+  });
+
+  it("writes nothing more for a failed run when there are no numbers", async () => {
+    h = harness({ run: { id: RUN, status: "failed", sourceProjectId: PROJECT } });
+    await h.handler.handleFailure(failure("media/source_blocked"));
+    expect(h.failRun).not.toHaveBeenCalled();
+    expect(h.recordFailureDetail).not.toHaveBeenCalled();
+  });
+
+  it("never attaches numbers to a run the person stopped", async () => {
+    h = harness({ run: { id: RUN, status: "cancelled", sourceProjectId: PROJECT } });
+    await h.handler.handleFailure(failure("media/too_long", { durationMs: 1 }));
+    expect(h.recordFailureDetail).not.toHaveBeenCalled();
   });
 });

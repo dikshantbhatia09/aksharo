@@ -36,6 +36,7 @@ import type {
   ProjectRenderPreview,
   RepurposeCandidateItem,
   RepurposeClipItem,
+  RepurposeNextWindowResponse,
   RepurposeRunPage,
   RepurposeRunView,
   AcademyProgressResponse,
@@ -137,6 +138,7 @@ import type {
 } from "./types.js";
 import type {
   InfiniteData,
+  QueryClient,
   UseInfiniteQueryResult,
   UseMutationResult,
   UseQueryResult,
@@ -2211,8 +2213,66 @@ export type {
   CreateRepurposeCandidateRequest,
   ProjectRenderPreview,
   RepurposeClipState,
+  RepurposeNextWindowResponse,
+  RepurposeNoCreditsDetails,
+  RepurposeRunFailureDetail,
+  RepurposeRunWindow,
   RepurposeSourceAlreadyRunningDetails,
+  RepurposeWindowPolicy,
 } from "./types.js";
+
+// ---------------------------------------------------------------------------
+// Clips on long videos (2026-09-27): a run processes a window of its video,
+// and "process the next window" starts a new run over the next part. Described
+// here, ahead of the regenerated OpenAPI index, like the routes above.
+// ---------------------------------------------------------------------------
+
+const nextRepurposeWindowEndpoint = defineEndpoint<void, RepurposeNextWindowResponse>({
+  method: "POST",
+  path: "/repurpose/runs/{runId}/next-window",
+  auth: "bearer",
+});
+
+/** The call {@link useNextWindow} makes: the new run, unwrapped from `{ run }`. */
+export async function requestNextWindow(
+  client: Pick<ApiClient, "call">,
+  runId: string,
+): Promise<RepurposeRunView> {
+  return (await client.call(nextRepurposeWindowEndpoint, { params: { runId } })).run;
+}
+
+/**
+ * What {@link useNextWindow} does with the answer: the new run's page opens on
+ * it without a round trip, and every run list refetches to show it.
+ */
+export function cacheNextWindow(
+  queryClient: Pick<QueryClient, "setQueryData" | "invalidateQueries">,
+  workspaceId: string,
+  run: RepurposeRunView,
+): void {
+  queryClient.setQueryData(queryKeys.repurposeRun(workspaceId, run.id), run);
+  void queryClient.invalidateQueries({ queryKey: queryKeys.repurposeRuns(workspaceId) });
+}
+
+/**
+ * "Process the next 20 minutes": a NEW run over the same video, starting where
+ * `runId`'s window ended. Resolves with that run; navigate to it. A second
+ * press answers with the same run, not a second one.
+ *
+ * Rejects with the API's refusal: 409 `repurpose/no_next_window` (nothing is
+ * left after this window), 402 `repurpose/no_credits` (`details.creditsLeft`).
+ */
+export function useNextWindow(): UseMutationResult<RepurposeRunView, Error, string> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  const workspaceId = useWorkspaceId();
+  return useMutation({
+    mutationFn: (runId: string) => requestNextWindow(client, runId),
+    onSuccess: (run) => {
+      if (workspaceId !== null) cacheNextWindow(queryClient, workspaceId, run);
+    },
+  });
+}
 
 const retryRepurposeClipEndpoint = defineEndpoint<void, RepurposeClipItem>({
   method: "POST",

@@ -696,6 +696,8 @@ in-memory Prisma and queue stubs the unit suites share.
 | `MONTAJ_QUEUE_PREFIX`       | Redis key prefix for BullMQ and realtime. `test/suite-context.ts` sets a per-suite value; a deployment leaves it at `bull`, which is what the workers expect.                       |
 | `MONTAJ_REDIS_PREFIX`       | Namespace for every other Redis key the API writes (`redisKeyPrefix()`). `test/suite-context.ts` sets a per-suite value; unset it is `montaj`, which is what every deployment uses. |
 | `MONTAJ_SCHEDULER_DISABLED` | `1` stops this process running the scheduler worker. Set in tests, which call `ScheduledTasksService.runNow(name)` instead.                                                         |
+| `MONTAJ_SCHEDULER_TASKS`    | Comma-separated allowlist of scheduled tasks. Unset runs all; set but empty runs none; `MONTAJ_SCHEDULER_DISABLED=1` wins. Production: `ops.watch,jobs.dlq-depth,jobs.lease-reaper`. |
+| `ALERT_WEBHOOK_URL`         | ntfy topic URL for operational alerts (`ops.watch`, worker boot failures, disk holds). The topic is the secret. Empty sends none.                                                   |
 | `MONTAJ_METRICS_TOKEN`      | When set, `GET /internal/metrics` requires `Authorization: Bearer <token>`. Unset, the endpoint is open (A08b).                                                                     |
 | `NOTIFY_WORKER_ENABLED`     | `0` stops this process draining the `notify` queue. `setup-env.ts` sets it; `test/auth-harness.ts` turns it back on, because that suite delivers to the outbox and reads it.        |
 

@@ -1,4 +1,4 @@
-import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -8,6 +8,7 @@ import { BURN_RATES, TENTHS_PER_CREDIT } from "@montaj/config";
 
 import {
   FEATURE_FLAG_SEEDS,
+  MAX_SOURCE_DURATION_MS,
   loadSystemStyles,
   operationsFor,
   parityOf,
@@ -16,6 +17,11 @@ import {
   planMeets,
   seedUlid,
 } from "./seed-data.js";
+import { listSqlFiles } from "../scripts/apply-sql.js";
+import { PLAN_ENQUEUED_CAP_TENTHS } from "../src/jobs/jobs.config.js";
+import { WINDOW_TOLERANCE_MS } from "../src/repurpose/repurpose.constants.js";
+import { quoteTranscription } from "../src/transcripts/transcripts.quote.js";
+import { INTERNAL_UNLIMITED_ENTITLEMENTS } from "../src/workspaces/entitlement.service.js";
 
 import type { StylesModuleLoader } from "./seed-data.js";
 
@@ -305,5 +311,123 @@ describe("loadSystemStyles", () => {
 
     // Nothing usable is not the same as "a catalogue of one registry".
     expect(loadSystemStyles(root, noPackage).source).toBe("fallback");
+  });
+});
+
+describe("clips allowances (2026-09-27)", () => {
+  const value = (key: string, field: string): unknown =>
+    // eslint-disable-next-line security/detect-object-injection -- `field` is a literal of this test
+    (PLAN_SEEDS.find((plan) => plan.key === key)?.entitlements as Record<string, unknown>)[field];
+  const MIGRATION = join(__dirname, "migrations", "20260927090000_clips_windows", "migration.sql");
+
+  it("limits the minutes a run processes, per plan, as the owner decided", () => {
+    expect(PLAN_LADDER.map((key) => value(key, "clipsWindowMs"))).toEqual([
+      20 * 60_000,
+      60 * 60_000,
+      180 * 60_000,
+      360 * 60_000,
+      360 * 60_000,
+    ]);
+  });
+
+  it("gives every plan the same 12-hour source ceiling", () => {
+    for (const key of PLAN_LADDER) {
+      expect(value(key, "maxSourceDurationMs"), key).toBe(MAX_SOURCE_DURATION_MS);
+    }
+    expect(MAX_SOURCE_DURATION_MS).toBe(12 * 60 * 60_000);
+  });
+
+  it("fits a full window's transcription, file slack included, under the plan's enqueued cap", () => {
+    // A window bigger than the cap would download, then have its transcription
+    // refused "for now" by admission on every retry, and spin for good.
+    for (const key of PLAN_LADDER) {
+      const window = value(key, "clipsWindowMs") as number;
+      expect(quoteTranscription(window + WINDOW_TOLERANCE_MS).tenths, key).toBeLessThanOrEqual(
+        // eslint-disable-next-line security/detect-object-injection -- a key of PLAN_LADDER
+        PLAN_ENQUEUED_CAP_TENTHS[key],
+      );
+    }
+    // And the owner's unlimited 12 hours, on the Studio subscription it runs under.
+    expect(
+      quoteTranscription(INTERNAL_UNLIMITED_ENTITLEMENTS.clipsWindowMs + WINDOW_TOLERANCE_MS)
+        .tenths,
+    ).toBeLessThanOrEqual(PLAN_ENQUEUED_CAP_TENTHS.studio);
+  });
+
+  it("never gives a window less than the upload cap it replaces for clips", () => {
+    for (const key of PLAN_LADDER) {
+      expect(value(key, "clipsWindowMs") as number, key).toBeGreaterThanOrEqual(
+        value(key, "maxDurationMs") as number,
+      );
+    }
+  });
+
+  it("matches what the clips_windows migration writes into an existing database", () => {
+    const sql = readFileSync(MIGRATION, "utf8");
+    for (const key of PLAN_LADDER) {
+      // eslint-disable-next-line security/detect-non-literal-regexp -- `key` is a plan key from PLAN_LADDER
+      const match = new RegExp(
+        `"clipsWindowMs": (\\d+), "maxSourceDurationMs": (\\d+)\\}'::jsonb WHERE "key" = '${key}'`,
+      ).exec(sql);
+      expect(match, key).not.toBeNull();
+      expect(Number(match?.[1]), key).toBe(value(key, "clipsWindowMs"));
+      expect(Number(match?.[2]), key).toBe(value(key, "maxSourceDurationMs"));
+    }
+  });
+
+  it("keeps the Prisma migration additive: no index Prisma cannot see", () => {
+    // A partial expression index in a Prisma migration lands in the shadow
+    // database without `schema.prisma` knowing it, and `migrate dev` then
+    // scaffolds a DROP of it (prisma/sql/README.md "Where an index belongs").
+    const sql = readFileSync(MIGRATION, "utf8")
+      .split("\n")
+      .filter((line) => !line.trimStart().startsWith("--"))
+      .join("\n");
+    expect(sql).not.toMatch(/\bINDEX\b/i);
+    expect(sql).not.toMatch(/\bDROP\b/i);
+  });
+
+  describe("the live-source index, in prisma/sql", () => {
+    const SQL_DIR = join(__dirname, "sql");
+    const WINDOW_INDEX = "0007z-clips-window-index.sql";
+    const LEGACY = "0008-rep-repurpose-publish.sql";
+
+    it("runs BEFORE 0008, so 0008 always finds an index of that name and skips", () => {
+      // With the index missing and two live windows of one video in the table,
+      // 0008's old, stricter `CREATE UNIQUE INDEX IF NOT EXISTS` fails on the
+      // duplicate keys and `db:migrate` stops there (measured on Postgres 16).
+      const files = listSqlFiles(SQL_DIR);
+      expect(files).toContain(WINDOW_INDEX);
+      expect(files.indexOf(WINDOW_INDEX)).toBeLessThan(files.indexOf(LEGACY));
+      expect(files.indexOf(WINDOW_INDEX)).toBe(files.indexOf("0007-b02b-credit-revoke.sql") + 1);
+    });
+
+    it("defines it under 0008's name, with the window start in the key and 0008's predicate", () => {
+      const sql = readFileSync(join(SQL_DIR, WINDOW_INDEX), "utf8");
+      expect(sql).toMatch(
+        /CREATE UNIQUE INDEX repurpose_runs_live_source_idx\s+ON repurpose_runs \(workspace_id, source_fingerprint, \(COALESCE\(window_start_ms, -1\)\)\)\s+WHERE source_fingerprint IS NOT NULL\s+AND status NOT IN \('published', 'failed', 'cancelled'\);/,
+      );
+      const legacy = readFileSync(join(SQL_DIR, LEGACY), "utf8");
+      expect(legacy).toContain("CREATE UNIQUE INDEX IF NOT EXISTS repurpose_runs_live_source_idx");
+      expect(legacy).toMatch(
+        /WHERE source_fingerprint IS NOT NULL\s+AND status NOT IN \('published', 'failed', 'cancelled'\);/,
+      );
+    });
+
+    it("replaces it only when the definition lacks the window start, in this schema", () => {
+      // The statements, not the header (whose rollback note has a DROP of its own).
+      const sql = readFileSync(join(SQL_DIR, WINDOW_INDEX), "utf8")
+        .split("\n")
+        .filter((line) => !line.trimStart().startsWith("--"))
+        .join("\n");
+      // Idempotent (every `db:migrate` re-runs it): the check reads the live
+      // definition, as pg_indexes prints it, before touching anything.
+      expect(sql).toMatch(/FROM pg_indexes\s+WHERE schemaname = current_schema\(\)/);
+      expect(sql).toContain("indexname = 'repurpose_runs_live_source_idx'");
+      expect(sql).toContain("position('COALESCE(window_start_ms' IN current_definition) = 0");
+      expect(sql.indexOf("IF current_definition IS NULL")).toBeLessThan(
+        sql.indexOf("DROP INDEX IF EXISTS repurpose_runs_live_source_idx"),
+      );
+    });
   });
 });

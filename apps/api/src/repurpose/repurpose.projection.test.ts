@@ -1,17 +1,24 @@
 import { describe, expect, it } from "vitest";
 
+import { PROJECT_TITLE_MAX } from "./repurpose.constants.js";
 import {
   FORBIDDEN_USER_FACING_WORDS,
   NO_CANDIDATES_MESSAGE,
   STAGES,
   beginnerSafetyViolations,
+  cleanSourceTitle,
+  formatClock,
   isCancellable,
   isRetryable,
   messageForStatus,
+  nextWindowAvailable,
   progressForStatus,
   projectRun,
+  sourceProjectTitle,
   stageForStatus,
+  windowView,
 } from "./repurpose.projection.js";
+import { projectTitleSchema } from "../projects/projects.dto.js";
 
 import type { $Enums } from "@prisma/client";
 
@@ -196,5 +203,96 @@ describe("what a person reads", () => {
     );
     // Unknown (a realtime payload that did not count): the usual sentence.
     expect(run({ status: "candidates_ready" }).message).toBe(messageForStatus("candidates_ready"));
+  });
+});
+
+describe("windows of a long source (2026-09-27)", () => {
+  const LANDED = {
+    windowStartMs: 730_000,
+    windowEndMs: 1_930_000,
+    windowPolicy: "most_replayed",
+    sourceDurationMs: 2_077_000,
+  };
+
+  it("describes the section that landed, in the source's clock", () => {
+    expect(windowView(LANDED)).toEqual({
+      startMs: 730_000,
+      endMs: 1_930_000,
+      sourceDurationMs: 2_077_000,
+      policy: "most_replayed",
+    });
+  });
+
+  it("is null until the section lands, and for a source processed whole", () => {
+    expect(windowView({ ...LANDED, windowEndMs: null })).toBeNull();
+    expect(windowView({ windowStartMs: 600_000, windowPolicy: "range" })).toBeNull();
+    expect(windowView({})).toBeNull();
+  });
+
+  it("reads numbers that describe no section as none", () => {
+    expect(windowView({ ...LANDED, windowEndMs: 730_000 })).toBeNull();
+    expect(windowView({ ...LANDED, windowStartMs: -1 })).toBeNull();
+    expect(windowView({ ...LANDED, sourceDurationMs: 60_000 })).toBeNull();
+  });
+
+  it("names an unknown policy by what it must have been: the start", () => {
+    expect(windowView({ ...LANDED, windowPolicy: "sideways" })?.policy).toBe("first");
+  });
+
+  it("offers the next window of a link with enough left after this one", () => {
+    const link = { sourceKind: "youtube_url", sourceFingerprint: "youtube:dQw4w9WgXcQ" } as const;
+    expect(nextWindowAvailable({ ...link, ...LANDED })).toBe(true);
+    expect(nextWindowAvailable({ ...link, ...LANDED, windowEndMs: 2_077_000 - 29_000 })).toBe(
+      false,
+    );
+    expect(nextWindowAvailable({ ...link, ...LANDED, windowEndMs: 2_077_000 - 30_000 })).toBe(true);
+    expect(nextWindowAvailable({ ...link })).toBe(false);
+    expect(nextWindowAvailable({ sourceKind: "upload", sourceFingerprint: null, ...LANDED })).toBe(
+      false,
+    );
+  });
+
+  it("writes times the way the page does", () => {
+    expect(formatClock(0)).toBe("0:00");
+    expect(formatClock(730_000)).toBe("12:10");
+    expect(formatClock(2_077_999)).toBe("34:37");
+    expect(formatClock(3 * 3_600_000 + 5_000)).toBe("3:00:05");
+  });
+});
+
+describe("the source project's real name (2026-09-27)", () => {
+  it("is the title, and for a window which part of the video it is", () => {
+    expect(sourceProjectTitle("A talk", null)).toBe("A talk");
+    expect(sourceProjectTitle("A talk", { startMs: 730_000, endMs: 1_930_000 })).toBe(
+      "A talk · 12:10–32:10",
+    );
+  });
+
+  it("is never longer than a title the projects page accepts, and keeps the range whole", () => {
+    const named = sourceProjectTitle("x".repeat(400), { startMs: 3_600_000, endMs: 7_200_000 });
+    expect(named.length).toBeLessThanOrEqual(PROJECT_TITLE_MAX);
+    expect(named.endsWith("… · 1:00:00–2:00:00")).toBe(true);
+    expect(projectTitleSchema.safeParse(named).success).toBe(true);
+  });
+
+  it("never cuts an emoji in half", () => {
+    const named = sourceProjectTitle("\u{1F399}".repeat(150), null);
+    expect(named.length).toBeLessThanOrEqual(PROJECT_TITLE_MAX);
+    const last = named.charCodeAt(named.length - 2);
+    // The character before the ellipsis is a whole pair, never a lone high half.
+    expect(last >= 0xd800 && last <= 0xdbff).toBe(false);
+    expect(named.endsWith("…")).toBe(true);
+  });
+
+  it("matches the projects page's own title limit", () => {
+    expect(projectTitleSchema.safeParse("x".repeat(PROJECT_TITLE_MAX)).success).toBe(true);
+    expect(projectTitleSchema.safeParse("x".repeat(PROJECT_TITLE_MAX + 1)).success).toBe(false);
+  });
+
+  it("cleans a remote title: no control characters, no runs of space, nothing empty", () => {
+    expect(cleanSourceTitle("  A\u0000 talk\n\tpart   two ")).toBe("A talk part two");
+    expect(cleanSourceTitle(" \u0007 ")).toBeNull();
+    expect(cleanSourceTitle(null)).toBeNull();
+    expect(cleanSourceTitle(undefined)).toBeNull();
   });
 });

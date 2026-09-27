@@ -40,7 +40,7 @@ from __future__ import annotations
 
 import re
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
@@ -62,6 +62,7 @@ __all__ = [
     "WhisperLanguageIdentifier",
     "decide_language",
     "lid_windows",
+    "pinned_language",
     "romanised_hindi_share",
     "script_profile",
 ]
@@ -102,6 +103,15 @@ _ROMANISED_HINDI: frozenset[str] = frozenset(
 
 #: Words spelled the same in both languages; counting them either way is noise.
 _AMBIGUOUS: frozenset[str] = frozenset({"the", "main", "par", "he", "so", "to", "me", "is"})
+
+#: Detections read as Hindi unless the user pinned them. Spoken Hindi and
+#: spoken Urdu are one language to the ear, and Whisper's detector often calls
+#: conversational Hindi ``ur`` — then writes it in Arabic script, which the text
+#: signal cannot read, so the detection alone would send the job to Sarvam's
+#: Urdu lane and give a Hindi speaker an Urdu-script transcript. This product's
+#: audience records Hindi and Hinglish; someone recording Urdu picks "Urdu",
+#: and a pin is never second-guessed.
+_HEARD_AS_HINDI: frozenset[str] = frozenset({"ur"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -519,6 +529,22 @@ def lid_windows(
     return tuple(windows)
 
 
+def pinned_language(hint: str | None) -> str | None:
+    """The language a caller's hint pins, or ``None`` when it pins nothing.
+
+    ``"auto"`` — the clips form's "Detect automatically", and the owner's
+    default for clips — pins nothing, and neither do ``und``, ``unknown`` or an
+    empty string: each means "let the audio decide". Treating ``"auto"`` as a
+    pin would skip both signals and write ``"auto"`` onto the transcript as if
+    it were a language. Any Hinglish spelling pins the code-mix lane (``hi-en``).
+    """
+    if not hint or not hint.strip():
+        return None
+    if is_code_mix_tag(hint):
+        return "hi-en"
+    return normalise_language(hint) or None
+
+
 def decide_language(
     *,
     acoustic: LanguageSignal,
@@ -530,20 +556,24 @@ def decide_language(
     The order of the branches *is* the rule, so it reads top to bottom:
 
     1. an explicit user hint wins outright — including a Hinglish hint, which is
-       the documented way to force the code-mix lane;
+       the documented way to force the code-mix lane. ``"auto"`` is not a hint
+       (:func:`pinned_language`): it falls through to the signals;
     2. both signals agreeing on Hindi or Hinglish with ``codeMixScore ≥ 0.3`` is
        the code-mix lane;
     3. both signals agreeing on anything else is that language;
     4. a disagreement takes the acoustic signal and raises ``lowConfidence``;
     5. one signal alone is used, also flagged;
     6. nothing at all falls through to the caller's default.
+
+    Below the hint, an ``ur`` from either signal counts as ``hi``
+    (:data:`_HEARD_AS_HINDI`); the signal keeps what it heard in ``detail``.
     """
     signals = tuple(signal for signal in (acoustic, textual) if signal is not None)
     score = textual.code_mix_score if textual.code_mix_score is not None else 0.0
 
-    if hint:
-        normalised = normalise_language(hint)
-        if is_code_mix_tag(hint):
+    pinned = pinned_language(hint)
+    if pinned is not None:
+        if is_code_mix_tag(pinned):
             return LidDecision(
                 language="hi-en",
                 code_mix=True,
@@ -553,17 +583,18 @@ def decide_language(
                 signals=signals,
                 from_hint=True,
             )
-        if normalised:
-            return LidDecision(
-                language=normalised,
-                code_mix=False,
-                code_mix_score=score,
-                low_confidence=False,
-                reason="the user pinned the language",
-                signals=signals,
-                from_hint=True,
-            )
+        return LidDecision(
+            language=pinned,
+            code_mix=False,
+            code_mix_score=score,
+            low_confidence=False,
+            reason="the user pinned the language",
+            signals=signals,
+            from_hint=True,
+        )
 
+    acoustic, textual = _as_hindi(acoustic), _as_hindi(textual)
+    signals = (acoustic, textual)
     acoustic_code_mix = is_code_mix_tag(acoustic.language)
     textual_code_mix = is_code_mix_tag(textual.language)
     both_hindi_ish = _hindi_ish(acoustic.language) and _hindi_ish(textual.language)
@@ -646,6 +677,13 @@ def decide_language(
         reason="neither signal had an opinion",
         signals=signals,
     )
+
+
+def _as_hindi(signal: LanguageSignal) -> LanguageSignal:
+    """``signal`` with an ``ur`` read as ``hi``, remembering what it said."""
+    if base_tag(signal.language) not in _HEARD_AS_HINDI:
+        return signal
+    return replace(signal, language="hi", detail={**signal.detail, "heard": signal.language})
 
 
 def _hindi_ish(tag: str) -> bool:

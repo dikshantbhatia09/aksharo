@@ -13,6 +13,12 @@
  * on the same run rather than starting a second transcription — but once the
  * person edits the link after a refusal, the same key with a different body is
  * a conflict the API refuses, so an edited body gets a fresh key.
+ *
+ * The spoken language starts on "Detect automatically" (`auto`), never on the
+ * language this browser last picked on Home: that pick is about other videos,
+ * and as a hint it overrides detection — which is how an English video went
+ * down the paid Hinglish lane (2026-09-27). A language picked HERE is still
+ * remembered for Home, the way every other entry point remembers it.
  */
 import { useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
@@ -24,12 +30,29 @@ import {
 } from "@montaj/api-client";
 import { PageHeader } from "@montaj/ui";
 
-import { rememberedLanguage, rememberLanguage } from "@/components/projects/language-picker";
+import { rememberLanguage } from "@/components/projects/language-picker";
+import { SOURCE_CEILING_MS } from "@/components/repurpose/failure-detail";
 import { describeRefusal } from "@/components/repurpose/refusal";
-import { rememberRunSetup, setupOf, startFormFromParams } from "@/components/repurpose/run-setup";
+import {
+  rememberRunSetup,
+  setupOf,
+  startContextFromParams,
+  startFormFromParams,
+} from "@/components/repurpose/run-setup";
 import { normaliseSourceLink } from "@/components/repurpose/source-link";
-import { SourceStartForm, type StartFormValue } from "@/components/repurpose/SourceStartForm";
+import {
+  DETECT_LANGUAGE,
+  SourceStartForm,
+  startAtMs,
+  type StartFormValue,
+} from "@/components/repurpose/SourceStartForm";
 import { useUploadQueue } from "@/lib/upload/use-upload-queue";
+
+/** A positive entitlement number, or `undefined` while unknown or unset. */
+function positiveEntitlement(value: unknown): number | undefined {
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? number : undefined;
+}
 
 /** A key that survives a re-render but changes when the form is genuinely new. */
 function newIdempotencyKey(): string {
@@ -64,8 +87,19 @@ export function RepurposeNewView(): React.JSX.Element {
   // The plan's upload cap, so an over-cap file is refused before a run exists.
   // Unknown until the entitlement loads, and never blocking on that.
   const entitlement = useEntitlement();
-  const rawCap = Number(entitlement.data?.entitlements["maxFileBytes"]);
-  const maxFileBytes = Number.isFinite(rawCap) && rawCap > 0 ? rawCap : undefined;
+  const maxFileBytes = positiveEntitlement(entitlement.data?.entitlements["maxFileBytes"]);
+  // How much of a video a run processes, for the line under "Start at".
+  const clipsWindowMs = positiveEntitlement(entitlement.data?.entitlements["clipsWindowMs"]);
+  // A window that reaches the source ceiling (the owner's internal unlimited
+  // workspace) processes every video it takes whole, and the downloader then
+  // ignores a start: the field is not offered, rather than a line saying
+  // "videos over 12 hours are processed 12 hours at a time".
+  const ceilingMs =
+    positiveEntitlement(entitlement.data?.entitlements["maxSourceDurationMs"]) ?? SOURCE_CEILING_MS;
+  const processesWholeVideos =
+    entitlement.data?.entitlements["internalUnlimited"] === true ||
+    (clipsWindowMs !== undefined && clipsWindowMs >= ceilingMs);
+  const planWindowMs = processesWholeVideos ? undefined : clipsWindowMs;
   // The SAME queue the home drop zone uses. It hashes, initialises, PUTs every
   // part, completes, and lets the existing probe/proxy/transcribe chain take
   // over — so a repurposing upload is an ordinary upload that happens to have a
@@ -73,16 +107,27 @@ export function RepurposeNewView(): React.JSX.Element {
   const uploads = useUploadQueue();
   const lastRequest = React.useRef<{ readonly key: string; readonly body: string } | null>(null);
   const [value, setValue] = React.useState<StartFormValue>(() =>
-    // The last language they used, the way every other entry point remembers it.
-    startFormFromParams(searchParams, rememberedLanguage()),
+    // A failed run's own setup when it sent one; otherwise detect.
+    startFormFromParams(searchParams, DETECT_LANGUAGE),
   );
+  // Read once, like the form: the URL does not change under this page.
+  const [startContext] = React.useState(() => startContextFromParams(searchParams));
   const [serverError, setServerError] = React.useState<string | null>(null);
   const [existingRunId, setExistingRunId] = React.useState<string | null>(null);
+  const [seeCredits, setSeeCredits] = React.useState(false);
 
   const submit = (): void => {
     setServerError(null);
     setExistingRunId(null);
-    if (value.sourceLanguage !== undefined) rememberLanguage(value.sourceLanguage);
+    setSeeCredits(false);
+    // "Detect" is not a language, and Home's picker has no such entry.
+    const pickedLanguage =
+      value.sourceLanguage === DETECT_LANGUAGE ? undefined : value.sourceLanguage;
+    if (pickedLanguage !== undefined) rememberLanguage(pickedLanguage);
+    // No start where none is offered: a `start=` carried in the URL would
+    // otherwise be sent, unseen, by a plan that processes videos whole.
+    const sent: StartFormValue = processesWholeVideos ? { ...value, startAt: "" } : value;
+    const startMs = startAtMs(sent);
 
     const source =
       value.tab === "link"
@@ -97,21 +142,23 @@ export function RepurposeNewView(): React.JSX.Element {
             issueUploadTicket: false,
           } as const);
 
-    const body: CreateRepurposeRunRequest = {
-      source,
-      setup: {
-        sourceLanguage: value.sourceLanguage ?? "en",
-        caption: {
-          outputLanguage: value.outputLanguage,
-          scriptMode: value.scriptMode as "auto" | "roman" | "native" | "bilingual",
-          styleId: value.styleId,
-        },
-        discovery: {
-          mode: value.method,
-          requestedCandidates: value.method === "manual" ? 0 : value.requestedCandidates,
-        },
+    const setup: CreateRepurposeRunRequest["setup"] = {
+      // The form never submits without a choice; `auto` is the safe reading
+      // of a missing one, where "en" was a guess that cost money.
+      sourceLanguage: value.sourceLanguage ?? DETECT_LANGUAGE,
+      caption: {
+        outputLanguage: value.outputLanguage,
+        scriptMode: value.scriptMode as "auto" | "roman" | "native" | "bilingual",
+        styleId: value.styleId,
       },
+      discovery: {
+        mode: value.method,
+        requestedCandidates: value.method === "manual" ? 0 : value.requestedCandidates,
+      },
+      // Only with a start: no window leaves the choice to the server.
+      ...(startMs === undefined ? {} : { window: { startMs, policy: "range" as const } }),
     };
+    const body: CreateRepurposeRunRequest = { source, setup };
     lastRequest.current = idempotencyKeyFor(lastRequest.current, JSON.stringify(body));
 
     create.mutate(
@@ -122,7 +169,7 @@ export function RepurposeNewView(): React.JSX.Element {
           // ("Choose another video" keeps the look; "Check the link" the link).
           rememberRunSetup(
             created.run.id,
-            setupOf({ ...value, url: source.kind === "url" ? source.url : "" }),
+            setupOf({ ...sent, url: source.kind === "url" ? source.url : "" }),
           );
           // Start the bytes moving BEFORE navigating. The queue lives in a
           // provider above this route, so it keeps running across the
@@ -130,7 +177,11 @@ export function RepurposeNewView(): React.JSX.Element {
           if (value.tab === "upload" && value.file !== null) {
             uploads.addFilesToProjects([{ file: value.file, projectId: created.projectId }], {
               aspect: "9:16",
-              ...(value.sourceLanguage === undefined ? {} : { language: value.sourceLanguage }),
+              // A picked language lets the queue ask for the transcript the
+              // moment the file lands. "Detect" is left to the server, which
+              // starts it once the video is prepared: the queue's eager
+              // request would send `auto` where a language tag is expected.
+              ...(pickedLanguage === undefined ? {} : { language: pickedLanguage }),
               ...(value.styleId === "" ? {} : { styleId: value.styleId }),
             });
           }
@@ -145,6 +196,7 @@ export function RepurposeNewView(): React.JSX.Element {
           const refusal = describeRefusal(error, "start");
           setServerError(refusal.text);
           setExistingRunId(refusal.existingRunId ?? null);
+          setSeeCredits(refusal.seeCredits === true);
         },
       },
     );
@@ -168,7 +220,16 @@ export function RepurposeNewView(): React.JSX.Element {
           submitting={create.isPending}
           serverError={serverError}
           existingRunId={existingRunId}
+          seeCredits={seeCredits}
+          focusStartAt={startContext.focusStartAt}
           {...(maxFileBytes === undefined ? {} : { maxFileBytes })}
+          {...(planWindowMs === undefined ? {} : { planWindowMs })}
+          processesWholeVideos={processesWholeVideos}
+          // The length holds only while the link is still the one it came
+          // with (`validateStartForm`).
+          {...(startContext.knownLength === undefined
+            ? {}
+            : { knownLength: startContext.knownLength })}
         />
       </div>
     </div>

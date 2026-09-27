@@ -1,3 +1,6 @@
+import { NEXT_WINDOW_MIN_MS, PROJECT_TITLE_MAX, WINDOW_POLICIES } from "./repurpose.constants.js";
+
+import type { WindowPolicy } from "./repurpose.constants.js";
 import type { $Enums } from "@prisma/client";
 
 /**
@@ -258,6 +261,119 @@ export function projectRun(input: {
     canCancel: isCancellable(input.status),
     canRetry: isRetryable(input.status),
   };
+}
+
+/**
+ * The part of a long source a run processed (2026-09-27), in the SOURCE's
+ * clock: "processed 12:10-32:10 of 34:37". Everything else about the run - the
+ * transcript, the moments, the clips - is on the landed file's own clock.
+ */
+export interface RunWindowView {
+  readonly startMs: number;
+  readonly endMs: number;
+  readonly sourceDurationMs: number;
+  readonly policy: WindowPolicy;
+}
+
+/** Enough of a run row to say which part of its source it covers. */
+interface WindowColumns {
+  readonly windowStartMs?: number | null;
+  readonly windowEndMs?: number | null;
+  readonly windowPolicy?: string | null;
+  readonly sourceDurationMs?: number | null;
+}
+
+function isWindowPolicy(value: unknown): value is WindowPolicy {
+  return typeof value === "string" && (WINDOW_POLICIES as readonly string[]).includes(value);
+}
+
+/**
+ * The section that landed, or null: none has yet, or the whole source did (a
+ * video shorter than the plan's window is fetched whole and has no section).
+ * A row whose numbers do not describe a section - an end at or before the
+ * start, past the source's end - reads as null rather than as nonsense.
+ */
+export function windowView(run: WindowColumns): RunWindowView | null {
+  const start = run.windowStartMs ?? null;
+  const end = run.windowEndMs ?? null;
+  const total = run.sourceDurationMs ?? null;
+  if (start === null || end === null || total === null) return null;
+  if (start < 0 || end <= start || end > total + 60_000) return null;
+  return {
+    startMs: start,
+    endMs: end,
+    sourceDurationMs: total,
+    policy: isWindowPolicy(run.windowPolicy) ? run.windowPolicy : "first",
+  };
+}
+
+/**
+ * Whether "process the next window" has anything to process: a link run whose
+ * section landed with at least {@link NEXT_WINDOW_MIN_MS} of the source after
+ * it. Only a YouTube link can be fetched again from its fingerprint alone (the
+ * run never keeps the URL, §17.4).
+ */
+export function nextWindowAvailable(
+  run: WindowColumns & {
+    readonly sourceKind: $Enums.RepurposeSourceKind;
+    readonly sourceFingerprint: string | null;
+  },
+): boolean {
+  if (run.sourceKind !== "youtube_url" || run.sourceFingerprint === null) return false;
+  const window = windowView(run);
+  return window !== null && window.sourceDurationMs - window.endMs >= NEXT_WINDOW_MIN_MS;
+}
+
+/** `m:ss`, or `h:mm:ss` from an hour: how the page and a project title write a time. */
+export function formatClock(ms: number): string {
+  const total = Math.max(0, Math.floor(ms / 1000));
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const seconds = total % 60;
+  const ss = String(seconds).padStart(2, "0");
+  return hours > 0
+    ? `${String(hours)}:${String(minutes).padStart(2, "0")}:${ss}`
+    : `${String(minutes)}:${ss}`;
+}
+
+/**
+ * A remote title made safe to show: control characters out, whitespace
+ * collapsed. Null when nothing is left. It is display text only; it never names
+ * a file or a key (`ACQUIRED_FILENAME`).
+ */
+export function cleanSourceTitle(title: string | null | undefined): string | null {
+  if (typeof title !== "string") return null;
+  const cleaned = title
+    // eslint-disable-next-line no-control-regex -- stripping control characters is the point
+    .replace(/[\u0000-\u001f\u007f-\u009f]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return cleaned === "" ? null : cleaned;
+}
+
+/**
+ * The source project's name once the download reports the video's real title:
+ * the title, and for a window of a longer video which part (`… · 12:10–32:10`),
+ * so two windows of one podcast are not two identical rows on the projects
+ * page. Never longer than a title the projects page accepts
+ * ({@link PROJECT_TITLE_MAX}); a long title is shortened, the range never is.
+ */
+export function sourceProjectTitle(
+  title: string,
+  section: { readonly startMs: number; readonly endMs: number } | null,
+): string {
+  const suffix =
+    section === null ? "" : ` · ${formatClock(section.startMs)}–${formatClock(section.endMs)}`;
+  const room = PROJECT_TITLE_MAX - suffix.length;
+  if (title.length <= room) return `${title}${suffix}`;
+  // Whole code points only, so an emoji is never cut in half, and one unit left
+  // for the ellipsis. The limit counts UTF-16 units, as the title schema does.
+  let base = "";
+  for (const char of title) {
+    if (base.length + char.length > room - 1) break;
+    base += char;
+  }
+  return `${base.trimEnd()}…${suffix}`;
 }
 
 /**

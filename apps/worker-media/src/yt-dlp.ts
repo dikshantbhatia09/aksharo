@@ -1,11 +1,13 @@
-import { spawn } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readFile, readdir, stat } from "node:fs/promises";
-import { basename, dirname, join } from "node:path";
+import { basename, dirname, join, posix, win32 } from "node:path";
 
 import {
   type MediaFailureReason,
   type MediaJobError,
+  describeError,
+  knownFacts,
   redact,
   sourceRefused,
   stderrTail,
@@ -14,7 +16,7 @@ import {
 import { run } from "./ffmpeg/run.js";
 import { logger } from "./logger.js";
 
-import type { ChildProcessByStdio } from "node:child_process";
+import type { ChildProcess, ChildProcessByStdio } from "node:child_process";
 import type { Readable } from "node:stream";
 
 /**
@@ -54,6 +56,21 @@ import type { Readable } from "node:stream";
  * - **Both output streams are read.** yt-dlp prints progress AND its
  *   `--max-filesize` abort to stdout, and on that abort it exits 0 without
  *   writing the file; only ERROR and WARNING lines go to stderr.
+ * - **Nothing is fetched or loaded that was not installed on purpose.** Every
+ *   list clears the JavaScript runtimes and names one (`--no-js-runtimes
+ *   --js-runtimes node:<path>`), forbids remote components (the challenge
+ *   solver is the pinned `yt-dlp-ejs` package, never scripts from GitHub) and
+ *   clears the plugin directories. The boot check reads yt-dlp's own `-v`
+ *   header to prove all three took.
+ * - **A long source is cut down, not refused.** With a window on the job, only
+ *   that part of the video is fetched (`--download-sections`); see
+ *   {@link planSection}.
+ * - **A stop stops everything the downloader started.** A section is fetched
+ *   by an ffmpeg that yt-dlp starts with the worker's own pipes, and on
+ *   Windows the launcher stub lets it outlive both the launcher and python.
+ *   So a kill takes the whole process tree ({@link killTree}), and the run
+ *   ends when the downloader exits, not when the last holder of its pipes
+ *   lets go.
  *
  * Nothing in this file runs while `source_youtube_acquire` is disabled, which is
  * how it is seeded. The binary is NOT vendored into the repository; the media
@@ -80,12 +97,27 @@ export const EXPECTED_VERSION = "2026.08.19";
 export const EXPECTED_SHA256: string | null = null;
 
 /**
+ * The YouTube challenge solver `yt-dlp[pin]==2026.8.19` installs, and the only
+ * one this build runs.
+ *
+ * yt-dlp checks the solver's script hashes against the version it bundles and
+ * silently falls back to a single client on a mismatch — a downloader that
+ * still "works" until the day it does not. So the boot check pins it by name,
+ * next to {@link EXPECTED_VERSION}, and the two move together.
+ */
+export const EXPECTED_EJS_VERSION = "0.8.0";
+
+/**
  * Arguments that must never appear, whatever produced them.
  *
  * Checked against the built list rather than the inputs, so a future edit to
  * `buildArgs` cannot reintroduce one by accident. `--exec` and `--downloader` run
  * other programs; `--update` replaces this binary; the config-file flags let a
- * file on disk add arguments this module never wrote.
+ * file on disk add arguments this module never wrote. `--remote-components`
+ * fetches solver scripts from GitHub at run time — unreviewed code executed on
+ * this machine against a URL a user chose (ADR 0002 §7) — and `--plugin-dirs`
+ * loads Python from a directory. `--js-runtimes` is allowed exactly once, in
+ * the form {@link runtimeArgs} writes it (see {@link assertNoForbiddenArgs}).
  */
 export const NEVER_ALLOWED_ARGS = [
   "--exec",
@@ -101,12 +133,76 @@ export const NEVER_ALLOWED_ARGS = [
   "-a",
   "--cookies",
   "--cookies-from-browser",
+  "--remote-components",
+  "--plugin-dirs",
 ] as const;
+
+/**
+ * Arguments every list must carry, so what yt-dlp runs is what is on the list:
+ * no config file, no JavaScript runtime but the named one, nothing fetched,
+ * nothing loaded from a plugin directory.
+ */
+export const REQUIRED_ARGS = [
+  "--ignore-config",
+  "--no-js-runtimes",
+  "--no-remote-components",
+  "--no-plugin-dirs",
+] as const;
+
+/** The one runtime flag a list may carry, and only after `--no-js-runtimes`. */
+const JS_RUNTIMES_FLAG = "--js-runtimes";
+
+/**
+ * How much longer than its window a landed file may be: 15 s. A stream copy
+ * starts on the keyframe before the cut, so a section is a few seconds longer
+ * than asked; anything past this is not the section that was asked for.
+ */
+export const WINDOW_TOLERANCE_MS = 15_000;
+
+/**
+ * A chosen start with less than this after it is moved back to the last full
+ * window: ten seconds of a video is not a run.
+ */
+export const MIN_SECTION_MS = 10_000;
+
+/** The longest section end this module formats: the contract's 24-hour ceiling. */
+const MAX_SECTION_END_MS = 86_400_000;
+
+/** Heatmap rows read at most; YouTube sends 100. */
+const MAX_HEATMAP_ROWS = 1_000;
 
 export interface AcquireLimits {
   readonly maxBytes: number;
+  /**
+   * The longest SOURCE this job may fetch. With a window it is the abuse
+   * ceiling (12 h), not the plan's allowance: a longer source is cut down to
+   * the window instead of refused.
+   */
   readonly maxDurationMs: number;
   readonly timeoutMs: number;
+}
+
+export type WindowPolicy = "first" | "most_replayed" | "range";
+
+/** `media.acquire` payload `window` (`MediaAcquirePayloadSchema`): how much of a source to take. */
+export interface AcquireWindow {
+  /** The minutes the plan processes per run. */
+  readonly maxMs: number;
+  /** The user's chosen start, for `range`. */
+  readonly startMs?: number;
+  readonly policy: WindowPolicy;
+}
+
+/**
+ * The part of a source that is fetched, in the SOURCE's own clock, and the
+ * policy that actually chose it (`first` when `most_replayed` found no
+ * heatmap). Reported as the result's `section`.
+ */
+export interface SectionPlan {
+  readonly startMs: number;
+  readonly endMs: number;
+  readonly sourceDurationMs: number;
+  readonly policy: WindowPolicy;
 }
 
 export interface SourceMetadata {
@@ -116,7 +212,10 @@ export interface SourceMetadata {
   readonly channel: string | null;
   readonly durationMs: number | null;
   readonly isLive: boolean;
-  /** Size of what WILL be downloaded (the chosen streams), not of the largest format. */
+  /**
+   * Size of what WILL be downloaded (the chosen streams, over the section when
+   * there is one), not of the largest format.
+   */
   readonly approximateBytes: number | null;
   /**
    * The exact streams to download (`137+140`), chosen by {@link chooseFormat}
@@ -124,6 +223,17 @@ export interface SourceMetadata {
    * the download falls back to {@link FALLBACK_FORMAT}.
    */
   readonly formatSelector?: string | null;
+  /** The part to fetch; `null` or absent when the whole source is. */
+  readonly section?: SectionPlan | null;
+  /**
+   * The streams, and their estimated size, for the WHOLE source — what the
+   * fallback fetches when a section download fails ({@link planSection}).
+   * Equal to the above when there is no section.
+   */
+  readonly wholeFormatSelector?: string | null;
+  readonly wholeBytes?: number | null;
+  /** The centre of YouTube's most-replayed segment, in ms; `null` without a heatmap. */
+  readonly replayedPeakMs?: number | null;
 }
 
 /*
@@ -320,13 +430,22 @@ function pickAudio(formats: readonly ProbeFormat[]): ProbeFormat | undefined {
  * but not the 40 minutes at 8 Mbit/s (2.2 GB), and nor does 1440p (2.8 GB):
  * that takes 1080p H.264 at 1.9 GB.
  *
+ * `fraction` is the share of the source a section download fetches: every
+ * size is scaled by it, so a 20-minute window of a 3-hour talk is budgeted as
+ * the 20 minutes it is, and fetched in 4K when those fit where the whole would
+ * not.
+ *
  * Exported for its tests; the probe is the only caller.
  */
 export function chooseFormat(
   formats: readonly ProbeFormat[],
   limits: Pick<AcquireLimits, "maxBytes" | "timeoutMs">,
   durationS: number | null,
+  fraction = 1,
 ): FormatChoice | null {
+  const share = Number.isFinite(fraction) && fraction > 0 && fraction < 1 ? fraction : 1;
+  const scaled = (bytes: number | null): number | null =>
+    bytes === null ? null : Math.round(bytes * share);
   const usable = formats.filter(
     (format) => typeof format.format_id === "string" && format.has_drm !== true,
   );
@@ -343,10 +462,10 @@ export function chooseFormat(
       continue;
     }
     const height = heightOf(format);
-    const videoBytes = sizeOf(format, durationS);
+    const videoBytes = scaled(sizeOf(format, durationS));
     if (acodecOf(format) === "none") {
       if (audio === undefined) continue;
-      const audioBytes = sizeOf(audio, durationS);
+      const audioBytes = scaled(sizeOf(audio, durationS));
       candidates.push({
         selector: `${String(format.format_id)}+${String(audio.format_id)}`,
         height,
@@ -415,6 +534,88 @@ export function chooseFormat(
   };
 }
 
+/**
+ * The centre of YouTube's most-replayed segment, in ms, from the metadata's
+ * `heatmap` (`[{start_time, end_time, value}]`, seconds); `null` when there is
+ * none worth reading.
+ *
+ * It is already in the probe's answer, so choosing by it costs no request.
+ * Rows that are not numbers, run backwards or start past the end are skipped
+ * rather than trusted; on a tie the earliest segment wins, so the choice is
+ * the same every time for the same video.
+ */
+export function mostReplayedPeakMs(heatmap: unknown, durationMs: number | null): number | null {
+  if (!Array.isArray(heatmap)) return null;
+  let best: { readonly centreMs: number; readonly value: number } | null = null;
+  for (const row of heatmap.slice(0, MAX_HEATMAP_ROWS) as unknown[]) {
+    if (typeof row !== "object" || row === null) continue;
+    const { start_time: start, end_time: end, value } = row as Record<string, unknown>;
+    if (typeof start !== "number" || typeof end !== "number" || typeof value !== "number") continue;
+    if (!Number.isFinite(start) || !Number.isFinite(end) || !Number.isFinite(value)) continue;
+    if (start < 0 || end <= start || (durationMs !== null && start * 1000 >= durationMs)) continue;
+    if (best === null || value > best.value) {
+      best = { centreMs: Math.round(((start + end) / 2) * 1000), value };
+    }
+  }
+  return best?.centreMs ?? null;
+}
+
+/**
+ * Which part of a source to fetch, or `null` when all of it fits the window.
+ *
+ * - `range`: from the user's own start. A window that runs off the end is cut
+ *   short there rather than moved back over minutes nobody chose — "process
+ *   the next 20 minutes" of a 34-minute video is 20:00-34:37, not an overlap —
+ *   and only a start with (next to) nothing after it moves back to the last
+ *   full window.
+ * - `most_replayed`: centred on the most-replayed segment, slid to fit inside
+ *   the video. With no heatmap it is `first`, and says so.
+ * - `first`: from the start.
+ *
+ * Every value is a whole millisecond derived from integers, so the section
+ * argument built from it is too.
+ */
+export function planSection(input: {
+  readonly durationMs: number;
+  readonly window: AcquireWindow;
+  readonly replayedPeakMs: number | null;
+}): SectionPlan | null {
+  const { durationMs, window } = input;
+  if (!(durationMs > window.maxMs)) {
+    // A start the person picked on a video that fits the window whole: from
+    // there to the end, not the whole video from 0:00 (which ignored the pick
+    // and charged for the part they skipped). A start with less than a
+    // section after it takes the whole video.
+    const startMs = window.policy === "range" ? (window.startMs ?? 0) : 0;
+    if (startMs <= 0 || startMs + MIN_SECTION_MS > durationMs) return null;
+    return { startMs, endMs: durationMs, sourceDurationMs: durationMs, policy: "range" };
+  }
+  const lastStart = durationMs - window.maxMs;
+  let startMs = 0;
+  let policy: WindowPolicy = "first";
+  if (window.policy === "range" && window.startMs !== undefined) {
+    policy = "range";
+    startMs = window.startMs + MIN_SECTION_MS > durationMs ? lastStart : window.startMs;
+  } else if (window.policy === "most_replayed" && input.replayedPeakMs !== null) {
+    policy = "most_replayed";
+    startMs = Math.min(Math.max(0, Math.round(input.replayedPeakMs - window.maxMs / 2)), lastStart);
+  }
+  return {
+    startMs,
+    endMs: Math.min(startMs + window.maxMs, durationMs),
+    sourceDurationMs: durationMs,
+    policy,
+  };
+}
+
+/** Milliseconds as the seconds yt-dlp and ffmpeg read (`1234.500`), from a checked integer. */
+export function formatSeconds(ms: number): string {
+  if (!Number.isSafeInteger(ms) || ms < 0 || ms > MAX_SECTION_END_MS) {
+    throw new DownloaderUnusableError(`refusing an unexpected time ${JSON.stringify(ms)}`);
+  }
+  return (ms / 1000).toFixed(3);
+}
+
 /** Thrown at boot when the pinned downloader is absent, wrong or unverified. */
 export class DownloaderUnusableError extends Error {
   public override readonly name = "DownloaderUnusableError";
@@ -438,6 +639,14 @@ const UTF8_OUTPUT = ["--encoding", "utf-8"] as const;
  * over a directory THIS process made (`withWorkspace`), never a name from the
  * source: a remote title containing `/` or `..` would otherwise choose where the
  * file lands.
+ *
+ * A `section` becomes `--download-sections *S-E`, from two integers
+ * {@link planSection} derived and {@link formatSeconds} checks. yt-dlp hands a
+ * section to ffmpeg's own reader: no percentage progress (the caller measures
+ * the bytes on disk instead) and no `--max-filesize` (the size watch is the
+ * cap, as it already is for fragmented streams). There is deliberately no
+ * `--force-keyframes-at-cuts`: that re-encodes, and a copy that starts on the
+ * keyframe a few seconds early is harmless.
  */
 export function buildArgs(input: {
   readonly url: string;
@@ -447,6 +656,10 @@ export function buildArgs(input: {
   readonly format?: string | null;
   /** The ffmpeg this worker checked at boot (`FFMPEG_PATH`), for the merge. */
   readonly ffmpegPath?: string;
+  /** `YT_DLP_JS_RUNTIME`: an absolute path to node, or none. */
+  readonly jsRuntime?: string;
+  /** Only this part of the source (see {@link planSection}). */
+  readonly section?: Pick<SectionPlan, "startMs" | "endMs"> | null;
 }): string[] {
   const format = input.format ?? FALLBACK_FORMAT;
   const fallback = format === FALLBACK_FORMAT;
@@ -475,6 +688,7 @@ export function buildArgs(input: {
     // user's home: everything this run needs is on the command line.
     "--ignore-config",
     "--no-cache-dir",
+    ...runtimeArgs(input.jsRuntime),
     // Refuse a live stream rather than downloading an unbounded segment feed.
     "--no-live-from-start",
     // A hard byte ceiling the downloader applies itself; the caller checks the
@@ -490,6 +704,7 @@ export function buildArgs(input: {
     // Exact ids need no order. The fallback leaves the choice to yt-dlp, and
     // only its sort can rank by the short side (see FALLBACK_FORMAT).
     ...(fallback ? ["-S", FALLBACK_SORT] : []),
+    ...sectionArgs(input.section ?? null),
     // Bounded retries inside one attempt; BullMQ owns the retries between them.
     "--retries",
     "3",
@@ -502,8 +717,37 @@ export function buildArgs(input: {
     "--",
     input.url,
   ];
-  assertNoForbiddenArgs(args);
+  assertSafeArgs(args);
   return args;
+}
+
+/**
+ * The JavaScript runtime, the remote components and the plugins, locked.
+ *
+ * `--no-js-runtimes` first, so a deno installed later cannot quietly become
+ * the runtime YouTube's scripts run in, then the one node this deployment
+ * named. `--no-remote-components` because the solver is the pinned
+ * `yt-dlp-ejs` package, never scripts fetched from GitHub at run time.
+ * `--no-plugin-dirs` because a plugin is Python loaded from a directory.
+ */
+export function runtimeArgs(jsRuntime: string | undefined): string[] {
+  return [
+    "--no-js-runtimes",
+    ...(jsRuntime === undefined || jsRuntime === "" ? [] : [JS_RUNTIMES_FLAG, `node:${jsRuntime}`]),
+    "--no-remote-components",
+    "--no-plugin-dirs",
+  ];
+}
+
+function sectionArgs(section: Pick<SectionPlan, "startMs" | "endMs"> | null): string[] {
+  if (section === null) return [];
+  if (!(section.endMs > section.startMs)) {
+    throw new DownloaderUnusableError(`refusing an empty section ${JSON.stringify(section)}`);
+  }
+  return [
+    "--download-sections",
+    `*${formatSeconds(section.startMs)}-${formatSeconds(section.endMs)}`,
+  ];
 }
 
 /**
@@ -521,7 +765,10 @@ function ffmpegLocationArgs(ffmpegPath: string | undefined): string[] {
 }
 
 /** The metadata-only argument list: no bytes are fetched. */
-export function buildProbeArgs(url: string): string[] {
+export function buildProbeArgs(
+  url: string,
+  options: { readonly jsRuntime?: string } = {},
+): string[] {
   const args = [
     // Warnings are kept for the operator log; see `buildArgs`.
     "--no-colors",
@@ -529,6 +776,9 @@ export function buildProbeArgs(url: string): string[] {
     "--no-playlist",
     "--ignore-config",
     "--no-cache-dir",
+    // The metadata step is where YouTube's challenges are solved, so it needs
+    // the runtime at least as much as the download does.
+    ...runtimeArgs(options.jsRuntime),
     "--skip-download",
     "--dump-single-json",
     "--socket-timeout",
@@ -536,23 +786,88 @@ export function buildProbeArgs(url: string): string[] {
     "--",
     url,
   ];
-  assertNoForbiddenArgs(args);
+  assertSafeArgs(args);
   return args;
+}
+
+/**
+ * The boot check's argument list: `-v` and the same lock-down as a real run,
+ * and no URL, so nothing is fetched. yt-dlp prints its debug header (version,
+ * optional libraries, JS runtimes, plugin directories) and then exits 2 for
+ * the missing URL. No `--no-colors` here: with no URL after it, yt-dlp reads
+ * that exact 11-character flag as a video id and warns about it.
+ */
+export function buildHeaderArgs(jsRuntime: string | undefined): string[] {
+  const args = [
+    "-v",
+    ...UTF8_OUTPUT,
+    "--ignore-config",
+    "--no-cache-dir",
+    ...runtimeArgs(jsRuntime),
+  ];
+  assertSafeArgs(args);
+  return args;
+}
+
+/** Both invariants: nothing forbidden in the list, and everything required in it. */
+function assertSafeArgs(args: readonly string[]): void {
+  assertNoForbiddenArgs(args);
+  assertLockedDown(args);
 }
 
 /**
  * Refuse an argument list containing anything on the deny list.
  *
  * Exported because it is the invariant, not an implementation detail: the test
- * suite asserts it against both builders, and any future builder must call it.
+ * suite asserts it against every builder, and any future builder must call it.
+ *
+ * `--js-runtimes` is the one flag that is allowed in exactly one form: once,
+ * as its own entry, after `--no-js-runtimes`, followed by `node:` and an
+ * absolute path. Anything else — a second runtime, `deno`, a bare `node` that
+ * PATH would resolve, the `--flag=value` spelling — is a runtime this module
+ * did not choose.
  */
 export function assertNoForbiddenArgs(args: readonly string[]): void {
-  for (const arg of args) {
+  let runtimes = 0;
+  args.forEach((arg, index) => {
     const flag = arg.split("=")[0] ?? arg;
     if ((NEVER_ALLOWED_ARGS as readonly string[]).includes(flag)) {
       throw new DownloaderUnusableError(`refusing to run the downloader with ${flag}`);
     }
+    if (flag !== JS_RUNTIMES_FLAG) return;
+    runtimes += 1;
+    const value = args.at(index + 1) ?? "";
+    if (
+      arg !== JS_RUNTIMES_FLAG ||
+      runtimes > 1 ||
+      !args.slice(0, index).includes("--no-js-runtimes") ||
+      !isNodeRuntime(value)
+    ) {
+      throw new DownloaderUnusableError(
+        `refusing to run the downloader with ${flag} ${JSON.stringify(value)}`,
+      );
+    }
+  });
+}
+
+/**
+ * Refuse a list without the lock-down ({@link REQUIRED_ARGS}), or with it only
+ * after `--`, where yt-dlp would read it as a URL.
+ */
+export function assertLockedDown(args: readonly string[]): void {
+  const end = args.indexOf("--");
+  const options = end === -1 ? args : args.slice(0, end);
+  for (const required of REQUIRED_ARGS) {
+    if (!options.includes(required)) {
+      throw new DownloaderUnusableError(`refusing to run the downloader without ${required}`);
+    }
   }
+}
+
+function isNodeRuntime(value: string): boolean {
+  if (!value.startsWith("node:")) return false;
+  const path = value.slice("node:".length);
+  return path !== "" && !path.includes("\0") && (win32.isAbsolute(path) || posix.isAbsolute(path));
 }
 
 /** The binary's own version string, for health output and the job result. */
@@ -598,13 +913,20 @@ export async function sha256File(path: string): Promise<string> {
  * the owner of a deployment to make by name — not a side effect of turning the
  * digest check off. With it set, another version is a warning; with the digest
  * being verified it is refused regardless, because no other binary can match.
+ *
+ * Then yt-dlp describes itself (`-v`, offline, the same lock-down as a real
+ * run; see {@link assertDownloaderHeader}): with `jsRuntime` set it must report
+ * that node runtime and the pinned `yt-dlp-ejs`, and whatever is set it must
+ * load no plugins.
  */
 export async function assertYtDlpUsable(input: {
   readonly binary: string;
   readonly verifyDigest: boolean;
   /** Only with `verifyDigest` false. See above. */
   readonly allowUnpinned?: boolean;
-}): Promise<{ readonly version: string; readonly sha256: string | null }> {
+  /** `YT_DLP_JS_RUNTIME`. */
+  readonly jsRuntime?: string;
+}): Promise<DownloaderIdentity> {
   const version = await ytDlpVersion(input.binary);
   if (version === "") {
     // Something ran and printed nothing: whatever it is, it is not yt-dlp.
@@ -612,13 +934,14 @@ export async function assertYtDlpUsable(input: {
       `Cannot start acquisition: ${input.binary} reports no version, so it is not the downloader.`,
     );
   }
-  if (version !== EXPECTED_VERSION && !input.verifyDigest && input.allowUnpinned === true) {
+  const unpinnedAllowed = !input.verifyDigest && input.allowUnpinned === true;
+  if (version !== EXPECTED_VERSION && unpinnedAllowed) {
     logger.warn("downloader is not the pinned release; continuing, as allowed", {
       tool: "yt-dlp",
       version,
       pinned: EXPECTED_VERSION,
     });
-    return { version, sha256: null };
+    return { version, sha256: null, ...(await describeDownloader(input, unpinnedAllowed)) };
   }
   if (version !== EXPECTED_VERSION) {
     throw new DownloaderUnusableError(
@@ -640,7 +963,9 @@ export async function assertYtDlpUsable(input: {
     );
   }
 
-  if (!input.verifyDigest) return { version, sha256: null };
+  if (!input.verifyDigest) {
+    return { version, sha256: null, ...(await describeDownloader(input, unpinnedAllowed)) };
+  }
 
   if (EXPECTED_SHA256 === null) {
     throw new DownloaderUnusableError(
@@ -662,7 +987,257 @@ export async function assertYtDlpUsable(input: {
       `Cannot start acquisition: ${input.binary} hashes to ${actual}, not the pinned ${EXPECTED_SHA256}.`,
     );
   }
-  return { version, sha256: actual };
+  return { version, sha256: actual, ...(await describeDownloader(input, unpinnedAllowed)) };
+}
+
+/** What the boot check proved about the downloader, for the boot log. */
+export interface DownloaderIdentity {
+  readonly version: string;
+  readonly sha256: string | null;
+  /** `yt-dlp-ejs`, the challenge solver; `null` when it is not installed. */
+  readonly ejsVersion: string | null;
+  /** `node-24.19.0` as yt-dlp reports it; `null` when no runtime is enabled. */
+  readonly jsRuntime: string | null;
+}
+
+/** yt-dlp's own `-v` header, as far as the boot check reads it. */
+export interface DownloaderHeader {
+  /** `2026.08.19` out of `yt-dlp version stable@2026.08.19 from …`. */
+  readonly version: string | null;
+  /** Out of "Optional libraries"; `null` when yt-dlp-ejs is not installed. */
+  readonly ejsVersion: string | null;
+  /** The "JS runtimes" line as printed (`node-24.19.0`, `none (disabled)`). */
+  readonly jsRuntimes: string | null;
+  /** The node runtime yt-dlp found and will use; `null` when it found none. */
+  readonly nodeVersion: string | null;
+  /** yt-dlp's own verdict that that node is too old for its solver. */
+  readonly nodeUnsupported: boolean;
+  /** The "Plugin directories" line; only `none…` is acceptable. */
+  readonly pluginDirectories: string | null;
+  /** "Extractor Plugins" / "Post-Processor Plugins" lines: plugins that loaded. */
+  readonly plugins: readonly string[];
+}
+
+/**
+ * Read yt-dlp's debug header. Line by line with fixed prefixes rather than
+ * one pattern over the whole output: the header is short, and a line that
+ * changes shape should cost a clear refusal, never a wrong match.
+ *
+ * Exported for its tests.
+ */
+export function readDownloaderHeader(output: string): DownloaderHeader {
+  let version: string | null = null;
+  let ejsVersion: string | null = null;
+  let jsRuntimes: string | null = null;
+  let pluginDirectories: string | null = null;
+  const plugins: string[] = [];
+  for (const raw of output.split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line.startsWith("[debug] ")) continue;
+    const body = line.slice("[debug] ".length);
+    const field = (label: string): string | null =>
+      body.startsWith(`${label}: `) ? body.slice(label.length + 2).trim() : null;
+
+    if (body.startsWith("yt-dlp version ")) {
+      // `yt-dlp version stable@2026.08.19 from yt-dlp/yt-dlp [594bd50c2] (pip)`
+      const token = body.slice("yt-dlp version ".length).split(" ")[0] ?? "";
+      version = (token.includes("@") ? token.split("@")[1] : token) || null;
+      continue;
+    }
+    const libraries = field("Optional libraries");
+    if (libraries !== null) {
+      const ejs = libraries
+        .split(",")
+        .map((library) => library.trim())
+        .find((library) => library.startsWith("yt_dlp_ejs-"));
+      ejsVersion = ejs === undefined ? null : ejs.slice("yt_dlp_ejs-".length) || null;
+      continue;
+    }
+    jsRuntimes = field("JS runtimes") ?? jsRuntimes;
+    pluginDirectories = field("Plugin directories") ?? pluginDirectories;
+    if (body.startsWith("Extractor Plugins: ") || body.startsWith("Post-Processor Plugins: ")) {
+      plugins.push(body);
+    }
+  }
+
+  let nodeVersion: string | null = null;
+  let nodeUnsupported = false;
+  for (const entry of (jsRuntimes ?? "").split(",")) {
+    const runtime = entry.trim();
+    if (!runtime.startsWith("node-")) continue;
+    const [versionPart, ...rest] = runtime.slice("node-".length).split(" ");
+    nodeVersion = versionPart === undefined || versionPart === "" ? null : versionPart;
+    nodeUnsupported = rest.join(" ").includes("unsupported");
+  }
+  return {
+    version,
+    ejsVersion,
+    jsRuntimes,
+    nodeVersion,
+    nodeUnsupported,
+    pluginDirectories,
+    plugins,
+  };
+}
+
+/**
+ * Refuse a downloader whose own header shows it will not run as configured.
+ *
+ * - No header at all: whatever answered `-v`, it is not the reviewed yt-dlp.
+ * - A plugin loaded, or plugin directories searched: Python this repository
+ *   never saw would run inside every extraction.
+ * - `jsRuntime` set, and no node in the header: the path is wrong or node will
+ *   not start, and YouTube quietly falls back to one client. Or node too old
+ *   for the solver, which yt-dlp itself says.
+ * - `jsRuntime` set, and no `yt-dlp-ejs`, or not the pinned one: node would
+ *   have no solver to run, or one whose hashes yt-dlp rejects. Another version
+ *   is a warning only where another yt-dlp is ({@link assertYtDlpUsable}'s
+ *   `allowUnpinned`), because the two ship together.
+ */
+export function assertDownloaderHeader(
+  header: DownloaderHeader,
+  options: { readonly jsRuntime?: string; readonly unpinnedAllowed?: boolean },
+): void {
+  const refuse: (why: string) => never = (why) => {
+    throw new DownloaderUnusableError(`Cannot start acquisition: ${why}`);
+  };
+  if (header.version === null) {
+    refuse("the downloader printed no debug header for -v, so it is not the reviewed yt-dlp.");
+  }
+  if (header.plugins.length > 0 || !(header.pluginDirectories ?? "").startsWith("none")) {
+    refuse(
+      `the downloader loads plugins (${[header.pluginDirectories ?? "no plugin line", ...header.plugins].join("; ")}), ` +
+        "and --no-plugin-dirs is meant to leave it none.",
+    );
+  }
+  if (options.jsRuntime === undefined || options.jsRuntime === "") return;
+  if (header.nodeVersion === null) {
+    refuse(
+      `YT_DLP_JS_RUNTIME names ${options.jsRuntime}, but yt-dlp reports "JS runtimes: ${header.jsRuntimes ?? "(no line)"}". ` +
+        "Check that the path is node and that it runs.",
+    );
+  }
+  if (header.nodeUnsupported) {
+    refuse(
+      `yt-dlp reports node ${String(header.nodeVersion)} as too old for its challenge solver.`,
+    );
+  }
+  if (header.ejsVersion === null) {
+    refuse(
+      "yt-dlp-ejs is not installed next to the downloader, so node has no challenge solver to run. " +
+        `Install yt-dlp[pin]==${EXPECTED_VERSION} (it pins yt-dlp-ejs==${EXPECTED_EJS_VERSION}).`,
+    );
+  }
+  if (header.ejsVersion !== EXPECTED_EJS_VERSION) {
+    if (options.unpinnedAllowed !== true) {
+      refuse(
+        `yt-dlp-ejs is ${String(header.ejsVersion)}, and this build is pinned to ${EXPECTED_EJS_VERSION}.`,
+      );
+    }
+    logger.warn("challenge solver is not the pinned release; continuing, as allowed", {
+      tool: "yt-dlp-ejs",
+      version: header.ejsVersion,
+      pinned: EXPECTED_EJS_VERSION,
+    });
+  }
+}
+
+/**
+ * How much of each stream {@link captureOutput} keeps, from the START: 64 KiB.
+ * The header is about 2 KB.
+ */
+const CAPTURE_MAX_CHARS = 64 * 1024;
+
+/**
+ * Run a short command and keep what it printed, both streams, in full up to
+ * {@link CAPTURE_MAX_CHARS} each.
+ *
+ * Not `run()`, which keeps only the last twelve lines of stderr: the pinned
+ * venv prints fourteen header lines there, the version line exactly twelfth
+ * from the end, so one more line of any kind — a WARNING, a deprecation
+ * notice, a new debug line in a later release — pushed the version out, and
+ * the worker refused to boot for "no debug header". Resolves for any exit
+ * code (the header check exits 2, on purpose); rejects when the command could
+ * not start or ran past `timeoutMs`.
+ */
+async function captureOutput(
+  binary: string,
+  args: readonly string[],
+  timeoutMs: number,
+): Promise<{ readonly code: number | null; readonly stdout: string; readonly stderr: string }> {
+  return new Promise((resolve, reject) => {
+    let child: ChildProcessByStdio<null, Readable, Readable>;
+    try {
+      child = spawn(binary, [...args], { windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
+    } catch (error) {
+      reject(error instanceof Error ? error : new Error(String(error)));
+      return;
+    }
+    let stdout = "";
+    let stderr = "";
+    let done = false;
+    const timer = setTimeout(() => {
+      if (done) return;
+      done = true;
+      killTree(child, "SIGKILL");
+      child.stdout.destroy();
+      child.stderr.destroy();
+      reject(new Error(`no answer within ${String(timeoutMs)} ms`));
+    }, timeoutMs);
+    timer.unref();
+    child.stdout.setEncoding("utf8");
+    child.stdout.on("data", (chunk: string) => {
+      if (stdout.length < CAPTURE_MAX_CHARS) stdout += chunk.slice(0, CAPTURE_MAX_CHARS - stdout.length);
+    });
+    child.stderr.setEncoding("utf8");
+    child.stderr.on("data", (chunk: string) => {
+      if (stderr.length < CAPTURE_MAX_CHARS) stderr += chunk.slice(0, CAPTURE_MAX_CHARS - stderr.length);
+    });
+    child.on("error", (error) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      reject(error);
+    });
+    child.on("close", (code) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      resolve({ code, stdout, stderr });
+    });
+  });
+}
+
+/** Run the header check and say what it proved. */
+async function describeDownloader(
+  input: { readonly binary: string; readonly jsRuntime?: string },
+  unpinnedAllowed: boolean,
+): Promise<Pick<DownloaderIdentity, "ejsVersion" | "jsRuntime">> {
+  let output: string;
+  try {
+    // Exits 2 for the missing URL, on purpose: the header is what is wanted.
+    const result = await captureOutput(input.binary, buildHeaderArgs(input.jsRuntime), 30_000);
+    output = `${result.stderr}\n${result.stdout}`;
+  } catch (error) {
+    throw new DownloaderUnusableError(
+      `could not run ${input.binary} -v: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+  const header = readDownloaderHeader(output);
+  assertDownloaderHeader(header, {
+    ...(input.jsRuntime === undefined ? {} : { jsRuntime: input.jsRuntime }),
+    unpinnedAllowed,
+  });
+  if (input.jsRuntime === undefined || input.jsRuntime === "") {
+    logger.warn(
+      "no JavaScript runtime for the downloader (YT_DLP_JS_RUNTIME); YouTube falls back to one client",
+      { tool: "yt-dlp", jsRuntimes: header.jsRuntimes, ejs: header.ejsVersion },
+    );
+  }
+  return {
+    ejsVersion: header.ejsVersion,
+    jsRuntime: header.nodeVersion === null ? null : `node-${header.nodeVersion}`,
+  };
 }
 
 /**
@@ -671,17 +1246,29 @@ export async function assertYtDlpUsable(input: {
  * Refuses live streams and anything whose declared duration already exceeds the
  * plan's limit. Both are checked again after the download, because this answer
  * comes from the source.
+ *
+ * With a `window`, a source longer than it is planned as a section
+ * ({@link planSection}): the formats are chosen for the section's share of
+ * the bytes, `approximateBytes` is the section's, and the whole source's
+ * choice is kept for the fallback. `limits.maxDurationMs` is then the source
+ * ceiling, so a long video is cut down rather than refused.
  */
 export async function probeSource(input: {
   readonly binary: string;
   readonly url: string;
   readonly limits: AcquireLimits;
   readonly signal?: AbortSignal;
+  readonly jsRuntime?: string;
+  readonly window?: AcquireWindow;
 }): Promise<SourceMetadata> {
-  const result = await run(input.binary, buildProbeArgs(input.url), {
-    timeoutMs: Math.min(input.limits.timeoutMs, 120_000),
-    ...(input.signal === undefined ? {} : { signal: input.signal }),
-  });
+  const result = await run(
+    input.binary,
+    buildProbeArgs(input.url, input.jsRuntime === undefined ? {} : { jsRuntime: input.jsRuntime }),
+    {
+      timeoutMs: Math.min(input.limits.timeoutMs, 120_000),
+      ...(input.signal === undefined ? {} : { signal: input.signal }),
+    },
+  );
 
   logWarnings(result.stderr);
   if (result.code !== 0) {
@@ -705,17 +1292,41 @@ export async function probeSource(input: {
     throw sourceRefused("media/source_playlist", "that link points to a playlist, not one video");
   }
 
-  const durationSeconds = typeof parsed["duration"] === "number" ? parsed["duration"] : null;
+  const durationSeconds =
+    typeof parsed["duration"] === "number" &&
+    Number.isFinite(parsed["duration"]) &&
+    parsed["duration"] > 0
+      ? parsed["duration"]
+      : null;
+  const durationMs = durationSeconds === null ? null : Math.round(durationSeconds * 1000);
   const liveStatus = parsed["live_status"];
-  const choice = Array.isArray(parsed["formats"])
-    ? chooseFormat(parsed["formats"] as ProbeFormat[], input.limits, durationSeconds)
-    : null;
+  const replayedPeakMs = mostReplayedPeakMs(parsed["heatmap"], durationMs);
+  const section =
+    input.window === undefined || durationMs === null
+      ? null
+      : planSection({ durationMs, window: input.window, replayedPeakMs });
+  const fraction =
+    section === null ? 1 : (section.endMs - section.startMs) / section.sourceDurationMs;
+  const formats = Array.isArray(parsed["formats"]) ? (parsed["formats"] as ProbeFormat[]) : null;
+  const choice =
+    formats === null ? null : chooseFormat(formats, input.limits, durationSeconds, fraction);
+  const whole =
+    section === null || formats === null
+      ? choice
+      : chooseFormat(formats, input.limits, durationSeconds);
+  // yt-dlp's own estimate, of its own default pick, when the formats gave none.
+  const listed =
+    typeof parsed["filesize"] === "number"
+      ? parsed["filesize"]
+      : typeof parsed["filesize_approx"] === "number"
+        ? parsed["filesize_approx"]
+        : null;
   const metadata: SourceMetadata = {
     provider: asString(parsed["extractor_key"]) ?? asString(parsed["extractor"]) ?? "unknown",
     sourceId: asString(parsed["id"]),
     title: asString(parsed["title"]),
     channel: asString(parsed["channel"]) ?? asString(parsed["uploader"]),
-    durationMs: durationSeconds === null ? null : Math.round(durationSeconds * 1000),
+    durationMs,
     // A premiere that has not started has no picture yet, and a stream that
     // has just ended with no duration is still being processed into a video:
     // both are "live" to the person choosing what to do next (try it after).
@@ -729,14 +1340,12 @@ export async function probeSource(input: {
     // refused an 18-minute talk as "larger than your plan" when its 1080p
     // version was a third of the cap.
     approximateBytes:
-      choice !== null
-        ? choice.bytes
-        : typeof parsed["filesize"] === "number"
-          ? parsed["filesize"]
-          : typeof parsed["filesize_approx"] === "number"
-            ? parsed["filesize_approx"]
-            : null,
+      choice !== null ? choice.bytes : listed === null ? null : Math.round(listed * fraction),
     formatSelector: choice?.selector ?? null,
+    section,
+    wholeFormatSelector: whole?.selector ?? null,
+    wholeBytes: whole !== null ? whole.bytes : listed,
+    replayedPeakMs,
   };
 
   assertWithinLimits(metadata, input.limits);
@@ -746,16 +1355,33 @@ export async function probeSource(input: {
 /** The user-facing sentence for a source over the plan's byte cap. */
 const TOO_LARGE = "that video is larger than your plan allows";
 
-/** The limit checks, run against metadata before the download and after it. */
+/**
+ * The limit checks, run against metadata before the download and after it.
+ *
+ * Every limit refusal carries its numbers (`facts`), as far as they are known,
+ * so the page can say "34:37 — your plan takes 20:00" rather than only "too
+ * long".
+ */
 export function assertWithinLimits(metadata: SourceMetadata, limits: AcquireLimits): void {
+  const facts = knownFacts({
+    durationMs: metadata.durationMs,
+    maxDurationMs: limits.maxDurationMs,
+    approximateBytes: metadata.approximateBytes,
+    maxBytes: limits.maxBytes,
+  });
   if (metadata.isLive) {
     throw sourceRefused("media/source_live", "we cannot use a live stream");
   }
   if (metadata.durationMs !== null && metadata.durationMs > limits.maxDurationMs) {
-    throw sourceRefused("media/too_long", "that video is longer than your plan allows");
+    throw sourceRefused(
+      "media/too_long",
+      "that video is longer than your plan allows",
+      undefined,
+      facts,
+    );
   }
   if (metadata.approximateBytes !== null && metadata.approximateBytes > limits.maxBytes) {
-    throw sourceRefused("media/too_large", TOO_LARGE);
+    throw sourceRefused("media/too_large", TOO_LARGE, undefined, facts);
   }
 }
 
@@ -766,6 +1392,13 @@ export const SIZE_CHECK_INTERVAL_MS = 2_000;
 const KILL_GRACE_MS = 5_000;
 
 /**
+ * How long the pipes may stay open after the downloader has exited before the
+ * run ends without them. Normally they close with it; see {@link killTree}
+ * for what holds them when they do not.
+ */
+export const DRAIN_GRACE_MS = 2_000;
+
+/**
  * Downloader lines kept for classifying a failure. Progress lines are not kept:
  * a long download prints thousands, and they would push out the one line that
  * says why it stopped.
@@ -774,6 +1407,177 @@ const OUTPUT_LINES = 200;
 
 /** A line longer than this is flushed as it stands rather than buffered forever. */
 const MAX_LINE_CHARS = 64 * 1024;
+
+/**
+ * How fast a section must arrive, as a multiple of its own running time: 2x.
+ *
+ * A section goes through ffmpeg's own HTTP reader, which YouTube may throttle
+ * towards real time, while the whole file comes in yt-dlp's 10 MiB chunks at
+ * the connection's speed. Below 2x, fetching the whole video and cutting it
+ * here is the faster road — when the whole video fits the plan.
+ */
+export const SECTION_MIN_REALTIME = 2;
+
+/** ffmpeg's head start: opening two streams and seeking both. Not counted against the pace. */
+export const PACE_STARTUP_MS = 15_000;
+
+/**
+ * How long a section runs before its pace is judged from what has landed.
+ * Earlier than this, one slow seek reads as a slow download.
+ */
+export const PACE_WARMUP_MS = 60_000;
+
+/** How a section download is held to {@link SECTION_MIN_REALTIME}. */
+export interface DownloadPace {
+  /** The section's running time. */
+  readonly mediaMs: number;
+  /**
+   * The section's estimated size, for when ffmpeg has printed no `time=`;
+   * `null` then leaves only the deadline.
+   */
+  readonly expectedBytes: number | null;
+  readonly minRealtime: number;
+  /** Tests shorten these; production uses {@link PACE_STARTUP_MS} and {@link PACE_WARMUP_MS}. */
+  readonly startupMs?: number;
+  readonly warmupMs?: number;
+}
+
+/** How far a section download has got. */
+export interface DownloadLanded {
+  /** The most bytes seen on disk so far — never less, so a rename cannot read as a stall. */
+  readonly bytes: number;
+  /** ffmpeg's own `time=`: the media time written so far; `null` before it has said. */
+  readonly mediaMs: number | null;
+}
+
+/**
+ * True when a section download is running slower than its pace allows.
+ *
+ * `elapsedMs` runs from the moment the download itself began — yt-dlp's
+ * `[download] Destination:` line, or the first bytes on disk — not from the
+ * spawn: extraction, and with node YouTube's challenge solving, can take tens
+ * of seconds, and a short section's whole allowance is less than that.
+ *
+ * Two tests. The deadline: the section's running time over the pace, plus the
+ * head start — twenty minutes of video in ten minutes and fifteen seconds.
+ * And, once past the warm-up, what has landed against the time spent since
+ * the head start. That is ffmpeg's own `time=`, the exact media time written,
+ * when it has printed one; the bytes on disk against the estimate only when
+ * it has not, because the estimate is the video's AVERAGE bitrate and a quiet
+ * stretch below it would read as a slow one. The second test is the one that
+ * saves time: a reader throttled to real time is known after a minute, not
+ * after ten. A section that has all of its media is never slow.
+ *
+ * Exported for its tests.
+ */
+export function isTooSlow(pace: DownloadPace, landed: DownloadLanded, elapsedMs: number): boolean {
+  const startupMs = pace.startupMs ?? PACE_STARTUP_MS;
+  const landedMediaMs =
+    landed.mediaMs ??
+    (pace.expectedBytes === null || pace.expectedBytes <= 0
+      ? null
+      : Math.min(1, landed.bytes / pace.expectedBytes) * pace.mediaMs);
+  if (landedMediaMs !== null && landedMediaMs >= pace.mediaMs) return false;
+  if (elapsedMs > pace.mediaMs / pace.minRealtime + startupMs) return true;
+  if (landedMediaMs === null || elapsedMs < (pace.warmupMs ?? PACE_WARMUP_MS)) return false;
+  return landedMediaMs < (elapsedMs - startupMs) * pace.minRealtime;
+}
+
+/**
+ * The media time out of one of ffmpeg's stats lines
+ * (`frame= 7220 fps=… size=  81920KiB time=00:04:00.66 bitrate=… speed=2.1x`),
+ * in ms; `null` for any other line, and for `time=N/A`.
+ *
+ * Under a section download ffmpeg writes these to the worker's own stderr
+ * (yt-dlp starts it with inherited pipes), a few times a second. Flat on
+ * purpose, like {@link parseProgress}.
+ *
+ * Exported for its tests.
+ */
+export function parseMediaTime(line: string): number | null {
+  if (!isFfmpegStats(line)) return null;
+  const match = /\btime=(\d{1,3}):(\d{2}):(\d{2}\.?\d{0,3})/.exec(line);
+  if (match === null) return null;
+  const [, hours, minutes, seconds] = match;
+  const total = ((Number(hours) * 60 + Number(minutes)) * 60 + Number(seconds)) * 1000;
+  return Number.isFinite(total) ? Math.round(total) : null;
+}
+
+/** An ffmpeg stats line: progress, like yt-dlp's percentages, and as useless for saying why it stopped. */
+function isFfmpegStats(line: string): boolean {
+  return /^\s*(?:frame|size)=/.test(line) && line.includes("time=");
+}
+
+/**
+ * Kill a process and everything it started.
+ *
+ * The downloader is not one process. On Windows `YT_DLP_PATH` is a pip
+ * launcher stub that runs python, and for a section python runs ffmpeg with
+ * plain `Popen(args, stdin=PIPE)` — so ffmpeg inherits the worker's stdout and
+ * stderr. Killing the stub (all `child.kill()` can reach) takes python with it
+ * through the stub's job object, but ffmpeg breaks away from that job and
+ * lives on: it keeps fetching, keeps the pipes open so the run never ends, and
+ * keeps its file open so the scratch directory cannot be removed. Measured on
+ * the production host with the pinned 2026.8.19 venv: the stub gone at 15 s,
+ * ffmpeg still fetching 45 s later.
+ *
+ * - **Windows:** `taskkill /PID <pid> /T /F`, which walks the tree by parent
+ *   pid — so it runs while the stub is still alive, before anything has been
+ *   orphaned. `taskkill.exe` is named by path, never found on PATH.
+ * - **Elsewhere:** the downloader is spawned as its own process group
+ *   (`detached`), and the group is signalled.
+ *
+ * Anything that fails falls back to `child.kill()`. A process that has
+ * already exited is left alone: its pid may be someone else's by now.
+ *
+ * Exported for its tests.
+ */
+export function killTree(
+  child: Pick<ChildProcess, "pid" | "exitCode" | "signalCode" | "kill">,
+  signal: NodeJS.Signals,
+  platform: NodeJS.Platform = process.platform,
+): void {
+  const pid = child.pid;
+  if (pid === undefined) {
+    child.kill(signal);
+    return;
+  }
+  if (child.exitCode !== null || child.signalCode !== null) return;
+  if (platform === "win32") {
+    execFile(
+      taskkillPath(),
+      ["/PID", String(pid), "/T", "/F"],
+      { windowsHide: true, timeout: 10_000 },
+      (error) => {
+        if (error !== null) child.kill(signal);
+      },
+    );
+    return;
+  }
+  try {
+    process.kill(-pid, signal);
+  } catch {
+    child.kill(signal);
+  }
+}
+
+function taskkillPath(): string {
+  return win32.join(process.env["SystemRoot"] ?? "C:\\Windows", "System32", "taskkill.exe");
+}
+
+/**
+ * After the downloader has exited with its pipes still held: on POSIX, what is
+ * left of its process group. (On Windows nothing is left to find by then, and
+ * a kill of the whole tree happened while it could.)
+ */
+function killRemnants(pid: number | undefined, platform: NodeJS.Platform = process.platform): void {
+  if (pid === undefined || platform === "win32") return;
+  try {
+    process.kill(-pid, "SIGKILL");
+  } catch {
+    // Nothing left in the group, which is the usual case.
+  }
+}
 
 /**
  * Download one video to `outputPath`.
@@ -790,6 +1594,14 @@ const MAX_LINE_CHARS = 64 * 1024;
  * - this function's size watch, which kills the downloader once the bytes on
  *   disk pass the cap (the only cap that holds for a fragmented stream);
  * - any other exit, classified from what the downloader printed.
+ *
+ * A `section` download adds a fourth: running slower than its `pace`
+ * ({@link isTooSlow}) is a retryable `media/acquire_slow`, which the caller
+ * answers by fetching the whole file instead. Its progress comes from
+ * `onBytes`, because ffmpeg's reader prints no percentage.
+ *
+ * And any download stops, as a retryable `media/disk_full`, once `lowDisk`
+ * says the scratch volume is below its reserve: the database is next to fill.
  */
 export async function download(input: {
   readonly binary: string;
@@ -799,7 +1611,17 @@ export async function download(input: {
   readonly format?: string | null;
   /** Passed to yt-dlp as `--ffmpeg-location` (see {@link buildArgs}). */
   readonly ffmpegPath?: string;
+  /** `YT_DLP_JS_RUNTIME` (see {@link runtimeArgs}). */
+  readonly jsRuntime?: string;
+  /** Only this part of the source. */
+  readonly section?: Pick<SectionPlan, "startMs" | "endMs"> | null;
+  /** Kill a download that runs slower than this; see {@link isTooSlow}. */
+  readonly pace?: DownloadPace;
   readonly onProgress?: (percent: number) => void;
+  /** The bytes on disk, every size check. */
+  readonly onBytes?: (bytes: number) => void;
+  /** Asked every size check: true stops the download (see `DiskGuard.belowReserve`). */
+  readonly lowDisk?: () => Promise<boolean>;
   readonly signal?: AbortSignal;
   /** Tests shorten it; production measures every {@link SIZE_CHECK_INTERVAL_MS}. */
   readonly sizeCheckIntervalMs?: number;
@@ -812,6 +1634,8 @@ export async function download(input: {
       limits: input.limits,
       ...(input.format === undefined ? {} : { format: input.format }),
       ...(input.ffmpegPath === undefined ? {} : { ffmpegPath: input.ffmpegPath }),
+      ...(input.jsRuntime === undefined ? {} : { jsRuntime: input.jsRuntime }),
+      ...(input.section === undefined ? {} : { section: input.section }),
     }),
     {
       timeoutMs: input.limits.timeoutMs,
@@ -822,6 +1646,9 @@ export async function download(input: {
         const percent = parseProgress(line);
         if (percent !== null) input.onProgress?.(percent);
       },
+      ...(input.onBytes === undefined ? {} : { onBytes: input.onBytes }),
+      ...(input.pace === undefined ? {} : { pace: input.pace }),
+      ...(input.lowDisk === undefined ? {} : { lowDisk: input.lowDisk }),
       ...(input.signal === undefined ? {} : { signal: input.signal }),
     },
   );
@@ -846,11 +1673,13 @@ export async function download(input: {
   }
 }
 
-interface DownloaderResult {
+export interface DownloaderResult {
   readonly code: number;
   /** stdout and stderr lines in arrival order, progress lines left out. Unredacted. */
   readonly output: string;
 }
+
+type KillReason = "timeout" | "abort" | "oversize" | "slow" | "disk";
 
 /**
  * Run the downloader, reading BOTH streams line by line, and watch the disk.
@@ -860,8 +1689,17 @@ interface DownloaderResult {
  * spawn rules are `run()`'s — no shell, a timeout that kills and then kills
  * harder, an abort that kills — and it rejects on the same terms, plus one:
  * writing more than `maxBytes` is a {@link sourceRefused} `media/too_large`.
+ *
+ * Two rules `run()` does not need, because of the ffmpeg a section download
+ * runs with this process's own pipes: every kill is of the whole tree
+ * ({@link killTree}), and the run ends {@link DRAIN_GRACE_MS} after the
+ * downloader EXITS whether or not its pipes have closed. Waiting for the
+ * pipes alone meant waiting for that ffmpeg — through a stop, a timeout, a
+ * size cap and the pace rule alike.
+ *
+ * Exported for its tests, which run real processes.
  */
-async function runDownloader(
+export async function runDownloader(
   binary: string,
   args: readonly string[],
   options: {
@@ -870,13 +1708,24 @@ async function runDownloader(
     readonly maxBytes: number;
     readonly sizeCheckIntervalMs: number;
     readonly onLine: (line: string) => void;
+    readonly onBytes?: (bytes: number) => void;
+    readonly pace?: DownloadPace;
+    readonly lowDisk?: () => Promise<boolean>;
     readonly signal?: AbortSignal;
+    /** Tests shorten it. */
+    readonly drainGraceMs?: number;
   },
 ): Promise<DownloaderResult> {
   return new Promise<DownloaderResult>((resolve, reject) => {
     let child: ChildProcessByStdio<null, Readable, Readable>;
     try {
-      child = spawn(binary, [...args], { windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
+      child = spawn(binary, [...args], {
+        windowsHide: true,
+        stdio: ["ignore", "pipe", "pipe"],
+        // Its own process group, so a kill reaches what it starts (killTree).
+        // Not on Windows, where `detached` means a console of its own instead.
+        detached: process.platform !== "win32",
+      });
     } catch (error) {
       reject(
         transientFailure("media/tool_spawn", `could not start ${binary}`, {
@@ -887,10 +1736,19 @@ async function runDownloader(
       return;
     }
 
+    // When the download itself began: the pace is judged from here, not from
+    // the spawn (see `isTooSlow`).
+    let paceFrom: number | null = null;
+    // ffmpeg's own `time=`, under a section download.
+    let mediaMs: number | null = null;
+
     const kept: string[] = [];
     const keep = (line: string): void => {
       options.onLine(line);
-      if (isProgressLine(line)) return;
+      if (paceFrom === null && line.includes("[download] Destination:")) paceFrom = Date.now();
+      const time = parseMediaTime(line);
+      if (time !== null) mediaMs = Math.max(mediaMs ?? 0, time);
+      if (isProgressLine(line) || isFfmpegStats(line)) return;
       kept.push(line);
       if (kept.length > OUTPUT_LINES) kept.shift();
     };
@@ -899,8 +1757,10 @@ async function runDownloader(
     const output = (): string => kept.join("\n");
 
     let settled = false;
-    let killedBy: "timeout" | "abort" | "oversize" | null = null;
+    let exited = false;
+    let killedBy: KillReason | null = null;
     let measuring = false;
+    let lastBytes = 0;
 
     const finish = (fn: () => void): void => {
       if (settled) return;
@@ -911,24 +1771,56 @@ async function runDownloader(
       fn();
     };
 
-    const kill = (why: "timeout" | "abort" | "oversize"): void => {
-      if (killedBy !== null) return;
+    const kill = (why: KillReason): void => {
+      if (killedBy !== null || settled) return;
       killedBy = why;
-      child.kill("SIGTERM");
-      setTimeout(() => child.kill("SIGKILL"), KILL_GRACE_MS).unref();
+      if (exited) return;
+      killTree(child, "SIGTERM");
+      setTimeout(() => {
+        if (!exited) killTree(child, "SIGKILL");
+      }, KILL_GRACE_MS).unref();
     };
 
     const timer = setTimeout(() => kill("timeout"), options.timeoutMs);
     timer.unref();
 
     // The cap that holds whatever the format: `--max-filesize` never fires for
-    // a fragmented stream, and for a split download it is per part.
+    // a fragmented stream, and for a split download it is per part. For a
+    // section, the same measurement is its progress and, with ffmpeg's
+    // `time=`, its pace. And the volume: a download stops before the database
+    // on the same disk has nowhere left to write.
+    const measure = async (): Promise<void> => {
+      const { bytes, finished } = await downloadedBytes(options.outputPath);
+      if (killedBy !== null || settled) return;
+      // The running maximum: once yt-dlp renames `source.mp4.part` to
+      // `source.mp4` the parts read as nothing, for the tens of milliseconds
+      // before it exits, and a pace judged on that killed finished sections.
+      lastBytes = Math.max(lastBytes, bytes);
+      if (bytes > options.maxBytes) {
+        kill("oversize");
+        return;
+      }
+      options.onBytes?.(bytes);
+      if (options.lowDisk !== undefined && (await options.lowDisk())) {
+        kill("disk");
+        return;
+      }
+      if (paceFrom === null && lastBytes > 0) paceFrom = Date.now();
+      if (
+        options.pace !== undefined &&
+        !finished &&
+        paceFrom !== null &&
+        isTooSlow(options.pace, { bytes: lastBytes, mediaMs }, Date.now() - paceFrom)
+      ) {
+        kill("slow");
+      }
+    };
     const watch = setInterval(() => {
       if (measuring || killedBy !== null) return;
       measuring = true;
-      void downloadedBytes(options.outputPath)
-        .then((bytes) => {
-          if (bytes > options.maxBytes) kill("oversize");
+      void measure()
+        .catch((error: unknown) => {
+          logger.warn("could not measure the download", { error: describeError(error) });
         })
         .finally(() => {
           measuring = false;
@@ -956,12 +1848,47 @@ async function runDownloader(
       );
     });
 
-    child.on("close", (code, signal) => {
+    const settle = (code: number | null, signal: NodeJS.Signals | null): void => {
+      if (settled) return;
       stdout.end();
       stderr.end();
       const tail = stderrTail(output());
       if (killedBy === "oversize") {
-        finish(() => reject(sourceRefused("media/too_large", TOO_LARGE, tail)));
+        finish(() =>
+          reject(
+            sourceRefused(
+              "media/too_large",
+              TOO_LARGE,
+              tail,
+              knownFacts({ approximateBytes: lastBytes, maxBytes: options.maxBytes }),
+            ),
+          ),
+        );
+        return;
+      }
+      if (killedBy === "slow") {
+        const pace = options.pace;
+        finish(() =>
+          reject(
+            transientFailure(
+              "media/acquire_slow",
+              `the section arrived slower than ${String(pace?.minRealtime ?? SECTION_MIN_REALTIME)}x its running time`,
+              { detail: tail, reason: "media/source_failed" },
+            ),
+          ),
+        );
+        return;
+      }
+      if (killedBy === "disk") {
+        finish(() =>
+          reject(
+            transientFailure(
+              "media/disk_full",
+              "the download was stopped: the scratch disk is nearly full",
+              { detail: tail, reason: "media/source_failed" },
+            ),
+          ),
+        );
         return;
       }
       if (killedBy !== null) {
@@ -991,27 +1918,53 @@ async function runDownloader(
         return;
       }
       finish(() => resolve({ code, output: output() }));
+    };
+
+    child.on("exit", (code, signal) => {
+      exited = true;
+      // 'close' normally follows at once, when the pipes close. Something the
+      // downloader started can hold them open after it has gone (see
+      // killTree); give its last lines a moment, then end without it.
+      setTimeout(() => {
+        if (settled) return;
+        killRemnants(child.pid);
+        child.stdout.destroy();
+        child.stderr.destroy();
+        settle(code, signal);
+      }, options.drainGraceMs ?? DRAIN_GRACE_MS);
+    });
+    child.on("close", (code, signal) => {
+      settle(code, signal);
     });
   });
 }
 
 /**
- * Bytes the downloader has fetched so far, in the job's own scratch directory.
+ * Bytes the downloader has fetched so far, in the job's own scratch directory,
+ * and whether the finished file is there yet.
  *
- * Two kinds of file are left out, because counting them would double a
- * legitimate download and kill it: `*.temp.*` (a merge or fixup writing a
- * second copy of what is already here) and the finished output itself (which
- * sits next to its parts until yt-dlp deletes them). The finished file is
- * measured after the download instead.
+ * Two kinds of file are left out of the bytes, because counting them would
+ * double a legitimate download and kill it: `*.temp.*` (a merge or fixup
+ * writing a second copy of what is already here) and the finished output
+ * itself (which sits next to its parts until yt-dlp deletes them). The
+ * finished file is measured after the download instead.
  */
-async function downloadedBytes(outputPath: string): Promise<number> {
+async function downloadedBytes(
+  outputPath: string,
+): Promise<{ readonly bytes: number; readonly finished: boolean }> {
   const dir = dirname(outputPath);
-  const finished = basename(outputPath);
+  const finishedName = basename(outputPath);
   // eslint-disable-next-line security/detect-non-literal-fs-filename -- the job's own scratch directory
   const entries = await readdir(dir, { withFileTypes: true }).catch(() => []);
   let total = 0;
+  let finished = false;
   for (const entry of entries) {
-    if (!entry.isFile() || entry.name === finished || entry.name.includes(".temp.")) continue;
+    if (!entry.isFile()) continue;
+    if (entry.name === finishedName) {
+      finished = true;
+      continue;
+    }
+    if (entry.name.includes(".temp.")) continue;
     // A fragment can be appended and deleted between the listing and the stat.
     // eslint-disable-next-line security/detect-non-literal-fs-filename -- as above
     total += await stat(join(dir, entry.name)).then(
@@ -1019,7 +1972,7 @@ async function downloadedBytes(outputPath: string): Promise<number> {
       () => 0,
     );
   }
-  return total;
+  return { bytes: total, finished };
 }
 
 /**
@@ -1198,6 +2151,19 @@ const BLOCK_WARNING_PHRASES = [
 ] as const;
 
 /**
+ * The block, as ffmpeg's HTTP reader says it: `[https @ 0x…] HTTP error 429
+ * Too Many Requests`. Only these two — a 403 from the reader is as often an
+ * expired stream URL as a refusal, and the whole-file download may still get
+ * it.
+ */
+const READER_BLOCK_PHRASES = ["http error 429", "too many requests"] as const;
+
+/** A line from ffmpeg's network layer, which a section download prints into our stderr. */
+function isReaderLine(line: string): boolean {
+  return /^\s*\[(?:https?|tls|tcp) @ /i.test(line);
+}
+
+/**
  * Turn the downloader's output into one of OUR failures.
  *
  * Reads stdout and stderr together, because the size abort is on stdout. The
@@ -1219,6 +2185,12 @@ const BLOCK_WARNING_PHRASES = [
  * went back to YouTube twice more inside fifteen seconds — the hammering a
  * block is refused to stop. Read as a block, the user is told to try later,
  * which is the right advice for the rare transient fault it mislabels too.
+ *
+ * ffmpeg's own lines are the other exception. A section is fetched by ffmpeg's
+ * reader, and yt-dlp's only ERROR is then `ffmpeg exited with code 1`; the
+ * reason is in what ffmpeg printed before it. A 429 there is the same block,
+ * and read as an unnamed failure it sent the caller off to fetch the whole
+ * video — another extraction and download from the address being refused.
  */
 export function classify(
   output: string,
@@ -1231,9 +2203,18 @@ export function classify(
   const detail = stderrTail(evidence.join("\n"));
 
   // Anywhere, on either stream: yt-dlp prints it as a `[download]` line, not
-  // an ERROR, and then exits 0.
-  if (lines.some((line) => line.toLowerCase().includes("larger than max-filesize"))) {
-    return sourceRefused("media/too_large", TOO_LARGE, detail);
+  // an ERROR, and then exits 0. It states both numbers, which the page wants.
+  const oversize = lines.find((line) => line.toLowerCase().includes("larger than max-filesize"));
+  if (oversize !== undefined) {
+    const sizes = /\((\d{1,15}) bytes > (\d{1,15}) bytes\)/.exec(oversize);
+    return sourceRefused(
+      "media/too_large",
+      TOO_LARGE,
+      detail,
+      sizes === null
+        ? undefined
+        : knownFacts({ approximateBytes: Number(sizes[1]), maxBytes: Number(sizes[2]) }),
+    );
   }
 
   const haystack = evidence.join("\n").toLowerCase();
@@ -1252,6 +2233,19 @@ export function classify(
       "media/source_blocked",
       BLOCKED,
       stderrTail([blockWarning, ...evidence].join("\n")),
+    );
+  }
+
+  const readerBlock = lines.find(
+    (line) =>
+      isReaderLine(line) &&
+      READER_BLOCK_PHRASES.some((phrase) => line.toLowerCase().includes(phrase)),
+  );
+  if (readerBlock !== undefined) {
+    return sourceRefused(
+      "media/source_blocked",
+      BLOCKED,
+      stderrTail([readerBlock, ...evidence].join("\n")),
     );
   }
 

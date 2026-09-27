@@ -55,6 +55,32 @@ Total on-disk size: **~3.1 GB** (well under the 6 GB budget).
   where the packages are absent. `WORKER_AI_WHISPER_DEVICE=auto` (the default)
   probes for a working GPU and falls back to CPU rather than failing a job.
 
+## 0b. Whisper large-v3-turbo (faster-whisper / CTranslate2, GPU) - English lanes
+
+- **Purpose**: the `local-whisper` weights for the English lanes
+  (`WORKER_AI_WHISPER_MODEL_EN`, 2026-09-27). The Hinglish fine-tune above
+  writes English speech with Hinglish artefacts and calls every language
+  English, so English, Indian-English and auto-detected jobs load these
+  general weights instead; Hindi and Hinglish keep the fine-tune. When the
+  variable is unset or the weights fail to load, the English lanes fall back
+  to the fine-tune and the worker logs an error.
+- **Source**: a CTranslate2 (float16) conversion of `openai/whisper-large-v3-turbo`
+  from the Hugging Face hub. The repository name was not recorded when it was
+  downloaded; the revision below is what the download cache holds
+  (`.cache/huggingface/trees/`).
+- **Version**: HF revision `4df90f75321148c3a29a9e2351b7ddf8f5b115a8`.
+- **Licence**: MIT (OpenAI Whisper).
+- **Local path**: `_models/faster-whisper-large-v3-turbo/` (`config.json`,
+  `model.bin`, `vocabulary.json`, `tokenizer.json`, `preprocessor_config.json`).
+- **Size**: 1.6 GB (`model.bin` is 1,617,884,929 bytes, float16; loaded as
+  int8_float16 on the GPU).
+- **SHA-256** (`model.bin`):
+  `e76620f83d5f5b69efd3d87e3dc180c1bd21df9fbebacfd4335e5e1efcc018da`
+- **Memory**: CTranslate2 reads `model.bin` into host RAM on first load, so the
+  first English job needs about 2 GB of RAM free. An int8_float16 conversion
+  (`ct2-transformers-converter --model openai/whisper-large-v3-turbo
+  --quantization int8_float16`) halves the file if RAM is short.
+
 ## 1. Whisper `small` (faster-whisper / CTranslate2)
 
 - **Purpose**: self-hosted ASR — the `local-whisper` provider

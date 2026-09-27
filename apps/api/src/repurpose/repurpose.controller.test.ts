@@ -2,6 +2,7 @@ import { HttpStatus, RequestMethod } from "@nestjs/common";
 import { describe, expect, it, vi } from "vitest";
 
 import { addCandidateSchema, CLIP_RATE_LIMITS, createClipSchema } from "./repurpose-clips.dto.js";
+import { REPURPOSE_RATE_LIMITS } from "./repurpose.constants.js";
 import { RepurposeController } from "./repurpose.controller.js";
 import { RATE_LIMIT_KEY, ROLES_KEY } from "../common/guards/index.js";
 
@@ -112,5 +113,25 @@ describe("clip request bodies", () => {
     expect(addCandidateSchema.safeParse({ startMs: 0, endMs: 5_000, title: " " }).success).toBe(
       false,
     );
+  });
+});
+
+describe("RepurposeController — the next window of a long video (2026-09-27)", () => {
+  it("serves POST :runId/next-window from the run service, as an editor, with 201", async () => {
+    const repurpose = { nextWindow: vi.fn(async () => ({ run: { id: RUN } })) };
+    const controller = new RepurposeController(repurpose as never, {} as never, {} as never);
+
+    await expect(controller.nextWindow(WS, USER, RUN)).resolves.toEqual({ run: { id: RUN } });
+    expect(repurpose.nextWindow).toHaveBeenCalledWith(WS, USER, RUN);
+    expect(route("nextWindow")).toMatchObject({
+      path: ":runId/next-window",
+      method: RequestMethod.POST,
+      roles: ["editor"],
+      httpCode: HttpStatus.CREATED,
+    });
+  });
+
+  it("is rate-limited like a create: it starts a download", () => {
+    expect(route("nextWindow").rateLimits).toEqual([REPURPOSE_RATE_LIMITS.create]);
   });
 });

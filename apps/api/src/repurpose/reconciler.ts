@@ -12,6 +12,7 @@ import { MediaAcquirePayloadSchema } from "@montaj/repurpose-contracts";
 import {
   LEGACY_RUN_FAILURE_CODES,
   STAGE_OF_FAILURE,
+  failureDetailOf,
   jobErrorCodeOf,
   runFailureCode,
 } from "./failure-codes.js";
@@ -35,8 +36,12 @@ import { progressForStatus, stageForStatus } from "./repurpose.projection.js";
 import { RepurposeService, isRefusal, isUniqueViolation } from "./repurpose.service.js";
 import { AppException, ERROR_CODES } from "../common/errors/error-codes.js";
 import { PrismaService } from "../common/prisma/prisma.service.js";
+import { queuePolicyFor } from "../jobs/jobs.config.js";
+import { JobsService } from "../jobs/jobs.service.js";
 import { MEDIA_JOB_KEYS } from "../media/media.constants.js";
+import { FREE_PLAN_CLIPS_LIMITS } from "../projects/plan-limits.js";
 import { AutoTranscribeTrigger } from "../transcripts/auto-transcribe.trigger.js";
+import { audioReadyEarly } from "../transcripts/first-transcription.js";
 import { quoteTranscription } from "../transcripts/transcripts.quote.js";
 
 import type { FailedAt, RunFailureCode } from "./failure-codes.js";
@@ -84,6 +89,13 @@ export interface JobFacts {
   readonly maxQueueWaitMs?: number | null;
   /** A download's own deadline, from its payload (`limits.timeoutMs`). */
   readonly timeoutMs?: number | null;
+  /**
+   * worker-media put it back for want of scratch disk (`diskHeldSince`). It
+   * stays `queued` on purpose, spends no attempt, starts by itself once there
+   * is room and fails itself (`worker/disk_full`) after hours - so it is not
+   * stalled however long it has waited, and the operator is alerted instead.
+   */
+  readonly heldForDisk?: boolean;
 }
 
 /** Everything the decision reads, as plain data, so the decision is a pure function. */
@@ -113,6 +125,13 @@ export interface RunSnapshot {
     /** The bytes arrived (`uploaded_at`): a fetched link is past its download. */
     readonly arrived: boolean;
     readonly durationMs: number | null;
+    /**
+     * The proxy has written the ASR audio back while the rest of the media is
+     * still being prepared (`audioReadyEarly`, clips pipeline W5): transcription
+     * starts now instead of after the video encode. Only ever true while the
+     * media is `probing`; absent reads as false.
+     */
+    readonly audioReady?: boolean;
   } | null;
   /** The newest `media.acquire` that fetches into THAT media row. */
   readonly acquireJob: JobFacts | null;
@@ -163,15 +182,21 @@ function isOver(job: JobFacts): boolean {
 }
 
 /**
- * How long a download may run: its own deadline, which the worker enforces,
- * plus a margin. Past it the worker is gone, not slow.
+ * How long a download may run: its own deadline, which the worker enforces, for
+ * every attempt the queue allows, the back-off between them, plus a margin.
+ * `started_at` is stamped on the first pickup only, so a second attempt is
+ * measured from the first one's start. Past it the worker is gone, not slow.
  */
 export function acquireCeilingMs(job: JobFacts): number {
   const timeoutMs = job.timeoutMs ?? null;
-  return (
-    (timeoutMs !== null && timeoutMs > 0 ? timeoutMs : ACQUIRE_TIMEOUT_MS) +
-    ACQUIRE_RUNNING_MARGIN_MS
-  );
+  const perAttempt = timeoutMs !== null && timeoutMs > 0 ? timeoutMs : ACQUIRE_TIMEOUT_MS;
+  const { attempts, backoffMs } = queuePolicyFor("media.acquire");
+  const tries = Math.max(1, attempts);
+  // The back-off is exponential from `backoffMs` and jittered by at most a
+  // third; the margin absorbs the jitter.
+  let waits = 0;
+  for (let retry = 0; retry < tries - 1; retry += 1) waits += backoffMs * 2 ** retry;
+  return tries * perAttempt + waits + ACQUIRE_RUNNING_MARGIN_MS;
 }
 
 /** How long the probe, the proxy, the transcription or discovery may run: scaled to the video. */
@@ -189,6 +214,7 @@ export function workCeilingMs(durationMs: number | null): number {
  */
 export function isStalled(job: JobFacts, ceilingMs: number, now: number): boolean {
   if (job.status === "queued") {
+    if (job.heldForDisk === true) return false;
     const waitMs = job.maxQueueWaitMs ?? null;
     return job.queuedAt !== undefined && waitMs !== null && now - job.queuedAt > waitMs;
   }
@@ -282,6 +308,63 @@ function preparationEnded(
 }
 
 /**
+ * Media still being prepared whose ASR audio is already written back (see
+ * `RunSnapshot.media.audioReady`): the transcription need not wait for `ready`.
+ */
+function startsOnAudio(media: NonNullable<RunSnapshot["media"]>): boolean {
+  return media.status === "probing" && media.audioReady === true;
+}
+
+/**
+ * The run's source can never be cut from: the media failed, or preparing it
+ * ended without it (see {@link preparationEnded}). The failure it fails the
+ * run with, or null while the source is fine or still on its way.
+ *
+ * Before W5 a transcript proved the media was `ready` — nothing transcribed it
+ * earlier — so a run past its transcript never looked at the media again. Now
+ * the transcript is made from audio the proxy writes back ahead of its encode,
+ * and can land before that encode fails (a bad video stream, a full disk) or
+ * stalls. Without this, such a run went on to discovery and moments that no
+ * cut could ever be taken from, and nothing ever failed it.
+ */
+function unusableSource(snapshot: RunSnapshot): RunAction | null {
+  const media = snapshot.media;
+  if (media === null) return null;
+  if (media.status === "failed") {
+    // A fetch that failed before its bytes arrived (a Try again that fetched
+    // the link into a fresh row) is a download failure, as it is below.
+    return media.arrived || snapshot.sourceKind === "upload"
+      ? fail("processing", media.failureReason, null)
+      : fail("acquire", media.failureReason, snapshot.acquireJob?.errorCode ?? null);
+  }
+  const ended = preparationEnded(snapshot);
+  if (ended === null) return null;
+  return ended.stalled
+    ? timedOut("processing")
+    : fail("processing", media.failureReason, ended.errorCode);
+}
+
+/**
+ * A transcription still queued or running on media that can no longer be used
+ * — it failed, or the job preparing it ended — by id; null otherwise. The
+ * run's fail path cancels it with the stalled ones: its words are of a video
+ * no clip can be cut from, and cancelling releases its credit hold.
+ *
+ * The proxy's failure handler stops the same transcription
+ * (`MediaProxyCompletionHandler`), but only one it can already see: a start
+ * that read the media as `probing` a moment before the failure landed can
+ * commit its job just after that look. Not a preparation that merely stalled:
+ * a late proxy can still finish, and the transcription is then the run's to use.
+ */
+function transcriptionOfDeadMedia(snapshot: RunSnapshot): string | null {
+  const job = snapshot.transcribeJob;
+  if (job?.id === undefined || (job.status !== "queued" && job.status !== "running")) return null;
+  if (snapshot.media?.status === "failed") return job.id;
+  const ended = preparationEnded(snapshot);
+  return ended !== null && !ended.stalled ? job.id : null;
+}
+
+/**
  * An upload run whose file has not arrived — no media row, or one still
  * `pending` or `uploading` — for longer than {@link UPLOAD_WINDOW_MS}.
  */
@@ -317,12 +400,17 @@ const UPLOAD_MISSING: RunAction = {
 /**
  * What a run that has no moments yet should do next (§1's table). Read top to
  * bottom it is the pipeline backwards: the furthest step that exists decides,
- * so a transcript makes the state of the download irrelevant.
+ * so a transcript makes the state of the download irrelevant — though not a
+ * source that can never be cut ({@link unusableSource}).
  */
 export function decideRunAction(snapshot: RunSnapshot): RunAction {
   if (snapshot.sourceDeleted) return SOURCE_GONE;
 
   if (snapshot.transcriptId !== null) {
+    // A transcript no longer proves the source can be cut (W5): one whose
+    // preparation failed or stalled fails the run here, before discovery.
+    const unusable = unusableSource(snapshot);
+    if (unusable !== null) return unusable;
     const job = presentJob(snapshot.highlightsJob);
     if (job === null) return { kind: "discover" };
     if (isOver(job)) return fail("highlights", null, job.errorCode);
@@ -376,10 +464,15 @@ export function decideRunAction(snapshot: RunSnapshot): RunAction {
       // ended with nothing written back, which would otherwise read
       // "Getting your video" for good.
       const ended = preparationEnded(snapshot);
-      if (ended === null) return WAIT;
-      return ended.stalled
-        ? timedOut("processing")
-        : fail("processing", media.failureReason, ended.errorCode);
+      if (ended !== null) {
+        return ended.stalled
+          ? timedOut("processing")
+          : fail("processing", media.failureReason, ended.errorCode);
+      }
+      // The proxy wrote the ASR audio back ahead of its video encode (W5): the
+      // transcription is due now, alongside the encode — the same rule the
+      // producer applies, so this never asks for a start it would refuse.
+      if (!startsOnAudio(media)) return WAIT;
     }
   }
   if (media.durationMs === null || media.durationMs <= 0) return WAIT;
@@ -416,12 +509,30 @@ const DISCOVERY_FAILURES: ReadonlySet<string> = new Set([
  */
 export function planRetry(
   snapshot: RunSnapshot,
-  context: { readonly failureCode: string | null },
+  context: {
+    readonly failureCode: string | null;
+    /**
+     * The run's `failure_detail`. A video refused as longer than the longest
+     * source anything may look at ({@link overSourceCeiling}) is refused the
+     * same way however often it is fetched; one refused for a plan window or
+     * a cap from before windows is fetched again, a window of it this time.
+     */
+    readonly failureDetail?: unknown;
+  },
 ): RetryPlan {
   if (snapshot.sourceDeleted) {
     return {
       kind: "impossible",
       reason: "This video's project was deleted. Start a new video with it.",
+    };
+  }
+  if (
+    context.failureCode === "repurpose/source_too_long" &&
+    overSourceCeiling(context.failureDetail)
+  ) {
+    return {
+      kind: "impossible",
+      reason: "This video is longer than the longest video we can look at. Choose a shorter one.",
     };
   }
   if (context.failureCode === REPURPOSE_ERRORS.transcriptUntimed) {
@@ -435,15 +546,30 @@ export function planRetry(
         "This video's transcript has no word timings, so no moment can be placed in it. Start the video again to transcribe it afresh.",
     };
   }
-  if (snapshot.candidateCount > 0 && !DISCOVERY_FAILURES.has(context.failureCode ?? "")) {
+  // Moments and a transcript are only worth going back to on a source that can
+  // still be cut. Since W5 a transcript can outlive the media it was made from
+  // (the proxy failed after the early transcription finished): then it is the
+  // media that failed, and the branches below decide — a link is fetched again,
+  // an upload cannot be read — exactly as they do with no transcript.
+  const usable = unusableSource(snapshot) === null;
+  if (usable && snapshot.candidateCount > 0 && !DISCOVERY_FAILURES.has(context.failureCode ?? "")) {
     // It already had moments (an old run a clip failed, a timeout while
     // cutting): nothing upstream needs doing again, it goes back to them.
     return { kind: "restore" };
   }
-  if (snapshot.transcriptId !== null) return { kind: "discover" };
+  if (usable && snapshot.transcriptId !== null) return { kind: "discover" };
 
   const media = snapshot.media;
-  if (media?.status === "ready" && media.durationMs !== null && media.durationMs > 0) {
+  if (
+    media !== null &&
+    media.durationMs !== null &&
+    media.durationMs > 0 &&
+    // A transcription that failed on audio written back ahead of the encode
+    // (W5) is restarted on that audio, while the encode carries on — not by
+    // fetching the whole video again. Unless the preparation itself ended:
+    // then it is the media that failed, and the branches below decide.
+    (media.status === "ready" || (startsOnAudio(media) && preparationEnded(snapshot) === null))
+  ) {
     return { kind: "transcribe" };
   }
 
@@ -516,8 +642,29 @@ export function planRetry(
   return { kind: "resume" };
 }
 
+/**
+ * The source was refused against the ceiling on what may be looked at at all
+ * (`maxSourceDurationMs`, 12 h on every plan): no window was offered with the
+ * limit, and the limit is that ceiling. Detail from the probe's window overrun
+ * carries `windowMs`, and detail from before windows carries a plan cap under
+ * the ceiling - both are fetched again, as a window, on a retry.
+ */
+export function overSourceCeiling(failureDetail: unknown): boolean {
+  const detail = failureDetailOf(failureDetail);
+  return (
+    detail !== null &&
+    detail.windowMs === undefined &&
+    detail.durationMs !== undefined &&
+    detail.maxDurationMs !== undefined &&
+    detail.durationMs > detail.maxDurationMs &&
+    detail.maxDurationMs >= FREE_PLAN_CLIPS_LIMITS.maxSourceDurationMs
+  );
+}
+
 interface JobRow {
   readonly id: string;
+  readonly type: string;
+  readonly attemptId: string | null;
   readonly status: $Enums.JobStatus;
   readonly error: Prisma.JsonValue | null;
   readonly queuedAt: Date;
@@ -587,6 +734,8 @@ function paramOf(job: JobRow, key: string): unknown {
 
 const JOB_FIELDS = {
   id: true,
+  type: true,
+  attemptId: true,
   status: true,
   error: true,
   queuedAt: true,
@@ -609,6 +758,10 @@ interface SourceMedia {
   readonly uploadedAt: Date | null;
   readonly durationMs: number | null;
   readonly createdAt: Date;
+  /** Written back by the proxy before its video encode (W5). */
+  readonly audio16kKey: string | null;
+  /** Set by every probe; with the key, what makes the audio usable early. */
+  readonly hasAudio: boolean | null;
 }
 
 /** The source project columns a transcription start depends on. */
@@ -664,6 +817,8 @@ export class RepurposeReconciler
     private readonly runs: RepurposeService,
     private readonly autoTranscribe: AutoTranscribeTrigger,
     private readonly clips: RepurposeClipsService,
+    /** Reads whether a queued job is waiting for disk; absent in unit harnesses. */
+    private readonly jobs?: JobsService,
   ) {}
 
   /**
@@ -775,7 +930,10 @@ export class RepurposeReconciler
    */
   async retryPossible(run: RepurposeRun, failureCode: string | null): Promise<boolean> {
     const state = await this.read(run);
-    return planRetry(state.snapshot, { failureCode }).kind !== "impossible";
+    return (
+      planRetry(state.snapshot, { failureCode, failureDetail: run.failureDetail }).kind !==
+      "impossible"
+    );
   }
 
   /**
@@ -841,12 +999,13 @@ export class RepurposeReconciler
    */
   async redrive(run: RepurposeRun): Promise<RepurposeRun> {
     let state = await this.read(run);
-    let plan = planRetry(state.snapshot, { failureCode: run.failureCode });
+    const context = { failureCode: run.failureCode, failureDetail: run.failureDetail };
+    let plan = planRetry(state.snapshot, context);
     const stale = plan.kind === "impossible" ? [] : stalledJobIds(state.snapshot);
     if (stale.length > 0) {
       await this.runs.cancelJobs(run, stale);
       state = await this.read(run);
-      plan = planRetry(state.snapshot, { failureCode: run.failureCode });
+      plan = planRetry(state.snapshot, context);
     }
 
     switch (plan.kind) {
@@ -960,8 +1119,12 @@ export class RepurposeReconciler
         // its failure handler then finds a run that has already answered, and
         // leaves the failure this pass wrote in place. Not the media's probe
         // or proxy: those free nothing, and a late one is still the only way
-        // an upload gets prepared (see `stalledJobIds`).
+        // an upload gets prepared (see `stalledJobIds`). Nor a transcription
+        // still running on audio that is fine — except when the media it came
+        // from failed (`transcriptionOfDeadMedia`).
         const stale = stalledJobIds(state.snapshot, { preparation: false });
+        const wasted = transcriptionOfDeadMedia(state.snapshot);
+        if (wasted !== null && !stale.includes(wasted)) stale.push(wasted);
         if (stale.length > 0) await this.runs.cancelJobs(failed, stale);
         return failed;
       }
@@ -971,6 +1134,17 @@ export class RepurposeReconciler
         try {
           await this.runs.reacquire(run, state.refetchUrl, state.media);
         } catch (error) {
+          if (error instanceof AppException && error.code === REPURPOSE_ERRORS.noCredits) {
+            // The balance no longer pays for a minute of the window: waiting
+            // will not fetch it, and "could not get the video" would blame
+            // the link. `failRun` fills in the balance for the page.
+            const failed = await this.runs.failRun(
+              run,
+              "repurpose/no_credits",
+              STAGE_OF_FAILURE.acquire,
+            );
+            return failed ?? this.current(run);
+          }
           if (error instanceof AppException && !isRefusal(error)) {
             // Refused for good — links switched off for the workspace, the
             // project deleted under it: waiting will not fetch it, so the run
@@ -1095,6 +1269,18 @@ export class RepurposeReconciler
         return "no_credits";
       }
     }
+    if (media.status !== "ready") {
+      // Asked on the audio, ahead of the video encode (W5). The trigger starts
+      // nothing then when it would take the plan lane's last free slot — the
+      // encode already holds one, and on Free that would be both — and the ask
+      // once the media is ready starts it. Expected on every pass until then,
+      // so not worth a line each time.
+      this.logger.debug(
+        { runId: run.id, mediaId: media.id },
+        "transcription not started on the early audio; it starts once the media is ready",
+      );
+      return "deferred";
+    }
     this.logger.log(
       { runId: run.id, mediaId: media.id },
       "transcription not started yet; will retry",
@@ -1121,6 +1307,8 @@ export class RepurposeReconciler
           uploadedAt: true,
           durationMs: true,
           createdAt: true,
+          audio16kKey: true,
+          hasAudio: true,
         },
       }),
       this.prisma.transcript.findFirst({
@@ -1209,9 +1397,10 @@ export class RepurposeReconciler
                 failureReason: media.failureReason,
                 arrived: media.uploadedAt !== null,
                 durationMs: media.durationMs,
+                audioReady: audioReadyEarly(media),
               },
-        acquireJob: factsOf(forMedia(acquireJobs)),
-        processingJob: factsOf(processingJobs[0]),
+        acquireJob: await this.withDiskHold(forMedia(acquireJobs), now),
+        processingJob: await this.withDiskHold(processingJobs[0], now),
         canRefetch: refetchUrl !== null,
         transcriptId: transcript?.id ?? null,
         transcribeJob: unansweredFactsOf(forMedia(transcribeJobs), run.updatedAt),
@@ -1219,6 +1408,25 @@ export class RepurposeReconciler
         candidateCount,
       },
     };
+  }
+
+  /**
+   * {@link factsOf}, marked {@link JobFacts.heldForDisk} when worker-media is
+   * holding it for scratch disk. The queue is asked only about a job that would
+   * otherwise read as stalled in the queue, so an ordinary read costs nothing.
+   */
+  private async withDiskHold(job: JobRow | undefined, now: number): Promise<JobFacts | null> {
+    const facts = factsOf(job);
+    if (
+      facts === null ||
+      job === undefined ||
+      this.jobs === undefined ||
+      facts.status !== "queued" ||
+      !isStalled(facts, Number.POSITIVE_INFINITY, now)
+    ) {
+      return facts;
+    }
+    return (await this.jobs.diskHeldSince(job)) === null ? facts : { ...facts, heldForDisk: true };
   }
 
   /**
@@ -1249,7 +1457,12 @@ export class RepurposeReconciler
     } catch (error) {
       if (isUniqueViolation(error) && run.sourceFingerprint !== null) {
         throw (
-          (await this.runs.duplicateOf(run.workspaceId, run.sourceFingerprint, run.id)) ?? error
+          (await this.runs.duplicateOf(
+            run.workspaceId,
+            run.sourceFingerprint,
+            run.id,
+            run.windowStartMs,
+          )) ?? error
         );
       }
       throw error;

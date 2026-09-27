@@ -26,6 +26,7 @@ import {
   ListRunsDto,
   createRunResponseSchema,
   createRunSchema,
+  nextWindowResponseSchema,
   runPageSchema,
   runViewSchema,
 } from "./repurpose.dto.js";
@@ -45,7 +46,7 @@ import { withIdempotency } from "../public-api/v1/idempotent.helper.js";
 import { WorkspaceMemberGuard } from "../workspaces/workspace-member.guard.js";
 
 import type { RepurposeClipItemView } from "./repurpose-clips.service.js";
-import type { CreateRunResponse, RunPage, RunView } from "./repurpose.dto.js";
+import type { CreateRunResponse, NextWindowResponse, RunPage, RunView } from "./repurpose.dto.js";
 import type { ClipCandidate } from "@prisma/client";
 import type { Request } from "express";
 
@@ -184,6 +185,32 @@ export class RepurposeController {
       {},
       async () => this.repurpose.retry(workspaceId, userId, runId),
     );
+  }
+
+  /**
+   * Naturally idempotent, so no `Idempotency-Key` is needed: the live run over
+   * the next window is the answer to a second press, not a second run.
+   */
+  @Post(":runId/next-window")
+  @Roles("editor")
+  @HttpCode(HttpStatus.CREATED)
+  @UseGuards(RateLimitGuard)
+  @RateLimit(REPURPOSE_RATE_LIMITS.create)
+  @ApiOperation({
+    summary: "Process the next part of a long video",
+    description:
+      "201 with a NEW run over the same video, starting where this run's window ended. " +
+      "409 `repurpose/no_next_window` when nothing is left after it; " +
+      "402 `repurpose/no_credits` when the balance does not pay for a minute.",
+    operationId: "nextRepurposeWindow",
+  })
+  @ApiOkResponse(zodResponse(nextWindowResponseSchema, "The run over the next window."))
+  async nextWindow(
+    @CurrentWorkspace() workspaceId: string,
+    @CurrentUser("userId") userId: string,
+    @Param("runId") runId: string,
+  ): Promise<NextWindowResponse> {
+    return this.repurpose.nextWindow(workspaceId, userId, runId);
   }
 
   @Get(":runId/candidates")

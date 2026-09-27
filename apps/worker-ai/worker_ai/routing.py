@@ -18,6 +18,11 @@ Resolution has three steps, and keeping them apart is what lets an operator read
   the rest of it when a vendor fails (`09 §1`: fallback on provider error or an
   unsupported language).
 
+A candidate's ``model`` is documentation for a vendor, but for the providers in
+:data:`MODEL_SELECTING_PROVIDERS` it is the choice: ``local-whisper`` runs the
+weights its lane names (the general model on the English and global lanes, the
+Hinglish fine-tune on the Hindi ones).
+
 **Some components are not routable at all.** :data:`NEVER_ROUTE` lists them with
 their reason, and naming one — in the file, in an admin override, or in the
 aligner registry — fails the worker's boot rather than waiting for a code review
@@ -44,6 +49,7 @@ from worker_ai.providers.registry import ProviderRegistry
 __all__ = [
     "DEFAULT_ROUTING_FILE",
     "DEFAULT_SNAPSHOT_FILE",
+    "MODEL_SELECTING_PROVIDERS",
     "NEVER_ROUTE",
     "ROUTING_FROZEN_ENV",
     "AlignmentPolicy",
@@ -82,6 +88,14 @@ NEVER_ROUTE: dict[str, str] = {
         "`09 §2` chain is XLSR-53 (Apache-2.0) instead (D77)"
     ),
 }
+
+#: Providers whose weights are chosen by the table: a candidate's ``model`` is
+#: passed to them (``options["model"]``) and decides what runs. For every other
+#: provider ``model`` only names what the vendor runs. ``local-whisper`` holds
+#: two sets of weights — a Hindi/Hinglish fine-tune and a general model — and
+#: the lane, not the request's language, has to pick between them, because the
+#: first chunk of an "auto" job goes out with no language (it is the LID probe).
+MODEL_SELECTING_PROVIDERS: frozenset[str] = frozenset({"local-whisper"})
 
 AlignmentPolicy = Literal["required", "optional", "none"]
 
@@ -144,12 +158,20 @@ class RoutingCandidate:
         return wire
 
     def provider_options(self) -> dict[str, Any]:
-        """Vendor knobs to hand to :class:`~worker_ai.providers.base.Provider`."""
+        """Vendor knobs to hand to :class:`~worker_ai.providers.base.Provider`.
+
+        ``model`` goes only to a provider in :data:`MODEL_SELECTING_PROVIDERS`:
+        for a vendor it names what the vendor runs and is echoed into
+        ``usage.model``, and ``serverless-whisper`` copies every option into its
+        request body, where an unasked-for ``model`` would be a new wire field.
+        """
         options: dict[str, Any] = {}
         if self.mode is not None:
             options["mode"] = self.mode
         if self.api is not None:
             options["api"] = self.api
+        if self.model and self.provider in MODEL_SELECTING_PROVIDERS:
+            options["model"] = self.model
         return options
 
 

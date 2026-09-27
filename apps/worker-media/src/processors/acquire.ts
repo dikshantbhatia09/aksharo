@@ -1,20 +1,39 @@
 import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
-import { stat } from "node:fs/promises";
+import { mkdir, rm, stat } from "node:fs/promises";
+import { join } from "node:path";
 
-import { sourceRefused, transientFailure, unreadableMedia } from "../errors.js";
+import {
+  MediaJobError,
+  knownFacts,
+  sourceRefused,
+  transientFailure,
+  unreadableMedia,
+} from "../errors.js";
 import { ffprobe, readProbe } from "../ffmpeg/ffprobe.js";
+import { FFMPEG_BASE_ARGS, run } from "../ffmpeg/run.js";
+import { logger } from "../logger.js";
 import { toolVersion } from "../media-tools.js";
 import { withWorkspace } from "../workspace.js";
 import {
+  SECTION_MIN_REALTIME,
+  WINDOW_TOLERANCE_MS,
   assertWithinLimits,
   download,
+  formatSeconds,
+  planSection,
   probeSource,
   ytDlpVersion,
   type AcquireLimits,
+  type AcquireWindow,
+  type SectionPlan,
+  type SourceMetadata,
+  type WindowPolicy,
 } from "../yt-dlp.js";
 
+import type { ProbeContainer } from "../ffmpeg/ffprobe.js";
 import type { JobContext, ProcessorOutcome } from "../runtime.js";
+import type { Workspace } from "../workspace.js";
 
 /**
  * `media.acquire` — bring an authorised external source into object storage.
@@ -47,6 +66,42 @@ import type { JobContext, ProcessorOutcome } from "../runtime.js";
  *     happens next is policy, and policy does not belong in a worker that any pod
  *     can run — the same rule `probe.ts` follows.
  *
+ * ## A window, when the source is longer than the plan processes
+ *
+ * The plan limits the minutes a run PROCESSES, not the length of the video. A
+ * job with a `window` whose source is longer than `window.maxMs` fetches only
+ * a section of it (`planSection`: the user's start, YouTube's most-replayed
+ * peak, or the start), and reports where that section sits as the result's
+ * `section`. Downstream everything runs on the landed file's own clock.
+ *
+ * ```
+ * section download (yt-dlp --download-sections, ffmpeg's reader)
+ *   └─ failed for a reason nobody named, or slower than 2x its running time?
+ *        whole file fits the plan and the disk -> fetch it whole, cut the section here (-c copy)
+ *        otherwise                             -> retryable failure
+ * landed file longer than the window + 15 s (a source that under-reported its
+ * length, or a downloader that ignored the section) -> cut here, as above
+ * ```
+ *
+ * `section` always describes the file that is stored: a whole source short
+ * enough to keep (within the window's 15 s tolerance) is reported as the whole
+ * source, never as the part the plan would have cut from it, and a section
+ * that came back shorter than asked ends where it actually ends. The API
+ * places the next window from it.
+ *
+ * A short source, or a job with no window (every job built before windows
+ * existed), downloads whole, exactly as before.
+ *
+ * ## Disk
+ *
+ * The runtime admitted this job against the floor, before anyone knew how big
+ * the video is. Once the metadata says, the download needs the floor plus
+ * twice its size free, and so does a whole-video fallback before it starts —
+ * that fallback is the one download here that can be ten gigabytes, on a
+ * volume Postgres and MinIO share. While any download runs, it stops once the
+ * volume falls below the reserve (`disk.ts`). Each is a retryable
+ * `media/disk_full`.
+ *
  * Unreachable in production while `source_youtube_acquire` is disabled: the API
  * refuses to create a link-sourced run at all, so nothing enqueues this.
  */
@@ -61,10 +116,41 @@ export interface AcquirePayload {
   };
   readonly destination: { readonly bucket: string; readonly key: string };
   readonly limits: AcquireLimits;
+  readonly window?: AcquireWindow;
 }
 
 /** The filename inside the scratch directory. Ours, never the source's. */
 const OUTPUT_NAME = "source.mp4";
+
+/** A section's own directory, so a fallback never counts its leftovers. */
+const SECTION_DIR = "section";
+
+/** What a local cut writes. */
+const WINDOW_NAME = "window.mp4";
+
+/**
+ * The least time a fallback download is started with. With less left of the
+ * job's limit, fetching the whole video cannot finish, and a retry — a fresh
+ * limit — is the better use of the one acquisition slot.
+ */
+const FALLBACK_MIN_MS = 60_000;
+
+/** The longest window or start a payload may carry: the contract's 24 hours. */
+const MAX_WINDOW_MS = 86_400_000;
+
+const WINDOW_POLICIES: readonly WindowPolicy[] = ["first", "most_replayed", "range"];
+
+/**
+ * Failures a section download ends with that fetching the whole file cannot
+ * fix: a stop, the job's own time limit spent, a binary that will not start,
+ * a disk that is already nearly full.
+ */
+const NO_FALLBACK_CODES: ReadonlySet<string> = new Set([
+  "media/cancelled",
+  "media/tool_timeout",
+  "media/tool_spawn",
+  "media/disk_full",
+]);
 
 /**
  * The envelope version this processor writes — `media.acquire@1`.
@@ -91,6 +177,11 @@ export async function processAcquire(context: JobContext): Promise<ProcessorOutc
   }
   assertAcquirableUrl(payload.source.normalizedUrl);
   const limits = payload.limits;
+  const window = readWindow(payload.window);
+  // One limit for the whole job, however many downloads it takes: the API
+  // counts an acquire running past `timeoutMs` (+10 min) as stalled.
+  const deadline = Date.now() + limits.timeoutMs;
+  const jsRuntime = settings.ytDlpJsRuntime;
 
   return withWorkspace("acquire", settings.tempDir, async (workspace) => {
     context.report(2, "checking the video");
@@ -100,52 +191,72 @@ export async function processAcquire(context: JobContext): Promise<ProcessorOutc
       url: payload.source.normalizedUrl,
       limits,
       signal: context.signal,
+      ...(jsRuntime === undefined ? {} : { jsRuntime }),
+      ...(window === undefined ? {} : { window }),
     });
 
+    // Now that the video's size is known: room for it, with the floor still
+    // free after it. The runtime could only check the floor.
+    await assertRoomToDownload(context, metadata.approximateBytes, payload.mediaId);
+
     context.report(5, "getting your video");
-    const outputPath = workspace.path(OUTPUT_NAME);
     let downloaded = 0;
-    await download({
-      binary: settings.ytDlpPath,
-      url: payload.source.normalizedUrl,
-      outputPath,
-      limits,
-      format: metadata.formatSelector ?? null,
-      // The file the boot check ran, so the merge uses it too; a bare name
-      // that is on no PATH directory is left for yt-dlp to look for itself.
-      ffmpegPath: settings.ffmpegLocation ?? settings.ffmpegPath,
-      signal: context.signal,
+    const fetched = await fetchSource({
+      context,
+      workspace,
+      payload,
+      metadata,
+      deadline,
       onProgress: (percent) => {
         // A split download counts 0-100% for the picture and again for the
-        // sound; the rail only ever moves forward.
+        // sound, and a fallback starts again from 0; the rail only ever moves
+        // forward.
         downloaded = Math.max(downloaded, percent);
         // 5-70% of the job is the download; the rest is probing and uploading.
         context.report(5 + Math.round(downloaded * 0.65), "getting your video");
       },
     });
+    let outputPath = fetched.path;
 
     // What LANDED, not what was promised. A source that under-reported its size
     // or duration is caught here, after the temp directory has absorbed it and
     // before a single byte reaches the workspace's storage.
-    const sizeBytes = await workspace.size(OUTPUT_NAME);
-    if (sizeBytes > limits.maxBytes) {
-      throw sourceRefused("media/too_large", "that video is larger than your plan allows");
-    }
-    if (sizeBytes === 0) {
-      throw unreadableMedia("that download produced an empty file", "media/corrupt");
-    }
-
     context.report(75, "checking the file");
-    const probed = readProbe(
-      await ffprobe({
-        binary: settings.ffprobePath,
-        source: outputPath,
-        timeoutMs: settings.ffmpegTimeoutMs,
-        signal: context.signal,
-      }),
-    );
-    if (probed.video === null && probed.audio === null) {
-      throw unreadableMedia("that file has no video or audio in it", "media/no_streams");
+    let { sizeBytes, probed } = await measureLanded(context, outputPath, limits);
+
+    const placed = placeLanded({
+      window,
+      planned: fetched.section,
+      whole: fetched.whole,
+      landedMs: probed.durationMs,
+      replayedPeakMs: metadata.replayedPeakMs ?? null,
+    });
+    let section = placed.section;
+    if (placed.cut !== null) {
+      // The whole file arrived (a fallback, a source that did not say how long
+      // it was, a downloader that ignored the section), longer than the
+      // window: only the window of it is kept.
+      const plan = placed.cut;
+      context.report(78, "keeping the part we will use");
+      const cut = workspace.path(WINDOW_NAME);
+      await cutSection(context, outputPath, cut, plan);
+      // The whole file is gigabytes on a paid plan; it goes before the hash
+      // and the upload, not with the workspace at the end.
+      await rm(outputPath, { force: true });
+      outputPath = cut;
+      ({ sizeBytes, probed } = await measureLanded(context, outputPath, limits));
+      const expectedMs = plan.endMs - plan.startMs;
+      if (
+        probed.durationMs > expectedMs + WINDOW_TOLERANCE_MS ||
+        probed.durationMs < expectedMs / 2
+      ) {
+        throw transientFailure(
+          "media/acquire_trim_failed",
+          `the cut part is ${String(probed.durationMs)} ms, not about ${String(expectedMs)} ms`,
+          { reason: "media/source_failed" },
+        );
+      }
+      section = endingAt(plan, probed.durationMs);
     }
     assertWithinLimits(
       { ...metadata, durationMs: probed.durationMs, approximateBytes: sizeBytes, isLive: false },
@@ -192,6 +303,8 @@ export async function processAcquire(context: JobContext): Promise<ProcessorOutc
           channel: metadata.channel,
           durationMs: probed.durationMs,
         },
+        // Only when a window was applied: absent means the whole source landed.
+        ...(section === null ? {} : { section: sectionResult(section) }),
         toolVersion: `yt-dlp ${await ytDlpVersion(settings.ytDlpPath)}`,
         deduplicated: false,
         probeToolVersion: await toolVersion("ffprobe", settings.ffprobePath),
@@ -207,6 +320,386 @@ export async function processAcquire(context: JobContext): Promise<ProcessorOutc
       },
     };
   });
+}
+
+/**
+ * The payload's `window`, checked (§8.2: a payload is a request, not a fact),
+ * or `undefined` when there is none. A malformed one is a producer bug that
+ * no retry changes.
+ */
+export function readWindow(value: unknown): AcquireWindow | undefined {
+  if (value === undefined || value === null) return undefined;
+  const bad = (): MediaJobError =>
+    new MediaJobError("media/bad_payload", "the job's window is not one this worker can use", {
+      retryable: false,
+      reason: "media/source_failed",
+    });
+  if (typeof value !== "object") throw bad();
+  const { maxMs, startMs, policy } = value as Record<string, unknown>;
+  const whole = (ms: unknown): ms is number =>
+    typeof ms === "number" && Number.isSafeInteger(ms) && ms >= 0 && ms <= MAX_WINDOW_MS;
+  if (!whole(maxMs) || maxMs === 0) throw bad();
+  if (startMs !== undefined && !whole(startMs)) throw bad();
+  if (!WINDOW_POLICIES.includes(policy as WindowPolicy)) throw bad();
+  return {
+    maxMs,
+    ...(startMs === undefined ? {} : { startMs }),
+    policy: policy as WindowPolicy,
+  };
+}
+
+/**
+ * What the landed file is, in the source's clock: the part to cut out of it
+ * (`cut`, when it is the whole source and longer than the window), and the
+ * `section` to report for what is stored (`null`: the whole source).
+ *
+ * - **A section download** is its planned section, ending where the file
+ *   actually ends when that is sooner (a reader that lost its connection
+ *   writes a short file and exits 0). Under half of what was asked is not a
+ *   section anyone should build clips from: a retryable failure. Longer than
+ *   the window, it is the whole source (yt-dlp ignored the section) to be cut
+ *   — or, not even that long, a file nobody here can place.
+ * - **The whole source** (the fallback, or a source whose metadata gave no
+ *   duration to plan with) short enough to keep, within the window's
+ *   tolerance, is kept whole and reported as the whole source. Reporting the
+ *   plan's section instead put its start up to 15 s off the file's real
+ *   start, and the API placed the next window from that. Longer, it is cut
+ *   to the plan (re-placed on the file's own length when the metadata's was
+ *   wrong).
+ *
+ * Exported for its tests.
+ */
+export function placeLanded(input: {
+  readonly window: AcquireWindow | undefined;
+  /** The section that was planned from the metadata; `null` for none. */
+  readonly planned: SectionPlan | null;
+  /** True when the whole source was downloaded (no `--download-sections`). */
+  readonly whole: boolean;
+  /** ffprobe's duration of what landed. */
+  readonly landedMs: number;
+  readonly replayedPeakMs: number | null;
+}): { readonly cut: SectionPlan | null; readonly section: SectionPlan | null } {
+  const { window, planned, landedMs } = input;
+  if (window === undefined) return { cut: null, section: null };
+  const fits = landedMs <= window.maxMs + WINDOW_TOLERANCE_MS;
+  const sameAsSource = (plan: SectionPlan): boolean =>
+    Math.abs(landedMs - plan.sourceDurationMs) <= WINDOW_TOLERANCE_MS;
+
+  if (!input.whole && planned !== null) {
+    if (fits) {
+      const askedMs = planned.endMs - planned.startMs;
+      if (landedMs < askedMs / 2) {
+        throw transientFailure(
+          "media/acquire_section_short",
+          `the part of the video that arrived is ${String(landedMs)} ms, not about ${String(askedMs)} ms`,
+          { reason: "media/source_failed" },
+        );
+      }
+      return { cut: null, section: endingAt(planned, landedMs) };
+    }
+    if (!sameAsSource(planned)) {
+      // Neither the section nor the whole source: nothing here knows where
+      // this file sits in the video, so no cut of it can be trusted.
+      throw transientFailure(
+        "media/acquire_section_mismatch",
+        "the part of the video that arrived is not the part that was asked for",
+        { reason: "media/source_failed" },
+      );
+    }
+    return { cut: planned, section: planned };
+  }
+
+  if (fits) return { cut: null, section: null };
+  const plan =
+    planned !== null && sameAsSource(planned)
+      ? planned
+      : planSection({ durationMs: landedMs, window, replayedPeakMs: input.replayedPeakMs });
+  if (plan === null) {
+    throw transientFailure("media/acquire_window", "the window could not be placed", {
+      reason: "media/source_failed",
+    });
+  }
+  return { cut: plan, section: plan };
+}
+
+/**
+ * `section`, ending where a file of `landedMs` that starts at its start ends,
+ * when that is sooner than planned. Never later: a stream copy starts on the
+ * keyframe before the cut, so a whole section is a little LONGER than asked.
+ */
+function endingAt(section: SectionPlan, landedMs: number): SectionPlan {
+  const endMs = Math.min(section.endMs, section.startMs + Math.max(0, Math.round(landedMs)));
+  return endMs === section.endMs ? section : { ...section, endMs };
+}
+
+/**
+ * Room on the scratch volume for a download of about `bytes`, with the floor
+ * still free after it; a retryable `media/disk_full` when there is not. The
+ * retry comes back through the runtime's admission, which holds it — without
+ * spending anything — until there is room.
+ */
+async function assertRoomToDownload(
+  context: JobContext,
+  bytes: number | null,
+  mediaId: string,
+): Promise<void> {
+  if (context.disk === undefined) return;
+  const verdict = await context.disk.roomToDownload(bytes);
+  if (verdict.admit) return;
+  logger.warn("not enough free disk for this download", {
+    mediaId,
+    expectedBytes: bytes,
+    freeBytes: verdict.freeBytes,
+    requiredBytes: verdict.requiredBytes,
+    path: verdict.path,
+  });
+  throw transientFailure("media/disk_full", "there is not enough free disk to fetch that video now", {
+    reason: "media/source_failed",
+    detail: `free ${String(verdict.freeBytes)} bytes, needs ${String(verdict.requiredBytes)}`,
+  });
+}
+
+/** The result's `section`: exactly the contract's four fields. */
+function sectionResult(section: SectionPlan): Record<string, unknown> {
+  return {
+    startMs: section.startMs,
+    endMs: section.endMs,
+    sourceDurationMs: section.sourceDurationMs,
+    policy: section.policy,
+  };
+}
+
+/**
+ * Download what the metadata planned: the whole source, or its section with
+ * the whole-file fallback (see the module comment). Returns the landed file,
+ * whether it is the whole source, and the section that was planned (`null`
+ * for none) — which {@link placeLanded} turns into what the file holds.
+ */
+async function fetchSource(input: {
+  readonly context: JobContext;
+  readonly workspace: Workspace;
+  readonly payload: AcquirePayload;
+  readonly metadata: SourceMetadata;
+  readonly deadline: number;
+  readonly onProgress: (percent: number) => void;
+}): Promise<{
+  readonly path: string;
+  readonly whole: boolean;
+  readonly section: SectionPlan | null;
+}> {
+  const { context, workspace, payload, metadata, deadline } = input;
+  const { settings } = context;
+  const limits = payload.limits;
+  const disk = context.disk;
+  const common = {
+    binary: settings.ytDlpPath,
+    url: payload.source.normalizedUrl,
+    // The file the boot check ran, so the merge uses it too; a bare name
+    // that is on no PATH directory is left for yt-dlp to look for itself.
+    ffmpegPath: settings.ffmpegLocation ?? settings.ffmpegPath,
+    signal: context.signal,
+    onProgress: input.onProgress,
+    ...(settings.ytDlpJsRuntime === undefined ? {} : { jsRuntime: settings.ytDlpJsRuntime }),
+    // Every download stops before the volume it shares with the database
+    // falls below the reserve, whatever its own size.
+    ...(disk === undefined ? {} : { lowDisk: async () => disk.belowReserve() }),
+  };
+
+  const section = metadata.section ?? null;
+  if (section === null) {
+    const path = workspace.path(OUTPUT_NAME);
+    await download({
+      ...common,
+      outputPath: path,
+      limits,
+      format: metadata.formatSelector ?? null,
+    });
+    return { path, whole: true, section: null };
+  }
+
+  const wholeBytes = metadata.wholeBytes ?? null;
+  const wholeFits = wholeBytes !== null && wholeBytes <= limits.maxBytes;
+  const expected = metadata.approximateBytes;
+  const sectionDir = workspace.path(SECTION_DIR);
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- a fixed name inside this job's own scratch directory
+  await mkdir(sectionDir);
+  const sectionPath = join(sectionDir, OUTPUT_NAME);
+  try {
+    await download({
+      ...common,
+      outputPath: sectionPath,
+      limits: { ...limits, timeoutMs: Math.max(1_000, deadline - Date.now()) },
+      format: metadata.formatSelector ?? null,
+      section,
+      // Held to the pace only when there is a faster road to take instead.
+      // With no fallback, a slow section that finishes beats a failed run.
+      ...(wholeFits
+        ? {
+            pace: {
+              mediaMs: section.endMs - section.startMs,
+              expectedBytes: expected,
+              minRealtime: SECTION_MIN_REALTIME,
+            },
+          }
+        : {}),
+      // ffmpeg's reader prints no percentage; the bytes on disk are the progress.
+      onBytes: (bytes) => {
+        if (expected !== null && expected > 0) {
+          input.onProgress(Math.min(99, (bytes / expected) * 100));
+        }
+      },
+    });
+    return { path: sectionPath, whole: false, section };
+  } catch (error) {
+    if (!worthFallingBack(error, context.signal)) throw error;
+    const left = deadline - Date.now();
+    // The whole video is the largest download this worker makes — ten
+    // gigabytes on the internal plan — so it needs its own room, measured
+    // now, not the section's.
+    const room = wholeFits && disk !== undefined ? await disk.roomToDownload(wholeBytes) : null;
+    const why = !wholeFits
+      ? "we could not fetch that part of the video, and the whole video is larger than the plan allows"
+      : left < FALLBACK_MIN_MS
+        ? "there was no time left to fetch the whole video instead of its part"
+        : room !== null && !room.admit
+          ? "we could not fetch that part of the video, and there is not enough free disk to fetch the whole video instead"
+          : null;
+    if (why !== null) {
+      throw transientFailure("media/acquire_section_failed", why, {
+        cause: error,
+        reason: "media/source_failed",
+        ...(error instanceof MediaJobError && error.detail !== undefined
+          ? { detail: error.detail }
+          : {}),
+      });
+    }
+    logger.warn("section download failed; fetching the whole video to cut it here", {
+      mediaId: payload.mediaId,
+      code: error instanceof MediaJobError ? error.code : "unknown",
+      startMs: section.startMs,
+      endMs: section.endMs,
+      wholeBytes,
+    });
+    // Only to free the disk: the size watch counts the job's own directory,
+    // not this one. Best effort, because an ffmpeg that outlived its kill can
+    // still hold the file open (EBUSY on Windows), and that is no reason to
+    // fail a job that can go on.
+    await rm(sectionDir, { recursive: true, force: true }).catch((rmError: unknown) => {
+      logger.warn("section download not removed; fetching the whole video beside it", {
+        mediaId: payload.mediaId,
+        error: rmError instanceof Error ? rmError.message : String(rmError),
+      });
+    });
+    const path = workspace.path(OUTPUT_NAME);
+    try {
+      await download({
+        ...common,
+        outputPath: path,
+        limits: { ...limits, timeoutMs: left },
+        format: metadata.wholeFormatSelector ?? null,
+      });
+    } catch (wholeError) {
+      // Over the cap after all: the estimate was wrong, not the user's choice
+      // of video — the window itself fits, so this is no "too large".
+      if (wholeError instanceof MediaJobError && wholeError.code === "media/too_large") {
+        throw transientFailure(
+          "media/acquire_section_failed",
+          "the whole video turned out larger than its estimate",
+          { cause: wholeError, reason: "media/source_failed" },
+        );
+      }
+      throw wholeError;
+    }
+    return { path, whole: true, section };
+  }
+}
+
+/** Whether a failed section download is one fetching the whole file might fix. */
+function worthFallingBack(error: unknown, signal: AbortSignal): boolean {
+  if (signal.aborted) return false;
+  // A named refusal (private, removed, blocked, too large) is the same answer
+  // for the whole file, and a block is made worse by asking again.
+  return error instanceof MediaJobError && error.retryable && !NO_FALLBACK_CODES.has(error.code);
+}
+
+/**
+ * Size and ffprobe of a landed file, with the refusals that go with them: over
+ * the byte cap, empty, or neither picture nor sound.
+ */
+async function measureLanded(
+  context: JobContext,
+  path: string,
+  limits: AcquireLimits,
+): Promise<{ readonly sizeBytes: number; readonly probed: ProbeContainer }> {
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- a file this job wrote in its own scratch directory
+  const sizeBytes = (await stat(path)).size;
+  if (sizeBytes > limits.maxBytes) {
+    throw sourceRefused(
+      "media/too_large",
+      "that video is larger than your plan allows",
+      undefined,
+      knownFacts({ approximateBytes: sizeBytes, maxBytes: limits.maxBytes }),
+    );
+  }
+  if (sizeBytes === 0) {
+    throw unreadableMedia("that download produced an empty file", "media/corrupt");
+  }
+  const probed = readProbe(
+    await ffprobe({
+      binary: context.settings.ffprobePath,
+      source: path,
+      timeoutMs: context.settings.ffmpegTimeoutMs,
+      signal: context.signal,
+    }),
+  );
+  if (probed.video === null && probed.audio === null) {
+    throw unreadableMedia("that file has no video or audio in it", "media/no_streams");
+  }
+  return { sizeBytes, probed };
+}
+
+/**
+ * Cut `section` out of a local file without re-encoding: `-ss` and `-t` from
+ * checked integers, the first picture and sound streams, stream copy. The cut
+ * starts on the keyframe before `startMs`, a few seconds early at most, which
+ * the caller's length check allows for.
+ */
+async function cutSection(
+  context: JobContext,
+  source: string,
+  output: string,
+  section: SectionPlan,
+): Promise<void> {
+  const result = await run(
+    context.settings.ffmpegPath,
+    [
+      ...FFMPEG_BASE_ARGS,
+      "-loglevel",
+      "error",
+      "-ss",
+      formatSeconds(section.startMs),
+      "-t",
+      formatSeconds(section.endMs - section.startMs),
+      "-i",
+      source,
+      "-map",
+      "0:v:0?",
+      "-map",
+      "0:a:0?",
+      "-c",
+      "copy",
+      "-avoid_negative_ts",
+      "make_zero",
+      output,
+    ],
+    { timeoutMs: context.settings.ffmpegTimeoutMs, signal: context.signal },
+  );
+  if (result.code !== 0) {
+    throw transientFailure("media/acquire_trim_failed", "we could not cut that part of the video", {
+      detail: result.stderr,
+      reason: "media/source_failed",
+    });
+  }
 }
 
 /** `/watch?v=<id>`, `/<id>` (a short link) or `/embed/<id>`. */

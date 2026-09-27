@@ -34,6 +34,17 @@ export interface SafeErrorCopy {
    */
   readonly startAgainHint?: string;
   /**
+   * The same, for a `use_window` card: said only beside the window actions the
+   * page really offers (a link run, not over the source ceiling).
+   */
+  readonly windowHint?: string;
+  /**
+   * What to do instead when the recommended action is not on the card and it
+   * falls back to "Choose another video" — for a too-long upload, say, which
+   * has no window to process.
+   */
+  readonly fallbackHint?: string;
+  /**
    * The one recommended action:
    *
    *   * `retry` — run the failed step again, same video (`POST .../retry`);
@@ -45,6 +56,9 @@ export interface SafeErrorCopy {
    *     fresh run can: start again with the same link AND setup pre-filled,
    *     nothing to correct (an upload, or a run whose link cannot be recovered,
    *     has none to carry, so it offers another video);
+   *   * `use_window` — the video is longer than the plan processes in one run:
+   *     process part of it, the most-replayed stretch (`POST .../retry`) or
+   *     from a start the person picks (a new run with the link kept);
    *   * `add_moment` — pick the moment by its start and end time instead;
    *   * `open_existing` — the work already exists in another run;
    *   * `check_credits` — the balance is the problem: see it (`/billing`),
@@ -56,6 +70,7 @@ export interface SafeErrorCopy {
     | "choose_another"
     | "edit_settings"
     | "start_again"
+    | "use_window"
     | "add_moment"
     | "open_existing"
     | "check_credits"
@@ -130,12 +145,24 @@ export const SAFE_ERROR_COPY: Readonly<Record<string, SafeErrorCopy>> = Object.f
     action: "choose_another",
     actionLabel: "Choose another video",
   },
-  // The plan's own limit lives on the server; the page only knows it was over.
+  // A plan limits the minutes a run PROCESSES, not the video's length (owner
+  // decision, 2026-09-27), so a long link is never a dead end: part of it is
+  // processed instead. The numbers — "This video is 34:37. Your plan processes
+  // 20:00 per video." — come with the run (`failure-detail.ts`); this is the
+  // sentence for a run that carries none. An upload has no window to process,
+  // so its card falls back to another video, with `fallbackHint`.
+  //
+  // The label does not say "most-replayed": the action is a retry, and a retry
+  // fetches the part the run asked for — a start the person picked stays that
+  // start, and a video with no replay data falls back to its opening minutes
+  // (`DETAIL_COPY.useWindow`).
   "repurpose/source_too_long": {
     title: "This video is longer than your plan allows",
-    reassurance: `${NOTHING_SPENT} A shorter video, or a trimmed copy you upload, will fit.`,
-    action: "choose_another",
-    actionLabel: "Choose another video",
+    reassurance: NOTHING_SPENT,
+    windowHint: "We can find clips in part of it instead.",
+    fallbackHint: "A shorter video, or a trimmed copy you upload, will fit.",
+    action: "use_window",
+    actionLabel: "Process part of it",
   },
   "repurpose/source_private": {
     title: "That video is private",
@@ -427,6 +454,19 @@ export const CLIP_FAILURE_COPY: Readonly<Record<string, ClipFailureCopy>> = Obje
       "Your video and your other clips are safe. Try again once your other videos are done.",
     retryable: true,
   },
+  // The lease reaper settled the cut: its worker went quiet (restarted, or
+  // died) partway through. Same as a cut seen stalled from here.
+  "jobs/stalled": {
+    title: "This clip stopped partway through",
+    reassurance: "Your video and your other clips are safe. Trying again starts it afresh.",
+    retryable: true,
+  },
+  // worker-media waited hours for scratch disk and gave up.
+  "worker/disk_full": {
+    title: "This clip waited too long to start",
+    reassurance: "Your video and your other clips are safe. Trying again starts it afresh.",
+    retryable: true,
+  },
   "jobs/cancelled": CLIP_CUT_STOPPED,
   "media/source_missing": CLIP_SOURCE_GONE,
   "repurpose/source_expired": CLIP_SOURCE_GONE,
@@ -465,6 +505,9 @@ export const REFUSAL_COPY = Object.freeze({
     "repurpose/source_already_running": "You are already working on this video.",
     "repurpose/style_unknown": "That caption look is no longer available. Choose another one.",
     "repurpose/not_available": "The clips pipeline is not on for this workspace yet.",
+    // Refused before anything was created: not even one minute is affordable.
+    // With the balance in the refusal, `DETAIL_COPY.creditsLeftRefusal` says it.
+    "repurpose/no_credits": "You are out of credits. Processing a video needs at least a minute's worth.",
     // Trying the same form again cannot help, so the sentence does not say to.
     "common/validation_failed":
       "Something in the form was not accepted. Check the link and your choices.",
@@ -483,6 +526,7 @@ export const REFUSAL_COPY = Object.freeze({
     "repurpose/clip_not_retryable": "This clip is already being made. Refresh the page to see it.",
     "repurpose/source_expired":
       "The original video is no longer kept, so new clips cannot be cut from it. Start again from the same link.",
+    "repurpose/source_failed": "This video could not be prepared, so no clips can be cut from it.",
     "repurpose/clip_limit": "This run already has as many clips as it can hold.",
     busy: "You have other clips being made. Try again in a moment.",
     "common/rate_limited": "That was a lot of requests at once. Wait a moment, then try again.",
@@ -503,14 +547,106 @@ export const REFUSAL_COPY = Object.freeze({
   retry: {
     "repurpose/not_retryable": "This run cannot be tried again. Start a new run instead.",
     "repurpose/source_already_running": "You are already working on this video in another run.",
+    // A link's retry fetches the video again, and that is refused up front when
+    // the balance does not pay for a minute of it (`details.creditsLeft` then
+    // turns this into `DETAIL_COPY.creditsLeftRefusal`).
+    "repurpose/no_credits":
+      "You are out of credits. Processing a video needs at least a minute's worth.",
     busy: "Your other videos are still being prepared. Try again in about a minute.",
     "common/rate_limited": "That was a lot of requests at once. Wait a moment, then try again.",
     network: "We could not reach the server. Check your connection and try again.",
     fallback: "That did not work. Try again in a moment.",
   },
+  /** "Process the next 20 minutes": a new run for the part after this one. */
+  nextWindow: {
+    "repurpose/no_next_window": "There is nothing after this part of the video.",
+    "repurpose/no_credits": "You are out of credits for more of this video.",
+    "repurpose/source_already_running": "You are already working on this video in another run.",
+    "repurpose/not_found": "This run is no longer available. Refresh the page.",
+    busy: "Your other videos are still being prepared. Try again in about a minute.",
+    "common/rate_limited": "That was a lot of requests at once. Wait a moment, then try again.",
+    network: "We could not reach the server. Check your connection and try again.",
+    fallback: "The next part could not be started. Try again in a moment.",
+  },
 } satisfies Record<string, Record<string, string> & { network: string; fallback: string }>);
 
 export type RefusalContext = keyof typeof REFUSAL_COPY;
+
+/**
+ * Sentences built from numbers: a refusal's facts (`failure-detail.ts`), the
+ * part of a video a run processed (`run-window.ts`) and the start form's line
+ * about windows. Functions rather than template strings spread through the
+ * components, so `copy.test.ts` sweeps what they produce as well.
+ */
+export const DETAIL_COPY = Object.freeze({
+  tooLongWindow: (length: string, perRun: string): string =>
+    `This video is ${length}. Your plan processes ${perRun} per video.`,
+  tooLongLimit: (length: string, max: string): string =>
+    `This video is ${length}. Your plan takes videos up to ${max} long.`,
+  tooLongLength: (length: string): string =>
+    `This video is ${length}, longer than your plan allows.`,
+  tooLarge: (size: string, max: string): string =>
+    `This video is about ${size}. Your plan takes files up to ${max}.`,
+  tooLargeCapOnly: (max: string): string =>
+    `This video is bigger than your plan allows (up to ${max}).`,
+  /**
+   * A failed run's balance is a snapshot from when it stopped, so it is said
+   * in the past: after a top-up, "you have 3.5 credits" beside "Try again"
+   * would contradict the balance on /billing.
+   */
+  creditsLeftReassurance: (credits: string): string =>
+    `Your video is safe. This run stopped with ${credits} left, and making its transcript needed more than that.`,
+  /** A refusal answered just now, so its balance is the current one. */
+  creditsLeftRefusal: (credits: string): string =>
+    `You have ${credits} left, which is not enough to process a minute of video.`,
+  /**
+   * The retry of a too-long run. It fetches the part the run asked for: a
+   * picked start stays that start (`useWindowFrom`), and the automatic choice
+   * is the most-replayed part only when YouTube marks one, else the opening
+   * minutes (`autoWindowHint`) — so the label names the length, not the part.
+   */
+  useWindow: (span: string | undefined): string =>
+    span === undefined ? "Process part of it" : `Process ${span} of it`,
+  /** The same retry for a run whose start the person picked. */
+  useWindowFrom: (span: string | undefined, start: string): string =>
+    span === undefined ? `Process part of it from ${start}` : `Process ${span} from ${start}`,
+  /** Which part the automatic choice takes, said beside its retry. */
+  autoWindowHint: "We take the most-replayed part when YouTube marks one, otherwise the start.",
+  pickStart: "Pick where to start",
+  /** A finished run's part. */
+  processed: (start: string, end: string, total: string, reason: string | undefined): string =>
+    `Processed ${start}–${end} of ${total}${reason === undefined ? "" : ` (${reason})`}`,
+  /** A run still working on its part: not "processed" until it has been. */
+  processing: (start: string, end: string, total: string, reason: string | undefined): string =>
+    `Processing ${start}–${end} of ${total}${reason === undefined ? "" : ` (${reason})`}`,
+  /** A run that stopped (failed, or was stopped): which part it was, no claim. */
+  part: (start: string, end: string, total: string, reason: string | undefined): string =>
+    `Part ${start}–${end} of ${total}${reason === undefined ? "" : ` (${reason})`}`,
+  /** A list row's part, so two parts of one video are two different rows. */
+  partRange: (start: string, end: string): string => `Part ${start}–${end}`,
+  nextWindow: (span: string): string => `Process the next ${span}`,
+  /** Why a run processed the part it did, by its window's policy. */
+  policy: Object.freeze({
+    most_replayed: "most replayed",
+    first: "from the start",
+    range: "from where you chose",
+  }),
+  /**
+   * The start form's one line about windows, with the plan's window when known.
+   * A start applies to any video: on one that fits the window, "5:00" is 5:00
+   * to the end (the downloader cuts from the start it is given), and only that
+   * part is processed and charged.
+   */
+  windowLine: (perRun: string | undefined): string =>
+    perRun === undefined
+      ? "Long videos are processed a part at a time: the most-replayed part, unless you choose where to start."
+      : `Videos are processed up to ${perRun} at a time: the most-replayed part, unless you choose where to start.`,
+  /** A start at or past the longest video anyone can send (the 12-hour ceiling). */
+  startPastCeiling: (ceiling: string): string =>
+    `Start within the first ${ceiling}. No video can be longer than that.`,
+  /** A start past the end of the video the page knows the length of. */
+  startPastEnd: (length: string): string => `This video is only ${length} long.`,
+});
 
 /** Headings and helper text for the five stages (§3.2). */
 export const STAGE_COPY = Object.freeze({

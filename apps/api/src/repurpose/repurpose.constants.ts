@@ -38,7 +38,59 @@ export const REPURPOSE_ERRORS = {
   stageTimeout: "repurpose/stage_timeout",
   uploadMissing: "repurpose/upload_missing",
   transcriptUntimed: "repurpose/transcript_untimed",
+  /** 402 at create: the balance does not cover one minute of processing. */
+  noCredits: "repurpose/no_credits",
+  /** 409 on "process the next window": nothing of the source is left after this one. */
+  noNextWindow: "repurpose/no_next_window",
 } as const;
+
+/**
+ * Where in a long source a clips run starts (2026-09-27, owner decision):
+ * YouTube's most-replayed peak when its metadata has one, else the start
+ * (`first`), or a start the person picked (`range`). Mirrors
+ * `MediaAcquirePayloadSchema.window.policy`.
+ */
+export const WINDOW_POLICIES = ["first", "most_replayed", "range"] as const;
+export type WindowPolicy = (typeof WINDOW_POLICIES)[number];
+export const DEFAULT_WINDOW_POLICY: WindowPolicy = "most_replayed";
+
+/**
+ * The latest start a request may name: `media.acquire`'s own bound on a source
+ * (24 h). The plan's ceiling (`maxSourceDurationMs`, 12 h) is lower and is the
+ * downloader's to apply, once it knows how long the video really is.
+ */
+export const WINDOW_START_MAX_MS = 24 * 60 * 60_000;
+
+/**
+ * How much longer than its window a fetched section may be. A section is cut
+ * without re-encoding, so it starts on the keyframe before the asked-for start:
+ * a few seconds more, never minutes. The probe accepts the window plus this, and
+ * the credit check sizes the window so that a file this much longer is still
+ * paid for — otherwise a run could download 20 minutes and then fail its
+ * transcription for want of the credits for 20:04.
+ */
+export const WINDOW_TOLERANCE_MS = 15_000;
+
+/**
+ * The least a run may process. Below one minute the balance cannot pay for
+ * anything worth clipping, and `create` refuses before it makes a single row.
+ */
+export const MIN_WINDOW_MS = 60_000;
+
+/**
+ * Less than this left after a window is not offered as "the next window": a
+ * clip is at least 15 s by default, and a run over the last few seconds of the
+ * credits would find nothing.
+ */
+export const NEXT_WINDOW_MIN_MS = 30_000;
+
+/**
+ * `projectTitleSchema`'s limit (`projects.dto.ts`); the source project is renamed
+ * to the video's real title once the download reports it, and must still be a
+ * title the projects page would have accepted. `repurpose.projection.test.ts`
+ * holds the two together.
+ */
+export const PROJECT_TITLE_MAX = 200;
 
 /**
  * Statuses a run holds before it has moments to pick from — the stretch the
@@ -205,8 +257,33 @@ export const REPURPOSE_RATE_LIMITS = {
  * hears about rather than a job that never ends. It travels in the payload, so
  * the limit that applied when the run was confirmed is the one the worker
  * enforces even if this constant changes before the job runs (§8.2).
+ *
+ * Since windows (2026-09-27) this is the FLOOR: a run's timeout grows with the
+ * window it asks for ({@link acquireTimeoutMs}). It is also the reconciler's
+ * fallback for a download whose payload carries no timeout.
  */
 export const ACQUIRE_TIMEOUT_MS = 40 * 60 * 1000;
+
+/** `MediaAcquirePayloadSchema.limits.timeoutMs`'s own bound: one hour. */
+export const ACQUIRE_TIMEOUT_MAX_MS = 60 * 60 * 1000;
+
+/**
+ * How long a download of a `windowMs` window may take (2026-09-27): half the
+ * window plus ten minutes, never under {@link ACQUIRE_TIMEOUT_MS} and never over
+ * the contract's hour.
+ *
+ * Half the window is the architecture panel's pass mark for a section fetch -
+ * at least twice realtime - and the ten minutes are the metadata call, the
+ * cut and the upload. A Free run's 20 minutes keep the old forty; a 100-minute
+ * window gets the hour. Past that the hour holds, so a window longer than about
+ * 100 minutes needs a fetch faster than 2x (a whole-file download usually is,
+ * and is the worker's fallback when a section fetch runs slower than 2x). The
+ * reconciler's stall ceiling reads the timeout off the payload, so it follows.
+ */
+export function acquireTimeoutMs(windowMs: number): number {
+  const scaled = Number.isFinite(windowMs) ? Math.ceil(windowMs / 2) + 10 * 60 * 1000 : 0;
+  return Math.min(ACQUIRE_TIMEOUT_MAX_MS, Math.max(ACQUIRE_TIMEOUT_MS, scaled));
+}
 
 /**
  * Credits held for an acquisition: **none**.
@@ -218,6 +295,14 @@ export const ACQUIRE_TIMEOUT_MS = 40 * 60 * 1000;
  * from it anyway: one lane per workspace, so a run cannot open twenty downloads.
  */
 export const ACQUIRE_QUOTE_TENTHS = 0;
+
+/**
+ * `media.acquire@1`'s own bounds on `limits` (`MediaAcquirePayloadSchema`). A
+ * plan may say more - an internal workspace's 50 GiB - and the payload says the
+ * most the contract can carry rather than failing to parse.
+ */
+export const ACQUIRE_MAX_BYTES = 10_000_000_000;
+export const ACQUIRE_MAX_DURATION_MS = 24 * 60 * 60_000;
 
 /**
  * The filename an acquired source is recorded under.

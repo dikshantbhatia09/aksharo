@@ -581,6 +581,29 @@ describe("createClip", () => {
     expect(h.tables.clips).toHaveLength(0);
   });
 
+  it("keeps a clip asked for while the source is still being encoded waiting, not refused", async () => {
+    // Moments can be ready before the video encode is (W5): this used to be a
+    // 409 the page read as "This run was stopped".
+    h = harness({ media: { status: "probing" } });
+    const clip = await h.service.createClip(WS, USER, RUN, { candidateId: CAND_A });
+
+    expect(clip.state).toBe("waiting");
+    expect(h.enqueue).not.toHaveBeenCalled();
+    expect(h.tables.clips).toHaveLength(1);
+    expect(h.tables.runs[0]?.["status"]).toBe("materializing");
+  });
+
+  it("refuses a source that failed its preparation with its own code, spending no budget", async () => {
+    h = harness({ media: { status: "failed", failureReason: "media/corrupt" } });
+    await expectCode(
+      h.service.createClip(WS, USER, RUN, { candidateId: CAND_A }),
+      REPURPOSE_CLIP_ERRORS.sourceFailed,
+      409,
+    );
+    expect(h.tables.clips).toHaveLength(0);
+    expect(h.consume).not.toHaveBeenCalled();
+  });
+
   it("does not cut again a clip that is already being cut", async () => {
     await h.service.createClip(WS, USER, RUN, { candidateId: CAND_A });
     const again = await h.service.createClip(WS, USER, RUN, { candidateId: CAND_A });
@@ -936,6 +959,37 @@ describe("reconcileClips", () => {
 
     expect(enqueued).toHaveLength(2);
     expect(h.derivedGet).toHaveBeenCalledTimes(1);
+  });
+
+  it("cuts nothing while the source is still being encoded, and fails nothing", async () => {
+    h = harness({ media: { status: "probing" } });
+    h.tables.clips.push(clipRow(CAND_A));
+    expect(await h.service.reconcileClips(RUN)).toEqual({ enqueued: [] });
+    expect(h.enqueue).not.toHaveBeenCalled();
+    expect(h.tables.runs[0]?.["status"]).toBe("candidates_ready");
+  });
+
+  it("fails the run when its source failed and no clip was ever made", async () => {
+    h = harness({ media: { status: "failed", failureReason: "media/corrupt" } });
+    h.tables.clips.push(clipRow(CAND_A));
+    await h.service.reconcileClips(RUN);
+    expect(h.enqueue).not.toHaveBeenCalled();
+    expect(h.tables.runs[0]).toMatchObject({
+      status: "failed",
+      failureCode: "repurpose/processing_failed",
+      currentStage: "getting_video",
+    });
+    expect(h.publish).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps a run whose source failed after a clip was made", async () => {
+    h = harness({
+      run: { status: "materializing", currentStage: "styles_formats" },
+      media: { status: "failed", failureReason: "media/corrupt" },
+    });
+    h.tables.clips.push(clipRow(CAND_A, { mezzanineKey: "ws/master.mp4" }), clipRow(CAND_B));
+    await h.service.reconcileClips(RUN);
+    expect(h.tables.runs[0]?.["status"]).not.toBe("failed");
   });
 
   it("never enqueues for a cancelled run", async () => {

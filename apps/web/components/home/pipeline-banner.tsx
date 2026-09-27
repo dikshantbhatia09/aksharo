@@ -36,6 +36,7 @@ import { Button, cn } from "@montaj/ui";
 
 import { STAGE_COPY, safeErrorCopy, type StageKey } from "@/components/repurpose/copy";
 import { runActivity, serverIsWorking } from "@/components/repurpose/run-activity";
+import { runPartLabel, runTitle } from "@/components/repurpose/run-window";
 
 /** The flag that gates the entire guided surface (REP-006). */
 export const REPURPOSE_FLOW_FLAG = "repurpose_flow";
@@ -114,6 +115,12 @@ export function PipelineBanner({ className }: { className?: string }): React.JSX
   const chosen = bannerRun(runs.data?.items ?? []);
   const run = chosen?.run;
   const currentIndex = run === undefined ? -1 : STAGE_ORDER.indexOf(run.currentStage as StageKey);
+  // The video's real title when the API has it, rather than "youtube.com · <id>",
+  // with its part when it is one part of a long video: "process the next 20
+  // minutes" makes runs that share a title.
+  const part = run === undefined ? null : runPartLabel(run);
+  const name =
+    run === undefined ? "" : part === null ? runTitle(run) : `${runTitle(run)} (${part})`;
 
   const start = (): void => {
     const trimmed = url.trim();
@@ -234,12 +241,12 @@ export function PipelineBanner({ className }: { className?: string }): React.JSX
           <span className="text-fg-1 text-xs">
             {chosen.kind === "failed" ? (
               <>
-                {run.sourceDisplay ?? "Your video"} needs attention:{" "}
+                {name} needs attention:{" "}
                 {safeErrorCopy(run.failureCode).title}.
               </>
             ) : chosen.kind === "needs_you" ? (
               <>
-                {run.sourceDisplay ?? "Your video"} is waiting for you
+                {name} is waiting for you
                 {run.message === "" ? "" : `: ${run.message}`}
               </>
             ) : chosen.kind === "awaiting_video" ? (
@@ -247,12 +254,12 @@ export function PipelineBanner({ className }: { className?: string }): React.JSX
               // True both while the file is still being sent and when it never
               // will be, which the run page (and, in time, the run) says.
               <>
-                {run.sourceDisplay ?? (run.sourceKind === "upload" ? "Your upload" : "Your video")}{" "}
+                {name}{" "}
                 has not arrived yet.
               </>
             ) : (
               <>
-                {run.sourceDisplay ?? "Your video"} is at stage{" "}
+                {name} is at stage{" "}
                 {String(Math.max(1, currentIndex + 1))} of {String(STAGE_ORDER.length)}
                 {run.message === "" ? "" : `, ${run.message}`}
               </>

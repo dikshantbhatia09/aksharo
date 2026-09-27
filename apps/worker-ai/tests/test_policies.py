@@ -167,6 +167,16 @@ def test_an_unknown_family_falls_back_to_the_default() -> None:
     assert queue_policy_for("mystery") == DEFAULT_QUEUE_POLICY
 
 
+def test_an_acquisition_retries_once_a_minute_later() -> None:
+    """Every attempt is a request to YouTube from one home IP (2026-09-27)."""
+    policy = queue_policy_for("media.acquire")
+    assert policy.attempts == 2
+    assert policy.backoff_ms == 60_000
+    assert policy.lock_duration_ms == 600_000
+    # The rest of the media family keeps its quick retries.
+    assert queue_policy_for("media.proxy").attempts == 3
+
+
 def test_a_ten_minute_lock_gives_a_two_hour_recording_room_to_breathe() -> None:
     """`ai.transcribe` is sized for the worst realistic case, not the median."""
     assert queue_policy_for("ai.transcribe").lock_duration_ms == 10 * 60_000

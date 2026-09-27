@@ -63,6 +63,9 @@ WORKER_ENV_VARS: tuple[str, ...] = (
     "WORKER_AI_VAD_MODEL",
     "WORKER_AI_WHISPER_ENGINE",
     "WORKER_AI_WHISPER_MODEL",
+    # A general (not Hindi-tuned) Whisper for the lanes `routing.yaml` points at
+    # it: English, Indian English and the global lane "auto" is probed on.
+    "WORKER_AI_WHISPER_MODEL_EN",
     "WORKER_AI_WHISPER_DEVICE",
     "WORKER_AI_WHISPER_COMPUTE_TYPE",
     "WORKER_AI_ALLOW_MOCK",
@@ -247,6 +250,12 @@ class Settings:
     face_model_path: str = ""
     whisper_engine: str = "faster-whisper"
     whisper_model: str = "small"
+    #: The general weights ``local-whisper`` runs where ``routing.yaml`` names
+    #: ``large-v3-turbo`` (English, Indian English, the global lane). Empty means
+    #: :attr:`whisper_model` serves every lane, which is how it was before this
+    #: setting existed: the Hindi/Hinglish fine-tune writes English speech as
+    #: "1 more", "built built built", and reports every language as English.
+    whisper_model_en: str = ""
     #: ``cpu``, ``cuda`` or ``auto`` (probe for a GPU, fall back to CPU).
     whisper_device: str = "auto"
     #: Empty means "the adapter picks one for the resolved device"
@@ -422,6 +431,13 @@ def load_settings(source: dict[str, str] | None = None) -> Settings:
     if whisper_device and whisper_device not in {"cpu", "cuda", "auto"}:
         problems.append("WORKER_AI_WHISPER_DEVICE: must be one of cpu, cuda, auto")
 
+    # Deliberately not validated here: a value that cannot be loaded must never
+    # stop the worker from booting, because the empty value is a supported
+    # fallback and every other `ai.*` queue lives in this process. The registry
+    # checks it at boot (`registry._english_weights`), logs an unusable one at
+    # ERROR and runs English on WORKER_AI_WHISPER_MODEL instead.
+    whisper_model_en = env.get("WORKER_AI_WHISPER_MODEL_EN", "").strip()
+
     for variable in (
         "ELEVENLABS_BASE_URL",
         "SARVAM_BASE_URL",
@@ -477,6 +493,7 @@ def load_settings(source: dict[str, str] | None = None) -> Settings:
         face_model_path=env.get("YUNET_MODEL_PATH", "").strip(),
         whisper_engine=env.get("WORKER_AI_WHISPER_ENGINE", "").strip() or "faster-whisper",
         whisper_model=env.get("WORKER_AI_WHISPER_MODEL", "").strip() or "small",
+        whisper_model_en=whisper_model_en,
         whisper_device=whisper_device or "auto",
         whisper_compute_type=env.get("WORKER_AI_WHISPER_COMPUTE_TYPE", "").strip(),
         gpu_provider_url=gpu_provider_url.rstrip("/"),

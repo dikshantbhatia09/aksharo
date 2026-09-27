@@ -72,3 +72,65 @@ describe("describeRefusal", () => {
     );
   });
 });
+
+/**
+ * Plan limits (2026-09-27): `create` refuses before anything exists only when
+ * not even a minute is affordable (402 `repurpose/no_credits` with
+ * `details.creditsLeft`), and "Process the next 20 minutes" can be refused
+ * because the video has nothing after this part.
+ */
+describe("describeRefusal for credits and the next part", () => {
+  it("says the balance, and points at it, when a run cannot start for credits", () => {
+    const refusal = describeRefusal(
+      apiError(402, "repurpose/no_credits", "Insufficient credits: 4 tenths.", { creditsLeft: 0.4 }),
+      "start",
+    );
+    expect(refusal.text).toBe(
+      "You have 0.4 credits left, which is not enough to process a minute of video.",
+    );
+    expect(refusal.seeCredits).toBe(true);
+    expect(refusal.text).not.toMatch(/tenths/);
+  });
+
+  it("still says it plainly, and still points at the balance, without a number", () => {
+    const refusal = describeRefusal(apiError(402, "repurpose/no_credits", "x"), "start");
+    expect(refusal.text).toBe(REFUSAL_COPY.start["repurpose/no_credits"]);
+    expect(refusal.seeCredits).toBe(true);
+    // Only a credits refusal links to the balance.
+    expect(describeRefusal(apiError(429, "jobs/concurrency_cap", "x"), "start").seeCredits).toBe(
+      undefined,
+    );
+  });
+
+  // A link's retry fetches the video again, and is refused for credits like
+  // a new run: it used to fall back to "That did not work. Try again in a
+  // moment.", with no way to the balance.
+  it("says a retry was refused for credits, and points at the balance", () => {
+    const withBalance = describeRefusal(
+      apiError(402, "repurpose/no_credits", "x", { creditsLeft: 0.4 }),
+      "retry",
+    );
+    expect(withBalance.text).toBe(
+      "You have 0.4 credits left, which is not enough to process a minute of video.",
+    );
+    expect(withBalance.seeCredits).toBe(true);
+    const without = describeRefusal(apiError(402, "repurpose/no_credits", "x"), "retry");
+    expect(without.text).toBe(REFUSAL_COPY.retry["repurpose/no_credits"]);
+    expect(without.text).not.toBe(REFUSAL_COPY.retry.fallback);
+    expect(without.seeCredits).toBe(true);
+  });
+
+  it("says there is nothing after this part, in plain words", () => {
+    const refusal = describeRefusal(
+      apiError(409, "repurpose/no_next_window", "Window end >= source duration."),
+      "nextWindow",
+    );
+    expect(refusal.text).toBe("There is nothing after this part of the video.");
+    expect(describeRefusal(new TypeError("Failed to fetch"), "nextWindow").text).toBe(
+      REFUSAL_COPY.nextWindow.network,
+    );
+    expect(describeRefusal(apiError(500, "common/internal", "boom"), "nextWindow").text).toBe(
+      REFUSAL_COPY.nextWindow.fallback,
+    );
+  });
+});

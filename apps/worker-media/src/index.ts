@@ -1,6 +1,9 @@
 import { Worker } from "bullmq";
 import IORedis from "ioredis";
 
+import { AlertSender } from "./alert.js";
+import { logDiskAtBoot } from "./disk.js";
+import { redact } from "./errors.js";
 import { logger } from "./logger.js";
 import { assertMediaToolsAvailable } from "./media-tools.js";
 import { workerOptions } from "./policies.js";
@@ -98,23 +101,48 @@ async function main(): Promise<void> {
   // acquire anything should not be refused for a binary it does not need. When it
   // IS consumed, the version and digest are verified before a single job is taken
   // — an unpinned downloader running a user's URL is exactly what ADR 0002 §7
-  // forbids, and finding out mid-job is finding out too late.
+  // forbids, and finding out mid-job is finding out too late. So is its own
+  // `-v` header: the JavaScript runtime and challenge solver it will use for
+  // YouTube, and no plugins. A runtime path that is wrong would otherwise
+  // cost nothing visible until YouTube's next change broke the one client
+  // left.
   if (settings.queues.includes(MEDIA_ACQUIRE_QUEUE)) {
     const downloader = await assertYtDlpUsable({
       binary: settings.ytDlpPath,
       verifyDigest: settings.ytDlpVerifyDigest,
       allowUnpinned: settings.ytDlpAllowUnpinned,
+      ...(settings.ytDlpJsRuntime === undefined ? {} : { jsRuntime: settings.ytDlpJsRuntime }),
     });
     logger.info("media tool available", {
       tool: "yt-dlp",
       version: downloader.version,
       digestVerified: downloader.sha256 !== null,
+      jsRuntime: downloader.jsRuntime,
+      ejs: downloader.ejsVersion,
     });
   }
 
   // BullMQ uses blocking commands, so retries-per-request must be disabled.
   const connection = new IORedis(settings.env.REDIS_URL, { maxRetriesPerRequest: null });
+  // Includes the disk guard: a download, encode or cut waits for room on the
+  // scratch volume (`disk.ts`), which here is also the database's.
   const services = buildServices(settings);
+  // Where the volume stands, said once at boot — at `error`, and to the
+  // operator's phone, when jobs would wait from the first one: a deploy onto
+  // a nearly full disk otherwise looks like a queue that never moves.
+  if (services.disk !== undefined) {
+    const waiting = await logDiskAtBoot(services.disk, settings.queues);
+    if (waiting.length > 0) {
+      await services.alerts?.send({
+        title: "Aksharo: worker-media started below its disk floor",
+        body:
+          `Jobs on ${waiting.join(", ")} will wait until space is freed on ${services.disk.path}. ` +
+          "Free space, or set WORKER_MEDIA_MIN_FREE_BYTES on purpose.",
+        priority: "high",
+        tags: ["floppy_disk", "warning"],
+      });
+    }
+  }
   const stopping = new AbortController();
   const workers = startWorkers(settings, services, connection, stopping.signal);
 
@@ -136,7 +164,18 @@ async function main(): Promise<void> {
   process.on("SIGTERM", shutdown);
 }
 
-main().catch((error: unknown) => {
-  logger.error(error instanceof Error ? error.message : String(error));
+main().catch(async (error: unknown) => {
+  const message = error instanceof Error ? error.message : String(error);
+  logger.error(message);
   process.exitCode = 1;
+  // The workers are started detached: a refusal to boot (a downloader that
+  // is not the reviewed one, a missing ffmpeg) is otherwise a process that
+  // simply is not there, while every health check stays green. Read straight
+  // from the environment, because the settings may be what failed.
+  await AlertSender.fromSetting(process.env["ALERT_WEBHOOK_URL"]).send({
+    title: "Aksharo: worker-media refused to start",
+    body: `${process.env["WORKER_MEDIA_QUEUES"] ?? "all media queues"}: ${redact(message)}`,
+    priority: "urgent",
+    tags: ["rotating_light"],
+  });
 });

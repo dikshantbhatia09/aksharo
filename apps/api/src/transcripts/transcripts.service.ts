@@ -3,6 +3,11 @@ import { HttpStatus, Injectable, Logger } from "@nestjs/common";
 import { newId } from "@montaj/edg";
 import type { Segment, TranscriptChunk } from "@montaj/edg/schemas";
 
+import {
+  firstTranscriptionCanStart,
+  firstTranscriptionJobKey,
+  languageHints,
+} from "./first-transcription.js";
 import { TranscriptDocumentService } from "./transcript-document.service.js";
 import { renderExport } from "./transcript-export.js";
 import {
@@ -163,6 +168,25 @@ export class TranscriptsService {
         status: "failed",
         error: media.failureReason ?? "Media processing failed. Please try re-uploading the file.",
       };
+    }
+
+    // A first transcription can run while the video is still being prepared
+    // (clips pipeline W5: it starts on the audio `media.proxy` writes back ahead
+    // of its encode). Report it as it is — not "processing media", and never as
+    // the timeout below, which a long source's encode outlasts while its
+    // transcription is well under way.
+    if (media.status !== "ready") {
+      const open = await this.prisma.job.findFirst({
+        where: {
+          projectId: project.id,
+          type: { in: ["ai.transcribe", "ai.align"] },
+          status: { in: ["queued", "running"] },
+        },
+        orderBy: { queuedAt: "desc" },
+        select: { id: true, status: true },
+      });
+      if (open?.status === "queued") return { status: "queued", jobId: open.id };
+      if (open?.status === "running") return { status: "running", jobId: open.id };
     }
 
     const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
@@ -341,20 +365,24 @@ export class TranscriptsService {
     options: { retranscribe: boolean },
   ): Promise<TranscribeAccepted> {
     const project = await this.project(request.projectId, request.workspaceId);
-    const media = await this.primaryMedia(project.id);
+    // A first transcription may start on audio the proxy wrote back ahead of
+    // its video encode (`first-transcription.ts`). A re-transcription waits for
+    // `ready`: it has a transcript to fall back on, and no head start to win.
+    const media = await this.primaryMedia(project.id, { audioFirst: !options.retranscribe });
 
     if (options.retranscribe) await this.assertNoEdits(project.id, request.force === true);
 
     const quote = quoteTranscription(media.durationMs ?? 0);
     const transcriptId = newId();
-    const languages = (request.languages ?? []).filter((tag) => tag.trim() !== "");
+    // "auto" (detect it) is sent as no hint at all; see `languageHints`.
+    const languages = languageHints(request.languages);
     const hints = await this.buildHints(request, project.sourceLanguage);
 
     // A distinct job key per transcript id: dedupe must stop a double-click on the
     // same request, and must not stop a deliberate re-transcription.
     const jobKey = options.retranscribe
       ? `transcribe:${project.id}:${transcriptId}`
-      : `transcribe:${project.id}:${media.id}`;
+      : firstTranscriptionJobKey(project.id, media.id);
 
     const { job, deduplicated } = await this.jobs.enqueue({
       type: "ai.transcribe",
@@ -493,9 +521,14 @@ export class TranscriptsService {
 
   /**
    * The project's primary media, which must be **probed**: a transcription is
-   * quoted on its duration and there is no honest quote without one.
+   * quoted on its duration and there is no honest quote without one. With
+   * `audioFirst`, media whose ASR audio is ready ahead of the rest of its
+   * preparation qualifies too (`firstTranscriptionCanStart`).
    */
-  private async primaryMedia(projectId: string): Promise<MediaAsset> {
+  private async primaryMedia(
+    projectId: string,
+    options: { readonly audioFirst: boolean },
+  ): Promise<MediaAsset> {
     const media = await this.prisma.mediaAsset.findFirst({
       where: { projectId, role: "primary" },
       orderBy: { createdAt: "desc" },
@@ -508,7 +541,10 @@ export class TranscriptsService {
         { projectId },
       );
     }
-    if (media.status !== "ready" || media.durationMs === null || media.durationMs <= 0) {
+    const usable = options.audioFirst
+      ? firstTranscriptionCanStart(media)
+      : media.status === "ready" && media.durationMs !== null && media.durationMs > 0;
+    if (!usable) {
       throw new AppException(
         TRANSCRIPT_ERROR_CODES.mediaNotReady,
         "The media has not finished processing yet.",

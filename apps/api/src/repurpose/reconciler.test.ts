@@ -1,4 +1,4 @@
-import { HttpStatus } from "@nestjs/common";
+import { HttpStatus, Logger } from "@nestjs/common";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { REPURPOSE_SCHEMA_VERSION } from "@montaj/repurpose-contracts";
@@ -29,6 +29,7 @@ import type { JobFacts, RunSnapshot } from "./reconciler.js";
 import type { RepurposeClipsService } from "./repurpose-clips.service.js";
 import type { RepurposeService } from "./repurpose.service.js";
 import type { PrismaService } from "../common/prisma/prisma.service.js";
+import type { JobsService } from "../jobs/jobs.service.js";
 import type { AutoTranscribeTrigger } from "../transcripts/auto-transcribe.trigger.js";
 import type { RepurposeRun } from "@prisma/client";
 
@@ -158,8 +159,13 @@ describe("decideRunAction — getting the video", () => {
   });
 
   it("fails a download that ended without a reason as 'could not get it'", () => {
-    const action = decideRunAction(snapshot({ acquireJob: failedWith("jobs/queue_timeout") }));
+    const action = decideRunAction(snapshot({ acquireJob: failedWith("common/internal") }));
     expect(action).toMatchObject({ kind: "fail", code: "repurpose/source_unavailable" });
+  });
+
+  it("fails a download the queue timed out as a stage that stalled, not a bad link", () => {
+    const action = decideRunAction(snapshot({ acquireJob: failedWith("jobs/queue_timeout") }));
+    expect(action).toMatchObject({ kind: "fail", code: "repurpose/stage_timeout" });
   });
 
   it("fetches again into a pending row that nothing is fetching into", () => {
@@ -335,9 +341,7 @@ describe("decideRunAction — finding moments", () => {
 
   it("fails a discovery that failed with highlights_failed", () => {
     expect(
-      decideRunAction(
-        snapshot({ ...transcribed, highlightsJob: failedWith("jobs/queue_timeout") }),
-      ),
+      decideRunAction(snapshot({ ...transcribed, highlightsJob: failedWith("common/internal") })),
     ).toEqual({ kind: "fail", failedAt: "highlights", code: "repurpose/highlights_failed" });
   });
 
@@ -415,12 +419,13 @@ describe("decideRunAction — a step that stopped making progress", () => {
   });
 
   it("fails a download still running long after its own deadline", () => {
-    // A forty-minute deadline in its payload, and ten minutes' margin.
+    // A forty-minute deadline in its payload for each of two attempts, a
+    // minute's back-off between them and ten minutes' margin: 91 minutes.
     expect(
-      decideRunAction(snapshot({ acquireJob: runningFor(51, { timeoutMs: 40 * MINUTE }) })),
+      decideRunAction(snapshot({ acquireJob: runningFor(92, { timeoutMs: 40 * MINUTE }) })),
     ).toEqual(timedOut("acquire"));
     expect(
-      decideRunAction(snapshot({ acquireJob: runningFor(49, { timeoutMs: 40 * MINUTE }) })),
+      decideRunAction(snapshot({ acquireJob: runningFor(90, { timeoutMs: 40 * MINUTE }) })),
     ).toEqual({ kind: "wait" });
   });
 
@@ -469,11 +474,21 @@ describe("isStalled, the ceilings and stalledJobIds", () => {
     expect(isStalled({ ...queuedFor(600), maxQueueWaitMs: null }, MINUTE, NOW)).toBe(false);
   });
 
-  it("gives a download its own deadline plus a margin, and the rest an hour plus twice the video", () => {
+  it("never reads a queued job worker-media is holding for disk as stalled", () => {
+    // It spends no attempt, starts once there is room, and fails itself after hours.
+    expect(isStalled(queuedFor(600), MINUTE, NOW)).toBe(true);
+    expect(isStalled({ ...queuedFor(600), heldForDisk: true }, MINUTE, NOW)).toBe(false);
+  });
+
+  it("gives a download its own deadline for each of its two attempts, the back-off and a margin", () => {
+    // media.acquire retries once, a minute later; `started_at` is the first
+    // pickup's, so the second attempt is measured from the first one's start.
     expect(acquireCeilingMs({ ...live, timeoutMs: 20 * MINUTE })).toBe(
-      20 * MINUTE + ACQUIRE_RUNNING_MARGIN_MS,
+      2 * 20 * MINUTE + MINUTE + ACQUIRE_RUNNING_MARGIN_MS,
     );
-    expect(acquireCeilingMs(live)).toBe(ACQUIRE_TIMEOUT_MS + ACQUIRE_RUNNING_MARGIN_MS);
+    expect(acquireCeilingMs(live)).toBe(
+      2 * ACQUIRE_TIMEOUT_MS + MINUTE + ACQUIRE_RUNNING_MARGIN_MS,
+    );
     expect(workCeilingMs(null)).toBe(STAGE_RUNNING_BASE_MS);
     expect(workCeilingMs(10 * MINUTE)).toBe(STAGE_RUNNING_BASE_MS + 20 * MINUTE);
   });
@@ -729,10 +744,40 @@ describe("planRetry", () => {
   it("fetches again, rather than resuming, a download open long past its own deadline", () => {
     // "Resume" would watch a download nothing is running, for good.
     expect(
-      planRetry(snapshot({ acquireJob: runningFor(51, { timeoutMs: 40 * MINUTE }) }), {
+      planRetry(snapshot({ acquireJob: runningFor(92, { timeoutMs: 40 * MINUTE }) }), {
         failureCode: "repurpose/stage_timeout",
       }),
     ).toEqual({ kind: "acquire", reuseMedia: true });
+  });
+
+  it("fetches a too-long link again when it was refused for a window or an old plan cap", () => {
+    const tooLong = snapshot({
+      media: { ...readyMedia, status: "failed", failureReason: "media/too_long", arrived: false },
+      acquireJob: failedWith("media/too_long"),
+    });
+    for (const failureDetail of [
+      // The probe's window overrun.
+      { durationMs: 2_100_000, maxDurationMs: 1_200_000, windowMs: 1_200_000 },
+      // A refusal from before windows: the Free plan's 20-minute cap.
+      { durationMs: 2_100_000, maxDurationMs: 1_200_000 },
+      null,
+    ]) {
+      expect(
+        planRetry(tooLong, { failureCode: "repurpose/source_too_long", failureDetail }).kind,
+      ).toBe("acquire");
+    }
+  });
+
+  it("refuses a link longer than the 12-hour ceiling: fetching it again is refused again", () => {
+    const tooLong = snapshot({
+      media: { ...readyMedia, status: "failed", failureReason: "media/too_long", arrived: false },
+      acquireJob: failedWith("media/too_long"),
+    });
+    const plan = planRetry(tooLong, {
+      failureCode: "repurpose/source_too_long",
+      failureDetail: { durationMs: 13 * 3_600_000, maxDurationMs: 12 * 3_600_000 },
+    });
+    expect(plan.kind).toBe("impossible");
   });
 
   it("refuses an upload that could not be read: only a new upload helps", () => {
@@ -788,6 +833,9 @@ interface World {
     uploadedAt: Date | null;
     durationMs: number | null;
     createdAt: Date;
+    /** W5: written back by the proxy before its video encode. */
+    audio16kKey?: string | null;
+    hasAudio?: boolean | null;
   } | null;
   transcript: { id: string } | null;
   candidates: number;
@@ -1035,13 +1083,15 @@ function harness(w: World) {
     maybeEnqueue: vi.fn(async (): Promise<{ jobId: string } | undefined> => ({ jobId: "j" })),
   };
   const clips = { reconcileClips: vi.fn(async () => ({ enqueued: [] })) };
+  const jobs = { diskHeldSince: vi.fn(async (): Promise<number | null> => null) };
   const reconciler = new RepurposeReconciler(
     prisma,
     runs as unknown as RepurposeService,
     autoTranscribe as unknown as AutoTranscribeTrigger,
     clips as unknown as RepurposeClipsService,
+    jobs as unknown as JobsService,
   );
-  return { reconciler, runs, autoTranscribe, clips, findJobs, updateRun, calls, prisma };
+  return { reconciler, runs, autoTranscribe, clips, jobs, findJobs, updateRun, calls, prisma };
 }
 
 let w: World;
@@ -1195,6 +1245,21 @@ describe("RepurposeReconciler — moving a run from durable state", () => {
     expect(h.runs.failRun).toHaveBeenCalledWith(
       expect.objectContaining({ id: RUN }),
       "repurpose/source_unavailable",
+      "getting_video",
+    );
+  });
+
+  it("fails the run as out of credits when the balance no longer pays for the window", async () => {
+    // It fell into the refused-for-good branch and read "could not get the video".
+    w.media = { ...w.media!, id: FRESH_MEDIA };
+    const h = harness(w);
+    h.runs.reacquire.mockRejectedValueOnce(
+      new AppException("repurpose/no_credits", "no credits", HttpStatus.PAYMENT_REQUIRED),
+    );
+    await h.reconciler.reconcile(w.run);
+    expect(h.runs.failRun).toHaveBeenCalledWith(
+      expect.objectContaining({ id: RUN }),
+      "repurpose/no_credits",
       "getting_video",
     );
   });
@@ -1554,6 +1619,19 @@ describe("RepurposeReconciler — a job that stopped making progress", () => {
     expect(h.autoTranscribe.maybeEnqueue).not.toHaveBeenCalled();
   });
 
+  it("leaves a download worker-media is holding for disk queued, and the run open", async () => {
+    w.jobs = [
+      acquireJob({ status: "queued", startedAt: null, queuedAt: new Date(NOW - 45 * MINUTE) }),
+    ];
+    const h = harness(w);
+    h.jobs.diskHeldSince.mockResolvedValue(NOW - 40 * MINUTE);
+    const out = await h.reconciler.reconcile(w.run, NOW);
+    expect(h.jobs.diskHeldSince).toHaveBeenCalledTimes(1);
+    expect(h.runs.failRun).not.toHaveBeenCalled();
+    expect(h.runs.cancelJobs).not.toHaveBeenCalled();
+    expect(out.status).toBe("draft");
+  });
+
   it("fails a download the acquisition worker never picked up", async () => {
     w.jobs = [
       acquireJob({ status: "queued", startedAt: null, queuedAt: new Date(NOW - 45 * MINUTE) }),
@@ -1759,7 +1837,12 @@ describe("RepurposeReconciler.redrive — Try again", () => {
       .catch((error: unknown) => error)) as AppException;
     expect(refused.code).toBe("repurpose/source_already_running");
     expect(refused.details).toEqual({ existingRunId: "01JCRN0000000000000000000B" });
-    expect(h.runs.duplicateOf).toHaveBeenCalledWith(WS, "youtube:dQw4w9WgXcQ", RUN);
+    expect(h.runs.duplicateOf).toHaveBeenCalledWith(
+      WS,
+      "youtube:dQw4w9WgXcQ",
+      RUN,
+      w.run.windowStartMs,
+    );
     expect(h.runs.reacquire).not.toHaveBeenCalled();
   });
 
@@ -1871,8 +1954,8 @@ describe("RepurposeReconciler.redrive — Try again", () => {
       run: runRow({ status: "failed", failureCode: "repurpose/stage_timeout" }),
       jobs: [
         acquireJob({
-          queuedAt: new Date(NOW - 60 * MINUTE),
-          startedAt: new Date(NOW - 60 * MINUTE),
+          queuedAt: new Date(NOW - 100 * MINUTE),
+          startedAt: new Date(NOW - 100 * MINUTE),
         }),
       ],
     });
@@ -2149,5 +2232,401 @@ describe("youtubeUrlOf", () => {
     expect(youtubeUrlOf("youtube_url", null)).toBeNull();
     expect(youtubeUrlOf("youtube_url", "youtube:short")).toBeNull();
     expect(youtubeUrlOf("youtube_url", "youtube:5eW6Eagr9XA&list=x")).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// W5: the transcription starts on the audio, alongside the video encode
+// ---------------------------------------------------------------------------
+
+/** Probed media whose proxy has written `audio16k.wav` back and is still encoding. */
+const audioBack = {
+  status: "probing",
+  failureReason: null,
+  arrived: true,
+  durationMs: 2_076_000,
+  audioReady: true,
+} as const;
+
+describe("decideRunAction — audio written back ahead of the video encode (W5)", () => {
+  it("starts the transcription now, not once the encode has finished", () => {
+    expect(
+      decideRunAction(snapshot({ media: audioBack, acquireJob: done, processingJob: live })),
+    ).toEqual({ kind: "transcribe" });
+  });
+
+  it("waits while that transcription runs alongside the encode", () => {
+    expect(
+      decideRunAction(
+        snapshot({ media: audioBack, acquireJob: done, processingJob: live, transcribeJob: live }),
+      ),
+    ).toEqual({ kind: "wait" });
+  });
+
+  it("fails the run for the transcription when it failed, the encode still running", () => {
+    expect(
+      decideRunAction(
+        snapshot({
+          media: audioBack,
+          acquireJob: done,
+          processingJob: live,
+          transcribeJob: failedWith("asr/failed"),
+        }),
+      ),
+    ).toEqual({ kind: "fail", failedAt: "transcription", code: "repurpose/transcription_failed" });
+  });
+
+  it("fails the run for the preparation when the proxy ended, whatever the transcription does", () => {
+    expect(
+      decideRunAction(
+        snapshot({
+          media: audioBack,
+          acquireJob: done,
+          processingJob: failedWith("media/corrupt"),
+          transcribeJob: live,
+        }),
+      ),
+    ).toEqual({ kind: "fail", failedAt: "processing", code: "repurpose/processing_failed" });
+  });
+
+  it("still waits on media whose audio is not back, or that is not being prepared", () => {
+    for (const media of [
+      { ...audioBack, audioReady: false },
+      { ...audioBack, audioReady: undefined },
+      // Only `probing` counts: an `uploaded` row's key can be the previous file's.
+      { ...audioBack, status: "uploaded" as const },
+    ]) {
+      expect(
+        decideRunAction(snapshot({ media, acquireJob: done, processingJob: live })),
+        JSON.stringify(media),
+      ).toEqual({ kind: "wait" });
+    }
+  });
+});
+
+describe("planRetry — a transcription that failed on early audio (W5)", () => {
+  it("restarts the transcription on that audio rather than fetching the video again", () => {
+    expect(
+      planRetry(
+        snapshot({
+          media: audioBack,
+          acquireJob: done,
+          processingJob: live,
+          transcribeJob: failedWith("asr/failed"),
+        }),
+        { failureCode: "repurpose/transcription_failed" },
+      ),
+    ).toEqual({ kind: "transcribe" });
+  });
+
+  it("fetches again when it is the preparation that ended", () => {
+    expect(
+      planRetry(
+        snapshot({
+          media: audioBack,
+          acquireJob: done,
+          processingJob: failedWith("media/corrupt"),
+        }),
+        { failureCode: "repurpose/processing_failed" },
+      ),
+    ).toEqual({ kind: "acquire", reuseMedia: false });
+  });
+});
+
+describe("RepurposeReconciler — audio written back ahead of the encode (W5)", () => {
+  const AUDIO_KEY = `ws/${WS}/p/${PROJECT}/media/${MEDIA}/audio16k.wav`;
+
+  beforeEach(() => {
+    w.media = {
+      ...w.media!,
+      status: "probing",
+      uploadedAt: new Date(),
+      durationMs: 2_076_000,
+      hasAudio: true,
+      audio16kKey: AUDIO_KEY,
+    };
+    w.jobs = [
+      acquireJob({ status: "succeeded" }),
+      job("media.probe", `media.probe:${MEDIA}`, { status: "succeeded" }),
+      job("media.proxy", `media.proxy:${MEDIA}`, { status: "running" }),
+    ];
+  });
+
+  // The watchdog, with nobody reading the run: the internal media write-back
+  // is not the only thing that can start it.
+  it("starts the transcription through the trigger while the proxy is still encoding", async () => {
+    const h = harness(w);
+    await h.reconciler.sweepOnce(NOW);
+    expect(h.autoTranscribe.maybeEnqueue).toHaveBeenCalledWith(MEDIA);
+    expect(h.runs.failRun).not.toHaveBeenCalled();
+  });
+
+  it("waits when the proxy has not written the audio back yet", async () => {
+    w.media = { ...w.media!, audio16kKey: null };
+    const h = harness(w);
+    await h.reconciler.reconcile(w.run);
+    expect(h.autoTranscribe.maybeEnqueue).not.toHaveBeenCalled();
+    expect(h.runs.failRun).not.toHaveBeenCalled();
+  });
+
+  it("waits on audio the probe never measured", async () => {
+    w.media = { ...w.media!, hasAudio: null };
+    const h = harness(w);
+    await h.reconciler.reconcile(w.run);
+    expect(h.autoTranscribe.maybeEnqueue).not.toHaveBeenCalled();
+  });
+
+  it("fails the run with no_credits when the early start was refused for want of them", async () => {
+    w.balanceTenths = 0;
+    const h = harness(w);
+    h.autoTranscribe.maybeEnqueue.mockResolvedValueOnce(undefined);
+    await h.reconciler.reconcile(w.run);
+    expect(h.runs.failRun).toHaveBeenCalledWith(
+      expect.anything(),
+      "repurpose/no_credits",
+      expect.anything(),
+    );
+  });
+
+  it("restarts, on Try again, a transcription that failed on that audio", async () => {
+    w.run = runRow({ status: "failed", failureCode: "repurpose/transcription_failed" });
+    w.jobs.push(
+      job("ai.transcribe", `transcribe:${PROJECT}:${MEDIA}`, {
+        status: "failed",
+        error: { code: "asr/failed" },
+        finishedAt: new Date(clock),
+      }),
+    );
+    const h = harness(w);
+    await h.reconciler.redrive(w.run);
+    expect(h.autoTranscribe.maybeEnqueue).toHaveBeenCalledWith(MEDIA);
+    expect(h.runs.reacquire).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// W5: a transcript no longer proves the source can be cut
+// ---------------------------------------------------------------------------
+
+/**
+ * The proxy failed after the early transcription had started or finished: the
+ * media is `failed`, and no clip can ever be cut from it.
+ */
+const failedSource = {
+  status: "failed",
+  failureReason: null,
+  arrived: true,
+  durationMs: 2_076_000,
+} as const;
+
+/** Minutes past which a job preparing {@link audioBack} has stalled. */
+const PAST_CEILING_MIN = Math.ceil(workCeilingMs(audioBack.durationMs) / MINUTE) + 1;
+
+describe("decideRunAction — a transcript on a source that can never be cut (W5)", () => {
+  const processingFailed = {
+    kind: "fail",
+    failedAt: "processing",
+    code: "repurpose/processing_failed",
+  } as const;
+
+  it("fails the run for the preparation, not discovery, when the media failed after the transcript", () => {
+    // It used to go on to discovery, then to moments every cut was refused
+    // from, and nothing ever failed it.
+    for (const sourceKind of ["youtube_url", "upload"] as const) {
+      expect(
+        decideRunAction(
+          snapshot({ sourceKind, media: failedSource, acquireJob: done, transcriptId: TRANSCRIPT }),
+        ),
+        sourceKind,
+      ).toEqual(processingFailed);
+    }
+  });
+
+  it("fails it with discovery already running, or finished with moments", () => {
+    for (const highlightsJob of [live, done]) {
+      expect(
+        decideRunAction(
+          snapshot({
+            media: failedSource,
+            acquireJob: done,
+            transcriptId: TRANSCRIPT,
+            highlightsJob,
+            candidateCount: 3,
+          }),
+        ),
+      ).toEqual(processingFailed);
+    }
+  });
+
+  it("fails it when the proxy job ended with the media left probing", () => {
+    expect(
+      decideRunAction(
+        snapshot({
+          media: audioBack,
+          acquireJob: done,
+          processingJob: failedWith("media/corrupt"),
+          transcriptId: TRANSCRIPT,
+        }),
+      ),
+    ).toEqual(processingFailed);
+  });
+
+  it("fails it for a stalled stage when the encode stopped making progress", () => {
+    expect(
+      decideRunAction(
+        snapshot({
+          media: audioBack,
+          acquireJob: done,
+          processingJob: runningFor(PAST_CEILING_MIN),
+          transcriptId: TRANSCRIPT,
+        }),
+      ),
+    ).toEqual({ kind: "fail", failedAt: "processing", code: "repurpose/stage_timeout" });
+  });
+
+  it("goes on to discovery while the encode is still running — the point of starting early", () => {
+    expect(
+      decideRunAction(
+        snapshot({
+          media: audioBack,
+          acquireJob: done,
+          processingJob: live,
+          transcriptId: TRANSCRIPT,
+        }),
+      ),
+    ).toEqual({ kind: "discover" });
+  });
+});
+
+describe("planRetry — a transcript on a source that can never be cut (W5)", () => {
+  it("fetches a link again rather than going back to moments no cut can be taken from", () => {
+    for (const failureCode of ["repurpose/processing_failed", "repurpose/highlights_failed"]) {
+      expect(
+        planRetry(
+          snapshot({
+            media: failedSource,
+            acquireJob: done,
+            transcriptId: TRANSCRIPT,
+            candidateCount: 3,
+          }),
+          { failureCode },
+        ),
+        failureCode,
+      ).toEqual({ kind: "acquire", reuseMedia: false });
+    }
+  });
+
+  it("offers nothing for an upload that could not be prepared: another upload is the way on", () => {
+    const plan = planRetry(
+      snapshot({
+        sourceKind: "upload",
+        media: failedSource,
+        acquireJob: null,
+        transcriptId: TRANSCRIPT,
+      }),
+      { failureCode: "repurpose/processing_failed" },
+    );
+    expect(plan.kind).toBe("impossible");
+  });
+
+  it("still goes back to the moments, or looks again, on a source that can be cut", () => {
+    const fine = { media: readyMedia, acquireJob: done, transcriptId: TRANSCRIPT } as const;
+    expect(
+      planRetry(snapshot({ ...fine, candidateCount: 3 }), { failureCode: "repurpose/clip_failed" }),
+    ).toEqual({ kind: "restore" });
+    expect(planRetry(snapshot(fine), { failureCode: "repurpose/highlights_failed" })).toEqual({
+      kind: "discover",
+    });
+  });
+});
+
+describe("RepurposeReconciler — the source failed under an early transcription (W5)", () => {
+  const AUDIO_KEY = `ws/${WS}/p/${PROJECT}/media/${MEDIA}/audio16k.wav`;
+
+  beforeEach(() => {
+    w.media = {
+      ...w.media!,
+      status: "probing",
+      uploadedAt: new Date(),
+      durationMs: 2_076_000,
+      hasAudio: true,
+      audio16kKey: AUDIO_KEY,
+    };
+    w.jobs = [
+      acquireJob({ status: "succeeded" }),
+      job("media.probe", `media.probe:${MEDIA}`, { status: "succeeded" }),
+      job("media.proxy", `media.proxy:${MEDIA}`, { status: "running" }),
+    ];
+  });
+
+  // The proxy's failure handler stops the transcriptions it can see; a start
+  // that read `probing` a moment earlier can commit its job just after.
+  it("fails the run and stops a transcription still running on the failed media", async () => {
+    w.media = { ...w.media!, status: "failed" };
+    w.jobs[2] = { ...w.jobs[2]!, status: "failed", finishedAt: new Date(clock) };
+    w.jobs.push(job("ai.transcribe", `transcribe:${PROJECT}:${MEDIA}`, { status: "running" }));
+    const h = harness(w);
+
+    await h.reconciler.reconcile(w.run);
+    // Failed first, so the cancel's failure handler finds a run already answered.
+    expect(h.calls).toEqual(["fail:repurpose/processing_failed", "cancel:ai.transcribe:failed"]);
+    expect(w.jobs[3]?.status).toBe("cancelled");
+  });
+
+  it("leaves that transcription running when the encode merely stalled: a late proxy can still land", async () => {
+    // The probe before it, as it was: the proxy is still the newest of the two.
+    w.jobs[1] = { ...w.jobs[1]!, queuedAt: new Date(NOW - (PAST_CEILING_MIN + 2) * MINUTE) };
+    w.jobs[2] = {
+      ...w.jobs[2]!,
+      queuedAt: new Date(NOW - (PAST_CEILING_MIN + 1) * MINUTE),
+      startedAt: new Date(NOW - PAST_CEILING_MIN * MINUTE),
+    };
+    w.jobs.push(job("ai.transcribe", `transcribe:${PROJECT}:${MEDIA}`, { status: "running" }));
+    const h = harness(w);
+
+    await h.reconciler.reconcile(w.run);
+    expect(h.calls).toEqual(["fail:repurpose/stage_timeout"]);
+    expect(w.jobs[3]?.status).toBe("running");
+  });
+
+  it("fails, rather than looks for moments in, a run whose transcript finished before the proxy failed", async () => {
+    w.media = { ...w.media!, status: "failed" };
+    w.transcript = { id: TRANSCRIPT };
+    const h = harness(w);
+
+    const out = await h.reconciler.reconcile(w.run);
+    expect(h.runs.failRun).toHaveBeenCalledWith(
+      expect.anything(),
+      "repurpose/processing_failed",
+      expect.anything(),
+    );
+    expect(h.runs.startHighlightDiscovery).not.toHaveBeenCalled();
+    expect(out.status).toBe("failed");
+    // The transcription it had finished stays: its credits are settled.
+    expect(h.runs.cancelJobs).not.toHaveBeenCalled();
+  });
+
+  it("waits quietly while the early start is left for the media to be ready", async () => {
+    // Every pass (5 s per open page, and the watchdog) asks again for the
+    // whole encode; on Free the trigger keeps the lane's last slot free and
+    // says no each time. That is expected, not a retry worth a line.
+    const log = vi.spyOn(Logger.prototype, "log");
+    const debug = vi.spyOn(Logger.prototype, "debug").mockImplementation(() => undefined);
+    const h = harness(w);
+    h.autoTranscribe.maybeEnqueue.mockResolvedValue(undefined);
+
+    await h.reconciler.reconcile(w.run);
+    expect(h.autoTranscribe.maybeEnqueue).toHaveBeenCalledWith(MEDIA);
+    expect(h.runs.failRun).not.toHaveBeenCalled();
+    expect(log).not.toHaveBeenCalledWith(
+      expect.anything(),
+      "transcription not started yet; will retry",
+    );
+    expect(debug).toHaveBeenCalledWith(
+      expect.objectContaining({ mediaId: MEDIA }),
+      expect.stringContaining("starts once the media is ready"),
+    );
+    log.mockRestore();
+    debug.mockRestore();
   });
 });

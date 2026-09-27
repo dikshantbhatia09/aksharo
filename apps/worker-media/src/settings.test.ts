@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
   DEFAULT_CONCURRENCY,
+  DEFAULT_MIN_FREE_BYTES,
   FFMPEG_TIMEOUT_MS,
   SOURCE_URL_TTL_SECONDS,
   findExecutable,
@@ -126,6 +127,51 @@ describe("resolveSettings", () => {
     expect(
       resolveSettings({ ...ENV, FFMPEG_PATH: "/opt/ffmpeg/bin/ffmpeg" }).ffmpegLocation,
     ).toBe("/opt/ffmpeg/bin/ffmpeg");
+  });
+
+  it("takes the downloader's JavaScript runtime by absolute path only", () => {
+    expect(resolveSettings(ENV).ytDlpJsRuntime).toBeUndefined();
+    expect(resolveSettings({ ...ENV, YT_DLP_JS_RUNTIME: "  " }).ytDlpJsRuntime).toBeUndefined();
+    for (const path of [
+      "C:\\Program Files\\nodejs\\node.exe",
+      "C:/Program Files/nodejs/node.exe",
+      "/usr/bin/node",
+    ]) {
+      expect(resolveSettings({ ...ENV, YT_DLP_JS_RUNTIME: ` ${path} ` }).ytDlpJsRuntime, path).toBe(
+        path,
+      );
+    }
+    // A name PATH would resolve is a runtime nobody chose.
+    for (const path of ["node", "nodejs/node.exe", "./node"]) {
+      expect(() => resolveSettings({ ...ENV, YT_DLP_JS_RUNTIME: path }), path).toThrow(
+        /YT_DLP_JS_RUNTIME must be an absolute path/,
+      );
+    }
+  });
+
+  it("takes the operator's alert URL as given, and none when it is blank", () => {
+    expect(resolveSettings(ENV).alertWebhookUrl).toBeUndefined();
+    expect(resolveSettings({ ...ENV, ALERT_WEBHOOK_URL: "  " }).alertWebhookUrl).toBeUndefined();
+    expect(
+      resolveSettings({ ...ENV, ALERT_WEBHOOK_URL: " https://ntfy.sh/aksharo-ops " })
+        .alertWebhookUrl,
+    ).toBe("https://ntfy.sh/aksharo-ops");
+  });
+
+  it("holds acquisitions below 5 GiB free unless told otherwise", () => {
+    expect(resolveSettings(ENV).minFreeBytes).toBe(DEFAULT_MIN_FREE_BYTES);
+    expect(DEFAULT_MIN_FREE_BYTES).toBe(5 * 1024 ** 3);
+    expect(resolveSettings({ ...ENV, WORKER_MEDIA_MIN_FREE_BYTES: "1000000" }).minFreeBytes).toBe(
+      1_000_000,
+    );
+    // Zero turns the floor off on purpose; nonsense does not.
+    expect(resolveSettings({ ...ENV, WORKER_MEDIA_MIN_FREE_BYTES: "0" }).minFreeBytes).toBe(0);
+    for (const value of ["-1", "lots", ""]) {
+      expect(
+        resolveSettings({ ...ENV, WORKER_MEDIA_MIN_FREE_BYTES: value }).minFreeBytes,
+        value,
+      ).toBe(DEFAULT_MIN_FREE_BYTES);
+    }
   });
 });
 

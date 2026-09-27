@@ -82,17 +82,47 @@ interface Harness {
   update: ReturnType<typeof vi.fn>;
   enqueueChild: ReturnType<typeof vi.fn>;
   registry: JobCompletionRegistry;
+  runUpdateMany: ReturnType<typeof vi.fn>;
+  jobFindFirst: ReturnType<typeof vi.fn>;
+  order: string[];
 }
 
-function harness(options: { asset?: MediaAsset | null; maxDurationMs?: number } = {}): Harness {
+function harness(
+  options: {
+    asset?: MediaAsset | null;
+    maxDurationMs?: number;
+    /** The clips run this media is the source of, if any. */
+    run?: { id: string; windowStartMs: number | null; windowEndMs: number | null } | null;
+    /** The `media.acquire` job that fetched into this media, if any. */
+    acquireParams?: Record<string, unknown> | null;
+  } = {},
+): Harness {
   const asset =
     options.asset === undefined
       ? ({ id: MEDIA, projectId: PROJECT, bucket: "s3", storageKey: RAW_KEY } as MediaAsset)
       : options.asset;
 
-  const update = vi.fn(async () => asset);
+  const order: string[] = [];
+  const update = vi.fn(async () => {
+    order.push("media.update");
+    return asset;
+  });
+  const runUpdateMany = vi.fn(async () => {
+    order.push("run.updateMany");
+    return { count: 1 };
+  });
+  const jobFindFirst = vi.fn(async () =>
+    options.acquireParams === undefined || options.acquireParams === null
+      ? null
+      : { params: options.acquireParams },
+  );
   const prisma = {
     mediaAsset: { findUnique: vi.fn(async () => asset), update },
+    repurposeRun: {
+      findFirst: vi.fn(async () => options.run ?? null),
+      updateMany: runUpdateMany,
+    },
+    job: { findFirst: jobFindFirst },
   } as unknown as PrismaService;
 
   const enqueueChild = vi.fn(async () => ({
@@ -113,7 +143,7 @@ function harness(options: { asset?: MediaAsset | null; maxDurationMs?: number } 
     maybeEnqueue: vi.fn(async () => undefined),
   } as unknown as ReplaceMediaAlignTrigger;
   const handler = new MediaProbeCompletionHandler(prisma, jobs, entitlements, registry, realign);
-  return { handler, update, enqueueChild, registry };
+  return { handler, update, enqueueChild, registry, runUpdateMany, jobFindFirst, order };
 }
 
 let h: Harness;
@@ -263,5 +293,153 @@ describe("MediaProbeCompletionHandler", () => {
       proxyEnqueued: false,
     });
     expect(h.update).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("MediaProbeCompletionHandler — a clips run's window (2026-09-27)", () => {
+  const RUN = "01JCRN0000000000000000000A";
+  const TWENTY_MIN = 20 * 60_000;
+
+  /** `media.acquire`'s payload for this media, as `RepurposeService` enqueues it. */
+  function acquireParams(window?: Record<string, unknown>): Record<string, unknown> {
+    return {
+      schemaVersion: 1,
+      runId: RUN,
+      projectId: PROJECT,
+      mediaId: MEDIA,
+      source: {
+        kind: "youtube_url",
+        normalizedUrl: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+        sourceId: "youtube:dQw4w9WgXcQ",
+      },
+      destination: { bucket: "s3", key: RAW_KEY },
+      limits: { maxBytes: 524_288_000, maxDurationMs: 43_200_000, timeoutMs: 2_400_000 },
+      ...(window === undefined ? {} : { window }),
+    };
+  }
+
+  const RUN_ROW = { id: RUN, windowStartMs: null, windowEndMs: null };
+
+  it("accepts a window a few seconds longer than asked, over the plan's upload cap", async () => {
+    // A section starts on the keyframe before its start: 20:10 of a 20:00
+    // window on the Free plan, whose upload cap is 20:00, is exactly right.
+    const windowed = harness({
+      maxDurationMs: TWENTY_MIN,
+      run: RUN_ROW,
+      acquireParams: acquireParams({ maxMs: TWENTY_MIN, policy: "most_replayed" }),
+    });
+    await windowed.handler.handle(context(probeResult({ durationMs: TWENTY_MIN + 10_000 })));
+
+    expect(windowed.update.mock.calls[0]?.[0]).toMatchObject({
+      data: { status: "probing", failureReason: null },
+    });
+    expect(windowed.enqueueChild).toHaveBeenCalledTimes(1);
+    expect(windowed.runUpdateMany).not.toHaveBeenCalled();
+  });
+
+  it("holds a larger plan's window to the window, not to the upload cap", async () => {
+    const windowed = harness({
+      maxDurationMs: TWENTY_MIN,
+      run: RUN_ROW,
+      acquireParams: acquireParams({ maxMs: 6 * 60 * 60_000, policy: "first" }),
+    });
+    await windowed.handler.handle(context(probeResult({ durationMs: 3 * 60 * 60_000 })));
+    expect(windowed.enqueueChild).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses a file longer than its window, and puts the numbers on the run first", async () => {
+    // An old worker that ignored the window fetched the whole three hours.
+    const windowed = harness({
+      maxDurationMs: 6 * 60 * 60_000,
+      run: RUN_ROW,
+      acquireParams: acquireParams({ maxMs: TWENTY_MIN, policy: "most_replayed" }),
+    });
+    const outcome = await windowed.handler.handle(
+      context(probeResult({ durationMs: 3 * 60 * 60_000 })),
+    );
+
+    expect(windowed.update.mock.calls[0]?.[0]).toMatchObject({
+      data: { status: "failed", failureReason: "media/too_long" },
+    });
+    expect(windowed.enqueueChild).not.toHaveBeenCalled();
+    expect(windowed.runUpdateMany).toHaveBeenCalledWith({
+      where: {
+        sourceProjectId: PROJECT,
+        OR: [
+          {
+            status: {
+              in: ["draft", "acquiring", "preparing_media", "transcribing", "analyzing"],
+            },
+          },
+          // Already failed only for this very reason, by a reconcile that got there first.
+          { status: "failed", failureCode: "repurpose/source_too_long" },
+        ],
+      },
+      data: {
+        failureDetail: {
+          durationMs: 3 * 60 * 60_000,
+          maxDurationMs: TWENTY_MIN,
+          windowMs: TWENTY_MIN,
+        },
+      },
+    });
+    // Before the media reads failed, so the reconciler failing the run from it
+    // already finds them.
+    expect(windowed.order).toEqual(["run.updateMany", "media.update"]);
+    expect(outcome.data).toMatchObject({
+      maxDurationMs: TWENTY_MIN + 15_000,
+      windowMs: TWENTY_MIN,
+      failureReason: "media/too_long",
+    });
+  });
+
+  it("reads the window of the job that fetched into THIS media row", async () => {
+    const windowed = harness({
+      run: RUN_ROW,
+      acquireParams: acquireParams({ maxMs: TWENTY_MIN, policy: "first" }),
+    });
+    await windowed.handler.handle(context(probeResult()));
+    expect(windowed.jobFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          type: "media.acquire",
+          projectId: PROJECT,
+          params: { path: ["mediaId"], equals: MEDIA },
+        },
+      }),
+    );
+  });
+
+  it("falls back on the section the run recorded when the job row is gone", async () => {
+    const windowed = harness({
+      maxDurationMs: TWENTY_MIN,
+      run: { id: RUN, windowStartMs: 600_000, windowEndMs: 600_000 + 30 * 60_000 },
+      acquireParams: null,
+    });
+    await windowed.handler.handle(context(probeResult({ durationMs: 30 * 60_000 })));
+    expect(windowed.enqueueChild).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the plan's cap for a download from before windows existed", async () => {
+    const legacy = harness({
+      maxDurationMs: TWENTY_MIN,
+      run: RUN_ROW,
+      acquireParams: acquireParams(),
+    });
+    await legacy.handler.handle(context(probeResult({ durationMs: TWENTY_MIN + 10_000 })));
+    expect(legacy.update.mock.calls[0]?.[0]).toMatchObject({
+      data: { status: "failed", failureReason: "media/too_long" },
+    });
+    // No window: nothing to explain the refusal with beyond the plan's own cap.
+    expect(legacy.runUpdateMany).not.toHaveBeenCalled();
+  });
+
+  it("keeps the plan's cap for an upload, which no clips run fetched", async () => {
+    const upload = harness({ maxDurationMs: TWENTY_MIN, run: null });
+    await upload.handler.handle(context(probeResult({ durationMs: TWENTY_MIN + 10_000 })));
+    expect(upload.update.mock.calls[0]?.[0]).toMatchObject({
+      data: { status: "failed", failureReason: "media/too_long" },
+    });
+    expect(upload.jobFindFirst).not.toHaveBeenCalled();
   });
 });

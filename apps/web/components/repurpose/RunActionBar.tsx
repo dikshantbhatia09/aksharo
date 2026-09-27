@@ -14,7 +14,7 @@ import type { RepurposeRunView } from "@montaj/api-client";
 import { Button, ConfirmAction, ProgressBar, cn } from "@montaj/ui";
 
 import { safeErrorCopy } from "@/components/repurpose/copy";
-
+import { runWindowOf, windowPhase, windowSummary } from "@/components/repurpose/run-window";
 
 export interface RunAction {
   readonly label: string;
@@ -130,6 +130,10 @@ export function PersistentPreview({
     (["draft", "acquiring", "preparing_media"].includes(run.status)
       ? "Preview appears once your video is ready"
       : "No preview yet");
+  // A long video is processed a part at a time; the card says which part, so
+  // "20 moments" is read against 20 minutes, not against the whole video —
+  // in the run's own tense, not "processed" while it is still being.
+  const part = runWindowOf(run);
 
   return (
     <aside
@@ -172,6 +176,12 @@ export function PersistentPreview({
           </dd>
         </div>
       </dl>
+
+      {part === null ? null : (
+        <p className="m-0 text-xs text-fg-1" data-testid="preview-window">
+          {windowSummary(part, windowPhase(run))}
+        </p>
+      )}
 
       <div>
         {stoppedLine === null ? (

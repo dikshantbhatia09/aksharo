@@ -7,6 +7,7 @@ import { AutoTranscribeTrigger } from "../transcripts/auto-transcribe.trigger.js
 
 import type { PrismaService } from "../common/prisma/prisma.service.js";
 import type { JobCompletionContext } from "../jobs/completion-handlers.js";
+import type { JobsService } from "../jobs/jobs.service.js";
 import type { Job, MediaAsset } from "@prisma/client";
 
 const WS = "01JCWS0000000000000000000A";
@@ -62,6 +63,16 @@ interface Harness {
   registry: JobCompletionRegistry;
   autoTranscribe: ReturnType<typeof vi.fn>;
   faces: ReturnType<typeof vi.fn>;
+  /** `prisma.job.findMany`: the live first transcriptions of the media. */
+  findJobs: ReturnType<typeof vi.fn>;
+  /** `JobsService.cancel`. */
+  cancel: ReturnType<typeof vi.fn>;
+}
+
+interface HarnessOptions {
+  /** The live `ai.transcribe` rows the failure path finds. */
+  readonly liveTranscriptions?: readonly { id: string }[];
+  readonly cancel?: () => Promise<unknown>;
 }
 
 /**
@@ -74,28 +85,47 @@ type PresentedFacts = Pick<MediaAsset, "projectId" | "role" | "durationMs" | "th
 function harness(
   status: MediaAsset["status"] | null = "probing",
   presented: PresentedFacts | null = null,
+  options: HarnessOptions = {},
 ): Harness {
-  const asset = status === null ? null : ({ status } as MediaAsset);
+  // Stateful, so what the failure path reads after `resolve` is what it wrote.
+  const asset = status === null ? null : ({ status, projectId: PROJECT } as MediaAsset);
   const findUnique = vi.fn(async (args: { select?: Record<string, boolean> }) =>
     args.select?.["role"] === true ? presented : asset,
   );
-  const updateMany = vi.fn(async () => ({ count: 1 }));
+  const updateMany = vi.fn(async (args?: { data?: { status?: MediaAsset["status"] } }) => {
+    if (asset !== null && args?.data?.status !== undefined) asset.status = args.data.status;
+    return { count: 1 };
+  });
   const projectUpdate = vi.fn(async () => ({}));
+  const findJobs = vi.fn(async () => options.liveTranscriptions ?? []);
   const prisma = {
     mediaAsset: { findUnique, updateMany },
     project: { update: projectUpdate },
+    job: { findMany: findJobs },
   } as unknown as PrismaService;
 
   const registry = new JobCompletionRegistry();
   const autoTranscribe = vi.fn(async () => undefined);
   const faces = vi.fn(async () => undefined);
+  const cancel = vi.fn(options.cancel ?? (async () => ({})));
   const handler = new MediaProxyCompletionHandler(
     prisma,
     registry,
     { maybeEnqueue: autoTranscribe } as unknown as AutoTranscribeTrigger,
     { maybeEnqueue: faces } as unknown as FacesTrigger,
+    { cancel } as unknown as JobsService,
   );
-  return { handler, findUnique, updateMany, projectUpdate, registry, autoTranscribe, faces };
+  return {
+    handler,
+    findUnique,
+    updateMany,
+    projectUpdate,
+    registry,
+    autoTranscribe,
+    faces,
+    findJobs,
+    cancel,
+  };
 }
 
 let h: Harness;
@@ -208,6 +238,25 @@ describe("MediaProxyCompletionHandler", () => {
     });
   });
 
+  it("keeps a ready asset ready when the lease reaper settles the proxy as stalled", async () => {
+    // The encode finished and wrote the asset back; only its completion was lost.
+    const ready = harness("ready");
+    await ready.handler.handleFailure?.(
+      failureContext({ code: "jobs/stalled", message: "stalled", retryable: true }),
+    );
+    expect(ready.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("still fails a probing asset whose proxy was reaped as stalled", async () => {
+    await h.handler.handleFailure?.(
+      failureContext({ code: "jobs/stalled", message: "stalled", retryable: true }),
+    );
+    expect(h.updateMany).toHaveBeenCalledWith({
+      where: { id: MEDIA, status: "probing" },
+      data: { status: "failed", failureReason: "media/probe_failed" },
+    });
+  });
+
   it("does nothing on failure when the asset was deleted while the job ran", async () => {
     const gone = harness(null);
     await gone.handler.handleFailure?.(
@@ -261,11 +310,72 @@ describe("first transcription", () => {
   it("starts it even when the worker already marked the asset ready", async () => {
     const ready = harness("ready");
     await ready.handler.handle(successContext());
-    expect(ready.autoTranscribe).toHaveBeenCalledWith(MEDIA);
+    expect(ready.autoTranscribe).toHaveBeenCalledWith(MEDIA, expect.anything());
   });
 
   it("starts it on the ordinary transition too", async () => {
     await h.handler.handle(successContext());
-    expect(h.autoTranscribe).toHaveBeenCalledWith(MEDIA);
+    expect(h.autoTranscribe).toHaveBeenCalledWith(MEDIA, expect.anything());
+  });
+
+  // W5: the transcription usually started on the audio, before this job's
+  // encode. If that one already failed, the proxy finishing must not quietly
+  // start (and charge for) a second one behind a run that says it failed.
+  it("asks only for a first attempt: an early start that already ended is not repeated", async () => {
+    await h.handler.handle(successContext());
+    expect(h.autoTranscribe).toHaveBeenCalledWith(MEDIA, { firstAttemptOnly: true });
+  });
+});
+
+describe("a transcription started on the audio, when the proxy then fails (W5)", () => {
+  const TRANSCRIBE = "01JCJ0BTRANSCR1BE000000000";
+  const failure = () => failureContext({ code: "media/corrupt", message: "bad", retryable: false });
+
+  it("is stopped, so nobody is charged for words of media no editor will open", async () => {
+    const early = harness("probing", null, { liveTranscriptions: [{ id: TRANSCRIBE }] });
+    await early.handler.handleFailure?.(failure());
+    expect(early.findJobs).toHaveBeenCalledWith({
+      where: {
+        workspaceId: WS,
+        type: "ai.transcribe",
+        // Only this media's first transcription: the key names it.
+        jobKey: `transcribe:${PROJECT}:${MEDIA}`,
+        status: { in: ["queued", "running"] },
+      },
+      select: { id: true },
+    });
+    expect(early.cancel).toHaveBeenCalledWith(TRANSCRIBE, WS);
+    // The media is marked first, so the cancel's own handlers read it failed.
+    expect(early.updateMany.mock.invocationCallOrder[0]).toBeLessThan(
+      early.cancel.mock.invocationCallOrder[0] ?? 0,
+    );
+  });
+
+  it("stops nothing when there is nothing in flight", async () => {
+    await h.handler.handleFailure?.(failure());
+    expect(h.cancel).not.toHaveBeenCalled();
+  });
+
+  it("never fails the failure path when the transcription finished a moment ago", async () => {
+    const raced = harness("probing", null, {
+      liveTranscriptions: [{ id: TRANSCRIBE }],
+      cancel: async () => {
+        throw new Error("The job finished before it could be cancelled.");
+      },
+    });
+    await expect(raced.handler.handleFailure?.(failure())).resolves.toBeUndefined();
+    expect(raced.cancel).toHaveBeenCalled();
+  });
+
+  it("leaves transcriptions alone when the media is gone", async () => {
+    const gone = harness(null, null, { liveTranscriptions: [{ id: TRANSCRIBE }] });
+    await gone.handler.handleFailure?.(failure());
+    expect(gone.cancel).not.toHaveBeenCalled();
+  });
+
+  it("stops nothing on success", async () => {
+    const early = harness("probing", null, { liveTranscriptions: [{ id: TRANSCRIBE }] });
+    await early.handler.handle(successContext());
+    expect(early.cancel).not.toHaveBeenCalled();
   });
 });

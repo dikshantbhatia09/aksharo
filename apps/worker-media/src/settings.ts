@@ -1,5 +1,5 @@
 import { accessSync, constants, existsSync, statSync } from "node:fs";
-import { dirname, extname, join, parse } from "node:path";
+import { dirname, extname, join, parse, posix, win32 } from "node:path";
 
 import { config as loadDotenvFile } from "dotenv";
 
@@ -64,8 +64,34 @@ export interface Settings {
    * `assertYtDlpUsable` for the trade-off it makes.
    */
   readonly ytDlpAllowUnpinned: boolean;
+  /**
+   * The JavaScript runtime the downloader may run YouTube's challenge scripts
+   * in (`YT_DLP_JS_RUNTIME`): an absolute path to `node`, or `undefined` for
+   * none.
+   *
+   * Without one, yt-dlp 2026.08.19 enables only deno (not installed here) and
+   * falls back to a single YouTube client, which is the first thing a YouTube
+   * change breaks. It is named by absolute path, never found on PATH, because
+   * this is an executable that runs code a website sent: the one that runs has
+   * to be the one a deployment chose. yt-dlp starts it with Node's permission
+   * model, which denies file-system and child-process access to the script.
+   */
+  readonly ytDlpJsRuntime: string | undefined;
   /** Where scratch files go; `undefined` means the OS temp directory. */
   readonly tempDir: string | undefined;
+  /**
+   * The free space an acquisition needs on the scratch volume before it may
+   * start (`WORKER_MEDIA_MIN_FREE_BYTES`); a proxy or a clip needs the smaller
+   * reserve (1 GiB, or this when it is lower), or three times its own
+   * expected scratch bytes when that is more. See `disk.ts`. `0` turns every
+   * check off.
+   */
+  readonly minFreeBytes: number;
+  /**
+   * `ALERT_WEBHOOK_URL`, as given: the ntfy topic this process alerts when it
+   * cannot start, or when jobs wait for disk (`alert.ts`). Never logged.
+   */
+  readonly alertWebhookUrl: string | undefined;
   /** How long a signed read URL for the source object stays valid. */
   readonly sourceUrlTtlSeconds: number;
   /** Ceiling on one ffmpeg run, so a wedged process cannot hold a lock forever. */
@@ -89,6 +115,19 @@ export const SOURCE_URL_TTL_SECONDS = 6 * 60 * 60;
 
 /** One ffmpeg run may take this long. Longer than the lock, because retries exist. */
 export const FFMPEG_TIMEOUT_MS = 45 * 60_000;
+
+/**
+ * The free space below which no acquisition starts: 5 GiB. (A proxy or a clip
+ * brings its own size, and starts against the 1 GiB reserve; see `disk.ts`.)
+ *
+ * The scratch directory shares a volume with Postgres, Redis and MinIO on the
+ * machine that runs production. A download that fills it does not fail on its
+ * own: it takes the database down with it. Five gigabytes is a 1080p download
+ * of about three hours with room left for the merge. On a host with less free
+ * than this, set `WORKER_MEDIA_MIN_FREE_BYTES` deliberately — or every
+ * acquisition waits, and says so at boot.
+ */
+export const DEFAULT_MIN_FREE_BYTES = 5 * 1024 ** 3;
 
 /** Load the nearest `.env` walking up to the repo root; real env vars win. */
 export function loadRepoDotenv(startDir: string = process.cwd()): void {
@@ -143,7 +182,10 @@ export function resolveSettings(source: NodeJS.ProcessEnv = process.env): Settin
     ytDlpVerifyDigest: source["WORKER_MEDIA_YT_DLP_VERIFY"] !== "0",
     // The same rule, for the same reason.
     ytDlpAllowUnpinned: source["WORKER_MEDIA_YT_DLP_ALLOW_UNPINNED"] === "1",
+    ytDlpJsRuntime: jsRuntime(source["YT_DLP_JS_RUNTIME"]),
     tempDir: source["WORKER_MEDIA_TEMP_DIR"]?.trim() || undefined,
+    minFreeBytes: nonNegativeInteger(source["WORKER_MEDIA_MIN_FREE_BYTES"], DEFAULT_MIN_FREE_BYTES),
+    alertWebhookUrl: source["ALERT_WEBHOOK_URL"]?.trim() || undefined,
     sourceUrlTtlSeconds: positiveInteger(
       source["WORKER_MEDIA_SOURCE_URL_TTL"],
       SOURCE_URL_TTL_SECONDS,
@@ -222,4 +264,27 @@ function split(value: string | undefined): string[] {
 function positiveInteger(value: string | undefined, fallback: number): number {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : fallback;
+}
+
+/** As {@link positiveInteger}, except that an explicit `0` means zero (off). */
+function nonNegativeInteger(value: string | undefined, fallback: number): number {
+  if (value?.trim() === "0") return 0;
+  return positiveInteger(value, fallback);
+}
+
+/**
+ * `YT_DLP_JS_RUNTIME`: empty is "no runtime", anything else must be an absolute
+ * path. A relative one is refused rather than resolved, for the reason
+ * `WORKER_MEDIA_QUEUES` is: a runtime quietly found somewhere else is a
+ * different executable running YouTube's scripts than the one configured.
+ */
+function jsRuntime(value: string | undefined): string | undefined {
+  const path = value?.trim() ?? "";
+  if (path === "") return undefined;
+  if (!(win32.isAbsolute(path) || posix.isAbsolute(path)) || path.includes("\0")) {
+    throw new Error(
+      `YT_DLP_JS_RUNTIME must be an absolute path to node, not ${JSON.stringify(path)}`,
+    );
+  }
+  return path;
 }

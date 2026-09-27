@@ -1,10 +1,15 @@
 import { Injectable, Logger, type OnModuleInit } from "@nestjs/common";
 
-import { MediaAcquirePayloadSchema, MediaAcquireResultSchema } from "@montaj/repurpose-contracts";
+import {
+  type MediaAcquireResult,
+  MediaAcquirePayloadSchema,
+  MediaAcquireResultSchema,
+} from "@montaj/repurpose-contracts";
 
-import { STAGE_OF_FAILURE, runFailureCode } from "./failure-codes.js";
-import { PRE_CANDIDATE_STATUSES } from "./repurpose.constants.js";
-import { RepurposeService } from "./repurpose.service.js";
+import { STAGE_OF_FAILURE, failureDetailOf, runFailureCode } from "./failure-codes.js";
+import { ACQUIRE_MAX_DURATION_MS, PRE_CANDIDATE_STATUSES } from "./repurpose.constants.js";
+import { cleanSourceTitle, sourceProjectTitle } from "./repurpose.projection.js";
+import { RepurposeService, isUniqueViolation } from "./repurpose.service.js";
 import { PrismaService } from "../common/prisma/prisma.service.js";
 import { JobCompletionRegistry } from "../jobs/completion-handlers.js";
 import { MEDIA_FAILURE_REASONS } from "../media/media.constants.js";
@@ -17,6 +22,7 @@ import type {
 } from "../jobs/completion-handlers.js";
 import type { QueueName } from "../jobs/contracts/queue-names.js";
 import type { MediaFailureReason } from "../media/media.constants.js";
+import type { RepurposeRun } from "@prisma/client";
 
 /**
  * The media reason to record when the worker's own write never landed: the job's
@@ -139,6 +145,10 @@ export class RepurposeAcquireCompletionHandler implements JobCompletionHandler, 
     }
 
     const { project, ...asset } = media;
+    // Before the probe is queued (inside `completeAcquisition`): the probe holds
+    // the landed file to the run's window, and the page shows which part it is.
+    if (run !== null) await this.recordSource(run, result, asset.id, project);
+
     const completed = await this.media.completeAcquisition({
       media: asset,
       project,
@@ -176,8 +186,81 @@ export class RepurposeAcquireCompletionHandler implements JobCompletionHandler, 
         sizeBytes: result.sizeBytes,
         toolVersion: result.toolVersion,
         probeJobId: completed.probeJobId,
+        ...(result.section === undefined ? {} : { section: result.section }),
       },
     };
+  }
+
+  /**
+   * What the download learned about the source, onto the run (2026-09-27):
+   *
+   * - the section of a longer video that landed, in the source's clock, and
+   *   the source's whole length - "processed 12:10-32:10 of 34:37", and where
+   *   "process the next window" starts. The media row gets the same offset;
+   *   every timeline downstream stays on the file's own clock;
+   * - the video's real title, which also renames the source project from the
+   *   placeholder it was created under (`youtube.com · aDpIra7NFuE`) - unless
+   *   someone has named it since, which is theirs to keep.
+   *
+   * Overwrites of measured facts, so a replayed completion writes the same row.
+   */
+  private async recordSource(
+    run: RepurposeRun,
+    result: MediaAcquireResult,
+    mediaId: string,
+    project: { readonly id: string; readonly title: string },
+  ): Promise<void> {
+    const section = sectionOf(result);
+    const title = cleanSourceTitle(result.sourceMetadata.title);
+    const sourceDurationMs = section?.sourceDurationMs ?? result.sourceMetadata.durationMs ?? null;
+
+    // Display facts, so one that does not fit is dropped, never written: the
+    // columns are INTEGER, and a throw here leaves the job running and has the
+    // worker retry the same result until the lease reaper steps in, with the
+    // file never reaching its probe.
+    const facts = {
+      ...(title === null ? {} : { sourceTitle: title }),
+      ...(isStorableMs(sourceDurationMs) && sourceDurationMs > 0 ? { sourceDurationMs } : {}),
+    };
+    const window =
+      section === null
+        ? {}
+        : {
+            windowStartMs: section.startMs,
+            windowEndMs: section.endMs,
+            windowPolicy: section.policy,
+          };
+    try {
+      await this.prisma.repurposeRun.update({
+        where: { id: run.id },
+        data: { ...facts, ...window },
+      });
+    } catch (error) {
+      if (!isUniqueViolation(error)) throw error;
+      // The start is part of the live-source key: another live run of this
+      // video already covers the same start (two windows that the downloader
+      // placed on the same most-replayed peak). This one keeps its facts and
+      // reads as the whole-source case; it can still be cut and clipped.
+      this.logger.warn(
+        { runId: run.id, startMs: section?.startMs },
+        "another live run of this video already covers this start; section not recorded",
+      );
+      if (Object.keys(facts).length > 0) {
+        await this.prisma.repurposeRun.update({ where: { id: run.id }, data: facts });
+      }
+    }
+
+    await this.prisma.mediaAsset.update({
+      where: { id: mediaId },
+      data: { sourceOffsetMs: section?.startMs ?? 0 },
+    });
+
+    if (title !== null && run.sourceDisplay !== null && project.title === run.sourceDisplay) {
+      await this.prisma.project.updateMany({
+        where: { id: project.id, title: run.sourceDisplay, deletedAt: null },
+        data: { title: sourceProjectTitle(title, section) },
+      });
+    }
   }
 
   /**
@@ -217,7 +300,12 @@ export class RepurposeAcquireCompletionHandler implements JobCompletionHandler, 
         this.logger.warn({ jobId: context.job.id, err: error }, "could not mark the media failed");
       });
 
-    if (run === null || !(PRE_CANDIDATE_STATUSES as readonly string[]).includes(run.status)) return;
+    if (run === null) return;
+    const open = (PRE_CANDIDATE_STATUSES as readonly string[]).includes(run.status);
+    // A run already failed may only have been failed by the reconciler, from the
+    // media row, a moment before this report arrived: it still gets the numbers
+    // (below). Anything else - stopped, moved on to its moments - is left alone.
+    if (!open && run.status !== "failed") return;
 
     const [media, newest] = await Promise.all([
       this.prisma.mediaAsset.findUnique({
@@ -234,14 +322,61 @@ export class RepurposeAcquireCompletionHandler implements JobCompletionHandler, 
     // replaced is about a file the run no longer stands on.
     if (newest !== null && newest.id !== mediaId) return;
 
-    await this.runs.failRun(
-      run,
-      runFailureCode({
-        failedAt: "acquire",
-        mediaReason: media?.failureReason ?? null,
-        jobErrorCode,
-      }),
-      STAGE_OF_FAILURE.acquire,
-    );
+    const code = runFailureCode({
+      failedAt: "acquire",
+      mediaReason: media?.failureReason ?? null,
+      jobErrorCode,
+    });
+    // The numbers behind a refusal ("34:37 against a 20:00 window", "900 MB
+    // against 500 MB"), which the worker reports beside its code. With none,
+    // the column is cleared rather than left showing an earlier failure's.
+    const detail = failureDetailOf(context.completion.error?.facts);
+    const failed = open
+      ? await this.runs.failRun(run, code, STAGE_OF_FAILURE.acquire, detail)
+      : null;
+    // Failed by another writer first (the reconciler reads the media row the
+    // worker marked before reporting): the numbers still belong on that
+    // failure - only if it is this one (`recordFailureDetail` checks the code).
+    if (failed === null && detail !== null) {
+      await this.runs.recordFailureDetail(run.id, code, detail);
+    }
   }
+}
+
+/** The part of the source a download landed, in the source's clock. */
+export type AcquiredSection = NonNullable<MediaAcquireResult["section"]>;
+
+/**
+ * A time the run and media columns can hold: a whole number of milliseconds no
+ * longer than any source `media.acquire` may fetch (24 h). The columns are
+ * INTEGER (about 24.8 days), and the contract bounds these fields only below.
+ */
+export function isStorableMs(value: number | null | undefined): value is number {
+  return (
+    typeof value === "number" &&
+    Number.isSafeInteger(value) &&
+    value >= 0 &&
+    value <= ACQUIRE_MAX_DURATION_MS
+  );
+}
+
+/**
+ * The result's section, when it describes one: a start before its end, inside
+ * the source, every number one the columns can hold. A section that does not is
+ * read as "the whole source landed" - the file is still good, only the label
+ * would be wrong.
+ */
+export function sectionOf(result: MediaAcquireResult): AcquiredSection | null {
+  const section = result.section;
+  if (section === undefined) return null;
+  if (
+    !isStorableMs(section.startMs) ||
+    !isStorableMs(section.endMs) ||
+    !isStorableMs(section.sourceDurationMs)
+  ) {
+    return null;
+  }
+  if (section.endMs <= section.startMs) return null;
+  if (section.startMs >= section.sourceDurationMs) return null;
+  return section;
 }

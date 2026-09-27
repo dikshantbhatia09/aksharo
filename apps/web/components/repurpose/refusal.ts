@@ -9,7 +9,8 @@
  */
 import { isApiError } from "@montaj/api-client";
 
-import { REFUSAL_COPY, type RefusalContext } from "@/components/repurpose/copy";
+import { DETAIL_COPY, REFUSAL_COPY, type RefusalContext } from "@/components/repurpose/copy";
+import { failureDetailOf, formatCredits } from "@/components/repurpose/failure-detail";
 
 export interface Refusal {
   /** The code it was mapped from, for tests and support; never rendered. */
@@ -20,6 +21,11 @@ export interface Refusal {
    * `repurpose/source_already_running`), so the page can offer to open it.
    */
   readonly existingRunId?: string;
+  /**
+   * Refused for credits: the way on is the balance, so the page links to it
+   * rather than leaving "Try again" as the only thing to do.
+   */
+  readonly seeCredits?: true;
 }
 
 /** Admission refusals: the plan's lane or its credit hold is full for now. */
@@ -32,19 +38,25 @@ function existingRunIdOf(details: unknown): string | undefined {
 }
 
 export function describeRefusal(error: unknown, context: RefusalContext): Refusal {
-  // eslint-disable-next-line security/detect-object-injection -- `context` is one of four literal keys
+  // eslint-disable-next-line security/detect-object-injection -- `context` is one of REFUSAL_COPY's literal keys
   const copy: Readonly<Record<string, string>> = REFUSAL_COPY[context];
   if (!isApiError(error) || error.code.startsWith("network/")) {
     return { code: "network", text: copy["network"] ?? "" };
   }
   const key = BUSY_CODES.has(error.code) ? "busy" : error.code;
   // eslint-disable-next-line security/detect-object-injection -- a miss falls back to the context's own sentence
-  const text = copy[key] ?? copy["fallback"] ?? "";
+  let text = copy[key] ?? copy["fallback"] ?? "";
   const existingRunId =
     error.code === "repurpose/source_already_running" ? existingRunIdOf(error.details) : undefined;
+  const outOfCredits = error.code === "repurpose/no_credits";
+  // `details.creditsLeft` (a 402 from `create` or `next-window`): the balance
+  // is the one number that says why, so the sentence carries it.
+  const creditsLeft = outOfCredits ? failureDetailOf(error.details)?.creditsLeft : undefined;
+  if (creditsLeft !== undefined) text = DETAIL_COPY.creditsLeftRefusal(formatCredits(creditsLeft));
   return {
     code: error.code,
     text,
     ...(existingRunId === undefined ? {} : { existingRunId }),
+    ...(outOfCredits ? { seeCredits: true as const } : {}),
   };
 }

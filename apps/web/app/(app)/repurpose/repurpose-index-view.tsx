@@ -28,6 +28,7 @@ import { REPURPOSE_FLOW_FLAG } from "@/components/home/pipeline-banner";
 import { formatRelative } from "@/components/projects/project-table";
 import { safeErrorCopy } from "@/components/repurpose/copy";
 import { runActivity, serverIsWorking } from "@/components/repurpose/run-activity";
+import { runPartLabel, runTitle } from "@/components/repurpose/run-window";
 
 /**
  * Work is happening on the server. Not "a stage projects as running", which is
@@ -76,6 +77,7 @@ export function RepurposeIndexView(): React.JSX.Element {
 
   const items = runs.data?.items ?? [];
   const live = items.find(isLive);
+  const livePart = live === undefined ? null : runPartLabel(live);
 
   const start = (): void => {
     const trimmed = url.trim();
@@ -144,7 +146,8 @@ export function RepurposeIndexView(): React.JSX.Element {
           <span className="flex min-w-0 flex-1 flex-col gap-0.5">
             <span className="text-xs font-medium text-fg-2">In progress</span>
             <span className="truncate text-sm text-fg-0">
-              {live.sourceDisplay ?? "A video"} — {live.message}
+              {runTitle(live, "A video")}
+              {livePart === null ? "" : ` (${livePart})`} — {live.message}
             </span>
           </span>
           <span className="flex items-center gap-1.5 text-sm text-fg-1">
@@ -173,6 +176,8 @@ export function RepurposeIndexView(): React.JSX.Element {
           <ul className="flex flex-col divide-y divide-border rounded-md border border-border bg-surface">
             {items.map((run) => {
               const running = isLive(run);
+              // Two parts of one podcast share its title; the part tells them apart.
+              const part = runPartLabel(run);
               return (
                 <li key={run.id}>
                   <NextLink
@@ -187,9 +192,21 @@ export function RepurposeIndexView(): React.JSX.Element {
                       )}
                       aria-hidden="true"
                     />
-                    <span className="min-w-0 truncate text-sm text-fg-0">
-                      {run.sourceDisplay ?? "Your upload"}
+                    {/* The video's real title when the API has it, not its id. */}
+                    <span
+                      className="min-w-0 truncate text-sm text-fg-0"
+                      data-testid={`repurpose-run-title-${run.id}`}
+                    >
+                      {runTitle(run, "Your upload")}
                     </span>
+                    {part === null ? null : (
+                      <span
+                        className="shrink-0 font-mono text-xs text-fg-2"
+                        data-testid={`repurpose-run-part-${run.id}`}
+                      >
+                        {part}
+                      </span>
+                    )}
                     <span className="text-xs text-fg-2">
                       {/* The dot is decoration; the state is said in words. */}
                       {statePrefix(run)}

@@ -86,12 +86,24 @@ export const QUEUE_POLICY_BY_FAMILY: Readonly<Record<string, QueuePolicy>> = Obj
   },
 });
 
-/** Queues whose work outlives the family lock. Only the differing fields appear. */
+/**
+ * Queues whose work outlives the family lock, or whose retries must not be
+ * quick. Only the differing fields appear.
+ *
+ * `media.acquire` retries ONCE, a minute later (2026-09-27): every attempt is a
+ * request to YouTube from the one home IP, and three attempts five seconds
+ * apart is how one failure becomes a block.
+ */
 export const QUEUE_POLICY_OVERRIDES: Readonly<Record<string, Partial<QueuePolicy>>> = Object.freeze(
   {
     "media.probe": { lockDurationMs: 600_000, stalledIntervalMs: 60_000 },
     "media.proxy": { lockDurationMs: 600_000, stalledIntervalMs: 60_000 },
-    "media.acquire": { lockDurationMs: 600_000, stalledIntervalMs: 60_000 },
+    "media.acquire": {
+      attempts: 2,
+      backoffMs: 60_000,
+      lockDurationMs: 600_000,
+      stalledIntervalMs: 60_000,
+    },
     "media.clip": { lockDurationMs: 300_000, stalledIntervalMs: 60_000 },
     "ai.highlights": { lockDurationMs: 600_000, stalledIntervalMs: 60_000 },
     "ai.faces": { lockDurationMs: 600_000, stalledIntervalMs: 60_000 },

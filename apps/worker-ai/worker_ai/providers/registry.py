@@ -17,7 +17,9 @@ on the pod, without a redeploy.
 
 Instances are created lazily and cached: building a client is cheap, but loading
 a local Whisper model is not, and a worker that consumes only ``ai.align`` should
-never pay for one.
+never pay for one. The cache is what keeps ``local-whisper``'s two sets of
+weights (``WORKER_AI_WHISPER_MODEL`` and ``WORKER_AI_WHISPER_MODEL_EN``) resident
+across jobs: one instance per process, each model loaded once, on first use.
 """
 
 from __future__ import annotations
@@ -31,7 +33,7 @@ from worker_ai.logging_setup import get_logger
 from worker_ai.providers.assemblyai import AssemblyAiProvider
 from worker_ai.providers.base import Provider, ProviderCapability
 from worker_ai.providers.elevenlabs import ElevenLabsScribeProvider
-from worker_ai.providers.local_whisper import LocalWhisperProvider
+from worker_ai.providers.local_whisper import LocalWhisperProvider, weights_problem
 from worker_ai.providers.mock import MockProvider
 from worker_ai.providers.sarvam import SarvamSaarasProvider
 from worker_ai.providers.serverless_whisper import ServerlessWhisperProvider
@@ -207,6 +209,8 @@ def build_registry(settings: Settings) -> ProviderRegistry:
     def credential(value: str, variable: str) -> Callable[[], str | None]:
         return lambda: None if value else f"{variable} is not set"
 
+    english_weights = _english_weights(settings)
+
     registrations = (
         _Registration(
             name="mock",
@@ -223,8 +227,12 @@ def build_registry(settings: Settings) -> ProviderRegistry:
         ),
         _Registration(
             name="local-whisper",
+            # One instance for both sets of weights: it loads each the first
+            # time a lane asks for it and keeps both resident (`routing.yaml`'s
+            # `model` picks which one a candidate runs).
             factory=lambda: LocalWhisperProvider(
                 model_name=settings.whisper_model,
+                english_model_name=english_weights,
                 engine=settings.whisper_engine,
                 device=settings.whisper_device,
                 compute_type=settings.whisper_compute_type,
@@ -273,6 +281,38 @@ def build_registry(settings: Settings) -> ProviderRegistry:
         ),
     )
     return ProviderRegistry(settings, registrations)
+
+
+def _english_weights(settings: Settings) -> str:
+    """``WORKER_AI_WHISPER_MODEL_EN`` when it can be loaded, else ``""`` — logged, never fatal.
+
+    This runs once at boot. An unusable value (a typo, a moved ``_models``
+    directory, the wrong kind of file) is logged at ERROR and ignored, so
+    English runs on the default weights as it did before the setting existed.
+    Failing the boot instead would be 2026-09-16's worker-media outage again:
+    an optional feature's check killing the whole process — the Sarvam lane,
+    ``ai.faces``, alignment, highlights — while every health check stayed green,
+    because ``start-production-stack.ps1`` never reads a worker's exit code.
+    The log names the variable, not its value (THREAT-MODEL T21).
+    """
+    value = settings.whisper_model_en
+    if _faster_whisper_missing() is not None:
+        return value  # local-whisper is disabled here; nothing will load either
+    if not value:
+        _log.warning(
+            "WORKER_AI_WHISPER_MODEL_EN is unset: the English and global lanes run "
+            "local-whisper on WORKER_AI_WHISPER_MODEL, and its language detection is "
+            "not trusted, so an auto-detected job is decided by the text signal alone"
+        )
+        return ""
+    problem = weights_problem(value, engine=settings.whisper_engine)
+    if problem is None:
+        return value
+    _log.error(
+        "WORKER_AI_WHISPER_MODEL_EN is ignored: English runs on WORKER_AI_WHISPER_MODEL",
+        extra={"reason": problem},
+    )
+    return ""
 
 
 def _faster_whisper_missing() -> str | None:

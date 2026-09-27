@@ -1,6 +1,8 @@
-import { UnrecoverableError } from "bullmq";
+import { DelayedError, UnrecoverableError } from "bullmq";
 
+import { AlertSender } from "./alert.js";
 import { CallbackClient, CallbackError } from "./callbacks.js";
+import { DISK_HOLD_MAX_MS, DISK_RETRY_DELAY_MS, DiskGuard } from "./disk.js";
 import { MediaJobError, describeError, transientFailure } from "./errors.js";
 import { logger } from "./logger.js";
 import { heartbeatIntervalMs } from "./policies.js";
@@ -8,7 +10,8 @@ import { MEDIA_ACQUIRE_QUEUE, isJobEnvelope, isMediaPayload } from "./queues.js"
 import { mediaPrefix } from "./storage-keys.js";
 import { storesFrom } from "./storage.js";
 
-import type { CallbackAck, JobCompletion, JobUsage } from "./callbacks.js";
+import type { CallbackAck, JobCompletion, JobError, JobUsage } from "./callbacks.js";
+import type { DiskVerdict } from "./disk.js";
 import type { MediaFailureReason } from "./errors.js";
 import type { JobEnvelope, MediaProbePayload } from "./queues.js";
 import type { Settings } from "./settings.js";
@@ -82,6 +85,22 @@ import type { Job } from "bullmq";
  * with the shutdown's), and the job ends like a settled pickup — nothing
  * reported, nothing retried. A shutdown alone never aborts it, so a job
  * interrupted by a restart still fails retryably and runs again.
+ *
+ * **A job that would not fit on the disk waits, before it is picked up.** On
+ * the disk-heavy queues (`disk.ts`) the handler measures the scratch volume
+ * first; short of room, the job goes back to BullMQ's delayed set for a
+ * minute (`moveToDelayed` + `DelayedError`, which spends no attempt) and the
+ * API is told nothing — its row stays `queued`, which is the truth. A move
+ * that fails still ends as `DelayedError`: the job is then BullMQ's stalled
+ * check's to recover, which spends no attempt either, where an ordinary throw
+ * spent one without the API hearing a word. The operator hears instead: a
+ * warning per job every ten minutes, and an alert (`alert.ts`) at most once
+ * an hour. And a wait is not forever: after {@link DISK_HOLD_MAX_MS} the job
+ * is failed, which is also how one whose run has long been stopped learns it.
+ *
+ * **A refusal's numbers travel with it.** A `MediaJobError`'s `facts` (the
+ * duration against the plan's, the bytes against its cap) go out as the job
+ * error's `facts`, which is how the page can say what the numbers were.
  */
 
 /** Everything a processor is handed. */
@@ -101,6 +120,11 @@ export interface JobContext {
    * row is settled (a stopped run), so ffmpeg or the downloader is killed with it.
    */
   readonly signal: AbortSignal;
+  /**
+   * The scratch volume, for a processor that learns its real size only once
+   * it runs (an acquisition, after its metadata). Absent in a harness.
+   */
+  readonly disk?: DiskGuard;
 }
 
 export interface ProcessorOutcome {
@@ -118,6 +142,10 @@ export interface Services {
   readonly callbacks: CallbackClient;
   readonly raw: ObjectStore;
   readonly derived: ObjectStore;
+  /** Disk admission; absent, every job starts (a harness with no disk to guard). */
+  readonly disk?: DiskGuard;
+  /** Operator alerts (`ALERT_WEBHOOK_URL`); absent, nothing is sent. */
+  readonly alerts?: AlertSender;
 }
 
 export function buildServices(settings: Settings): Services {
@@ -127,8 +155,17 @@ export function buildServices(settings: Settings): Services {
     callbacks: new CallbackClient(settings.env.API_ORIGIN, settings.env.INTERNAL_CALLBACK_SECRET),
     raw: stores.raw,
     derived: stores.derived,
+    disk: new DiskGuard({ path: settings.tempDir, minFreeBytes: settings.minFreeBytes }),
+    alerts: AlertSender.fromSetting(settings.alertWebhookUrl),
   };
 }
+
+/** A job waiting for disk is logged at most this often. */
+export const DISK_WARNING_INTERVAL_MS = 10 * 60_000;
+
+/** "Jobs are waiting for disk" is alerted at most this often, per process. */
+export const DISK_ALERT_INTERVAL_MS = 60 * 60_000;
+
 
 /**
  * The `reason`s on an `applied: false` ack (`staleReason` in `jobs.service.ts`)
@@ -270,10 +307,12 @@ export function makeHandler(
   processor: Processor,
   services: Services,
   shutdown: AbortSignal,
-): (job: Job) => Promise<Record<string, unknown>> {
+): (job: Job, token?: string) => Promise<Record<string, unknown>> {
   const interval = heartbeatIntervalMs(queueName);
+  // Per job: when this process last said it was waiting for disk.
+  const diskWarned = new Map<string, number>();
 
-  return async function handle(job: Job): Promise<Record<string, unknown>> {
+  return async function handle(job: Job, token?: string): Promise<Record<string, unknown>> {
     if (!isJobEnvelope(job.data) || !isMediaPayload(job.data.payload)) {
       // A malformed job is a producer bug: there is no jobId to complete against
       // and no amount of retrying will change the bytes in Redis.
@@ -319,6 +358,17 @@ export function makeHandler(
     const carried = carriedOutcome(job.data, attemptId);
     if (carried?.completion.status === "failed") {
       return deliverCarriedFailure(job, carried, reporting);
+    }
+
+    // Before the pickup is posted, so a job that waits for disk is still
+    // `queued` to the API — and not when an earlier attempt's result is only
+    // being delivered, which needs no disk at all.
+    if (carried === undefined && services.disk !== undefined) {
+      const verdict = await services.disk.check(queueName, payload);
+      if (!verdict.admit) {
+        await holdForDisk(job, token, verdict, { ...reporting, warned: diskWarned });
+      }
+      diskWarned.delete(String(job.id));
     }
 
     try {
@@ -408,6 +458,7 @@ export function makeHandler(
         // lets the next run to its end before delivery is refused. Only the
         // shutdown is retried.
         signal: AbortSignal.any([shutdown, settled.signal]),
+        ...(services.disk === undefined ? {} : { disk: services.disk }),
       });
 
       heartbeat.stop();
@@ -452,6 +503,116 @@ interface PendingOutcome {
   /** `PATCH /internal/media/{mediaId}`, sent first. */
   readonly mediaPatch?: Record<string, unknown>;
   readonly completion: JobCompletion;
+}
+
+/**
+ * When a job first waited for disk, from its own data (`diskHeldSince`, next to
+ * the envelope, as `pendingOutcome` is); `undefined` when it has not.
+ */
+function heldSince(data: unknown): number | undefined {
+  const value = (data as { readonly diskHeldSince?: unknown }).diskHeldSince;
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+/** Bytes, as the gigabytes an operator reads. */
+function gigabytes(bytes: number | null): string {
+  return bytes === null ? "unknown" : `${(bytes / 1e9).toFixed(1)} GB`;
+}
+
+/**
+ * Put a job that does not fit on the disk back for {@link DISK_RETRY_DELAY_MS},
+ * spending no attempt — or, once it has waited {@link DISK_HOLD_MAX_MS}, fail
+ * it. Never returns.
+ *
+ * The first wait is recorded in the job's own data, so the clock survives the
+ * job moving between this worker's two processes and a restart. The failure
+ * is reported like any other (the completion settles the row, from `queued`
+ * too); when the API cannot be reached to hear it, the job goes on waiting
+ * and says it next time round, rather than ending with its row open.
+ */
+async function holdForDisk(
+  job: Job,
+  token: string | undefined,
+  verdict: DiskVerdict,
+  input: Reporting & { readonly warned: Map<string, number> },
+): Promise<never> {
+  const { services, log } = input;
+  const now = Date.now();
+  const recorded = heldSince(job.data);
+  const heldMs = recorded === undefined ? 0 : now - recorded;
+  const facts = {
+    ...log,
+    path: verdict.path,
+    freeBytes: verdict.freeBytes,
+    requiredBytes: verdict.requiredBytes,
+    heldMs,
+  };
+
+  if (heldMs >= DISK_HOLD_MAX_MS) {
+    const error = new MediaJobError(
+      "worker/disk_full",
+      `there has been no room on the scratch disk for this job for ${String(Math.round(heldMs / 3_600_000))} h ` +
+        `(${gigabytes(verdict.freeBytes)} free of the ${gigabytes(verdict.requiredBytes)} it needs)`,
+      { retryable: false },
+    );
+    if ((await reportFailure(job, error, input)) === null) {
+      const unrecoverable = new UnrecoverableError(error.message);
+      unrecoverable.cause = error;
+      throw unrecoverable;
+    }
+    // Unheard: keep waiting, and report it on the next pass.
+  } else {
+    if (recorded === undefined) {
+      await job
+        .updateData({ ...(job.data as Record<string, unknown>), diskHeldSince: now })
+        .catch((error: unknown) => {
+          logger.warn("could not record when this job began waiting for disk", {
+            ...log,
+            error: describeError(error),
+          });
+        });
+    }
+    const key = String(job.id);
+    if (input.warned.size > 1_000) {
+      // Jobs removed while they waited are never admitted to be forgotten.
+      for (const [stale, at] of input.warned) {
+        if (now - at >= DISK_WARNING_INTERVAL_MS) input.warned.delete(stale);
+      }
+    }
+    const last = input.warned.get(key);
+    if (last === undefined || now - last >= DISK_WARNING_INTERVAL_MS) {
+      input.warned.set(key, now);
+      logger.warn("not enough free disk to start this job; it will wait and try again", {
+        ...facts,
+        retryInMs: DISK_RETRY_DELAY_MS,
+      });
+    }
+    void services.alerts?.sendAtMostEvery("disk-hold", DISK_ALERT_INTERVAL_MS, {
+      title: "Aksharo: media jobs are waiting for disk",
+      body:
+        `worker-media is holding ${input.queueName} jobs: ${gigabytes(verdict.freeBytes)} free on ` +
+        `${verdict.path}, ${gigabytes(verdict.requiredBytes)} needed. They start by themselves once ` +
+        `space is freed, and fail after ${String(DISK_HOLD_MAX_MS / 3_600_000)} h of waiting.`,
+      priority: "high",
+      tags: ["floppy_disk", "warning"],
+    });
+  }
+
+  try {
+    // No attempt spent: BullMQ's `skipAttempt`, so a full disk can never fail
+    // a job by running out its retries.
+    await job.moveToDelayed(now + DISK_RETRY_DELAY_MS, token);
+  } catch (error) {
+    // The lock was lost, the job is no longer active, or Redis blinked. Either
+    // it is not this worker's any more, or BullMQ's stalled check returns it
+    // to the queue when the lock runs out — neither spends an attempt, which
+    // an ordinary throw here did, without a word to the API.
+    logger.error("could not put a job waiting for disk back in the delayed set", {
+      ...log,
+      error: describeError(error),
+    });
+  }
+  throw new DelayedError();
 }
 
 /** The outcome an earlier attempt of THIS row left undelivered, if any. */
@@ -640,6 +801,15 @@ async function reportFailure(
   // Terminal: the user is told, once, and in the closed vocabulary the API's
   // allow-list accepts.
   const reason: MediaFailureReason = failure?.reason ?? fallbackReason(input.queueName);
+  // `JobErrorSchema.facts`: the refusal's numbers travel with it.
+  const jobError: JobError = {
+    code: failure?.code ?? "media/failed",
+    // The ffmpeg tail rides on the message so an operator sees it in
+    // `jobs.error`; `errors.ts` has already redacted the signed URL out of it.
+    message: [describeError(error), failure?.detail].filter(Boolean).join("\n").slice(0, 2_000),
+    retryable,
+    ...(failure?.facts === undefined ? {} : { facts: failure.facts }),
+  };
   const outcome: PendingOutcome = {
     attemptId: envelope.attemptId,
     // A clip job targets a clip, not a media row: there is no asset to mark, and
@@ -649,13 +819,7 @@ async function reportFailure(
       : { mediaPatch: { status: "failed", failureReason: reason } }),
     completion: {
       status: "failed",
-      error: {
-        code: failure?.code ?? "media/failed",
-        // The ffmpeg tail rides on the message so an operator sees it in
-        // `jobs.error`; `errors.ts` has already redacted the signed URL out of it.
-        message: [describeError(error), failure?.detail].filter(Boolean).join("\n").slice(0, 2_000),
-        retryable,
-      },
+      error: jobError,
       finalAttempt,
     },
   };

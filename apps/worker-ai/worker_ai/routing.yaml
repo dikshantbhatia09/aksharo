@@ -9,12 +9,24 @@
 # lanes are matched in order; the first whose `languages` contains the detected
 # tag (or its base subtag) wins, and `default` catches everything else.
 #
-# `local-whisper`'s `model` field here is DOCUMENTATION, not a per-lane
-# selector: the adapter has one configured weight for the whole deployment
-# (`WORKER_AI_WHISPER_MODEL`/`Settings.whisper_model`), the same way every
-# lane below already shared one `small`-on-CPU instance before this weight
-# existed. Keep this field naming whatever that setting actually points at —
-# see `docs/models/LOCAL-MODELS.md` for the deployed weight and why.
+# `local-whisper`'s `model` field is HONOURED: it picks which of the adapter's
+# two sets of weights a lane runs (`routing.MODEL_SELECTING_PROVIDERS`; for
+# every other provider `model` only names what the vendor runs).
+#   large-v3-turbo               -> WORKER_AI_WHISPER_MODEL_EN, a general model
+#   whisper-hindi2hinglish-apex  -> WORKER_AI_WHISPER_MODEL, the Hinglish fine-tune
+# With WORKER_AI_WHISPER_MODEL_EN unset — or ignored at boot as unusable, or
+# failing to load — both names run WORKER_AI_WHISPER_MODEL, which is how every
+# lane behaved before this field was honoured; the job's
+# `engineVersions.asrWeights` then names the fine-tune, and its language
+# detection is not used for "auto". The lane picks, not the request's language,
+# because an "auto" job's first chunk goes out with no language (it is the LID
+# probe) and is kept when LID keeps the lane. `tests/test_whisper_models.py`
+# fails on a local-whisper name outside these two. See
+# `docs/models/LOCAL-MODELS.md` for the deployed weights.
+#
+# Deploy order: worker-ai with WORKER_AI_WHISPER_MODEL_EN set, checked on one
+# job (worker-ai README, "Two Whisper models"), BEFORE any API that sends
+# "auto". Undo: blank the variable, restart worker-ai.
 #
 # candidate fields
 #   provider   registry name (worker_ai/providers/registry.py)
@@ -102,14 +114,12 @@ lanes:
         alignment: optional
         weight: 0
         costPerMinuteInr: 0.11
-      # Same deployed weight as the hinglish/hindi lanes above (one setting,
-      # not a per-lane choice — see the note at the top of this file). It is
-      # a Hindi/Hinglish fine-tune of large-v3; its accuracy on pure English
-      # audio is unmeasured here. Unconfigured vendors above are the reason
-      # this lane reaches local-whisper at all today (`09 §1`) — the moment
-      # any one of them gets a key, English traffic stops depending on this.
+      # The general model, not the Hinglish fine-tune: on English speech the
+      # fine-tune wrote "1 more" and "built built built" into real titles
+      # (2026-09-27). Unconfigured vendors above are why this lane reaches
+      # local-whisper at all today (`09 §1`).
       - provider: local-whisper
-        model: whisper-hindi2hinglish-apex
+        model: large-v3-turbo
         alignment: optional
         weight: 0
         costPerMinuteInr: 0.0
@@ -160,10 +170,17 @@ lanes:
         alignment: optional
         weight: 0
         costPerMinuteInr: 0.24
-      # Same tradeoff noted on the indian-english lane above: a Hindi/Hinglish
-      # fine-tune, not stock large-v3, serving as the global fallback too.
+      # The general model, for three reasons. `en` lands in this lane. So does
+      # every job whose language is "auto": its first chunk is transcribed
+      # here with no language and that answer is LID's acoustic signal — and
+      # the fine-tune reports every language as English (every local-whisper
+      # probe since it went live on 2026-09-12 said `en` at 1.0, Hinglish audio
+      # included), so its answer is never used as that signal (the pipeline
+      # checks which weights ran). And the global languages are not Hindi; a
+      # model tuned to write Hindi speech as Roman Hinglish is the wrong one
+      # for them.
       - provider: local-whisper
-        model: whisper-hindi2hinglish-apex
+        model: large-v3-turbo
         alignment: optional
         weight: 0
         costPerMinuteInr: 0.0

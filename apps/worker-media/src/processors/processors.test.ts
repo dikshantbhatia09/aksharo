@@ -4,7 +4,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { processProbe } from "./probe.js";
 import { processProxy, readEncodeProgress } from "./proxy.js";
@@ -87,9 +87,13 @@ function context(
   context: JobContext;
   derived: FakeStore;
   progress: number[];
+  patchMedia: ReturnType<typeof vi.fn>;
 } {
   const derived = fakeStore(source);
   const progress: number[] = [];
+  // The write-backs a processor makes while it runs (the proxy's early ASR
+  // audio, W5). Anything a processor RETURNS is the runtime's to send.
+  const patchMedia = vi.fn(async () => undefined);
   const settings = {
     ffmpegPath: "ffmpeg",
     ffprobePath: "ffprobe",
@@ -102,6 +106,7 @@ function context(
   return {
     derived,
     progress,
+    patchMedia,
     context: {
       settings,
       envelope: {
@@ -118,7 +123,7 @@ function context(
       derivedPrefix: PREFIX,
       raw: derived,
       derived,
-      callbacks: {} as JobContext["callbacks"],
+      callbacks: { patchMedia } as unknown as JobContext["callbacks"],
       report: (value) => progress.push(value),
       signal: new AbortController().signal,
     },
@@ -300,7 +305,11 @@ describe.skipIf(!CAN_RUN)("processProbe", () => {
 
 describe.skipIf(!CAN_RUN)("processProxy", () => {
   it("writes every CONTRACTS §6 artefact for a video, and nothing else", async () => {
-    const { context: ctx, derived } = context(video, {
+    const {
+      context: ctx,
+      derived,
+      patchMedia,
+    } = context(video, {
       durationMs: 3_000,
       hasVideo: true,
       hasAudio: true,
@@ -310,6 +319,13 @@ describe.skipIf(!CAN_RUN)("processProxy", () => {
     });
     const outcome = await processProxy(ctx);
     const result = outcome.result as unknown as ProxyResult;
+
+    // The ASR audio is announced once, on its own, while the job goes on to
+    // encode: no status, and a key under this asset's prefix (W5).
+    expect(patchMedia).toHaveBeenCalledTimes(1);
+    expect(patchMedia).toHaveBeenCalledWith(MEDIA, "01JCATTEMPT000000000000000", {
+      audio16kKey: `${PREFIX}/audio16k.wav`,
+    });
 
     expect(result.proxyKey).toBe(`${PREFIX}/proxy540.mp4`);
     expect(result.audio16kKey).toBe(`${PREFIX}/audio16k.wav`);
@@ -369,7 +385,11 @@ describe.skipIf(!CAN_RUN)("processProxy", () => {
   }, 240_000);
 
   it("skips the video half entirely for an audio-only input", async () => {
-    const { context: ctx, derived } = context(audio, {
+    const {
+      context: ctx,
+      derived,
+      patchMedia,
+    } = context(audio, {
       durationMs: 2_000,
       hasVideo: false,
       hasAudio: true,
@@ -380,13 +400,21 @@ describe.skipIf(!CAN_RUN)("processProxy", () => {
     expect(result.proxyKey).toBeNull();
     expect(result.thumbKeys).toEqual([]);
     expect(result.audio16kKey).not.toBeNull();
+    expect(patchMedia).toHaveBeenCalledTimes(1);
+    expect(patchMedia).toHaveBeenCalledWith(MEDIA, "01JCATTEMPT000000000000000", {
+      audio16kKey: `${PREFIX}/audio16k.wav`,
+    });
     expect(derived.written.has(`${PREFIX}/proxy540.mp4`)).toBe(false);
     expect(outcome.mediaPatch).toMatchObject({ status: "ready", thumbKeys: [] });
     expect(outcome.mediaPatch).not.toHaveProperty("proxyKey");
   }, 240_000);
 
   it("skips the audio half entirely for a silent video", async () => {
-    const { context: ctx, derived } = context(silent, {
+    const {
+      context: ctx,
+      derived,
+      patchMedia,
+    } = context(silent, {
       durationMs: 1_000,
       hasVideo: true,
       hasAudio: false,
@@ -398,6 +426,8 @@ describe.skipIf(!CAN_RUN)("processProxy", () => {
     expect(derived.written.has(`${PREFIX}/waveform.json`)).toBe(false);
     expect(derived.written.has(`${PREFIX}/proxy540.mp4`)).toBe(true);
     expect((outcome.result as unknown as ProxyResult).audio16kKey).toBeNull();
+    // Nothing to transcribe, so nothing announced early.
+    expect(patchMedia).not.toHaveBeenCalled();
   }, 240_000);
 
   it("tone-maps an HDR source rather than refusing it", async () => {

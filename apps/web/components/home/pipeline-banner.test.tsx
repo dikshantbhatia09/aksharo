@@ -15,8 +15,21 @@ import { renderWithProviders } from "@/test/harness";
  */
 const NOW = Date.parse("2026-09-26T12:00:00.000Z");
 
+/**
+ * The fields the API adds with plan limits (2026-09-27), as a run that has
+ * none of them: spread in, so these fixtures compile whether the client's
+ * `RepurposeRunView` declares them yet or not.
+ */
+const NO_PLAN_LIMIT_FACTS = {
+  sourceTitle: null,
+  window: null,
+  failureDetail: null,
+  nextWindowAvailable: false,
+};
+
 function run(id: string, status: string, overrides: Partial<RepurposeRunView> = {}): RepurposeRunView {
   return {
+    ...NO_PLAN_LIMIT_FACTS,
     id,
     workspaceId: "01JWORKSPACE",
     sourceProjectId: "01JPROJECT",
@@ -158,5 +171,70 @@ describe("<PipelineBanner /> with a failed run", () => {
     expect(line).not.toHaveTextContent(/stage 1 of 5/);
     expect(screen.getByTestId("pipeline-stage-getting_video")).toHaveAttribute("data-state", "failed");
     expect(screen.getByTestId("pipeline-stage-getting_video")).toHaveTextContent("(needs attention)");
+  });
+});
+
+// "youtube.com · aDpIra7NFuE" named nothing a person would recognise; the API
+// now sends the video's real title (2026-09-27).
+describe("<PipelineBanner /> names the run by its video's title", () => {
+  it("uses the real title, and the display where there is none", async () => {
+    renderWithProviders(<PipelineBanner />, {
+      routes: {
+        "/workspaces/01JWORKSPACE/entitlement": {
+          workspaceId: "01JWORKSPACE",
+          planKey: "free",
+          planName: "Free",
+          creditsPerMonthTenths: 200,
+          seatsIncluded: 1,
+          seatsUsed: 1,
+          computedAt: "2026-09-15T10:00:00.000Z",
+          entitlements: { flags: { repurpose_flow: true } },
+        },
+        "/repurpose/runs": {
+          items: [{ ...run("01WORK", "transcribing"), sourceTitle: "How we ship every day" }],
+          nextCursor: null,
+        },
+      },
+    });
+
+    const line = await screen.findByTestId("pipeline-live");
+    expect(line).toHaveTextContent("How we ship every day is at stage 1 of 5");
+    expect(line).not.toHaveTextContent("youtube.com");
+  });
+
+  it("says which part of a long video the run is about", async () => {
+    renderWithProviders(<PipelineBanner />, {
+      routes: {
+        "/workspaces/01JWORKSPACE/entitlement": {
+          workspaceId: "01JWORKSPACE",
+          planKey: "free",
+          planName: "Free",
+          creditsPerMonthTenths: 200,
+          seatsIncluded: 1,
+          seatsUsed: 1,
+          computedAt: "2026-09-15T10:00:00.000Z",
+          entitlements: { flags: { repurpose_flow: true } },
+        },
+        "/repurpose/runs": {
+          items: [
+            {
+              ...run("01WORK", "transcribing"),
+              sourceTitle: "A three-hour podcast",
+              window: {
+                startMs: 20 * 60_000,
+                endMs: 40 * 60_000,
+                sourceDurationMs: 180 * 60_000,
+                policy: "range",
+              },
+            },
+          ],
+          nextCursor: null,
+        },
+      },
+    });
+
+    expect(await screen.findByTestId("pipeline-live")).toHaveTextContent(
+      "A three-hour podcast (Part 20:00–40:00) is at stage 1 of 5",
+    );
   });
 });

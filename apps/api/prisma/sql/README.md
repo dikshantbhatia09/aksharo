@@ -24,6 +24,12 @@ migration, so the migration history stays the single source of truth.
 0002-indexes.sql      partial, NULLS-LAST and HNSW indexes; NULL-safe uniqueness
 0003-checks.sql       CHECK constraints for the money and credit invariants of 06
 0004-comments.sql     retention rules recorded next to the data they govern
+...
+0007z-clips-window-index.sql
+                      repurpose_runs_live_source_idx keyed on the window start
+                      (2026-09-27). Sorts before 0008 on purpose: 0008 creates
+                      the older, stricter index IF NOT EXISTS, and would fail
+                      on two live windows of one video if it ran first.
 ```
 
 Every file is **idempotent** (`CREATE ... IF NOT EXISTS`, `COMMENT ON`, or a `DO`

@@ -30,6 +30,70 @@ export interface EntitlementView {
 }
 
 /**
+ * The owner's own workspaces, which no size or length limit applies to (owner
+ * decision 2026-09-27; production: `01M1KFX35NJRD5N58H0J6YGAPC`). A comma list.
+ */
+export const INTERNAL_UNLIMITED_ENV = "INTERNAL_UNLIMITED_WORKSPACE_IDS";
+
+const HOUR_MS = 60 * 60 * 1000;
+
+/**
+ * What an internal workspace gets instead of its plan's numbers. "Unlimited"
+ * is still a number: the 12-hour source ceiling every plan shares, and 50 GiB,
+ * so a runaway request is still bounded by something. Only these four keys are
+ * replaced: the plan's lane, credits and features stay what its subscription
+ * says (Studio, for the owner's).
+ */
+export const INTERNAL_UNLIMITED_ENTITLEMENTS = Object.freeze({
+  clipsWindowMs: 12 * HOUR_MS,
+  maxSourceDurationMs: 12 * HOUR_MS,
+  maxDurationMs: 12 * HOUR_MS,
+  maxFileBytes: 50 * 1024 ** 3,
+});
+
+/**
+ * The workspace ids in {@link INTERNAL_UNLIMITED_ENV}. Read on every call from
+ * the process environment, like `REPURPOSE_RECONCILE_INTERVAL_MS`: it is an
+ * operator's switch for this deployment, not product configuration, and an
+ * empty or missing value means nobody.
+ */
+export function internalUnlimitedWorkspaceIds(
+  source: NodeJS.ProcessEnv = process.env,
+): ReadonlySet<string> {
+  // eslint-disable-next-line security/detect-object-injection -- a module constant, not input
+  const raw = source[INTERNAL_UNLIMITED_ENV] ?? "";
+  return new Set(
+    raw
+      .split(",")
+      .map((id) => id.trim())
+      .filter((id) => id !== ""),
+  );
+}
+
+/**
+ * `view` with the internal override applied, when its workspace is listed.
+ *
+ * Applied to what the cache returns, never written into it: the cache holds the
+ * plan's own numbers, so taking a workspace off the list takes effect on the
+ * next request rather than 60 seconds later, and a snapshot cached before the
+ * list existed cannot hide it.
+ */
+export function withInternalOverride(
+  view: EntitlementView,
+  source: NodeJS.ProcessEnv = process.env,
+): EntitlementView {
+  if (!internalUnlimitedWorkspaceIds(source).has(view.workspaceId)) return view;
+  return {
+    ...view,
+    entitlements: {
+      ...view.entitlements,
+      ...INTERNAL_UNLIMITED_ENTITLEMENTS,
+      internalUnlimited: true,
+    },
+  };
+}
+
+/**
  * `GET /workspaces/{id}/entitlement` — what this workspace may do (07 §Workspaces).
  *
  * **A stub, on purpose.** It returns the seeded **Free** plan's entitlements for
@@ -59,11 +123,11 @@ export class EntitlementService {
     const key = workspacesRedisKeys.entitlement(workspaceId);
 
     const cached = await this.read(key);
-    if (cached !== null) return cached;
+    if (cached !== null) return withInternalOverride(cached);
 
     const computed = await this.compute(workspaceId);
     await this.write(key, computed);
-    return computed;
+    return withInternalOverride(computed);
   }
 
   /** Drop the cached snapshot; called when a membership or a plan changes. */

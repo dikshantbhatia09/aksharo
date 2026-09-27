@@ -1,7 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ScheduledTasksService } from "./scheduled-tasks.service.js";
-import { SCHEDULER_QUEUE, schedulerEnabled } from "./scheduler.types.js";
+import {
+  SCHEDULER_QUEUE,
+  schedulerEnabled,
+  schedulerMode,
+  schedulerTaskAllowlist,
+} from "./scheduler.types.js";
 import { createFakeRedis } from "../../../test/fakes.js";
 
 import type { ScheduledTaskContext } from "./scheduler.types.js";
@@ -94,5 +99,62 @@ describe("lifecycle", () => {
     expect(schedulerEnabled({})).toBe(true);
     expect(schedulerEnabled({ MONTAJ_SCHEDULER_DISABLED: "0" })).toBe(true);
     expect(schedulerEnabled({ MONTAJ_SCHEDULER_DISABLED: "1" })).toBe(false);
+  });
+});
+
+describe("MONTAJ_SCHEDULER_TASKS", () => {
+  it("is no allowlist only when unset", () => {
+    expect(schedulerTaskAllowlist({})).toBeNull();
+  });
+
+  it("is an empty allowlist when set but blank, so a stray `MONTAJ_SCHEDULER_TASKS=` runs nothing", () => {
+    expect(schedulerTaskAllowlist({ MONTAJ_SCHEDULER_TASKS: "" })?.size).toBe(0);
+    expect(schedulerTaskAllowlist({ MONTAJ_SCHEDULER_TASKS: " , ,  " })?.size).toBe(0);
+    expect(schedulerMode({ MONTAJ_SCHEDULER_TASKS: "" }).run).toBe(false);
+    expect(
+      schedulerMode({ MONTAJ_SCHEDULER_DISABLED: "0", MONTAJ_SCHEDULER_TASKS: " , " }).run,
+    ).toBe(false);
+  });
+
+  it("reads a comma or whitespace separated list of task names", () => {
+    const allow = schedulerTaskAllowlist({
+      MONTAJ_SCHEDULER_TASKS: " jobs.dlq-depth,ops.watch\n scheduler.media-retention ,,",
+    });
+    expect([...(allow ?? [])]).toEqual([
+      "jobs.dlq-depth",
+      "ops.watch",
+      "scheduler.media-retention",
+    ]);
+  });
+
+  it("never overrides MONTAJ_SCHEDULER_DISABLED=1: the kill switch is authoritative", () => {
+    // What a one-shot process or a test run looks like when a task list leaks
+    // in from a `.env` or a shell: it must still start no worker.
+    expect(
+      schedulerMode({ MONTAJ_SCHEDULER_DISABLED: "1", MONTAJ_SCHEDULER_TASKS: "ops.watch" }).run,
+    ).toBe(false);
+  });
+
+  it("runs only the listed tasks with the kill switch off, which is how production runs", () => {
+    const mode = schedulerMode({
+      MONTAJ_SCHEDULER_DISABLED: "0",
+      MONTAJ_SCHEDULER_TASKS: "ops.watch",
+    });
+    expect(mode.run).toBe(true);
+    expect([...(mode.allow ?? [])]).toEqual(["ops.watch"]);
+  });
+
+  it("keeps the scheduler off when disabled with no allowlist", () => {
+    expect(schedulerMode({ MONTAJ_SCHEDULER_DISABLED: "1" })).toEqual({ run: false, allow: null });
+  });
+
+  it("runs everything when neither variable is set", () => {
+    expect(schedulerMode({})).toEqual({ run: true, allow: null });
+  });
+
+  it("only ever narrows: an allowlist without the kill switch still limits the tasks", () => {
+    const mode = schedulerMode({ MONTAJ_SCHEDULER_TASKS: "jobs.queue-depth" });
+    expect(mode.run).toBe(true);
+    expect(mode.allow?.has("affiliates.payout-batch")).toBe(false);
   });
 });

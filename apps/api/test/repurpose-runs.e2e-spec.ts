@@ -309,6 +309,15 @@ describe.skipIf(!CAN_RUN)("repurpose run CRUD (REP-006)", () => {
         billingCountry: "IN",
       },
     });
+    // A link run is refused up front when the balance does not pay for a
+    // minute of its window (2026-09-27); 100 credits pays for a full Free
+    // window. The ids are the ones the stuck-run cases below upsert.
+    await prisma.creditAccount.create({
+      data: { id: id("ACC01"), workspaceId: WORKSPACE_A, balanceTenths: 1000 },
+    });
+    await prisma.creditAccount.create({
+      data: { id: id("ACC02"), workspaceId: WORKSPACE_B, balanceTenths: 1000 },
+    });
 
     service = await makeService();
   });
@@ -643,6 +652,7 @@ describe.skipIf(!CAN_RUN)("repurpose run CRUD (REP-006)", () => {
         source: { kind: string; normalizedUrl: string; sourceId: string };
         destination: { bucket: string; key: string };
         limits: { maxBytes: number; maxDurationMs: number; timeoutMs: number };
+        window?: { maxMs: number; startMs?: number; policy: string };
       };
       expect(params.source.kind).toBe("youtube_url");
       // Canonical, and stripped of the tracking parameter the user pasted.
@@ -653,9 +663,13 @@ describe.skipIf(!CAN_RUN)("repurpose run CRUD (REP-006)", () => {
 
       // The plan in force at confirmation travels with the job, so a plan change
       // between enqueue and run cannot retroactively widen what was allowed.
+      // A run processes a window of the video (2026-09-27): the plan's 20
+      // minutes, the most-replayed part, of any video up to the 12-hour
+      // ceiling - not a refusal of every video longer than 20 minutes.
       expect(params.limits.maxBytes).toBe(500 * 1024 * 1024);
-      expect(params.limits.maxDurationMs).toBe(20 * 60 * 1000);
+      expect(params.limits.maxDurationMs).toBe(12 * 60 * 60 * 1000);
       expect(params.limits.timeoutMs).toBeGreaterThan(0);
+      expect(params.window).toEqual({ maxMs: 20 * 60 * 1000, policy: "most_replayed" });
 
       // And a media row is waiting for the bytes, which is what makes the stage
       // rail read "getting your video" without a second source of truth.
@@ -664,6 +678,59 @@ describe.skipIf(!CAN_RUN)("repurpose run CRUD (REP-006)", () => {
       });
       expect(media.status).toBe("pending");
       expect(media.storageKey).toBe(params.destination.key);
+    });
+
+    it("starts the next part of a video beside the first, once, however often it is asked", async () => {
+      await setFlag("source_youtube_acquire", true);
+      const first = await service.create(WORKSPACE_A, USER_A, {
+        source: {
+          kind: "url",
+          url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+          rightsAttested: true,
+        },
+        setup: SETUP,
+      });
+      // The first 20 minutes of a 34:37 video landed and found its moments.
+      await prisma.repurposeRun.update({
+        where: { id: first.run.id },
+        data: {
+          status: "candidates_ready",
+          currentStage: "finding_clips",
+          windowStartMs: 0,
+          windowEndMs: 1_200_000,
+          windowPolicy: "most_replayed",
+          sourceDurationMs: 2_077_000,
+        },
+      });
+      enqueued = [];
+
+      const next = await service.nextWindow(WORKSPACE_A, USER_A, first.run.id);
+      expect(next.run.id).not.toBe(first.run.id);
+      expect(enqueued).toHaveLength(1);
+      const params = enqueued[0]?.params as {
+        window?: { maxMs: number; startMs?: number; policy: string };
+      };
+      expect(params.window).toMatchObject({ startMs: 1_200_000, policy: "range" });
+      // Both live at once: the live-source index keys on the window start.
+      expect(
+        await prisma.repurposeRun.count({
+          where: { sourceFingerprint: "youtube:dQw4w9WgXcQ", status: { not: "cancelled" } },
+        }),
+      ).toBe(2);
+
+      expect(enqueued[0]?.jobKey).toBe(`media.acquire:${next.run.id}:youtube:dQw4w9WgXcQ`);
+
+      // A second press, or a second tab, is the same run - not a third one.
+      // (Reading it reconciles it, and this harness's queue keeps no job rows,
+      // so the reconciler may ask to fetch into the same row again; the real
+      // queue has the row and does not.)
+      const again = await service.nextWindow(WORKSPACE_A, USER_A, first.run.id);
+      expect(again.run.id).toBe(next.run.id);
+      expect(
+        await prisma.repurposeRun.count({
+          where: { sourceFingerprint: "youtube:dQw4w9WgXcQ", status: { not: "cancelled" } },
+        }),
+      ).toBe(2);
     });
 
     it("queues nothing for an upload, which brings its own bytes", async () => {

@@ -264,6 +264,63 @@ and a code-mix signal wins outright. `alignment: required` marks a provider that
 returns no word timings — Sarvam — so the worker runs the aligner registry behind
 it. Override the file with `WORKER_AI_ROUTING_FILE`.
 
+### Two Whisper models
+
+For `local-whisper` a candidate's `model` is not documentation: it picks the
+weights the lane runs, and each set stays loaded once used — never reloaded per
+job.
+
+| `model` in `routing.yaml`     | Weights                                        | Lanes                             |
+| ----------------------------- | ---------------------------------------------- | --------------------------------- |
+| `whisper-hindi2hinglish-apex` | `WORKER_AI_WHISPER_MODEL` (Hinglish fine-tune) | `hinglish`, `hindi`               |
+| `large-v3-turbo`              | `WORKER_AI_WHISPER_MODEL_EN` (general)         | `indian-english`, `global` (`en`) |
+
+The lane chooses rather than the request's language because an "auto" job's
+first chunk goes out with no language (it is the LID probe) and is kept when LID
+keeps the lane. A job with a pinned language sends the pin on the probe too.
+
+The English weights are **optional at every step**, and English falls back to
+`WORKER_AI_WHISPER_MODEL` (how it ran before they existed) when they are:
+
+- **unset** — logged at WARNING at boot;
+- **unusable** — checked at boot: a path that does not exist, a faster-whisper
+  directory with no `model.bin`, or the wrong kind of file for the engine is
+  logged at ERROR and ignored. It never stops the worker: the Sarvam lane,
+  `ai.faces` and every other queue live in the same process;
+- **failing to load** — logged at ERROR, and not retried for ten minutes
+  (`ENGLISH_RETRY_AFTER_S`) rather than re-reading 1.6 GB per chunk.
+
+Whatever ran is recorded: `engineVersions.asrWeights` in `jobs.result` names the
+weights' directory, and when it is the fine-tune the probe's language detection
+is **not** used as the acoustic signal (it reports every language as English),
+so an "auto" job is decided by the text signal alone.
+
+The default weights always load first, so when the 6 GB card cannot hold both it
+is English — which can fall back — that is left out, not the fine-tune. A load
+that fails on the GPU is never retried on the CPU: that would run a 1.5B-parameter
+model at beam 5 on the machine that serves the whole stack, silently, for hours.
+With no GPU at all, `WORKER_AI_WHISPER_DEVICE=auto` resolves to the CPU before
+anything loads, as before.
+
+**Deploying it.** Order matters: an API that sends "auto" before this worker runs
+with the English weights gets auto jobs decided by the text signal alone.
+
+1. Set `WORKER_AI_WHISPER_MODEL_EN` in `.env.local-run` **in place** (it is a
+   hard link) and restart worker-ai only.
+2. Check `worker-ai.out.log`: no `WORKER_AI_WHISPER_MODEL_EN is ignored` line at
+   boot; after one English or auto job, `loading faster-whisper` with the turbo
+   directory on `cuda`, no `Whisper weights failed to load`, and
+   `engineVersions.asrWeights` naming the turbo directory in `jobs.result`.
+   `nvidia-smi` should show both models resident with headroom.
+3. Only then deploy an API or web that sends "auto".
+
+Undo: blank the variable (in place) and restart worker-ai. Old cache entries are
+untouched: the cache key names the weights that ran.
+
+An invalid language code refused by the model fails the chunk **non-retryably**:
+the same audio and options fail the same way on every attempt. The job is still
+retried when any other candidate in the chain failed retryably.
+
 ## Language identification (D14, `09 §1.1`)
 
 Two signals, and the rule is **agreement**, not confidence — because RR-02 F4
@@ -275,6 +332,15 @@ the dearer code-mix lane by itself.
 | acoustic | Whisper `detect_language` over 60 s + two 15 s windows | `local-asr` extra, else the D15 model server, else the routed provider's own answer             |
 | textual  | a local classifier over the first chunk's text         | IndicLID from `WORKER_AI_INDICLID_DIR`, else a script-share + romanised-Hindi-lexicon heuristic |
 
+- **The hint** when the job carries one — except `"auto"` (also `und`, `unknown`
+  or nothing), which is no hint: the probe runs on the default lane (`global`,
+  the general model), both signals decide, and the transcript reports what they
+  decided. When the probe ran on `local-whisper`, its own detection is the
+  acoustic signal — but only from the general weights; from the fine-tune it is
+  recorded as no opinion — and the separate Whisper identifier is not consulted.
+- **Urdu is heard as Hindi** unless the user pinned Urdu: Whisper often labels
+  conversational Hindi `ur` and writes it in Arabic script, so an unpinned `ur`
+  from either signal counts as `hi` (the signal keeps `detail.heard: "ur"`).
 - **Code-mix lane** when both signals say Hindi/Hinglish _and_ `codeMixScore ≥ 0.3`
   — or the user hinted Hinglish, which always wins.
 - **Agreed language** when both point at the same base tag.
@@ -542,7 +608,8 @@ deliberately _not_ in CONTRACTS §1 — the same precedent the API set for
 | `WORKER_AI_ROUTING_FILE`               | packaged                        | override `routing.yaml`                                                                                                                               |
 | `WORKER_AI_WHISPER_ENGINE`             | `faster-whisper`                | engine for local whisper (`faster-whisper` or `openai-whisper`)                                                                                      |
 | `WORKER_AI_WHISPER_MODEL`              | `small`                         | model name or local CTranslate2/checkpoint directory for the local adapter (e.g. `large-v3`, `small`, or a path)                                     |
-| `WORKER_AI_WHISPER_DEVICE`             | `auto`                          | `cpu`, `cuda`, or `auto` (probe for a GPU via CTranslate2, fall back to CPU — never fails the load)                                                  |
+| `WORKER_AI_WHISPER_MODEL_EN`           | — (the model above)             | general weights where `routing.yaml` names `large-v3-turbo` (English, Indian English, global); unusable at boot = ERROR + ignored, never fatal        |
+| `WORKER_AI_WHISPER_DEVICE`             | `auto`                          | `cpu`, `cuda`, or `auto` (probe for a GPU via CTranslate2, else CPU; a load that fails on the GPU is an error, never moved to the CPU)                |
 | `WORKER_AI_WHISPER_COMPUTE_TYPE`       | auto                            | CTranslate2 quantisation (e.g. `int8`, `int8_float16`, `float16`); empty picks `int8_float16` on a GPU or `int8` on CPU                              |
 | `WORKER_AI_ALLOW_MOCK`                 | auto                            | force the mock lane on or off                                                                                                                         |
 | `WORKER_AI_ALIGN_MODEL_DIR`            | —                               | CTC checkpoints for the D13 aligners (layout below)                                                                                                   |

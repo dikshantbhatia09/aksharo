@@ -13,6 +13,7 @@ import {
   EMPTY_START_FORM,
   RECOMMENDED_STYLES,
   SourceStartForm,
+  startAtMs,
   validateStartForm,
   type StartFormValue,
 } from "./SourceStartForm";
@@ -65,7 +66,20 @@ function stages(current: number, failed = false): RepurposeStageView[] {
   }));
 }
 
+/**
+ * The fields the API adds with plan limits (2026-09-27), as a run that has
+ * none of them: spread in, so these fixtures compile whether the client's
+ * `RepurposeRunView` declares them yet or not.
+ */
+const NO_PLAN_LIMIT_FACTS = {
+  sourceTitle: null,
+  window: null,
+  failureDetail: null,
+  nextWindowAvailable: false,
+};
+
 const RUN: RepurposeRunView = {
+  ...NO_PLAN_LIMIT_FACTS,
   id: "01JS0000000000000000000RUN",
   workspaceId: "01JWORKSPACE00000000000000",
   sourceProjectId: "01JPROJECT0000000000000000",
@@ -510,5 +524,233 @@ describe("<PipelineBanner /> — the studio's front door to the pipeline", () =>
     // appears a moment late, and a gated feature must never be briefly visible.
     renderWithProviders(<PipelineBanner />, { routes: {} });
     expect(screen.queryByTestId("repurpose-entry")).toBeNull();
+  });
+});
+
+/**
+ * Plan limits (2026-09-27). The spoken language starts on "Detect
+ * automatically" instead of whatever this browser last picked on Home (a hint
+ * that overrides detection), and a link can say where a long video's window
+ * starts.
+ */
+describe("<SourceStartForm /> language and window", () => {
+  const LINK = "https://youtu.be/dQw4w9WgXcQ";
+
+  function Harness({
+    onSubmit,
+    onValue,
+    initial = EMPTY_START_FORM,
+    ...props
+  }: {
+    readonly onSubmit: () => void;
+    readonly onValue?: (value: StartFormValue) => void;
+    readonly initial?: StartFormValue;
+  } & Partial<React.ComponentProps<typeof SourceStartForm>>): React.JSX.Element {
+    const [value, setValue] = React.useState<StartFormValue>(initial);
+    onValue?.(value);
+    return <SourceStartForm value={value} onChange={setValue} onSubmit={onSubmit} {...props} />;
+  }
+
+  it("starts on 'Detect automatically', with no picker to fill in, and submits that", async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn();
+    let latest: StartFormValue | undefined;
+    render(
+      <Harness
+        onSubmit={onSubmit}
+        onValue={(value) => {
+          latest = value;
+        }}
+      />,
+    );
+
+    expect(screen.getByTestId("language-detect")).toBeChecked();
+    expect(screen.queryByTestId("quickpick-language")).toBeNull();
+    expect(screen.getByTestId("language-detect-hint")).toHaveTextContent(/Hindi and English/);
+
+    await user.type(screen.getByTestId("source-url"), LINK);
+    await user.click(screen.getByTestId("rights-attested"));
+    await user.click(screen.getByTestId("start-run"));
+
+    expect(onSubmit).toHaveBeenCalledOnce();
+    expect(latest?.sourceLanguage).toBe("auto");
+  });
+
+  it("asks for the language once the person says they will choose it", async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn();
+    render(<Harness onSubmit={onSubmit} />);
+
+    await user.click(screen.getByTestId("language-choose"));
+    expect(screen.getByTestId("quickpick-language")).toBeInTheDocument();
+    await user.type(screen.getByTestId("source-url"), LINK);
+    await user.click(screen.getByTestId("rights-attested"));
+    await user.click(screen.getByTestId("start-run"));
+
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(screen.getByTestId("error-language")).toHaveTextContent(
+      "Choose the language spoken in the video.",
+    );
+
+    // Back to detecting is a choice again.
+    await user.click(screen.getByTestId("language-detect"));
+    await user.click(screen.getByTestId("start-run"));
+    expect(onSubmit).toHaveBeenCalledOnce();
+  });
+
+  // A start applies to any video: the downloader cuts from it even when the
+  // video fits the window, so the line no longer says it is only for long ones.
+  it("explains in one line that a long video is processed a part at a time", () => {
+    const { unmount } = render(<Harness onSubmit={() => undefined} />);
+    expect(
+      screen.getByText(
+        "Long videos are processed a part at a time: the most-replayed part, unless you choose where to start.",
+      ),
+    ).toBeInTheDocument();
+    unmount();
+    render(<Harness onSubmit={() => undefined} planWindowMs={20 * 60_000} />);
+    expect(
+      screen.getByText(
+        "Videos are processed up to 20 minutes at a time: the most-replayed part, unless you choose where to start.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("offers no start on a plan that processes whole videos, and never blocks on a hidden one", async () => {
+    const user = userEvent.setup();
+    // A start carried in the URL that would be refused if the field were there.
+    const carried = { ...EMPTY_START_FORM, url: LINK, rightsAttested: true, startAt: "99:00:00" };
+    const blocked = vi.fn();
+    const { unmount } = render(<Harness onSubmit={blocked} initial={carried} />);
+    await user.click(screen.getByTestId("start-run"));
+    expect(blocked).not.toHaveBeenCalled();
+    unmount();
+
+    const onSubmit = vi.fn();
+    render(<Harness onSubmit={onSubmit} initial={carried} processesWholeVideos focusStartAt />);
+    expect(screen.queryByTestId("source-start-at")).toBeNull();
+    expect(screen.queryByText(/processed a part at a time/)).toBeNull();
+    await user.click(screen.getByTestId("start-run"));
+    expect(onSubmit).toHaveBeenCalledOnce();
+  });
+
+  it("puts the cursor in 'Start at' when the person came to pick a start", () => {
+    render(<Harness onSubmit={() => undefined} focusStartAt />);
+    expect(screen.getByTestId("source-start-at")).toHaveFocus();
+  });
+
+  it("refuses a start that is not a time, and one past the end of the video", async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn();
+    render(
+      <Harness onSubmit={onSubmit} knownLength={{ link: LINK, durationMs: 34 * 60_000 + 37_000 }} />,
+    );
+
+    await user.type(screen.getByTestId("source-url"), LINK);
+    await user.click(screen.getByTestId("rights-attested"));
+    await user.type(screen.getByTestId("source-start-at"), "soon");
+    await user.click(screen.getByTestId("start-run"));
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(screen.getByText("Type the start as m:ss or h:mm:ss, like 12:10.")).toBeInTheDocument();
+
+    await user.clear(screen.getByTestId("source-start-at"));
+    await user.type(screen.getByTestId("source-start-at"), "40:00");
+    expect(screen.getByText("This video is only 34:37 long.")).toBeInTheDocument();
+
+    await user.clear(screen.getByTestId("source-start-at"));
+    await user.type(screen.getByTestId("source-start-at"), "12:10");
+    await user.click(screen.getByTestId("start-run"));
+    expect(onSubmit).toHaveBeenCalledOnce();
+  });
+
+  it("holds a known length only while the link is still that video's", () => {
+    const knownLength = { link: LINK, durationMs: 34 * 60_000 + 37_000 };
+    const form = { ...EMPTY_START_FORM, url: LINK, rightsAttested: true, startAt: "40:00" };
+    expect(validateStartForm(form, { knownLength }).startAt).toBe(
+      "This video is only 34:37 long.",
+    );
+    // The same video written another way is still that video.
+    expect(
+      validateStartForm({ ...form, url: "youtu.be/dQw4w9WgXcQ" }, { knownLength }).startAt,
+    ).toBe("This video is only 34:37 long.");
+    // Another video: its length is not known, so 40:00 is a fine start.
+    expect(
+      validateStartForm(
+        { ...form, url: "https://www.youtube.com/watch?v=kE0oUEzVVes" },
+        { knownLength },
+      ).startAt,
+    ).toBeUndefined();
+  });
+
+  it("refuses a start no video can reach, whether or not the length is known", () => {
+    const form = { ...EMPTY_START_FORM, url: LINK, rightsAttested: true };
+    const ceiling = "Start within the first 12 hours. No video can be longer than that.";
+    expect(validateStartForm({ ...form, startAt: "99:00:00" }).startAt).toBe(ceiling);
+    expect(validateStartForm({ ...form, startAt: "12:00:00" }).startAt).toBe(ceiling);
+    expect(validateStartForm({ ...form, startAt: "11:59:59" }).startAt).toBeUndefined();
+  });
+
+  it("offers no start for an upload, which is processed whole", async () => {
+    const user = userEvent.setup();
+    render(<Harness onSubmit={() => undefined} />);
+    await user.click(screen.getByTestId("source-tab-upload"));
+    expect(screen.queryByTestId("source-start-at")).toBeNull();
+    expect(startAtMs({ tab: "upload", startAt: "12:10" })).toBeUndefined();
+    expect(startAtMs({ tab: "link", startAt: "1:02:30" })).toBe(3_750_000);
+    expect(startAtMs({ tab: "link", startAt: "  " })).toBeUndefined();
+  });
+
+  it("links to the balance beside a refusal for credits", () => {
+    render(
+      <Harness
+        onSubmit={() => undefined}
+        serverError="You have 0.4 credits left, which is not enough to process a minute of video."
+        seeCredits
+      />,
+    );
+    expect(screen.getByTestId("start-see-credits")).toHaveAttribute("href", "/billing");
+  });
+});
+
+describe("<PersistentPreview /> for a run that processed part of its video", () => {
+  const WINDOW = {
+    startMs: 730_000,
+    endMs: 1_930_000,
+    sourceDurationMs: 2_077_000,
+    policy: "most_replayed",
+  } as const;
+
+  it("says which part, so its moments are read against that part", () => {
+    const partial: RepurposeRunView = {
+      ...RUN,
+      status: "candidates_ready",
+      currentStage: "finding_clips",
+      window: WINDOW,
+    };
+    render(<PersistentPreview run={partial} />);
+    expect(screen.getByTestId("preview-window")).toHaveTextContent(
+      "Processed 12:10–32:10 of 34:37 (most replayed)",
+    );
+  });
+
+  it("does not say 'processed' while the part is still being worked on, or after a failure", () => {
+    const { unmount } = render(<PersistentPreview run={{ ...RUN, window: WINDOW }} />);
+    expect(screen.getByTestId("preview-window")).toHaveTextContent(
+      "Processing 12:10–32:10 of 34:37 (most replayed)",
+    );
+    unmount();
+    render(
+      <PersistentPreview
+        run={{ ...RUN, status: "failed", failureCode: "repurpose/no_credits", window: WINDOW }}
+      />,
+    );
+    expect(screen.getByTestId("preview-window")).toHaveTextContent(
+      "Part 12:10–32:10 of 34:37 (most replayed)",
+    );
+  });
+
+  it("says nothing of the kind for a whole video, or an API that does not say", () => {
+    render(<PersistentPreview run={RUN} />);
+    expect(screen.queryByTestId("preview-window")).toBeNull();
   });
 });

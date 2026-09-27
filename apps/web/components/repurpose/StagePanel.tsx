@@ -13,7 +13,21 @@ import * as React from "react";
 
 import { Button, cn } from "@montaj/ui";
 
-import { BACKGROUND_NOTE, STAGE_COPY, safeErrorCopy, type StageKey } from "@/components/repurpose/copy";
+import type { RetryWindow } from "@/components/repurpose/run-window";
+
+import {
+  BACKGROUND_NOTE,
+  DETAIL_COPY,
+  STAGE_COPY,
+  safeErrorCopy,
+  type StageKey,
+} from "@/components/repurpose/copy";
+import {
+  detailedFailure,
+  spanPhrase,
+  type FailureDetail,
+} from "@/components/repurpose/failure-detail";
+import { formatClock } from "@/components/repurpose/moment-time";
 
 export interface StagePanelProps {
   readonly stage: StageKey;
@@ -133,9 +147,39 @@ export interface StageErrorCardProps {
   readonly onStartAgain?: () => void;
   /** Open "Add a moment by time" on this page. */
   readonly onAddMoment?: () => void;
+  /**
+   * The numbers behind the failure (`failureDetail` on the run): the card
+   * then says "This video is 34:37. Your plan processes 20:00 per video."
+   * instead of a sentence with no numbers in it.
+   */
+  readonly detail?: FailureDetail | null;
+  /**
+   * A too-long video: process part of it instead, by running the failed step
+   * again (the server works out the window). Pass it only when the run can be
+   * retried.
+   */
+  readonly onUseWindow?: () => void;
+  /**
+   * Which part that retry fetches (`retryWindowOf`), so its label says what
+   * it does: a picked start is fetched from that start again ("Process 20
+   * minutes from 12:10"), and only a run known to have had none is said to
+   * take the most-replayed part. Unknown, the label promises a length only.
+   */
+  readonly retryWindow?: RetryWindow;
+  /**
+   * A too-long video: start again with the same link and a start the person
+   * picks. Only a link run has one.
+   */
+  readonly onPickStart?: () => void;
   readonly retrying?: boolean;
   /** Why the last "Try again" was refused, already one plain sentence. */
   readonly retryError?: string | null;
+  /**
+   * That refusal was for credits (a link's retry fetches the video again, and
+   * is refused when the balance does not pay for a minute): the balance is the
+   * way on, so a link to it sits beside the sentence.
+   */
+  readonly retrySeeCredits?: boolean;
   /**
    * The live run the retry was refused for: the same link was started again
    * since this one failed, so that run is where the work is.
@@ -160,6 +204,12 @@ export interface StageErrorCardProps {
  * not be read). The page then omits `onRetry`, so a retry code's card leads with
  * the way out instead of a button that always fails — and drops the sentence
  * that says trying again may work (`retryHint`).
+ *
+ * A too-long video (`use_window`) has two ways on rather than one, because
+ * "which part" is the person's call: part of it by a retry the server windows
+ * (the primary; the part the run asked for, see `retryWindow`) or a start they
+ * pick (a new run, link kept). With the run's numbers (`detail`) the title
+ * states them.
  */
 export function StageErrorCard({
   code,
@@ -169,21 +219,50 @@ export function StageErrorCard({
   onCheckLink,
   onStartAgain,
   onAddMoment,
+  detail = null,
+  onUseWindow,
+  retryWindow = { kind: "unknown" },
+  onPickStart,
   retrying = false,
   retryError = null,
+  retrySeeCredits = false,
   existingRunId = null,
 }: StageErrorCardProps): React.JSX.Element {
   const copy = safeErrorCopy(code);
+  // The numbers, when the run carried them, replace the numberless sentence.
+  const detailed = detailedFailure(code, detail);
   const showRetry = copy.action === "retry" && onRetry !== undefined;
   const showCheckLink = copy.action === "edit_settings" && onCheckLink !== undefined;
   const showStartAgain = copy.action === "start_again" && onStartAgain !== undefined;
   const showAddMoment = copy.action === "add_moment" && onAddMoment !== undefined;
+  // Too long: process part of it — the most-replayed stretch, or from a start
+  // the person picks. Not past the source ceiling, where no part helps.
+  const windowAction = copy.action === "use_window" && detailed.windowPossible;
+  const showUseWindow = windowAction && onUseWindow !== undefined;
+  const showPickStart = windowAction && onPickStart !== undefined;
   // Out of credits: the balance is the recommendation, and trying again is the
   // step after it, so it stays on the card as a secondary.
   const showCredits = copy.action === "check_credits";
   const showRetryAfterCredits = showCredits && onRetry !== undefined;
-  const recommended = showRetry || showCheckLink || showStartAgain || showAddMoment || showCredits;
+  const recommended =
+    showRetry ||
+    showCheckLink ||
+    showStartAgain ||
+    showAddMoment ||
+    showUseWindow ||
+    showPickStart ||
+    showCredits;
   const retryOffered = showRetry || showRetryAfterCredits;
+  // Named by what the retry does (`retryWindow`), never by a part it may not
+  // fetch: a picked start is fetched again, and the automatic choice is the
+  // most-replayed part only when YouTube marks one.
+  const windowSpan = detailed.windowMs === undefined ? undefined : spanPhrase(detailed.windowMs);
+  const useWindowLabel =
+    retryWindow.kind === "range"
+      ? DETAIL_COPY.useWindowFrom(windowSpan, formatClock(retryWindow.startMs))
+      : DETAIL_COPY.useWindow(windowSpan);
+  const windowHint =
+    showUseWindow && retryWindow.kind === "auto" ? DETAIL_COPY.autoWindowHint : copy.windowHint;
   // The way out says what it does; only a code whose recommendation IS the way
   // out lends it its own label.
   const chooseAnotherLabel =
@@ -203,12 +282,15 @@ export function StageErrorCard({
           strokeWidth={1.75}
           aria-hidden="true"
         />
-        {copy.title}
+        <span data-testid="stage-error-title">{detailed.title ?? copy.title}</span>
       </p>
       <p className="mt-1 text-sm text-fg-1" data-testid="stage-error-reassurance">
-        {copy.reassurance}
+        {detailed.reassurance ?? copy.reassurance}
         {retryOffered && copy.retryHint !== undefined ? ` ${copy.retryHint}` : ""}
         {showStartAgain && copy.startAgainHint !== undefined ? ` ${copy.startAgainHint}` : ""}
+        {(showUseWindow || showPickStart) && windowHint !== undefined ? ` ${windowHint}` : ""}
+        {/* The card fell back to another video: say what will fit instead. */}
+        {!recommended && copy.fallbackHint !== undefined ? ` ${copy.fallbackHint}` : ""}
       </p>
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -232,6 +314,28 @@ export function StageErrorCard({
         {showAddMoment && (
           <Button variant="primary" size="sm" onClick={onAddMoment} data-testid="stage-error-add-moment">
             {copy.actionLabel}
+          </Button>
+        )}
+        {showUseWindow && (
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={onUseWindow}
+            disabled={retrying}
+            data-testid="stage-error-use-window"
+          >
+            {retrying ? "Starting…" : useWindowLabel}
+          </Button>
+        )}
+        {showPickStart && (
+          <Button
+            // The primary only when the most-replayed stretch is not on offer.
+            variant={showUseWindow ? "secondary" : "primary"}
+            size="sm"
+            onClick={onPickStart}
+            data-testid="stage-error-pick-start"
+          >
+            {DETAIL_COPY.pickStart}
           </Button>
         )}
         {showCredits && (
@@ -281,6 +385,20 @@ export function StageErrorCard({
               </Link>
             </Button>
           )}
+          {/* Refused for credits: trying again fails the same way until the
+              balance changes, so the balance is the way on. Not on a card that
+              already leads with it. */}
+          {retrySeeCredits && !showCredits ? (
+            <Button variant="secondary" size="sm" asChild>
+              <Link
+                href="/billing"
+                className="no-underline"
+                data-testid="stage-error-retry-credits"
+              >
+                See your credits
+              </Link>
+            </Button>
+          ) : null}
         </div>
       )}
 

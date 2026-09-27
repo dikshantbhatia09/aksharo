@@ -123,6 +123,12 @@ export interface JobError {
   readonly message: string;
   /** `false` sends the job straight to the dead-letter path (A08b). */
   readonly retryable: boolean;
+  /**
+   * The numbers behind a refusal (`JobErrorSchema.facts`): the duration
+   * against the limit, the bytes against the cap. The API keeps the keys it
+   * knows and shows them on the run.
+   */
+  readonly facts?: Readonly<Record<string, number | string | boolean | null>>;
 }
 
 export interface JobCompletion {

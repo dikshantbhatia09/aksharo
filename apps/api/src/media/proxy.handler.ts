@@ -4,7 +4,10 @@ import { FacesTrigger } from "./faces.js";
 import { MEDIA_FAILURE_REASONS } from "./media.constants.js";
 import { PrismaService } from "../common/prisma/prisma.service.js";
 import { JobCompletionRegistry } from "../jobs/completion-handlers.js";
+import { JOB_ERROR_CODES } from "../jobs/jobs.errors.js";
+import { JobsService } from "../jobs/jobs.service.js";
 import { AutoTranscribeTrigger } from "../transcripts/auto-transcribe.trigger.js";
+import { firstTranscriptionJobKey } from "../transcripts/first-transcription.js";
 
 import type { MediaFailureReason } from "./media.constants.js";
 import type {
@@ -13,6 +16,7 @@ import type {
   JobCompletionOutcome,
 } from "../jobs/completion-handlers.js";
 import type { QueueName } from "../jobs/contracts/queue-names.js";
+import type { Job } from "@prisma/client";
 
 /**
  * What a `media.proxy` completion means, independently of the worker's own
@@ -43,6 +47,15 @@ import type { QueueName } from "../jobs/contracts/queue-names.js";
  * a success completion never undoes a `failed` some other writer already
  * recorded, and a failure completion overwrites a stray `ready`. Silently
  * calling a broken upload "ready" is the wrong direction to fail safe in.
+ *
+ * **Transcription no longer waits for this job** (clips pipeline W5,
+ * 2026-09-27): the worker writes the ASR audio back before its video encode, and
+ * the first transcription can start from that (`first-transcription.ts`). So a
+ * proxy that then fails terminally may have a transcription running behind it,
+ * of media that is now `failed` — which no editor will open and a clips run
+ * fails for (`processing_failed`). Before W5 such media was never transcribed at
+ * all; to keep it that way the failure path stops that transcription, which
+ * releases its credit hold rather than charging for words nobody can use.
  */
 @Injectable()
 export class MediaProxyCompletionHandler implements JobCompletionHandler, OnModuleInit {
@@ -55,6 +68,7 @@ export class MediaProxyCompletionHandler implements JobCompletionHandler, OnModu
     private readonly registry: JobCompletionRegistry,
     private readonly autoTranscribe: AutoTranscribeTrigger,
     private readonly faces: FacesTrigger,
+    private readonly jobs: JobsService,
   ) {}
 
   onModuleInit(): void {
@@ -95,7 +109,13 @@ export class MediaProxyCompletionHandler implements JobCompletionHandler, OnModu
     // path. Replay safety comes from the trigger instead, which re-reads the
     // asset, refuses a project that already has a document or transcript, and
     // enqueues under a jobKey that dedupes.
-    const transcribe = await this.autoTranscribe.maybeEnqueue(mediaId);
+    //
+    // Usually the transcription is already running by now, started on the
+    // audio this job wrote back before its encode; this ask then dedupes onto
+    // it. `firstAttemptOnly`: if that early one already ran and FAILED, it is
+    // not quietly started again here — the run says why, and retrying is the
+    // person's call (see `AutoTranscribeTrigger`).
+    const transcribe = await this.autoTranscribe.maybeEnqueue(mediaId, { firstAttemptOnly: true });
     // Where the faces are, so captions can keep off them. Free, uncapped, and
     // never fails this completion (`FacesTrigger`).
     const faces = await this.faces.maybeEnqueue(mediaId);
@@ -112,8 +132,76 @@ export class MediaProxyCompletionHandler implements JobCompletionHandler, OnModu
   async handleFailure(context: JobCompletionContext): Promise<void> {
     const mediaId = mediaIdOf(context);
     if (mediaId === undefined) return;
-    const reason = failureReasonOf(context.completion.error?.code);
+    const code = context.completion.error?.code;
+    if (code === JOB_ERROR_CODES.stalled && (await this.isReady(mediaId))) {
+      // The lease reaper settles a job whose worker went quiet. The worker's
+      // own write-back had already made the asset ready - the encode finished
+      // and only its completion was lost - so the file is fine and stays so.
+      this.logger.warn(
+        { jobId: context.job.id, mediaId },
+        "media.proxy was reaped as stalled after the asset was already ready; keeping it ready",
+      );
+      return;
+    }
+    const reason = failureReasonOf(code);
     await this.resolve(context.job.id, mediaId, "failed", reason);
+    await this.stopEarlyTranscription(context.job, mediaId);
+  }
+
+  /**
+   * Cancel a first transcription still in flight for media that has just
+   * failed (see the class comment). Only one of THIS media — the key names it —
+   * and only while the row reads `failed`. A transcription that already
+   * finished is left alone: its words exist and its credits are settled.
+   *
+   * Never throws: a failure handler that throws leaves the proxy job open for a
+   * retry that would find the same failure, and the media is already marked.
+   */
+  private async stopEarlyTranscription(job: Job, mediaId: string): Promise<void> {
+    try {
+      const media = await this.prisma.mediaAsset.findUnique({
+        where: { id: mediaId },
+        select: { projectId: true, status: true },
+      });
+      if (media === null || media.status !== "failed") return;
+      const live = await this.prisma.job.findMany({
+        where: {
+          workspaceId: job.workspaceId,
+          type: "ai.transcribe",
+          jobKey: firstTranscriptionJobKey(media.projectId, mediaId),
+          status: { in: ["queued", "running"] },
+        },
+        select: { id: true },
+      });
+      for (const { id } of live) {
+        try {
+          await this.jobs.cancel(id, job.workspaceId);
+          this.logger.log(
+            { jobId: job.id, mediaId, transcribeJobId: id },
+            "media.proxy failed; stopped the transcription that had started on its audio",
+          );
+        } catch (error) {
+          // Most often it finished a moment ago (409): nothing left to stop.
+          this.logger.warn(
+            { jobId: job.id, mediaId, transcribeJobId: id, err: describe(error) },
+            "could not stop the transcription of media whose proxy failed",
+          );
+        }
+      }
+    } catch (error) {
+      this.logger.warn(
+        { jobId: job.id, mediaId, err: describe(error) },
+        "could not look for a transcription of media whose proxy failed",
+      );
+    }
+  }
+
+  private async isReady(mediaId: string): Promise<boolean> {
+    const media = await this.prisma.mediaAsset.findUnique({
+      where: { id: mediaId },
+      select: { status: true },
+    });
+    return media?.status === "ready";
   }
 
   /** @returns whether this call actually changed the row. */
@@ -189,4 +277,8 @@ function failureReasonOf(code: string | undefined): MediaFailureReason | null {
     return code as MediaFailureReason;
   }
   return null;
+}
+
+function describe(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }

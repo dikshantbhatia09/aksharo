@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { EventEmitter, once } from "node:events";
-import { mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readdir, rename, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PassThrough } from "node:stream";
@@ -381,8 +381,33 @@ describe("probeSource", () => {
 });
 
 describe("assertYtDlpUsable", () => {
-  function reportingVersion(version: string): void {
-    fakeDownloader(async (child) => {
+  const NODE = "C:/Program Files/nodejs/node.exe";
+
+  /** yt-dlp's `-v` header, as the pinned venv prints it with node enabled. */
+  function header(options: { runtimes?: string; libraries?: string } = {}): string {
+    return [
+      "[debug] yt-dlp version stable@2026.08.19 from yt-dlp/yt-dlp [594bd50c2] (pip)",
+      `[debug] Optional libraries: ${options.libraries ?? "Cryptodome-3.23.0, certifi-2026.07.22, yt_dlp_ejs-0.8.0"}`,
+      `[debug] JS runtimes: ${options.runtimes ?? "node-24.19.0"}`,
+      "[debug] Plugin directories: none (disabled)",
+      "[debug] Loaded 1744 extractors",
+      "yt-dlp: error: You must provide at least one URL.",
+    ].join("\n");
+  }
+
+  /** `--version` answers `version`; `-v` prints `debugHeader` to stderr and exits 2, as yt-dlp does. */
+  function reportingVersion(
+    version: string,
+    debugHeader: string = header(),
+  ): {
+    readonly calls: (readonly string[])[];
+  } {
+    return fakeDownloader(async (child, args) => {
+      if (args.includes("-v")) {
+        child.stderr.write(`${debugHeader}\n`);
+        await child.exit(2);
+        return;
+      }
       child.stdout.write(`${version}\n`);
       await child.exit(0);
     });
@@ -395,13 +420,74 @@ describe("assertYtDlpUsable", () => {
     const warn = vi.spyOn(logger, "warn").mockImplementation(() => undefined);
     reportingVersion("2026.09.30");
     await expect(
-      assertYtDlpUsable({ binary: "yt-dlp", verifyDigest: false, allowUnpinned: true }),
-    ).resolves.toEqual({ version: "2026.09.30", sha256: null });
+      assertYtDlpUsable({
+        binary: "yt-dlp",
+        verifyDigest: false,
+        allowUnpinned: true,
+        jsRuntime: NODE,
+      }),
+    ).resolves.toEqual({
+      version: "2026.09.30",
+      sha256: null,
+      ejsVersion: "0.8.0",
+      jsRuntime: "node-24.19.0",
+    });
     expect(warn).toHaveBeenCalledTimes(1);
     expect(warn.mock.calls[0]?.[1]).toMatchObject({
       version: "2026.09.30",
       pinned: EXPECTED_VERSION,
     });
+  });
+
+  it("boots on the pinned venv's own header, and says which runtime and solver it found", async () => {
+    const { calls } = reportingVersion(EXPECTED_VERSION);
+    await expect(
+      assertYtDlpUsable({ binary: "yt-dlp", verifyDigest: false, jsRuntime: NODE }),
+    ).resolves.toEqual({
+      version: EXPECTED_VERSION,
+      sha256: null,
+      ejsVersion: "0.8.0",
+      jsRuntime: "node-24.19.0",
+    });
+    // The header is asked for with the lock-down a real run uses, and no URL:
+    // nothing is fetched at boot.
+    const check = calls.find((args) => args.includes("-v")) ?? [];
+    expect(check[check.indexOf("--js-runtimes") + 1]).toBe(`node:${NODE}`);
+    expect(check).toContain("--no-js-runtimes");
+    expect(check).toContain("--no-remote-components");
+    expect(check).toContain("--no-plugin-dirs");
+    expect(check.some((arg) => arg.startsWith("https://"))).toBe(false);
+  });
+
+  it("refuses to boot when the named node never shows up in yt-dlp's header", async () => {
+    // A wrong path costs nothing visible: YouTube just falls back to one client,
+    // until the day that client breaks too.
+    reportingVersion(EXPECTED_VERSION, header({ runtimes: "none" }));
+    await expect(
+      assertYtDlpUsable({ binary: "yt-dlp", verifyDigest: false, jsRuntime: NODE }),
+    ).rejects.toThrow(/YT_DLP_JS_RUNTIME names/);
+  });
+
+  it("refuses to boot with a runtime but no challenge solver installed", async () => {
+    reportingVersion(
+      EXPECTED_VERSION,
+      header({ libraries: "Cryptodome-3.23.0, certifi-2026.07.22" }),
+    );
+    await expect(
+      assertYtDlpUsable({ binary: "yt-dlp", verifyDigest: false, jsRuntime: NODE }),
+    ).rejects.toThrow(/yt-dlp-ejs is not installed/);
+  });
+
+  it("boots with no runtime configured, and says what that costs", async () => {
+    const warn = vi.spyOn(logger, "warn").mockImplementation(() => undefined);
+    reportingVersion(EXPECTED_VERSION, header({ runtimes: "none (disabled)" }));
+    await expect(assertYtDlpUsable({ binary: "yt-dlp", verifyDigest: false })).resolves.toEqual({
+      version: EXPECTED_VERSION,
+      sha256: null,
+      ejsVersion: "0.8.0",
+      jsRuntime: null,
+    });
+    expect(String(warn.mock.calls[0]?.[0])).toMatch(/no JavaScript runtime/);
   });
 
   it("keeps the pin with verification off, when nobody allowed otherwise", async () => {
@@ -433,13 +519,413 @@ describe("assertYtDlpUsable", () => {
     }
   });
 
+  it("reads the whole of the real header, with a line more than it has today", async () => {
+    // The pinned venv's own `-v` output (14 lines; the version is 12th from
+    // the end) plus one WARNING. Read through a 12-line tail, that one line
+    // pushed the version out and the worker refused to boot for "no debug
+    // header"; three more pushed out the solver as well.
+    const real = [
+      "[debug] Command-line config: ['-v', '--encoding', 'utf-8', '--ignore-config', '--no-cache-dir', '--no-js-runtimes', '--js-runtimes', 'node:C:/Program Files/nodejs/node.exe', '--no-remote-components', '--no-plugin-dirs']",
+      "[debug] Encodings: locale cp1252, fs utf-8, pref utf-8, out cp1252 (No ANSI), error cp1252 (No ANSI), screen cp1252 (No ANSI)",
+      "[debug] yt-dlp version stable@2026.08.19 from yt-dlp/yt-dlp [594bd50c2] (pip)",
+      "[debug] Python 3.12.10 (CPython AMD64 64bit) - Windows-11-10.0.26200-SP0 (OpenSSL 3.0.16 11 Feb 2025)",
+      "[debug] exe versions: ffmpeg 9.0-full_build-www.gyan.dev (setts), ffprobe 9.0-full_build-www.gyan.dev",
+      "[debug] Optional libraries: Cryptodome-3.23.0, brotli-1.2.0, certifi-2026.07.22, mutagen-1.48.1, requests-2.34.2, sqlite3-3.49.1, urllib3-2.8.0, websockets-17.1, yt_dlp_ejs-0.8.0",
+      "[debug] JS runtimes: node-24.19.0",
+      "[debug] Proxy map: {}",
+      "[debug] Request Handlers: urllib, requests, websockets",
+      "[debug] Plugin directories: none (disabled)",
+      "[debug] Loaded 1744 extractors",
+      "WARNING: this Python version is deprecated and will stop being supported in a future release",
+      "",
+      "Usage: yt-dlp [OPTIONS] URL [URL...]",
+      "",
+      "yt-dlp: error: You must provide at least one URL.",
+      "Type yt-dlp --help to see a list of all options.",
+    ].join("\n");
+    reportingVersion(EXPECTED_VERSION, real);
+    await expect(
+      assertYtDlpUsable({ binary: "yt-dlp", verifyDigest: false, jsRuntime: NODE }),
+    ).resolves.toEqual({
+      version: EXPECTED_VERSION,
+      sha256: null,
+      ejsVersion: "0.8.0",
+      jsRuntime: "node-24.19.0",
+    });
+  });
+
   it("accepts the pinned release without a digest check when verification is off", async () => {
     const warn = vi.spyOn(logger, "warn").mockImplementation(() => undefined);
     reportingVersion(EXPECTED_VERSION);
-    await expect(assertYtDlpUsable({ binary: "yt-dlp", verifyDigest: false })).resolves.toEqual({
+    await expect(
+      assertYtDlpUsable({ binary: "yt-dlp", verifyDigest: false, jsRuntime: NODE }),
+    ).resolves.toEqual({
       version: EXPECTED_VERSION,
       sha256: null,
+      ejsVersion: "0.8.0",
+      jsRuntime: "node-24.19.0",
     });
     expect(warn).not.toHaveBeenCalled();
+  });
+});
+
+describe("a section download", () => {
+  it("asks for the section, and reports the bytes on disk as they land", async () => {
+    const seen: number[] = [];
+    const { calls } = fakeDownloader(async (child) => {
+      await put("source.mp4.part", 300);
+      await measurements(2);
+      await put("source.mp4", 300);
+      await child.exit(0);
+    });
+    await download({
+      binary: "yt-dlp",
+      url: URL,
+      outputPath: output,
+      limits: LIMITS,
+      format: "137+140",
+      section: { startMs: 60_000, endMs: 660_000 },
+      sizeCheckIntervalMs: 10,
+      onBytes: (bytes) => seen.push(bytes),
+    });
+    const args = calls[0] ?? [];
+    expect(args[args.indexOf("--download-sections") + 1]).toBe("*60.000-660.000");
+    expect(seen).toContain(300);
+  });
+
+  it("stops a section that misses its deadline, as a retryable failure the caller can answer", async () => {
+    let child: FakeChild | undefined;
+    fakeDownloader((started) => {
+      child = started;
+      // Starts the download, and never finishes it on its own.
+      started.stdout.write(`[download] Destination: ${output}\n`);
+    });
+    const error = await failure(
+      download({
+        binary: "yt-dlp",
+        url: URL,
+        outputPath: output,
+        limits: LIMITS,
+        section: { startMs: 0, endMs: 600_000 },
+        // A deadline of 30 ms from the download's start: no running time, a
+        // 30 ms head start.
+        pace: { mediaMs: 0, expectedBytes: null, minRealtime: 2, startupMs: 30 },
+        sizeCheckIntervalMs: 10,
+      }),
+    );
+    expect(error).toMatchObject({
+      code: "media/acquire_slow",
+      retryable: true,
+      reason: "media/source_failed",
+    });
+    expect(child?.signals).toContain("SIGTERM");
+  });
+
+  it("stops a section whose bytes arrive slower than twice its running time", async () => {
+    // One byte in a thousand of a one-minute section: 60 ms of video after
+    // more than 30 ms, under 2x. The deadline (30 s) is nowhere near.
+    fakeDownloader(async () => {
+      await put("source.mp4.part", 1);
+    });
+    const error = await failure(
+      download({
+        binary: "yt-dlp",
+        url: URL,
+        outputPath: output,
+        limits: LIMITS,
+        section: { startMs: 0, endMs: 60_000 },
+        pace: { mediaMs: 60_000, expectedBytes: 1_000, minRealtime: 2, startupMs: 0, warmupMs: 30 },
+        sizeCheckIntervalMs: 10,
+      }),
+    );
+    expect(error.code).toBe("media/acquire_slow");
+  });
+
+  it("lets a section that keeps its pace finish", async () => {
+    // The control: 900 of 1 000 bytes is 54 s of a one-minute section, ahead
+    // of 2x for the next 27 seconds.
+    fakeDownloader(async (child) => {
+      await put("source.mp4.part", 900);
+      await measurements(5);
+      await put("source.mp4", 900);
+      await child.exit(0);
+    });
+    await download({
+      binary: "yt-dlp",
+      url: URL,
+      outputPath: output,
+      limits: { ...LIMITS, maxBytes: 10_000 },
+      section: { startMs: 0, endMs: 60_000 },
+      pace: { mediaMs: 60_000, expectedBytes: 1_000, minRealtime: 2, startupMs: 0, warmupMs: 30 },
+      sizeCheckIntervalMs: 10,
+    });
+  });
+
+  it("lets a finished section exit, after yt-dlp renamed its part and before it quit", async () => {
+    // Between the rename of `source.mp4.part` to `source.mp4` and the exit,
+    // the parts read as nothing (46-94 ms, measured on this host). Judged on
+    // that, a finished, on-pace section was killed as slow, deleted, and the
+    // whole video fetched instead.
+    fakeDownloader(async (child) => {
+      await put("source.mp4.part", 900);
+      await measurements(4);
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- this test's own temp directory
+      await rename(join(dir, "source.mp4.part"), output);
+      // Past the warm-up, several looks at a directory with no parts in it.
+      await measurements(5);
+      await child.exit(0);
+    });
+    await download({
+      binary: "yt-dlp",
+      url: URL,
+      outputPath: output,
+      limits: { ...LIMITS, maxBytes: 10_000 },
+      section: { startMs: 0, endMs: 60_000 },
+      pace: { mediaMs: 60_000, expectedBytes: 1_000, minRealtime: 2, startupMs: 0, warmupMs: 20 },
+      sizeCheckIntervalMs: 10,
+    });
+  });
+
+  it("judges the pace by ffmpeg's own time= when it prints one", async () => {
+    // One byte of an estimated thousand is 60 ms of video by the average
+    // bitrate, and slow; ffmpeg says 50 s have been written, which is not.
+    fakeDownloader(async (child) => {
+      await put("source.mp4.part", 1);
+      for (let tick = 0; tick < 5; tick += 1) {
+        child.stderr.write(
+          "frame= 1500 fps=250 q=-1.0 size=       1KiB time=00:00:50.00 bitrate=   0.0kbits/s speed=8.3x\r",
+        );
+        await measurements(1);
+      }
+      await put("source.mp4", 1);
+      await child.exit(0);
+    });
+    await download({
+      binary: "yt-dlp",
+      url: URL,
+      outputPath: output,
+      limits: LIMITS,
+      section: { startMs: 0, endMs: 60_000 },
+      pace: { mediaMs: 60_000, expectedBytes: 1_000, minRealtime: 2, startupMs: 0, warmupMs: 20 },
+      sizeCheckIntervalMs: 10,
+    });
+  });
+
+  it("starts the pace clock when the download starts, not while yt-dlp is still extracting", async () => {
+    // Extraction, and YouTube's challenge solving with it, can take longer
+    // than a short section's whole allowance (here 220 ms from the start).
+    fakeDownloader(async (child) => {
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      child.stdout.write(`[download] Destination: ${output}\n`);
+      await put("source.mp4", 1);
+      await child.exit(0);
+    });
+    await download({
+      binary: "yt-dlp",
+      url: URL,
+      outputPath: output,
+      limits: LIMITS,
+      section: { startMs: 0, endMs: 40 },
+      pace: { mediaMs: 40, expectedBytes: null, minRealtime: 2, startupMs: 200 },
+      sizeCheckIntervalMs: 10,
+    });
+  });
+
+  it("stops a download once the scratch volume is below its reserve", async () => {
+    let child: FakeChild | undefined;
+    fakeDownloader(async (started) => {
+      child = started;
+      started.stdout.write("[info] x: Downloading 1 time ranges: 0.0-60.0\n");
+      // ffmpeg's stats, a few a second for as long as it runs: kept, they
+      // would be all the operator's detail showed.
+      for (let tick = 0; tick < 50; tick += 1) {
+        started.stderr.write(
+          `frame= ${String(tick)} fps=30 q=-1.0 size=  1KiB time=00:00:0${String(tick % 10)}.00 bitrate=1.0kbits/s speed=1x\r`,
+        );
+      }
+      await put("source.f137.mp4.part", 10);
+    });
+    const error = await failure(
+      download({
+        binary: "yt-dlp",
+        url: URL,
+        outputPath: output,
+        limits: LIMITS,
+        lowDisk: async () => true,
+        sizeCheckIntervalMs: 10,
+      }),
+    );
+    expect(error).toMatchObject({
+      code: "media/disk_full",
+      retryable: true,
+      reason: "media/source_failed",
+    });
+    expect(child?.signals).toContain("SIGTERM");
+    expect(error.detail).toContain("Downloading 1 time ranges");
+    expect(error.detail).not.toContain("frame=");
+  });
+
+  it("reads ffmpeg's 429 under a section download as a block, as the process prints it", async () => {
+    fakeDownloader(async (child) => {
+      child.stdout.write(`[download] Destination: ${output}\n`);
+      for (let tick = 0; tick < 30; tick += 1) {
+        child.stderr.write(
+          `frame= ${String(tick)} fps=30 q=-1.0 size=  1KiB time=00:00:0${String(tick % 10)}.00 bitrate=1.0kbits/s speed=1x\r`,
+        );
+      }
+      child.stderr.write("[https @ 000001d3c4a8f2c0] HTTP error 429 Too Many Requests\n");
+      child.stderr.write("ERROR: ffmpeg exited with code 1\n");
+      await child.exit(1);
+    });
+    const error = await failure(
+      download({
+        binary: "yt-dlp",
+        url: URL,
+        outputPath: output,
+        limits: LIMITS,
+        section: { startMs: 0, endMs: 60_000 },
+      }),
+    );
+    expect(error).toMatchObject({ reason: "media/source_blocked", retryable: false });
+    expect(error.detail).toContain("HTTP error 429");
+  });
+
+  it("says how many bytes it had when it killed a download for the cap", async () => {
+    fakeDownloader(async () => {
+      await put("source.f625.mp4.part", 1_200);
+    });
+    const error = await failure(
+      download({
+        binary: "yt-dlp",
+        url: URL,
+        outputPath: output,
+        limits: LIMITS,
+        sizeCheckIntervalMs: 10,
+      }),
+    );
+    expect(error.facts).toEqual({ approximateBytes: 1_200, maxBytes: 1_000 });
+  });
+});
+
+describe("probeSource with a window", () => {
+  /** Three hours; the real bitrates of youtube 5eW6Eagr9XA. */
+  const THREE_HOURS = {
+    id: "x",
+    title: "A long talk",
+    extractor_key: "Youtube",
+    duration: 3 * 60 * 60,
+    formats: [
+      { format_id: "140", vcodec: "none", acodec: "mp4a.40.2", ext: "m4a", tbr: 129.476 },
+      { format_id: "137", vcodec: "avc1.640028", acodec: "none", width: 1920, height: 1080, tbr: 1262.937 },
+      { format_id: "401", vcodec: "av01.0.12M.08", acodec: "none", width: 3840, height: 2160, tbr: 3994.581 },
+    ],
+  };
+  /** The 12-hour source ceiling a window job carries, and a large plan's bytes. */
+  const WINDOWED: AcquireLimits = {
+    maxBytes: 8 * 1024 ** 3,
+    maxDurationMs: 12 * 60 * 60 * 1000,
+    timeoutMs: 40 * 60 * 1000,
+  };
+
+  function probeReturning(dump: Record<string, unknown>): void {
+    fakeDownloader(async (child) => {
+      child.stdout.write(JSON.stringify(dump));
+      await child.exit(0);
+    });
+  }
+
+  it("plans a section of a long source, and budgets the bytes for the section alone", async () => {
+    // Twenty minutes of the three hours: 4K fits (619 MB) where the whole
+    // video in 4K (5.6 GB) would not arrive in time, so the section is 4K and
+    // the whole-file fallback is 1080p.
+    probeReturning(THREE_HOURS);
+    const metadata = await probeSource({
+      binary: "yt-dlp",
+      url: URL,
+      limits: WINDOWED,
+      window: { maxMs: 1_200_000, policy: "first" },
+    });
+    expect(metadata.section).toEqual({
+      startMs: 0,
+      endMs: 1_200_000,
+      sourceDurationMs: 10_800_000,
+      policy: "first",
+    });
+    expect(metadata.formatSelector).toBe("401+140");
+    expect(metadata.wholeFormatSelector).toBe("137+140");
+    expect(metadata.approximateBytes).toBeGreaterThan(600_000_000);
+    expect(metadata.approximateBytes).toBeLessThan(650_000_000);
+    expect(metadata.wholeBytes).toBeGreaterThan(1_800_000_000);
+  });
+
+  it("no longer refuses a video longer than the plan's minutes: it takes a window of it", async () => {
+    // The Free plan: 20 minutes, 500 MB. Without a window this is too_long.
+    probeReturning(THREE_HOURS);
+    const free = { maxBytes: 524_288_000, maxDurationMs: 1_200_000, timeoutMs: 40 * 60 * 1000 };
+    const refused = await failure(probeSource({ binary: "yt-dlp", url: URL, limits: free }));
+    expect(refused).toMatchObject({
+      reason: "media/too_long",
+      facts: { durationMs: 10_800_000, maxDurationMs: 1_200_000 },
+    });
+    probeReturning(THREE_HOURS);
+    const metadata = await probeSource({
+      binary: "yt-dlp",
+      url: URL,
+      limits: { ...free, maxDurationMs: WINDOWED.maxDurationMs },
+      window: { maxMs: 1_200_000, policy: "first" },
+    });
+    // 1080p H.264 of twenty minutes is 209 MB, inside the Free plan's bytes.
+    expect(metadata.formatSelector).toBe("137+140");
+    expect(metadata.approximateBytes).toBeLessThan(524_288_000 * 0.9);
+  });
+
+  it("centres the section on the heatmap's peak", async () => {
+    probeReturning({
+      ...THREE_HOURS,
+      heatmap: [
+        { start_time: 0, end_time: 108, value: 0.3 },
+        { start_time: 5_400, end_time: 5_508, value: 1 },
+      ],
+    });
+    const metadata = await probeSource({
+      binary: "yt-dlp",
+      url: URL,
+      limits: WINDOWED,
+      window: { maxMs: 1_200_000, policy: "most_replayed" },
+    });
+    // Peak centred at 1:30:54; twenty minutes around it.
+    expect(metadata.section).toMatchObject({
+      startMs: 5_454_000 - 600_000,
+      endMs: 5_454_000 + 600_000,
+      policy: "most_replayed",
+    });
+    expect(metadata.replayedPeakMs).toBe(5_454_000);
+  });
+
+  it("plans nothing for a source that fits the window", async () => {
+    probeReturning({ ...THREE_HOURS, duration: 600 });
+    const metadata = await probeSource({
+      binary: "yt-dlp",
+      url: URL,
+      limits: WINDOWED,
+      window: { maxMs: 1_200_000, policy: "first" },
+    });
+    expect(metadata.section).toBeNull();
+    expect(metadata.wholeFormatSelector).toBe(metadata.formatSelector);
+  });
+
+  it("passes the JavaScript runtime to the metadata step", async () => {
+    const { calls } = fakeDownloader(async (child) => {
+      child.stdout.write(JSON.stringify(THREE_HOURS));
+      await child.exit(0);
+    });
+    await probeSource({
+      binary: "yt-dlp",
+      url: URL,
+      limits: WINDOWED,
+      jsRuntime: "C:/Program Files/nodejs/node.exe",
+    });
+    const args = calls[0] ?? [];
+    expect(args[args.indexOf("--js-runtimes") + 1]).toBe("node:C:/Program Files/nodejs/node.exe");
   });
 });

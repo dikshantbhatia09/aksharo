@@ -1,8 +1,11 @@
-import { UnrecoverableError } from "bullmq";
+import { DelayedError, UnrecoverableError } from "bullmq";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { AlertSender } from "./alert.js";
 import { CallbackClient } from "./callbacks.js";
+import { DISK_HOLD_MAX_MS, DISK_RETRY_DELAY_MS, DiskGuard } from "./disk.js";
 import { MediaJobError, sourceRefused, transientFailure, unreadableMedia } from "./errors.js";
+import { logger } from "./logger.js";
 import { Heartbeat, MIN_PROGRESS_POST_MS, makeHandler } from "./runtime.js";
 
 import type { Services } from "./runtime.js";
@@ -744,6 +747,45 @@ describe("makeHandler on media.acquire", () => {
     });
   });
 
+  it("sends a refusal's numbers with it, so the page can say what they were", async () => {
+    const handler = makeHandler(
+      "media.acquire",
+      async () => {
+        throw sourceRefused("media/too_long", "longer than your plan allows", undefined, {
+          durationMs: 2_077_000,
+          maxDurationMs: 1_200_000,
+        });
+      },
+      h.services,
+      new AbortController().signal,
+    );
+    await expect(handler(fakeJob(acquireEnvelope(), 0, 2, "media.acquire"))).rejects.toBeInstanceOf(
+      UnrecoverableError,
+    );
+    const completion = h.calls.find((call) => call.path.endsWith("/complete"));
+    expect(completion?.body).toMatchObject({
+      error: {
+        code: "media/too_long",
+        retryable: false,
+        facts: { durationMs: 2_077_000, maxDurationMs: 1_200_000 },
+      },
+    });
+  });
+
+  it("sends no facts at all for a failure that has none", async () => {
+    const handler = makeHandler(
+      "media.acquire",
+      async () => {
+        throw sourceRefused("media/source_private", "that video is private or needs a sign-in");
+      },
+      h.services,
+      new AbortController().signal,
+    );
+    await expect(handler(fakeJob(acquireEnvelope(), 0, 2, "media.acquire"))).rejects.toThrow();
+    const completion = h.calls.find((call) => call.path.endsWith("/complete"));
+    expect(completion?.body["error"]).not.toHaveProperty("facts");
+  });
+
   it("says the download failed, not the probe, when a failure brings no reason", async () => {
     // Anything unnamed from acquisition — a store error, an ENOENT — used to
     // reach the user as `media/probe_failed`.
@@ -794,6 +836,272 @@ describe("makeHandler on media.acquire", () => {
     );
     expect(h.calls.some((call) => call.path.startsWith("/internal/media/"))).toBe(false);
     expect(h.calls.some((call) => call.path.endsWith("/complete"))).toBe(true);
+  });
+});
+
+describe("makeHandler and the disk", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  const GIB = 1024 ** 3;
+  /** A volume with `free` bytes left, as statfs reports it. */
+  const disk = (free: number, minFreeBytes = 5 * GIB): DiskGuard =>
+    new DiskGuard({
+      path: "D:/scratch",
+      minFreeBytes,
+      statfs: async () => ({ bavail: Math.floor(free / 4096), bsize: 4096 }),
+    });
+  const proxyEnvelope = (): Record<string, unknown> =>
+    envelope({
+      jobKey: `media.proxy:${MEDIA}`,
+      payload: { mediaId: MEDIA, key: `${PREFIX}/raw.mp4`, durationMs: 3 * 60 * 60 * 1000 },
+    });
+  /** A job BullMQ can move back to its delayed set. */
+  const delayable = (
+    data: unknown,
+    queueName: string,
+  ): Job & { moveToDelayed: ReturnType<typeof vi.fn> } => {
+    const job = fakeJob(data, 0, 3, queueName) as Job & { moveToDelayed: ReturnType<typeof vi.fn> };
+    job.moveToDelayed = vi.fn(async () => undefined);
+    return job;
+  };
+
+  it("holds a job that would not fit, for a minute, without an attempt or a word to the API", async () => {
+    // 1.6 GB free — the production volume on 2026-09-27 — against the 5 GiB floor.
+    const warn = vi.spyOn(logger, "warn").mockImplementation(() => undefined);
+    const processor = vi.fn(async () => ({ result: {} }));
+    const handler = makeHandler(
+      "media.proxy",
+      processor,
+      { ...h.services, disk: disk(1.6e9) },
+      new AbortController().signal,
+    );
+    const job = delayable(proxyEnvelope(), "media.proxy");
+    const before = Date.now();
+    await expect(handler(job, "lock-token")).rejects.toBeInstanceOf(DelayedError);
+
+    expect(processor).not.toHaveBeenCalled();
+    // Not even the pickup: the row stays `queued`, which is the truth.
+    expect(h.calls).toEqual([]);
+    const [until, token] = job.moveToDelayed.mock.calls[0] ?? [];
+    expect(token).toBe("lock-token");
+    expect(Number(until) - before).toBeGreaterThanOrEqual(DISK_RETRY_DELAY_MS);
+    expect(warn.mock.calls[0]?.[1]).toMatchObject({
+      freeBytes: expect.any(Number),
+      requiredBytes: expect.any(Number),
+    });
+    warn.mockRestore();
+  });
+
+  it("runs the job when there is room", async () => {
+    const processor = vi.fn(async () => ({ result: { ok: true } }));
+    const handler = makeHandler(
+      "media.proxy",
+      processor,
+      { ...h.services, disk: disk(100 * GIB) },
+      new AbortController().signal,
+    );
+    const job = delayable(proxyEnvelope(), "media.proxy");
+    await expect(handler(job, "lock-token")).resolves.toEqual({ ok: true });
+    expect(job.moveToDelayed).not.toHaveBeenCalled();
+  });
+
+  it("holds a three-hour proxy for its own scratch and the reserve, not for the acquisition floor", async () => {
+    // A three-hour proxy writes about 3 GB: with the 1 GiB reserve after it,
+    // 4.1 GB. 3.5 GB free holds it; 6 GB — under three times its scratch, but
+    // room for it and the reserve — runs it.
+    vi.spyOn(logger, "warn").mockImplementation(() => undefined);
+    const processor = vi.fn(async () => ({ result: {} }));
+    const held = makeHandler(
+      "media.proxy",
+      processor,
+      { ...h.services, disk: disk(3.5e9) },
+      new AbortController().signal,
+    );
+    await expect(held(delayable(proxyEnvelope(), "media.proxy"), "t")).rejects.toBeInstanceOf(
+      DelayedError,
+    );
+    const runs = makeHandler(
+      "media.proxy",
+      processor,
+      { ...h.services, disk: disk(6e9) },
+      new AbortController().signal,
+    );
+    await runs(delayable(proxyEnvelope(), "media.proxy"), "t");
+    expect(processor).toHaveBeenCalledTimes(1);
+  });
+
+  it("starts a short proxy on a volume too low for an acquisition", async () => {
+    // 1.6 GB free — below the 5 GiB an acquisition needs, above the 1 GiB
+    // reserve. Holding every upload's proxy for 5 GiB stopped them all.
+    vi.spyOn(logger, "warn").mockImplementation(() => undefined);
+    const processor = vi.fn(async () => ({ result: {} }));
+    const proxy = makeHandler(
+      "media.proxy",
+      processor,
+      { ...h.services, disk: disk(1.6e9) },
+      new AbortController().signal,
+    );
+    await proxy(
+      delayable(
+        envelope({ payload: { mediaId: MEDIA, key: `${PREFIX}/raw.mp4`, durationMs: 60_000 } }),
+        "media.proxy",
+      ),
+      "t",
+    );
+    expect(processor).toHaveBeenCalledTimes(1);
+
+    const acquire = makeHandler(
+      "media.acquire",
+      processor,
+      { ...h.services, disk: disk(1.6e9) },
+      new AbortController().signal,
+    );
+    await expect(
+      acquire(delayable(envelope({ jobKey: `media.acquire:${MEDIA}` }), "media.acquire"), "t"),
+    ).rejects.toBeInstanceOf(DelayedError);
+    expect(processor).toHaveBeenCalledTimes(1);
+  });
+
+  it("still ends a held job as delayed when BullMQ cannot move it, spending no attempt", async () => {
+    // The lock lost, the job no longer active: an ordinary throw here was a
+    // failed attempt the API never heard of.
+    vi.spyOn(logger, "warn").mockImplementation(() => undefined);
+    const error = vi.spyOn(logger, "error").mockImplementation(() => undefined);
+    const handler = makeHandler(
+      "media.proxy",
+      vi.fn(async () => ({ result: {} })),
+      { ...h.services, disk: disk(1e9) },
+      new AbortController().signal,
+    );
+    const job = delayable(proxyEnvelope(), "media.proxy");
+    job.moveToDelayed.mockRejectedValueOnce(new Error("Missing lock for job bull-1. moveToDelayed"));
+    await expect(handler(job, "t")).rejects.toBeInstanceOf(DelayedError);
+    expect(h.calls).toEqual([]);
+    expect(String(error.mock.calls[0]?.[0])).toMatch(/delayed set/);
+  });
+
+  it("says a job is waiting at most every ten minutes, not every minute", async () => {
+    const warn = vi.spyOn(logger, "warn").mockImplementation(() => undefined);
+    const handler = makeHandler(
+      "media.proxy",
+      vi.fn(async () => ({ result: {} })),
+      { ...h.services, disk: disk(1e9) },
+      new AbortController().signal,
+    );
+    const job = delayable(proxyEnvelope(), "media.proxy");
+    for (let pass = 0; pass < 3; pass += 1) {
+      await expect(handler(job, "t")).rejects.toBeInstanceOf(DelayedError);
+    }
+    const holds = warn.mock.calls.filter(([message]) => String(message).includes("not enough free disk"));
+    expect(holds).toHaveLength(1);
+  });
+
+  it("records when a job began to wait, and fails it once it has waited six hours", async () => {
+    // Without a bound, a job whose run was long over cycled every minute
+    // until the disk was freed, and one that could never fit, forever.
+    vi.spyOn(logger, "warn").mockImplementation(() => undefined);
+    vi.spyOn(logger, "error").mockImplementation(() => undefined);
+    const handler = makeHandler(
+      "media.proxy",
+      vi.fn(async () => ({ result: {} })),
+      { ...h.services, disk: disk(1e9) },
+      new AbortController().signal,
+    );
+    const job = delayable(proxyEnvelope(), "media.proxy");
+    const before = Date.now();
+    await expect(handler(job, "t")).rejects.toBeInstanceOf(DelayedError);
+    const since = (job.data as Record<string, unknown>)["diskHeldSince"];
+    expect(Number(since)).toBeGreaterThanOrEqual(before);
+    expect(h.calls).toEqual([]);
+
+    (job.data as Record<string, unknown>)["diskHeldSince"] = Date.now() - DISK_HOLD_MAX_MS - 1;
+    await expect(handler(job, "t")).rejects.toBeInstanceOf(UnrecoverableError);
+    const complete = h.calls.find((call) => call.path.endsWith("/complete"));
+    expect(complete?.body).toMatchObject({
+      status: "failed",
+      error: { code: "worker/disk_full", retryable: false },
+    });
+    expect(h.calls.find((call) => call.path.startsWith("/internal/media/"))?.body).toMatchObject({
+      status: "failed",
+    });
+  });
+
+  it("alerts the operator about waiting jobs at most once an hour", async () => {
+    vi.spyOn(logger, "warn").mockImplementation(() => undefined);
+    const fetchImpl = vi.fn(async () => new Response("{}", { status: 200 }));
+    const alerts = new AlertSender(
+      new URL("https://ntfy.test/aksharo-ops"),
+      fetchImpl as unknown as typeof globalThis.fetch,
+    );
+    const handler = makeHandler(
+      "media.proxy",
+      vi.fn(async () => ({ result: {} })),
+      { ...h.services, disk: disk(1e9), alerts },
+      new AbortController().signal,
+    );
+    for (let pass = 0; pass < 3; pass += 1) {
+      await expect(handler(delayable(proxyEnvelope(), "media.proxy"), "t")).rejects.toBeInstanceOf(
+        DelayedError,
+      );
+    }
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    const init = (fetchImpl.mock.calls[0] as unknown as [URL, RequestInit])[1];
+    expect(init.headers).toMatchObject({ Priority: "high" });
+    expect(String(init.body)).toMatch(/media\.proxy/);
+  });
+
+  it("hands the processor the disk guard, for the size it learns only once it runs", async () => {
+    const guard = disk(100 * GIB);
+    let seen: unknown;
+    const handler = makeHandler(
+      "media.proxy",
+      async (context) => {
+        seen = context.disk;
+        return { result: {} };
+      },
+      { ...h.services, disk: guard },
+      new AbortController().signal,
+    );
+    await handler(delayable(proxyEnvelope(), "media.proxy"), "t");
+    expect(seen).toBe(guard);
+  });
+
+  it("delivers an earlier attempt's result on a full disk, which that needs none of", async () => {
+    const processor = vi.fn(async () => ({ result: {} }));
+    const handler = makeHandler(
+      "media.proxy",
+      processor,
+      { ...h.services, disk: disk(0) },
+      new AbortController().signal,
+    );
+    const job = delayable(
+      {
+        ...proxyEnvelope(),
+        pendingOutcome: {
+          attemptId: ATTEMPT,
+          completion: { status: "succeeded", result: { delivered: true } },
+        },
+      },
+      "media.proxy",
+    );
+    await expect(handler(job, "t")).resolves.toEqual({ delivered: true });
+    expect(job.moveToDelayed).not.toHaveBeenCalled();
+    expect(processor).not.toHaveBeenCalled();
+  });
+
+  it("never holds a probe, which writes nothing", async () => {
+    const processor = vi.fn(async () => ({ result: {} }));
+    const handler = makeHandler(
+      "media.probe",
+      processor,
+      { ...h.services, disk: disk(0) },
+      new AbortController().signal,
+    );
+    await handler(delayable(envelope(), "media.probe"), "t");
+    expect(processor).toHaveBeenCalledTimes(1);
   });
 });
 

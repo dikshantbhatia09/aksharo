@@ -11,13 +11,18 @@
  *
  * `rightsAttested` is never carried: a URL in a query string is not consent.
  */
+import { formatClock, parseClock } from "@/components/repurpose/moment-time";
 import {
+  DETECT_LANGUAGE,
   EMPTY_START_FORM,
   RECOMMENDED_STYLES,
+  startAtMs,
+  type KnownLength,
   type StartFormValue,
 } from "@/components/repurpose/SourceStartForm";
 
 export interface RunSetup {
+  /** A language tag, or `auto` for "Detect automatically". */
   readonly sourceLanguage?: string;
   readonly outputLanguage: string;
   readonly scriptMode: string;
@@ -26,7 +31,12 @@ export interface RunSetup {
   readonly requestedCandidates: number;
   /** The link as sent, for a link run only. */
   readonly link?: string;
+  /** Where its window was asked to start, for a link run given a start. */
+  readonly startMs?: number;
 }
+
+/** The longest source anyone can send (the 12-hour ceiling), with room to spare. */
+const MAX_LENGTH_PARAM_MS = 24 * 60 * 60 * 1000;
 
 const STORAGE_KEY = "aksharo.repurpose.setups";
 /** Enough for anyone's recent runs; the oldest are forgotten first. */
@@ -51,6 +61,7 @@ function readAll(): Remembered {
 
 export function setupOf(value: StartFormValue): RunSetup {
   const link = value.tab === "link" ? value.url.trim() : "";
+  const startMs = startAtMs(value);
   return {
     ...(value.sourceLanguage === undefined ? {} : { sourceLanguage: value.sourceLanguage }),
     outputLanguage: value.outputLanguage,
@@ -59,6 +70,7 @@ export function setupOf(value: StartFormValue): RunSetup {
     method: value.method,
     requestedCandidates: value.requestedCandidates,
     ...(link === "" ? {} : { link }),
+    ...(link === "" || startMs === undefined ? {} : { startMs }),
   };
 }
 
@@ -114,15 +126,36 @@ export function linkFromSourceDisplay(display: string | null | undefined): strin
  * most likely another file, and landing on "Paste a link" made the button's
  * own label untrue. That and the link hold even with no setup remembered in
  * this browser, so they are the two things carried without one.
+ *
+ * `pickStart` is a too-long run's "Pick where to start": the link is kept,
+ * the cursor goes to "Start at", and `lengthMs` (the video's length, from the
+ * refusal) lets the form refuse a start past the end. These hold without a
+ * setup too, since they are about the video, not the setup.
  */
 export function newRunHref(
   setup: RunSetup | undefined,
-  options: { readonly keepLink: boolean; readonly upload?: boolean; readonly link?: string },
+  options: {
+    readonly keepLink: boolean;
+    readonly upload?: boolean;
+    readonly link?: string;
+    readonly pickStart?: boolean;
+    readonly lengthMs?: number;
+  },
 ): string {
   const params = new URLSearchParams();
   if (options.upload === true) params.set("source", "upload");
-  const link = setup?.link ?? options.link;
-  if (options.keepLink && link !== undefined) params.set("url", link);
+  const link = options.keepLink ? (setup?.link ?? options.link) : undefined;
+  if (link !== undefined) params.set("url", link);
+  if (link !== undefined && setup?.startMs !== undefined) {
+    params.set("start", formatClock(setup.startMs));
+  }
+  if (link !== undefined && options.pickStart === true) {
+    params.set("pick", "start");
+    const length = options.lengthMs;
+    if (length !== undefined && Number.isFinite(length) && length > 0) {
+      params.set("len", String(Math.round(length)));
+    }
+  }
   if (setup === undefined) {
     const query = params.toString();
     return query === "" ? "/repurpose/new" : `/repurpose/new?${query}`;
@@ -168,13 +201,18 @@ export function startFormFromParams(
   const n = Number(params.get("n"));
   const lang = params.get("lang");
   const url = params.get("url") ?? "";
+  // Re-formatted from the parsed value, so what the field shows is exactly
+  // what will be sent; anything that is not a time is dropped.
+  const start = parseClock(params.get("start") ?? "");
   return {
     ...EMPTY_START_FORM,
     // A link that came with the URL is what the form is about, whatever else
     // it says; otherwise `source=upload` (a failed upload run) opens that tab.
     tab: url === "" && params.get("source") === "upload" ? "upload" : "link",
     url,
-    sourceLanguage: lang !== null && isLanguageTag(lang) ? lang : fallbackLanguage,
+    startAt: url === "" || start === null ? "" : formatClock(start),
+    sourceLanguage:
+      lang !== null && (lang === DETECT_LANGUAGE || isLanguageTag(lang)) ? lang : fallbackLanguage,
     outputLanguage:
       out !== null && OUTPUT_LANGUAGES.has(out) ? out : EMPTY_START_FORM.outputLanguage,
     scriptMode: script !== null && SCRIPT_MODES.has(script) ? script : EMPTY_START_FORM.scriptMode,
@@ -189,4 +227,23 @@ export function startFormFromParams(
           ? n
           : EMPTY_START_FORM.requestedCandidates,
   };
+}
+
+/**
+ * What `/repurpose/new` knows about the video itself from its query string:
+ * whether it came to pick a start (`pick=start`), and the video's length
+ * (`len`, milliseconds) when the run that sent it learned it — tied to the
+ * link it came with (`url`), since it is that video's length and no other's.
+ * Clamped like everything else here, since anyone can craft the URL.
+ */
+export function startContextFromParams(params: Pick<URLSearchParams, "get">): {
+  readonly focusStartAt: boolean;
+  readonly knownLength?: KnownLength;
+} {
+  const link = params.get("url") ?? "";
+  const focusStartAt = params.get("pick") === "start" && link !== "";
+  const length = Number(params.get("len"));
+  return link !== "" && Number.isInteger(length) && length > 0 && length <= MAX_LENGTH_PARAM_MS
+    ? { focusStartAt, knownLength: { link, durationMs: length } }
+    : { focusStartAt };
 }

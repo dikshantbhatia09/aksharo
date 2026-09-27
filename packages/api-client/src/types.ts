@@ -1307,6 +1307,62 @@ export interface RepurposeRunView {
   variantCount: number;
   createdAt: string;
   updatedAt: string;
+  /**
+   * The video's real title, once the download reported it (2026-09-27). Show it
+   * before `sourceDisplay`, which is only the host and the id. Optional only
+   * because an API older than windows answers without it.
+   */
+  sourceTitle?: string | null;
+  /**
+   * The part of a long video this run processed, in the video's own clock:
+   * "processed 12:10–32:10 of 34:37". Null until the section landed, and for a
+   * video processed whole. Everything else about the run (moments, clips) is on
+   * the processed file's clock, which starts at `startMs`.
+   */
+  window?: RepurposeRunWindow | null;
+  /** The numbers behind `failureCode` while the run is failed; null otherwise. */
+  failureDetail?: RepurposeRunFailureDetail | null;
+  /** `POST .../next-window` has more of the video after this window to process. */
+  nextWindowAvailable?: boolean;
+}
+
+/** Which part of the source a run takes: the most-replayed stretch, the start, or a picked start. */
+export type RepurposeWindowPolicy = "first" | "most_replayed" | "range";
+
+export interface RepurposeRunWindow {
+  startMs: number;
+  endMs: number;
+  sourceDurationMs: number;
+  policy: RepurposeWindowPolicy;
+}
+
+/**
+ * Why a failed run failed, in numbers, for a sentence like "This video is
+ * 34:37; your plan processes 20:00 per video". Every field is optional: each
+ * failure carries the ones it has.
+ */
+export interface RepurposeRunFailureDetail {
+  /** The source's length. */
+  durationMs?: number;
+  /** The length it was held to (the window, or the plan's ceiling). */
+  maxDurationMs?: number;
+  /** The plan's download size cap, and what the smallest usable format would have been. */
+  maxBytes?: number;
+  approximateBytes?: number;
+  /** The part of the video the run was allowed to process. */
+  windowMs?: number;
+  /** The balance, in credits (one decimal). */
+  creditsLeft?: number;
+}
+
+/** `details` on a 402 `repurpose/no_credits` from create or next-window. */
+export interface RepurposeNoCreditsDetails {
+  creditsLeft?: number;
+}
+
+/** `POST /repurpose/runs/{runId}/next-window` — a NEW run over the next part of the video. */
+export interface RepurposeNextWindowResponse {
+  run: RepurposeRunView;
 }
 
 export interface RepurposeRunPage {
@@ -1319,6 +1375,7 @@ export interface CreateRepurposeRunRequest {
     | { kind: "url"; url: string; rightsAttested: true }
     | { kind: "upload"; filename: string; mime: string; sizeBytes: number; contentHash?: string };
   setup: {
+    /** A language tag, or `"auto"` to let the transcription detect it (the clips default). */
     sourceLanguage: string;
     caption: {
       outputLanguage?: "same" | string;
@@ -1332,6 +1389,12 @@ export interface CreateRepurposeRunRequest {
       maxDurationMs?: number;
       contentGoal?: "reach" | "education" | "authority" | "engagement";
     };
+    /**
+     * Which part of a long link to process. A `startMs` is a picked start
+     * (`range`); without one the run takes the most-replayed stretch, or the
+     * start. The length is the plan's window, never the caller's.
+     */
+    window?: { startMs?: number; policy?: RepurposeWindowPolicy };
   };
   title?: string;
 }

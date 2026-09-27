@@ -25,6 +25,7 @@ import {
   sourceRawPurged,
   stalledCode,
 } from "./clip-state.js";
+import { STAGE_OF_FAILURE } from "./failure-codes.js";
 import { awaitingFaceDetection, loadFaceTrack, reframeFromTrack } from "./reframe.js";
 import {
   CLIP_HANDLE_MS,
@@ -258,8 +259,9 @@ export class RepurposeClipsService {
       return this.itemFor(run, existingClip.id);
     }
 
+    // The source is checked before the budget is spent: a refusal costs nothing.
+    const media = await this.sourceForCut(run);
     await this.consumeRunBudget(run.id);
-    const media = await this.requireSourceMedia(run);
 
     let clip: RepurposeClip;
     let created = false;
@@ -281,7 +283,11 @@ export class RepurposeClipsService {
 
     let outcome: "cutting" | "waiting";
     try {
-      outcome = await this.enqueueCut(run, clip, candidate, media);
+      // A source still being prepared (moments can be ready before its video
+      // encode is, W5): the clip waits, and the reconcile cuts it once the
+      // media is ready and its face track has been asked for.
+      outcome =
+        media === "preparing" ? "waiting" : await this.enqueueCut(run, clip, candidate, media);
     } catch (error) {
       // Only a row this call made: a refused cut must not leave a clip that
       // looks like it is on its way.
@@ -343,10 +349,13 @@ export class RepurposeClipsService {
       );
     }
 
+    const media = await this.sourceForCut(run);
     await this.consumeRunBudget(run.id);
-    const media = await this.requireSourceMedia(run);
     await this.releaseStalledCut(run, latest);
-    if ((await this.enqueueCut(run, clip, clip.candidate, media)) === "waiting") {
+    if (
+      media === "preparing" ||
+      (await this.enqueueCut(run, clip, clip.candidate, media)) === "waiting"
+    ) {
       await this.markCutRequested(clip.id);
     }
     await this.advanceRun(run);
@@ -392,7 +401,11 @@ export class RepurposeClipsService {
 
     const enqueued: string[] = [];
     const media = owed.length === 0 ? undefined : await this.cuttableSource(run);
-    if (media !== undefined) {
+    if (media === "failed") {
+      await this.failRunOnDeadSource(run, clips);
+      return { enqueued };
+    }
+    if (media !== undefined && media !== "preparing") {
       for (const clip of owed) {
         try {
           if ((await this.enqueueCut(run, clip, clip.candidate, media)) === "waiting") break;
@@ -411,14 +424,21 @@ export class RepurposeClipsService {
   }
 
   /**
-   * {@link requireSourceMedia} for a background pass, which has nobody to
-   * answer. A purged original is expected, not alarming — its waiting clips
+   * {@link sourceForCut} for a background pass, which has nobody to answer.
+   * A source still being prepared is expected (the pass runs every few seconds
+   * through a long encode), and so is a purged original — its waiting clips
    * already read `failed` (`clipStateOf`) — so only anything else is logged.
+   * `"failed"`: the source failed its preparation, and no clip will ever be cut.
    */
-  private async cuttableSource(run: RepurposeRun): Promise<MediaAsset | undefined> {
+  private async cuttableSource(
+    run: RepurposeRun,
+  ): Promise<MediaAsset | "preparing" | "failed" | undefined> {
     try {
-      return await this.requireSourceMedia(run);
+      return await this.sourceForCut(run);
     } catch (error) {
+      if (error instanceof AppException && error.code === REPURPOSE_CLIP_ERRORS.sourceFailed) {
+        return "failed";
+      }
       if (!(error instanceof AppException && error.code === REPURPOSE_CLIP_ERRORS.sourceExpired)) {
         this.logger.warn(
           { runId: run.id, err: error },
@@ -426,6 +446,36 @@ export class RepurposeClipsService {
         );
       }
       return undefined;
+    }
+  }
+
+  /**
+   * A run with moments whose source then failed its preparation (its proxy
+   * failed after an early transcription found the moments, W5) and that has
+   * no clip to show: nothing will ever be cut, so it fails as a video that
+   * could not be prepared, rather than leave its clips waiting for good. The
+   * run's "Try again" fetches a link again; an upload has to be uploaded
+   * again. A run with a clip already made keeps it.
+   */
+  private async failRunOnDeadSource(
+    run: RepurposeRun,
+    clips: readonly RepurposeClip[],
+  ): Promise<void> {
+    if (clips.some((clip) => clip.mezzanineKey !== null)) return;
+    if (run.status !== "candidates_ready" && run.status !== "materializing") return;
+    const next = {
+      status: "failed" as const,
+      failureCode: "repurpose/processing_failed",
+      currentStage: STAGE_OF_FAILURE.processing,
+      completedAt: new Date(),
+    };
+    const { count } = await this.prisma.repurposeRun.updateMany({
+      where: { id: run.id, status: run.status },
+      data: next,
+    });
+    if (count > 0) {
+      this.logger.warn({ runId: run.id }, "the run's source failed after its moments; run failed");
+      await this.publishStage({ ...run, ...next });
     }
   }
 
@@ -880,11 +930,28 @@ export class RepurposeClipsService {
    * with its original still stored — `media.clip` reads the raw file, which
    * the retention sweep deletes seven days after the last job (D47).
    */
-  private async requireSourceMedia(run: RepurposeRun): Promise<MediaAsset> {
+  private async sourceForCut(run: RepurposeRun): Promise<MediaAsset | "preparing"> {
     const media = await this.prisma.mediaAsset.findFirst({
       where: { projectId: run.sourceProjectId, role: "primary" },
       orderBy: { createdAt: "desc" },
     });
+    if (media?.status === "failed") {
+      throw new AppException(
+        REPURPOSE_CLIP_ERRORS.sourceFailed,
+        "This video could not be prepared, so no clips can be cut from it.",
+        HttpStatus.CONFLICT,
+      );
+    }
+    // Stored and still being probed or encoded: moments can be ready before
+    // the video is (W5), and a clip asked for then waits, not refused.
+    if (
+      media !== null &&
+      media.storageKey !== "" &&
+      media.rawPurgedAt === null &&
+      (media.status === "uploaded" || media.status === "probing")
+    ) {
+      return "preparing";
+    }
     if (media === null || media.status !== "ready" || media.storageKey === "") {
       throw new AppException(
         REPURPOSE_CLIP_ERRORS.runNotReady,

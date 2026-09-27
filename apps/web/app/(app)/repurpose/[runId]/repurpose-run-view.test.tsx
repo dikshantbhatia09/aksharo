@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RepurposeRunView } from "./repurpose-run-view";
 
-import { rememberRunSetup } from "@/components/repurpose/run-setup";
+import { recallRunSetup, rememberRunSetup } from "@/components/repurpose/run-setup";
 import { RECOMMENDED_STYLES } from "@/components/repurpose/SourceStartForm";
 import { renderWithProviders } from "@/test/harness";
 import { routerMock } from "@/test/next-router";
@@ -624,8 +624,10 @@ describe("<RepurposeRunView /> clips, one state each", () => {
 
     const waiting = await screen.findByTestId("clip-state-01CANDW");
     expect(waiting).toHaveAttribute("data-state", "waiting");
-    // The plan's lane being full is not an error, and needs no button.
-    expect(waiting).toHaveTextContent("Waiting for a free slot — it starts on its own.");
+    // The plan's lane being full is not an error, and needs no button. (The
+    // sentence also covers waiting for the source's face track, so it names
+    // no slot: `CLIP_STATE_COPY.waiting`.)
+    expect(waiting).toHaveTextContent("Waiting to start — it starts on its own.");
     expect(screen.queryByTestId("create-clip-01CANDW")).toBeNull();
     expect(screen.queryByTestId("retry-clip-01CANDW")).toBeNull();
 
@@ -1155,5 +1157,380 @@ describe("<RepurposeRunView /> the time form stays while it is used", () => {
     await screen.findByTestId("stage-error");
     expect(await screen.findByTestId("add-moment-form")).toBeInTheDocument();
     expect(screen.getByTestId("add-moment-start")).not.toBeDisabled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Plan limits (2026-09-27): a plan limits the minutes a run processes, so a
+// long video's run is about a part of it; a refusal carries its numbers; and
+// the run is titled by the video's real title.
+// ---------------------------------------------------------------------------
+
+const MIN = 60_000;
+const LENGTH = 34 * MIN + 37_000; // 34:37
+const NEXT_RUN_ID = "01JS000000000000000000NEXT";
+
+describe("<RepurposeRunView /> a run over part of a long video", () => {
+  beforeEach(() => {
+    routerMock.push.mockClear();
+  });
+
+  const partRun = run({
+    sourceKind: "youtube_url",
+    sourceDisplay: "youtube.com · kE0oUEzVVes",
+    sourceTitle: "How we ship every day",
+    status: "candidates_ready",
+    currentStage: "finding_clips",
+    message: "Your moments are ready.",
+    candidateCount: 1,
+    window: { startMs: 0, endMs: 20 * MIN, sourceDurationMs: 3 * 60 * MIN, policy: "first" },
+    nextWindowAvailable: true,
+  });
+
+  it("is titled by the video's real title, with where it came from beside it", async () => {
+    renderWithProviders(<RepurposeRunView runId={RUN_ID} />, {
+      routes: { [RUN_PATH]: partRun, ...momentsRoutes([candidate("01CAND1")]) },
+    });
+    expect(await screen.findByTestId("run-title")).toHaveTextContent("How we ship every day");
+    expect(screen.getByTestId("preview-source")).toHaveTextContent("youtube.com · kE0oUEzVVes");
+  });
+
+  it("says which part it processed, and starts the next part as a new run", async () => {
+    const user = userEvent.setup();
+    const styleId = RECOMMENDED_STYLES[0]?.id ?? "";
+    rememberRunSetup(RUN_ID, {
+      sourceLanguage: "auto",
+      outputLanguage: "same",
+      scriptMode: "auto",
+      styleId,
+      method: "ai",
+      requestedCandidates: 5,
+      link: "https://www.youtube.com/watch?v=kE0oUEzVVes",
+      startMs: 0,
+    });
+    const { fetchMock } = renderWithProviders(<RepurposeRunView runId={RUN_ID} />, {
+      routes: { [RUN_PATH]: partRun, ...momentsRoutes([candidate("01CAND1")]) },
+    });
+    onPost(
+      fetchMock,
+      `${RUN_PATH}/next-window`,
+      () =>
+        new Response(JSON.stringify({ run: { ...partRun, id: NEXT_RUN_ID, status: "acquiring" } }), {
+          status: 201,
+          headers: { "content-type": "application/json" },
+        }),
+    );
+
+    expect(await screen.findByTestId("run-window-summary")).toHaveTextContent(
+      "Processed 0:00–20:00 of 3:00:00 (from the start)",
+    );
+    expect(screen.getByTestId("preview-window")).toHaveTextContent("Processed 0:00–20:00");
+    await user.click(screen.getByTestId("run-next-window"));
+
+    await waitFor(() => {
+      expect(routerMock.push).toHaveBeenCalledWith(`/repurpose/${NEXT_RUN_ID}`);
+    });
+    expect(postsTo(fetchMock, `${RUN_PATH}/next-window`)).toHaveLength(1);
+    // The next part keeps this run's setup, with the start the server gave
+    // it (where this part ended), not this run's own start.
+    expect(recallRunSetup(NEXT_RUN_ID)?.styleId).toBe(styleId);
+    expect(recallRunSetup(NEXT_RUN_ID)?.startMs).toBe(20 * MIN);
+  });
+
+  // The API reports a next part as soon as this run's section lands. Started
+  // then, a second run of the same video competes with this one for the one
+  // download at a time and the plan's job slots.
+  it("does not offer the next part while this one is still being worked on", async () => {
+    renderWithProviders(<RepurposeRunView runId={RUN_ID} />, {
+      routes: {
+        [RUN_PATH]: {
+          ...partRun,
+          status: "transcribing",
+          message: "Creating the transcript.",
+          candidateCount: 0,
+        },
+        ...momentsRoutes([]),
+      },
+    });
+    // And it is not "processed" yet.
+    expect(await screen.findByTestId("run-window-summary")).toHaveTextContent(
+      "Processing 0:00–20:00 of 3:00:00 (from the start)",
+    );
+    expect(screen.queryByTestId("run-next-window")).toBeNull();
+  });
+
+  it("names a failed run's part without saying it was processed", async () => {
+    renderWithProviders(<RepurposeRunView runId={RUN_ID} />, {
+      routes: {
+        [RUN_PATH]: {
+          ...partRun,
+          status: "failed",
+          failureCode: "repurpose/no_credits",
+          candidateCount: 0,
+          canCancel: false,
+          canRetry: true,
+        },
+        ...momentsRoutes([]),
+      },
+    });
+    expect(await screen.findByTestId("run-window-summary")).toHaveTextContent(
+      "Part 0:00–20:00 of 3:00:00 (from the start)",
+    );
+    // A stopped run's next part is fair game: nothing competes with it.
+    expect(screen.getByTestId("run-next-window")).toBeInTheDocument();
+  });
+
+  it("promises the plan's window for the next part, not this run's length", async () => {
+    renderWithProviders(<RepurposeRunView runId={RUN_ID} />, {
+      routes: {
+        // This run was cut short (to 10 minutes) by the balance.
+        [RUN_PATH]: {
+          ...partRun,
+          window: { startMs: 0, endMs: 10 * MIN, sourceDurationMs: 3 * 60 * MIN, policy: "first" },
+        },
+        ...momentsRoutes([candidate("01CAND1")]),
+        "/workspaces/01JWORKSPACE/entitlement": {
+          workspaceId: "01JWORKSPACE",
+          planKey: "free",
+          planName: "Free",
+          creditsPerMonthTenths: 200,
+          seatsIncluded: 1,
+          seatsUsed: 1,
+          computedAt: "2026-09-27T10:00:00.000Z",
+          entitlements: { clipsWindowMs: 20 * MIN, flags: {} },
+        },
+      },
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("run-next-window")).toHaveTextContent(
+        "Process the next 20 minutes",
+      );
+    });
+  });
+
+  it("names the next part by what is left when that is less than a whole part", async () => {
+    renderWithProviders(<RepurposeRunView runId={RUN_ID} />, {
+      routes: {
+        [RUN_PATH]: {
+          ...partRun,
+          window: {
+            startMs: 12 * MIN + 10_000,
+            endMs: 32 * MIN + 10_000,
+            sourceDurationMs: LENGTH,
+            policy: "most_replayed",
+          },
+        },
+        ...momentsRoutes([candidate("01CAND1")]),
+      },
+    });
+    expect(await screen.findByTestId("run-window-summary")).toHaveTextContent(
+      "Processed 12:10–32:10 of 34:37 (most replayed)",
+    );
+    expect(screen.getByTestId("run-next-window")).toHaveTextContent("Process the next 2 minutes");
+  });
+
+  it("says plainly when there is nothing after this part", async () => {
+    const user = userEvent.setup();
+    const { fetchMock } = renderWithProviders(<RepurposeRunView runId={RUN_ID} />, {
+      routes: { [RUN_PATH]: partRun, ...momentsRoutes([candidate("01CAND1")]) },
+    });
+    onPost(fetchMock, `${RUN_PATH}/next-window`, () => refusal(409, "repurpose/no_next_window"));
+
+    await user.click(await screen.findByTestId("run-next-window"));
+
+    expect(await screen.findByTestId("run-next-window-error")).toHaveTextContent(
+      "There is nothing after this part of the video.",
+    );
+    expect(routerMock.push).not.toHaveBeenCalled();
+    expect(screen.queryByText("Raw words for developers.")).toBeNull();
+  });
+
+  it("offers no next part when the run says there is none, and no line for a whole video", async () => {
+    const { unmount } = renderWithProviders(<RepurposeRunView runId={RUN_ID} />, {
+      routes: {
+        [RUN_PATH]: { ...partRun, nextWindowAvailable: false },
+        ...momentsRoutes([candidate("01CAND1")]),
+      },
+    });
+    expect(await screen.findByTestId("run-window-summary")).toBeInTheDocument();
+    expect(screen.queryByTestId("run-next-window")).toBeNull();
+    unmount();
+
+    // An API older than windows sends none of these fields.
+    renderWithProviders(<RepurposeRunView runId={RUN_ID} />, {
+      routes: {
+        [RUN_PATH]: run({ sourceKind: "youtube_url", sourceDisplay: "youtube.com · kE0oUEzVVes" }),
+      },
+    });
+    expect(await screen.findByTestId("run-title")).toHaveTextContent("youtube.com · kE0oUEzVVes");
+    expect(screen.queryByTestId("run-window")).toBeNull();
+  });
+});
+
+describe("<RepurposeRunView /> a link longer than the plan processes", () => {
+  beforeEach(() => {
+    routerMock.push.mockClear();
+  });
+
+  // What the probe writes when a fetched file overran its window: the limit
+  // IS the window (`probe.handler.ts`). The realistic way here is an old
+  // downloader that fetched the whole video during a deploy.
+  const tooLong = run({
+    sourceKind: "youtube_url",
+    sourceDisplay: "youtube.com · kE0oUEzVVes",
+    status: "failed",
+    currentStage: "getting_video",
+    failureCode: "repurpose/source_too_long",
+    failureDetail: { durationMs: LENGTH, maxDurationMs: 20 * MIN, windowMs: 20 * MIN },
+    canCancel: false,
+    canRetry: true,
+  });
+
+  it("states the numbers, and processes part of it on one click", async () => {
+    const user = userEvent.setup();
+    const { fetchMock } = renderWithProviders(<RepurposeRunView runId={RUN_ID} />, {
+      routes: { [RUN_PATH]: tooLong },
+    });
+    onPost(
+      fetchMock,
+      `${RUN_PATH}/retry`,
+      () =>
+        new Response(JSON.stringify({ ...tooLong, status: "acquiring", failureCode: null }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+    );
+
+    const card = await screen.findByTestId("stage-error");
+    expect(within(card).getByTestId("stage-error-title")).toHaveTextContent(
+      "This video is 34:37. Your plan processes 20:00 per video.",
+    );
+    const useWindow = within(card).getByTestId("stage-error-use-window");
+    // A retry fetches the part the run asked for; this browser does not know
+    // whether that was a start of its own, so the label promises a length only.
+    expect(useWindow).toHaveTextContent("Process 20 minutes of it");
+    expect(cardPrimaries(card)).toEqual([useWindow]);
+    expect(within(card).getByTestId("stage-error-pick-start")).toBeInTheDocument();
+
+    await user.click(useWindow);
+    await waitFor(() => {
+      expect(postsTo(fetchMock, `${RUN_PATH}/retry`)).toHaveLength(1);
+    });
+  });
+
+  it("says the automatic part when this browser knows the run had no start of its own", async () => {
+    rememberRunSetup(RUN_ID, {
+      sourceLanguage: "auto",
+      outputLanguage: "same",
+      scriptMode: "auto",
+      styleId: RECOMMENDED_STYLES[0]?.id ?? "",
+      method: "ai",
+      requestedCandidates: 5,
+      link: "https://www.youtube.com/watch?v=kE0oUEzVVes",
+    });
+    renderWithProviders(<RepurposeRunView runId={RUN_ID} />, { routes: { [RUN_PATH]: tooLong } });
+    const card = await screen.findByTestId("stage-error");
+    expect(within(card).getByTestId("stage-error-use-window")).toHaveTextContent(
+      "Process 20 minutes of it",
+    );
+    expect(within(card).getByTestId("stage-error-reassurance")).toHaveTextContent(
+      "We take the most-replayed part when YouTube marks one, otherwise the start.",
+    );
+  });
+
+  // The API's retry re-uses the run's own request, so a picked start is
+  // fetched from that start again: "the most-replayed 20 minutes" was untrue.
+  it("says a run given its own start is retried from that start", async () => {
+    rememberRunSetup(RUN_ID, {
+      sourceLanguage: "auto",
+      outputLanguage: "same",
+      scriptMode: "auto",
+      styleId: RECOMMENDED_STYLES[0]?.id ?? "",
+      method: "ai",
+      requestedCandidates: 5,
+      link: "https://www.youtube.com/watch?v=kE0oUEzVVes",
+      startMs: 12 * MIN + 10_000,
+    });
+    renderWithProviders(<RepurposeRunView runId={RUN_ID} />, { routes: { [RUN_PATH]: tooLong } });
+    const card = await screen.findByTestId("stage-error");
+    const useWindow = within(card).getByTestId("stage-error-use-window");
+    expect(useWindow).toHaveTextContent("Process 20 minutes from 12:10");
+    expect(card).not.toHaveTextContent(/most-replayed/);
+    expect(cardPrimaries(card)).toEqual([useWindow]);
+  });
+
+  // What the downloader writes for a video over the 12-hour ceiling: the
+  // ceiling as the limit, no window. No part of it helps.
+  it("offers only another video for a video over the ceiling", async () => {
+    renderWithProviders(<RepurposeRunView runId={RUN_ID} />, {
+      routes: {
+        [RUN_PATH]: {
+          ...tooLong,
+          failureDetail: { durationMs: 13 * 60 * MIN, maxDurationMs: 12 * 60 * MIN },
+        },
+      },
+    });
+    const card = await screen.findByTestId("stage-error");
+    expect(within(card).getByTestId("stage-error-title")).toHaveTextContent(
+      "This video is 13:00:00. Your plan takes videos up to 12 hours long.",
+    );
+    expect(within(card).queryByTestId("stage-error-use-window")).toBeNull();
+    expect(within(card).queryByTestId("stage-error-pick-start")).toBeNull();
+    expect(cardPrimaries(card)).toEqual([within(card).getByTestId("stage-error-choose-another")]);
+  });
+
+  it("offers picking a start as the primary when the too-long run cannot be retried", async () => {
+    renderWithProviders(<RepurposeRunView runId={RUN_ID} />, {
+      routes: { [RUN_PATH]: { ...tooLong, canRetry: false } },
+    });
+    const card = await screen.findByTestId("stage-error");
+    expect(within(card).queryByTestId("stage-error-use-window")).toBeNull();
+    expect(cardPrimaries(card)).toEqual([within(card).getByTestId("stage-error-pick-start")]);
+  });
+
+  // A link's retry fetches the video again, and is refused up front when the
+  // balance does not pay for a minute of it.
+  it("points at the balance when processing part of it is refused for credits", async () => {
+    const user = userEvent.setup();
+    const { fetchMock } = renderWithProviders(<RepurposeRunView runId={RUN_ID} />, {
+      routes: { [RUN_PATH]: tooLong },
+    });
+    onPost(fetchMock, `${RUN_PATH}/retry`, () =>
+      refusal(402, "repurpose/no_credits", { creditsLeft: 0.4 }),
+    );
+
+    await user.click(await screen.findByTestId("stage-error-use-window"));
+
+    expect(await screen.findByTestId("stage-error-retry-error")).toHaveTextContent(
+      "You have 0.4 credits left, which is not enough to process a minute of video.",
+    );
+    expect(screen.getByTestId("stage-error-retry-credits")).toHaveAttribute("href", "/billing");
+    expect(screen.queryByText("Raw words for developers.")).toBeNull();
+  });
+
+  it("opens the same link on 'Start at', with the video's length, to pick where to start", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<RepurposeRunView runId={RUN_ID} />, { routes: { [RUN_PATH]: tooLong } });
+
+    await user.click(await screen.findByTestId("stage-error-pick-start"));
+
+    const href = String(routerMock.push.mock.calls[0]?.[0]);
+    const params = new URL(href, "https://app.test").searchParams;
+    expect(href.startsWith("/repurpose/new?")).toBe(true);
+    expect(params.get("url")).toBe("https://www.youtube.com/watch?v=kE0oUEzVVes");
+    expect(params.get("pick")).toBe("start");
+    expect(params.get("len")).toBe(String(LENGTH));
+  });
+
+  it("offers no part of an upload, which is processed whole", async () => {
+    renderWithProviders(<RepurposeRunView runId={RUN_ID} />, {
+      routes: {
+        [RUN_PATH]: { ...tooLong, sourceKind: "upload", sourceDisplay: null, canRetry: false },
+      },
+    });
+    const card = await screen.findByTestId("stage-error");
+    expect(within(card).queryByTestId("stage-error-use-window")).toBeNull();
+    expect(within(card).queryByTestId("stage-error-pick-start")).toBeNull();
+    expect(cardPrimaries(card)).toEqual([within(card).getByTestId("stage-error-choose-another")]);
   });
 });

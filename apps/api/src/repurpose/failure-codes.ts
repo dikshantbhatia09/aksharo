@@ -80,6 +80,20 @@ const OUT_OF_CREDITS: ReadonlySet<string> = new Set([
  */
 export const TRANSCRIPT_UNTIMED_JOB_CODE = "worker/transcript_untimed";
 
+/**
+ * Job codes that say the work stopped making progress rather than that anything
+ * was wrong with the video: the lease reaper's `jobs/stalled` (a worker died
+ * holding it), the queue's own `jobs/queue_timeout`, and worker-media's
+ * `worker/disk_full` (it waited hours for scratch space). Each reads as a stage
+ * that stalled, whose copy says trying again restarts it - not "we could not
+ * get that video", which blamed the link (2026-09-27).
+ */
+const STALLED_JOB_CODES: ReadonlySet<string> = new Set([
+  "jobs/stalled",
+  "jobs/queue_timeout",
+  "worker/disk_full",
+]);
+
 function sourceReason(code: string | null | undefined): RunFailureCode | undefined {
   if (code === null || code === undefined) return undefined;
   // eslint-disable-next-line security/detect-object-injection -- lookup in a frozen table; an unknown key simply misses
@@ -102,6 +116,16 @@ export function runFailureCode(input: {
   /** `jobs.error.code` of the job that failed, when there is one. */
   readonly jobErrorCode?: string | null;
 }): RunFailureCode {
+  // A stalled job says nothing about the video, unless the worker also named
+  // the source (a refusal it wrote before the lease ran out wins).
+  if (
+    input.jobErrorCode !== null &&
+    input.jobErrorCode !== undefined &&
+    STALLED_JOB_CODES.has(input.jobErrorCode) &&
+    sourceReason(input.mediaReason) === undefined
+  ) {
+    return "repurpose/stage_timeout";
+  }
   switch (input.failedAt) {
     case "acquire":
       // Anything the downloader could not name — a network error after its
@@ -129,6 +153,56 @@ export function runFailureCode(input: {
         ? "repurpose/transcript_untimed"
         : "repurpose/highlights_failed";
   }
+}
+
+/**
+ * The numbers behind a run's failure (2026-09-27), so the page can say "This
+ * video is 34:37; your plan processes 20:00" instead of a bare refusal.
+ *
+ * `durationMs`/`maxDurationMs`: the source's length and the limit it was held
+ * to; `maxBytes`/`approximateBytes`: the size cap and what the smallest
+ * acceptable format would have been; `windowMs`: the part of the source the run
+ * was allowed to process; `creditsLeft`: the balance, in credits (one decimal).
+ */
+export interface RunFailureDetail {
+  readonly durationMs?: number;
+  readonly maxDurationMs?: number;
+  readonly maxBytes?: number;
+  readonly approximateBytes?: number;
+  readonly windowMs?: number;
+  readonly creditsLeft?: number;
+}
+
+export const FAILURE_DETAIL_KEYS = [
+  "durationMs",
+  "maxDurationMs",
+  "maxBytes",
+  "approximateBytes",
+  "windowMs",
+  "creditsLeft",
+] as const satisfies readonly (keyof RunFailureDetail)[];
+
+/**
+ * The part of `facts` a run may keep and show: the known keys, as finite,
+ * non-negative numbers. `facts` comes from a worker (`jobs.error.facts`) or
+ * from our own column, and either way is data, not something to echo: an
+ * unknown key, a string or a negative number is dropped, never passed on.
+ *
+ * @returns null when nothing usable is left.
+ */
+export function failureDetailOf(facts: unknown): RunFailureDetail | null {
+  if (typeof facts !== "object" || facts === null || Array.isArray(facts)) return null;
+  const source = facts as Record<string, unknown>;
+  const detail: Record<string, number> = {};
+  for (const key of FAILURE_DETAIL_KEYS) {
+    // eslint-disable-next-line security/detect-object-injection -- `key` is one of the literals above
+    const value = source[key];
+    if (typeof value === "number" && Number.isFinite(value) && value >= 0) {
+      // eslint-disable-next-line security/detect-object-injection -- as above
+      detail[key] = value;
+    }
+  }
+  return Object.keys(detail).length === 0 ? null : (detail as RunFailureDetail);
 }
 
 /** `jobs.error` is JSON; its `code`, when it has one. */

@@ -42,6 +42,8 @@ export const REPURPOSE_CLIP_ERRORS = {
   clipNotRetryable: "repurpose/clip_not_retryable",
   /** The source's original file has been purged; nothing can be cut from it. */
   sourceExpired: "repurpose/source_expired",
+  /** The source video failed its probe or proxy; nothing can be cut from it. */
+  sourceFailed: "repurpose/source_failed",
   /** More clips or manual moments on one run than any person makes by hand. */
   limitReached: "repurpose/clip_limit",
   /**

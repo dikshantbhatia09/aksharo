@@ -10,6 +10,7 @@ import { AppException } from "../common/errors/error-codes.js";
 import { mediaPrefix } from "../common/storage/storage.keys.js";
 
 import type { PrismaService } from "../common/prisma/prisma.service.js";
+import type { AutoTranscribeTrigger } from "../transcripts/auto-transcribe.trigger.js";
 
 const WS = "01JCWS0000000000000000000A";
 const PROJECT = "01JCPR0JECT000000000000000";
@@ -209,5 +210,45 @@ describe("PATCH /internal/media/{id}", () => {
       subject.patch(MEDIA, parse({ proxyKey: "ws/other/p/x/media/y/proxy540.mp4" }) as never),
     ).rejects.toBeInstanceOf(AppException);
     expect(updateMany).not.toHaveBeenCalled();
+  });
+});
+
+describe("the first transcription on the early audio (W5)", () => {
+  function withTrigger(status: string, reject = false) {
+    const maybeEnqueue = vi.fn(async () => {
+      if (reject) throw new Error("redis down");
+      return { jobId: "01JCJOB0000000000000000000" };
+    });
+    const prisma = {
+      mediaAsset: {
+        findUnique: vi.fn(async () => defaultAsset()),
+        updateMany: vi.fn(async () => ({ count: 1 })),
+        findUniqueOrThrow: vi.fn(async () => ({ status })),
+      },
+    } as unknown as PrismaService;
+    const trigger = { maybeEnqueue } as unknown as AutoTranscribeTrigger;
+    return { controller: new InternalMediaController(prisma, trigger), maybeEnqueue };
+  }
+
+  it("asks for it when the audio key lands on media still being prepared", async () => {
+    const t = withTrigger("probing");
+    await t.controller.patch(MEDIA, parse({ audio16kKey: `${PREFIX}/audio16k.wav` }) as never);
+    expect(t.maybeEnqueue).toHaveBeenCalledWith(MEDIA, { firstAttemptOnly: true });
+  });
+
+  it("does not ask for a patch without the audio key, or on failed media", async () => {
+    const plain = withTrigger("probing");
+    await plain.controller.patch(MEDIA, parse({ durationMs: 1_000 }) as never);
+    expect(plain.maybeEnqueue).not.toHaveBeenCalled();
+    const failed = withTrigger("failed");
+    await failed.controller.patch(MEDIA, parse({ audio16kKey: `${PREFIX}/audio16k.wav` }) as never);
+    expect(failed.maybeEnqueue).not.toHaveBeenCalled();
+  });
+
+  it("never fails the write-back when the ask throws", async () => {
+    const t = withTrigger("probing", true);
+    await expect(
+      t.controller.patch(MEDIA, parse({ audio16kKey: `${PREFIX}/audio16k.wav` }) as never),
+    ).resolves.toEqual({ mediaId: MEDIA, status: "probing" });
   });
 });

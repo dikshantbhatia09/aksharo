@@ -116,6 +116,15 @@ SARVAM_MODES: frozenset[str] = frozenset(
 #: Sarvam speaks BCP-47 with a region; ``unknown`` asks it to auto-detect.
 _AUTO = "unknown"
 
+#: The languages Sarvam's speech-to-text documents, as the base of its
+#: `<code>-IN` language codes.
+_SARVAM_LANGUAGES = frozenset(
+    {"hi", "bn", "kn", "ml", "mr", "od", "pa", "ta", "te", "en", "gu", "as", "ur", "ne"}
+)
+
+#: ISO 639-1 codes Sarvam spells differently.
+_SARVAM_SPELLING = {"or": "od"}
+
 
 class SarvamSaarasProvider(Provider):
     """Saaras v4 via submit / poll / download on the Batch API."""
@@ -379,9 +388,12 @@ def _vendor_language(tag: str | None) -> str:
     normalised = base_tag(tag)
     if not normalised or normalised == "hi-en":
         return _AUTO
-    if normalised == "en":
-        return "en-IN"
-    return normalised + "-IN"
+    code = normalised.split("-")[0]
+    # Sarvam spells Odia `od`, not ISO's `or`; a code outside its documented
+    # set is sent as auto-detect rather than a `<code>-IN` it would refuse (an
+    # auto-detected language can be anything Whisper knows).
+    code = _SARVAM_SPELLING.get(code, code)
+    return code + "-IN" if code in _SARVAM_LANGUAGES else _AUTO
 
 
 def _presigned_url(payload: dict[str, Any], key: str, name: str, provider: str) -> str:

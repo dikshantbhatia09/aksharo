@@ -73,13 +73,17 @@ function harness(overrides: Overrides = {}) {
 
   const findFirstJob = vi.fn(
     async (args: {
-      where: { type?: string | { in?: readonly string[] } };
+      where: { type?: string | { in?: readonly string[] }; status?: { in?: readonly string[] } };
       orderBy?: { queuedAt?: string };
     }) => {
       if (jobs === undefined) return job;
       const filter = args.where.type;
       const types = typeof filter === "string" ? [filter] : (filter?.in ?? []);
-      const matching = jobs.filter((row) => types.includes(row.type));
+      const statuses = args.where.status?.in;
+      const matching = jobs.filter(
+        (row) =>
+          types.includes(row.type) && (statuses === undefined || statuses.includes(row.status)),
+      );
       const ordered = [...matching].sort((a, b) =>
         args.orderBy?.queuedAt === "asc"
           ? a.queuedAt.getTime() - b.queuedAt.getTime()
@@ -307,6 +311,41 @@ describe("TranscriptsService.transcriptionState", () => {
     ).resolves.toEqual({
       status: "failed",
       error: "Media upload or processing timed out. Please try re-uploading the file.",
+    });
+  });
+
+  // W5: the first transcription starts on the audio the proxy writes back ahead
+  // of its video encode, so it can be queued or running while the media still
+  // reads `probing` — for longer than five minutes on a long source.
+  describe("a transcription running while the video is still being prepared (W5)", () => {
+    const EARLY: TypedJobRow = {
+      id: "01EARLY",
+      status: "running",
+      type: "ai.transcribe",
+      queuedAt: new Date("2026-09-27T10:00:00Z"),
+    };
+    const longAgo = new Date(Date.now() - 20 * 60 * 1000);
+
+    it("reports the transcription, not the media, and not a timeout", async () => {
+      await expect(
+        state({ media: { status: "probing", createdAt: longAgo }, jobs: [EARLY] }),
+      ).resolves.toEqual({ status: "running", jobId: "01EARLY" });
+      await expect(
+        state({ media: { status: "probing" }, jobs: [{ ...EARLY, status: "queued" }] }),
+      ).resolves.toEqual({ status: "queued", jobId: "01EARLY" });
+    });
+
+    it("still reports the media when the only transcription has ended", async () => {
+      // A failed early start is not what the screen is waiting on: the video is.
+      await expect(
+        state({ media: { status: "probing" }, jobs: [{ ...EARLY, status: "failed" }] }),
+      ).resolves.toEqual({ status: "processing_media" });
+    });
+
+    it("still reports failed media as failed, whatever is running", async () => {
+      await expect(
+        state({ media: { status: "failed", failureReason: "media/corrupt" }, jobs: [EARLY] }),
+      ).resolves.toEqual({ status: "failed", error: "media/corrupt" });
     });
   });
 

@@ -413,9 +413,35 @@ export const CreateRunRequestSchema = z
         requestedCandidates: z.int().min(0).max(20),
         contentGoal: z.enum(["reach", "education", "authority", "engagement"]),
       }),
+      /**
+       * Which part of a long video to process (2026-09-27): a start the person
+       * picked (`range`), or the policy's own choice. Absent is the most
+       * replayed part. The API's `windowSetupSchema` holds the same rules.
+       */
+      window: z
+        .strictObject({
+          startMs: z.int().min(0).max(43_200_000).optional(),
+          policy: z.enum(["first", "most_replayed", "range"]).optional(),
+        })
+        .optional(),
     }),
   })
   .superRefine((value, context) => {
+    const window = value.setup.window;
+    if (window?.policy === "range" && window.startMs === undefined) {
+      context.addIssue({
+        code: "custom",
+        path: ["setup", "window", "startMs"],
+        message: "A picked part needs its start.",
+      });
+    }
+    if (window?.startMs !== undefined && window.policy !== undefined && window.policy !== "range") {
+      context.addIssue({
+        code: "custom",
+        path: ["setup", "window", "policy"],
+        message: "A start time means the part you picked.",
+      });
+    }
     if (
       value.setup.discovery.mode === "manual" &&
       value.setup.discovery.requestedCandidates !== 0

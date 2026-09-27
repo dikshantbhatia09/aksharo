@@ -26,6 +26,14 @@
  *   * every field error is rendered through `Field`'s own `error` slot and
  *     referenced by `aria-describedby`, so the message reaches a screen reader
  *     attached to the control rather than as a detached alert.
+ *
+ * Two things changed on 2026-09-27 with the plan limits. A plan now limits the
+ * minutes a run processes, not the video's length, so a link has an optional
+ * "Start at": a long video is processed a part at a time, the most-replayed
+ * part unless the person says where to start. And the spoken language starts
+ * on "Detect automatically": the form used to pre-fill it from whatever this
+ * browser last picked on Home, and that hint overrides detection — an English
+ * video went down the paid Hinglish lane because of an unrelated earlier pick.
  */
 import { ChevronRight } from "lucide-react";
 import NextLink from "next/link";
@@ -36,12 +44,28 @@ import { Button, Field, Input, cn } from "@montaj/ui";
 import { PICKABLE_STYLES } from "@/components/editor/panels/system-styles";
 import { LanguagePicker } from "@/components/projects/language-picker";
 import { WritingScriptPicker } from "@/components/projects/writing-script-picker";
+import { DETAIL_COPY } from "@/components/repurpose/copy";
+import { SOURCE_CEILING_MS, formatBytes, spanPhrase } from "@/components/repurpose/failure-detail";
+import { formatClock, parseClock } from "@/components/repurpose/moment-time";
 import { isPlausibleLink, normaliseSourceLink } from "@/components/repurpose/source-link";
+
+/**
+ * The spoken language when the person leaves it to us: the API detects it
+ * from the video (the transcript's own language decides what follows).
+ */
+export const DETECT_LANGUAGE = "auto";
 
 export interface StartFormValue {
   readonly tab: "link" | "upload";
   readonly url: string;
+  /**
+   * Where a long video's window starts, as typed (`m:ss` or `h:mm:ss`); empty
+   * leaves it to the server (the most-replayed part, else the start). Links
+   * only: an upload is processed whole, within the plan's upload limit.
+   */
+  readonly startAt: string;
   readonly file: File | null;
+  /** A language tag, {@link DETECT_LANGUAGE}, or `undefined` while one is still to be picked. */
   readonly sourceLanguage: string | undefined;
   readonly outputLanguage: string;
   readonly scriptMode: string;
@@ -67,8 +91,9 @@ export const DEFAULT_STYLE_ID: string = RECOMMENDED_STYLES[0]?.id ?? "";
 export const EMPTY_START_FORM: StartFormValue = Object.freeze({
   tab: "link",
   url: "",
+  startAt: "",
   file: null,
-  sourceLanguage: undefined,
+  sourceLanguage: DETECT_LANGUAGE,
   outputLanguage: "same",
   scriptMode: "auto",
   styleId: DEFAULT_STYLE_ID,
@@ -96,17 +121,30 @@ const SCRIPT_CHOICE_LANGUAGES = new Set(["same", "hi", "hi-Latn"]);
 
 export interface StartFormProblems {
   readonly url?: string;
+  readonly startAt?: string;
   readonly file?: string;
   readonly sourceLanguage?: string;
   readonly rights?: string;
   readonly style?: string;
 }
 
-/** A plan's file cap as a person reads it: "500 MB", "2 GB". */
-function formatPlanBytes(bytes: number): string {
-  const gb = bytes / (1024 * 1024 * 1024);
-  if (gb >= 1) return `${gb % 1 === 0 ? gb.toFixed(0) : gb.toFixed(1)} GB`;
-  return `${String(Math.round(bytes / (1024 * 1024)))} MB`;
+/**
+ * The typed "Start at" in milliseconds, or `undefined` when there is none to
+ * send: an upload, an empty field, or text that is not a time (which
+ * {@link validateStartForm} refuses before anything is sent).
+ */
+export function startAtMs(value: Pick<StartFormValue, "tab" | "startAt">): number | undefined {
+  if (value.tab !== "link" || value.startAt.trim() === "") return undefined;
+  return parseClock(value.startAt) ?? undefined;
+}
+
+/**
+ * A video's length the page already knows, and the link it belongs to: a
+ * too-long run's "Pick where to start" carries both.
+ */
+export interface KnownLength {
+  readonly link: string;
+  readonly durationMs: number;
 }
 
 /**
@@ -116,10 +154,18 @@ function formatPlanBytes(bytes: number): string {
  * upload over it used to create a run first and only then be refused by the
  * upload itself, leaving a run on "Getting your video" for ever (clips
  * hardening, 2026-09-26); now it is refused here, before anything exists.
+ *
+ * `knownLength` is the video's length when the page already knows it, so a
+ * start past the end is refused at the field rather than by the download. It
+ * holds only while the link is still that video's: replaced by another link,
+ * it would refuse a good start with the wrong video's length. Known or not, a
+ * start at or past the 12-hour ceiling is a typo no video can satisfy, and is
+ * refused here rather than as the API's "something in the form was not
+ * accepted".
  */
 export function validateStartForm(
   value: StartFormValue,
-  limits: { readonly maxFileBytes?: number } = {},
+  limits: { readonly maxFileBytes?: number; readonly knownLength?: KnownLength } = {},
 ): StartFormProblems {
   const problems: { -readonly [K in keyof StartFormProblems]: string } = {};
   const cap = limits.maxFileBytes;
@@ -132,18 +178,34 @@ export function validateStartForm(
     else if (!isPlausibleLink(url)) {
       problems.url = "Paste the link to one YouTube video, like youtube.com/watch?v=…";
     }
+    if (value.startAt.trim() !== "") {
+      const start = parseClock(value.startAt);
+      const known = limits.knownLength;
+      const length =
+        known !== undefined && url !== "" && normaliseSourceLink(known.link) === url
+          ? known.durationMs
+          : undefined;
+      if (start === null) problems.startAt = "Type the start as m:ss or h:mm:ss, like 12:10.";
+      else if (start >= SOURCE_CEILING_MS) {
+        problems.startAt = DETAIL_COPY.startPastCeiling(spanPhrase(SOURCE_CEILING_MS));
+      } else if (length !== undefined && length > 0 && start >= length) {
+        problems.startAt = DETAIL_COPY.startPastEnd(formatClock(length));
+      }
+    }
     if (!value.rightsAttested) {
       problems.rights = "Please confirm you own this video or have permission to use it.";
     }
   } else if (value.file === null) {
     problems.file = "Choose a video from your device.";
   } else if (cap !== undefined && Number.isFinite(cap) && cap > 0 && value.file.size > cap) {
-    problems.file = `This file is larger than your plan allows (up to ${formatPlanBytes(cap)}). Choose a smaller copy.`;
+    problems.file = `This file is larger than your plan allows (up to ${formatBytes(cap)}). Choose a smaller copy.`;
   }
 
   if (value.sourceLanguage === undefined) {
-    // Never silently transcribe in a guessed language: it is the one choice that
-    // changes what everything downstream costs and says (§3.3).
+    // Never silently transcribe in a language nobody chose: it is the one
+    // choice that changes what everything downstream costs and says (§3.3).
+    // "Detect automatically" is a choice; "I'll choose it" with nothing picked
+    // is not.
     problems.sourceLanguage = "Choose the language spoken in the video.";
   }
 
@@ -166,8 +228,22 @@ export interface SourceStartFormProps {
    * already working on this video": the way out is that run, not a dead end.
    */
   readonly existingRunId?: string | null;
+  /** The refusal was for credits: link to the balance beside it. */
+  readonly seeCredits?: boolean;
   /** The plan's upload cap, once known; an upload over it is refused here. */
   readonly maxFileBytes?: number;
+  /** How much of a video the plan processes per run, once known. */
+  readonly planWindowMs?: number;
+  /**
+   * The plan's window reaches the source ceiling (the owner's unlimited
+   * workspace): every video it takes is processed whole, which ignores any
+   * start, so "Start at" is not offered at all rather than doing nothing.
+   */
+  readonly processesWholeVideos?: boolean;
+  /** The video's length and its link, when the page came from a run that learned it. */
+  readonly knownLength?: KnownLength;
+  /** Put the cursor in "Start at": the person came here to pick a start. */
+  readonly focusStartAt?: boolean;
   readonly className?: string;
 }
 
@@ -178,16 +254,36 @@ export function SourceStartForm({
   submitting = false,
   serverError = null,
   existingRunId = null,
+  seeCredits = false,
   maxFileBytes,
+  planWindowMs,
+  processesWholeVideos = false,
+  knownLength,
+  focusStartAt = false,
   className,
 }: SourceStartFormProps): React.JSX.Element {
   const [showProblems, setShowProblems] = React.useState(false);
   const [advancedOpen, setAdvancedOpen] = React.useState(false);
-  const problems = validateStartForm(
-    value,
-    maxFileBytes === undefined ? {} : { maxFileBytes },
+  // The last language picked by hand, so "I'll choose it" after a detour to
+  // "Detect automatically" comes back to it rather than to nothing.
+  const lastPicked = React.useRef<string | undefined>(
+    value.sourceLanguage === DETECT_LANGUAGE ? undefined : value.sourceLanguage,
   );
+  const startAtRef = React.useRef<HTMLInputElement>(null);
+  // A start is not checked where it is not offered: a hidden field's error
+  // would block the form with nothing to correct.
+  const problems = validateStartForm(processesWholeVideos ? { ...value, startAt: "" } : value, {
+    ...(maxFileBytes === undefined ? {} : { maxFileBytes }),
+    ...(knownLength === undefined ? {} : { knownLength }),
+  });
   const visible = showProblems ? problems : {};
+  const detecting = value.sourceLanguage === DETECT_LANGUAGE;
+
+  React.useEffect(() => {
+    // On arrival from "Pick where to start": the prop comes from the URL and
+    // does not change afterwards, so this runs once, not on every keystroke.
+    if (focusStartAt) startAtRef.current?.focus();
+  }, [focusStartAt]);
 
   const set = <K extends keyof StartFormValue>(key: K, next: StartFormValue[K]): void => {
     onChange({ ...value, [key]: next });
@@ -307,6 +403,40 @@ export function SourceStartForm({
               />
             </Field>
 
+            {/* Optional, and a plain time field: most people never need it, and
+                the line under it says when it applies and what happens when it
+                is left empty. */}
+            {processesWholeVideos ? null : (
+              <Field
+                label="Start at (optional)"
+                htmlFor="repurpose-start-at"
+                hint={DETAIL_COPY.windowLine(
+                  planWindowMs === undefined ? undefined : spanPhrase(planWindowMs),
+                )}
+                {...(visible.startAt === undefined ? {} : { error: visible.startAt })}
+              >
+                <Input
+                  ref={startAtRef}
+                  id="repurpose-start-at"
+                  // No numeric keypad: most of them have no ":" to type.
+                  autoComplete="off"
+                  className="w-32 bg-sunken font-mono"
+                  placeholder="0:00"
+                  value={value.startAt}
+                  data-testid="source-start-at"
+                  aria-invalid={visible.startAt !== undefined}
+                  aria-describedby={
+                    visible.startAt === undefined
+                      ? "repurpose-start-at-hint"
+                      : "repurpose-start-at-error"
+                  }
+                  onChange={(event) => {
+                    set("startAt", event.target.value);
+                  }}
+                />
+              </Field>
+            )}
+
             <div>
               {/* The whole row is the hit target, not just the 16 px box. */}
               <label className="flex min-h-8 cursor-pointer items-center gap-2.5 text-sm text-fg-1">
@@ -381,28 +511,64 @@ export function SourceStartForm({
         <h2 id="repurpose-setup-heading" className="text-base text-fg-0">
           Captions and clips
         </h2>
-        {/* The picker owns its own button and its own `aria-label`; a `<label for>`
-            beside it would point at nothing, so this is a named group instead and
-            the visible text is the picker's own accessible name. */}
-        <div
-          role="group"
-          aria-labelledby="repurpose-language-label"
+        {/* A real radio group: detecting is a choice with its own name, not an
+            empty picker. The picker (which owns its own button and its own
+            `aria-label`, "Spoken language" — the group's visible name) appears
+            only once the person says they will choose. */}
+        <fieldset
+          className="border-0 p-0"
           aria-describedby={
             visible.sourceLanguage === undefined ? undefined : "repurpose-language-error"
           }
         >
-          <span id="repurpose-language-label" className="text-sm font-medium text-fg-1">
-            Spoken language
-          </span>
-          <div className="mt-1.5">
-            <LanguagePicker
-              value={value.sourceLanguage}
-              fullWidth
-              onChange={(tag) => {
-                set("sourceLanguage", tag);
-              }}
-            />
+          <legend className="text-sm font-medium text-fg-1">Spoken language</legend>
+          <div className="mt-1.5 flex flex-col">
+            {(
+              [
+                { key: "detect", label: "Detect automatically" },
+                { key: "choose", label: "I'll choose it" },
+              ] as const
+            ).map((option) => (
+              <label
+                key={option.key}
+                className="flex min-h-8 cursor-pointer items-center gap-2.5 text-sm text-fg-1"
+              >
+                <input
+                  type="radio"
+                  name="spoken-language"
+                  className="size-4 shrink-0 accent-accent"
+                  value={option.key}
+                  checked={option.key === "detect" ? detecting : !detecting}
+                  data-testid={`language-${option.key}`}
+                  onChange={() => {
+                    set(
+                      "sourceLanguage",
+                      option.key === "detect" ? DETECT_LANGUAGE : lastPicked.current,
+                    );
+                  }}
+                />
+                {option.label}
+              </label>
+            ))}
           </div>
+          {detecting ? (
+            // Honest about the one case detection gets wrong most.
+            <p className="mt-1 text-xs text-fg-2" data-testid="language-detect-hint">
+              We work it out from the video. If it mixes languages, like Hindi and English,
+              choosing it yourself is more reliable.
+            </p>
+          ) : (
+            <div className="mt-1.5">
+              <LanguagePicker
+                value={value.sourceLanguage}
+                fullWidth
+                onChange={(tag) => {
+                  lastPicked.current = tag;
+                  set("sourceLanguage", tag);
+                }}
+              />
+            </div>
+          )}
           {visible.sourceLanguage !== undefined && (
             <p
               id="repurpose-language-error"
@@ -413,7 +579,7 @@ export function SourceStartForm({
               {visible.sourceLanguage}
             </p>
           )}
-        </div>
+        </fieldset>
 
         <Field label="Caption language" htmlFor="repurpose-output-language">
           <select
@@ -605,6 +771,15 @@ export function SourceStartForm({
               </NextLink>
             </Button>
           )}
+          {/* Out of credits: submitting again only fails the same way, so the
+              balance is the way on (not Billing's checkout, which is off). */}
+          {seeCredits ? (
+            <Button variant="secondary" size="sm" asChild>
+              <NextLink href="/billing" className="no-underline" data-testid="start-see-credits">
+                See your credits
+              </NextLink>
+            </Button>
+          ) : null}
         </div>
       )}
 

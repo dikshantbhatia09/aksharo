@@ -208,6 +208,13 @@ describe.skipIf(!available)("repurpose and publishing schema (REP-003/REP-004)",
       ]) {
         expect(indexNames.has(name)).toBe(true);
       }
+
+      // The window start is part of the live-source key (0007z), so the next
+      // part of a video can run beside the first - not 0008's older key.
+      const [liveSource] = await prisma.$queryRaw<{ indexdef: string }[]>`
+        SELECT indexdef FROM pg_indexes
+        WHERE schemaname = 'public' AND indexname = 'repurpose_runs_live_source_idx'`;
+      expect(liveSource?.indexdef).toContain("COALESCE(window_start_ms");
     });
   });
 

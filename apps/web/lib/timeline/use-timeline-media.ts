@@ -39,6 +39,14 @@ export interface MediaUrls {
 const FACES_POLL_MS = 15_000;
 const FACES_POLLS = 8;
 
+/**
+ * How many times to look again for a preview still being encoded. Since the
+ * first transcription starts on the audio ahead of the video encode, the
+ * editor can open before the 540p proxy exists (a 3-hour source takes about
+ * a quarter of an hour). Bounded: an audio-only source never gets one.
+ */
+const PROXY_POLLS = 60;
+
 const getMediaUrls = defineEndpoint<void, MediaUrls>({
   method: "GET",
   path: "/projects/{projectId}/media/{mediaId}/urls",
@@ -79,6 +87,7 @@ export function useTimelineMedia(projectId: string, mediaId: string | undefined)
   // this very request is made — and takes seconds. Ask again soon a few times,
   // so the placement shows up without a reload.
   const facesPolls = useRef(0);
+  const proxyPolls = useRef(0);
   const [loading, setLoading] = useState(mediaId !== undefined);
   const [error, setError] = useState<string | undefined>(undefined);
 
@@ -92,6 +101,7 @@ export function useTimelineMedia(projectId: string, mediaId: string | undefined)
       setFaces(undefined);
       facesFor.current = undefined;
       facesPolls.current = 0;
+      proxyPolls.current = 0;
       setLoading(false);
       return;
     }
@@ -131,6 +141,8 @@ export function useTimelineMedia(projectId: string, mediaId: string | undefined)
         const awaitingFaces =
           urls.proxy !== undefined && urls.faces === undefined && facesPolls.current < FACES_POLLS;
         if (awaitingFaces) facesPolls.current += 1;
+        const awaitingProxy = urls.proxy === undefined && proxyPolls.current < PROXY_POLLS;
+        if (awaitingProxy) proxyPolls.current += 1;
         if (Number.isFinite(ttlMs) && ttlMs > 0) {
           timer = setTimeout(
             () => {
@@ -138,7 +150,7 @@ export function useTimelineMedia(projectId: string, mediaId: string | undefined)
                 setNonce((n) => n + 1);
               }
             },
-            awaitingFaces ? FACES_POLL_MS : Math.max(15_000, ttlMs * 0.8),
+            awaitingFaces || awaitingProxy ? FACES_POLL_MS : Math.max(15_000, ttlMs * 0.8),
           );
         }
       } catch (cause) {

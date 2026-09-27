@@ -106,6 +106,13 @@ export interface PlanSeed {
   readonly entitlements: Prisma.InputJsonValue;
 }
 
+/**
+ * The longest source a clips run may look at, on every plan (2026-09-27). Not
+ * an allowance: a run processes `clipsWindowMs` of it. This only turns away a
+ * 40-hour livestream archive before anything is fetched.
+ */
+export const MAX_SOURCE_DURATION_MS = 12 * HOUR_MS;
+
 /** Credits per month as printed in 04 §Plans, converted to tenths. */
 const CREDITS_PER_MONTH: Record<PlanKeyName, number> = {
   free: 20,
@@ -129,6 +136,10 @@ export const PLAN_SEEDS: readonly PlanSeed[] = [
       browserRenderOnly: true,
       maxFileBytes: 500 * MB,
       maxDurationMs: 20 * MINUTE_MS,
+      // Clips (2026-09-27): the minutes one run processes, from a source up to
+      // `maxSourceDurationMs` long. `maxDurationMs` stays the upload/export cap.
+      clipsWindowMs: 20 * MINUTE_MS,
+      maxSourceDurationMs: MAX_SOURCE_DURATION_MS,
       subtitleFormats: ["srt", "vtt", "txt"],
       customFonts: 0,
       brandKits: 0,
@@ -169,6 +180,8 @@ export const PLAN_SEEDS: readonly PlanSeed[] = [
       browserRenderOnly: false,
       maxFileBytes: 2 * GB,
       maxDurationMs: 60 * MINUTE_MS,
+      clipsWindowMs: 60 * MINUTE_MS,
+      maxSourceDurationMs: MAX_SOURCE_DURATION_MS,
       subtitleFormats: ["srt", "vtt", "txt", "ass"],
       customFonts: 5,
       brandKits: 0,
@@ -209,6 +222,8 @@ export const PLAN_SEEDS: readonly PlanSeed[] = [
       browserRenderOnly: false,
       maxFileBytes: 4 * GB,
       maxDurationMs: 3 * HOUR_MS,
+      clipsWindowMs: 3 * HOUR_MS,
+      maxSourceDurationMs: MAX_SOURCE_DURATION_MS,
       subtitleFormats: ["srt", "vtt", "txt", "ass", "docx", "md"],
       customFonts: 15,
       brandKits: 1,
@@ -252,6 +267,8 @@ export const PLAN_SEEDS: readonly PlanSeed[] = [
       browserRenderOnly: false,
       maxFileBytes: 8 * GB,
       maxDurationMs: 6 * HOUR_MS,
+      clipsWindowMs: 6 * HOUR_MS,
+      maxSourceDurationMs: MAX_SOURCE_DURATION_MS,
       subtitleFormats: ["srt", "vtt", "txt", "ass", "docx", "md"],
       customFonts: 50,
       brandKits: 3,
@@ -292,6 +309,8 @@ export const PLAN_SEEDS: readonly PlanSeed[] = [
       browserRenderOnly: false,
       maxFileBytes: 8 * GB,
       maxDurationMs: 6 * HOUR_MS,
+      clipsWindowMs: 6 * HOUR_MS,
+      maxSourceDurationMs: MAX_SOURCE_DURATION_MS,
       subtitleFormats: ["srt", "vtt", "txt", "ass", "docx", "md"],
       customFonts: 50,
       brandKits: "per_client",

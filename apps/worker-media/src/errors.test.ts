@@ -4,6 +4,7 @@ import {
   MEDIA_FAILURE_REASONS,
   MediaJobError,
   describeError,
+  knownFacts,
   redact,
   sourceRefused,
   stderrTail,
@@ -125,5 +126,28 @@ describe("describeError", () => {
     expect(describeError(new Error("x".repeat(5_000))).length).toBe(2_000);
     expect(describeError(new Error(""))).toBe("failed");
     expect(describeError("plain string")).toBe("plain string");
+  });
+});
+
+describe("refusal facts", () => {
+  it("keeps only the numbers that are known", () => {
+    expect(
+      knownFacts({
+        durationMs: 2_077_000,
+        maxDurationMs: 1_200_000,
+        approximateBytes: null,
+        maxBytes: undefined,
+        broken: Number.NaN,
+      }),
+    ).toEqual({ durationMs: 2_077_000, maxDurationMs: 1_200_000 });
+    expect(knownFacts({ approximateBytes: null })).toBeUndefined();
+  });
+
+  it("travel on a source refusal, and a refusal about the video itself has none", () => {
+    expect(
+      sourceRefused("media/too_long", "too long", undefined, { durationMs: 1, maxDurationMs: 0 })
+        .facts,
+    ).toEqual({ durationMs: 1, maxDurationMs: 0 });
+    expect(sourceRefused("media/source_private", "private").facts).toBeUndefined();
   });
 });

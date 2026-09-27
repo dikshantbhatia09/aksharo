@@ -111,6 +111,16 @@ describe("queuePolicyFor", () => {
       expect(policy.maxStalledCount, queue).toBeGreaterThanOrEqual(1);
     }
   });
+
+  it("retries an acquisition once, a minute later (2026-09-27)", () => {
+    // Every attempt is a request to YouTube from the one home IP; three
+    // attempts five seconds apart is how one failure becomes a block.
+    expect(queuePolicyFor("media.acquire")).toMatchObject({
+      attempts: 2,
+      backoffMs: 60_000,
+      lockDurationMs: 600_000,
+    });
+  });
 });
 
 describe("heartbeatIntervalMs", () => {

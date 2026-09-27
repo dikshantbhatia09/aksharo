@@ -1,3 +1,4 @@
+import { describeError } from "../errors.js";
 import {
   ASR_SAMPLE_RATE,
   MASTER_SAMPLE_RATE,
@@ -26,6 +27,7 @@ import type { JobContext, ProcessorOutcome } from "../runtime.js";
  * ```
  * presign a read of the raw object
  *   -> audio16k.wav   mono 16 kHz PCM        (ASR and alignment)
+ *        -> PATCH /internal/media/{id} { audio16kKey }   (no status; not awaited)
  *   -> audio48k.wav   mono 48 kHz PCM        (mastering, 09 §5)
  *   -> waveform.json  from the 16 kHz PCM    (streamed, never buffered)
  *   -> proxy540.mp4   540p CRF 28 faststart  (tone-mapped when HDR)
@@ -39,6 +41,15 @@ import type { JobContext, ProcessorOutcome } from "../runtime.js";
  * starts is minutes off the time-to-first-caption. The waveform comes straight
  * after because it is computed from a file that is already on disk. The proxy and
  * the thumbnails — the expensive half — come last.
+ *
+ * **The API hears about the ASR audio the moment it is stored**, not when the
+ * whole job ends ({@link announceAudio}). Writing the key only at the end left
+ * transcription idle behind the 540p encode it does not read: 111 s on a
+ * 35-minute source (measured 2026-09-27), about fifteen minutes on a three-hour
+ * one. With the key on the row, the API can start `ai.transcribe` on the GPU
+ * while this job encodes on the CPU. The early write carries no status — `ready`
+ * still means every artefact below exists — and the final write-back repeats the
+ * key, so an early write that never lands costs only the head start.
  *
  * **Audio-only inputs skip the video half entirely.** No proxy, no thumbnails; a
  * podcast upload is `ready` once its two WAVs and its waveform exist, and the
@@ -84,6 +95,9 @@ export async function processProxy(context: JobContext): Promise<ProcessorOutcom
       thumbKeys: [],
     };
     let bytesWritten = 0;
+    // The early write-back of the ASR audio, in flight alongside the rest of
+    // the job. Never rejects; awaited before the job returns (see below).
+    let announced: Promise<void> = Promise.resolve();
 
     // --- audio ------------------------------------------------------------
     if (facts.hasAudio) {
@@ -97,6 +111,9 @@ export async function processProxy(context: JobContext): Promise<ProcessorOutcom
         contentType: DERIVED_CONTENT_TYPES["audio16k.wav"],
         tags: DERIVED_OBJECT_TAGS,
       });
+      // Only now: the key must name an object that exists when the API reads
+      // it, because transcription may be queued off it within the second.
+      announced = announceAudio(context, payload.mediaId, keys.audio16kKey);
 
       context.report(20, "extracting 48 kHz audio");
       const master = workspace.path("audio48k.wav");
@@ -176,6 +193,12 @@ export async function processProxy(context: JobContext): Promise<ProcessorOutcom
     }
 
     context.report(98, "publishing");
+    // Settled before the job reports, so the early write can never land after
+    // the final one (it would change nothing if it did — it carries no status
+    // and the same key — but an outcome with a request still in flight behind
+    // it is harder to reason about than one without). It is bounded by the
+    // callback client's durable budget and has almost always long finished.
+    await announced;
 
     const result: ProxyResult = {
       mediaId: payload.mediaId,
@@ -200,6 +223,39 @@ export async function processProxy(context: JobContext): Promise<ProcessorOutcom
       usage: { mediaSeconds: facts.durationMs / 1000, egressBytes: bytesWritten },
     };
   });
+}
+
+/**
+ * `PATCH /internal/media/{id} { audio16kKey }` — the ASR audio exists, so the API
+ * may start transcribing it while this job goes on to the video encode.
+ *
+ * - **Not awaited in line.** The encode must not wait on the API: while it is
+ *   restarting, a durable callback keeps trying for up to two minutes, and the
+ *   whole point is to take time off the critical path, not add it.
+ * - **Never throws.** An early write that fails changes nothing the job owes:
+ *   the final write-back carries the same key next to `status: "ready"`, and
+ *   transcription then starts where it always did.
+ * - **No status, nothing else.** The API accepts a partial patch without moving
+ *   the row (`MediaPatchSchema`: every field optional); `ready` stays this job's
+ *   last word, and `audio48kKey`/`waveformKey` still arrive with it.
+ * - **Not for a job the API has already settled** (a stopped run): the runtime
+ *   aborts `context.signal` when a heartbeat says so, and a stopped job's facts
+ *   are not written, early or late.
+ */
+async function announceAudio(
+  context: JobContext,
+  mediaId: string,
+  audio16kKey: string,
+): Promise<void> {
+  if (context.signal.aborted) return;
+  try {
+    await context.callbacks.patchMedia(mediaId, context.envelope.attemptId, { audio16kKey });
+  } catch (error) {
+    logger.warn("could not announce the ASR audio early; the final write-back carries it", {
+      mediaId,
+      error: describeError(error),
+    });
+  }
 }
 
 interface MediaFacts {
