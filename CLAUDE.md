@@ -34,10 +34,16 @@ Read this before touching anything. The most important section is
 >   affiliates ON, checkout and every other launch surface OFF.
 >   `RAZORPAY_WEBHOOK_SECRET` is now a random value — with it empty, the fake
 >   billing provider accepted webhooks signed with its public default secret.
-> - Production still runs `NODE_ENV=development`, `MAIL_PROVIDER=dev` (no email
->   is sent) and `MONTAJ_SCHEDULER_DISABLED=1` (no scheduled task runs: no status
->   snapshots, retention, stuck-run sweep). Switching NODE_ENV to production
->   needs a real mail provider and a SENTRY_DSN or its opt-out flag first.
+> - Production still runs `NODE_ENV=development` and `MAIL_PROVIDER=dev` (no
+>   email is sent). Switching NODE_ENV to production needs a real mail provider
+>   and a SENTRY_DSN or its opt-out flag first.
+> - **Scheduler: three tasks only (since 2026-09-27, §17).**
+>   `MONTAJ_SCHEDULER_DISABLED=0` with
+>   `MONTAJ_SCHEDULER_TASKS=ops.watch,jobs.dlq-depth,jobs.lease-reaper`. Every
+>   other task (retention purges, stuck-run sweep, payouts, dunning, status
+>   snapshots) stays off. `DISABLED=1` still wins; `TASKS` set but empty runs
+>   none. An API older than 64984aca does not know `TASKS` and would run all
+>   32 — the rollback script sets `DISABLED=1` first for that reason.
 > - The paragraphs below that name `montaj` paths, `.next-live-20260917c`, or
 >   "no git remote" describe the setup before this change.
 
@@ -1095,3 +1101,55 @@ then found the pipeline could not recover from anything. What now holds:
 - Deploys that touch these services must **stop the workers before the API**
   (`_orchestration/tools/deploy-20260926a.ps1`): old workers must not consume
   what the new reconciler enqueues. Undo: `rollback-20260926a.ps1 -Sha a214bcfb`.
+
+---
+
+## 17. 2026-09-27 — long videos in windows; alerts reach a phone
+
+Trigger: a 34:37 link on the owner's account read "This video is longer than
+your plan allows" (the workspace was on Free: 20 min), and once past that, every
+Whisper chunk failed on `en-IN` (fixed in f34e3e9e: `whisper_language()` sends a
+bare code). Deployed as **64984aca** (`deploy-20260927b.ps1`, undo
+`rollback-20260927b.ps1`; DB backup `_orchestration/backups/montaj_main-pre-20260927b.dump`).
+
+- **A plan limits the minutes a run processes, not the source's length.**
+  `plans.entitlements.clipsWindowMs` (Free 20 min … Studio 6 h) and a 12 h
+  `maxSourceDurationMs` ceiling (migration `20260927090000_clips_windows`). A
+  link run downloads only a window with `yt-dlp --download-sections`: the
+  most-replayed part, the start, or a start the person picked (`setup.window`);
+  a picked start is honoured even on a video that fits. "Process the next part"
+  (`POST /repurpose/runs/:id/next-window`) is a second run beside the first —
+  `repurpose_runs_live_source_idx` keys on `COALESCE(window_start_ms, -1)`
+  (`prisma/sql/0007z-…`, sorts before 0008 on purpose). A run is refused up
+  front (402 `repurpose/no_credits`) when the balance cannot pay for a minute.
+- **`INTERNAL_UNLIMITED_WORKSPACE_IDS=01M1KFX35NJRD5N58H0J6YGAPC`** (owner
+  decision): that workspace gets the 12 h window and the largest caps.
+- **Acquire worker** runs yt-dlp from the pinned venv
+  `05-build/_tools/yt-dlp/2026.8.19` (with yt-dlp-ejs 0.8.0) and
+  `YT_DLP_JS_RUNTIME=C:\Program Files\nodejs\node.exe`; its boot line
+  "media tool available" must show `jsRuntime node-…` and `ejs 0.8.0`. The two
+  variables go together — a JS runtime with the old pip build refuses to boot.
+- **Disk admission.** worker-media holds (never fails) a job that would not fit
+  on C: (`WORKER_MEDIA_MIN_FREE_BYTES`, default 5 GiB, plus the job's own
+  size): it goes back to BullMQ's delayed set without spending an attempt, the
+  API row stays `queued`, the reconciler reads `diskHeldSince` and does not
+  call it stalled, and it fails itself (`worker/disk_full`) after 6 h. C: was
+  at 2.8 GB free on the deploy day; 17 pre-2026-09-19 web builds in
+  `montaj/apps/web` were deleted to get back to ~15-25 GB. Docker's
+  `docker_data.vhdx` (65 GB, ~16 GB of it freed space) still needs compacting
+  in a maintenance window.
+- **Transcription starts on the audio**, before the video encode: the internal
+  media PATCH that writes `audio16kKey` asks `AutoTranscribeTrigger` (never the
+  lane's last slot). A clip asked for while the source is still encoding waits
+  instead of 409; a source that fails after its moments fails the run.
+- **English lanes use `WORKER_AI_WHISPER_MODEL_EN`** (large-v3-turbo,
+  `docs/models/LOCAL-MODELS.md` §0b); Hindi/Hinglish keep the fine-tune. The
+  clips form defaults the spoken language to **Detect automatically**
+  (`"auto"`, sent to the worker as no hint). The in-process Whisper language
+  identifier is no longer built (it loaded a CPU model and failed every call).
+- **Alerts.** `ALERT_WEBHOOK_URL` is a secret ntfy topic in `.env.local-run`;
+  subscribe to it in the ntfy app. `ops.watch` sends disk, stuck-queue,
+  over-ceiling and DLQ findings; worker-media sends its own boot failure and
+  disk holds. `jobs.lease-reaper` settles `running` rows that BullMQ no longer
+  holds (delivering a result the worker kept when there is one) with
+  `jobs/stalled`, which a run reads as `stage_timeout`.
