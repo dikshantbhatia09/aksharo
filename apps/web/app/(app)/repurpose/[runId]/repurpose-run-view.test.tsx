@@ -67,6 +67,20 @@ describe("<RepurposeRunView /> resuming a run", () => {
     expect(screen.getByTestId("stage-panel-finding_clips")).toBeInTheDocument();
   });
 
+  it("says when Autopilot is doing the picking, and not otherwise", async () => {
+    const auto = renderWithProviders(<RepurposeRunView runId={RUN_ID} />, {
+      routes: { [`/repurpose/runs/${RUN_ID}`]: run({ automation: "auto" }) },
+    });
+    expect(await screen.findByTestId("run-autopilot")).toHaveTextContent(/Autopilot is on/);
+    auto.unmount();
+
+    renderWithProviders(<RepurposeRunView runId={RUN_ID} />, {
+      routes: { [`/repurpose/runs/${RUN_ID}`]: run({ automation: "manual" }) },
+    });
+    expect(await screen.findByTestId("repurpose-run")).toBeInTheDocument();
+    expect(screen.queryByTestId("run-autopilot")).toBeNull();
+  });
+
   it("offers a way to stop a run that is still moving", async () => {
     renderWithProviders(<RepurposeRunView runId={RUN_ID} />, {
       routes: { [`/repurpose/runs/${RUN_ID}`]: run() },
@@ -1215,10 +1229,13 @@ describe("<RepurposeRunView /> a run over part of a long video", () => {
       fetchMock,
       `${RUN_PATH}/next-window`,
       () =>
-        new Response(JSON.stringify({ run: { ...partRun, id: NEXT_RUN_ID, status: "acquiring" } }), {
-          status: 201,
-          headers: { "content-type": "application/json" },
-        }),
+        new Response(
+          JSON.stringify({ run: { ...partRun, id: NEXT_RUN_ID, status: "acquiring" } }),
+          {
+            status: 201,
+            headers: { "content-type": "application/json" },
+          },
+        ),
     );
 
     expect(await screen.findByTestId("run-window-summary")).toHaveTextContent(

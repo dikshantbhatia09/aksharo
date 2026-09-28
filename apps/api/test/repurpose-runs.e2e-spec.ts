@@ -45,7 +45,10 @@ import type { CommonAuditService } from "../src/common/audit/audit.service.js";
 import type { PrismaService } from "../src/common/prisma/prisma.service.js";
 import type { RedisService } from "../src/common/redis/redis.service.js";
 import type { CreditsFacade } from "../src/credits/credits.facade.js";
-import type { JobCompletionContext, JobCompletionRegistry } from "../src/jobs/completion-handlers.js";
+import type {
+  JobCompletionContext,
+  JobCompletionRegistry,
+} from "../src/jobs/completion-handlers.js";
 import type { JobsService } from "../src/jobs/jobs.service.js";
 import type { MediaService } from "../src/media/media.service.js";
 import type { ProjectsService } from "../src/projects/projects.service.js";
@@ -524,7 +527,11 @@ describe.skipIf(!CAN_RUN)("repurpose run CRUD (REP-006)", () => {
       await setFlag("source_youtube_acquire", true);
       await expect(
         service.create(WORKSPACE_A, USER_A, {
-          source: { kind: "url", url: "http://www.youtube.com/watch?v=dQw4w9WgXcQ", rightsAttested: true },
+          source: {
+            kind: "url",
+            url: "http://www.youtube.com/watch?v=dQw4w9WgXcQ",
+            rightsAttested: true,
+          },
           setup: SETUP,
         }),
       ).rejects.toMatchObject({ code: "repurpose/source_invalid_url" });
@@ -570,7 +577,11 @@ describe.skipIf(!CAN_RUN)("repurpose run CRUD (REP-006)", () => {
         "POST /repurpose/runs",
         body,
         async () =>
-          service.create(WORKSPACE_A, USER_A, body as unknown as Parameters<typeof service.create>[2]),
+          service.create(
+            WORKSPACE_A,
+            USER_A,
+            body as unknown as Parameters<typeof service.create>[2],
+          ),
       ) as Promise<{ run: { id: string } }>;
     }
 
@@ -746,11 +757,14 @@ describe.skipIf(!CAN_RUN)("repurpose run CRUD (REP-006)", () => {
       enqueueFailure = new Error("jobs/admission_denied");
 
       await expect(
-        service.create(WORKSPACE_A, USER_A, { source: {
-          kind: "url",
-          url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-          rightsAttested: true,
-        }, setup: SETUP }),
+        service.create(WORKSPACE_A, USER_A, {
+          source: {
+            kind: "url",
+            url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+            rightsAttested: true,
+          },
+          setup: SETUP,
+        }),
       ).rejects.toThrow("jobs/admission_denied");
 
       expect(await prisma.repurposeRun.count()).toBe(0);
@@ -911,9 +925,7 @@ describe.skipIf(!CAN_RUN)("repurpose run CRUD (REP-006)", () => {
       });
       expect(response.upload).toBeNull();
       expect(response.projectId).toBe(created[0]?.projectId);
-      expect(
-        await prisma.mediaAsset.count({ where: { projectId: response.projectId } }),
-      ).toBe(0);
+      expect(await prisma.mediaAsset.count({ where: { projectId: response.projectId } })).toBe(0);
     });
   });
 
@@ -960,6 +972,24 @@ describe.skipIf(!CAN_RUN)("repurpose run CRUD (REP-006)", () => {
       const ids = [...firstPage.items, ...secondPage.items].map((run) => run.id);
       expect(new Set(ids).size).toBe(3);
       expect([...ids].sort().reverse()).toEqual(ids);
+    });
+  });
+
+  describe("Autopilot (2026-09-28)", () => {
+    it("records the choice on the run, and reads anything else as manual", async () => {
+      const auto = await service.create(WORKSPACE_A, USER_A, {
+        source: UPLOAD_SOURCE,
+        setup: { ...SETUP, automation: "auto" },
+      });
+      expect(auto.run.automation).toBe("auto");
+      const stored = await prisma.repurposeRun.findUniqueOrThrow({ where: { id: auto.run.id } });
+      expect((stored.config as Record<string, unknown>)["automation"]).toBe("auto");
+
+      const manual = await service.create(WORKSPACE_A, USER_A, {
+        source: UPLOAD_SOURCE,
+        setup: SETUP,
+      });
+      expect(manual.run.automation).toBe("manual");
     });
   });
 
@@ -1323,9 +1353,7 @@ describe.skipIf(!CAN_RUN)("repurpose run CRUD (REP-006)", () => {
       // Verify realtime event was published with customer-readable message
       const stageEvent = [...published]
         .reverse()
-        .find(
-          (e) => e.event === "repurpose.stage.changed" && e.data["runId"] === run.run.id,
-        );
+        .find((e) => e.event === "repurpose.stage.changed" && e.data["runId"] === run.run.id);
       expect(stageEvent).toBeDefined();
       expect(stageEvent?.data["status"]).toBe("failed");
       expect(stageEvent?.data["message"]).toBe(

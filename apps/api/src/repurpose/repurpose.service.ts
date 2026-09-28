@@ -29,6 +29,7 @@ import {
   WINDOW_POLICIES,
   WINDOW_TOLERANCE_MS,
   acquireTimeoutMs,
+  automationOf,
 } from "./repurpose.constants.js";
 import { createRunSchema } from "./repurpose.dto.js";
 import {
@@ -782,6 +783,9 @@ export class RepurposeService {
             sourceLanguage: input.setup.sourceLanguage,
             caption: { ...input.setup.caption, styleVersion: 1 },
             discovery: input.setup.discovery,
+            // Autopilot (`automationOf`): absent reads as manual, as every
+            // run from before it was.
+            automation: input.setup.automation ?? "manual",
             // Formats and enhancements are chosen at Stage 3; the snapshot records
             // the defaults the run started from so a later change to those defaults
             // cannot reinterpret this run (§6.9).
@@ -1287,6 +1291,8 @@ export class RepurposeService {
         caption: config["caption"],
         discovery: config["discovery"] ?? { mode: run.mode },
         window: { startMs },
+        // The next part runs the way this one did.
+        automation: automationOf(run),
       },
     });
     if (!parsed.success) {
@@ -2015,6 +2021,7 @@ export class RepurposeService {
       // column until its next failure overwrites it, and must not show it.
       failureDetail: shown.status === "failed" ? failureDetailOf(run.failureDetail) : null,
       nextWindowAvailable: nextWindowAvailable(run),
+      automation: automationOf(run),
       waitingFor,
     };
   }

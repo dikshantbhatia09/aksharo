@@ -1331,7 +1331,12 @@ export interface RepurposeRunView {
    * an older API.
    */
   waitingFor?: RepurposeRunWaitingFor | null;
+  /** Autopilot or not; absent from an API older than it (read as `manual`). */
+  automation?: RepurposeAutomation;
 }
+
+/** See `CreateRepurposeRunRequest.setup.automation`. */
+export type RepurposeAutomation = "auto" | "manual";
 
 /** See {@link RepurposeRunView.waitingFor}. */
 export interface RepurposeRunWaitingFor {
@@ -1409,6 +1414,12 @@ export interface CreateRepurposeRunRequest {
      * start. The length is the plan's window, never the caller's.
      */
     window?: { startMs?: number; policy?: RepurposeWindowPolicy };
+    /**
+     * Autopilot (2026-09-28): `auto` cuts every suggested moment into a clip
+     * and retries what fails for a passing reason, with nobody at the page.
+     * Left out, the person picks the moments (`manual`).
+     */
+    automation?: RepurposeAutomation;
   };
   title?: string;
 }

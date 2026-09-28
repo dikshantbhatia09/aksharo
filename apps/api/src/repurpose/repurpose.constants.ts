@@ -60,6 +60,78 @@ export type WindowPolicy = (typeof WINDOW_POLICIES)[number];
 export const DEFAULT_WINDOW_POLICY: WindowPolicy = "most_replayed";
 
 /**
+ * Autopilot (owner request, 2026-09-28). `auto`: once moments are found every
+ * one of them is cut into a clip, a clip that fails for a passing reason is cut
+ * again, and a run that fails for one is tried again - nobody has to be at the
+ * page. `manual`: the person picks which moments become clips.
+ */
+export const AUTOMATION_MODES = ["auto", "manual"] as const;
+export type AutomationMode = (typeof AUTOMATION_MODES)[number];
+
+/** How many cuts Autopilot gives one moment: the first, and two more. */
+export const AUTOPILOT_CLIP_ATTEMPTS = 3;
+
+/**
+ * Clip failures Autopilot cuts again: the tool, the encode, a lost or stalled
+ * job, a moment of network trouble, or the finished clip failing its check.
+ * Not a clip too large or too long for the editor (the same moment makes the
+ * same file), nor a purged original, nor a cut someone cancelled.
+ */
+export const AUTOPILOT_CLIP_RETRY_CODES: ReadonlySet<string> = new Set([
+  "media/encode_failed",
+  "media/encode_incomplete",
+  "media/tool_timeout",
+  "media/tool_signal",
+  "media/tool_spawn",
+  "media/unreadable",
+  "media/corrupt",
+  "media/source_unavailable",
+  "media/unsupported",
+  "media/no_streams",
+  "media/probe_failed",
+  "repurpose/clip_stalled",
+  "jobs/queue_timeout",
+  "jobs/stalled",
+  "worker/disk_full",
+]);
+
+/**
+ * Run failures Autopilot tries again by itself: a stage that stalled, a
+ * download or preparation that did not work out, a transcription or discovery
+ * that failed. Not a refusal about the video (too long, private, removed, ...)
+ * or the account (no credits), which trying again cannot change.
+ */
+export const AUTOPILOT_RUN_RETRY_CODES = [
+  "repurpose/stage_timeout",
+  "repurpose/source_unavailable",
+  "repurpose/processing_failed",
+  "repurpose/transcription_failed",
+  "repurpose/highlights_failed",
+] as const;
+
+/** How many times Autopilot tries one run again, over its life. */
+export const AUTOPILOT_RUN_RETRIES = 2;
+/** How long after a failure Autopilot waits before trying again. */
+export const AUTOPILOT_RETRY_AFTER_MS = 2 * 60_000;
+/** A failure older than this is left for a person. */
+export const AUTOPILOT_RETRY_WITHIN_MS = 24 * 60 * 60_000;
+
+/** How many times Autopilot has tried this run again (`config.autopilotRetries`). */
+export function autopilotRetriesOf(run: { readonly config: unknown }): number {
+  const config = run.config;
+  if (typeof config !== "object" || config === null || Array.isArray(config)) return 0;
+  const tried = (config as Record<string, unknown>)["autopilotRetries"];
+  return typeof tried === "number" && Number.isFinite(tried) && tried > 0 ? tried : 0;
+}
+
+/** A run's automation, from its frozen config; `manual` for anything else. */
+export function automationOf(run: { readonly config: unknown }): AutomationMode {
+  const config = run.config;
+  if (typeof config !== "object" || config === null || Array.isArray(config)) return "manual";
+  return (config as Record<string, unknown>)["automation"] === "auto" ? "auto" : "manual";
+}
+
+/**
  * The latest start a request may name: `media.acquire`'s own bound on a source
  * (24 h). The plan's ceiling (`maxSourceDurationMs`, 12 h) is lower and is the
  * downloader's to apply, once it knows how long the video really is.

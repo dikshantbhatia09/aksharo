@@ -38,10 +38,13 @@ import {
   REPURPOSE_CLIP_ERRORS,
 } from "./repurpose-clips.dto.js";
 import {
+  AUTOPILOT_CLIP_ATTEMPTS,
+  AUTOPILOT_CLIP_RETRY_CODES,
   CLIP_PROFILE_VERSION,
   RECONCILE_INTERVAL_MS,
   REPURPOSE_ERRORS,
   REPURPOSE_FLAGS,
+  automationOf,
 } from "./repurpose.constants.js";
 import { progressForStatus, projectRun, stageForStatus } from "./repurpose.projection.js";
 import { CommonAuditService } from "../common/audit/audit.service.js";
@@ -150,6 +153,17 @@ const FAILED_AFTER_TRANSCRIPT: ReadonlySet<string> = new Set([
  *     the flag check and the stage announcement — are small and restated here
  *     against the same flag names and the same projection.
  */
+/**
+ * Where Autopilot asks for clips: the run has its moments and is cutting or
+ * showing them. Not before (no moments yet), and not once it failed or was
+ * stopped (a failed run is retried as a run, by the reconciler).
+ */
+const AUTOPILOT_STATUSES: ReadonlySet<string> = new Set([
+  "candidates_ready",
+  "materializing",
+  "review_ready",
+]);
+
 @Injectable()
 export class RepurposeClipsService {
   private readonly logger = new Logger(RepurposeClipsService.name);
@@ -387,6 +401,8 @@ export class RepurposeClipsService {
     const run = await this.prisma.repurposeRun.findUnique({ where: { id: runId } });
     if (run === null || run.status === "cancelled") return { enqueued: [] };
     this.markReconciled(run.id);
+    // Autopilot asks for the cuts; the loop below makes them, like any other.
+    if (automationOf(run) === "auto") await this.autopilot(run);
 
     const clips = await this.prisma.repurposeClip.findMany({
       where: { runId: run.id },
@@ -421,6 +437,99 @@ export class RepurposeClipsService {
 
     await this.settleRun(run.id);
     return { enqueued };
+  }
+
+  /**
+   * Autopilot (`automationOf`, 2026-09-28): the cuts a person would have asked
+   * for, asked for by the run itself.
+   *
+   * Every moment the run has (not one the person rejected) gets a clip row, and
+   * a clip whose last cut failed for a passing reason
+   * ({@link AUTOPILOT_CLIP_RETRY_CODES}) is asked for again, up to
+   * {@link AUTOPILOT_CLIP_ATTEMPTS} cuts per moment. Rows and touches only: a
+   * new row, or a failed clip touched after its cut ended, reads `waiting`
+   * (`clipStateOf`), and {@link reconcileClips}' owed-clip loop cuts it through
+   * the plan's lane exactly as it cuts one a person asked for. Idempotent: a
+   * moment with a clip is never given a second one (one clip per candidate).
+   *
+   * Never throws: it runs inside the reconcile every read and the watchdog
+   * make, and the next pass tries again.
+   */
+  private async autopilot(run: RepurposeRun): Promise<void> {
+    if (!AUTOPILOT_STATUSES.has(run.status)) return;
+    try {
+      const [candidates, clips] = await Promise.all([
+        this.prisma.clipCandidate.findMany({
+          where: { runId: run.id, state: { not: "rejected" } },
+          orderBy: [{ rank: "asc" }, { startMs: "asc" }],
+        }),
+        this.prisma.repurposeClip.findMany({
+          where: { runId: run.id },
+          include: { candidate: true, variants: CLIP_CHILD_VARIANTS },
+        }),
+      ]);
+
+      const hasClip = new Set(clips.map((clip) => clip.candidateId));
+      let room = MAX_CLIPS_PER_RUN - clips.length;
+      let cut = 0;
+      for (const candidate of candidates) {
+        if (room <= 0) break;
+        if (hasClip.has(candidate.id)) continue;
+        const { created } = await this.createClipRow(run, candidate);
+        if (created) {
+          cut += 1;
+          room -= 1;
+        }
+      }
+
+      let retried = 0;
+      const latest = await this.latestJobs(
+        run.workspaceId,
+        clips.map((clip) => clip.candidateId),
+      );
+      for (const clip of clips) {
+        const job = latest.get(clip.candidateId);
+        const { state, failureCode } = clipStateOf(clipFactsOf(clip), job);
+        if (state !== "failed" || failureCode === null) continue;
+        if (!AUTOPILOT_CLIP_RETRY_CODES.has(failureCode)) continue;
+        if ((await this.endedCuts(run.workspaceId, clip.candidateId)) >= AUTOPILOT_CLIP_ATTEMPTS) {
+          continue;
+        }
+        await this.releaseStalledCut(run, job);
+        await this.markCutRequested(clip.id);
+        retried += 1;
+      }
+
+      if (cut > 0) await this.advanceRun(run);
+      if (cut + retried > 0) {
+        this.logger.log({ runId: run.id, cut, retried }, "autopilot asked for clips");
+        await this.audit.record({
+          action: "repurpose.autopilot.clips",
+          resource: "repurpose_run",
+          resourceId: run.id,
+          actorKind: "system",
+          workspaceId: run.workspaceId,
+          data: { cut, retried },
+        });
+      }
+    } catch (error) {
+      this.logger.warn(
+        { runId: run.id, err: error },
+        "autopilot could not ask for clips this pass",
+      );
+    }
+  }
+
+  /** How many cuts of this moment have ended without a clip (failed or cancelled). */
+  private async endedCuts(workspaceId: string, candidateId: string): Promise<number> {
+    return this.prisma.job.count({
+      where: {
+        workspaceId,
+        type: "media.clip",
+        jobKey: { startsWith: `media.clip:${candidateId}:` },
+        status: { in: ["failed", "cancelled"] },
+      },
+    });
   }
 
   /**

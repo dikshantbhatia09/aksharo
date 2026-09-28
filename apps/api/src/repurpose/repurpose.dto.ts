@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import {
+  AUTOMATION_MODES,
   DEFAULT_MAX_CANDIDATE_MS,
   DEFAULT_MIN_CANDIDATE_MS,
   DEFAULT_REQUESTED_CANDIDATES,
@@ -135,6 +136,12 @@ export const createRunSchema = z.object({
     caption: captionSetupSchema,
     discovery: discoverySetupSchema,
     window: windowSetupSchema.optional(),
+    /**
+     * Autopilot (2026-09-28): `auto` cuts every suggested moment into a clip
+     * and retries what fails for a passing reason, with nobody at the page;
+     * `manual` (the default) waits for the person to pick the moments.
+     */
+    automation: z.enum(AUTOMATION_MODES).optional(),
   }),
   /** Optional title; defaults to the source's safe display form. */
   title: shortLabel.optional(),
@@ -221,6 +228,8 @@ export const runViewSchema = z.object({
     .nullable(),
   /** `POST .../next-window` has something after this window to process. */
   nextWindowAvailable: z.boolean(),
+  /** Autopilot (`auto`) or the person picks the moments (`manual`); see `setup.automation`. */
+  automation: z.enum(AUTOMATION_MODES),
   /**
    * Why a run that is not failed is not moving, and until when: YouTube is
    * refusing this server's downloads, and the run continues by itself after

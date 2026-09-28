@@ -1107,8 +1107,24 @@ function fakePrisma(w: World) {
         findUnique: vi.fn(async () => ({ ...w.run })),
         updateMany: updateRun,
         // The watchdog's listing: every run that has not settled.
-        findMany: vi.fn(async (args: { where: { status: { notIn: readonly string[] } } }) =>
-          args.where.status.notIn.includes(w.run.status) ? [] : [{ ...w.run }],
+        // Two listings: the watchdog's (every run not settled), and
+        // Autopilot's (failed runs with a code it tries again).
+        findMany: vi.fn(
+          async (args: {
+            where: {
+              status: string | { notIn: readonly string[] };
+              failureCode?: { in: readonly string[] };
+            };
+          }) => {
+            const status = args.where.status;
+            if (typeof status === "string") {
+              return w.run.status === status &&
+                (args.where.failureCode?.in ?? []).includes(w.run.failureCode ?? "")
+                ? [{ ...w.run }]
+                : [];
+            }
+            return status.notIn.includes(w.run.status) ? [] : [{ ...w.run }];
+          },
         ),
       },
     } as unknown as PrismaService,
@@ -1179,12 +1195,10 @@ function harness(w: World) {
   const clips = { reconcileClips: vi.fn(async () => ({ enqueued: [] })) };
   const jobs = { diskHeldSince: vi.fn(async (): Promise<number | null> => null) };
   const gate = {
-    state: vi.fn(
-      async (): Promise<{ openUntil: number | null; trips: number }> => ({
-        openUntil: null,
-        trips: 0,
-      }),
-    ),
+    state: vi.fn(async (): Promise<{ openUntil: number | null; trips: number }> => ({
+      openUntil: null,
+      trips: 0,
+    })),
   };
   const reconciler = new RepurposeReconciler(
     prisma,
@@ -1389,7 +1403,11 @@ describe("RepurposeReconciler — moving a run from durable state", () => {
     const h = harness(w);
     await h.reconciler.reconcile(w.run);
     expect(h.runs.failRun).not.toHaveBeenCalled();
-    expect(h.runs.reacquire).toHaveBeenCalledWith(expect.objectContaining({ id: RUN }), URL, undefined);
+    expect(h.runs.reacquire).toHaveBeenCalledWith(
+      expect.objectContaining({ id: RUN }),
+      URL,
+      undefined,
+    );
   });
 
   it("keeps a download YouTube refused waiting while the gate is open", async () => {
@@ -2276,7 +2294,7 @@ describe("RepurposeReconciler — the watchdog", () => {
   it("never runs two passes at once", async () => {
     const h = harness(w);
     await Promise.all([h.reconciler.sweepOnce(NOW), h.reconciler.sweepOnce(NOW)]);
-    expect(h.prisma.repurposeRun.findMany).toHaveBeenCalledTimes(1);
+    expect(watchdogListings(h)).toBe(1);
   });
 
   it("runs on its own timer from boot, independent of the scheduler, and stops at shutdown", async () => {
@@ -2288,11 +2306,11 @@ describe("RepurposeReconciler — the watchdog", () => {
 
     h.reconciler.onApplicationBootstrap();
     await vi.advanceTimersByTimeAsync(30_000);
-    expect(h.prisma.repurposeRun.findMany).toHaveBeenCalledTimes(1);
+    expect(watchdogListings(h)).toBe(1);
 
     await h.reconciler.onModuleDestroy();
     await vi.advanceTimersByTimeAsync(90_000);
-    expect(h.prisma.repurposeRun.findMany).toHaveBeenCalledTimes(1);
+    expect(watchdogListings(h)).toBe(1);
   });
 
   it("stops a pass at the next run once shutdown begins, and starts no new one", async () => {
@@ -2333,6 +2351,61 @@ describe("RepurposeReconciler — the watchdog", () => {
     await vi.advanceTimersByTimeAsync(120_000);
     expect(h.prisma.repurposeRun.findMany).not.toHaveBeenCalled();
     await h.reconciler.onModuleDestroy();
+  });
+});
+
+/** Watchdog passes, by the listing each makes (Autopilot's query aside). */
+function watchdogListings(h: ReturnType<typeof harness>): number {
+  return vi
+    .mocked(h.prisma.repurposeRun.findMany)
+    .mock.calls.filter(
+      ([args]) => typeof (args as { where: { status: unknown } }).where.status !== "string",
+    ).length;
+}
+
+describe("RepurposeReconciler — Autopilot tries a failed run again", () => {
+  const failedOn = (config: Record<string, string | number>) =>
+    world({
+      run: runRow({
+        status: "failed",
+        failureCode: "repurpose/transcription_failed",
+        currentStage: "finding_clips",
+        completedAt: new Date(NOW - 5 * MINUTE),
+        config,
+      }),
+      jobs: [
+        acquireJob({ status: "succeeded" }),
+        job("ai.transcribe", `transcribe:${PROJECT}:${MEDIA}`, {
+          status: "failed",
+          error: { code: "asr/provider_failed" },
+          finishedAt: new Date(NOW - 6 * MINUTE),
+        }),
+      ],
+    });
+
+  it("presses Try again for it, once the failure has settled, and counts it", async () => {
+    w = failedOn({ automation: "auto" });
+    w.media = { ...w.media!, status: "ready", uploadedAt: new Date(), durationMs: 600_000 };
+    const h = harness(w);
+    await h.reconciler.sweepOnce(NOW);
+    expect((w.run.config as Record<string, unknown>)["autopilotRetries"]).toBe(1);
+    expect(h.autoTranscribe.maybeEnqueue).toHaveBeenCalledTimes(1);
+    expect(w.run.status).not.toBe("failed");
+  });
+
+  it("leaves a manual run, and one Autopilot already tried twice, for a person", async () => {
+    const configs: Record<string, string | number>[] = [
+      { automation: "manual" },
+      { automation: "auto", autopilotRetries: 2 },
+    ];
+    for (const config of configs) {
+      w = failedOn(config);
+      w.media = { ...w.media!, status: "ready", uploadedAt: new Date(), durationMs: 600_000 };
+      const h = harness(w);
+      await h.reconciler.sweepOnce(NOW);
+      expect(w.run.status).toBe("failed");
+      expect(h.autoTranscribe.maybeEnqueue).not.toHaveBeenCalled();
+    }
   });
 });
 

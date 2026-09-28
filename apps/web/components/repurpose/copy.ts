@@ -581,6 +581,19 @@ export const REFUSAL_COPY = Object.freeze({
 } satisfies Record<string, Record<string, string> & { network: string; fallback: string }>);
 
 /**
+ * Autopilot (2026-09-28): the start form's switch, and what the run page says
+ * about a run that has it on.
+ */
+export const AUTOPILOT_COPY = Object.freeze({
+  label: "Autopilot",
+  on: "Every moment we find becomes a clip by itself, and anything that fails for a passing reason is tried again. You do not need to stay on this page.",
+  off: "You choose which moments become clips.",
+  runOn:
+    "Autopilot is on: every moment becomes a clip by itself, and anything that fails for a passing reason is tried again.",
+  cutting: " Autopilot is making a vertical 9:16 clip of each one.",
+});
+
+/**
  * The run page's way round YouTube (Wave B): while YouTube is refusing this
  * server the run waits and continues by itself, and a person who has the file
  * can upload it instead - into the same run, keeping its settings.

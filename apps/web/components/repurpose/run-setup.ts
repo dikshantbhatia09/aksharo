@@ -39,6 +39,28 @@ export interface RunSetup {
 const MAX_LENGTH_PARAM_MS = 24 * 60 * 60 * 1000;
 
 const STORAGE_KEY = "aksharo.repurpose.setups";
+const AUTOPILOT_KEY = "aksharo.repurpose.autopilot";
+
+/**
+ * The Autopilot choice this browser made last: on until someone turns it off
+ * (the owner's default, 2026-09-28). Read after mount, never during render,
+ * so the server-rendered form and the first client render agree.
+ */
+export function recallAutopilot(): boolean {
+  try {
+    return window.localStorage.getItem(AUTOPILOT_KEY) !== "off";
+  } catch {
+    return true;
+  }
+}
+
+export function rememberAutopilot(on: boolean): void {
+  try {
+    window.localStorage.setItem(AUTOPILOT_KEY, on ? "on" : "off");
+  } catch {
+    // Private mode or blocked storage: the switch simply starts on next time.
+  }
+}
 /** Enough for anyone's recent runs; the oldest are forgotten first. */
 const MAX_REMEMBERED = 20;
 

@@ -34,6 +34,8 @@ import { rememberLanguage } from "@/components/projects/language-picker";
 import { SOURCE_CEILING_MS } from "@/components/repurpose/failure-detail";
 import { describeRefusal } from "@/components/repurpose/refusal";
 import {
+  recallAutopilot,
+  rememberAutopilot,
   rememberRunSetup,
   setupOf,
   startContextFromParams,
@@ -112,6 +114,12 @@ export function RepurposeNewView(): React.JSX.Element {
   );
   // Read once, like the form: the URL does not change under this page.
   const [startContext] = React.useState(() => startContextFromParams(searchParams));
+  // The Autopilot choice this browser made last, once mounted (storage is
+  // not read during render, so the server's form and the first paint agree).
+  React.useEffect(() => {
+    const on = recallAutopilot();
+    setValue((current) => (current.autopilot === on ? current : { ...current, autopilot: on }));
+  }, []);
   const [serverError, setServerError] = React.useState<string | null>(null);
   const [existingRunId, setExistingRunId] = React.useState<string | null>(null);
   const [seeCredits, setSeeCredits] = React.useState(false);
@@ -157,7 +165,9 @@ export function RepurposeNewView(): React.JSX.Element {
       },
       // Only with a start: no window leaves the choice to the server.
       ...(startMs === undefined ? {} : { window: { startMs, policy: "range" as const } }),
+      automation: value.autopilot ? "auto" : "manual",
     };
+    rememberAutopilot(value.autopilot);
     const body: CreateRepurposeRunRequest = { source, setup };
     lastRequest.current = idempotencyKeyFor(lastRequest.current, JSON.stringify(body));
 

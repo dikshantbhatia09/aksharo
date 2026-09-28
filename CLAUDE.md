@@ -1169,3 +1169,29 @@ bare code). Deployed as **64984aca** (`deploy-20260927b.ps1`, undo
   video has arrived. Not built: the pre-run preview card (`media.inspect`) —
   it would double the YouTube requests the gate exists to save — and in-app
   notifications.
+
+---
+
+## 18. 2026-09-28 — Autopilot: a run that needs nobody
+
+Owner request: moments had to be turned into clips one click at a time. The
+start form now has an **Autopilot** switch (on by default, remembered per
+browser in `aksharo.repurpose.autopilot`), sent as `setup.automation`
+(`"auto" | "manual"`, stored in `repurpose_runs.config.automation`; absent
+reads as manual, and "process the next part" inherits it). All of it is
+server-side, so it works with the page closed:
+
+- **Every moment becomes a clip.** `RepurposeClipsService.autopilot` (run on
+  every `reconcileClips`: reads, clip completions, the 30 s watchdog) gives each
+  non-rejected candidate a clip row; a row with no job reads `waiting`, and the
+  existing owed-clip loop cuts it through the plan lane.
+- **Passing clip failures are cut again**, up to `AUTOPILOT_CLIP_ATTEMPTS` (3)
+  cuts per moment, for `AUTOPILOT_CLIP_RETRY_CODES` only (tool, encode, stalled,
+  queue timeout, ...; never too large/too long/purged/cancelled).
+- **Passing run failures are tried again** by the watchdog
+  (`RepurposeReconciler.retryAutopilotRuns`): `AUTOPILOT_RUN_RETRY_CODES`
+  (stage timeout, source unavailable, processing/transcription/highlights
+  failed), 2 minutes after the failure, at most `AUTOPILOT_RUN_RETRIES` (2)
+  times per run, counted in `config.autopilotRetries` before the retry.
+- Not automated: publishing (not built), processing further windows of a long
+  video (spends credits), and anything the video itself refuses.

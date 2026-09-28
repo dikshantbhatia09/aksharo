@@ -44,7 +44,7 @@ import { Button, Field, Input, cn } from "@montaj/ui";
 import { PICKABLE_STYLES } from "@/components/editor/panels/system-styles";
 import { LanguagePicker } from "@/components/projects/language-picker";
 import { WritingScriptPicker } from "@/components/projects/writing-script-picker";
-import { DETAIL_COPY } from "@/components/repurpose/copy";
+import { AUTOPILOT_COPY, DETAIL_COPY } from "@/components/repurpose/copy";
 import { SOURCE_CEILING_MS, formatBytes, spanPhrase } from "@/components/repurpose/failure-detail";
 import { formatClock, parseClock } from "@/components/repurpose/moment-time";
 import { isPlausibleLink, normaliseSourceLink } from "@/components/repurpose/source-link";
@@ -73,6 +73,12 @@ export interface StartFormValue {
   readonly method: "ai" | "manual";
   readonly requestedCandidates: number;
   readonly rightsAttested: boolean;
+  /**
+   * Autopilot: every moment becomes a clip and passing failures are retried,
+   * with nobody at the page (`setup.automation: "auto"`). Off, the person
+   * picks which moments become clips.
+   */
+  readonly autopilot: boolean;
 }
 
 /** The presets offered up front: every pickable style (`PICKABLE_STYLE_IDS`). */
@@ -100,6 +106,7 @@ export const EMPTY_START_FORM: StartFormValue = Object.freeze({
   method: "ai",
   requestedCandidates: 5,
   rightsAttested: false,
+  autopilot: true,
 });
 
 /**
@@ -446,7 +453,9 @@ export function SourceStartForm({
                   checked={value.rightsAttested}
                   data-testid="rights-attested"
                   aria-invalid={visible.rights !== undefined}
-                  aria-describedby={visible.rights === undefined ? undefined : "repurpose-rights-error"}
+                  aria-describedby={
+                    visible.rights === undefined ? undefined : "repurpose-rights-error"
+                  }
                   onChange={(event) => {
                     set("rightsAttested", event.target.checked);
                   }}
@@ -554,8 +563,8 @@ export function SourceStartForm({
           {detecting ? (
             // Honest about the one case detection gets wrong most.
             <p className="mt-1 text-xs text-fg-2" data-testid="language-detect-hint">
-              We work it out from the video. If it mixes languages, like Hindi and English,
-              choosing it yourself is more reliable.
+              We work it out from the video. If it mixes languages, like Hindi and English, choosing
+              it yourself is more reliable.
             </p>
           ) : (
             <div className="mt-1.5">
@@ -704,6 +713,28 @@ export function SourceStartForm({
             </p>
           )}
         </fieldset>
+
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <label htmlFor="repurpose-autopilot" className="text-sm font-medium text-fg-1">
+              {AUTOPILOT_COPY.label}
+            </label>
+            <p className="mt-1 text-xs text-fg-2" data-testid="autopilot-hint">
+              {value.autopilot ? AUTOPILOT_COPY.on : AUTOPILOT_COPY.off}
+            </p>
+          </div>
+          <input
+            id="repurpose-autopilot"
+            type="checkbox"
+            role="switch"
+            className="panel-switch mt-0.5 shrink-0"
+            checked={value.autopilot}
+            data-testid="autopilot-switch"
+            onChange={(event) => {
+              set("autopilot", event.target.checked);
+            }}
+          />
+        </div>
 
         <div className="border-t border-border pt-4">
           <Button

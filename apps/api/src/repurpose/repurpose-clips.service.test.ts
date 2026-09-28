@@ -48,7 +48,11 @@ function matches(row: Row, where: Row | undefined): boolean {
       continue;
     }
     if (condition !== null && typeof condition === "object") {
-      const operator = condition as { startsWith?: string; in?: unknown[] };
+      const operator = condition as { startsWith?: string; in?: unknown[]; not?: unknown };
+      if ("not" in operator) {
+        if (value === operator.not) return false;
+        continue;
+      }
       if (operator.startsWith !== undefined) {
         if (!String(value).startsWith(operator.startsWith)) return false;
         continue;
@@ -100,6 +104,9 @@ function fakePrisma(t: Tables) {
     },
     clipCandidate: {
       findFirst: vi.fn(findOne(t.candidates)),
+      findMany: vi.fn(async (args: { where: Row }) =>
+        t.candidates.filter((c) => matches(c, args.where)),
+      ),
       count: vi.fn(
         async (args: { where: Row }) => t.candidates.filter((c) => matches(c, args.where)).length,
       ),
@@ -164,6 +171,9 @@ function fakePrisma(t: Tables) {
       ),
     },
     job: {
+      count: vi.fn(
+        async (args: { where: Row }) => t.jobs.filter((job) => matches(job, args.where)).length,
+      ),
       findMany: vi.fn(async (args: { where: Row }) =>
         t.jobs
           .filter((job) => matches(job, args.where))
@@ -1005,6 +1015,68 @@ describe("reconcileClips", () => {
     await h.service.reconcileClips(RUN);
     expect(h.tables.runs[0]?.["status"]).toBe("review_ready");
     expect(h.publish).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("Autopilot", () => {
+  const auto = { config: { automation: "auto" } };
+
+  it("cuts every moment the run found, with nobody asking", async () => {
+    h = harness({ run: auto });
+    const { enqueued } = await h.service.reconcileClips(RUN);
+    expect(h.tables.clips.map((clip) => clip["candidateId"]).sort()).toEqual(
+      [CAND_A, CAND_B].sort(),
+    );
+    expect(enqueued).toHaveLength(2);
+    expect(h.enqueue).toHaveBeenCalledTimes(2);
+    expect(h.tables.runs[0]?.["status"]).toBe("materializing");
+  });
+
+  it("never gives a moment a second clip, and leaves a rejected one alone", async () => {
+    h = harness({ run: auto });
+    h.tables.candidates[1] = { ...h.tables.candidates[1], state: "rejected" };
+    await h.service.reconcileClips(RUN);
+    await h.service.reconcileClips(RUN);
+    expect(h.tables.clips.map((clip) => clip["candidateId"])).toEqual([CAND_A]);
+    expect(h.enqueue).toHaveBeenCalledTimes(1);
+  });
+
+  it("does nothing on a run whose person picks the moments", async () => {
+    await h.service.reconcileClips(RUN);
+    expect(h.tables.clips).toHaveLength(0);
+    expect(h.enqueue).not.toHaveBeenCalled();
+  });
+
+  it("cuts a clip again after a passing failure, at most three cuts in all", async () => {
+    h = harness({ run: { ...auto, status: "materializing", currentStage: "styles_formats" } });
+    h.tables.candidates.length = 1;
+    h.tables.clips.push(clipRow(CAND_A, { updatedAt: new Date(0) }));
+    h.tables.jobs.push(jobRow(CAND_A, "failed", { code: "media/tool_timeout" }));
+
+    await h.service.reconcileClips(RUN);
+    expect(h.enqueue).toHaveBeenCalledTimes(1);
+
+    // Two cuts ended without a clip, then a third: no fourth.
+    for (const job of h.tables.jobs) {
+      Object.assign(job, {
+        status: "failed",
+        finishedAt: new Date(),
+        error: { code: "media/tool_timeout" },
+      });
+    }
+    h.tables.jobs.push(jobRow(CAND_A, "failed", { code: "media/tool_timeout" }));
+    h.enqueue.mockClear();
+    await h.service.reconcileClips(RUN);
+    expect(h.enqueue).not.toHaveBeenCalled();
+  });
+
+  it("never cuts again a clip that can only fail the same way", async () => {
+    h = harness({ run: { ...auto, status: "materializing", currentStage: "styles_formats" } });
+    h.tables.candidates.length = 1;
+    h.tables.clips.push(clipRow(CAND_A, { updatedAt: new Date(0) }));
+    h.tables.jobs.push(jobRow(CAND_A, "failed", { code: "media/too_large" }));
+    await h.service.reconcileClips(RUN);
+    expect(h.enqueue).not.toHaveBeenCalled();
   });
 });
 

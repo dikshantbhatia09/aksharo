@@ -2211,6 +2211,7 @@ export function useCreateRepurposeClip(): UseMutationResult<
 
 export type {
   CreateRepurposeCandidateRequest,
+  RepurposeAutomation,
   ProjectRenderPreview,
   RepurposeClipState,
   RepurposeNextWindowResponse,

@@ -75,7 +75,10 @@ async function startWithPrefilledLink(): Promise<void> {
 describe("<RepurposeNewView />", () => {
   beforeEach(() => {
     routerMock.push.mockClear();
-    searchParamsMock.value = new URLSearchParams({ url: "youtube.com/watch?v=dQw4w9WgXcQ", lang: "en" });
+    searchParamsMock.value = new URLSearchParams({
+      url: "youtube.com/watch?v=dQw4w9WgXcQ",
+      lang: "en",
+    });
   });
 
   it("sends a scheme-less link as https, and remembers the setup for this run", async () => {
@@ -191,6 +194,41 @@ describe("<RepurposeNewView /> language, window and credits", () => {
     expect(window.localStorage.getItem(LANGUAGE_MEMORY_KEY)).toBe("hi-Latn");
   });
 
+  it("runs on Autopilot unless it is switched off, and remembers the choice", async () => {
+    window.localStorage.removeItem("aksharo.repurpose.autopilot");
+    const first = renderWithProviders(<RepurposeNewView />, { routes: { [RUNS]: created() } });
+    expect(await screen.findByTestId("autopilot-switch")).toBeChecked();
+    await startWithPrefilledLink();
+    await waitFor(() => {
+      expect(createBodies(first.fetchMock)).toHaveLength(1);
+    });
+    const [on] = createBodies(first.fetchMock) as [{ setup: Record<string, unknown> }];
+    expect(on.setup["automation"]).toBe("auto");
+    first.unmount();
+
+    const user = userEvent.setup();
+    const second = renderWithProviders(<RepurposeNewView />, { routes: { [RUNS]: created() } });
+    await user.click(await screen.findByTestId("autopilot-switch"));
+    expect(screen.getByTestId("autopilot-hint")).toHaveTextContent(
+      "You choose which moments become clips.",
+    );
+    await startWithPrefilledLink();
+    await waitFor(() => {
+      expect(createBodies(second.fetchMock)).toHaveLength(1);
+    });
+    const [off] = createBodies(second.fetchMock) as [{ setup: Record<string, unknown> }];
+    expect(off.setup["automation"]).toBe("manual");
+    expect(window.localStorage.getItem("aksharo.repurpose.autopilot")).toBe("off");
+    second.unmount();
+
+    // The next visit starts where this browser left it.
+    renderWithProviders(<RepurposeNewView />, { routes: { [RUNS]: created() } });
+    await waitFor(() => {
+      expect(screen.getByTestId("autopilot-switch")).not.toBeChecked();
+    });
+    window.localStorage.removeItem("aksharo.repurpose.autopilot");
+  });
+
   it("sends a typed start as a range window", async () => {
     const user = userEvent.setup();
     const { fetchMock } = renderWithProviders(<RepurposeNewView />, {
@@ -255,9 +293,7 @@ describe("<RepurposeNewView /> language, window and credits", () => {
       routes: { [ENTITLEMENT_PATH]: entitlementWith({ clipsWindowMs: 20 * 60_000 }) },
     });
     expect(
-      await screen.findByText(
-        /^Videos are processed up to 20 minutes at a time/,
-      ),
+      await screen.findByText(/^Videos are processed up to 20 minutes at a time/),
     ).toBeInTheDocument();
   });
 
@@ -329,7 +365,10 @@ describe("<RepurposeNewView /> language, window and credits", () => {
     expect(screen.getByText("This video is only 34:37 long.")).toBeInTheDocument();
 
     await user.clear(screen.getByTestId("source-url"));
-    await user.type(screen.getByTestId("source-url"), "https://www.youtube.com/watch?v=kE0oUEzVVes");
+    await user.type(
+      screen.getByTestId("source-url"),
+      "https://www.youtube.com/watch?v=kE0oUEzVVes",
+    );
     expect(screen.queryByText("This video is only 34:37 long.")).toBeNull();
     await user.click(screen.getByTestId("start-run"));
 

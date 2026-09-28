@@ -50,7 +50,7 @@ import type { StageKey } from "@/components/repurpose/copy";
 
 import { AddMomentForm } from "@/components/repurpose/AddMomentForm";
 import { CandidateCard } from "@/components/repurpose/CandidateCard";
-import { CLIP_STATE_COPY } from "@/components/repurpose/copy";
+import { AUTOPILOT_COPY, CLIP_STATE_COPY } from "@/components/repurpose/copy";
 import { describeRefusal, type Refusal } from "@/components/repurpose/refusal";
 import { canAddMoments, runActivity, serverIsWorking } from "@/components/repurpose/run-activity";
 import {
@@ -381,6 +381,12 @@ export function RepurposeRunView({ runId }: { readonly runId: string }): React.J
           }
         />
 
+        {run.automation === "auto" && activity !== "stopped" ? (
+          <p className="m-0 text-sm text-fg-2" data-testid="run-autopilot">
+            {AUTOPILOT_COPY.runOn}
+          </p>
+        ) : null}
+
         {processed === null ? null : (
           // Which part of the video this run is about, so "20 moments" reads
           // against 20 minutes of a 3-hour podcast, and the way to the next part.
@@ -524,7 +530,11 @@ export function RepurposeRunView({ runId }: { readonly runId: string }): React.J
                       ? "1 moment found."
                       : `${String(candidates.length)} moments found.`}
                     {/* A stopped run makes no new clips; it only keeps what it made. */}
-                    {activity === "stopped" ? "" : " Create a vertical 9:16 clip from any of them."}
+                    {activity === "stopped"
+                      ? ""
+                      : run.automation === "auto"
+                        ? AUTOPILOT_COPY.cutting
+                        : " Create a vertical 9:16 clip from any of them."}
                   </p>
 
                   <ul

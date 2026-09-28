@@ -20,6 +20,12 @@ import { RepurposeClipsService } from "./repurpose-clips.service.js";
 import {
   ACQUIRE_RUNNING_MARGIN_MS,
   ACQUIRE_TIMEOUT_MS,
+  AUTOPILOT_RETRY_AFTER_MS,
+  AUTOPILOT_RETRY_WITHIN_MS,
+  AUTOPILOT_RUN_RETRIES,
+  AUTOPILOT_RUN_RETRY_CODES,
+  autopilotRetriesOf,
+  automationOf,
   PRE_CANDIDATE_STATUSES,
   QUEUE_DOWN_BACKOFF_MS,
   RECONCILE_INTERVAL_MS,
@@ -949,8 +955,73 @@ export class RepurposeReconciler
         if (!on) continue;
         await this.reconcileIfDue(run, {}, now ?? Date.now());
       }
+      await this.retryAutopilotRuns(now ?? Date.now(), enabled);
     } catch (error) {
       this.logger.warn({ err: error }, "run reconcile watchdog pass failed; the next one retries");
+    }
+  }
+
+  /**
+   * Autopilot (`automationOf`): a run that failed for a passing reason
+   * ({@link AUTOPILOT_RUN_RETRY_CODES}) is tried again by itself - the same
+   * "Try again" a person would press ({@link redrive}) - a couple of minutes
+   * after it failed, at most {@link AUTOPILOT_RUN_RETRIES} times over its life,
+   * and only within a day of the failure. The count is written first,
+   * conditional on the run still being the failed one read, so two passes (or
+   * a person pressing Try again meanwhile) never retry it twice, and a retry
+   * that throws still counts.
+   */
+  private async retryAutopilotRuns(now: number, enabled: Map<string, boolean>): Promise<void> {
+    const failed = await this.prisma.repurposeRun.findMany({
+      where: {
+        status: "failed",
+        failureCode: { in: [...AUTOPILOT_RUN_RETRY_CODES] },
+        completedAt: {
+          gte: new Date(now - AUTOPILOT_RETRY_WITHIN_MS),
+          lte: new Date(now - AUTOPILOT_RETRY_AFTER_MS),
+        },
+      },
+      orderBy: { completedAt: "desc" },
+      take: RECONCILE_WATCHDOG_MAX_RUNS,
+    });
+    for (const run of failed) {
+      if (this.stopping) return;
+      if (automationOf(run) !== "auto") continue;
+      const tried = autopilotRetriesOf(run);
+      if (tried >= AUTOPILOT_RUN_RETRIES) continue;
+      let on = enabled.get(run.workspaceId);
+      if (on === undefined) {
+        on = await this.flowEnabled(run.workspaceId);
+        enabled.set(run.workspaceId, on);
+      }
+      if (!on) continue;
+
+      const config =
+        typeof run.config === "object" && run.config !== null && !Array.isArray(run.config)
+          ? (run.config as Prisma.JsonObject)
+          : {};
+      const { count } = await this.prisma.repurposeRun.updateMany({
+        where: { id: run.id, status: "failed", updatedAt: run.updatedAt },
+        data: { config: { ...config, autopilotRetries: tried + 1 } },
+      });
+      if (count === 0) continue;
+      try {
+        const retried = await this.redrive(await this.current(run));
+        this.logger.log(
+          {
+            runId: run.id,
+            failureCode: run.failureCode,
+            attempt: tried + 1,
+            status: retried.status,
+          },
+          "autopilot tried a failed run again",
+        );
+      } catch (error) {
+        this.logger.warn(
+          { runId: run.id, failureCode: run.failureCode, err: error },
+          "autopilot could not try the run again; it stays failed",
+        );
+      }
     }
   }
 
