@@ -96,6 +96,19 @@ export const AUTOPILOT_CLIP_RETRY_CODES: ReadonlySet<string> = new Set([
 ]);
 
 /**
+ * Captioned clips (2026-09-28, Autopilot runs only): how long after the last
+ * edit to a clip's captions its captioned video is made again, so a burst of
+ * edits costs one render, not one per keystroke.
+ */
+export const CAPTIONED_QUIET_MS = 60_000;
+
+/** How many failed renders of one clip before Autopilot leaves it to a person. */
+export const CAPTIONED_RENDER_ATTEMPTS = 3;
+
+/** How long the captioned video's play and download links stay signed. */
+export const CAPTIONED_URL_TTL_SECONDS = 60 * 60;
+
+/**
  * Run failures Autopilot tries again by itself: a stage that stalled, a
  * download or preparation that did not work out, a transcription or discovery
  * that failed. Not a refusal about the video (too long, private, removed, ...)

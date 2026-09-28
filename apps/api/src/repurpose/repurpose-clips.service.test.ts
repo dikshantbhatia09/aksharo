@@ -32,6 +32,9 @@ interface Tables {
   transcripts: Row[];
   chunks: Row[];
   jobs: Row[];
+  /** Clip projects' editing documents (`revision`, `updatedAt`). */
+  docs: Row[];
+  exports: Row[];
 }
 
 /** Just enough of Prisma's `where` for the queries this service makes. */
@@ -82,7 +85,10 @@ function fakePrisma(t: Tables) {
             .filter((v) => v["clipId"] === clip["id"])
             .map((v) => ({
               ...v,
-              project: { mediaAssets: t.media.filter((m) => m["projectId"] === v["projectId"]) },
+              project: {
+                mediaAssets: t.media.filter((m) => m["projectId"] === v["projectId"]),
+                exports: t.exports.filter((e) => e["projectId"] === v["projectId"]).reverse(),
+              },
             })),
         }),
   });
@@ -160,7 +166,38 @@ function fakePrisma(t: Tables) {
         return { count: doomed.length };
       }),
     },
-    clipVariant: { findFirst: vi.fn(findOne(t.variants)) },
+    clipVariant: {
+      findFirst: vi.fn(findOne(t.variants)),
+      /** `captionClips`' read: a ready clip's 9:16 variant, its export and its project. */
+      findMany: vi.fn(async () =>
+        t.variants
+          .filter((v) => t.clips.some((c) => c["id"] === v["clipId"] && c["mezzanineKey"] !== null))
+          .map((v) => ({
+            editFingerprint: "",
+            status: "ready",
+            latestExportId: null,
+            ...v,
+            latestExport: t.exports.find((e) => e["id"] === v["latestExportId"]) ?? null,
+            project: {
+              edgDocument: t.docs.find((d) => d["projectId"] === v["projectId"]) ?? null,
+              mediaAssets: [...t.media]
+                .reverse()
+                .filter((m) => m["projectId"] === v["projectId"] && m["role"] === "primary")
+                .slice(0, 1),
+            },
+          })),
+      ),
+      update: vi.fn(async (args: { where: Row; data: Row }) => {
+        const variant = t.variants.find((v) => v["id"] === args.where["id"]);
+        if (variant === undefined) throw new Error("no such variant");
+        return Object.assign(variant, args.data);
+      }),
+    },
+    export: {
+      count: vi.fn(
+        async (args: { where: Row }) => t.exports.filter((e) => matches(e, args.where)).length,
+      ),
+    },
     mediaAsset: { findFirst: vi.fn(findNewest(t.media)) },
     transcript: { findFirst: vi.fn(findNewest(t.transcripts)) },
     transcriptChunk: {
@@ -205,6 +242,7 @@ function word(wid: string, s: number, e: number, t: string): Row {
 interface Harness {
   service: RepurposeClipsService;
   tables: Tables;
+  requestExport: ReturnType<typeof vi.fn>;
   enqueue: ReturnType<typeof vi.fn>;
   cancel: ReturnType<typeof vi.fn>;
   maybeEnqueueFaces: ReturnType<typeof vi.fn>;
@@ -256,6 +294,8 @@ function harness(overrides: { run?: Row; media?: Row } = {}): Harness {
       },
     ],
     transcripts: [{ id: TR, projectId: SRC }],
+    docs: [],
+    exports: [],
     chunks: [
       {
         transcriptId: TR,
@@ -317,6 +357,9 @@ function harness(overrides: { run?: Row; media?: Row } = {}): Harness {
   const consume = vi.fn(async () => ({ allowed: true, remaining: 10, retryAfterSec: 0 }));
   const publish = vi.fn(async () => undefined);
   const env = { FEATURE_FLAGS_JSON: {} as Record<string, boolean> };
+  const requestExport = vi.fn(async () => ({
+    exportId: `01JCEXP${String(clock++).padStart(19, "0")}`,
+  }));
 
   const service = new RepurposeClipsService(
     // The fake reads `tables` through closures, so later pushes are seen.
@@ -335,10 +378,12 @@ function harness(overrides: { run?: Row; media?: Row } = {}): Harness {
       head: derivedHead,
       get: derivedGet,
     } as never,
+    { requestExport } as never,
   );
   return {
     service,
     tables,
+    requestExport,
     enqueue,
     cancel,
     maybeEnqueueFaces,
@@ -1077,6 +1122,148 @@ describe("Autopilot", () => {
     h.tables.jobs.push(jobRow(CAND_A, "failed", { code: "media/too_large" }));
     await h.service.reconcileClips(RUN);
     expect(h.enqueue).not.toHaveBeenCalled();
+  });
+});
+
+describe("Autopilot's captioned videos", () => {
+  const ready = { config: { automation: "auto" }, status: "review_ready", currentStage: "review" };
+  const CHILD = "01JCCH1LD0000000000000000A";
+
+  /** One ready clip with a 9:16 variant, prepared media and a captions document. */
+  function readyClip(
+    h: Harness,
+    variant: Row = {},
+    doc: Row = { revision: 3, updatedAt: new Date(Date.now() - 10 * 60_000) },
+    media: Row = { facesKey: "faces.json" },
+  ): void {
+    h.tables.candidates.length = 1;
+    h.tables.clips.push(clipRow(CAND_A, { mezzanineKey: "ws/master.mp4", title: "A moment" }));
+    const clipId = h.tables.clips[0]?.["id"];
+    h.tables.variants.push({
+      id: "01JCVAR1ANT000000000000000",
+      clipId,
+      aspect: "r9x16",
+      profileVersion: CLIP_PROFILE_VERSION,
+      projectId: CHILD,
+      editFingerprint: "",
+      status: "ready",
+      latestExportId: null,
+      ...variant,
+    });
+    h.tables.media.push({
+      id: "01JCCH1LDMED1A000000000000",
+      projectId: CHILD,
+      role: "primary",
+      status: "ready",
+      failureReason: null,
+      durationMs: 30_000,
+      createdAt: new Date(clock++),
+      ...media,
+    });
+    h.tables.docs.push({ projectId: CHILD, ...doc });
+  }
+
+  it("makes a captioned video of each ready clip, from the clip's own project", async () => {
+    h = harness({ run: ready });
+    readyClip(h);
+    await h.service.reconcileClips(RUN);
+    expect(h.requestExport).toHaveBeenCalledTimes(1);
+    expect(h.requestExport).toHaveBeenCalledWith(
+      expect.objectContaining({ projectId: CHILD, kind: "video", mode: "cloud", preset: "reels" }),
+    );
+    expect(h.tables.variants[0]).toMatchObject({ status: "rendering", editFingerprint: "edg:3" });
+
+    // Asked once: a render in flight is waited for, not asked for again.
+    h.tables.exports.push({
+      id: h.tables.variants[0]?.["latestExportId"],
+      projectId: CHILD,
+      status: "rendering",
+      storageKey: null,
+    });
+    await h.service.reconcileClips(RUN);
+    expect(h.requestExport).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows the finished file, and makes it again a minute after the captions change", async () => {
+    h = harness({ run: ready });
+    readyClip(h, { latestExportId: "01JCEXP0000000000000000001", editFingerprint: "edg:3" });
+    h.tables.exports.push({
+      id: "01JCEXP0000000000000000001",
+      projectId: CHILD,
+      status: "succeeded",
+      storageKey: "exports/clip.mp4",
+    });
+    await h.service.reconcileClips(RUN);
+    expect(h.requestExport).not.toHaveBeenCalled();
+    const [item] = (await h.service.listClips(WS, RUN)).clips;
+    expect(item?.captioned).toMatchObject({ status: "ready" });
+    expect(item?.captioned?.playUrl).toContain("exports/clip.mp4");
+
+    // Edited just now: the old file stays on the card, marked as being updated.
+    Object.assign(h.tables.docs[0] ?? {}, { revision: 4, updatedAt: new Date() });
+    await h.service.reconcileClips(RUN);
+    expect(h.requestExport).not.toHaveBeenCalled();
+    const [edited] = (await h.service.listClips(WS, RUN)).clips;
+    expect(edited?.captioned).toMatchObject({ status: "stale" });
+    expect(edited?.captioned?.playUrl).toContain("exports/clip.mp4");
+
+    // A minute later with no more edits: made again from revision 4.
+    Object.assign(h.tables.docs[0] ?? {}, { updatedAt: new Date(Date.now() - 61_000) });
+    await h.service.reconcileClips(RUN);
+    expect(h.requestExport).toHaveBeenCalledTimes(1);
+    expect(h.tables.variants[0]).toMatchObject({ status: "rendering", editFingerprint: "edg:4" });
+  });
+
+  it("tries a failed render again, and gives up after three", async () => {
+    h = harness({ run: ready });
+    readyClip(h, { latestExportId: "01JCEXP0000000000000000003", editFingerprint: "edg:3" });
+    h.tables.exports.push({
+      id: "01JCEXP0000000000000000003",
+      projectId: CHILD,
+      status: "failed",
+      storageKey: null,
+    });
+    await h.service.reconcileClips(RUN);
+    expect(h.requestExport).toHaveBeenCalledTimes(1);
+
+    h = harness({ run: ready });
+    readyClip(h, { latestExportId: "01JCEXP0000000000000000003", editFingerprint: "edg:3" });
+    for (const n of [1, 2, 3]) {
+      h.tables.exports.push({
+        id: `01JCEXP000000000000000000${String(n)}`,
+        projectId: CHILD,
+        status: "failed",
+        storageKey: null,
+      });
+    }
+    await h.service.reconcileClips(RUN);
+    expect(h.requestExport).not.toHaveBeenCalled();
+    expect(h.tables.variants[0]?.["status"]).toBe("failed");
+  });
+
+  it("waits for the clip's face track, so captions keep off faces", async () => {
+    h = harness({ run: ready });
+    readyClip(h, {}, undefined, { facesKey: null });
+    h.tables.jobs.push({
+      id: "01JCFACES00000000000000000",
+      type: "ai.faces",
+      jobKey: "ai.faces:01JCCH1LDMED1A000000000000",
+      status: "running",
+      queuedAt: new Date(),
+      startedAt: new Date(),
+      finishedAt: null,
+    });
+    await h.service.reconcileClips(RUN);
+    expect(h.requestExport).not.toHaveBeenCalled();
+  });
+
+  it("makes nothing for a run whose person picks the moments", async () => {
+    h = harness({ run: { status: "review_ready", currentStage: "review" } });
+    readyClip(h);
+    await h.service.reconcileClips(RUN);
+    expect(h.requestExport).not.toHaveBeenCalled();
+    const [item] = (await h.service.listClips(WS, RUN)).clips;
+    expect(item?.captioned).toBeNull();
   });
 });
 

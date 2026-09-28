@@ -1466,7 +1466,25 @@ export interface RepurposeClipItem {
   failureCode?: string | null;
   /** The clip's formats; each is its own editable project (`GET .../clips`). */
   variants?: Array<{ id: string; projectId: string; aspect: string }>;
+  /**
+   * An Autopilot run's finished video with its captions burned in (2026-09-28);
+   * null for a run whose person picks the moments, and until one is asked for.
+   */
+  captioned?: RepurposeCaptionedClip | null;
   [key: string]: unknown;
+}
+
+/** See {@link RepurposeClipItem.captioned}. */
+export interface RepurposeCaptionedClip {
+  /**
+   * `rendering` while it is being made, `stale` when the captions were edited
+   * and it will be made again within a minute or two, `ready`, or `failed`.
+   */
+  status: "rendering" | "ready" | "stale" | "failed";
+  /** The newest finished file, to play inline; kept while a newer one is made. */
+  playUrl: string | null;
+  /** The same file, signed to download as an attachment. */
+  downloadUrl: string | null;
 }
 
 /**

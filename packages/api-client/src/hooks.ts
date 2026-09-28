@@ -2103,6 +2103,14 @@ export function clipsPollDelay(
   pollMs: number,
 ): number | false {
   if (clipsStillMoving(clips, options)) return pollMs;
+  // An Autopilot clip's captioned video is still being made (or re-made).
+  if (
+    clips.some(
+      (clip) => clip.captioned?.status === "rendering" || clip.captioned?.status === "stale",
+    )
+  ) {
+    return pollMs;
+  }
   return clips.some((clip) => typeof clip.mezzanineUrl === "string") ? CLIP_URL_REFRESH_MS : false;
 }
 
@@ -2212,6 +2220,7 @@ export function useCreateRepurposeClip(): UseMutationResult<
 export type {
   CreateRepurposeCandidateRequest,
   RepurposeAutomation,
+  RepurposeCaptionedClip,
   ProjectRenderPreview,
   RepurposeClipState,
   RepurposeNextWindowResponse,

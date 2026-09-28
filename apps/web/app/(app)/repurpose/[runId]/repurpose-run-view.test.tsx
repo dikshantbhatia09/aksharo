@@ -212,6 +212,69 @@ function momentsRoutes(
 
 type FetchMock = ReturnType<typeof renderWithProviders>["fetchMock"];
 
+describe("<RepurposeRunView /> Autopilot's captioned videos", () => {
+  const readyRun = () =>
+    run({
+      status: "review_ready",
+      currentStage: "review",
+      automation: "auto",
+      candidateCount: 1,
+      message: "Your videos are ready to review.",
+    });
+  const readyClip = (captioned: Record<string, unknown>) =>
+    clip("01CLIP1", "01CAND1", {
+      state: "ready",
+      mezzanineKey: "ws/x/master.mp4",
+      mezzanineUrl: "https://media.test/master.mp4?X-Amz-Signature=a",
+      captioned,
+    });
+
+  it("plays and downloads the finished video with its captions, and keeps the clean one", async () => {
+    renderWithProviders(<RepurposeRunView runId={RUN_ID} />, {
+      routes: {
+        [RUN_PATH]: readyRun(),
+        ...momentsRoutes(
+          [candidate("01CAND1")],
+          [
+            readyClip({
+              status: "ready",
+              playUrl: "https://media.test/exports/clip.mp4?X-Amz-Signature=p",
+              downloadUrl: "https://media.test/exports/clip.mp4?X-Amz-Signature=d",
+            }),
+          ],
+        ),
+      },
+    });
+    const video = await screen.findByTestId("clip-video-01CAND1");
+    expect(video).toHaveAttribute("data-preview", "captioned");
+    expect(video.getAttribute("src")).toContain("exports/clip.mp4");
+    expect(screen.getByTestId("download-captioned-01CAND1")).toHaveAttribute(
+      "href",
+      "https://media.test/exports/clip.mp4?X-Amz-Signature=d",
+    );
+    expect(screen.getByTestId("download-clip-01CAND1")).toHaveTextContent("Without captions");
+    expect(screen.queryByTestId("captioned-state-01CAND1")).toBeNull();
+  });
+
+  it("says captions are being added while the first file is made", async () => {
+    renderWithProviders(<RepurposeRunView runId={RUN_ID} />, {
+      routes: {
+        [RUN_PATH]: readyRun(),
+        ...momentsRoutes(
+          [candidate("01CAND1")],
+          [readyClip({ status: "rendering", playUrl: null, downloadUrl: null })],
+        ),
+      },
+    });
+    expect(await screen.findByTestId("captioned-state-01CAND1")).toHaveTextContent(
+      "Adding captions to this video",
+    );
+    expect(screen.queryByTestId("download-captioned-01CAND1")).toBeNull();
+    // Until then, the clip plays as before, and downloads without captions.
+    expect(screen.getByTestId("download-clip-01CAND1")).toHaveTextContent("Download video");
+  });
+});
+
 /** Answer POSTs to `path` with `answer()`; everything else as the routes say. */
 function onPost(fetchMock: FetchMock, path: string, answer: () => Response): void {
   const original = fetchMock.getMockImplementation() as (

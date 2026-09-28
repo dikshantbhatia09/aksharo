@@ -310,6 +310,19 @@ export function safeErrorCopy(code: string | null): SafeErrorCopy {
  * already booked and starts by itself, so the sentence says so rather than
  * offering a button that would only book it twice.
  */
+/**
+ * An Autopilot clip's captioned video (2026-09-28): the finished file with its
+ * captions burned in, made by the server after each cut.
+ */
+export const CAPTIONED_COPY = Object.freeze({
+  adding: "Adding captions to this video…",
+  updating: "Updating this video with your caption changes…",
+  failed:
+    "The captions could not be added to this video. Open it in the editor to export it with captions.",
+  download: "Download video",
+  withoutCaptions: "Without captions",
+});
+
 export const CLIP_STATE_COPY = Object.freeze({
   // Also covers the few minutes a clip waits for its source's face track, so it
   // is framed on the speaker rather than the frame centre.

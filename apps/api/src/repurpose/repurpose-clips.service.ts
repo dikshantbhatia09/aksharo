@@ -1,4 +1,4 @@
-import { HttpStatus, Inject, Injectable, Logger } from "@nestjs/common";
+import { HttpStatus, Inject, Injectable, Logger, Optional } from "@nestjs/common";
 import { ulid } from "ulid";
 
 import type { Env } from "@montaj/config";
@@ -40,6 +40,9 @@ import {
 import {
   AUTOPILOT_CLIP_ATTEMPTS,
   AUTOPILOT_CLIP_RETRY_CODES,
+  CAPTIONED_QUIET_MS,
+  CAPTIONED_RENDER_ATTEMPTS,
+  CAPTIONED_URL_TTL_SECONDS,
   CLIP_PROFILE_VERSION,
   RECONCILE_INTERVAL_MS,
   REPURPOSE_ERRORS,
@@ -52,6 +55,7 @@ import { AppException, ERROR_CODES, PrismaService, RateLimitService } from "../c
 import { DERIVED_STORE, type ObjectStore } from "../common/storage/index.js";
 import { ENV } from "../config/config.module.js";
 import { newestChunkRows } from "../edg/chunk-rows.js";
+import { ExportsService } from "../exports/exports.service.js";
 import { JOB_ERROR_CODES } from "../jobs/jobs.errors.js";
 import { JobsService } from "../jobs/jobs.service.js";
 import { FacesTrigger, facesJobKey } from "../media/faces.js";
@@ -72,12 +76,26 @@ import type {
  * A clip as `GET .../clips` returns it: every column and relation the page
  * already reads, plus its derived state and a short-lived mezzanine URL.
  */
+/**
+ * A ready clip's captioned video (Autopilot runs, 2026-09-28): `rendering`
+ * while it is being made, `stale` when the captions were edited and it will be
+ * made again shortly, `failed` when it could not be made. `playUrl` and
+ * `downloadUrl` point at the newest finished file (null until there is one).
+ */
+export interface CaptionedClipView {
+  readonly status: "rendering" | "ready" | "stale" | "failed";
+  readonly playUrl: string | null;
+  readonly downloadUrl: string | null;
+}
+
 export interface RepurposeClipItemView {
   readonly id: string;
   readonly candidateId: string;
   readonly state: ClipState;
   readonly failureCode: string | null;
   readonly mezzanineUrl: string | null;
+  /** The captioned video, for an Autopilot run's ready clip; null otherwise. */
+  readonly captioned: CaptionedClipView | null;
   readonly [field: string]: unknown;
 }
 
@@ -185,6 +203,8 @@ export class RepurposeClipsService {
     private readonly limiter: RateLimitService,
     @Inject(ENV) private readonly env: Env,
     @Inject(DERIVED_STORE) private readonly derived: ObjectStore,
+    /** Makes the captioned videos of Autopilot clips; absent in hand-built harnesses. */
+    @Optional() private readonly exports?: ExportsService,
   ) {}
 
   // -------------------------------------------------------------------------
@@ -501,6 +521,7 @@ export class RepurposeClipsService {
       }
 
       if (cut > 0) await this.advanceRun(run);
+      await this.captionClips(run);
       if (cut + retried > 0) {
         this.logger.log({ runId: run.id, cut, retried }, "autopilot asked for clips");
         await this.audit.record({
@@ -518,6 +539,145 @@ export class RepurposeClipsService {
         "autopilot could not ask for clips this pass",
       );
     }
+  }
+
+  /**
+   * Autopilot's captioned videos (owner decision, 2026-09-28): every clip that
+   * is cut gets a real MP4 with its captions burned in, made by the ordinary
+   * cloud export of the clip's own project (its caption style, kept off faces),
+   * so the run page shows and downloads the finished video.
+   *
+   * Per clip, its 9:16 variant records the export (`latestExportId`) and the
+   * editing document's revision it was made from (`editFingerprint`):
+   *
+   *   * nothing made yet: made once the clip's media is ready, its captions
+   *     document exists and its face track is settled;
+   *   * made from an older revision (the captions were edited): made again
+   *     {@link CAPTIONED_QUIET_MS} after the last edit;
+   *   * the render failed: made again, up to {@link CAPTIONED_RENDER_ATTEMPTS}
+   *     failed renders per clip;
+   *   * refused outright (no credits, say): left until the captions change.
+   *
+   * A full plan lane is "not now"; the next pass asks again. Never throws.
+   */
+  private async captionClips(run: RepurposeRun, now: number = Date.now()): Promise<void> {
+    const exports = this.exports;
+    if (exports === undefined) return;
+    const variants = await this.prisma.clipVariant.findMany({
+      where: { aspect: "r9x16", clip: { runId: run.id, mezzanineKey: { not: null } } },
+      include: {
+        latestExport: { select: { id: true, status: true } },
+        project: {
+          select: {
+            edgDocument: { select: { revision: true, updatedAt: true } },
+            mediaAssets: {
+              where: { role: "primary" },
+              orderBy: { createdAt: "desc" },
+              take: 1,
+              select: { id: true, status: true, facesKey: true, durationMs: true },
+            },
+          },
+        },
+      },
+    });
+
+    for (const variant of variants) {
+      try {
+        const doc = variant.project.edgDocument;
+        const media = variant.project.mediaAssets[0];
+        if (doc === null || media === undefined || media.status !== "ready") continue;
+        const fingerprint = `edg:${String(doc.revision)}`;
+        const latest = variant.latestExport;
+        const current = variant.editFingerprint === fingerprint;
+
+        if (
+          latest !== null &&
+          (latest.status === "rendering" || latest.status === "pending_browser")
+        ) {
+          if (variant.status !== "rendering") await this.setVariant(variant.id, "rendering");
+          continue;
+        }
+        if (latest !== null && latest.status === "succeeded" && current) {
+          if (variant.status !== "ready") await this.setVariant(variant.id, "ready");
+          continue;
+        }
+        if (latest !== null && latest.status === "failed" && current) {
+          const failed = await this.prisma.export.count({
+            where: { projectId: variant.projectId, status: "failed" },
+          });
+          if (failed >= CAPTIONED_RENDER_ATTEMPTS) {
+            if (variant.status !== "failed") await this.setVariant(variant.id, "failed");
+            continue;
+          }
+        }
+        if (latest === null && variant.status === "failed" && current) continue; // refused
+        // Captions edited since the last file: wait for the edits to settle.
+        if (latest !== null && !current && now - doc.updatedAt.getTime() < CAPTIONED_QUIET_MS) {
+          if (variant.status !== "stale") await this.setVariant(variant.id, "stale");
+          continue;
+        }
+        // Captions keep off faces in the render: wait for the face track.
+        if (
+          media.facesKey === null &&
+          (await this.faceDetectionPending(media.id, media.durationMs))
+        ) {
+          continue;
+        }
+
+        const requested = await exports.requestExport({
+          projectId: variant.projectId,
+          workspaceId: run.workspaceId,
+          userId: run.createdBy,
+          kind: "video",
+          outputKind: "video",
+          preset: "reels",
+          script: "roman",
+          mode: "cloud",
+          dropFillers: false,
+          options: { watermarkPosition: "bottom-right", watermarkOpacity: 1 },
+        });
+        await this.prisma.clipVariant.update({
+          where: { id: variant.id },
+          data: {
+            latestExportId: requested.exportId,
+            status: "rendering",
+            editFingerprint: fingerprint,
+          },
+        });
+        this.logger.log(
+          {
+            runId: run.id,
+            projectId: variant.projectId,
+            exportId: requested.exportId,
+            fingerprint,
+          },
+          "autopilot asked for a captioned video",
+        );
+      } catch (error) {
+        if (isLaneFull(error)) return; // every clip shares the lane: the next pass asks again
+        this.logger.warn(
+          { runId: run.id, projectId: variant.projectId, err: error },
+          "could not ask for a captioned video; left until the captions change",
+        );
+        const doc = variant.project.edgDocument;
+        await this.prisma.clipVariant
+          .update({
+            where: { id: variant.id },
+            data: {
+              status: "failed",
+              ...(doc === null ? {} : { editFingerprint: `edg:${String(doc.revision)}` }),
+            },
+          })
+          .catch(() => undefined);
+      }
+    }
+  }
+
+  private async setVariant(
+    id: string,
+    status: "rendering" | "ready" | "stale" | "failed",
+  ): Promise<void> {
+    await this.prisma.clipVariant.update({ where: { id }, data: { status } });
   }
 
   /** How many cuts of this moment have ended without a clip (failed or cancelled). */
@@ -1025,13 +1185,51 @@ export class RepurposeClipsService {
       }
     }
     const { state, failureCode } = clipStateOf(clipFactsOf(clip), latest, { sourceGone });
+    const captioned = state === "ready" ? await this.captionedOf(clip) : null;
     // JSON round trip: `sizeBytes` on the child media is a BigInt, which the
     // response serialiser cannot write.
     return JSON.parse(
-      JSON.stringify({ ...clip, mezzanineUrl, state, failureCode }, (_, value: unknown) =>
-        typeof value === "bigint" ? value.toString() : value,
+      JSON.stringify(
+        { ...clip, mezzanineUrl, state, failureCode, captioned },
+        (_, value: unknown) => (typeof value === "bigint" ? value.toString() : value),
       ),
     ) as RepurposeClipItemView;
+  }
+
+  /**
+   * The captioned video of a ready clip ({@link captionClips}), for the card:
+   * where it stands, and the newest finished file to play and to download
+   * (kept while a newer one is being made). Null when none was ever asked for
+   * - a run not on Autopilot, or a clip whose captions are still being prepared.
+   */
+  private async captionedOf(clip: ClipWithRelations): Promise<CaptionedClipView | null> {
+    const variant = clip.variants.find((row) => row.aspect === "r9x16");
+    if (variant === undefined || (variant.latestExportId === null && variant.status !== "failed")) {
+      return null;
+    }
+    const exports = variant.project.exports;
+    const done = exports.find((row) => row.status === "succeeded" && row.storageKey !== null);
+    const status: CaptionedClipView["status"] =
+      variant.status === "ready" ||
+      variant.status === "stale" ||
+      variant.status === "failed" ||
+      variant.status === "rendering"
+        ? variant.status
+        : "rendering";
+    if (done === undefined || done.storageKey === null)
+      return { status, playUrl: null, downloadUrl: null };
+    try {
+      const [playUrl, downloadUrl] = await Promise.all([
+        this.derived.presignGet(done.storageKey, CAPTIONED_URL_TTL_SECONDS),
+        this.derived.presignGet(done.storageKey, CAPTIONED_URL_TTL_SECONDS, {
+          downloadFilename: `${clip.title.slice(0, 80) || "clip"}.mp4`,
+        }),
+      ]);
+      return { status, playUrl, downloadUrl };
+    } catch (error) {
+      this.logger.warn({ clipId: clip.id, err: error }, "could not sign the captioned video");
+      return { status, playUrl: null, downloadUrl: null };
+    }
   }
 
   /**

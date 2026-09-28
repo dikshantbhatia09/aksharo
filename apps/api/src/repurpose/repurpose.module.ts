@@ -10,6 +10,7 @@ import { RepurposeStuckRunsSweepTask } from "./repurpose-stuck-runs-sweep.task.j
 import { RepurposeController } from "./repurpose.controller.js";
 import { RepurposeService } from "./repurpose.service.js";
 import { SourceGate } from "./source-gate.js";
+import { ExportsModule } from "../exports/exports.module.js";
 import { JobsModule } from "../jobs/jobs.module.js";
 import { MediaModule } from "../media/media.module.js";
 import { ProjectsModule } from "../projects/projects.module.js";
@@ -31,6 +32,8 @@ import { WorkspacesModule } from "../workspaces/workspaces.module.js";
     WorkspacesModule,
     RealtimeModule,
     JobsModule,
+    // Autopilot's captioned clips are ordinary cloud exports of the clip project.
+    ExportsModule,
     // For `AutoTranscribeTrigger`'s own dependencies (the reconciler starts a
     // run's transcription through it).
     TranscriptsModule,

@@ -72,6 +72,25 @@ describe("clipsPollDelay", () => {
     ).toBe(CLIP_URL_REFRESH_MS);
   });
 
+  it("keeps polling while a captioned video is being made or re-made", () => {
+    for (const status of ["rendering", "stale"] as const) {
+      expect(
+        clipsPollDelay(
+          [{ ...readyClip, captioned: { status, playUrl: null, downloadUrl: null } }],
+          {},
+          3_000,
+        ),
+      ).toBe(3_000);
+    }
+    expect(
+      clipsPollDelay(
+        [{ ...readyClip, captioned: { status: "ready", playUrl: "u", downloadUrl: "d" } }],
+        {},
+        3_000,
+      ),
+    ).toBe(CLIP_URL_REFRESH_MS);
+  });
+
   it("costs nothing when no clip has a URL to keep fresh", () => {
     expect(clipsPollDelay([], {}, 3_000)).toBe(false);
     expect(clipsPollDelay([clip({ state: "failed" })], {}, 3_000)).toBe(false);

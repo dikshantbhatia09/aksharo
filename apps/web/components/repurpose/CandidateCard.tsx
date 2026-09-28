@@ -36,12 +36,58 @@ import {
 import { Badge, Button } from "@montaj/ui";
 
 import { ClipPreview } from "@/components/repurpose/ClipPreview";
-import { CLIP_STATE_COPY, clipFailureCopy } from "@/components/repurpose/copy";
+import { CAPTIONED_COPY, CLIP_STATE_COPY, clipFailureCopy } from "@/components/repurpose/copy";
 import { formatClock } from "@/components/repurpose/moment-time";
 import { describeRefusal } from "@/components/repurpose/refusal";
 import { useStableUrl } from "@/components/repurpose/use-stable-url";
 
 const CLIP_STATES: ReadonlySet<string> = new Set(["waiting", "cutting", "ready", "failed"]);
+
+/**
+ * Where the captioned video's resting frame is taken from: a clip starts half a
+ * second before its first word, so a moment in, the first caption is on screen.
+ */
+export const CAPTIONED_POSTER_S = 1.2;
+
+/**
+ * An Autopilot clip's finished video, captions burned in (2026-09-28). Resting,
+ * it shows a frame {@link CAPTIONED_POSTER_S} in, so the captions are visible
+ * before anyone presses play; the first play starts from the beginning.
+ */
+function CaptionedVideo({
+  src,
+  label,
+  testId,
+}: {
+  readonly src: string;
+  readonly label: string;
+  readonly testId: string;
+}): React.JSX.Element {
+  const played = React.useRef(false);
+  return (
+    <video
+      src={src}
+      controls
+      playsInline
+      preload="metadata"
+      aria-label={label}
+      className="clip-preview aspect-[9/16] w-full object-cover"
+      data-testid={testId}
+      data-preview="captioned"
+      onLoadedMetadata={(event) => {
+        const video = event.currentTarget;
+        if (!played.current && Number.isFinite(video.duration)) {
+          video.currentTime = Math.min(CAPTIONED_POSTER_S, video.duration / 2);
+        }
+      }}
+      onPlay={(event) => {
+        if (played.current) return;
+        played.current = true;
+        event.currentTarget.currentTime = 0;
+      }}
+    />
+  );
+}
 
 /**
  * A clip's state, from the API's `state` when it sends one. An API from before
@@ -106,6 +152,21 @@ export function CandidateCard({
   // The list is polled while any clip is cutting, and every poll presigns
   // afresh; a playing preview must not restart because of it.
   const videoUrl = useStableUrl(clip?.mezzanineUrl ?? undefined, checksum);
+  // An Autopilot clip's finished, captioned video: a new render is a new file
+  // (a new key), which is what replaces the one held here.
+  const captioned = clip?.captioned ?? null;
+  const captionedUrl = useStableUrl(captioned?.playUrl ?? undefined);
+  const captionedDownload = captioned?.downloadUrl ?? undefined;
+  const captionedNote =
+    captioned === null
+      ? null
+      : captioned.status === "failed"
+        ? CAPTIONED_COPY.failed
+        : captioned.status === "rendering" || captioned.status === "stale"
+          ? captionedUrl === undefined
+            ? CAPTIONED_COPY.adding
+            : CAPTIONED_COPY.updating
+          : null;
 
   // Never invent a score: a candidate without one shows none.
   const score = candidate.potentialScore ?? candidate.score;
@@ -181,7 +242,21 @@ export function CandidateCard({
                   </Link>
                 </Button>
               )}
-              {videoUrl === undefined ? null : (
+              {captionedDownload === undefined ? null : (
+                <Button variant="ghost" size="sm" asChild>
+                  <a
+                    href={captionedDownload}
+                    download
+                    className="no-underline"
+                    aria-label={`Download video with captions: ${title}`}
+                    data-testid={`download-captioned-${candidate.id}`}
+                  >
+                    <Download strokeWidth={1.75} aria-hidden="true" />
+                    {CAPTIONED_COPY.download}
+                  </a>
+                </Button>
+              )}
+              {videoUrl === undefined || captionedDownload !== undefined ? null : (
                 <Button variant="ghost" size="sm" asChild>
                   <a
                     href={videoUrl}
@@ -312,7 +387,33 @@ export function CandidateCard({
         </p>
       ) : null}
 
-      {state === "ready" && videoUrl !== undefined && (
+      {state === "ready" && captionedNote !== null ? (
+        <p
+          role="status"
+          className="m-0 inline-flex items-center gap-1.5 text-xs text-fg-2"
+          data-testid={`captioned-state-${candidate.id}`}
+          data-state={captioned?.status}
+        >
+          {captioned?.status === "failed" ? (
+            <AlertTriangle className="size-4 text-rejected" strokeWidth={1.75} aria-hidden="true" />
+          ) : (
+            <Loader2 className="size-4 animate-spin" strokeWidth={1.75} aria-hidden="true" />
+          )}
+          {captionedNote}
+        </p>
+      ) : null}
+
+      {state === "ready" && captionedUrl !== undefined ? (
+        <div className="max-w-[220px] overflow-hidden rounded-sm border border-border bg-ink">
+          <CaptionedVideo
+            src={captionedUrl}
+            label={`${title}, 9:16 clip with captions`}
+            testId={`clip-video-${candidate.id}`}
+          />
+        </div>
+      ) : null}
+
+      {state === "ready" && captionedUrl === undefined && videoUrl !== undefined && (
         <div className="max-w-[220px] overflow-hidden rounded-sm border border-border bg-ink">
           <ClipPreview
             videoUrl={videoUrl}
@@ -324,6 +425,20 @@ export function CandidateCard({
           />
         </div>
       )}
+
+      {state === "ready" && captionedDownload !== undefined && videoUrl !== undefined ? (
+        <a
+          href={videoUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          download={`clip-${candidate.id}.mp4`}
+          className="w-fit text-xs text-fg-2"
+          aria-label={`Download video without captions: ${title}`}
+          data-testid={`download-clip-${candidate.id}`}
+        >
+          {CAPTIONED_COPY.withoutCaptions}
+        </a>
+      ) : null}
     </li>
   );
 }

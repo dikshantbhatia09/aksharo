@@ -1195,3 +1195,17 @@ server-side, so it works with the page closed:
   times per run, counted in `config.autopilotRetries` before the retry.
 - Not automated: publishing (not built), processing further windows of a long
   video (spends credits), and anything the video itself refuses.
+- **Captioned videos (owner decision, same day; Autopilot runs only).** Every
+  cut clip gets a real MP4 with its captions burned in: the ordinary cloud
+  export (`render.video`, preset `reels`, the clip project's own caption style,
+  kept off faces) requested by `RepurposeClipsService.captionClips` once the
+  clip's media is ready, its captions document exists and its face track has
+  settled. The 9:16 `clip_variants` row records it: `latest_export_id`,
+  `edit_fingerprint` (`edg:<revision>`) and `status`
+  (`rendering/ready/stale/failed`). An edit in the editor bumps the revision;
+  the video is made again `CAPTIONED_QUIET_MS` (60 s) after the last edit. A
+  failed render is retried up to `CAPTIONED_RENDER_ATTEMPTS` (3) per clip. The
+  clip list returns `captioned {status, playUrl, downloadUrl}`; the run page
+  plays that file (resting on a frame 1.2 s in, where the first caption shows),
+  "Download video" gives it, and "Without captions" keeps the clean cut. Costs
+  the cloud render rate (0.5 credit per output minute).
