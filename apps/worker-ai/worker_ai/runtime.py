@@ -57,6 +57,7 @@ from worker_ai.cache import MemoryResultCache, NullResultCache, RedisResultCache
 from worker_ai.callbacks import CallbackAck, CallbackClient, JobCompletion, JobError
 from worker_ai.clean.processor import process_clean
 from worker_ai.diarisation import DiariserRegistry
+from worker_ai.dubbing.sarvam import SARVAM_DUBBING_DEFAULT_BASE_URL, SarvamDubbingClient
 from worker_ai.lid import (
     GpuLanguageIdentifier,
     IndicLidClassifier,
@@ -81,6 +82,7 @@ from worker_ai.processors import (
     process_vad,
 )
 from worker_ai.processors.context import JobSettledError
+from worker_ai.processors.dub import process_dub
 from worker_ai.processors.faces import process_faces
 from worker_ai.providers.registry import build_registry
 from worker_ai.queues import AI_QUEUES, parse_envelope
@@ -136,6 +138,7 @@ PROCESSORS: dict[str, Processor] = {
     "ai.clean": process_clean,
     "ai.highlights": process_highlights,
     "ai.faces": process_faces,
+    "ai.dub": process_dub,
 }
 
 
@@ -181,6 +184,21 @@ def build_services(settings: Settings, *, callbacks: CallbackClient | None = Non
         transliteration=build_transliteration_provider(settings),
         translation_providers=build_translation_providers(settings),
         llm_providers=build_llm_providers(settings),
+        dubbing=build_dubbing_client(settings),
+    )
+
+
+def build_dubbing_client(settings: Settings) -> SarvamDubbingClient | None:
+    """Sarvam's Dubbing API for `ai.dub` (2026-10-04), keyed like every Sarvam adapter.
+
+    ``None`` without `SARVAM_API_KEY`: a dub then fails at once with
+    `dub/not_configured`, and nothing is spent.
+    """
+    if not settings.sarvam_api_key:
+        return None
+    return SarvamDubbingClient(
+        settings.sarvam_api_key,
+        base_url=settings.sarvam_base_url or SARVAM_DUBBING_DEFAULT_BASE_URL,
     )
 
 
@@ -455,6 +473,8 @@ async def close_services(services: Services) -> None:
     await services.transliteration.aclose()
     for provider in services.translation_providers:
         await provider.aclose()
+    if services.dubbing is not None:
+        await services.dubbing.aclose()
 
 
 async def drain(workers: list[Any], timeout_s: float = 30.0) -> None:

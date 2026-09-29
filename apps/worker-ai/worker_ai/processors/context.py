@@ -31,6 +31,7 @@ from worker_ai.alignment import AlignerRegistry
 from worker_ai.cache import NullResultCache, ResultCache, content_hash
 from worker_ai.callbacks import CallbackAck, CallbackClient, JobUsage
 from worker_ai.diarisation import DiariserRegistry
+from worker_ai.dubbing.sarvam import SarvamDubbingClient
 from worker_ai.lid import LanguageIdentifier, TextClassifier
 from worker_ai.llm.providers.base import LlmProvider
 from worker_ai.llm.providers.mock import MockLlmProvider
@@ -135,6 +136,9 @@ class Services:
     #: Defaults to the mock so a `Services` built directly in a unit test still
     #: runs the queue.
     llm_providers: tuple[LlmProvider, ...] = (MockLlmProvider(),)
+    #: `ai.dub` (2026-10-04): Sarvam's Dubbing API, when `SARVAM_API_KEY` is set.
+    #: ``None`` answers every dub with `dub/not_configured`.
+    dubbing: SarvamDubbingClient | None = None
 
 
 @dataclass(slots=True)
