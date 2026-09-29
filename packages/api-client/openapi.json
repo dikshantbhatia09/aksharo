@@ -27676,6 +27676,552 @@
           "repurpose"
         ]
       }
+    },
+    "/publishing/status": {
+      "get": {
+        "description": "Never an error: `enabled` false while the feature is off (the page shows no Post button), `available` false with a `reason` and one sentence when something is missing.",
+        "operationId": "getPublishingStatus",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Whether this workspace can post clips, and what is missing if not",
+        "tags": [
+          "publishing"
+        ]
+      }
+    },
+    "/publishing/channels": {
+      "get": {
+        "description": "Each connected account, whether Aksharo posts to it, and why not.",
+        "operationId": "listPublishingChannels",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "The accounts connected for posting",
+        "tags": [
+          "publishing"
+        ]
+      }
+    },
+    "/publishing/posts/{postId}": {
+      "delete": {
+        "description": "A scheduled post is removed from the schedule. 409 `publishing/not_cancellable` while it is being sent or once it is out; 503 when the schedule cannot be reached.",
+        "operationId": "cancelPublishingPost",
+        "parameters": [
+          {
+            "name": "postId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Cancel a post that has not gone out",
+        "tags": [
+          "publishing"
+        ]
+      }
+    },
+    "/publishing/posts/{postId}/retry": {
+      "post": {
+        "description": "409 `publishing/not_retryable` for a post that is not failed, or failed for good.",
+        "operationId": "retryPublishingPost",
+        "parameters": [
+          {
+            "name": "postId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Send a post that did not go out again",
+        "tags": [
+          "publishing"
+        ]
+      }
+    },
+    "/repurpose/runs/{runId}/clips/{clipId}/publish-plan": {
+      "get": {
+        "description": "Accounts (with the video shape each would get, or why it cannot), the starting text per platform, and each account's next free day. Changes nothing.",
+        "operationId": "getRepurposePublishPlan",
+        "parameters": [
+          {
+            "name": "runId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "clipId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "What posting this clip would do",
+        "tags": [
+          "repurpose"
+        ]
+      }
+    },
+    "/repurpose/runs/{runId}/clips/{clipId}/posts": {
+      "post": {
+        "description": "201 with the posts, one per account. 409 `publishing/already_posted` when the clip already has a live post there for that slot; 409 `publishing/not_ready` without a finished captioned video the account takes; 400 `publishing/text_invalid` or `publishing/time_invalid`.",
+        "operationId": "publishRepurposeClip",
+        "parameters": [
+          {
+            "name": "runId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "clipId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "channelIds": {
+                    "minItems": 1,
+                    "maxItems": 20,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                    }
+                  },
+                  "texts": {
+                    "type": "object",
+                    "properties": {
+                      "instagram": {
+                        "type": "object",
+                        "properties": {
+                          "title": {
+                            "type": "string",
+                            "maxLength": 500
+                          },
+                          "body": {
+                            "type": "string",
+                            "maxLength": 10000
+                          }
+                        },
+                        "required": [
+                          "body"
+                        ]
+                      },
+                      "facebook": {
+                        "type": "object",
+                        "properties": {
+                          "title": {
+                            "type": "string",
+                            "maxLength": 500
+                          },
+                          "body": {
+                            "type": "string",
+                            "maxLength": 10000
+                          }
+                        },
+                        "required": [
+                          "body"
+                        ]
+                      },
+                      "youtube": {
+                        "type": "object",
+                        "properties": {
+                          "title": {
+                            "type": "string",
+                            "maxLength": 500
+                          },
+                          "body": {
+                            "type": "string",
+                            "maxLength": 10000
+                          }
+                        },
+                        "required": [
+                          "body"
+                        ]
+                      },
+                      "tiktok": {
+                        "type": "object",
+                        "properties": {
+                          "title": {
+                            "type": "string",
+                            "maxLength": 500
+                          },
+                          "body": {
+                            "type": "string",
+                            "maxLength": 10000
+                          }
+                        },
+                        "required": [
+                          "body"
+                        ]
+                      },
+                      "linkedin": {
+                        "type": "object",
+                        "properties": {
+                          "title": {
+                            "type": "string",
+                            "maxLength": 500
+                          },
+                          "body": {
+                            "type": "string",
+                            "maxLength": 10000
+                          }
+                        },
+                        "required": [
+                          "body"
+                        ]
+                      },
+                      "x": {
+                        "type": "object",
+                        "properties": {
+                          "title": {
+                            "type": "string",
+                            "maxLength": 500
+                          },
+                          "body": {
+                            "type": "string",
+                            "maxLength": 10000
+                          }
+                        },
+                        "required": [
+                          "body"
+                        ]
+                      },
+                      "threads": {
+                        "type": "object",
+                        "properties": {
+                          "title": {
+                            "type": "string",
+                            "maxLength": 500
+                          },
+                          "body": {
+                            "type": "string",
+                            "maxLength": 10000
+                          }
+                        },
+                        "required": [
+                          "body"
+                        ]
+                      }
+                    }
+                  },
+                  "visibility": {
+                    "type": "object",
+                    "properties": {
+                      "youtube": {
+                        "type": "string",
+                        "enum": [
+                          "public",
+                          "unlisted",
+                          "private"
+                        ]
+                      },
+                      "tiktok": {
+                        "type": "string",
+                        "enum": [
+                          "public",
+                          "friends",
+                          "private"
+                        ]
+                      }
+                    }
+                  },
+                  "when": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "now"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "kind"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "at"
+                            ]
+                          },
+                          "at": {
+                            "type": "string",
+                            "format": "date-time",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                          },
+                          "timezone": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 64
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "at"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "daily"
+                            ]
+                          },
+                          "time": {
+                            "type": "string",
+                            "pattern": "^\\d{2}:\\d{2}$"
+                          },
+                          "timezone": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 64
+                          }
+                        },
+                        "required": [
+                          "kind"
+                        ]
+                      }
+                    ]
+                  },
+                  "again": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "channelIds",
+                  "when"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Post a clip now, at a time, or on the next free day",
+        "tags": [
+          "repurpose"
+        ]
+      }
+    },
+    "/repurpose/runs/{runId}/posts": {
+      "get": {
+        "description": "Optionally one clip's (`clipId`).",
+        "operationId": "listRepurposePosts",
+        "parameters": [
+          {
+            "name": "runId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "clipId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "A run's posts, newest first",
+        "tags": [
+          "repurpose"
+        ]
+      }
+    },
+    "/repurpose/runs/{runId}/posts/daily": {
+      "post": {
+        "description": "Each chosen clip on its own day at `time` (default 19:00, India time), per account, skipping days an account already posts on. Pairs that cannot be posted are listed in `skipped`.",
+        "operationId": "scheduleRepurposeDailyPosts",
+        "parameters": [
+          {
+            "name": "runId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "clipIds": {
+                    "minItems": 1,
+                    "maxItems": 40,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                    }
+                  },
+                  "channelIds": {
+                    "minItems": 1,
+                    "maxItems": 20,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                    }
+                  },
+                  "time": {
+                    "type": "string",
+                    "pattern": "^\\d{2}:\\d{2}$"
+                  },
+                  "timezone": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "startDate": {
+                    "type": "string",
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                  },
+                  "visibility": {
+                    "type": "object",
+                    "properties": {
+                      "youtube": {
+                        "type": "string",
+                        "enum": [
+                          "public",
+                          "unlisted",
+                          "private"
+                        ]
+                      },
+                      "tiktok": {
+                        "type": "string",
+                        "enum": [
+                          "public",
+                          "friends",
+                          "private"
+                        ]
+                      }
+                    }
+                  }
+                },
+                "required": [
+                  "clipIds",
+                  "channelIds"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Post one a day",
+        "tags": [
+          "repurpose"
+        ]
+      }
     }
   },
   "info": {

@@ -502,6 +502,13 @@ export const API_OPERATIONS = [
     summary: "Cancel a queued or running job",
   },
   {
+    operationId: "cancelPublishingPost",
+    method: "DELETE",
+    path: "/publishing/posts/{postId}",
+    tags: ["publishing"],
+    summary: "Cancel a post that has not gone out",
+  },
+  {
     operationId: "cancelRepurposeRun",
     method: "POST",
     path: "/repurpose/runs/{runId}/cancel",
@@ -1118,6 +1125,13 @@ export const API_OPERATIONS = [
     summary: "Read a prompted-edit plan back",
   },
   {
+    operationId: "getPublishingStatus",
+    method: "GET",
+    path: "/publishing/status",
+    tags: ["publishing"],
+    summary: "Whether this workspace can post clips, and what is missing if not",
+  },
+  {
     operationId: "getPushPublicKey",
     method: "GET",
     path: "/me/push-subscriptions/key",
@@ -1151,6 +1165,13 @@ export const API_OPERATIONS = [
     path: "/repurpose/runs/{runId}/preview",
     tags: ["repurpose"],
     summary: "Get preview media URL for a run",
+  },
+  {
+    operationId: "getRepurposePublishPlan",
+    method: "GET",
+    path: "/repurpose/runs/{runId}/clips/{clipId}/publish-plan",
+    tags: ["repurpose"],
+    summary: "What posting this clip would do",
   },
   {
     operationId: "getRepurposeRun",
@@ -1552,6 +1573,13 @@ export const API_OPERATIONS = [
     summary: "Projects carrying a client tag",
   },
   {
+    operationId: "listPublishingChannels",
+    method: "GET",
+    path: "/publishing/channels",
+    tags: ["publishing"],
+    summary: "The accounts connected for posting",
+  },
+  {
     operationId: "listRepurposeCandidates",
     method: "GET",
     path: "/repurpose/runs/{runId}/candidates",
@@ -1564,6 +1592,13 @@ export const API_OPERATIONS = [
     path: "/repurpose/runs/{runId}/clips",
     tags: ["repurpose"],
     summary: "List clips and variants for a run",
+  },
+  {
+    operationId: "listRepurposePosts",
+    method: "GET",
+    path: "/repurpose/runs/{runId}/posts",
+    tags: ["repurpose"],
+    summary: "A run's posts, newest first",
   },
   {
     operationId: "listRepurposeRuns",
@@ -1753,6 +1788,13 @@ export const API_OPERATIONS = [
     path: "/projects/{projectId}/transcription-state",
     tags: ["transcripts"],
     summary: "Where this project's first transcription actually is",
+  },
+  {
+    operationId: "publishRepurposeClip",
+    method: "POST",
+    path: "/repurpose/runs/{runId}/clips/{clipId}/posts",
+    tags: ["repurpose"],
+    summary: "Post a clip now, at a time, or on the next free day",
   },
   {
     operationId: "quoteBatch",
@@ -1972,6 +2014,13 @@ export const API_OPERATIONS = [
     summary: "Retry a failed prompted-edit plan's current chain step",
   },
   {
+    operationId: "retryPublishingPost",
+    method: "POST",
+    path: "/publishing/posts/{postId}/retry",
+    tags: ["publishing"],
+    summary: "Send a post that did not go out again",
+  },
+  {
     operationId: "retryRepurposeClip",
     method: "POST",
     path: "/repurpose/runs/{runId}/clips/{clipId}/retry",
@@ -2061,6 +2110,13 @@ export const API_OPERATIONS = [
     path: "/me/push-subscriptions",
     tags: ["notifications"],
     summary: "Turn on device notifications in this browser",
+  },
+  {
+    operationId: "scheduleRepurposeDailyPosts",
+    method: "POST",
+    path: "/repurpose/runs/{runId}/posts/daily",
+    tags: ["repurpose"],
+    summary: "Post one a day",
   },
   {
     operationId: "searchPartnerCatalogue",
