@@ -1377,6 +1377,31 @@ worktrees (`wt/<name>`, branch `feat/<name>`), each merged and verified in
     (`MediaProbeRestart.restartStranded`).
   - `jobs.queue-timeout` must stay OFF: every job's `max_queue_wait_ms` is
     10 min, and Autopilot runs legitimately queue renders for hours.
+- **Wave 3, deployed as fb047fe4** (`deploy-20260929h.ps1`, undo
+  `rollback-20260929h.ps1`; DB backup `montaj_main-pre-20260929h.dump`),
+  then API-only 517dee2f:
+  - **Brand kit** (`apps/api/src/brand-kit`, Settings > Brand kit): one kit
+    per workspace (`brand_kits`, logo in `brand_assets`); Autopilot applies it
+    when the run says `setup.brand` (a switch offered with Autopilot and a
+    saved kit) as overlay kinds `logo` and `end-card` plus the kit's
+    typeface/colours. A workspace without a kit gets exactly today's clips.
+  - **Channel automations** (`apps/api/src/repurpose/automations`,
+    `/repurpose/automations`): a YouTube channel's new uploads start Autopilot
+    runs; flag `repurpose_automations` (created by
+    `ops-20260929i-automations-flag.cjs`, now everyone) and scheduled task
+    `repurpose.source-watch` (8 tasks run now). Reads only
+    `https://www.youtube.com` (channel page once, public feed at most hourly
+    per channel, nothing while `SourceGate` is open). Several links (up to 20)
+    or files start one run each.
+  - **A clip starts on its run's caption style** (`clipDocumentStyle`, never
+    called before: every clip started on Punch Pop).
+  - **`safeFetch` never worked on Node 20+**: its pinned `lookup` answered the
+    one-address form to a socket asking `{ all: true }`, so every real request
+    failed "Invalid IP address: undefined" (outgoing webhooks, RazorpayX
+    payouts, subtitle/source-URL imports). Fixed (`answerLookup`), with the
+    first test that drives the real transport.
+  - A real channel page keeps its canonical/og tags ~750 KB in, past a
+    `</head>` inside an inline script: the reader scans the whole page now.
 - **Known, not fixed**: API unit tests and past dev sessions left ~40 MB of
   keys under test prefixes (`montaj-test-*`, `a23`, `montaj-s07`, ...) in the
   production Redis (`test/setup-env.ts` assigns `localhost:6379`).
