@@ -639,6 +639,36 @@ export const REFUSAL_COPY = Object.freeze({
     network: "We could not reach the server. Check your connection and try again.",
     fallback: "The series could not be made. Try again in a moment.",
   },
+  /** "Dub", a dub's "Try again" and "Stop dubbing" (2026-10-04). */
+  dub: {
+    "dub/not_enabled": "Dubbing is not switched on for this workspace yet.",
+    "dub/consent_required":
+      "Tick the box to confirm you have the right to use and clone this voice.",
+    "dub/clip_not_ready": "This clip is still being made. Dub it once it is ready.",
+    "dub/clip_removed": "Bring this moment back before dubbing its clip.",
+    "dub/run_stopped": "This run was stopped, so nothing new can be made from it.",
+    "dub/source_unsupported":
+      "This clip's language cannot be dubbed yet. Dubbing works from English and Indian languages.",
+    "dub/same_language": "Pick languages other than the one the clip is spoken in.",
+    "dub/language_taken":
+      "This clip is already dubbed, or being dubbed, into one of those languages. Refresh the page.",
+    "dub/too_many": "Three dubs are already being made. Try again when one has finished.",
+    "dub/budget_reached":
+      "Dubbing has reached today's limit. Try again tomorrow; the day starts at 05:30 IST.",
+    "dub/budget_unavailable": "We could not check today's dubbing limit. Try again in a minute.",
+    "dub/no_credits":
+      "You do not have enough credits for this dub. Top up, or dub fewer languages.",
+    "dub/plan_limit":
+      "That is more work than your plan holds at once. Dub into fewer languages at a time.",
+    "dub/too_long": "This clip is too long to dub.",
+    "dub/not_retryable": "This dub cannot be tried again. Refresh the page.",
+    "dub/not_cancellable": "The dub has already been made, so it cannot be stopped now.",
+    "dub/not_found": "This dub is no longer here. Refresh the page.",
+    "repurpose/not_found": "This clip is no longer available. Refresh the page.",
+    "common/rate_limited": "That was a lot of requests at once. Wait a moment, then try again.",
+    network: "We could not reach the server. Check your connection and try again.",
+    fallback: "The dub could not be started. Try again in a moment.",
+  },
   /** "Upload the file instead", on a link run whose video never arrived. */
   useUpload: {
     "repurpose/source_not_replaceable":
