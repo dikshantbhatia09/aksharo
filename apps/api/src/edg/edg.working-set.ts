@@ -155,8 +155,12 @@ export function analyseWorkingSet(ops: readonly EdgOp[]): WorkingSetRequest {
       case "MergePass":
         passIds.add(op.pass.passId);
         break;
+      // Hot-document ops: the hot document is loaded for every batch anyway
+      // (overlays, 2026-09-29, live there too).
       case "SetAudio":
       case "SetRender":
+      case "SetOverlay":
+      case "RemoveOverlay":
         break;
     }
   }

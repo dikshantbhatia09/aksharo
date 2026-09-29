@@ -124,4 +124,21 @@ describe("the payload schemas", () => {
     });
     expect(parsed.projection.words).toHaveLength(3);
   });
+
+  it("carries a hook title, and refuses an overlay kind it cannot draw", () => {
+    const hook = {
+      id: "01JHOOK0000000000000000000",
+      kind: "hook-title",
+      text: "Paisa bachana easy hai",
+      startMs: 0,
+      endMs: 2_500,
+    };
+    expect(RenderProjectionSchema.parse({ ...projection, overlays: [hook] }).overlays).toEqual([
+      hook,
+    ]);
+    expect(
+      RenderProjectionSchema.safeParse({ ...projection, overlays: [{ ...hook, kind: "sticker" }] })
+        .success,
+    ).toBe(false);
+  });
 });

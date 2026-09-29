@@ -90,6 +90,8 @@ export async function buildRenderPreview(
       segments: built.segments,
       words: built.words,
       ...(built.speakerColours === undefined ? {} : { speakerColours: built.speakerColours }),
+      // The hook title: the share viewer and a run's clip preview draw it too.
+      ...(built.overlays === undefined ? {} : { overlays: built.overlays }),
     };
   }
 
