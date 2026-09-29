@@ -72,6 +72,7 @@ import { PersistentPreview, RunActionBar } from "@/components/repurpose/RunActio
 import { RunStageRail } from "@/components/repurpose/RunStageRail";
 import { SourceUploadOffer } from "@/components/repurpose/SourceUploadOffer";
 import { StageErrorCard, StagePanel } from "@/components/repurpose/StagePanel";
+import { isRemovedCandidate, steeringSummary } from "@/components/repurpose/steering";
 
 /** What each not-yet-built stage honestly says while it waits. */
 const STAGE_WAITING_NOTE: Readonly<Record<StageKey, string>> = Object.freeze({
@@ -182,6 +183,10 @@ export function RepurposeRunView({ runId }: { readonly runId: string }): React.J
 
   const stageIndex = run.stages.findIndex((entry) => entry.stage === expanded);
   const candidates = candidatesQuery.data?.candidates ?? [];
+  // Moments the person removed stay listed, folded, for "Restore"; they are
+  // not counted as found (steering, 2026-09-29).
+  const keptCount = candidates.filter((cand) => !isRemovedCandidate(cand)).length;
+  const steeringLine = steeringSummary(run.steering);
   const clips = clipsQuery.data?.clips ?? [];
   const momentsAllowed = canAddMoments(run);
   // The run's own count says moments exist that the (separately polled) list
@@ -387,6 +392,13 @@ export function RepurposeRunView({ runId }: { readonly runId: string }): React.J
           </p>
         ) : null}
 
+        {/* How the run was steered: "About: money habits · Short clips". */}
+        {steeringLine === null ? null : (
+          <p className="m-0 text-sm text-fg-2" data-testid="run-steering">
+            {steeringLine}
+          </p>
+        )}
+
         {processed === null ? null : (
           // Which part of the video this run is about, so "20 moments" reads
           // against 20 minutes of a 3-hour podcast, and the way to the next part.
@@ -526,9 +538,7 @@ export function RepurposeRunView({ runId }: { readonly runId: string }): React.J
               {candidates.length > 0 ? (
                 <div className="flex flex-col gap-3">
                   <p className="m-0 text-sm text-fg-1" data-testid={`stage-note-${expanded}`}>
-                    {candidates.length === 1
-                      ? "1 moment found."
-                      : `${String(candidates.length)} moments found.`}
+                    {keptCount === 1 ? "1 moment found." : `${String(keptCount)} moments found.`}
                     {/* A stopped run makes no new clips; it only keeps what it made. */}
                     {activity === "stopped"
                       ? ""

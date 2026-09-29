@@ -254,6 +254,11 @@ export class RepurposeClipCompletionHandler implements JobCompletionHandler, OnM
     let childMedia = await this.prisma.mediaAsset.findFirst({
       where: { projectId: childProjectId, role: "primary" },
     });
+    // A child made by THIS completion has never had a picture, so the raw copy
+    // made for it below must be this cut's - even over an object an earlier
+    // cut of the same moment left at the same key (a moment whose times were
+    // changed is cut again into fresh projects, `RepurposeSteeringService`).
+    const freshChild = childMedia === null;
     childMedia ??= await this.prisma.mediaAsset.create({
       data: {
         id: ulid(),
@@ -367,7 +372,9 @@ export class RepurposeClipCompletionHandler implements JobCompletionHandler, OnM
     //    probed asset back to `uploaded`, and the probe enqueue dedupes on the
     //    media id anyway. (A mezzanine refused above is `failed`, so never.)
     if (["pending", "uploading", "uploaded"].includes(childMedia.status)) {
-      await promoteToRaw({ raw: this.raw, derived: this.derived }, result.key, "video/mp4");
+      await promoteToRaw({ raw: this.raw, derived: this.derived }, result.key, "video/mp4", {
+        overwrite: freshChild,
+      });
       const childProject = await this.prisma.project.findUniqueOrThrow({
         where: { id: childProjectId },
         select: { id: true, workspaceId: true, status: true },

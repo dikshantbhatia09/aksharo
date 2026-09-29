@@ -1614,3 +1614,80 @@ describe("<RepurposeRunView /> a link longer than the plan processes", () => {
     expect(cardPrimaries(card)).toEqual([within(card).getByTestId("stage-error-choose-another")]);
   });
 });
+
+/**
+ * Steering (2026-09-29): the run says how it was steered, and a moment the
+ * person removed stays on the page folded to one line with "Restore".
+ */
+describe("<RepurposeRunView /> steering", () => {
+  const CANDIDATES = `/repurpose/runs/${RUN_ID}/candidates`;
+  const moment = (id: string, state: string, startMs: number): Record<string, unknown> => ({
+    id,
+    runId: RUN_ID,
+    source: "ai",
+    state,
+    rank: 1,
+    startMs,
+    endMs: startMs + 30_000,
+    title: `Moment ${id}`,
+    potentialScore: 80,
+  });
+
+  it("says what the run is about, how long its clips are and what it skips", async () => {
+    renderWithProviders(<RepurposeRunView runId={RUN_ID} />, {
+      routes: {
+        [`/repurpose/runs/${RUN_ID}`]: run({
+          steering: {
+            topic: "money habits",
+            clipLength: "short",
+            skipIntroMs: 120_000,
+            skipOutroMs: 0,
+          },
+        }),
+      },
+    });
+    expect(await screen.findByTestId("run-steering")).toHaveTextContent(
+      "About: money habits · Short clips · Skips the first 2 min",
+    );
+  });
+
+  it("says nothing of steering for a run that had none", async () => {
+    renderWithProviders(<RepurposeRunView runId={RUN_ID} />, {
+      routes: { [`/repurpose/runs/${RUN_ID}`]: run({ steering: null }) },
+    });
+    expect(await screen.findByTestId("repurpose-run")).toBeInTheDocument();
+    expect(screen.queryByTestId("run-steering")).toBeNull();
+  });
+
+  it("folds a removed moment to one line, and does not count it as found", async () => {
+    renderWithProviders(<RepurposeRunView runId={RUN_ID} />, {
+      routes: {
+        [`/repurpose/runs/${RUN_ID}`]: run({
+          status: "candidates_ready",
+          candidateCount: 2,
+          stages: [
+            { stage: "getting_video", state: "complete", label: "Video added" },
+            { stage: "finding_clips", state: "complete", label: "Moments found" },
+            { stage: "styles_formats", state: "waiting", label: "Style formats" },
+            { stage: "review", state: "waiting", label: "Review" },
+            { stage: "publish", state: "waiting", label: "Publish" },
+          ],
+        }),
+        [CANDIDATES]: {
+          runId: RUN_ID,
+          candidates: [
+            moment("01JS00000000000000000CANDA", "proposed", 60_000),
+            moment("01JS00000000000000000CANDB", "rejected", 120_000),
+          ],
+        },
+      },
+    });
+    const removed = await screen.findByTestId("candidate-card-01JS00000000000000000CANDB");
+    expect(removed).toHaveAttribute("data-removed", "true");
+    expect(
+      within(removed).getByRole("button", { name: "Restore: Moment 01JS00000000000000000CANDB" }),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("remove-moment-01JS00000000000000000CANDA")).toBeInTheDocument();
+    expect(screen.getByText(/^1 moment found\./)).toBeInTheDocument();
+  });
+});

@@ -410,3 +410,75 @@ describe("<RepurposeNewView /> language, window and credits", () => {
     expect(pick["aspect"]).toBe("9:16");
   });
 });
+
+describe("<RepurposeNewView /> steering (2026-09-29)", () => {
+  beforeEach(() => {
+    routerMock.push.mockClear();
+    searchParamsMock.value = new URLSearchParams({
+      url: "youtube.com/watch?v=dQw4w9WgXcQ",
+      lang: "en",
+    });
+  });
+
+  // A fresh answer per test: a body can only be read once.
+  const created = (): Response =>
+    json(201, {
+      run: { id: RUN_ID },
+      projectId: "01JPROJECT",
+      upload: null,
+      next: { rel: "run", href: `/repurpose/runs/${RUN_ID}` },
+    });
+
+  it("sends the topic, the clip length and the skips with the moments we pick", async () => {
+    const user = userEvent.setup();
+    const { fetchMock } = renderWithProviders(<RepurposeNewView />, {
+      routes: { [RUNS]: created() },
+    });
+    await user.type(await screen.findByTestId("steering-topic"), "money habits");
+    await user.click(screen.getByTestId("clip-length-short"));
+    await user.type(screen.getByTestId("steering-skip-intro"), "2");
+    await startWithPrefilledLink();
+
+    await waitFor(() => {
+      expect(routerMock.push).toHaveBeenCalledWith(`/repurpose/${RUN_ID}`);
+    });
+    const [body] = createBodies(fetchMock) as [{ setup: { discovery: Record<string, unknown> } }];
+    expect(body.setup.discovery).toEqual({
+      mode: "ai",
+      requestedCandidates: 5,
+      topic: "money habits",
+      clipLength: "short",
+      skipIntroMs: 120_000,
+    });
+  });
+
+  it("sends Medium by default, and nothing of the rest when it was left empty", async () => {
+    const { fetchMock } = renderWithProviders(<RepurposeNewView />, {
+      routes: { [RUNS]: created() },
+    });
+    await startWithPrefilledLink();
+    await waitFor(() => {
+      expect(routerMock.push).toHaveBeenCalled();
+    });
+    const [body] = createBodies(fetchMock) as [{ setup: { discovery: Record<string, unknown> } }];
+    expect(body.setup.discovery).toEqual({
+      mode: "ai",
+      requestedCandidates: 5,
+      clipLength: "medium",
+    });
+  });
+
+  it("sends none of it when the person knows the timestamps", async () => {
+    const user = userEvent.setup();
+    const { fetchMock } = renderWithProviders(<RepurposeNewView />, {
+      routes: { [RUNS]: created() },
+    });
+    await user.click(await screen.findByTestId("method-manual"));
+    await startWithPrefilledLink();
+    await waitFor(() => {
+      expect(routerMock.push).toHaveBeenCalled();
+    });
+    const [body] = createBodies(fetchMock) as [{ setup: { discovery: Record<string, unknown> } }];
+    expect(body.setup.discovery).toEqual({ mode: "manual", requestedCandidates: 0 });
+  });
+});

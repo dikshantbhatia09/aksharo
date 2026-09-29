@@ -67,6 +67,16 @@ export const DiscoveryConfigSchema = z
     minDurationMs: z.int().min(3_000).max(180_000),
     maxDurationMs: z.int().min(3_000).max(180_000),
     contentGoal: z.enum(["reach", "education", "authority", "engagement"]),
+    /**
+     * Steering (2026-09-29), frozen as the create request sent it (see
+     * `CreateRunRequestSchema.setup.discovery`). Optional: a run from before it
+     * has none. A `clipLength` is also written into the two bounds above, so a
+     * reader that knows nothing of presets still gets the right band.
+     */
+    topic: z.string().trim().min(2).max(200).optional(),
+    clipLength: z.enum(["short", "medium", "long"]).optional(),
+    skipIntroMs: z.int().min(0).max(1_800_000).optional(),
+    skipOutroMs: z.int().min(0).max(1_800_000).optional(),
   })
   .superRefine((value, context) => {
     if (value.minDurationMs > value.maxDurationMs) {

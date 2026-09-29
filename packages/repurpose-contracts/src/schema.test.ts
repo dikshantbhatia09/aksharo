@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   ClipCandidateSchema,
+  ClipLengthPresetSchema,
   ClipVariantViewSchema,
   CreateRunRequestSchema,
   CreateRunResponseSchema,
@@ -42,6 +43,39 @@ describe("repurpose@1 fixture contracts", () => {
       ManualCandidateRequestSchema.safeParse(fixture("manual-candidate-request.v1.json")).success,
     ).toBe(true);
     expect(RepurposeClipViewSchema.safeParse(fixture("clip-view.v1.json")).success).toBe(true);
+  });
+
+  it("freezes a steered discovery (topic, length, skips) and still refuses nonsense in it", () => {
+    // Steering (2026-09-29): what the create request's `discovery` carries is
+    // what the run config freezes, so every preset the request accepts must be
+    // one the config accepts too.
+    const config = RunConfigSchema.parse(fixture("run-config.v1.json"));
+    for (const clipLength of ClipLengthPresetSchema.options) {
+      const steered = {
+        ...config,
+        discovery: {
+          ...config.discovery,
+          topic: "money habits, startup failures",
+          clipLength,
+          skipIntroMs: 120_000,
+          skipOutroMs: 0,
+        },
+      };
+      const parsed = RunConfigSchema.safeParse(steered);
+      expect(parsed.success ? [] : parsed.error.issues, clipLength).toEqual([]);
+    }
+    for (const bad of [
+      { topic: "x" },
+      { clipLength: "epic" },
+      { skipIntroMs: -1 },
+      { skipOutroMs: 1_800_001 },
+    ]) {
+      expect(
+        RunConfigSchema.safeParse({ ...config, discovery: { ...config.discovery, ...bad } })
+          .success,
+        JSON.stringify(bad),
+      ).toBe(false);
+    }
   });
 
   it("rejects version drift, unknown enums and extra setup fields", () => {

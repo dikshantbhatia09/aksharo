@@ -1333,6 +1333,22 @@ export interface RepurposeRunView {
   waitingFor?: RepurposeRunWaitingFor | null;
   /** Autopilot or not; absent from an API older than it (read as `manual`). */
   automation?: RepurposeAutomation;
+  /**
+   * What the run was steered with at the start (2026-09-29): null when it was
+   * not, absent from an API older than steering.
+   */
+  steering?: RepurposeRunSteering | null;
+}
+
+/** How long a run's clips are: 15-35 s, 30-60 s or 55-95 s (`CLIP_LENGTH_PRESETS`). */
+export type RepurposeClipLength = "short" | "medium" | "long";
+
+/** See {@link RepurposeRunView.steering}. A skip of 0 is no skip. */
+export interface RepurposeRunSteering {
+  topic: string | null;
+  clipLength: RepurposeClipLength | null;
+  skipIntroMs: number;
+  skipOutroMs: number;
 }
 
 /** See `CreateRepurposeRunRequest.setup.automation`. */
@@ -1407,6 +1423,16 @@ export interface CreateRepurposeRunRequest {
       minDurationMs?: number;
       maxDurationMs?: number;
       contentGoal?: "reach" | "education" | "authority" | "engagement";
+      /**
+       * Steering (2026-09-29): what the clips should be about (2-200
+       * characters), how long they should be (a preset, which wins over the
+       * two bounds above), and how much of the video's start and end to take
+       * no clip from (0-30 min each). All optional.
+       */
+      topic?: string;
+      clipLength?: RepurposeClipLength;
+      skipIntroMs?: number;
+      skipOutroMs?: number;
     };
     /**
      * Which part of a long link to process. A `startMs` is a picked start

@@ -7,6 +7,7 @@ import {
 } from "@montaj/repurpose-contracts";
 
 import { createRunSchema, listRunsSchema, runViewSchema } from "./repurpose.dto.js";
+import { withLengthPreset } from "./steering.js";
 
 /**
  * The DTO layer against `@montaj/repurpose-contracts` (REP-001's open question).
@@ -322,5 +323,101 @@ describe("run view DTO — what the page reads about windows (2026-09-27)", () =
     ).toBe(true);
     // Missing is not the same as null: every run view carries all four.
     expect(runViewSchema.safeParse(base).success).toBe(false);
+  });
+});
+
+describe("create-run DTO — steering (2026-09-29)", () => {
+  const upload = {
+    source: { kind: "upload", filename: "episode-12.mp4", mime: "video/mp4", sizeBytes: 1_000 },
+    setup: {
+      sourceLanguage: "hi-Latn",
+      caption: { styleId: "punch-pop" },
+      discovery: {
+        mode: "ai",
+        topic: "  money habits, startup failures  ",
+        clipLength: "short",
+        skipIntroMs: 120_000,
+        skipOutroMs: 0,
+      },
+    },
+  };
+
+  it("accepts what the start form sends, trimmed, and freezes a config the contract accepts", () => {
+    const parsed = createRunSchema.parse(upload);
+    expect(parsed.setup.discovery).toMatchObject({
+      topic: "money habits, startup failures",
+      clipLength: "short",
+      skipIntroMs: 120_000,
+      skipOutroMs: 0,
+    });
+    const config = {
+      schemaVersion: 1,
+      sourceLanguage: parsed.setup.sourceLanguage,
+      caption: { ...parsed.setup.caption, styleVersion: 1 },
+      discovery: withLengthPreset(parsed.setup.discovery),
+      formats: [{ aspect: "9:16", destinations: [], reframe: "auto" }],
+      enhancements: { audioClean: false, autoZoom: false, autoTextFx: false, music: "off" },
+    };
+    const result = RunConfigSchema.safeParse(config);
+    expect(result.success ? [] : result.error.issues).toEqual([]);
+    expect(config.discovery).toMatchObject({ minDurationMs: 15_000, maxDurationMs: 35_000 });
+  });
+
+  it("refuses a topic of one letter, a length it does not offer and skips past half an hour", () => {
+    for (const bad of [
+      { topic: "x" },
+      { topic: "y".repeat(201) },
+      { clipLength: "epic" },
+      { skipIntroMs: -1 },
+      { skipOutroMs: 30 * 60_000 + 1 },
+      { skipIntroMs: 1.5 },
+    ]) {
+      const parsed = createRunSchema.safeParse({
+        ...upload,
+        setup: { ...upload.setup, discovery: { ...upload.setup.discovery, ...bad } },
+      });
+      expect(parsed.success, JSON.stringify(bad)).toBe(false);
+    }
+  });
+
+  it("describes the steering on the run view, and still reads a view without it", () => {
+    const view = {
+      id: "01ARZ3NDEKTSV4RRFFQ69G5FB6",
+      workspaceId: "01ARZ3NDEKTSV4RRFFQ69G5FB0",
+      sourceProjectId: "01ARZ3NDEKTSV4RRFFQ69G5FAX",
+      sourceKind: "upload",
+      sourceDisplay: null,
+      mode: "ai",
+      status: "review_ready",
+      currentStage: "review",
+      progress: 85,
+      stages: [],
+      message: "x",
+      failureCode: null,
+      canCancel: true,
+      canRetry: false,
+      candidateCount: 3,
+      clipCount: 3,
+      variantCount: 3,
+      createdAt: "2026-09-29T00:00:00.000Z",
+      updatedAt: "2026-09-29T00:00:00.000Z",
+      sourceTitle: null,
+      window: null,
+      failureDetail: null,
+      nextWindowAvailable: false,
+      automation: "auto",
+      waitingFor: null,
+    };
+    for (const steering of [
+      undefined,
+      null,
+      { topic: "money habits", clipLength: "short", skipIntroMs: 0, skipOutroMs: 60_000 },
+      { topic: null, clipLength: null, skipIntroMs: 120_000, skipOutroMs: 0 },
+    ]) {
+      expect(
+        runViewSchema.safeParse(steering === undefined ? view : { ...view, steering }).success,
+        JSON.stringify(steering),
+      ).toBe(true);
+    }
   });
 });

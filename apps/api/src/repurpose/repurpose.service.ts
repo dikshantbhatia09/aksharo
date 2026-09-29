@@ -46,6 +46,13 @@ import {
 } from "./repurpose.projection.js";
 import { MAX_BLOCKED_FETCHES, SOURCE_BLOCKED_REASON, SourceGate } from "./source-gate.js";
 import { SOURCE_REJECTION_MESSAGES, parseSourceUrl } from "./source-url.js";
+import {
+  autopilotAskCount,
+  discoveryBoundsOf,
+  steeringOf,
+  steeringOptionsOf,
+  withLengthPreset,
+} from "./steering.js";
 import { CommonAuditService } from "../common/audit/audit.service.js";
 import { AppException, PrismaService } from "../common/index.js";
 import { DERIVED_STORE, type ObjectStore } from "../common/storage/index.js";
@@ -784,7 +791,9 @@ export class RepurposeService {
             schemaVersion: 1,
             sourceLanguage: input.setup.sourceLanguage,
             caption: { ...input.setup.caption, styleVersion: 1 },
-            discovery: input.setup.discovery,
+            // With its steering (2026-09-29); a length preset is written into
+            // the bounds too (`withLengthPreset`).
+            discovery: withLengthPreset(input.setup.discovery),
             // Autopilot (`automationOf`): absent reads as manual, as every
             // run from before it was.
             automation: input.setup.automation ?? "manual",
@@ -2025,6 +2034,7 @@ export class RepurposeService {
       nextWindowAvailable: nextWindowAvailable(run),
       automation: automationOf(run),
       waitingFor,
+      steering: steeringOf(run.config),
     };
   }
 
@@ -2100,15 +2110,27 @@ export class RepurposeService {
       waveform: null,
       options: {
         // Autopilot: every moment that clears the bar, scaled to the video's
-        // length (`autopilotClipCount`); otherwise the number the form asked for.
+        // length (`autopilotClipCount`), and a reserve of about a third more
+        // that waits uncut for a removed clip's place (`autopilotAskCount`,
+        // `autopilotPicks`); otherwise the number the form asked for.
         ...(automationOf(run) === "auto"
           ? {
-              count: autopilotClipCount(media?.durationMs),
+              count: autopilotAskCount(autopilotClipCount(media?.durationMs)),
               minPotential: AUTOPILOT_MIN_POTENTIAL,
             }
-          : { count: run.requestedCandidates || (discovery["requestedCandidates"] as number) || 5 }),
-        minDurationMs: (discovery["minDurationMs"] as number) || 15_000,
-        maxDurationMs: (discovery["maxDurationMs"] as number) || 60_000,
+          : {
+              count: run.requestedCandidates || (discovery["requestedCandidates"] as number) || 5,
+            }),
+        // The clip length the person chose, else the run's bounds (15-60 s by default).
+        ...discoveryBoundsOf(discovery),
+        // Steering (2026-09-29): the topic, and the skipped start and end as
+        // ranges on the processed file's own clock (`steeringOptionsOf`).
+        ...steeringOptionsOf({
+          config: run.config,
+          offsetMs: media?.sourceOffsetMs ?? run.windowStartMs,
+          fileDurationMs: media?.durationMs ?? null,
+          sourceDurationMs: run.sourceDurationMs,
+        }),
         contentGoal:
           (discovery["contentGoal"] as "reach" | "education" | "authority" | "engagement") ||
           "reach",

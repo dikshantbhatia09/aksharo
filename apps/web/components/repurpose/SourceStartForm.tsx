@@ -44,10 +44,19 @@ import { Button, Field, Input, cn } from "@montaj/ui";
 import { PICKABLE_STYLES } from "@/components/editor/panels/system-styles";
 import { LanguagePicker } from "@/components/projects/language-picker";
 import { WritingScriptPicker } from "@/components/projects/writing-script-picker";
-import { AUTOPILOT_COPY, DETAIL_COPY } from "@/components/repurpose/copy";
+import { AUTOPILOT_COPY, DETAIL_COPY, STEERING_COPY } from "@/components/repurpose/copy";
 import { SOURCE_CEILING_MS, formatBytes, spanPhrase } from "@/components/repurpose/failure-detail";
 import { formatClock, parseClock } from "@/components/repurpose/moment-time";
 import { isPlausibleLink, normaliseSourceLink } from "@/components/repurpose/source-link";
+import {
+  CLIP_LENGTHS,
+  DEFAULT_CLIP_LENGTH,
+  TOPIC_MAX_LENGTH,
+  lengthRange,
+  skipMsOf,
+  topicProblem,
+  type ClipLength,
+} from "@/components/repurpose/steering";
 
 /**
  * The spoken language when the person leaves it to us: the API detects it
@@ -79,6 +88,16 @@ export interface StartFormValue {
    * picks which moments become clips.
    */
   readonly autopilot: boolean;
+  /**
+   * Steering (2026-09-29), for "Suggest the strongest moments for me" only:
+   * what the clips should be about (empty is anything strong), how long they
+   * should be, and the minutes of the start and end to take no clip from, as
+   * typed (empty skips nothing).
+   */
+  readonly topic: string;
+  readonly clipLength: ClipLength;
+  readonly skipIntro: string;
+  readonly skipOutro: string;
 }
 
 /** The presets offered up front: every pickable style (`PICKABLE_STYLE_IDS`). */
@@ -107,6 +126,10 @@ export const EMPTY_START_FORM: StartFormValue = Object.freeze({
   requestedCandidates: 5,
   rightsAttested: false,
   autopilot: true,
+  topic: "",
+  clipLength: DEFAULT_CLIP_LENGTH,
+  skipIntro: "",
+  skipOutro: "",
 });
 
 /**
@@ -126,6 +149,21 @@ const OUTPUT_LANGUAGES = [
 /** Scripts only matter when the output language has more than one in use. */
 const SCRIPT_CHOICE_LANGUAGES = new Set(["same", "hi", "hi-Latn"]);
 
+/** The two "skip" fields: the video's start and its end. */
+const SKIP_FIELDS = [
+  { key: "skipIntro", label: STEERING_COPY.skipFirst, testId: "steering-skip-intro" },
+  { key: "skipOutro", label: STEERING_COPY.skipLast, testId: "steering-skip-outro" },
+] as const;
+
+/** "Short", "Medium", "Long". */
+function lengthLabel(length: ClipLength): string {
+  return length === "short"
+    ? STEERING_COPY.length.short
+    : length === "long"
+      ? STEERING_COPY.length.long
+      : STEERING_COPY.length.medium;
+}
+
 export interface StartFormProblems {
   readonly url?: string;
   readonly startAt?: string;
@@ -133,6 +171,9 @@ export interface StartFormProblems {
   readonly sourceLanguage?: string;
   readonly rights?: string;
   readonly style?: string;
+  readonly topic?: string;
+  readonly skipIntro?: string;
+  readonly skipOutro?: string;
 }
 
 /**
@@ -219,6 +260,15 @@ export function validateStartForm(
   // The API requires a non-empty style id. Checking it here means a refactor that
   // breaks the default can never again produce a silent 400 on the happy path.
   if (value.styleId.trim() === "") problems.style = "Choose a caption look.";
+
+  // Steering is only offered, and only sent, when we pick the moments: a
+  // hidden field's error would block the form with nothing to correct.
+  if (value.method === "ai") {
+    const topic = topicProblem(value.topic);
+    if (topic !== undefined) problems.topic = topic;
+    if (skipMsOf(value.skipIntro) === null) problems.skipIntro = STEERING_COPY.skipInvalid;
+    if (skipMsOf(value.skipOutro) === null) problems.skipOutro = STEERING_COPY.skipInvalid;
+  }
 
   return problems;
 }
@@ -713,6 +763,112 @@ export function SourceStartForm({
             </p>
           )}
         </fieldset>
+
+        {/* Steering (2026-09-29): only when we pick the moments - with the
+            timestamps known, there is nothing for these to steer. */}
+        {value.method === "ai" && (
+          <div className="space-y-5" data-testid="steering-fields">
+            <Field
+              label={STEERING_COPY.topicLabel}
+              htmlFor="repurpose-topic"
+              hint={STEERING_COPY.topicHint}
+              {...(visible.topic === undefined ? {} : { error: visible.topic })}
+            >
+              <Input
+                id="repurpose-topic"
+                className="bg-sunken"
+                placeholder={STEERING_COPY.topicPlaceholder}
+                maxLength={TOPIC_MAX_LENGTH}
+                value={value.topic}
+                data-testid="steering-topic"
+                aria-invalid={visible.topic !== undefined}
+                aria-describedby={
+                  visible.topic === undefined ? "repurpose-topic-hint" : "repurpose-topic-error"
+                }
+                onChange={(event) => {
+                  set("topic", event.target.value);
+                }}
+              />
+            </Field>
+
+            <fieldset className="border-0 p-0">
+              <legend className="text-sm font-medium text-fg-1">
+                {STEERING_COPY.lengthLegend}
+              </legend>
+              <div className="mt-1.5 flex flex-wrap gap-x-5">
+                {CLIP_LENGTHS.map((length) => (
+                  <label
+                    key={length}
+                    className="flex min-h-8 cursor-pointer items-center gap-2.5 text-sm text-fg-1"
+                  >
+                    <input
+                      type="radio"
+                      name="clip-length"
+                      className="size-4 shrink-0 accent-accent"
+                      value={length}
+                      checked={value.clipLength === length}
+                      data-testid={`clip-length-${length}`}
+                      onChange={() => {
+                        set("clipLength", length);
+                      }}
+                    />
+                    {lengthLabel(length)}
+                    <span className="text-fg-2">({lengthRange(length)})</span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+
+            <fieldset
+              className="border-0 p-0"
+              aria-describedby={
+                visible.skipIntro === undefined && visible.skipOutro === undefined
+                  ? "repurpose-skip-hint"
+                  : "repurpose-skip-error"
+              }
+            >
+              <legend className="text-sm font-medium text-fg-1">{STEERING_COPY.skipLegend}</legend>
+              <div className="mt-1.5 flex flex-wrap items-center gap-x-5 gap-y-2">
+                {SKIP_FIELDS.map((field) => (
+                  // The whole phrase is the label: "Skip the first 2 min".
+                  <label key={field.key} className="flex items-center gap-2 text-sm text-fg-1">
+                    {field.label}
+                    <Input
+                      // A number pad with a decimal point: minutes may be "1.5".
+                      inputMode="decimal"
+                      autoComplete="off"
+                      className="w-16 bg-sunken"
+                      placeholder="0"
+                      value={field.key === "skipIntro" ? value.skipIntro : value.skipOutro}
+                      data-testid={field.testId}
+                      aria-invalid={
+                        (field.key === "skipIntro" ? visible.skipIntro : visible.skipOutro) !==
+                        undefined
+                      }
+                      onChange={(event) => {
+                        set(field.key, event.target.value);
+                      }}
+                    />
+                    {STEERING_COPY.minutes}
+                  </label>
+                ))}
+              </div>
+              <p id="repurpose-skip-hint" className="mt-1 text-xs text-fg-2">
+                {STEERING_COPY.skipHint}
+              </p>
+              {visible.skipIntro === undefined && visible.skipOutro === undefined ? null : (
+                <p
+                  id="repurpose-skip-error"
+                  role="alert"
+                  className="mt-1 text-xs text-rejected"
+                  data-testid="error-skip"
+                >
+                  {visible.skipIntro ?? visible.skipOutro}
+                </p>
+              )}
+            </fieldset>
+          </div>
+        )}
 
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
