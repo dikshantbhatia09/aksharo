@@ -14,9 +14,11 @@
  * 1. A caption the user positioned (`segment.position`) is never moved.
  * 2. A caption already clear of every face stays exactly where its style puts it.
  * 3. Otherwise it moves, as little as possible, into the free band below the
- *    faces; failing that, the band above them — at full size.
- * 4. If neither band holds it at full size, it shrinks (down to
- *    `MIN_PLACEMENT_SCALE`) into whichever band is larger.
+ *    faces; failing that, the band above them; failing both, the nearest band
+ *    between two faces one above the other (a stacked two-speaker clip,
+ *    2026-10-01) — at full size.
+ * 4. If no band holds it at full size, it shrinks (down to
+ *    `MIN_PLACEMENT_SCALE`) into whichever band is largest.
  *
  * Pure: the same projection, track and instant give the same pixels in the
  * editor, the browser export and the cloud renderer.
@@ -252,11 +254,25 @@ export function placeCaption(input: PlacementInput): Placement | undefined {
   if (!blocking.some((face) => overlaps(face, natural))) return undefined;
 
   const margin = ofCanvasShortSide(style.layout.safeAreaPct ?? 0, canvas);
-  const facesTop = Math.min(...blocking.map((face) => face[1]));
-  const facesBottom = Math.max(...blocking.map((face) => face[3]));
   const gap = GAP * canvas.height;
+  // The blocking faces' heights, merged where no caption could fit between
+  // them: the free bands are above the first, between each, and below the last.
+  const spans: [number, number][] = [];
+  for (const [, top, , bottom] of [...blocking].sort((a, b) => a[1] - b[1])) {
+    const last = spans.at(-1);
+    if (last !== undefined && top - gap <= last[1] + gap) last[1] = Math.max(last[1], bottom);
+    else spans.push([top, bottom]);
+  }
+  const facesTop = spans[0]?.[0] ?? 0;
+  const facesBottom = spans.at(-1)?.[1] ?? 0;
   const below = { top: facesBottom + gap, bottom: canvas.height - margin };
   const above = { top: margin, bottom: facesTop - gap };
+  // Two people one above the other (a stacked two-speaker clip, 2026-10-01)
+  // leave a band between their faces. One face, or faces side by side, leave
+  // none, and place exactly as they always did.
+  const between = spans
+    .slice(1)
+    .map(([top], index) => ({ top: (spans.at(index)?.[1] ?? top) + gap, bottom: top - gap }));
   const room = (band: { top: number; bottom: number }): number => band.bottom - band.top;
 
   const anchor = style.layout.anchor;
@@ -264,17 +280,38 @@ export function placeCaption(input: PlacementInput): Placement | undefined {
   const anchorY = style.layout.y;
   const naturalHeight = natural[3] - natural[1];
 
-  /** Moves a caption of `extent` into `band` by the least distance. */
-  const into = (band: { top: number; bottom: number }, extent: Rect): Placement["position"] => {
+  /** Where the top of a caption of `extent` goes in `band`: the least distance from where it is. */
+  const topIn = (band: { top: number; bottom: number }, extent: Rect): number => {
     const height = extent[3] - extent[1];
-    const top = Math.min(Math.max(extent[1], band.top), Math.max(band.top, band.bottom - height));
-    return { x: anchorX, y: anchorY + (top - extent[1]) / canvas.height, anchor };
+    return Math.min(Math.max(extent[1], band.top), Math.max(band.top, band.bottom - height));
   };
+  /** Moves a caption of `extent` into `band` by the least distance. */
+  const into = (band: { top: number; bottom: number }, extent: Rect): Placement["position"] => ({
+    x: anchorX,
+    y: anchorY + (topIn(band, extent) - extent[1]) / canvas.height,
+    anchor,
+  });
 
   if (room(below) >= naturalHeight) return { position: into(below, natural) };
   if (room(above) >= naturalHeight) return { position: into(above, natural) };
+  // Between two faces at full size rather than shrunk below or above them:
+  // the gap it moves the least to reach.
+  const fits = between.filter((gapBand) => room(gapBand) >= naturalHeight);
+  const nearest = fits.reduce<{ top: number; bottom: number } | undefined>(
+    (best, gapBand) =>
+      best === undefined ||
+      Math.abs(topIn(gapBand, natural) - natural[1]) < Math.abs(topIn(best, natural) - natural[1])
+        ? gapBand
+        : best,
+    undefined,
+  );
+  if (nearest !== undefined) return { position: into(nearest, natural) };
 
-  const band = room(below) >= room(above) ? below : above;
+  // The roomiest band, below before above before between on a tie.
+  const band = [above, ...between].reduce(
+    (best, candidate) => (room(candidate) > room(best) ? candidate : best),
+    below,
+  );
   const scale = Math.max(MIN_PLACEMENT_SCALE, Math.min(1, room(band) / naturalHeight));
   const shrink = measured.shrink * scale;
   const shrunk = layoutAt(shrink)?.extent ?? natural;
