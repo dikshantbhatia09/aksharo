@@ -29616,6 +29616,191 @@
         ]
       }
     },
+    "/repurpose/runs/{runId}/dubs": {
+      "get": {
+        "description": "`enabled` says whether dubbing is on for this workspace. Each clip offers its language, its length and the languages already dubbed or being dubbed; each dub its languages, each with its shapes' captioned and clean videos once made.",
+        "operationId": "listRepurposeDubs",
+        "parameters": [
+          {
+            "name": "runId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "`{runId, enabled, tenthsPerMinute, languages, clips, dubs}`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "The run's dubs, and what each clip can be dubbed into",
+        "tags": [
+          "repurpose"
+        ]
+      }
+    },
+    "/repurpose/runs/{runId}/clips/{clipId}/dubs": {
+      "post": {
+        "description": "One vendor job for every language asked for; then every shape of the clip in each language, captioned in it. `consent: true` records that the caller may use and clone the speaker's voice. 201 with the new dub, 200 with the one these languages already have. Holds 25 credits a minute a language. Refusals: 403 `dub/not_enabled`, 400 `dub/consent_required` / `dub/same_language`, 409 `dub/clip_not_ready` / `dub/source_unsupported` / `dub/language_taken`, 402 `dub/no_credits` / `dub/plan_limit`, 429 `dub/too_many` / `dub/budget_reached`, 503 `dub/budget_unavailable`.",
+        "operationId": "createRepurposeDub",
+        "parameters": [
+          {
+            "name": "runId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "clipId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "languages": {
+                    "minItems": 1,
+                    "maxItems": 11,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "en-IN",
+                        "hi-IN",
+                        "bn-IN",
+                        "gu-IN",
+                        "kn-IN",
+                        "ml-IN",
+                        "mr-IN",
+                        "or-IN",
+                        "pa-IN",
+                        "ta-IN",
+                        "te-IN",
+                        "as-IN"
+                      ]
+                    }
+                  },
+                  "consent": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "languages",
+                  "consent"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Dub a clip into other languages, in the speaker's own voice",
+        "tags": [
+          "repurpose"
+        ]
+      }
+    },
+    "/repurpose/runs/{runId}/dubs/{dubId}/retry": {
+      "post": {
+        "description": "A vendor job that did not itself fail is resumed, not paid for again. 409 `dub/not_retryable` for a dub that did not fail, or that the vendor refused.",
+        "operationId": "retryRepurposeDub",
+        "parameters": [
+          {
+            "name": "runId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "dubId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Dub again after a failure",
+        "tags": [
+          "repurpose"
+        ]
+      }
+    },
+    "/repurpose/runs/{runId}/dubs/{dubId}/cancel": {
+      "post": {
+        "description": "The vendor's job is cancelled too and the credits held come back. 409 `dub/not_cancellable` once the vendor has finished.",
+        "operationId": "cancelRepurposeDub",
+        "parameters": [
+          {
+            "name": "runId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "dubId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Stop a dub that is waiting or with the vendor",
+        "tags": [
+          "repurpose"
+        ]
+      }
+    },
     "/publishing/status": {
       "get": {
         "description": "Never an error: `enabled` false while the feature is off (the page shows no Post button), `available` false with a `reason` and one sentence when something is missing.",
@@ -33731,6 +33916,7 @@
               "media.acquire",
               "media.clip",
               "media.stills",
+              "media.dub",
               "ai.vad",
               "ai.transcribe",
               "ai.align",
@@ -33742,6 +33928,7 @@
               "ai.llm",
               "ai.highlights",
               "ai.faces",
+              "ai.dub",
               "render.video",
               "render.subtitle",
               "render.compilation",
@@ -34793,6 +34980,7 @@
               "media.acquire",
               "media.clip",
               "media.stills",
+              "media.dub",
               "ai.vad",
               "ai.transcribe",
               "ai.align",
@@ -34804,6 +34992,7 @@
               "ai.llm",
               "ai.highlights",
               "ai.faces",
+              "ai.dub",
               "render.video",
               "render.subtitle",
               "render.compilation",
@@ -34911,6 +35100,7 @@
               "media.acquire",
               "media.clip",
               "media.stills",
+              "media.dub",
               "ai.vad",
               "ai.transcribe",
               "ai.align",
@@ -34922,6 +35112,7 @@
               "ai.llm",
               "ai.highlights",
               "ai.faces",
+              "ai.dub",
               "render.video",
               "render.subtitle",
               "render.compilation",
@@ -35083,6 +35274,7 @@
               "media.acquire",
               "media.clip",
               "media.stills",
+              "media.dub",
               "ai.vad",
               "ai.transcribe",
               "ai.align",
@@ -35094,6 +35286,7 @@
               "ai.llm",
               "ai.highlights",
               "ai.faces",
+              "ai.dub",
               "render.video",
               "render.subtitle",
               "render.compilation",
@@ -35132,6 +35325,7 @@
               "media.acquire",
               "media.clip",
               "media.stills",
+              "media.dub",
               "ai.vad",
               "ai.transcribe",
               "ai.align",
@@ -35143,6 +35337,7 @@
               "ai.llm",
               "ai.highlights",
               "ai.faces",
+              "ai.dub",
               "render.video",
               "render.subtitle",
               "render.compilation",

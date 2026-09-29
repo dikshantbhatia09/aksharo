@@ -516,6 +516,13 @@ export const API_OPERATIONS = [
     summary: "Cancel a post that has not gone out",
   },
   {
+    operationId: "cancelRepurposeDub",
+    method: "POST",
+    path: "/repurpose/runs/{runId}/dubs/{dubId}/cancel",
+    tags: ["repurpose"],
+    summary: "Stop a dub that is waiting or with the vendor",
+  },
+  {
     operationId: "cancelRepurposeRun",
     method: "POST",
     path: "/repurpose/runs/{runId}/cancel",
@@ -731,6 +738,13 @@ export const API_OPERATIONS = [
     path: "/repurpose/runs/{runId}/compilations",
     tags: ["repurpose"],
     summary: "Join clips into one video: a best of, in one shape, with an optional title card",
+  },
+  {
+    operationId: "createRepurposeDub",
+    method: "POST",
+    path: "/repurpose/runs/{runId}/clips/{clipId}/dubs",
+    tags: ["repurpose"],
+    summary: "Dub a clip into other languages, in the speaker's own voice",
   },
   {
     operationId: "createRepurposeReviewLink",
@@ -1741,6 +1755,13 @@ export const API_OPERATIONS = [
     summary: "The run's compilations: each with its state, and its file to play and download",
   },
   {
+    operationId: "listRepurposeDubs",
+    method: "GET",
+    path: "/repurpose/runs/{runId}/dubs",
+    tags: ["repurpose"],
+    summary: "The run's dubs, and what each clip can be dubbed into",
+  },
+  {
     operationId: "listRepurposePosts",
     method: "GET",
     path: "/repurpose/runs/{runId}/posts",
@@ -2236,6 +2257,13 @@ export const API_OPERATIONS = [
     path: "/repurpose/runs/{runId}/compilations/{compilationId}/retry",
     tags: ["repurpose"],
     summary: "Make a compilation again: failed, expired, or its clips changed since",
+  },
+  {
+    operationId: "retryRepurposeDub",
+    method: "POST",
+    path: "/repurpose/runs/{runId}/dubs/{dubId}/retry",
+    tags: ["repurpose"],
+    summary: "Dub again after a failure",
   },
   {
     operationId: "retryRepurposeRun",
