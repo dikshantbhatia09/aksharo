@@ -1980,6 +1980,8 @@ model Export {
   assetUsages AssetUsage[]
   clipVariants   ClipVariant[]
   publishTargets PublishTarget[]
+  /// A run's clips joined into this file (2026-10-03), when it is one.
+  compilation    RepurposeCompilation?
 
   @@index([projectId])
   @@index([workspaceId])
@@ -3664,6 +3666,9 @@ model RepurposeRun {
   notices        RepurposeRunNotice[]
   /// The channel upload that started this run, when an automation did (2026-10-02).
   watchVideos    SourceWatchVideo[]
+  /// Its clips joined into one video, and its numbered series (2026-10-03).
+  compilations   RepurposeCompilation[]
+  series         RepurposeSeries[]
 
   @@index([workspaceId])
   @@index([workspaceId, createdAt])
@@ -3935,6 +3940,88 @@ model ClipVariant {
   @@index([clipId])
   @@index([status])
   @@map("clip_variants")
+}
+
+/// Where a compilation stands (2026-10-03). `waiting`: asked for while the plan's
+/// lane was full, and enqueued by the reconcile once it frees; `rendering`: its
+/// `render.compilation` job is queued or running; `ready`: its file is made;
+/// `failed`: it could not be (`failure_code` says why).
+enum CompilationStatus {
+  waiting
+  rendering
+  ready
+  failed
+}
+
+/// A run's clips joined into one video in one shape (2026-10-03,
+/// `repurpose/compilations.service.ts`): each clip's captioned video of that
+/// shape, in the order the person chose, a short fade between them and an
+/// optional title card first. The file is an ordinary `exports` row of the run's
+/// source project, so export retention, downloads and the erasure cascade treat
+/// it like any render.
+///
+/// One per (run, clip list, shape, title): `fingerprint` is their hash, so asking
+/// twice for the same compilation answers with the one already made or making.
+model RepurposeCompilation {
+  id          String            @id @db.Char(26)
+  runId       String            @map("run_id") @db.Char(26)
+  workspaceId String            @map("workspace_id") @db.Char(26)
+  /// The one shape every clip is joined in.
+  aspect      Aspect
+  /// The title card's words; null: no card.
+  title       String?
+  /// The clips in playing order: `[clipId, ...]`.
+  clipIds     Json              @map("clip_ids") @db.JsonB
+  /// What the newest attempt joined: `[{clipId, exportId, durationMs}]`, so the
+  /// page can say a clip's captions changed since.
+  sources     Json              @default("[]") @db.JsonB
+  /// sha256 of the clip list, the shape and the title.
+  fingerprint String
+  status      CompilationStatus @default(waiting)
+  failureCode String?           @map("failure_code")
+  /// The planned length until it is made, then the measured one.
+  durationMs  Int?              @map("duration_ms")
+  /// The newest attempt's `render.compilation` job.
+  jobId       String?           @map("job_id") @db.Char(26)
+  /// The newest attempt's export (the file), in the run's source project.
+  exportId    String?           @unique @map("export_id") @db.Char(26)
+  /// Renders asked for, the first included.
+  attempts    Int               @default(0)
+  createdBy   String?           @map("created_by") @db.Char(26)
+  createdAt   DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  run    RepurposeRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  export Export?      @relation(fields: [exportId], references: [id], onDelete: SetNull)
+
+  /// Also the run's index: `run_id` leads it.
+  @@unique([runId, fingerprint])
+  @@index([status])
+  @@map("repurpose_compilations")
+}
+
+/// Consecutive clips posted as a numbered series (2026-10-03,
+/// `repurpose/series.service.ts`): each clip's shapes carry "Part N of M" over
+/// their first seconds and, but the last, "Part N+1 next" before their end, as
+/// hook-title overlays in each shape's editing document. `labels` records, per
+/// shape, what the labels replaced (Autopilot's own hook title), so removing the
+/// series puts it back. A clip belongs to one series at a time.
+model RepurposeSeries {
+  id          String   @id @db.Char(26)
+  runId       String   @map("run_id") @db.Char(26)
+  workspaceId String   @map("workspace_id") @db.Char(26)
+  /// The clips, part 1 first: `[clipId, ...]`.
+  clipIds     Json     @map("clip_ids") @db.JsonB
+  /// `[{variantId, projectId, clipId, part, replaced, added}]`, one per labelled shape.
+  labels      Json     @default("[]") @db.JsonB
+  createdBy   String?  @map("created_by") @db.Char(26)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  run RepurposeRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([runId])
+  @@map("repurpose_series")
 }
 
 /// Run-level review aggregate (§6.6). Per-project review keeps working through the

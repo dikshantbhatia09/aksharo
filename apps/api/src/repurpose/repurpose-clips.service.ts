@@ -47,6 +47,7 @@ import {
   sourceRawPurged,
   stalledCode,
 } from "./clip-state.js";
+import { RepurposeCompilationsService } from "./compilations.service.js";
 import { STAGE_OF_FAILURE } from "./failure-codes.js";
 import { layoutChoiceOf, shapeLayoutOf, type ClipLayoutChoice } from "./layout.js";
 import {
@@ -91,6 +92,7 @@ import {
   autopilotClipCount,
 } from "./repurpose.constants.js";
 import { progressForStatus, projectRun, stageForStatus } from "./repurpose.projection.js";
+import { RepurposeSeriesService } from "./series.service.js";
 import { autopilotPicks, cutBoundsOf, isRemoved } from "./steering.js";
 import { CommonAuditService } from "../common/audit/audit.service.js";
 import { AppException, ERROR_CODES, PrismaService, RateLimitService } from "../common/index.js";
@@ -132,6 +134,11 @@ export interface CaptionedClipView {
   readonly status: "finishing" | "rendering" | "ready" | "stale" | "failed";
   readonly playUrl: string | null;
   readonly downloadUrl: string | null;
+  /**
+   * The newest finished file's length (2026-10-03): what a compilation of it
+   * adds up, which the finishing pass's cuts make shorter than the moment.
+   */
+  readonly durationMs?: number | null;
 }
 
 /**
@@ -299,6 +306,10 @@ export class RepurposeClipsService {
     @Optional() private readonly finishing?: ClipFinishing,
     /** Sends a shape's stranded media back through the probe; absent in harnesses. */
     @Optional() private readonly probeRestart?: MediaProbeRestart,
+    /** Labels a series' shapes made since it was (2026-10-03); absent in harnesses. */
+    @Optional() private readonly series?: RepurposeSeriesService,
+    /** Offers waiting compilations the lane again (2026-10-03); absent in harnesses. */
+    @Optional() private readonly compilations?: RepurposeCompilationsService,
   ) {}
 
   // -------------------------------------------------------------------------
@@ -523,6 +534,9 @@ export class RepurposeClipsService {
     const run = await this.prisma.repurposeRun.findUnique({ where: { id: runId } });
     if (run === null || run.status === "cancelled") return { enqueued: [] };
     this.markReconciled(run.id);
+    // A series' labels go on a shape once it is finished (2026-10-03), before
+    // its captioned video is asked for below, so it is made once, with them.
+    await this.series?.reconcile(run.id);
     // Autopilot asks for the cuts; the loop below makes them, like any other.
     if (automationOf(run) === "auto") await this.autopilot(run);
 
@@ -561,6 +575,10 @@ export class RepurposeClipsService {
     }
 
     await this.settleRun(run.id);
+    // Compilations of these clips waiting for the lane (2026-10-03).
+    await this.compilations?.reconcileRun(run.id).catch((error: unknown) => {
+      this.logger.warn({ runId: run.id, err: error }, "could not reconcile the run's compilations");
+    });
     return { enqueued };
   }
 
@@ -2004,7 +2022,7 @@ export class RepurposeClipsService {
         ? variant.status
         : "rendering";
     if (done === undefined || done.storageKey === null)
-      return { status, playUrl: null, downloadUrl: null };
+      return { status, playUrl: null, downloadUrl: null, durationMs: null };
     try {
       const [playUrl, downloadUrl] = await Promise.all([
         this.derived.presignGet(done.storageKey, CAPTIONED_URL_TTL_SECONDS),
@@ -2012,10 +2030,10 @@ export class RepurposeClipsService {
           downloadFilename: `${clip.title.slice(0, 70) || "clip"} ${shape.replace(":", "x")}.mp4`,
         }),
       ]);
-      return { status, playUrl, downloadUrl };
+      return { status, playUrl, downloadUrl, durationMs: done.durationMs };
     } catch (error) {
       this.logger.warn({ clipId: clip.id, err: error }, "could not sign the captioned video");
-      return { status, playUrl: null, downloadUrl: null };
+      return { status, playUrl: null, downloadUrl: null, durationMs: done.durationMs };
     }
   }
 
