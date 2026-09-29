@@ -1444,6 +1444,13 @@ export interface RepurposeCandidateItem {
   transcriptExcerpt?: string;
   reason?: string;
   reasons?: Array<{ label: string; explanation: string }>;
+  /**
+   * The words to post the moment with, and the language model's judgement of
+   * it (2026-09-29). JSON columns: `{}` or null is none. Read them through
+   * `clipCopyOf` and `judgementOf` (`repurpose-copy.ts`).
+   */
+  copy?: unknown;
+  judgement?: unknown;
   [key: string]: unknown;
 }
 
@@ -1479,6 +1486,11 @@ export interface RepurposeClipItem {
   formats?: RepurposeClipFormat[];
   /** An Autopilot clip's images: posts, carousel, pin, thumbnail, covers, banners. */
   images?: RepurposeClipImages;
+  /**
+   * The words to post the clip with (2026-09-29), started from its moment's.
+   * A JSON column: `{}` is none. Read it through `clipCopyOf` (`repurpose-copy.ts`).
+   */
+  copy?: unknown;
   [key: string]: unknown;
 }
 
