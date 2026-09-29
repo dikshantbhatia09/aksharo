@@ -9,6 +9,12 @@ It contains no client, no adapter, no OAuth code and no provider credential. No
 runtime imports it yet, and every rollout flag (`publishing_postiz`,
 `publishing_tiktok`) is seeded off. Nothing here is permission to post.
 
+The API's publishing module (`apps/api/src/publishing`, 2026-09-29) runs on
+these shapes but restates the names it uses in `publishing.contract.ts` rather
+than importing the package: a new workspace dependency would need a `pnpm
+install` in the release worktree at deploy. `publishing.contract.test.ts` reads
+this package's source and fails if the two drift.
+
 ## The two rules the schemas exist to enforce
 
 **A provider secret never reaches Aksharo.** Tokens live in the licensed

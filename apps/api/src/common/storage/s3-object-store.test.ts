@@ -195,6 +195,33 @@ describe("get / put / delete", () => {
     await expect(store.get("k")).rejects.toBeInstanceOf(ObjectStoreError);
   });
 
+  it("streams a body for openRead, with its size, over the private endpoint", async () => {
+    const { store, send } = makeStore({ publicEndpoint: "https://media.example.com" });
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode("mp4"));
+        controller.close();
+      },
+    });
+    send.mockResolvedValueOnce({
+      Body: { transformToWebStream: () => stream },
+      ContentLength: 3,
+      ContentType: "video/mp4",
+    });
+    const read = await store.openRead("ws/exports/e.mp4");
+    expect(read.sizeBytes).toBe(3);
+    expect(read.contentType).toBe("video/mp4");
+    expect(await new Response(read.body).text()).toBe("mp4");
+    // The internal client made the call; nothing was presigned.
+    expect(send).toHaveBeenCalledTimes(1);
+  });
+
+  it("raises when openRead gets no streamable body", async () => {
+    const { store, send } = makeStore();
+    send.mockResolvedValueOnce({});
+    await expect(store.openRead("k")).rejects.toBeInstanceOf(ObjectStoreError);
+  });
+
   it("writes a string body as UTF-8 with its tags", async () => {
     const { store, send } = makeStore();
     send.mockResolvedValueOnce({});

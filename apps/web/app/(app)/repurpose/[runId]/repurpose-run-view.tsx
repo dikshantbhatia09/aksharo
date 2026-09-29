@@ -52,6 +52,7 @@ import { AddMomentForm } from "@/components/repurpose/AddMomentForm";
 import { CandidateCard } from "@/components/repurpose/CandidateCard";
 import { AUTOPILOT_COPY, CLIP_STATE_COPY } from "@/components/repurpose/copy";
 import { EpisodePackPanel } from "@/components/repurpose/EpisodePackPanel";
+import { RunPublishing } from "@/components/repurpose/publishing/RunPublishing";
 import { describeRefusal, type Refusal } from "@/components/repurpose/refusal";
 import { canAddMoments, runActivity, serverIsWorking } from "@/components/repurpose/run-activity";
 import {
@@ -559,6 +560,9 @@ export function RepurposeRunView({ runId }: { readonly runId: string }): React.J
                         ? AUTOPILOT_COPY.cutting
                         : " Create a vertical 9:16 clip from any of them."}
                   </p>
+
+                  {/* "Post one a day" (2026-09-29): nothing while posting is switched off. */}
+                  <RunPublishing runId={runId} clips={clips} candidates={candidates} />
 
                   <ul
                     className="m-0 flex list-none flex-col gap-3 p-0"
