@@ -622,20 +622,23 @@ export class ClipFinishing {
   }
 
   /**
-   * The style's default emphasis: the document's own override of it if it has
-   * one, else the resolved style's first preset — what "Emphasise word" uses.
+   * The emphasis the keywords get: the first of the style's presets that reads
+   * as a keyword ({@link keywordPresetId}), from the document's own presets
+   * when it overrides them (an override replaces the list), else the style's.
+   * The first preset is what "Emphasise word" uses, so it is usually that one.
    */
   private async defaultEmphasisPreset(
     workspaceId: string,
     projection: EdgProjection,
   ): Promise<string | undefined> {
     const inline = projection.styles.inline as { doc?: { emphasisPresets?: unknown } } | undefined;
-    const fromDocument = firstPresetId(inline?.doc?.emphasisPresets);
-    if (fromDocument !== undefined) return fromDocument;
+    if (Array.isArray(inline?.doc?.emphasisPresets)) {
+      return keywordPresetId(inline.doc.emphasisPresets);
+    }
     const snapshot = await resolveStyleSnapshot(this.prisma, workspaceId, projection);
     const style = snapshot.styles[projection.styles.defaultStyleId] as
       { emphasisPresets?: unknown } | undefined;
-    return firstPresetId(style?.emphasisPresets);
+    return keywordPresetId(style?.emphasisPresets);
   }
 
   /** Applies worker ops; how many landed. A refused op is logged, never thrown. */
@@ -698,12 +701,29 @@ function refusalOf(error: unknown): "wait" | "plan" | "credits" | "not-ready" | 
   return "error";
 }
 
-function firstPresetId(presets: unknown): string | undefined {
+/**
+ * Effects a keyword can wear on every caption: a colour, a glow, an underline,
+ * an outline. Not `shake` — a jolt on every line is noise, not emphasis — and
+ * not `highlight`, whose marker is painted in the same colour as the word
+ * (render-core's `emphasisGround`), so the keyword would disappear.
+ */
+const KEYWORD_EFFECTS: ReadonlySet<unknown> = new Set([
+  undefined,
+  "none",
+  "glow",
+  "underline",
+  "outline",
+]);
+
+/** The first preset in `presets` that reads as a keyword, or `undefined`. */
+export function keywordPresetId(presets: unknown): string | undefined {
   if (!Array.isArray(presets)) return undefined;
-  const first: unknown = presets[0];
-  if (typeof first !== "object" || first === null) return undefined;
-  const id = (first as { id?: unknown }).id;
-  return typeof id === "string" && id !== "" ? id : undefined;
+  for (const preset of presets as unknown[]) {
+    if (typeof preset !== "object" || preset === null) continue;
+    const { id, effect } = preset as { id?: unknown; effect?: unknown };
+    if (typeof id === "string" && id !== "" && KEYWORD_EFFECTS.has(effect)) return id;
+  }
+  return undefined;
 }
 
 function primaryDurationOf(projection: EdgProjection): number {

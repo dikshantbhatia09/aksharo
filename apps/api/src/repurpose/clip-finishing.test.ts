@@ -12,6 +12,7 @@ import {
   HOOK_TITLE_MS,
   hookTextOf,
   hookWindow,
+  keywordPresetId,
   type FinishingVariant,
 } from "./clip-finishing.js";
 import { AppException } from "../common/index.js";
@@ -605,5 +606,29 @@ describe("acceptableCut", () => {
     expect(acceptableCut(cutItem("01JFCVT1000000000000000000", 0, 1, { state: "rejected" }))).toBe(
       false,
     );
+  });
+});
+
+describe("keywordPresetId", () => {
+  it("takes the style's first preset that reads on every caption", () => {
+    expect(
+      keywordPresetId([
+        { id: "pop", effect: "none" },
+        { id: "shout", effect: "shake" },
+      ]),
+    ).toBe("pop");
+    expect(keywordPresetId([{ id: "accent" }])).toBe("accent");
+  });
+
+  it("passes over a marker that would hide the word, and a jolt on every line", () => {
+    expect(
+      keywordPresetId([
+        { id: "mark", effect: "highlight" },
+        { id: "shout", effect: "shake" },
+        { id: "underline", effect: "underline" },
+      ]),
+    ).toBe("underline");
+    expect(keywordPresetId([{ id: "mark", effect: "highlight" }])).toBeUndefined();
+    expect(keywordPresetId(undefined)).toBeUndefined();
   });
 });

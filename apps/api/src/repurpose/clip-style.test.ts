@@ -13,8 +13,9 @@ describe("clipDocumentStyle", () => {
   });
 
   it("keeps the document's own default for a style that is no longer pickable", () => {
-    // Two of the three live clips were made from runs that froze a retired id.
-    expect(clipDocumentStyle({ styleId: "vertical-clean" })).toBeUndefined();
+    // Two of the three live clips were made from runs that froze a retired id
+    // (then `vertical-clean`, offered again since 2026-09-29).
+    expect(clipDocumentStyle({ styleId: "box-block" })).toBeUndefined();
     expect(clipDocumentStyle({ styleId: "preset:01JCPRESET0000000000000000" })).toBeUndefined();
   });
 
