@@ -69,6 +69,7 @@ import {
   windowSummary,
 } from "@/components/repurpose/run-window";
 import { PersistentPreview, RunActionBar } from "@/components/repurpose/RunActionBar";
+import { RunActivityLine } from "@/components/repurpose/RunActivityLine";
 import { RunStageRail } from "@/components/repurpose/RunStageRail";
 import { SourceUploadOffer } from "@/components/repurpose/SourceUploadOffer";
 import { StageErrorCard, StagePanel } from "@/components/repurpose/StagePanel";
@@ -179,6 +180,12 @@ export function RepurposeRunView({ runId }: { readonly runId: string }): React.J
   // is waiting for the person or for its upload, and not on one that stopped.
   // The same rule as Home's banner (`serverIsWorking`).
   const busy = serverIsWorking(run);
+  // The step under way (absent from an API older than it, and null once the
+  // run has stopped or is past its clips).
+  const stepActivity =
+    failed || run.activity === undefined || run.activity === null || run.activity.step === "done"
+      ? null
+      : run.activity;
 
   const stageIndex = run.stages.findIndex((entry) => entry.stage === expanded);
   const candidates = candidatesQuery.data?.candidates ?? [];
@@ -521,6 +528,11 @@ export function RepurposeRunView({ runId }: { readonly runId: string }): React.J
               note={run.stages[stageIndex]?.label}
               // A failed run's card already says what happened.
               {...(failed ? {} : { message: run.message })}
+              // The step under way, in numbers, on the stage it belongs to. Not
+              // once it is all done: the stage's sentence says that already.
+              {...(stepActivity === null || expanded !== currentStage
+                ? {}
+                : { progress: <RunActivityLine activity={stepActivity} /> })}
               busy={busy && expanded === currentStage}
             >
               {candidates.length > 0 ? (

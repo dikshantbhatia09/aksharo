@@ -7,6 +7,7 @@ import * as React from "react";
 
 import { Button, cn, ShortcutHint, shortcutKeys, Sheet, SheetContent, SheetTitle } from "@montaj/ui";
 
+import { NotificationBell } from "./notification-bell";
 import { screenTitleFor } from "./screen-title";
 import { Sidebar, UpgradeButton } from "./sidebar";
 
@@ -166,6 +167,9 @@ export function TopBar({
             </span>
           </Link>
         </Button>
+
+        {/* What the platform told this person: clips ready, a run stopped. */}
+        <NotificationBell />
 
         <Button
           variant="ghost"

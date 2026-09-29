@@ -116,6 +116,11 @@ const SECURITY_HEADERS = [
       ]
         .filter(Boolean)
         .join(" "),
+      // Device notifications (2026-09-29): the one service worker, `/sw.js`,
+      // from this origin and nowhere else. `script-src` would allow it by
+      // fallback anyway; saying so means a later tightening of `script-src`
+      // cannot switch notifications off by accident.
+      "worker-src 'self'",
       "frame-ancestors 'none'",
       "base-uri 'self'",
       "object-src 'none'",
