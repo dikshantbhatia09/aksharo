@@ -7,7 +7,13 @@ import {
   type BrandKitSettings,
 } from "@montaj/edg";
 
-import { LOGO_CONTENT_TYPE_LIST, type LogoContentType } from "./brand-kit.constants.js";
+import {
+  LOGO_CONTENT_TYPE_LIST,
+  MUSIC_CONTENT_TYPE_LIST,
+  MUSIC_TITLE_MAX,
+  type LogoContentType,
+  type MusicContentType,
+} from "./brand-kit.constants.js";
 import { zodDto } from "../common/index.js";
 
 /**
@@ -36,6 +42,59 @@ export class LogoUploadDto extends zodDto(logoUploadSchema) {}
 export const logoCompleteSchema = z.object({ contentType }).strict();
 export class LogoCompleteDto extends zodDto(logoCompleteSchema) {}
 
+const musicContentType = z.enum(
+  MUSIC_CONTENT_TYPE_LIST as [MusicContentType, ...MusicContentType[]],
+);
+
+/**
+ * `POST /brand-kit/music` (2026-10-04): what is about to be uploaded, and the
+ * confirmation that the person has the rights to use it - required, and asked
+ * again on `complete`, where it is recorded with who gave it and when.
+ */
+export const musicUploadSchema = z
+  .object({
+    contentType: musicContentType,
+    sizeBytes: z.number().int().min(1),
+    rightsAttested: z.boolean(),
+  })
+  .strict();
+export class MusicUploadDto extends zodDto(musicUploadSchema) {}
+
+/** `POST /brand-kit/music/{assetId}/complete`: the type it was signed for, the confirmation, its name. */
+export const musicCompleteSchema = z
+  .object({
+    contentType: musicContentType,
+    rightsAttested: z.boolean(),
+    /** The file's name without its extension, for the editor's row; display only. */
+    title: z.string().trim().max(MUSIC_TITLE_MAX).optional(),
+  })
+  .strict();
+export class MusicCompleteDto extends zodDto(musicCompleteSchema) {}
+
+/** The kit's music (2026-10-04). */
+export const brandKitMusicViewSchema = z.object({
+  assetId: z.string(),
+  format: z.enum(["mp3", "wav", "m4a"]),
+  contentType: musicContentType,
+  durationMs: z.number().int(),
+  sizeBytes: z.number().int().nullable(),
+  title: z.string().nullable(),
+  /** Signed for an hour: the settings page plays it. */
+  url: z.string(),
+  /** Who confirmed the rights to use it, and when. */
+  rightsAttestedAt: z.string().nullable(),
+  rightsAttestedBy: z.string().nullable(),
+});
+
+export const musicUploadTicketSchema = z.object({
+  assetId: z.string(),
+  /** PUT the bytes here, with this `Content-Type`. */
+  uploadUrl: z.string(),
+  contentType: musicContentType,
+  expiresAt: z.string(),
+  maxBytes: z.number().int(),
+});
+
 /** The logo a kit adds to clips. */
 export const brandKitLogoViewSchema = z.object({
   assetId: z.string(),
@@ -53,6 +112,8 @@ export const brandKitViewSchema = z.object({
   exists: z.boolean(),
   settings: BrandKitSettingsSchema,
   logo: brandKitLogoViewSchema.nullable(),
+  /** The workspace's own music (2026-10-04); whether to use it, and how loud, is `settings.music`. */
+  music: brandKitMusicViewSchema.nullable(),
   /**
    * Every logo this workspace keeps — the kit's, and older ones clips still
    * carry — by asset id, each signed for an hour: what the editor and the
@@ -68,6 +129,10 @@ export const brandKitViewSchema = z.object({
     logoMaxSide: z.number().int(),
     ctaMax: z.literal(END_CARD_CTA_MAX),
     handleMax: z.literal(END_CARD_HANDLE_MAX),
+    musicMaxBytes: z.number().int(),
+    musicContentTypes: z.array(z.string()),
+    musicMinDurationMs: z.number().int(),
+    musicMaxDurationMs: z.number().int(),
   }),
   updatedAt: z.string().nullable(),
 });
@@ -82,6 +147,10 @@ export const logoUploadTicketSchema = z.object({
 });
 
 export type BrandKitLogoView = z.infer<typeof brandKitLogoViewSchema>;
+export type BrandKitMusicView = z.infer<typeof brandKitMusicViewSchema>;
+export type MusicUploadTicket = z.infer<typeof musicUploadTicketSchema>;
+export type MusicUploadInput = z.infer<typeof musicUploadSchema>;
+export type MusicCompleteInput = z.infer<typeof musicCompleteSchema>;
 export type BrandKitView = z.infer<typeof brandKitViewSchema>;
 export type LogoUploadTicket = z.infer<typeof logoUploadTicketSchema>;
 export type LogoUploadInput = z.infer<typeof logoUploadSchema>;

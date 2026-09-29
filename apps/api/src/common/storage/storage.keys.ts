@@ -166,8 +166,11 @@ export function fontKey(workspaceId: string, fontId: string, extension: FontExte
   return `ws/${checkedId("workspaceId", workspaceId)}/fonts/${checkedId("fontId", fontId)}.${extension}`;
 }
 
-/** The file types a brand asset is stored as: the watermark's PNG, and a logo's (2026-10-02). */
-export const BRAND_ASSET_EXTENSIONS = ["png", "jpg", "webp"] as const;
+/**
+ * The file types a brand asset is stored as: the watermark's PNG, a logo's and a
+ * run's cover (2026-10-02), and a kit's own music (2026-10-04).
+ */
+export const BRAND_ASSET_EXTENSIONS = ["png", "jpg", "webp", "mp3", "wav", "m4a"] as const;
 
 export type BrandAssetExtension = (typeof BRAND_ASSET_EXTENSIONS)[number];
 

@@ -7,6 +7,7 @@ import {
   COVER_ERROR_CODES,
   COVER_MAX_BYTES,
   LOGO_MAX_BYTES,
+  MUSIC_MAX_BYTES,
 } from "./brand-kit.constants.js";
 import { BRAND_FONT_FAMILIES, BrandKitService } from "./brand-kit.service.js";
 
@@ -36,6 +37,7 @@ interface KitRow {
   name: string;
   doc: unknown;
   logoAssetId: string | null;
+  musicAssetId?: string | null;
   isDefault: boolean;
   updatedAt: Date;
 }
@@ -51,6 +53,10 @@ interface AssetRow {
   height: number | null;
   createdBy: string | null;
   createdAt: Date;
+  durationMs?: number | null;
+  title?: string | null;
+  rightsAttestedAt?: Date | null;
+  rightsAttestedBy?: string | null;
 }
 
 /** An in-memory `brand_kits`, `brand_assets` and object store: enough to run the service for real. */
@@ -65,7 +71,12 @@ function harness(options: { drawn?: readonly string[] } = {}) {
       ? null
       : {
           ...kit,
+          musicAssetId: kit.musicAssetId ?? null,
           logoAsset: kit.logoAssetId === null ? null : (assets.get(kit.logoAssetId) ?? null),
+          musicAsset:
+            kit.musicAssetId === null || kit.musicAssetId === undefined
+              ? null
+              : (assets.get(kit.musicAssetId) ?? null),
         };
 
   const prisma = {
@@ -80,7 +91,10 @@ function harness(options: { drawn?: readonly string[] } = {}) {
           update,
         }: {
           where: { workspaceId: string };
-          create: Omit<KitRow, "updatedAt" | "logoAssetId"> & { logoAssetId?: string };
+          create: Omit<KitRow, "updatedAt" | "logoAssetId"> & {
+            logoAssetId?: string;
+            musicAssetId?: string;
+          };
           update: Partial<KitRow>;
         }) => {
           const existing = [...kits.values()].find((kit) => kit.workspaceId === where.workspaceId);
@@ -503,5 +517,216 @@ describe("a run's cover (2026-10-04, audiograms)", () => {
       key: `ws/${WS}/brand/${assetId}.jpg`,
       format: "jpeg",
     });
+  });
+});
+
+/** A real mono 16-bit PCM WAV of silence, `seconds` long at 8 kHz. */
+function wavOf(seconds: number): Uint8Array {
+  const rate = 8_000;
+  const data = Math.round(seconds * rate) * 2;
+  const bytes = new Uint8Array(44 + data);
+  const view = new DataView(bytes.buffer);
+  const ascii = (at: number, text: string) => {
+    for (let index = 0; index < text.length; index += 1) {
+      view.setUint8(at + index, text.charCodeAt(index));
+    }
+  };
+  ascii(0, "RIFF");
+  view.setUint32(4, 36 + data, true);
+  ascii(8, "WAVE");
+  ascii(12, "fmt ");
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, rate, true);
+  view.setUint32(28, rate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  ascii(36, "data");
+  view.setUint32(40, data, true);
+  return bytes;
+}
+
+describe("the kit's music (2026-10-04)", () => {
+  async function uploadMusic(
+    h: ReturnType<typeof harness>,
+    bytes: Uint8Array = wavOf(12),
+    contentType: "audio/mpeg" | "audio/wav" | "audio/mp4" = "audio/wav",
+  ) {
+    const ticket = await h.service.createMusicUpload(WS, {
+      contentType,
+      sizeBytes: bytes.byteLength,
+      rightsAttested: true,
+    });
+    h.put(ticket.uploadUrl, bytes);
+    const done = await h.service.completeMusic(WS, USER, ticket.assetId, {
+      contentType,
+      rightsAttested: true,
+      title: "  Morning theme ",
+    });
+    return { ticket, done };
+  }
+
+  it("signs a PUT for the track, only with the rights confirmed and under the size cap", async () => {
+    const h = harness();
+    const ticket = await h.service.createMusicUpload(WS, {
+      contentType: "audio/mpeg",
+      sizeBytes: 1_000,
+      rightsAttested: true,
+    });
+    expect(h.store.presignPut).toHaveBeenCalledWith(
+      `ws/${WS}/brand/${ticket.assetId}.mp3`,
+      600,
+      "audio/mpeg",
+    );
+    expect(ticket.maxBytes).toBe(MUSIC_MAX_BYTES);
+    await expect(
+      h.service.createMusicUpload(WS, {
+        contentType: "audio/mpeg",
+        sizeBytes: 1_000,
+        rightsAttested: false,
+      }),
+    ).rejects.toMatchObject({ code: BRAND_KIT_ERROR_CODES.musicRightsRequired, httpStatus: 400 });
+    await expect(
+      h.service.createMusicUpload(WS, {
+        contentType: "audio/wav",
+        sizeBytes: MUSIC_MAX_BYTES + 1,
+        rightsAttested: true,
+      }),
+    ).rejects.toMatchObject({ code: BRAND_KIT_ERROR_CODES.musicTooLarge, httpStatus: 413 });
+  });
+
+  it("keeps a real track with who confirmed the rights and when, and makes it the kit's", async () => {
+    const h = harness();
+    const before = Date.now();
+    const { ticket, done } = await uploadMusic(h);
+    expect(done.replaced).toBeNull();
+    const row = h.assets.get(ticket.assetId);
+    expect(row).toMatchObject({
+      kind: "music",
+      contentType: "audio/wav",
+      durationMs: 12_000,
+      title: "Morning theme",
+      rightsAttestedBy: USER,
+      createdBy: USER,
+    });
+    expect(row?.rightsAttestedAt?.getTime()).toBeGreaterThanOrEqual(before);
+    expect(done.view.exists).toBe(true);
+    expect(done.view.music).toMatchObject({
+      assetId: ticket.assetId,
+      format: "wav",
+      durationMs: 12_000,
+      title: "Morning theme",
+      rightsAttestedBy: USER,
+      url: `https://cdn.example.test/ws/${WS}/brand/${ticket.assetId}.wav`,
+    });
+    const forClips = await h.service.forClips(WS);
+    expect(forClips?.music).toEqual({
+      assetId: ticket.assetId,
+      rightsAttestedAt: row?.rightsAttestedAt?.toISOString(),
+      rightsAttestedBy: USER,
+      title: "Morning theme",
+    });
+    expect(forClips?.settings.music).toEqual({ enabled: true, level: "quiet" });
+    expect(await h.service.musicStorageKeys(WS, [ticket.assetId, "../x"])).toEqual(
+      new Map([[ticket.assetId, `ws/${WS}/brand/${ticket.assetId}.wav`]]),
+    );
+    expect(await h.service.musicStorageKeys(OTHER_WS, [ticket.assetId])).toEqual(new Map());
+  });
+
+  it("refuses without the rights confirmed, before anything is read", async () => {
+    const h = harness();
+    const ticket = await h.service.createMusicUpload(WS, {
+      contentType: "audio/wav",
+      sizeBytes: 100,
+      rightsAttested: true,
+    });
+    h.put(ticket.uploadUrl, wavOf(12));
+    await expect(
+      h.service.completeMusic(WS, USER, ticket.assetId, {
+        contentType: "audio/wav",
+        rightsAttested: false,
+      }),
+    ).rejects.toMatchObject({ code: BRAND_KIT_ERROR_CODES.musicRightsRequired });
+    expect(h.store.get).not.toHaveBeenCalled();
+    expect(h.assets.size).toBe(0);
+  });
+
+  it("refuses and deletes a track that is too short, too long, or not what it claims", async () => {
+    const h = harness();
+    await expect(uploadMusic(h, wavOf(2))).rejects.toMatchObject({
+      code: BRAND_KIT_ERROR_CODES.musicBadLength,
+      httpStatus: 422,
+    });
+    await expect(uploadMusic(h, wavOf(11 * 60))).rejects.toMatchObject({
+      code: BRAND_KIT_ERROR_CODES.musicBadLength,
+    });
+    // A real WAV declared as an MP3 is still not what it claims.
+    await expect(uploadMusic(h, wavOf(12), "audio/mpeg")).rejects.toMatchObject({
+      code: BRAND_KIT_ERROR_CODES.musicInvalid,
+    });
+    await expect(uploadMusic(h, new TextEncoder().encode("not audio"))).rejects.toMatchObject({
+      code: BRAND_KIT_ERROR_CODES.musicInvalid,
+    });
+    expect(h.objects.size).toBe(0);
+    expect(h.assets.size).toBe(0);
+    expect(h.kits.size).toBe(0);
+  });
+
+  it("says so before the bytes arrive, and refuses another workspace's track", async () => {
+    const h = harness();
+    const ticket = await h.service.createMusicUpload(WS, {
+      contentType: "audio/wav",
+      sizeBytes: 100,
+      rightsAttested: true,
+    });
+    await expect(
+      h.service.completeMusic(WS, USER, ticket.assetId, {
+        contentType: "audio/wav",
+        rightsAttested: true,
+      }),
+    ).rejects.toMatchObject({ code: BRAND_KIT_ERROR_CODES.musicNotUploaded, httpStatus: 409 });
+    const { ticket: mine } = await uploadMusic(h);
+    await expect(
+      h.service.completeMusic(OTHER_WS, USER, mine.assetId, {
+        contentType: "audio/wav",
+        rightsAttested: true,
+      }),
+    ).rejects.toMatchObject({ code: BRAND_KIT_ERROR_CODES.musicNotFound, httpStatus: 404 });
+  });
+
+  it("deletes a replaced track no clip plays, and keeps one a clip's bed still names", async () => {
+    const h = harness();
+    const { ticket: first } = await uploadMusic(h);
+    const { ticket: second, done } = await uploadMusic(h);
+    expect(done.replaced).toBe(first.assetId);
+    expect(h.assets.has(first.assetId)).toBe(false);
+    expect(h.objects.has(`ws/${WS}/brand/${first.assetId}.wav`)).toBe(false);
+
+    h.drawn.add(second.assetId);
+    await uploadMusic(h);
+    expect(h.assets.has(second.assetId)).toBe(true);
+  });
+
+  it("takes the music off the kit, keeping it only while a clip plays it", async () => {
+    const h = harness();
+    const { ticket } = await uploadMusic(h);
+    const removed = await h.service.removeMusic(WS);
+    expect(removed.removed).toBe(ticket.assetId);
+    expect(removed.view.music).toBeNull();
+    expect(h.assets.size).toBe(0);
+    expect((await h.service.forClips(WS))?.music).toBeUndefined();
+    expect((await h.service.removeMusic(WS)).removed).toBeNull();
+  });
+
+  it("does not touch the logo, or the logo the music", async () => {
+    const h = harness();
+    const { ticket: logo } = await uploadLogo(h);
+    const { ticket: music } = await uploadMusic(h);
+    const view = await h.service.view(WS);
+    expect(view.logo?.assetId).toBe(logo.assetId);
+    expect(view.music?.assetId).toBe(music.assetId);
+    await h.service.removeLogo(WS);
+    expect((await h.service.view(WS)).music?.assetId).toBe(music.assetId);
   });
 });

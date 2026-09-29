@@ -1508,22 +1508,27 @@ model StylePreset {
 /// workspace in v1 (`brand_kits_workspace_id_key`), which Autopilot applies to a
 /// run's clips when the run says so (`setup.brand`).
 model BrandKit {
-  id          String   @id @db.Char(26)
-  workspaceId String   @unique @map("workspace_id") @db.Char(26)
-  name        String
+  id           String   @id @db.Char(26)
+  workspaceId  String   @unique @map("workspace_id") @db.Char(26)
+  name         String
   /// Zod: `BrandKitSettingsSchema` (`@montaj/edg` `brand.ts`) under `{ v: 1 }` —
   /// colours, caption and hook-title typeface and colours, logo placement, end card.
-  doc         Json     @default("{}") @db.JsonB
+  doc          Json     @default("{}") @db.JsonB
   /// Unused (from the initial schema); the logo is `logoAssetId`.
-  logoKey     String?  @map("logo_key")
+  logoKey      String?  @map("logo_key")
   /// The logo the kit adds to clips: a `brand_assets` row of kind `logo`.
-  logoAssetId String?  @map("logo_asset_id") @db.Char(26)
-  isDefault   Boolean  @default(false) @map("is_default")
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  logoAssetId  String?  @map("logo_asset_id") @db.Char(26)
+  /// The workspace's own music under Autopilot's clips (2026-10-04): a
+  /// `brand_assets` row of kind `music`. Whether to use it, and how loud, is
+  /// `doc.music`.
+  musicAssetId String?  @map("music_asset_id") @db.Char(26)
+  isDefault    Boolean  @default(false) @map("is_default")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  workspace Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  logoAsset BrandAsset? @relation(fields: [logoAssetId], references: [id], onDelete: SetNull)
+  workspace  Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  logoAsset  BrandAsset? @relation("BrandKitLogo", fields: [logoAssetId], references: [id], onDelete: SetNull)
+  musicAsset BrandAsset? @relation("BrandKitMusic", fields: [musicAssetId], references: [id], onDelete: SetNull)
 
   @@unique([workspaceId, name])
   @@index([workspaceId])
@@ -2058,23 +2063,34 @@ enum AudioCleanStatus {
 /// `watermark.assetId` (A20/A21). Stored at `ws/{workspaceId}/brand/{assetId}.png`
 /// (CONTRACTS section 6).
 model BrandAsset {
-  id          String   @id @db.Char(26)
-  workspaceId String   @map("workspace_id") @db.Char(26)
+  id               String    @id @db.Char(26)
+  workspaceId      String    @map("workspace_id") @db.Char(26)
   /// `watermark`, or `logo` (2026-10-02): a brand kit's logo, stored at
   /// `ws/{workspaceId}/brand/{assetId}.{png|jpg|webp}`, kept while the kit or a
-  /// document still draws it.
-  kind        String   @default("watermark")
-  storageKey  String   @map("storage_key")
-  contentType String   @map("content_type")
-  sizeBytes   Int?     @map("size_bytes")
+  /// document still draws it. `music` (2026-10-04): a kit's own track
+  /// (`.mp3|.wav|.m4a`), kept while the kit or a clip's bed names it; `cover`:
+  /// the artwork a run's audio-only clips are drawn with.
+  kind             String    @default("watermark")
+  storageKey       String    @map("storage_key")
+  contentType      String    @map("content_type")
+  sizeBytes        Int?      @map("size_bytes")
   /// Pixel size, measured on upload (logos only), so a renderer can size it undecoded.
-  width       Int?
-  height      Int?
-  createdBy   String?  @map("created_by") @db.Char(26)
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  width            Int?
+  height           Int?
+  /// A `music` track's length, measured from its header on upload (2026-10-04).
+  durationMs       Int?      @map("duration_ms")
+  /// A `music` track's file name, for the editor's row; display only.
+  title            String?
+  /// Who confirmed they have the rights to use a `music` track, and when: asked
+  /// on every upload, and required.
+  rightsAttestedAt DateTime? @map("rights_attested_at") @db.Timestamptz(6)
+  rightsAttestedBy String?   @map("rights_attested_by") @db.Char(26)
+  createdBy        String?   @map("created_by") @db.Char(26)
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  workspace Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  brandKits BrandKit[]
+  workspace      Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  brandKits      BrandKit[] @relation("BrandKitLogo")
+  brandKitsMusic BrandKit[] @relation("BrandKitMusic")
 
   @@index([workspaceId])
   @@map("brand_assets")

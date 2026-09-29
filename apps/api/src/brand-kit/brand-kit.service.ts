@@ -8,10 +8,12 @@ import {
   END_CARD_CTA_MAX,
   END_CARD_HANDLE_MAX,
   type BrandKitSettings,
+  type BrandMusicTrack,
   type OverlayImage,
 } from "@montaj/edg";
 import { CATALOGUE } from "@montaj/fonts";
 
+import { probeAudio } from "./audio-probe.js";
 import {
   BRAND_IMAGE_URL_TTL_SECONDS,
   BRAND_KIT_ERROR_CODES,
@@ -29,8 +31,15 @@ import {
   LOGO_MAX_SIDE,
   LOGO_MIN_SIDE,
   LOGO_UPLOAD_URL_TTL_SECONDS,
+  MUSIC_ASSET_KIND,
+  MUSIC_CONTENT_TYPE_LIST,
+  MUSIC_CONTENT_TYPES,
+  MUSIC_MAX_BYTES,
+  MUSIC_MAX_DURATION_MS,
+  MUSIC_MIN_DURATION_MS,
   type LogoContentType,
   type LogoFormat,
+  type MusicContentType,
 } from "./brand-kit.constants.js";
 import { probeImage, type ImageFacts } from "./image-probe.js";
 import { AppException, PrismaService } from "../common/index.js";
@@ -38,11 +47,15 @@ import { brandAssetKey, DERIVED_STORE, type ObjectStore } from "../common/storag
 
 import type {
   BrandKitLogoView,
+  BrandKitMusicView,
   BrandKitView,
   CoverView,
   LogoCompleteInput,
   LogoUploadInput,
   LogoUploadTicket,
+  MusicCompleteInput,
+  MusicUploadInput,
+  MusicUploadTicket,
 } from "./brand-kit.dto.js";
 import type { BrandAsset, Prisma } from "@prisma/client";
 
@@ -58,6 +71,8 @@ export interface KitForClips {
   readonly settings: BrandKitSettings;
   /** Absent when the kit has no logo. */
   readonly logo?: OverlayImage;
+  /** The kit's own music (2026-10-04), as a bed names it; absent when it has none. */
+  readonly music?: BrandMusicTrack;
 }
 
 /**
@@ -80,6 +95,14 @@ export interface KitForClips {
  * kit's logo leaves existing clips untouched; a logo nothing draws any more —
  * not the kit, not any document in the workspace — is deleted, object then
  * row, whenever the kit's logo changes. Workspace erasure deletes them all.
+ *
+ * **Music** (2026-10-04) is kept the same way: an MP3, WAV or M4A uploaded
+ * through a presigned PUT under the same prefix, read back and kept only if it
+ * opens as what it claims (`audio-probe.ts`) and is between
+ * {@link MUSIC_MIN_DURATION_MS} and {@link MUSIC_MAX_DURATION_MS} long, with
+ * the person's "I have the rights to use this music" confirmation - required -
+ * recorded on the row with who gave it and when. The kit points at its current
+ * track; a track no clip's bed names any more is deleted when it changes.
  */
 @Injectable()
 export class BrandKitService {
@@ -94,7 +117,7 @@ export class BrandKitService {
   async view(workspaceId: string): Promise<BrandKitView> {
     const kit = await this.prisma.brandKit.findUnique({
       where: { workspaceId },
-      include: { logoAsset: true },
+      include: { logoAsset: true, musicAsset: true },
     });
     const logos = await this.prisma.brandAsset.findMany({
       where: { workspaceId, kind: LOGO_ASSET_KIND },
@@ -105,10 +128,18 @@ export class BrandKitService {
       images[logo.id] = await this.store.presignGet(logo.storageKey, BRAND_IMAGE_URL_TTL_SECONDS);
     }
     const current = kit?.logoAsset ?? null;
+    const music = kit?.musicAsset ?? null;
     return {
       exists: kit !== null,
       settings: kit === null ? DEFAULT_BRAND_KIT_SETTINGS : brandKitSettingsOf(kit.doc),
       logo: current === null ? null : logoView(current, images[current.id] ?? ""),
+      music:
+        music === null
+          ? null
+          : musicView(
+              music,
+              await this.store.presignGet(music.storageKey, BRAND_IMAGE_URL_TTL_SECONDS),
+            ),
       images,
       fontFamilies: [...BRAND_FONT_FAMILIES],
       limits: {
@@ -118,6 +149,10 @@ export class BrandKitService {
         logoMaxSide: LOGO_MAX_SIDE,
         ctaMax: END_CARD_CTA_MAX,
         handleMax: END_CARD_HANDLE_MAX,
+        musicMaxBytes: MUSIC_MAX_BYTES,
+        musicContentTypes: [...MUSIC_CONTENT_TYPE_LIST],
+        musicMinDurationMs: MUSIC_MIN_DURATION_MS,
+        musicMaxDurationMs: MUSIC_MAX_DURATION_MS,
       },
       updatedAt: kit === null ? null : kit.updatedAt.toISOString(),
     };
@@ -359,11 +394,251 @@ export class BrandKitService {
   async forClips(workspaceId: string): Promise<KitForClips | null> {
     const kit = await this.prisma.brandKit.findUnique({
       where: { workspaceId },
-      include: { logoAsset: true },
+      include: { logoAsset: true, musicAsset: true },
     });
     if (kit === null) return null;
     const logo = kit.logoAsset === null ? undefined : overlayImageOf(kit.logoAsset);
-    return { settings: brandKitSettingsOf(kit.doc), ...(logo === undefined ? {} : { logo }) };
+    const music = kit.musicAsset === null ? undefined : musicTrackOf(kit.musicAsset);
+    return {
+      settings: brandKitSettingsOf(kit.doc),
+      ...(logo === undefined ? {} : { logo }),
+      ...(music === undefined ? {} : { music }),
+    };
+  }
+
+  // -------------------------------------------------------------------------
+  // Music (2026-10-04)
+  // -------------------------------------------------------------------------
+
+  /**
+   * `POST /brand-kit/music`: a presigned PUT for the kit's own track. The
+   * rights confirmation is asked for here too, so nothing is uploaded without
+   * it; it is recorded on `complete`.
+   *
+   * @throws AppException 400 `brand_kit/music_rights_required`, 413
+   *   `brand_kit/music_too_large`.
+   */
+  async createMusicUpload(
+    workspaceId: string,
+    input: MusicUploadInput,
+  ): Promise<MusicUploadTicket> {
+    if (!input.rightsAttested) throw musicRightsRequired();
+    if (input.sizeBytes > MUSIC_MAX_BYTES) throw musicTooLarge(input.sizeBytes);
+    const assetId = ulid();
+    const key = brandAssetKey(
+      workspaceId,
+      assetId,
+      MUSIC_CONTENT_TYPES[input.contentType].extension,
+    );
+    const uploadUrl = await this.store.presignPut(
+      key,
+      LOGO_UPLOAD_URL_TTL_SECONDS,
+      input.contentType,
+    );
+    return {
+      assetId,
+      uploadUrl,
+      contentType: input.contentType,
+      expiresAt: new Date(Date.now() + LOGO_UPLOAD_URL_TTL_SECONDS * 1_000).toISOString(),
+      maxBytes: MUSIC_MAX_BYTES,
+    };
+  }
+
+  /**
+   * `POST /brand-kit/music/{assetId}/complete`: checks the uploaded track and
+   * makes it the kit's (creating the kit with its defaults if there is none),
+   * recording who confirmed the rights to use it, and when. A file that is not
+   * the MP3, WAV or M4A it claims, too large, too short or too long is deleted
+   * and refused. Idempotent.
+   *
+   * @returns the kit, and the track it replaced (null for none).
+   */
+  async completeMusic(
+    workspaceId: string,
+    userId: string | null,
+    assetId: string,
+    input: MusicCompleteInput,
+  ): Promise<{ readonly view: BrandKitView; readonly replaced: string | null }> {
+    if (!input.rightsAttested) throw musicRightsRequired();
+    if (!ULID_PATTERN.test(assetId)) throw musicNotFound();
+    const existing = await this.prisma.brandAsset.findUnique({ where: { id: assetId } });
+    if (existing !== null) {
+      if (existing.workspaceId !== workspaceId || existing.kind !== MUSIC_ASSET_KIND) {
+        throw musicNotFound();
+      }
+      const replaced = await this.pointKitMusicAt(workspaceId, assetId);
+      return { view: await this.view(workspaceId), replaced };
+    }
+
+    const type = MUSIC_CONTENT_TYPES[input.contentType];
+    const key = brandAssetKey(workspaceId, assetId, type.extension);
+    const head = await this.store.head(key);
+    if (head === null) {
+      throw new AppException(
+        BRAND_KIT_ERROR_CODES.musicNotUploaded,
+        "The music has not finished uploading. Try again in a moment.",
+        HttpStatus.CONFLICT,
+      );
+    }
+    if (head.sizeBytes > MUSIC_MAX_BYTES) {
+      await this.discard(key);
+      throw musicTooLarge(head.sizeBytes);
+    }
+    const bytes = new Uint8Array(await this.store.get(key));
+    if (bytes.byteLength > MUSIC_MAX_BYTES) {
+      await this.discard(key);
+      throw musicTooLarge(bytes.byteLength);
+    }
+    const facts = probeAudio(bytes);
+    if (facts === undefined || facts.format !== type.format) {
+      await this.discard(key);
+      throw new AppException(
+        BRAND_KIT_ERROR_CODES.musicInvalid,
+        "That file is not an MP3, WAV or M4A audio file.",
+        HttpStatus.UNPROCESSABLE_ENTITY,
+      );
+    }
+    if (facts.durationMs < MUSIC_MIN_DURATION_MS || facts.durationMs > MUSIC_MAX_DURATION_MS) {
+      await this.discard(key);
+      throw new AppException(
+        BRAND_KIT_ERROR_CODES.musicBadLength,
+        `Music must be between ${String(MUSIC_MIN_DURATION_MS / 1000)} seconds and ${String(MUSIC_MAX_DURATION_MS / 60_000)} minutes long.`,
+        HttpStatus.UNPROCESSABLE_ENTITY,
+        {
+          durationMs: facts.durationMs,
+          minDurationMs: MUSIC_MIN_DURATION_MS,
+          maxDurationMs: MUSIC_MAX_DURATION_MS,
+        },
+      );
+    }
+
+    const title = input.title?.trim();
+    await this.prisma.brandAsset.create({
+      data: {
+        id: assetId,
+        workspaceId,
+        kind: MUSIC_ASSET_KIND,
+        storageKey: key,
+        contentType: input.contentType,
+        sizeBytes: bytes.byteLength,
+        durationMs: facts.durationMs,
+        title: title === undefined || title === "" ? null : title,
+        rightsAttestedAt: new Date(),
+        rightsAttestedBy: userId,
+        createdBy: userId,
+      },
+    });
+    const replaced = await this.pointKitMusicAt(workspaceId, assetId);
+    await this.collectUnusedMusic(workspaceId);
+    return { view: await this.view(workspaceId), replaced };
+  }
+
+  /**
+   * `DELETE /brand-kit/music`: the kit stops laying its music under new clips.
+   * Clips whose bed names the track keep it; a track nothing names is
+   * deleted. Idempotent.
+   */
+  async removeMusic(
+    workspaceId: string,
+  ): Promise<{ readonly view: BrandKitView; readonly removed: string | null }> {
+    const kit = await this.prisma.brandKit.findUnique({
+      where: { workspaceId },
+      select: { id: true, musicAssetId: true },
+    });
+    const removed = kit?.musicAssetId ?? null;
+    if (kit !== null && removed !== null) {
+      await this.prisma.brandKit.update({ where: { id: kit.id }, data: { musicAssetId: null } });
+    }
+    await this.collectUnusedMusic(workspaceId);
+    return { view: await this.view(workspaceId), removed };
+  }
+
+  /**
+   * The objects of the workspace's tracks among `assetIds`, by asset id: what a
+   * render reads a workspace bed from. Another workspace's track, or one that
+   * is gone, is not there, and its bed is left out of the render.
+   */
+  async musicStorageKeys(
+    workspaceId: string,
+    assetIds: readonly string[],
+  ): Promise<Map<string, string>> {
+    const ids = [...new Set(assetIds)].filter((id) => ULID_PATTERN.test(id));
+    if (ids.length === 0) return new Map();
+    const rows = await this.prisma.brandAsset.findMany({
+      where: { workspaceId, kind: MUSIC_ASSET_KIND, id: { in: ids } },
+      select: { id: true, storageKey: true },
+    });
+    return new Map(rows.map((row) => [row.id, row.storageKey]));
+  }
+
+  /**
+   * Deletes every track of the workspace that nothing plays any more: not the
+   * kit's, and named by no clip's bed (`edg_pass_items`). Best effort, object
+   * then row, like the logos; looked at again on the next change.
+   */
+  async collectUnusedMusic(workspaceId: string): Promise<number> {
+    let deleted = 0;
+    try {
+      const kit = await this.prisma.brandKit.findUnique({
+        where: { workspaceId },
+        select: { musicAssetId: true },
+      });
+      const tracks = await this.prisma.brandAsset.findMany({
+        where: { workspaceId, kind: MUSIC_ASSET_KIND },
+        select: { id: true, storageKey: true },
+      });
+      for (const track of tracks) {
+        if (track.id === kit?.musicAssetId) continue;
+        if (await this.bedsName(workspaceId, track.id)) continue;
+        await this.store.delete(track.storageKey);
+        await this.prisma.brandAsset.delete({ where: { id: track.id } });
+        deleted += 1;
+      }
+    } catch (error) {
+      this.logger.warn(
+        { workspaceId, err: error },
+        "could not tidy the workspace's unused music; it is looked at again on the next change",
+      );
+    }
+    return deleted;
+  }
+
+  /** Makes `assetId` the kit's music, creating the kit if there is none. Returns the track it replaced. */
+  private async pointKitMusicAt(workspaceId: string, assetId: string): Promise<string | null> {
+    const kit = await this.prisma.brandKit.findUnique({
+      where: { workspaceId },
+      select: { id: true, musicAssetId: true },
+    });
+    if (kit === null) {
+      await this.upsertKit(
+        workspaceId,
+        { doc: { v: BRAND_KIT_VERSION, ...DEFAULT_BRAND_KIT_SETTINGS }, musicAssetId: assetId },
+        { musicAssetId: assetId },
+      );
+      return null;
+    }
+    if (kit.musicAssetId === assetId) return null;
+    await this.prisma.brandKit.update({ where: { id: kit.id }, data: { musicAssetId: assetId } });
+    return kit.musicAssetId;
+  }
+
+  /**
+   * Whether any clip's bed in the workspace names the track - in any state, so
+   * a bed a person took off a clip can still be put back. `assetId` is a
+   * checked ULID; the query is parameterised all the same.
+   */
+  private async bedsName(workspaceId: string, assetId: string): Promise<boolean> {
+    if (!ULID_PATTERN.test(assetId)) return true;
+    const rows = await this.prisma.$queryRaw<{ found: number }[]>`
+      SELECT 1 AS found
+        FROM edg_pass_items i
+        JOIN edg_documents d ON d.id = i.edg_id
+        JOIN projects p ON p.id = d.project_id
+       WHERE p.workspace_id = ${workspaceId}
+         AND i.kind = 'music'
+         AND i.payload ->> 'assetId' = ${assetId}
+       LIMIT 1`;
+    return rows.length > 0;
   }
 
   /**
@@ -406,8 +681,16 @@ export class BrandKitService {
    */
   private async upsertKit(
     workspaceId: string,
-    create: { readonly doc: Prisma.InputJsonValue; readonly logoAssetId?: string },
-    update: { readonly doc?: Prisma.InputJsonValue; readonly logoAssetId?: string },
+    create: {
+      readonly doc: Prisma.InputJsonValue;
+      readonly logoAssetId?: string;
+      readonly musicAssetId?: string;
+    },
+    update: {
+      readonly doc?: Prisma.InputJsonValue;
+      readonly logoAssetId?: string;
+      readonly musicAssetId?: string;
+    },
   ): Promise<void> {
     const write = () =>
       this.prisma.brandKit.upsert({
@@ -577,6 +860,61 @@ function tooLarge(sizeBytes: number): AppException {
     `A logo can be at most ${String(LOGO_MAX_BYTES / (1024 * 1024))} MB.`,
     HttpStatus.PAYLOAD_TOO_LARGE,
     { sizeBytes, maxBytes: LOGO_MAX_BYTES },
+  );
+}
+
+/** A stored track as the settings page shows it. */
+function musicView(asset: BrandAsset, url: string): BrandKitMusicView {
+  const contentType = (
+    Object.hasOwn(MUSIC_CONTENT_TYPES, asset.contentType) ? asset.contentType : "audio/mpeg"
+  ) as MusicContentType;
+  return {
+    assetId: asset.id,
+    // eslint-disable-next-line security/detect-object-injection -- a closed enum, checked against the table above
+    format: MUSIC_CONTENT_TYPES[contentType].format,
+    contentType,
+    durationMs: asset.durationMs ?? 0,
+    sizeBytes: asset.sizeBytes,
+    title: asset.title,
+    url,
+    rightsAttestedAt: asset.rightsAttestedAt?.toISOString() ?? null,
+    rightsAttestedBy: asset.rightsAttestedBy,
+  };
+}
+
+/** A stored track as a bed names it; `undefined` for a row with no rights recorded. */
+export function musicTrackOf(asset: BrandAsset): BrandMusicTrack | undefined {
+  if (asset.rightsAttestedAt === null) return undefined;
+  return {
+    assetId: asset.id,
+    rightsAttestedAt: asset.rightsAttestedAt.toISOString(),
+    rightsAttestedBy: asset.rightsAttestedBy,
+    ...(asset.title === null ? {} : { title: asset.title }),
+  };
+}
+
+function musicTooLarge(sizeBytes: number): AppException {
+  return new AppException(
+    BRAND_KIT_ERROR_CODES.musicTooLarge,
+    `Music can be at most ${String(MUSIC_MAX_BYTES / (1024 * 1024))} MB.`,
+    HttpStatus.PAYLOAD_TOO_LARGE,
+    { sizeBytes, maxBytes: MUSIC_MAX_BYTES },
+  );
+}
+
+function musicRightsRequired(): AppException {
+  return new AppException(
+    BRAND_KIT_ERROR_CODES.musicRightsRequired,
+    "Confirm that you have the rights to use this music.",
+    HttpStatus.BAD_REQUEST,
+  );
+}
+
+function musicNotFound(): AppException {
+  return new AppException(
+    BRAND_KIT_ERROR_CODES.musicNotFound,
+    "No such music upload.",
+    HttpStatus.NOT_FOUND,
   );
 }
 
