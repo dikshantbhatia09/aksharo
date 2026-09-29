@@ -37,6 +37,11 @@ export interface StagePanelProps {
   readonly note?: string;
   /** Shown while the stage is doing something, under a live region. */
   readonly message?: string;
+  /**
+   * The step under way and how far it is (`RunActivityLine`), right under the
+   * stage's sentence: what the sentence says, in numbers.
+   */
+  readonly progress?: React.ReactNode;
   readonly busy?: boolean;
   readonly children?: React.ReactNode;
   readonly className?: string;
@@ -47,6 +52,7 @@ export function StagePanel({
   index,
   note,
   message,
+  progress,
   busy = false,
   children,
   className,
@@ -88,6 +94,7 @@ export function StagePanel({
           {message}
         </p>
       )}
+      {progress}
       {busy && (
         <p className="m-0 text-xs text-fg-2" data-testid="background-note">
           {BACKGROUND_NOTE}

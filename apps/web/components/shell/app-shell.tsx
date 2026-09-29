@@ -6,6 +6,7 @@ import * as React from "react";
 
 import {
   endpoints,
+  queryKeys,
   RealtimeClient,
   rooms,
   useApiContext,
@@ -141,6 +142,15 @@ export function AppShell({ children }: { children: React.ReactNode }): React.JSX
           void queryClient.invalidateQueries({
             queryKey: ["ws", session.workspaceId, "repurpose"],
           });
+        }
+
+        // The bell: a row landed for THIS person (the workspace room carries
+        // every member's), so it re-reads rather than waiting out its poll.
+        if (
+          event.event === "notification.created" &&
+          (event.data as { userId?: string }).userId === session.userId
+        ) {
+          void queryClient.invalidateQueries({ queryKey: queryKeys.notifications() });
         }
 
         // FIX-03: a finished transcription is the one completion that changes

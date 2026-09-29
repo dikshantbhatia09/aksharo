@@ -14,6 +14,11 @@
 import { defineEndpoint } from "./http.js";
 
 import type {
+  NotificationItem,
+  NotificationPage,
+  PushPublicKey,
+  PushSubscriptionRequest,
+  PushSubscriptionSaved,
   CreateRepurposeRunRequest,
   CreateRepurposeRunResponse,
   RepurposeCandidateItem,
@@ -522,6 +527,50 @@ export const repurposeEndpoints = {
     path: "/repurpose/runs/{runId}/preview",
     auth: "bearer",
     operationId: "getRepurposePreview",
+  }),
+} as const;
+
+/**
+ * The bell (A25): the signed-in person's notifications, across workspaces.
+ * Scoped by the access token's user, never by anything in the path.
+ */
+export const notificationEndpoints = {
+  list: defineEndpoint<void, NotificationPage>({
+    method: "GET",
+    path: "/me/notifications",
+    auth: "bearer",
+    operationId: "listMyNotifications",
+  }),
+  markRead: defineEndpoint<void, NotificationItem>({
+    method: "POST",
+    path: "/me/notifications/{id}/read",
+    auth: "bearer",
+    operationId: "markNotificationRead",
+  }),
+} as const;
+
+/**
+ * "Notify me on this device" (2026-09-29): Web Push subscriptions for this
+ * browser. `key` is null when the deployment sends no device notifications.
+ */
+export const pushEndpoints = {
+  key: defineEndpoint<void, PushPublicKey>({
+    method: "GET",
+    path: "/me/push-subscriptions/key",
+    auth: "bearer",
+    operationId: "getPushPublicKey",
+  }),
+  subscribe: defineEndpoint<PushSubscriptionRequest, PushSubscriptionSaved>({
+    method: "POST",
+    path: "/me/push-subscriptions",
+    auth: "bearer",
+    operationId: "savePushSubscription",
+  }),
+  unsubscribe: defineEndpoint<{ endpoint: string }, void>({
+    method: "DELETE",
+    path: "/me/push-subscriptions",
+    auth: "bearer",
+    operationId: "deletePushSubscription",
   }),
 } as const;
 
@@ -1107,6 +1156,8 @@ export const endpoints = {
   jobs: jobEndpoints,
   projects: projectEndpoints,
   repurpose: repurposeEndpoints,
+  notifications: notificationEndpoints,
+  push: pushEndpoints,
   folders: folderEndpoints,
   media: mediaEndpoints,
   styles: styleEndpoints,
@@ -1145,6 +1196,8 @@ export const ALL_ENDPOINTS = [
   ...Object.entries(jobEndpoints),
   ...Object.entries(projectEndpoints),
   ...Object.entries(repurposeEndpoints),
+  ...Object.entries(notificationEndpoints),
+  ...Object.entries(pushEndpoints),
   ...Object.entries(folderEndpoints),
   ...Object.entries(mediaEndpoints),
   ...Object.entries(styleEndpoints),

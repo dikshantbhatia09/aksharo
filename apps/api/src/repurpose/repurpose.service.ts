@@ -44,6 +44,7 @@ import {
   stageForStatus,
   windowView,
 } from "./repurpose.projection.js";
+import { RunActivityReader } from "./run-activity.reader.js";
 import { MAX_BLOCKED_FETCHES, SOURCE_BLOCKED_REASON, SourceGate } from "./source-gate.js";
 import { SOURCE_REJECTION_MESSAGES, parseSourceUrl } from "./source-url.js";
 import {
@@ -82,6 +83,7 @@ import type {
   RunView,
 } from "./repurpose.dto.js";
 import type { Stage } from "./repurpose.projection.js";
+import type { ActivityResult } from "./run-activity.js";
 import type { AcquisitionProject } from "../media/media.service.js";
 import type { PlanClipsLimits } from "../projects/plan-limits.js";
 import type { $Enums, RepurposeRun } from "@prisma/client";
@@ -386,6 +388,20 @@ async function mapLimited<T, R>(
 const CANCEL_ATTEMPTS = 3;
 
 /**
+ * Statuses a LIST read works out the step and bar for: the ones the server is
+ * working through, which are the ones Home draws a bar for. A run waiting for
+ * its person, or finished, is left to its own page.
+ */
+const LIST_ACTIVITY_STATUSES: ReadonlySet<$Enums.RepurposeRunStatus> = new Set([
+  "acquiring",
+  "preparing_media",
+  "transcribing",
+  "analyzing",
+  "materializing",
+  "rendering",
+]);
+
+/**
  * REP-006: create, list, read, cancel and retry a repurposing run.
  *
  * What this service is careful about:
@@ -422,6 +438,8 @@ export class RepurposeService {
     @Optional() @Inject(DERIVED_STORE) private readonly derivedStore?: ObjectStore,
     /** YouTube's circuit breaker; absent in hand-built harnesses (fetches then always go). */
     @Optional() private readonly gate?: SourceGate,
+    /** The step a run is on and its real progress (`run-activity.ts`); absent in harnesses. */
+    @Optional() private readonly activity?: RunActivityReader,
   ) {}
 
   /** Called once, at boot, by `RepurposeReconciler` (see {@link RunReconciler}). */
@@ -1405,23 +1423,34 @@ export class RepurposeService {
     // a list view, so it needs this exactly as much as the run's own page.
     const views = await mapLimited(page, LIST_RECONCILE_CONCURRENCY, async (run) => {
       const current = await this.reconciled(run, { forList: true });
-      return { current, observed: await this.observe(current) };
+      const observed = await this.observe(current);
+      // The home page's bar is a list read too: a run the server is working on
+      // gets its real progress there, the same as on its own page.
+      const status = observed?.status ?? current.status;
+      const activity = LIST_ACTIVITY_STATUSES.has(status)
+        ? await this.activity?.forRun(current, {
+            status,
+            candidateCount: run._count.candidates,
+            sourceBusyUntil: null,
+          })
+        : undefined;
+      return { current, observed, activity };
     });
-    const current = views.map((view) => view.current);
-    const observed = views.map((view) => view.observed);
     return {
-      items: current.map((run, index) =>
+      items: views.map((view, index) =>
         this.toView(
-          run,
+          view.current,
           {
-            // eslint-disable-next-line security/detect-object-injection -- index bounded by current.map
+            // eslint-disable-next-line security/detect-object-injection -- index bounded by views.map
             candidateCount: page[index]?._count.candidates ?? 0,
             // eslint-disable-next-line security/detect-object-injection -- as above
             clipCount: page[index]?._count.clips ?? 0,
             variantCount: 0,
           },
-          // eslint-disable-next-line security/detect-object-injection -- index bounded by current.map
-          observed[index],
+          view.observed,
+          undefined,
+          null,
+          view.activity,
         ),
       ),
       nextCursor: runs.length > input.limit ? (page.at(-1)?.id ?? null) : null,
@@ -1433,12 +1462,18 @@ export class RepurposeService {
     const run = await this.reconciled(await this.require(workspaceId, runId));
     const counts = await this.counts(run.id);
     const observed = await this.observe(run);
+    const waitingFor = await this.waitingFor(run, observed);
     return this.toView(
       run,
       counts,
       observed,
       await this.retryPossible(run, observed),
-      await this.waitingFor(run, observed),
+      waitingFor,
+      await this.activity?.forRun(run, {
+        status: observed?.status ?? run.status,
+        candidateCount: counts.candidateCount,
+        sourceBusyUntil: waitingFor === null ? null : Date.parse(waitingFor.until),
+      }),
     );
   }
 
@@ -2002,6 +2037,11 @@ export class RepurposeService {
     retryPossible?: boolean,
     /** What is holding the run, when something is ({@link waitingFor}). */
     waitingFor: RunView["waitingFor"] = null,
+    /**
+     * The step under way and the bar it fills (`RunActivityReader`): only the
+     * reads that ask for it. Without it the bar is the status's own number.
+     */
+    activity?: ActivityResult,
   ): RunView {
     const shown =
       observed === null
@@ -2017,7 +2057,7 @@ export class RepurposeService {
       mode: run.mode,
       status: shown.status,
       currentStage: projection.currentStage,
-      progress: projection.progress,
+      progress: activity?.progress ?? projection.progress,
       stages: projection.stages.map((stage) => ({ ...stage })),
       message: projection.message,
       failureCode: shown.failureCode,
@@ -2035,6 +2075,7 @@ export class RepurposeService {
       automation: automationOf(run),
       waitingFor,
       steering: steeringOf(run.config),
+      activity: activity?.activity ?? null,
     };
   }
 

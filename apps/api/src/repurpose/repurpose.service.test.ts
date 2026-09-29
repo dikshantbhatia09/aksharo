@@ -75,6 +75,8 @@ interface Options {
   entitlements?: Record<string, unknown>;
   /** What `transcript.findUnique` answers for discovery. */
   transcriptLanguage?: string;
+  /** The step reader (`RunActivityReader`); absent, the view has no activity. */
+  activity?: { forRun: (...args: never[]) => Promise<unknown> };
 }
 
 /** A RepurposeService over fakes, with the run held in memory like the table. */
@@ -204,6 +206,9 @@ function harness(options: Options = {}) {
     jobs as never,
     env as never,
     {} as never,
+    undefined,
+    undefined,
+    options.activity as never,
   );
 
   const reconciler = {
@@ -1875,5 +1880,57 @@ describe("steering (2026-09-29): topic, clip length and skipped start and end", 
       skipIntroMs: 2 * MINUTE,
       skipOutroMs: MINUTE,
     });
+  });
+});
+
+describe("activity — the step a run is on and its real bar (2026-09-29)", () => {
+  const downloading = {
+    activity: {
+      step: "downloading",
+      label: "Downloading your video",
+      percent: 67,
+      detail: "3.4 of 5.0 GB",
+      etaSeconds: 125,
+    },
+    progress: 11,
+  };
+
+  it("puts the reader's step on the run's own view, and its bar in place of the status's", async () => {
+    const forRun = vi.fn(async () => downloading);
+    const h = harness({ activity: { forRun } });
+    const view = await h.service.get(WS, RUN);
+    expect(view.activity).toEqual(downloading.activity);
+    expect(view.progress).toBe(11);
+    // What the person sees: the observed status (a link run's `draft` is
+    // "acquiring" while its media is pending), not the stored one.
+    expect(forRun).toHaveBeenCalledWith(expect.objectContaining({ id: RUN }), {
+      status: "acquiring",
+      candidateCount: 0,
+      sourceBusyUntil: null,
+    });
+  });
+
+  it("keeps the status's own bar when there is nothing to say", async () => {
+    const h = harness({
+      activity: { forRun: vi.fn(async () => ({ activity: null, progress: null })) },
+    });
+    const view = await h.service.get(WS, RUN);
+    expect(view.activity).toBeNull();
+    expect(view.progress).toBe(5);
+  });
+
+  it("works out the bar on a list only for the runs the server is working on", async () => {
+    const forRun = vi.fn(async () => downloading);
+    const h = harness({ activity: { forRun } });
+    const working = { ...runRow({ status: "transcribing" }), _count: { candidates: 0, clips: 0 } };
+    const waiting = {
+      ...runRow({ id: OTHER_RUN, status: "review_ready" }),
+      _count: { candidates: 3, clips: 3 },
+    };
+    h.prisma.repurposeRun.findMany.mockResolvedValueOnce([working, waiting]);
+    const listed = await h.service.list(WS, { limit: 20 } as never);
+    expect(forRun).toHaveBeenCalledTimes(1);
+    expect(listed.items[0]?.progress).toBe(11);
+    expect(listed.items[1]?.activity).toBeNull();
   });
 });

@@ -22,6 +22,12 @@ export interface TemplateStrings {
   readonly cta?: string;
   /** Small print under the rule: expiry, "if this was not you", and so on. */
   readonly footnotes?: readonly string[];
+  /**
+   * The same news for a device (`DEVICE_KINDS`, Web Push): a title and one
+   * line, read on a lock screen, so short and with no greeting. Same variables
+   * as the email; plain text, never escaped (a notification renders no markup).
+   */
+  readonly push?: { readonly title: string; readonly body: string };
 }
 
 /** Strings shared by every message. */

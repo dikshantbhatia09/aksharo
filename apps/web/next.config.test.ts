@@ -96,6 +96,22 @@ describe("next.config security headers", () => {
     expect(byKey["Content-Security-Policy"]).toContain("'wasm-unsafe-eval'");
     expect(byKey["Content-Security-Policy"]).not.toMatch(/(?<!wasm-)'unsafe-eval'/);
   });
+
+  /**
+   * Device notifications (2026-09-29) need one service worker, `/sw.js`,
+   * from this origin. Said explicitly so a later tightening of `script-src`
+   * (which `worker-src` otherwise falls back to) cannot turn them off, and
+   * only `'self'`, so no other origin's script can run as a worker here.
+   */
+  it("lets this origin's own service worker run, and no one else's", async () => {
+    const headerRules = await nextConfig.headers!();
+    const byKey = Object.fromEntries(headerRules[0]!.headers.map((h) => [h.key, h.value]));
+    const directive = (byKey["Content-Security-Policy"] ?? "")
+      .split(";")
+      .map((part) => part.trim())
+      .find((part) => part.startsWith("worker-src"));
+    expect(directive).toBe("worker-src 'self'");
+  });
 });
 
 afterEach(() => {

@@ -4,9 +4,14 @@ import type { Env } from "@montaj/config";
 
 import { createMailProvider } from "./mail/mail.factory.js";
 import { MAIL_PROVIDER } from "./mail/mail.provider.js";
+import { NOTIFICATION_CHANNELS } from "./notify.channels.js";
 import { NotifyConsumer } from "./notify.consumer.js";
 import { NotifyController } from "./notify.controller.js";
 import { NotifyService } from "./notify.service.js";
+import { webPushSetting } from "./push/push-env.js";
+import { PushSubscriptionsService } from "./push/push-subscriptions.service.js";
+import { WEB_PUSH_SETTING, WebPushChannel } from "./push/push.channel.js";
+import { PushController } from "./push/push.controller.js";
 import { CERTIFICATE_FETCHER, MailEventsController } from "./sns/mail-events.controller.js";
 import { SnsBodyMiddleware } from "./sns/sns-body.middleware.js";
 import { fetchSigningCertificate } from "./sns/sns-message.js";
@@ -38,12 +43,24 @@ import type { MailProvider } from "./mail/mail.provider.js";
 @Global()
 @Module({
   imports: [JobsModule],
-  controllers: [NotifyController, MailEventsController],
+  controllers: [NotifyController, MailEventsController, PushController],
   providers: [
     NotifyService,
     NotifyConsumer,
     SuppressionService,
     RateLimitService,
+    PushSubscriptionsService,
+    WebPushChannel,
+    // Read once, at boot: a key pair is not something that changes under a
+    // running process, and an unusable one is logged once rather than per send.
+    { provide: WEB_PUSH_SETTING, useFactory: () => webPushSetting() },
+    // Every device channel `NotifyService` fans a device kind out to
+    // (`notify.channels.ts`). Another channel is one more entry here.
+    {
+      provide: NOTIFICATION_CHANNELS,
+      useFactory: (push: WebPushChannel) => [push],
+      inject: [WebPushChannel],
+    },
     {
       // Chosen once, at boot, from `MAIL_PROVIDER`. A misconfigured transport
       // throws here and the process does not start, which is the point: a queue
@@ -55,7 +72,7 @@ import type { MailProvider } from "./mail/mail.provider.js";
     },
     { provide: CERTIFICATE_FETCHER, useValue: fetchSigningCertificate },
   ],
-  exports: [NotifyService, NotifyConsumer, SuppressionService, MAIL_PROVIDER],
+  exports: [NotifyService, NotifyConsumer, SuppressionService, MAIL_PROVIDER, WebPushChannel],
 })
 export class NotifyModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {

@@ -1,10 +1,11 @@
 /**
- * The closed set of things the platform sends, and the three properties that
+ * The closed set of things the platform sends, and the four properties that
  * decide how each one is treated.
  *
- * Adding a kind is: a name here, a row in each of the three tables below, and an
- * English and a Hindi entry in `templates/messages.*.ts`. `notify.kinds.test.ts`
- * fails until all of them exist, so a template can never be half-added.
+ * Adding a kind is: a name here, a row in each of the four tables below, and an
+ * English and a Hindi entry in `templates/messages.*.ts` (with `push` strings
+ * for a device kind). `notify.kinds.test.ts` fails until all of them exist, so a
+ * template can never be half-added.
  */
 
 export const NOTIFY_KINDS = [
@@ -32,6 +33,14 @@ export const NOTIFY_KINDS = [
   "share-report-resolved",
   // B13b: an admin's reply on `admin/support`, sent to the ticket's owner.
   "support-ticket-reply",
+  // 2026-09-29, clips runs (`repurpose/run-notifications.ts`): once each per run,
+  // to the person who started it. The first clips are ready; everything an
+  // Autopilot run makes is done; a run stopped for good; a run is waiting for
+  // its person (credits, a file YouTube will not send, moments to pick).
+  "clips-ready",
+  "run-complete",
+  "run-failed",
+  "run-needs-you",
 ] as const;
 
 export type NotifyKind = (typeof NOTIFY_KINDS)[number];
@@ -82,12 +91,39 @@ export const IN_APP_KINDS: readonly NotifyKind[] = [
   "retention-warning",
   "share-report-resolved",
   "support-ticket-reply",
+  "clips-ready",
+  "run-complete",
+  "run-failed",
+  "run-needs-you",
 ];
 
 const IN_APP_SET: ReadonlySet<string> = new Set<string>(IN_APP_KINDS);
 
 export function isInAppKind(kind: NotifyKind): boolean {
   return IN_APP_SET.has(kind);
+}
+
+/**
+ * Kinds that also go straight to the person's devices (`notify.channels.ts`:
+ * Web Push today), as a short title and line from the catalogue's `push`
+ * strings.
+ *
+ * The test is "is this worth a buzz in someone's pocket?": work they started
+ * and walked away from has finished, stopped, or is waiting on them. A device
+ * kind is always an in-app kind too, so tapping it lands somewhere the bell
+ * still remembers.
+ */
+export const DEVICE_KINDS: readonly NotifyKind[] = [
+  "clips-ready",
+  "run-complete",
+  "run-failed",
+  "run-needs-you",
+];
+
+const DEVICE_SET: ReadonlySet<string> = new Set<string>(DEVICE_KINDS);
+
+export function isDeviceKind(kind: NotifyKind): boolean {
+  return DEVICE_SET.has(kind);
 }
 
 /**

@@ -633,6 +633,7 @@ model User {
   comments        Comment[]
   clearanceGrants AssetClearanceGrant[]
   notifications   Notification[]
+  pushSubscriptions PushSubscription[]
   academyProgress AcademyProgress[]
   supportTickets  SupportTicket[]
   changelogDismissal ChangelogDismissal?
@@ -2905,6 +2906,30 @@ model Notification {
   @@map("notifications")
 }
 
+/// One browser's Web Push subscription (2026-09-29): where a device notification
+/// for this user goes, and the keys it is encrypted to (RFC 8291). `endpoint` is a
+/// capability URL at the browser vendor's push service (`push-endpoint.ts` allows
+/// only those); one browser profile is one endpoint, owned by whoever turned
+/// notifications on in it last. A 404 or 410 from the push service deletes the row.
+model PushSubscription {
+  id            String    @id @db.Char(26)
+  userId        String    @map("user_id") @db.Char(26)
+  endpoint      String    @unique
+  /// base64url of the browser's P-256 public key (65 bytes).
+  p256dh        String
+  /// base64url of the browser's 16-byte authentication secret.
+  auth          String
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  lastSuccessAt DateTime? @map("last_success_at") @db.Timestamptz(6)
+  /// Failed deliveries since the last success; reset by a success or a re-subscribe.
+  failureCount  Int       @default(0) @map("failure_count")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("push_subscriptions")
+}
+
 /// Bounce/complaint reason (SES `Permanent`/`Transient` events).
 enum MailSuppressionReason {
   hard_bounce
@@ -3606,6 +3631,7 @@ model RepurposeRun {
   clips          RepurposeClip[]
   reviewBundles  ReviewBundle[]
   publishBatches PublishBatch[]
+  notices        RepurposeRunNotice[]
 
   @@index([workspaceId])
   @@index([workspaceId, createdAt])
@@ -3613,6 +3639,23 @@ model RepurposeRun {
   @@index([sourceProjectId])
   @@index([workspaceId, sourceFingerprint])
   @@map("repurpose_runs")
+}
+
+/// Which notifications a run has already sent (2026-09-29, `run-notifications.ts`):
+/// one row per run and kind, written BEFORE the send, so a kind goes out once however
+/// many passes see it due. Its own table rather than a field on the run: writing the
+/// run row moves `updated_at`, which the reconciler reads as "the run has answered
+/// for every job that ended before this".
+model RepurposeRunNotice {
+  runId     String   @map("run_id") @db.Char(26)
+  /// `clips-ready`, `run-complete`, `run-failed`, or `run-needs-you:<reason>`.
+  kind      String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  run RepurposeRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@id([runId, kind])
+  @@map("repurpose_run_notices")
 }
 
 /// A proposed moment in the source timeline (§6.3). AI candidates carry rank and

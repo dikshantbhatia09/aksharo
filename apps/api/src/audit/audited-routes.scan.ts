@@ -95,6 +95,13 @@ export const EXEMPT_FILES: ReadonlyMap<string, string> = new Map([
       "does happens in production.",
   ],
   [
+    "notify/notify.controller.ts",
+    "Its only mutating route (`POST /notifications/:id/read`) marks one of the " +
+      "caller's own notifications read - inbox state on their own rows, scoped " +
+      "to the token's user; `notifications.read_at` is the record. It used to " +
+      "pass only because its import graph happened to reach an audit writer.",
+  ],
+  [
     "evals/internal-evals.controller.ts",
     "HMAC-signed worker-to-API callback (CONTRACTS §3, same `InternalSignatureGuard` " +
       "as internal-jobs.controller.ts), not a user or admin action — the nightly " +

@@ -789,6 +789,13 @@ export const API_OPERATIONS = [
     summary: "Delete a project",
   },
   {
+    operationId: "deletePushSubscription",
+    method: "DELETE",
+    path: "/me/push-subscriptions",
+    tags: ["notifications"],
+    summary: "Turn off device notifications in this browser",
+  },
+  {
     operationId: "deleteStylePreset",
     method: "DELETE",
     path: "/workspaces/{id}/style-presets/{presetId}",
@@ -1102,6 +1109,13 @@ export const API_OPERATIONS = [
     path: "/projects/{projectId}/prompted-edits/{planId}",
     tags: ["prompted-edits"],
     summary: "Read a prompted-edit plan back",
+  },
+  {
+    operationId: "getPushPublicKey",
+    method: "GET",
+    path: "/me/push-subscriptions/key",
+    tags: ["notifications"],
+    summary: "The key a browser subscribes to device notifications with",
   },
   {
     operationId: "getReadiness",
@@ -1643,6 +1657,13 @@ export const API_OPERATIONS = [
     summary: "Mint a bridge credential for this device",
   },
   {
+    operationId: "nextRepurposeWindow",
+    method: "POST",
+    path: "/repurpose/runs/{runId}/next-window",
+    tags: ["repurpose"],
+    summary: "Process the next part of a long video",
+  },
+  {
     operationId: "OAuthController_callback",
     method: "GET",
     path: "/auth/oauth/google/callback",
@@ -2007,6 +2028,13 @@ export const API_OPERATIONS = [
     summary: "Run one scheduled task now, out of band",
   },
   {
+    operationId: "savePushSubscription",
+    method: "POST",
+    path: "/me/push-subscriptions",
+    tags: ["notifications"],
+    summary: "Turn on device notifications in this browser",
+  },
+  {
     operationId: "searchPartnerCatalogue",
     method: "GET",
     path: "/partner-catalogue/search",
@@ -2243,6 +2271,13 @@ export const API_OPERATIONS = [
     path: "/workspaces/{id}",
     tags: ["workspaces"],
     summary: "Rename a workspace or change its settings",
+  },
+  {
+    operationId: "useRepurposeUpload",
+    method: "POST",
+    path: "/repurpose/runs/{runId}/source",
+    tags: ["repurpose"],
+    summary: "Upload the file instead of fetching the link",
   },
   {
     operationId: "v1CreateExport",

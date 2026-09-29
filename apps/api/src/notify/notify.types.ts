@@ -65,6 +65,12 @@ export interface NotifyEnqueueInput {
   /** Recipient's user id. Required for the kinds that also appear in the bell. */
   readonly userId?: string;
   readonly workspaceId?: string;
+  /**
+   * What the message is about (a run's id), for device channels: a newer
+   * message on the same thread replaces an older one still showing, or still
+   * queued for an offline phone (`DeviceMessage.thread`).
+   */
+  readonly thread?: string;
   /** Development-outbox extras; only `MAIL_PROVIDER=dev` reads them. */
   readonly devOutbox?: NotifyJobPayload["devOutbox"];
 }

@@ -419,7 +419,13 @@ export class JobsService {
       name: "job.progress",
       level: "debug",
       message: body.message ?? `progress ${String(Math.round(body.progress))}%`,
-      data: { progress: body.progress, etaMs: body.etaMs ?? null },
+      data: {
+        progress: body.progress,
+        etaMs: body.etaMs ?? null,
+        // The run page's download detail and its rate come from these samples.
+        ...(body.bytesDone === undefined ? {} : { bytesDone: body.bytesDone }),
+        ...(body.bytesTotal === undefined ? {} : { bytesTotal: body.bytesTotal }),
+      },
     });
     await this.realtime.jobProgress(job, {
       jobId,

@@ -1338,6 +1338,12 @@ export interface RepurposeRunView {
    * not, absent from an API older than steering.
    */
   steering?: RepurposeRunSteering | null;
+  /**
+   * The step the run is on this moment, with that step's own progress
+   * (2026-09-29): "Downloading your video · 3.1 of 5.0 GB · about 2 min left".
+   * Null for a run that stopped or is past its clips; absent from an older API.
+   */
+  activity?: RepurposeRunActivity | null;
 }
 
 /** How long a run's clips are: 15-35 s, 30-60 s or 55-95 s (`CLIP_LENGTH_PRESETS`). */
@@ -1349,6 +1355,35 @@ export interface RepurposeRunSteering {
   clipLength: RepurposeClipLength | null;
   skipIntroMs: number;
   skipOutroMs: number;
+}
+
+/** What {@link RepurposeRunActivity.step} can be. */
+export type RepurposeActivityStep =
+  | "queued"
+  | "downloading"
+  | "preparing"
+  | "transcribing"
+  | "finding"
+  | "cutting"
+  | "captioning"
+  | "formats"
+  | "images"
+  | "done"
+  | "waiting";
+
+/** See {@link RepurposeRunView.activity}. Every sentence is the server's; render it as it is. */
+export interface RepurposeRunActivity {
+  step: RepurposeActivityStep;
+  /** One short sentence: "Downloading your video". */
+  label: string;
+  /** How far THIS step is, 0-100, when it can be measured. */
+  percent?: number;
+  /** The step in units: "3.1 of 5.0 GB", "clip 3 of 10", "2 ahead of you". */
+  detail?: string;
+  /** Seconds this step still needs, only when the rate it has moved at says so. */
+  etaSeconds?: number;
+  /** Other people's work ahead of this step, while it waits its turn. */
+  queuePosition?: number;
 }
 
 /** See `CreateRepurposeRunRequest.setup.automation`. */
@@ -1585,4 +1620,42 @@ export interface ProjectRenderPreview {
 /** `details` on a 409 `repurpose/source_already_running`. */
 export interface RepurposeSourceAlreadyRunningDetails {
   existingRunId?: string;
+}
+
+/**
+ * One row of the bell (`GET /me/notifications`). The row carries no wording:
+ * the client writes each kind's sentence in the person's language from `data`
+ * (the same variables the email used), so `kind` decides the copy.
+ */
+export interface NotificationItem {
+  id: string;
+  kind: string;
+  workspaceId: string | null;
+  data: Record<string, unknown> | null;
+  readAt: string | null;
+  createdAt: string;
+}
+
+export interface NotificationPage {
+  items: NotificationItem[];
+  nextCursor: string | null;
+  /** Unread rows across every page: the bell's dot. */
+  unread: number;
+}
+
+/** `GET /me/push-subscriptions/key`: null when this deployment sends no device notifications. */
+export interface PushPublicKey {
+  publicKey: string | null;
+}
+
+/** `POST /me/push-subscriptions`: `PushSubscription.toJSON()`, as the browser gives it. */
+export interface PushSubscriptionRequest {
+  endpoint: string;
+  expirationTime?: number | null;
+  keys: { p256dh: string; auth: string };
+}
+
+export interface PushSubscriptionSaved {
+  id: string;
+  createdAt: string;
 }

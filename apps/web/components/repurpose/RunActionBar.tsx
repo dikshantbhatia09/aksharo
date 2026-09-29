@@ -15,6 +15,7 @@ import { Button, ConfirmAction, ProgressBar, cn } from "@montaj/ui";
 
 import { safeErrorCopy } from "@/components/repurpose/copy";
 import { runWindowOf, windowPhase, windowSummary } from "@/components/repurpose/run-window";
+import { activityEta } from "@/components/repurpose/RunActivityLine";
 
 export interface RunAction {
   readonly label: string;
@@ -190,6 +191,15 @@ export function PersistentPreview({
             <p className="mt-1.5 text-xs text-fg-2" data-testid="preview-progress">
               {run.progress}% complete
             </p>
+            {/* What the bar is waiting on right now, and for how long when
+                that is known: the whole run's step in one line. */}
+            {run.activity === undefined || run.activity === null ? null : (
+              <p className="mt-1 text-xs text-fg-1" data-testid="preview-activity">
+                {[run.activity.label, activityEta(run.activity)]
+                  .filter((part): part is string => part !== undefined)
+                  .join(" · ")}
+              </p>
+            )}
           </>
         ) : (
           <p className="m-0 text-xs text-fg-2" data-testid="preview-progress">

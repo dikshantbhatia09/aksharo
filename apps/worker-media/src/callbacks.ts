@@ -110,6 +110,16 @@ export function internalSignatureHeaders(input: {
   };
 }
 
+/**
+ * How far a download has got in bytes, beside its percentage (2026-09-29):
+ * `bytesDone` of `bytesTotal`, the total being what the source said it would
+ * be (`approximateBytes`), so an estimate.
+ */
+export interface ProgressDetail {
+  readonly bytesDone?: number;
+  readonly bytesTotal?: number;
+}
+
 /** What the job actually consumed (CONTRACTS §3 `usage`). */
 export interface JobUsage {
   readonly mediaSeconds?: number;
@@ -207,17 +217,33 @@ export class CallbackClient {
     this.fetchImpl = options.fetch ?? globalThis.fetch.bind(globalThis);
   }
 
-  /** `POST /internal/jobs/{jobId}/progress`. Also flips the row to `running`. */
+  /**
+   * `POST /internal/jobs/{jobId}/progress`. Also flips the row to `running`.
+   *
+   * `detail` is a download's bytes (2026-09-29): an API older than it drops
+   * the two fields (its schema strips what it does not know), so either side
+   * can be deployed first.
+   */
   async progress(
     jobId: string,
     attemptId: string,
     progress: number,
-    extra: { readonly etaMs?: number; readonly message?: string } = {},
+    extra: {
+      readonly etaMs?: number;
+      readonly message?: string;
+      readonly detail?: ProgressDetail;
+    } = {},
   ): Promise<CallbackAck> {
+    const bytes = (value: number | undefined): number | undefined =>
+      value === undefined || !Number.isFinite(value) || value < 0 ? undefined : Math.round(value);
+    const bytesDone = bytes(extra.detail?.bytesDone);
+    const bytesTotal = bytes(extra.detail?.bytesTotal);
     const body: Record<string, unknown> = {
       progress: Math.max(0, Math.min(100, Math.round(progress * 100) / 100)),
       ...(extra.etaMs === undefined ? {} : { etaMs: Math.max(0, Math.round(extra.etaMs)) }),
       ...(extra.message === undefined ? {} : { message: extra.message.slice(0, 1_000) }),
+      ...(bytesDone === undefined ? {} : { bytesDone }),
+      ...(bytesTotal === undefined || bytesTotal === 0 ? {} : { bytesTotal }),
     };
     return this.send("POST", `/internal/jobs/${jobId}/progress`, attemptId, body, false);
   }

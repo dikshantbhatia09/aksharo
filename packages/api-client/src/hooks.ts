@@ -87,6 +87,8 @@ import type {
   LoginRequest,
   Media,
   MemoryEntry,
+  NotificationItem,
+  NotificationPage,
   OAuthCompleteRequest,
   OffersEligibilityView,
   OnboardingProfile,
@@ -96,6 +98,9 @@ import type {
   PendingApproval,
   Project,
   ProjectPage,
+  PushPublicKey,
+  PushSubscriptionRequest,
+  PushSubscriptionSaved,
   RecordSpellingFixRequest,
   RecordStylePrefRequest,
   RecordTimingNudgeRequest,
@@ -283,6 +288,74 @@ export function useSetConsent(): UseMutationResult<
     mutationFn: (body) => client.call(endpoints.account.setConsent, { body }),
     onSuccess: (state) => {
       queryClient.setQueryData(queryKeys.consents(), state);
+    },
+  });
+}
+
+/**
+ * The bell (A25): the person's newest notifications and their unread count.
+ * A minute's poll is the fallback; the shell refetches the moment a
+ * `notification.created` for them arrives on the socket.
+ */
+export function useNotifications(
+  options: { readonly limit?: number } = {},
+): UseQueryResult<NotificationPage> {
+  const client = useApiClient();
+  const workspaceId = useWorkspaceId();
+  const limit = options.limit ?? 10;
+  return useQuery({
+    queryKey: [...queryKeys.notifications(), limit],
+    // The user comes from the token, so it waits for a session like any read.
+    enabled: workspaceId !== null,
+    retry: retryPolicy,
+    refetchInterval: 60_000,
+    queryFn: () => client.call(endpoints.notifications.list, { query: { limit } }),
+  });
+}
+
+/** Opening a notification marks it read; the bell re-reads its dot. */
+export function useMarkNotificationRead(): UseMutationResult<NotificationItem, Error, string> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id) => client.call(endpoints.notifications.markRead, { params: { id } }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.notifications() });
+    },
+  });
+}
+
+/** The deployment's Web Push key: fixed for the life of the deployment, so read once. */
+export function usePushPublicKey(): UseQueryResult<PushPublicKey> {
+  const client = useApiClient();
+  const workspaceId = useWorkspaceId();
+  return useQuery({
+    queryKey: queryKeys.pushKey(),
+    enabled: workspaceId !== null,
+    retry: retryPolicy,
+    staleTime: Number.POSITIVE_INFINITY,
+    queryFn: () => client.call(endpoints.push.key),
+  });
+}
+
+/** Keep this browser's push subscription (`PushSubscription.toJSON()`). */
+export function useSavePushSubscription(): UseMutationResult<
+  PushSubscriptionSaved,
+  Error,
+  PushSubscriptionRequest
+> {
+  const client = useApiClient();
+  return useMutation({
+    mutationFn: (body) => client.call(endpoints.push.subscribe, { body }),
+  });
+}
+
+/** Forget this browser's push subscription, by its endpoint. */
+export function useDeletePushSubscription(): UseMutationResult<void, Error, string> {
+  const client = useApiClient();
+  return useMutation({
+    mutationFn: async (endpoint) => {
+      await client.call(endpoints.push.unsubscribe, { body: { endpoint } });
     },
   });
 }

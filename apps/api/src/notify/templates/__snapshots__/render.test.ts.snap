@@ -50,6 +50,48 @@ exports[`rendering > produces the same HTML shell for one kind, in both language
 "
 `;
 
+exports[`rendering > renders clips-ready in English 1`] = `
+{
+  "subject": "Your first clips from Diwali vlog are ready",
+  "text": "Aksharo
+
+Your clips are ready
+
+Hi Asha, 3 clips from Diwali vlog are ready to watch.
+
+Open the run to watch, edit or download them. Any still being made appear there as they finish.
+
+Open your clips:
+https://app.example.test/repurpose/01JRUN0000000000000000000A
+
+You get this once for each video.
+
+Sent by Aksharo. Questions? Reply to this message or write to support@aksharo.ai.
+",
+}
+`;
+
+exports[`rendering > renders clips-ready in Hindi 1`] = `
+{
+  "subject": "Diwali vlog की आपकी पहली क्लिप तैयार हैं",
+  "text": "Aksharo
+
+आपकी क्लिप तैयार हैं
+
+नमस्ते Asha, Diwali vlog की 3 क्लिप देखने के लिए तैयार हैं।
+
+रन खोलकर उन्हें देखें, एडिट करें या डाउनलोड करें। जो क्लिप अभी बन रही हैं, वे बनते ही वहीं दिखेंगी।
+
+अपनी क्लिप खोलें:
+https://app.example.test/repurpose/01JRUN0000000000000000000A
+
+यह मेल हर वीडियो के लिए एक ही बार आता है।
+
+Aksharo की ओर से भेजा गया। कोई सवाल? इसी मेल का जवाब दें या support@aksharo.ai पर लिखें।
+",
+}
+`;
+
 exports[`rendering > renders device-approval in English 1`] = `
 {
   "subject": "Approve Studio iMac",
@@ -414,6 +456,116 @@ exports[`rendering > renders retention-warning in Hindi 1`] = `
 https://app.example.test/projects/p1
 
 प्लान अपग्रेड करने से प्रोजेक्ट रखने की अवधि भी बढ़ जाती है।
+
+Aksharo की ओर से भेजा गया। कोई सवाल? इसी मेल का जवाब दें या support@aksharo.ai पर लिखें।
+",
+}
+`;
+
+exports[`rendering > renders run-complete in English 1`] = `
+{
+  "subject": "All done: 12 clips from Diwali vlog",
+  "text": "Aksharo
+
+Everything is ready
+
+Hi Asha, we finished Diwali vlog: 12 clips, with their sizes and images.
+
+Download them from the run, or open any one in the editor to change it.
+
+Open your clips:
+https://app.example.test/repurpose/01JRUN0000000000000000000A
+
+Sent by Aksharo. Questions? Reply to this message or write to support@aksharo.ai.
+",
+}
+`;
+
+exports[`rendering > renders run-complete in Hindi 1`] = `
+{
+  "subject": "सब तैयार: Diwali vlog की 12 क्लिप",
+  "text": "Aksharo
+
+सब कुछ तैयार है
+
+नमस्ते Asha, Diwali vlog का काम पूरा हो गया: 12 क्लिप, उनके साइज़ और इमेज के साथ।
+
+रन से उन्हें डाउनलोड करें, या किसी को भी बदलने के लिए एडिटर में खोलें।
+
+अपनी क्लिप खोलें:
+https://app.example.test/repurpose/01JRUN0000000000000000000A
+
+Aksharo की ओर से भेजा गया। कोई सवाल? इसी मेल का जवाब दें या support@aksharo.ai पर लिखें।
+",
+}
+`;
+
+exports[`rendering > renders run-failed in English 1`] = `
+{
+  "subject": "We could not finish Diwali vlog",
+  "text": "Aksharo
+
+This video stopped
+
+Hi Asha, we could not finish Diwali vlog. Anything already made is safe.
+
+Open the run to see what happened and what to try next.
+
+Open the run:
+https://app.example.test/repurpose/01JRUN0000000000000000000A
+
+Sent by Aksharo. Questions? Reply to this message or write to support@aksharo.ai.
+",
+}
+`;
+
+exports[`rendering > renders run-failed in Hindi 1`] = `
+{
+  "subject": "हम Diwali vlog पूरा नहीं कर पाए",
+  "text": "Aksharo
+
+यह वीडियो रुक गया
+
+नमस्ते Asha, हम Diwali vlog पूरा नहीं कर पाए। जो कुछ बन चुका है, वह सुरक्षित है।
+
+क्या हुआ और आगे क्या करें, यह देखने के लिए रन खोलें।
+
+रन खोलें:
+https://app.example.test/repurpose/01JRUN0000000000000000000A
+
+Aksharo की ओर से भेजा गया। कोई सवाल? इसी मेल का जवाब दें या support@aksharo.ai पर लिखें।
+",
+}
+`;
+
+exports[`rendering > renders run-needs-you in English 1`] = `
+{
+  "subject": "Upload the file for Diwali vlog",
+  "text": "Aksharo
+
+YouTube keeps refusing this video
+
+Hi Asha, YouTube keeps refusing to send us Diwali vlog. Upload the file from your device and the run carries on with it.
+
+Open the run:
+https://app.example.test/repurpose/01JRUN0000000000000000000A
+
+Sent by Aksharo. Questions? Reply to this message or write to support@aksharo.ai.
+",
+}
+`;
+
+exports[`rendering > renders run-needs-you in Hindi 1`] = `
+{
+  "subject": "Diwali vlog की फ़ाइल अपलोड करें",
+  "text": "Aksharo
+
+YouTube यह वीडियो नहीं दे रहा
+
+नमस्ते Asha, YouTube हमें Diwali vlog भेजने से बार-बार मना कर रहा है। फ़ाइल अपने डिवाइस से अपलोड करें, रन उसी से आगे बढ़ेगा।
+
+रन खोलें:
+https://app.example.test/repurpose/01JRUN0000000000000000000A
 
 Aksharo की ओर से भेजा गया। कोई सवाल? इसी मेल का जवाब दें या support@aksharo.ai पर लिखें।
 ",

@@ -12,6 +12,8 @@ import { RepurposeSteeringService } from "./repurpose-steering.service.js";
 import { RepurposeStuckRunsSweepTask } from "./repurpose-stuck-runs-sweep.task.js";
 import { RepurposeController } from "./repurpose.controller.js";
 import { RepurposeService } from "./repurpose.service.js";
+import { RunActivityReader } from "./run-activity.reader.js";
+import { RunNotifier } from "./run-notifications.js";
 import { SourceGate } from "./source-gate.js";
 import { RepurposeStillsCompletionHandler } from "./stills-completion.handler.js";
 import { EdgModule } from "../edg/index.js";
@@ -63,6 +65,9 @@ import { WorkspacesModule } from "../workspaces/workspaces.module.js";
     ClipFinishing,
     RepurposeReconciler,
     SourceGate,
+    // Progress and alerts (2026-09-29): the step a run is on, and its notifications.
+    RunActivityReader,
+    RunNotifier,
     // A second binding of a stateless class (`MediaModule` provides the first
     // and does not export it), as `TranscriptsModule` does with its guard.
     AutoTranscribeTrigger,

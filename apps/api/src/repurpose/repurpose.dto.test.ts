@@ -421,3 +421,67 @@ describe("create-run DTO — steering (2026-09-29)", () => {
     }
   });
 });
+
+describe("run view DTO — the step a run is on (2026-09-29)", () => {
+  const view = {
+    id: "01ARZ3NDEKTSV4RRFFQ69G5FB6",
+    workspaceId: "01ARZ3NDEKTSV4RRFFQ69G5FB0",
+    sourceProjectId: "01ARZ3NDEKTSV4RRFFQ69G5FAX",
+    sourceKind: "youtube_url",
+    sourceDisplay: "youtube.com · dQw4w9WgXcQ",
+    mode: "ai",
+    status: "acquiring",
+    currentStage: "getting_video",
+    progress: 11,
+    stages: [],
+    message: "Getting your video.",
+    failureCode: null,
+    canCancel: true,
+    canRetry: false,
+    candidateCount: 0,
+    clipCount: 0,
+    variantCount: 0,
+    createdAt: "2026-09-29T00:00:00.000Z",
+    updatedAt: "2026-09-29T00:00:00.000Z",
+    sourceTitle: null,
+    window: null,
+    failureDetail: null,
+    nextWindowAvailable: false,
+    automation: "auto",
+    waitingFor: null,
+  };
+
+  it("carries a step with its own progress, units, time left and place in line", () => {
+    const parsed = runViewSchema.safeParse({
+      ...view,
+      activity: {
+        step: "downloading",
+        label: "Downloading your video",
+        percent: 67,
+        detail: "3.4 of 5.0 GB",
+        etaSeconds: 125,
+      },
+    });
+    expect(parsed.success ? [] : parsed.error.issues).toEqual([]);
+    expect(
+      runViewSchema.safeParse({
+        ...view,
+        activity: { step: "queued", label: "Waiting for a free spot", queuePosition: 2 },
+      }).success,
+    ).toBe(true);
+  });
+
+  it("is optional, so a view from before it still parses, and refuses a step it does not know", () => {
+    expect(runViewSchema.safeParse(view).success).toBe(true);
+    expect(runViewSchema.safeParse({ ...view, activity: null }).success).toBe(true);
+    expect(
+      runViewSchema.safeParse({ ...view, activity: { step: "uploading", label: "x" } }).success,
+    ).toBe(false);
+    expect(
+      runViewSchema.safeParse({
+        ...view,
+        activity: { step: "downloading", label: "x", percent: 120 },
+      }).success,
+    ).toBe(false);
+  });
+});

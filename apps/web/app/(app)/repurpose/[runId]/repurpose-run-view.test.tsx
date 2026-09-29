@@ -81,6 +81,79 @@ describe("<RepurposeRunView /> resuming a run", () => {
     expect(screen.queryByTestId("run-autopilot")).toBeNull();
   });
 
+  it("says which step the run is on, in numbers, and how long it has left (2026-09-29)", async () => {
+    // The owner's report: "5% complete" while a 5 GB download was at 67%.
+    renderWithProviders(<RepurposeRunView runId={RUN_ID} />, {
+      routes: {
+        [`/repurpose/runs/${RUN_ID}`]: run({
+          sourceKind: "youtube_url",
+          status: "acquiring",
+          currentStage: "getting_video",
+          progress: 11,
+          stages: [
+            { stage: "getting_video", state: "running", label: "Getting your video" },
+            { stage: "finding_clips", state: "waiting", label: "Find clips" },
+            { stage: "styles_formats", state: "waiting", label: "Style formats" },
+            { stage: "review", state: "waiting", label: "Review" },
+            { stage: "publish", state: "waiting", label: "Publish" },
+          ],
+          message: "Getting your video.",
+          activity: {
+            step: "downloading",
+            label: "Downloading your video",
+            percent: 67,
+            detail: "3.4 of 5.0 GB",
+            etaSeconds: 125,
+          },
+        }),
+      },
+    });
+
+    const line = await screen.findByTestId("run-activity");
+    expect(
+      within(screen.getByTestId("stage-panel-getting_video")).getByTestId("run-activity"),
+    ).toBe(line);
+    expect(screen.getByTestId("run-activity-text")).toHaveTextContent(
+      "Downloading your video · 3.4 of 5.0 GB · about 2 min left",
+    );
+    expect(within(line).getByRole("progressbar")).toHaveAttribute("aria-valuenow", "67");
+    // The whole run's bar, and the same step beside it.
+    expect(screen.getByTestId("preview-progress")).toHaveTextContent("11% complete");
+    expect(screen.getByTestId("preview-activity")).toHaveTextContent(
+      "Downloading your video · about 2 min left",
+    );
+  });
+
+  it("shows no step line for a run that has stopped, or once everything is done", async () => {
+    const stopped = renderWithProviders(<RepurposeRunView runId={RUN_ID} />, {
+      routes: {
+        [`/repurpose/runs/${RUN_ID}`]: run({
+          status: "failed",
+          currentStage: "getting_video",
+          failureCode: "repurpose/source_unavailable",
+          canCancel: false,
+          canRetry: true,
+          activity: null,
+        }),
+      },
+    });
+    expect(await screen.findByTestId("stage-error")).toBeInTheDocument();
+    expect(screen.queryByTestId("run-activity")).toBeNull();
+    stopped.unmount();
+
+    renderWithProviders(<RepurposeRunView runId={RUN_ID} />, {
+      routes: {
+        [`/repurpose/runs/${RUN_ID}`]: run({
+          status: "review_ready",
+          currentStage: "review",
+          activity: { step: "done", label: "All done" },
+        }),
+      },
+    });
+    expect(await screen.findByTestId("preview-activity")).toHaveTextContent("All done");
+    expect(screen.queryByTestId("run-activity")).toBeNull();
+  });
+
   it("offers a way to stop a run that is still moving", async () => {
     renderWithProviders(<RepurposeRunView runId={RUN_ID} />, {
       routes: { [`/repurpose/runs/${RUN_ID}`]: run() },

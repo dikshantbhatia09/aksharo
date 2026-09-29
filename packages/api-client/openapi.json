@@ -4173,6 +4173,175 @@
         ]
       }
     },
+    "/me/push-subscriptions/key": {
+      "get": {
+        "description": "`publicKey` is null when this deployment does not send device notifications.",
+        "operationId": "getPushPublicKey",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The VAPID public key, base64url.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "publicKey": {
+                      "nullable": true,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "publicKey"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "The key a browser subscribes to device notifications with",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/me/push-subscriptions": {
+      "post": {
+        "description": "Takes `PushSubscription.toJSON()` as the browser gives it. Idempotent on the endpoint. 400 when the endpoint is not a supported browser push service or the keys cannot be used; 409 `notify/push_unavailable` when device notifications are off.",
+        "operationId": "savePushSubscription",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "endpoint": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2048
+                  },
+                  "expirationTime": {
+                    "nullable": true,
+                    "type": "number"
+                  },
+                  "keys": {
+                    "type": "object",
+                    "properties": {
+                      "p256dh": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 200
+                      },
+                      "auth": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 100
+                      }
+                    },
+                    "required": [
+                      "p256dh",
+                      "auth"
+                    ]
+                  }
+                },
+                "required": [
+                  "endpoint",
+                  "keys"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The saved subscription.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "createdAt"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Turn on device notifications in this browser",
+        "tags": [
+          "notifications"
+        ]
+      },
+      "delete": {
+        "description": "Idempotent: an endpoint that is not yours, or is already gone, is still a 204.",
+        "operationId": "deletePushSubscription",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "endpoint": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2048
+                  }
+                },
+                "required": [
+                  "endpoint"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Forgotten."
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Turn off device notifications in this browser",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
     "/projects": {
       "get": {
         "description": "Cursor pagination: pass the previous page's `nextCursor` as `cursor`. Filters: `q` (title substring), `status`, `folder` (a folder id or `root`) and `clientTag`. Deleted projects are never returned.",
@@ -24255,9 +24424,19 @@
                     "type": "object",
                     "properties": {
                       "sourceLanguage": {
-                        "type": "string",
-                        "minLength": 2,
-                        "maxLength": 64
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "auto"
+                            ]
+                          },
+                          {
+                            "type": "string",
+                            "minLength": 2,
+                            "maxLength": 64
+                          }
+                        ]
                       },
                       "caption": {
                         "type": "object",
@@ -24339,6 +24518,32 @@
                             ]
                           }
                         }
+                      },
+                      "window": {
+                        "type": "object",
+                        "properties": {
+                          "startMs": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 86400000
+                          },
+                          "policy": {
+                            "type": "string",
+                            "enum": [
+                              "first",
+                              "most_replayed",
+                              "range"
+                            ]
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      "automation": {
+                        "type": "string",
+                        "enum": [
+                          "auto",
+                          "manual"
+                        ]
                       }
                     },
                     "required": [
@@ -24490,6 +24695,145 @@
                         },
                         "updatedAt": {
                           "type": "string"
+                        },
+                        "sourceTitle": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "window": {
+                          "nullable": true,
+                          "type": "object",
+                          "properties": {
+                            "startMs": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "endMs": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "sourceDurationMs": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "policy": {
+                              "type": "string",
+                              "enum": [
+                                "first",
+                                "most_replayed",
+                                "range"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "startMs",
+                            "endMs",
+                            "sourceDurationMs",
+                            "policy"
+                          ]
+                        },
+                        "failureDetail": {
+                          "nullable": true,
+                          "type": "object",
+                          "properties": {
+                            "durationMs": {
+                              "type": "number"
+                            },
+                            "maxDurationMs": {
+                              "type": "number"
+                            },
+                            "maxBytes": {
+                              "type": "number"
+                            },
+                            "approximateBytes": {
+                              "type": "number"
+                            },
+                            "windowMs": {
+                              "type": "number"
+                            },
+                            "creditsLeft": {
+                              "type": "number"
+                            }
+                          }
+                        },
+                        "nextWindowAvailable": {
+                          "type": "boolean"
+                        },
+                        "automation": {
+                          "type": "string",
+                          "enum": [
+                            "auto",
+                            "manual"
+                          ]
+                        },
+                        "waitingFor": {
+                          "nullable": true,
+                          "type": "object",
+                          "properties": {
+                            "reason": {
+                              "type": "string",
+                              "enum": [
+                                "source_busy"
+                              ]
+                            },
+                            "until": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "reason",
+                            "until"
+                          ]
+                        },
+                        "activity": {
+                          "nullable": true,
+                          "type": "object",
+                          "properties": {
+                            "step": {
+                              "type": "string",
+                              "enum": [
+                                "queued",
+                                "downloading",
+                                "preparing",
+                                "transcribing",
+                                "finding",
+                                "cutting",
+                                "captioning",
+                                "formats",
+                                "images",
+                                "done",
+                                "waiting"
+                              ]
+                            },
+                            "label": {
+                              "type": "string"
+                            },
+                            "percent": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 100
+                            },
+                            "detail": {
+                              "type": "string"
+                            },
+                            "etaSeconds": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "queuePosition": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": [
+                            "step",
+                            "label"
+                          ]
                         }
                       },
                       "required": [
@@ -24511,7 +24855,13 @@
                         "clipCount",
                         "variantCount",
                         "createdAt",
-                        "updatedAt"
+                        "updatedAt",
+                        "sourceTitle",
+                        "window",
+                        "failureDetail",
+                        "nextWindowAvailable",
+                        "automation",
+                        "waitingFor"
                       ]
                     },
                     "projectId": {
@@ -24758,6 +25108,145 @@
                           },
                           "updatedAt": {
                             "type": "string"
+                          },
+                          "sourceTitle": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "window": {
+                            "nullable": true,
+                            "type": "object",
+                            "properties": {
+                              "startMs": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "endMs": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "sourceDurationMs": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "policy": {
+                                "type": "string",
+                                "enum": [
+                                  "first",
+                                  "most_replayed",
+                                  "range"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "startMs",
+                              "endMs",
+                              "sourceDurationMs",
+                              "policy"
+                            ]
+                          },
+                          "failureDetail": {
+                            "nullable": true,
+                            "type": "object",
+                            "properties": {
+                              "durationMs": {
+                                "type": "number"
+                              },
+                              "maxDurationMs": {
+                                "type": "number"
+                              },
+                              "maxBytes": {
+                                "type": "number"
+                              },
+                              "approximateBytes": {
+                                "type": "number"
+                              },
+                              "windowMs": {
+                                "type": "number"
+                              },
+                              "creditsLeft": {
+                                "type": "number"
+                              }
+                            }
+                          },
+                          "nextWindowAvailable": {
+                            "type": "boolean"
+                          },
+                          "automation": {
+                            "type": "string",
+                            "enum": [
+                              "auto",
+                              "manual"
+                            ]
+                          },
+                          "waitingFor": {
+                            "nullable": true,
+                            "type": "object",
+                            "properties": {
+                              "reason": {
+                                "type": "string",
+                                "enum": [
+                                  "source_busy"
+                                ]
+                              },
+                              "until": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "reason",
+                              "until"
+                            ]
+                          },
+                          "activity": {
+                            "nullable": true,
+                            "type": "object",
+                            "properties": {
+                              "step": {
+                                "type": "string",
+                                "enum": [
+                                  "queued",
+                                  "downloading",
+                                  "preparing",
+                                  "transcribing",
+                                  "finding",
+                                  "cutting",
+                                  "captioning",
+                                  "formats",
+                                  "images",
+                                  "done",
+                                  "waiting"
+                                ]
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "percent": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 100
+                              },
+                              "detail": {
+                                "type": "string"
+                              },
+                              "etaSeconds": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "queuePosition": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              }
+                            },
+                            "required": [
+                              "step",
+                              "label"
+                            ]
                           }
                         },
                         "required": [
@@ -24779,7 +25268,13 @@
                           "clipCount",
                           "variantCount",
                           "createdAt",
-                          "updatedAt"
+                          "updatedAt",
+                          "sourceTitle",
+                          "window",
+                          "failureDetail",
+                          "nextWindowAvailable",
+                          "automation",
+                          "waitingFor"
                         ]
                       }
                     },
@@ -24947,6 +25442,145 @@
                     },
                     "updatedAt": {
                       "type": "string"
+                    },
+                    "sourceTitle": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "window": {
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "startMs": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "endMs": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "sourceDurationMs": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "policy": {
+                          "type": "string",
+                          "enum": [
+                            "first",
+                            "most_replayed",
+                            "range"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "startMs",
+                        "endMs",
+                        "sourceDurationMs",
+                        "policy"
+                      ]
+                    },
+                    "failureDetail": {
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "durationMs": {
+                          "type": "number"
+                        },
+                        "maxDurationMs": {
+                          "type": "number"
+                        },
+                        "maxBytes": {
+                          "type": "number"
+                        },
+                        "approximateBytes": {
+                          "type": "number"
+                        },
+                        "windowMs": {
+                          "type": "number"
+                        },
+                        "creditsLeft": {
+                          "type": "number"
+                        }
+                      }
+                    },
+                    "nextWindowAvailable": {
+                      "type": "boolean"
+                    },
+                    "automation": {
+                      "type": "string",
+                      "enum": [
+                        "auto",
+                        "manual"
+                      ]
+                    },
+                    "waitingFor": {
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "reason": {
+                          "type": "string",
+                          "enum": [
+                            "source_busy"
+                          ]
+                        },
+                        "until": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "reason",
+                        "until"
+                      ]
+                    },
+                    "activity": {
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "step": {
+                          "type": "string",
+                          "enum": [
+                            "queued",
+                            "downloading",
+                            "preparing",
+                            "transcribing",
+                            "finding",
+                            "cutting",
+                            "captioning",
+                            "formats",
+                            "images",
+                            "done",
+                            "waiting"
+                          ]
+                        },
+                        "label": {
+                          "type": "string"
+                        },
+                        "percent": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 100
+                        },
+                        "detail": {
+                          "type": "string"
+                        },
+                        "etaSeconds": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "queuePosition": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "step",
+                        "label"
+                      ]
                     }
                   },
                   "required": [
@@ -24968,7 +25602,13 @@
                     "clipCount",
                     "variantCount",
                     "createdAt",
-                    "updatedAt"
+                    "updatedAt",
+                    "sourceTitle",
+                    "window",
+                    "failureDetail",
+                    "nextWindowAvailable",
+                    "automation",
+                    "waitingFor"
                   ]
                 }
               }
@@ -25126,6 +25766,145 @@
                     },
                     "updatedAt": {
                       "type": "string"
+                    },
+                    "sourceTitle": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "window": {
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "startMs": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "endMs": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "sourceDurationMs": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "policy": {
+                          "type": "string",
+                          "enum": [
+                            "first",
+                            "most_replayed",
+                            "range"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "startMs",
+                        "endMs",
+                        "sourceDurationMs",
+                        "policy"
+                      ]
+                    },
+                    "failureDetail": {
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "durationMs": {
+                          "type": "number"
+                        },
+                        "maxDurationMs": {
+                          "type": "number"
+                        },
+                        "maxBytes": {
+                          "type": "number"
+                        },
+                        "approximateBytes": {
+                          "type": "number"
+                        },
+                        "windowMs": {
+                          "type": "number"
+                        },
+                        "creditsLeft": {
+                          "type": "number"
+                        }
+                      }
+                    },
+                    "nextWindowAvailable": {
+                      "type": "boolean"
+                    },
+                    "automation": {
+                      "type": "string",
+                      "enum": [
+                        "auto",
+                        "manual"
+                      ]
+                    },
+                    "waitingFor": {
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "reason": {
+                          "type": "string",
+                          "enum": [
+                            "source_busy"
+                          ]
+                        },
+                        "until": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "reason",
+                        "until"
+                      ]
+                    },
+                    "activity": {
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "step": {
+                          "type": "string",
+                          "enum": [
+                            "queued",
+                            "downloading",
+                            "preparing",
+                            "transcribing",
+                            "finding",
+                            "cutting",
+                            "captioning",
+                            "formats",
+                            "images",
+                            "done",
+                            "waiting"
+                          ]
+                        },
+                        "label": {
+                          "type": "string"
+                        },
+                        "percent": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 100
+                        },
+                        "detail": {
+                          "type": "string"
+                        },
+                        "etaSeconds": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "queuePosition": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "step",
+                        "label"
+                      ]
                     }
                   },
                   "required": [
@@ -25147,7 +25926,13 @@
                     "clipCount",
                     "variantCount",
                     "createdAt",
-                    "updatedAt"
+                    "updatedAt",
+                    "sourceTitle",
+                    "window",
+                    "failureDetail",
+                    "nextWindowAvailable",
+                    "automation",
+                    "waitingFor"
                   ]
                 }
               }
@@ -25304,6 +26089,145 @@
                     },
                     "updatedAt": {
                       "type": "string"
+                    },
+                    "sourceTitle": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "window": {
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "startMs": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "endMs": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "sourceDurationMs": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "policy": {
+                          "type": "string",
+                          "enum": [
+                            "first",
+                            "most_replayed",
+                            "range"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "startMs",
+                        "endMs",
+                        "sourceDurationMs",
+                        "policy"
+                      ]
+                    },
+                    "failureDetail": {
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "durationMs": {
+                          "type": "number"
+                        },
+                        "maxDurationMs": {
+                          "type": "number"
+                        },
+                        "maxBytes": {
+                          "type": "number"
+                        },
+                        "approximateBytes": {
+                          "type": "number"
+                        },
+                        "windowMs": {
+                          "type": "number"
+                        },
+                        "creditsLeft": {
+                          "type": "number"
+                        }
+                      }
+                    },
+                    "nextWindowAvailable": {
+                      "type": "boolean"
+                    },
+                    "automation": {
+                      "type": "string",
+                      "enum": [
+                        "auto",
+                        "manual"
+                      ]
+                    },
+                    "waitingFor": {
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "reason": {
+                          "type": "string",
+                          "enum": [
+                            "source_busy"
+                          ]
+                        },
+                        "until": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "reason",
+                        "until"
+                      ]
+                    },
+                    "activity": {
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "step": {
+                          "type": "string",
+                          "enum": [
+                            "queued",
+                            "downloading",
+                            "preparing",
+                            "transcribing",
+                            "finding",
+                            "cutting",
+                            "captioning",
+                            "formats",
+                            "images",
+                            "done",
+                            "waiting"
+                          ]
+                        },
+                        "label": {
+                          "type": "string"
+                        },
+                        "percent": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 100
+                        },
+                        "detail": {
+                          "type": "string"
+                        },
+                        "etaSeconds": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "queuePosition": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "step",
+                        "label"
+                      ]
                     }
                   },
                   "required": [
@@ -25325,7 +26249,13 @@
                     "clipCount",
                     "variantCount",
                     "createdAt",
-                    "updatedAt"
+                    "updatedAt",
+                    "sourceTitle",
+                    "window",
+                    "failureDetail",
+                    "nextWindowAvailable",
+                    "automation",
+                    "waitingFor"
                   ]
                 }
               }
@@ -25338,6 +26268,662 @@
           }
         ],
         "summary": "Try a failed run again",
+        "tags": [
+          "repurpose"
+        ]
+      }
+    },
+    "/repurpose/runs/{runId}/next-window": {
+      "post": {
+        "description": "201 with a NEW run over the same video, starting where this run's window ended. 409 `repurpose/no_next_window` when nothing is left after it; 402 `repurpose/no_credits` when the balance does not pay for a minute.",
+        "operationId": "nextRepurposeWindow",
+        "parameters": [
+          {
+            "name": "runId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The run over the next window.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "run": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                        },
+                        "workspaceId": {
+                          "type": "string",
+                          "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                        },
+                        "sourceProjectId": {
+                          "type": "string",
+                          "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                        },
+                        "sourceKind": {
+                          "type": "string",
+                          "enum": [
+                            "upload",
+                            "youtube_url",
+                            "direct_media_url"
+                          ]
+                        },
+                        "sourceDisplay": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "mode": {
+                          "type": "string",
+                          "enum": [
+                            "ai",
+                            "manual",
+                            "mixed"
+                          ]
+                        },
+                        "status": {
+                          "type": "string"
+                        },
+                        "currentStage": {
+                          "type": "string",
+                          "enum": [
+                            "getting_video",
+                            "finding_clips",
+                            "styles_formats",
+                            "review",
+                            "publish"
+                          ]
+                        },
+                        "progress": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 100
+                        },
+                        "stages": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "stage": {
+                                "type": "string",
+                                "enum": [
+                                  "getting_video",
+                                  "finding_clips",
+                                  "styles_formats",
+                                  "review",
+                                  "publish"
+                                ]
+                              },
+                              "state": {
+                                "type": "string",
+                                "enum": [
+                                  "waiting",
+                                  "running",
+                                  "complete",
+                                  "failed"
+                                ]
+                              },
+                              "label": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "stage",
+                              "state",
+                              "label"
+                            ]
+                          }
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "failureCode": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "canCancel": {
+                          "type": "boolean"
+                        },
+                        "canRetry": {
+                          "type": "boolean"
+                        },
+                        "candidateCount": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "clipCount": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "variantCount": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "createdAt": {
+                          "type": "string"
+                        },
+                        "updatedAt": {
+                          "type": "string"
+                        },
+                        "sourceTitle": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "window": {
+                          "nullable": true,
+                          "type": "object",
+                          "properties": {
+                            "startMs": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "endMs": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "sourceDurationMs": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "policy": {
+                              "type": "string",
+                              "enum": [
+                                "first",
+                                "most_replayed",
+                                "range"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "startMs",
+                            "endMs",
+                            "sourceDurationMs",
+                            "policy"
+                          ]
+                        },
+                        "failureDetail": {
+                          "nullable": true,
+                          "type": "object",
+                          "properties": {
+                            "durationMs": {
+                              "type": "number"
+                            },
+                            "maxDurationMs": {
+                              "type": "number"
+                            },
+                            "maxBytes": {
+                              "type": "number"
+                            },
+                            "approximateBytes": {
+                              "type": "number"
+                            },
+                            "windowMs": {
+                              "type": "number"
+                            },
+                            "creditsLeft": {
+                              "type": "number"
+                            }
+                          }
+                        },
+                        "nextWindowAvailable": {
+                          "type": "boolean"
+                        },
+                        "automation": {
+                          "type": "string",
+                          "enum": [
+                            "auto",
+                            "manual"
+                          ]
+                        },
+                        "waitingFor": {
+                          "nullable": true,
+                          "type": "object",
+                          "properties": {
+                            "reason": {
+                              "type": "string",
+                              "enum": [
+                                "source_busy"
+                              ]
+                            },
+                            "until": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "reason",
+                            "until"
+                          ]
+                        },
+                        "activity": {
+                          "nullable": true,
+                          "type": "object",
+                          "properties": {
+                            "step": {
+                              "type": "string",
+                              "enum": [
+                                "queued",
+                                "downloading",
+                                "preparing",
+                                "transcribing",
+                                "finding",
+                                "cutting",
+                                "captioning",
+                                "formats",
+                                "images",
+                                "done",
+                                "waiting"
+                              ]
+                            },
+                            "label": {
+                              "type": "string"
+                            },
+                            "percent": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 100
+                            },
+                            "detail": {
+                              "type": "string"
+                            },
+                            "etaSeconds": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "queuePosition": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": [
+                            "step",
+                            "label"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "workspaceId",
+                        "sourceProjectId",
+                        "sourceKind",
+                        "sourceDisplay",
+                        "mode",
+                        "status",
+                        "currentStage",
+                        "progress",
+                        "stages",
+                        "message",
+                        "failureCode",
+                        "canCancel",
+                        "canRetry",
+                        "candidateCount",
+                        "clipCount",
+                        "variantCount",
+                        "createdAt",
+                        "updatedAt",
+                        "sourceTitle",
+                        "window",
+                        "failureDetail",
+                        "nextWindowAvailable",
+                        "automation",
+                        "waitingFor"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "run"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Process the next part of a long video",
+        "tags": [
+          "repurpose"
+        ]
+      }
+    },
+    "/repurpose/runs/{runId}/source": {
+      "post": {
+        "description": "200 with the run, now waiting for an upload into its source project (`sourceProjectId`, through the ordinary media upload). For a link run whose video never arrived. 409 `repurpose/source_not_replaceable` when the run already has its video, is not a link run, or its download is running right now.",
+        "operationId": "useRepurposeUpload",
+        "parameters": [
+          {
+            "name": "runId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The run, waiting for the upload.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                    },
+                    "workspaceId": {
+                      "type": "string",
+                      "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                    },
+                    "sourceProjectId": {
+                      "type": "string",
+                      "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                    },
+                    "sourceKind": {
+                      "type": "string",
+                      "enum": [
+                        "upload",
+                        "youtube_url",
+                        "direct_media_url"
+                      ]
+                    },
+                    "sourceDisplay": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "mode": {
+                      "type": "string",
+                      "enum": [
+                        "ai",
+                        "manual",
+                        "mixed"
+                      ]
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "currentStage": {
+                      "type": "string",
+                      "enum": [
+                        "getting_video",
+                        "finding_clips",
+                        "styles_formats",
+                        "review",
+                        "publish"
+                      ]
+                    },
+                    "progress": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 100
+                    },
+                    "stages": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "stage": {
+                            "type": "string",
+                            "enum": [
+                              "getting_video",
+                              "finding_clips",
+                              "styles_formats",
+                              "review",
+                              "publish"
+                            ]
+                          },
+                          "state": {
+                            "type": "string",
+                            "enum": [
+                              "waiting",
+                              "running",
+                              "complete",
+                              "failed"
+                            ]
+                          },
+                          "label": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "stage",
+                          "state",
+                          "label"
+                        ]
+                      }
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "failureCode": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "canCancel": {
+                      "type": "boolean"
+                    },
+                    "canRetry": {
+                      "type": "boolean"
+                    },
+                    "candidateCount": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "clipCount": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "variantCount": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    },
+                    "sourceTitle": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "window": {
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "startMs": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "endMs": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "sourceDurationMs": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "policy": {
+                          "type": "string",
+                          "enum": [
+                            "first",
+                            "most_replayed",
+                            "range"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "startMs",
+                        "endMs",
+                        "sourceDurationMs",
+                        "policy"
+                      ]
+                    },
+                    "failureDetail": {
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "durationMs": {
+                          "type": "number"
+                        },
+                        "maxDurationMs": {
+                          "type": "number"
+                        },
+                        "maxBytes": {
+                          "type": "number"
+                        },
+                        "approximateBytes": {
+                          "type": "number"
+                        },
+                        "windowMs": {
+                          "type": "number"
+                        },
+                        "creditsLeft": {
+                          "type": "number"
+                        }
+                      }
+                    },
+                    "nextWindowAvailable": {
+                      "type": "boolean"
+                    },
+                    "automation": {
+                      "type": "string",
+                      "enum": [
+                        "auto",
+                        "manual"
+                      ]
+                    },
+                    "waitingFor": {
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "reason": {
+                          "type": "string",
+                          "enum": [
+                            "source_busy"
+                          ]
+                        },
+                        "until": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "reason",
+                        "until"
+                      ]
+                    },
+                    "activity": {
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "step": {
+                          "type": "string",
+                          "enum": [
+                            "queued",
+                            "downloading",
+                            "preparing",
+                            "transcribing",
+                            "finding",
+                            "cutting",
+                            "captioning",
+                            "formats",
+                            "images",
+                            "done",
+                            "waiting"
+                          ]
+                        },
+                        "label": {
+                          "type": "string"
+                        },
+                        "percent": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 100
+                        },
+                        "detail": {
+                          "type": "string"
+                        },
+                        "etaSeconds": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "queuePosition": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "step",
+                        "label"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "workspaceId",
+                    "sourceProjectId",
+                    "sourceKind",
+                    "sourceDisplay",
+                    "mode",
+                    "status",
+                    "currentStage",
+                    "progress",
+                    "stages",
+                    "message",
+                    "failureCode",
+                    "canCancel",
+                    "canRetry",
+                    "candidateCount",
+                    "clipCount",
+                    "variantCount",
+                    "createdAt",
+                    "updatedAt",
+                    "sourceTitle",
+                    "window",
+                    "failureDetail",
+                    "nextWindowAvailable",
+                    "automation",
+                    "waitingFor"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Upload the file instead of fetching the link",
         "tags": [
           "repurpose"
         ]
@@ -25758,6 +27344,7 @@
               "media.proxy",
               "media.acquire",
               "media.clip",
+              "media.stills",
               "ai.vad",
               "ai.transcribe",
               "ai.align",
@@ -25962,7 +27549,11 @@
               "retention-warning",
               "support-ticket-created",
               "share-report-resolved",
-              "support-ticket-reply"
+              "support-ticket-reply",
+              "clips-ready",
+              "run-complete",
+              "run-failed",
+              "run-needs-you"
             ],
             "description": "What happened. The client renders its own wording per locale, so the row carries no text of its own."
           },
@@ -26811,6 +28402,7 @@
               "media.proxy",
               "media.acquire",
               "media.clip",
+              "media.stills",
               "ai.vad",
               "ai.transcribe",
               "ai.align",
@@ -26927,6 +28519,7 @@
               "media.proxy",
               "media.acquire",
               "media.clip",
+              "media.stills",
               "ai.vad",
               "ai.transcribe",
               "ai.align",
@@ -27097,6 +28690,7 @@
               "media.proxy",
               "media.acquire",
               "media.clip",
+              "media.stills",
               "ai.vad",
               "ai.transcribe",
               "ai.align",
@@ -27144,6 +28738,7 @@
               "media.proxy",
               "media.acquire",
               "media.clip",
+              "media.stills",
               "ai.vad",
               "ai.transcribe",
               "ai.align",
