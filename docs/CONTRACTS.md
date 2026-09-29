@@ -44,6 +44,11 @@ export interface EdgHot { meta: { edgId: string; projectId: string; revision: nu
 - `RenderManifest.timemap.titles[]` (D06) and `RenderManifest.timemap.audio.sfx[]` / `.music[]` (D04c/D05) are additive optional arrays; renderers ignore unknown arrays.
 - Burn rates: `textFxPass` 1 credit/finished-minute; `sfxMusicPass` unchanged.
 
+### Amendment 2026-09-29 (overlays)
+- `EdgHot.overlays?: { id: string; kind: "hook-title"; text: string; startMs: number; endMs: number }[]` — text drawn over the captions on the source clock, at most `MAX_OVERLAYS` per document. Absent is none; every document from before reads the same.
+- Ops `SetOverlay{overlay}` (add or replace by id; the window is clamped to the media, and an empty window or blank text is refused) and `RemoveOverlay{overlayId}` (`unknown-id` when absent). Rebase field `overlay:<id>`, last-write-wins.
+- Render projections carry `overlays` (API manifest, `apps/render` `RenderProjectionSchema`, browser export, share viewer). A renderer older than this drops them silently: deploy render with or before the API that writes them.
+
 ## 3. Queue contracts (BullMQ; Redis)
 Queue names: `media.probe`, `media.proxy`, `media.acquire`, `media.clip`, `media.stills`, `ai.vad`, `ai.transcribe`, `ai.align`, `ai.diarise`, `ai.translate`, `ai.transliterate`, `ai.clean`, `ai.pass`, `ai.llm`, `ai.highlights`, `ai.faces`, `render.video`, `render.subtitle`, `publish.dispatch`, `publish.reconcile`, `notify`.
 Envelope (every job data): `{ jobId, attemptId, workspaceId, projectId?, priority, jobKey, createdAt, payload }`.
