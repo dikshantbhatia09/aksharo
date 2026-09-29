@@ -46,6 +46,17 @@ export const watchSetupSchema = runSetupSchema.superRefine((setup, context) => {
       message: "A channel's videos always run on Autopilot.",
     });
   }
+  // 2026-10-04 (audiograms): a cover is drawn only for a source with no
+  // picture, which a channel's video never is. Refused here rather than kept:
+  // a watch starts its runs later, with nobody at the page, and a cover that
+  // was never uploaded would refuse every one of them.
+  if (setup.audiogram !== undefined) {
+    context.addIssue({
+      code: "custom",
+      path: ["audiogram"],
+      message: "A channel's videos have pictures of their own. A cover is for an audio file.",
+    });
+  }
 });
 export type WatchSetup = z.infer<typeof watchSetupSchema>;
 
