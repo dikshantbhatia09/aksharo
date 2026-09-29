@@ -47,6 +47,7 @@ QUEUE_NAMES: Final[tuple[str, ...]] = (
     "ai.faces",
     "render.video",
     "render.subtitle",
+    "render.compilation",
     "publish.dispatch",
     "publish.reconcile",
     "notify",

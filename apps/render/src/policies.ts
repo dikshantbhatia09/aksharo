@@ -41,6 +41,8 @@ export const RENDER_QUEUE_POLICY: QueuePolicy = Object.freeze({
 export const RENDER_QUEUE_OVERRIDES: Readonly<Record<string, Partial<QueuePolicy>>> = Object.freeze(
   {
     "render.video": { lockDurationMs: 600_000, stalledIntervalMs: 60_000 },
+    // A compilation joins up to fifteen minutes of clips (2026-10-03).
+    "render.compilation": { lockDurationMs: 600_000, stalledIntervalMs: 60_000 },
   },
 );
 

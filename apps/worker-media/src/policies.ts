@@ -112,6 +112,7 @@ export const QUEUE_POLICY_OVERRIDES: Readonly<Record<string, Partial<QueuePolicy
     "ai.diarise": { lockDurationMs: 600_000, stalledIntervalMs: 60_000 },
     "ai.align": { lockDurationMs: 300_000, stalledIntervalMs: 60_000 },
     "render.video": { lockDurationMs: 600_000, stalledIntervalMs: 60_000 },
+    "render.compilation": { lockDurationMs: 600_000, stalledIntervalMs: 60_000 },
   },
 );
 

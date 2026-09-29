@@ -26,6 +26,7 @@ const JOB_LABEL: Readonly<Record<string, string>> = Object.freeze({
   "ai.faces": "Finding faces",
   "render.video": "Rendering",
   "render.subtitle": "Building subtitles",
+  "render.compilation": "Joining clips",
   "publish.dispatch": "Posting",
   "publish.reconcile": "Checking the post",
   notify: "Sending a notification",

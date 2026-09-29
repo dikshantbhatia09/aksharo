@@ -9,9 +9,11 @@ import { signedFixtureManifest } from "@montaj/render-manifest/testing";
 import {
   bullJobId,
   isJobEnvelope,
+  RENDER_COMPILATION_QUEUE,
   RENDER_QUEUES,
   RENDER_SUBTITLE_QUEUE,
   RENDER_VIDEO_QUEUE,
+  RenderCompilationPayloadSchema,
   RenderProjectionSchema,
   RenderSubtitlePayloadSchema,
   RenderVideoPayloadSchema,
@@ -32,7 +34,8 @@ describe("render queue contract (CONTRACTS §3)", () => {
   it("uses the frozen queue names", () => {
     expect(RENDER_VIDEO_QUEUE).toBe("render.video");
     expect(RENDER_SUBTITLE_QUEUE).toBe("render.subtitle");
-    expect(RENDER_QUEUES).toEqual(["render.video", "render.subtitle"]);
+    expect(RENDER_COMPILATION_QUEUE).toBe("render.compilation");
+    expect(RENDER_QUEUES).toEqual(["render.video", "render.subtitle", "render.compilation"]);
   });
 
   it("does not drift from the API's canonical list", () => {
@@ -210,5 +213,41 @@ describe("the payload schemas", () => {
         ).toBe(false);
       }
     });
+  });
+});
+
+describe("the render.compilation payload (2026-10-03)", () => {
+  const FIXTURES = join(REPO_ROOT, "packages", "repurpose-contracts", "fixtures");
+  const payload = JSON.parse(
+    readFileSync(join(FIXTURES, "render-compilation-payload.v1.json"), "utf8"),
+  ) as Record<string, unknown>;
+  const clips = payload["clips"] as Record<string, unknown>[];
+  const intro = payload["intro"] as Record<string, unknown>;
+
+  it("parses the fixture @montaj/repurpose-contracts parses", () => {
+    const parsed = RenderCompilationPayloadSchema.parse(payload);
+    expect(parsed.clips.map((clip) => clip.durationMs)).toEqual([31_500, 28_000]);
+  });
+
+  it("refuses what the contract refuses", () => {
+    const ws = "01ARZ3NDEKTSV4RRFFQ69G5FB0";
+    const bad: Record<string, unknown>[] = [
+      { ...payload, width: 1920 },
+      { ...payload, clips: [clips[0], clips[0]] },
+      {
+        ...payload,
+        clips: [{ ...clips[0], key: `ws/${ws}/brand/01JCASSET00000000000000000.png` }],
+      },
+      { ...payload, clips: [{ ...clips[0], key: "../../etc/passwd" }] },
+      { ...payload, intro: { ...intro, background: "pink" } },
+      { ...payload, intro: { ...intro, title: "x".repeat(81) } },
+      { ...payload, extra: true },
+      { ...payload, clips: [] },
+    ];
+    for (const value of bad) {
+      expect(RenderCompilationPayloadSchema.safeParse(value).success, JSON.stringify(value)).toBe(
+        false,
+      );
+    }
   });
 });

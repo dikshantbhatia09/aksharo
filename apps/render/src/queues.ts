@@ -17,9 +17,15 @@ import { RenderManifestSchema } from "@montaj/render-manifest";
 
 export const RENDER_VIDEO_QUEUE = "render.video" as const;
 export const RENDER_SUBTITLE_QUEUE = "render.subtitle" as const;
+/** A run's clips joined into one video (2026-10-03, `compilation/`). */
+export const RENDER_COMPILATION_QUEUE = "render.compilation" as const;
 
-/** The two queues this service consumes. */
-export const RENDER_QUEUES = [RENDER_VIDEO_QUEUE, RENDER_SUBTITLE_QUEUE] as const;
+/** The queues this service consumes. */
+export const RENDER_QUEUES = [
+  RENDER_VIDEO_QUEUE,
+  RENDER_SUBTITLE_QUEUE,
+  RENDER_COMPILATION_QUEUE,
+] as const;
 
 export type RenderQueue = (typeof RENDER_QUEUES)[number];
 
@@ -202,6 +208,103 @@ export const RenderSubtitlePayloadSchema = z.object({
 });
 
 export type RenderSubtitlePayload = z.infer<typeof RenderSubtitlePayloadSchema>;
+
+const UlidSchema = z.string().regex(/^[0-9A-HJKMNP-TV-Z]{26}$/);
+
+/**
+ * A clip's captioned video: an export in the derived store and nothing else
+ * (`ws/{ws}/p/{project}/exports/{export}.{mp4|mov}`). The processor also holds
+ * the workspace to the job's own.
+ */
+export const EXPORT_KEY_PATTERN =
+  /^ws\/[0-9A-HJKMNP-TV-Z]{26}\/p\/[0-9A-HJKMNP-TV-Z]{26}\/exports\/[0-9A-HJKMNP-TV-Z]{26}\.(mp4|mov)$/;
+
+/** Every shape a clip is made in, and the size a compilation of it is made at. */
+export const COMPILATION_SHAPE_SIZE = Object.freeze({
+  "9:16": { width: 1080, height: 1920 },
+  "4:5": { width: 1080, height: 1350 },
+  "1:1": { width: 1080, height: 1080 },
+  "16:9": { width: 1920, height: 1080 },
+} as const);
+
+/**
+ * `render.compilation@1` payload (2026-10-03): a run's clips joined into one
+ * video. Restated from `@montaj/repurpose-contracts`' `RenderCompilationPayloadSchema`
+ * (this worker is deployed without it); `queues.test.ts` holds the two to the
+ * same fixtures.
+ */
+export const RenderCompilationPayloadSchema = z
+  .strictObject({
+    schemaVersion: z.literal(1),
+    runId: UlidSchema,
+    compilationId: UlidSchema,
+    exportId: UlidSchema,
+    projectId: UlidSchema,
+    shape: z.enum(["9:16", "4:5", "1:1", "16:9"]),
+    width: z.number().int().min(16).max(3840),
+    height: z.number().int().min(16).max(3840),
+    fps: z.number().int().min(24).max(60),
+    fadeMs: z.number().int().min(0).max(2_000),
+    clips: z
+      .array(
+        z.strictObject({
+          clipId: UlidSchema,
+          key: z.string().max(200).regex(EXPORT_KEY_PATTERN),
+          durationMs: z
+            .number()
+            .int()
+            .positive()
+            .max(15 * 60_000),
+        }),
+      )
+      .min(1)
+      .max(20),
+    intro: z
+      .strictObject({
+        title: z.string().trim().min(1).max(80),
+        durationMs: z.number().int().min(1_000).max(5_000),
+        background: HexColourSchema,
+        text: HexColourSchema.optional(),
+        accent: HexColourSchema.optional(),
+        handle: z.string().trim().min(1).max(40).optional(),
+        fontFamily: z.string().trim().min(1).max(120).optional(),
+        logo: z
+          .strictObject({
+            assetId: UlidSchema,
+            format: z.enum(["png", "jpeg", "webp"]),
+            width: z.number().int().min(1).max(8192),
+            height: z.number().int().min(1).max(8192),
+          })
+          .optional(),
+      })
+      .optional(),
+  })
+  .superRefine((value, context) => {
+    const size = COMPILATION_SHAPE_SIZE[value.shape];
+    if (size.width !== value.width || size.height !== value.height) {
+      context.addIssue({ code: "custom", path: ["width"], message: "not the shape's size" });
+    }
+    if (new Set(value.clips.map((clip) => clip.clipId)).size !== value.clips.length) {
+      context.addIssue({ code: "custom", path: ["clips"], message: "a clip is joined once" });
+    }
+  });
+
+export type RenderCompilationPayload = z.infer<typeof RenderCompilationPayloadSchema>;
+
+/** What a finished `render.compilation` job reports back. */
+export interface RenderCompilationResult {
+  readonly schemaVersion: 1;
+  readonly compilationId: string;
+  readonly exportId: string;
+  readonly outputKey: string;
+  readonly outputMs: number;
+  readonly sizeBytes: number;
+  readonly width: number;
+  readonly height: number;
+  readonly fps: number;
+  readonly clips: number;
+  readonly intro: boolean;
+}
 
 /** What a finished `render.video` job reports back (CONTRACTS §3 `result`). */
 export interface RenderVideoResult {
