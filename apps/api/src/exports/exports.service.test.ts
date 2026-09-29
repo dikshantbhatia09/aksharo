@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { EdgProjection } from "@montaj/edg/schemas";
 
-import { ExportsService } from "./exports.service.js";
+import { ExportsService, cuesOf } from "./exports.service.js";
 
 import type { BrandAssetsService } from "./brand-assets.service.js";
 import type { BrowserManifestDailyCap } from "./daily-cap.js";
@@ -40,6 +40,42 @@ const MEDIA_ID = "01JA20MEDA0000000000000000";
 const TRANSCRIPT_ID = "01JA20TRANSCRPT00000000000";
 const JOB_ID = "01JA20J0B00000000000000001";
 
+const TRACK = "01JA20TRACK000000000000000".replace(/[IL]/g, "0");
+const TRACK_KEY = `ws/${WORKSPACE_ID}/brand/${TRACK}.mp3`;
+
+/** An accepted bed of the workspace's own music over the whole clip (2026-10-04). */
+function workspaceBedPass(): Record<string, unknown> {
+  const payload = {
+    assetId: TRACK,
+    packId: "workspace",
+    startMs: 0,
+    durationMs: 30_000,
+    gainDb: -20,
+    loopPolicy: "loop",
+    bedDuck: { depthDb: -10, attackMs: 250, releaseMs: 400 },
+    licenceSnapshot: { source: "workspace" },
+    mood: [],
+  };
+  return {
+    passId: "01JA20PASS0000000000000000",
+    type: "music",
+    engine: "brand-music@1",
+    params: {},
+    status: "ready",
+    items: [
+      {
+        itemId: "01JA20BED00000000000000000",
+        passId: "01JA20PASS0000000000000000",
+        kind: "music",
+        startMs: 0,
+        endMs: 30_000,
+        state: "accepted",
+        payload,
+      },
+    ],
+  };
+}
+
 function edgProjection(): EdgProjection {
   return {
     meta: { edgId: EDG_ID, projectId: PROJECT_ID, revision: 3, schemaVersion: 2 },
@@ -58,7 +94,7 @@ function edgProjection(): EdgProjection {
   } as unknown as EdgProjection;
 }
 
-function harness() {
+function harness(options: { passes?: unknown[] } = {}) {
   const create = vi.fn(async (args: unknown) => args);
   const prisma = {
     project: {
@@ -87,7 +123,7 @@ function harness() {
   } as unknown as PrismaService;
 
   const edgRepository = {
-    projectionOf: vi.fn(async () => edgProjection()),
+    projectionOf: vi.fn(async () => ({ ...edgProjection(), passes: options.passes ?? [] })),
     loadChunks: vi.fn(async () => []),
   } as unknown as EdgRepository;
 
@@ -108,6 +144,13 @@ function harness() {
     sign: (manifest: Record<string, unknown>) => ({ ...manifest, sig: "test-signature" }),
   } as unknown as ManifestSignerService;
 
+  const brandKits = {
+    availableImages: vi.fn(async () => new Set<string>()),
+    musicStorageKeys: vi.fn(
+      async (_workspaceId: string, ids: readonly string[]) =>
+        new Map(ids.filter((id) => id === TRACK).map((id) => [id, TRACK_KEY])),
+    ),
+  };
   const service = new ExportsService(
     prisma,
     edgRepository,
@@ -122,10 +165,10 @@ function harness() {
     { isAvailable: vi.fn(async () => false), consume: vi.fn(async () => undefined) },
     { emit: vi.fn() } as unknown as EventEmitter2,
     { findStorageKeysByIds: vi.fn(async () => new Map()) } as unknown as AudioAssetsRepository,
-    { availableImages: vi.fn(async () => new Set<string>()) } as unknown as BrandKitService,
+    brandKits as unknown as BrandKitService,
   );
 
-  return { service, create, enqueue };
+  return { service, create, enqueue, brandKits };
 }
 
 function input(overrides: Partial<RequestExportInput> = {}): RequestExportInput {
@@ -189,5 +232,59 @@ describe("ExportsService.requestExport — the cloud branch (S05-2)", () => {
     );
 
     expect(createdRow(create)).toMatchObject({ kind: "vtt", status: "rendering" });
+  });
+});
+
+describe("ExportsService.requestExport — a workspace's own music (2026-10-04)", () => {
+  it("mixes the kit's track in, from the workspace's own brand assets", async () => {
+    const { service, enqueue, brandKits } = harness({ passes: [workspaceBedPass()] });
+
+    await service.requestExport(input());
+
+    expect(brandKits.musicStorageKeys).toHaveBeenCalledWith(WORKSPACE_ID, [TRACK]);
+    const params = (enqueue.mock.calls[0] as unknown as [{ params: Record<string, unknown> }])[0]
+      .params;
+    const manifest = params["manifest"] as {
+      timemap: { audio?: { music?: Record<string, unknown>[] } };
+    };
+    expect(manifest.timemap.audio?.music).toEqual([
+      expect.objectContaining({
+        assetId: TRACK,
+        packId: "workspace",
+        storageKey: TRACK_KEY,
+        loopPolicy: "loop",
+        gainDb: -20,
+        bedDuck: { depthDb: -10, attackMs: 250, releaseMs: 400 },
+      }),
+    ]);
+  });
+
+  it("leaves out a bed whose track the workspace no longer keeps", async () => {
+    const { service, enqueue, brandKits } = harness({ passes: [workspaceBedPass()] });
+    brandKits.musicStorageKeys.mockResolvedValueOnce(new Map());
+
+    await service.requestExport(input());
+
+    const params = (enqueue.mock.calls[0] as unknown as [{ params: Record<string, unknown> }])[0]
+      .params;
+    const manifest = params["manifest"] as { timemap: { audio?: { music?: unknown[] } } };
+    expect(manifest.timemap.audio?.music ?? []).toEqual([]);
+  });
+
+  it("names every sound a manifest mixes in, for the browser to fetch", () => {
+    expect(
+      cuesOf({
+        timemap: {
+          audio: {
+            sfx: [{ assetId: "a", storageKey: "packs/p/a.wav" }],
+            music: [{ assetId: TRACK, storageKey: TRACK_KEY }],
+          },
+        },
+      }),
+    ).toEqual([
+      { assetId: "a", storageKey: "packs/p/a.wav" },
+      { assetId: TRACK, storageKey: TRACK_KEY },
+    ]);
+    expect(cuesOf({})).toEqual([]);
   });
 });

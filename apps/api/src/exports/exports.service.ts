@@ -39,7 +39,11 @@ import {
 import { EdgRepository } from "../edg/index.js";
 import { JobsService } from "../jobs/jobs.service.js";
 import { resolveKeyframeTracks } from "../passes/keyframe-tracks.js";
-import { acceptedMusicAssetIds, resolveMusicTracks } from "../passes/music-tracks.js";
+import {
+  acceptedMusicAssetIds,
+  acceptedWorkspaceMusicAssetIds,
+  resolveMusicTracks,
+} from "../passes/music-tracks.js";
 import { acceptedSfxAssetIds, resolveSfxTracks } from "../passes/sfx-tracks.js";
 import { EXPORT_COMPLETED_EVENT } from "../referrals/export-completed.event.js";
 import { EntitlementService } from "../workspaces/entitlement.service.js";
@@ -89,6 +93,13 @@ export interface ExportSources {
    * the source track.
    */
   readonly cleanedAudioUrl?: string;
+  /**
+   * Signed GETs for every sound the manifest mixes in - an accepted `sfx` cue's
+   * or `music` bed's object, a workspace's own track among them (2026-10-04) -
+   * by the `assetId` its track names: what the browser export's
+   * `fetchCueAsset` reads. Absent when the manifest mixes nothing in.
+   */
+  readonly cueUrls?: Readonly<Record<string, string>>;
 }
 
 export interface RequestExportResult {
@@ -264,7 +275,13 @@ export class ExportsService {
     const musicStorageKeys = await this.audioAssets.findStorageKeysByIds(
       acceptedMusicAssetIds(allItems),
     );
-    const musicTracks = resolveMusicTracks(allItems, musicStorageKeys);
+    // A workspace's own track (the brand kit's music, 2026-10-04): its objects
+    // are the workspace's brand assets, never the catalogue's.
+    const workspaceMusicKeys = await this.brandKits.musicStorageKeys(
+      input.workspaceId,
+      acceptedWorkspaceMusicAssetIds(allItems),
+    );
+    const musicTracks = resolveMusicTracks(allItems, musicStorageKeys, workspaceMusicKeys);
 
     const { manifest: unsigned } = buildRenderManifest({
       workspaceId: input.workspaceId,
@@ -354,6 +371,7 @@ export class ExportsService {
         workspaceId: input.workspaceId,
         watermark: manifest.watermark,
         audio: manifest.audio,
+        cues: cuesOf(manifest),
       });
 
       return {
@@ -569,11 +587,13 @@ export class ExportsService {
     const manifest = row.manifest as unknown as {
       readonly source: { readonly mediaId: string };
       readonly watermark: { readonly assetId: string } | null;
+      readonly timemap?: CueCarryingTimemap;
     };
     return this.buildSources({
       mediaId: manifest.source.mediaId,
       workspaceId,
       watermark: manifest.watermark,
+      cues: cuesOf(manifest),
     });
   }
 
@@ -702,6 +722,8 @@ export class ExportsService {
     readonly workspaceId: string;
     readonly watermark: { readonly assetId: string } | null;
     readonly audio?: { readonly strategy: string; readonly cleanKey?: string };
+    /** The sounds the signed manifest mixes in, each by the object it names. */
+    readonly cues?: readonly { readonly assetId: string; readonly storageKey: string }[];
   }): Promise<ExportSources> {
     const media = await this.prisma.mediaAsset.findFirst({ where: { id: input.mediaId } });
     if (media === null) {
@@ -729,11 +751,18 @@ export class ExportsService {
         ? await this.store.presignGet(input.audio.cleanKey, SOURCE_URL_TTL_SECONDS)
         : undefined;
 
+    const cueUrls: Record<string, string> = {};
+    for (const cue of input.cues ?? []) {
+      if (Object.hasOwn(cueUrls, cue.assetId)) continue;
+      cueUrls[cue.assetId] = await this.store.presignGet(cue.storageKey, SOURCE_URL_TTL_SECONDS);
+    }
+
     return {
       rawUrl,
       ...(proxyUrl === undefined ? {} : { proxyUrl }),
       ...(watermarkUrl === undefined ? {} : { watermarkUrl }),
       ...(cleanedAudioUrl === undefined ? {} : { cleanedAudioUrl }),
+      ...(Object.keys(cueUrls).length === 0 ? {} : { cueUrls }),
     };
   }
 
@@ -829,3 +858,25 @@ function page<T>(rows: T[], take: number, id: (row: T) => string): Page<T> {
 }
 
 export type { ExportManifest };
+
+/** The part of a signed manifest's timemap that names the sounds it mixes in. */
+interface CueCarryingTimemap {
+  readonly audio?: {
+    readonly sfx?: readonly { readonly assetId: string; readonly storageKey: string }[];
+    readonly music?: readonly { readonly assetId: string; readonly storageKey: string }[];
+  };
+}
+
+/**
+ * Every sound a signed manifest mixes in - its `sfx` cues and `music` beds -
+ * with the object each names (2026-10-04): what a browser export fetches.
+ */
+export function cuesOf(manifest: {
+  readonly timemap?: CueCarryingTimemap;
+}): { readonly assetId: string; readonly storageKey: string }[] {
+  const audio = manifest.timemap?.audio;
+  return [...(audio?.sfx ?? []), ...(audio?.music ?? [])].map((track) => ({
+    assetId: track.assetId,
+    storageKey: track.storageKey,
+  }));
+}

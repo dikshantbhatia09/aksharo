@@ -133,6 +133,8 @@ let passes: {
 let finishing: ClipFinishing;
 /** The workspace's brand kit, as `BrandKitService.forClips` answers; none by default. */
 let kit: KitForClips | null;
+/** The run's source media: a video by default; no picture size is an audio-only source. */
+let source: { width: number | null; height: number | null } | null;
 
 function edgIdOf(projectId: string): string {
   return `${projectId.slice(0, 24)}ED`;
@@ -242,6 +244,7 @@ beforeEach(() => {
   ]);
   jobs = new Map();
   kit = null;
+  source = { width: 1_920, height: 1_080 };
   plan = { autocut: true, reframeZoom: true };
   applied = [];
   passes = {
@@ -287,6 +290,8 @@ beforeEach(() => {
     },
     // `resolveStyleSnapshot`: no workspace presets, so the system catalogue answers.
     stylePreset: { findMany: vi.fn(async () => []) },
+    // The run's source (audiograms, 2026-10-04).
+    mediaAsset: { findFirst: vi.fn(async () => source) },
   };
   const edg = {
     applyWorkerOps: vi.fn(
@@ -862,6 +867,117 @@ describe("ClipFinishing with a brand kit (2026-10-02)", () => {
     const kinds = (projection(PROJECT_9X16).overlays ?? []).map((overlay) => overlay.kind);
     expect(kinds).not.toContain("logo");
     expect(kinds).toContain("end-card");
+  });
+});
+
+describe("ClipFinishing with the kit's music (2026-10-04)", () => {
+  const BRANDED = { ...RUN, config: { automation: "auto", brand: true } } as RepurposeRun;
+  const TRACK = {
+    assetId: "01JFM0S1CASSET0000000000000".slice(0, 26),
+    rightsAttestedAt: "2026-10-04T09:00:00.000Z",
+    rightsAttestedBy: "01JFUSER000000000000000000",
+    title: "Morning theme",
+  };
+  const WITH_MUSIC: KitForClips = { settings: DEFAULT_BRAND_KIT_SETTINGS, music: TRACK };
+
+  beforeEach(() => {
+    plan = { autocut: false, reframeZoom: false };
+  });
+
+  function beds() {
+    return projection(PROJECT_9X16)
+      .passes.flatMap((pass) => pass.items)
+      .filter((item) => item.kind === "music");
+  }
+
+  it("lays the kit's track under the whole clip, looped and ducked, as an accepted bed", async () => {
+    kit = WITH_MUSIC;
+    expect(await finishing.advance(BRANDED, vertical())).toBe("just-finished");
+    expect(recordOf(VERTICAL)?.steps.music).toMatchObject({ state: "done", applied: 1 });
+    const [bed] = beds();
+    expect(bed).toMatchObject({
+      itemId: stableOverlayId(VERTICAL + ":music"),
+      state: "accepted",
+      startMs: 0,
+      endMs: 30_000,
+      payload: {
+        assetId: TRACK.assetId,
+        packId: "workspace",
+        loopPolicy: "loop",
+        gainDb: -20,
+        bedDuck: { depthDb: -10, attackMs: 250, releaseMs: 400 },
+        licenceSnapshot: { source: "workspace", rightsAttestedBy: TRACK.rightsAttestedBy },
+      },
+    });
+    // Asked again: the same clip, the same one bed.
+    variants.set(VERTICAL, { ...variants.get(VERTICAL), finishing: null });
+    await finishing.advance(BRANDED, vertical());
+    expect(beds()).toHaveLength(1);
+  });
+
+  it("lays none for a run without the kit, a kit without music, or with its music off", async () => {
+    kit = WITH_MUSIC;
+    expect(await finishing.advance(RUN, vertical())).toBe("just-finished");
+    expect(recordOf(VERTICAL)?.steps.music).toMatchObject({ state: "skipped", reason: "off" });
+    expect(beds()).toEqual([]);
+
+    const again = async (next: KitForClips | null, reason: string) => {
+      kit = next;
+      variants.set(VERTICAL, { ...variants.get(VERTICAL), finishing: null });
+      await finishing.advance(BRANDED, vertical());
+      expect(recordOf(VERTICAL)?.steps.music).toMatchObject({ state: "skipped", reason });
+      expect(beds()).toEqual([]);
+    };
+    await again({ settings: DEFAULT_BRAND_KIT_SETTINGS }, "no-music");
+    await again(
+      {
+        settings: { ...DEFAULT_BRAND_KIT_SETTINGS, music: { enabled: false, level: "quiet" } },
+        music: TRACK,
+      },
+      "music-off",
+    );
+    await again(null, "no-kit");
+  });
+
+  it("keeps a person's choice: a bed they took off is not laid again", async () => {
+    kit = WITH_MUSIC;
+    await finishing.advance(BRANDED, vertical());
+    const [bed] = beds();
+    const doc = docFor(PROJECT_9X16);
+    const decided = applyOps(
+      doc.state,
+      [{ opId: newId(), type: "DecideItems", itemIds: [bed?.itemId ?? ""], state: "rejected" }],
+      { source: "worker", revision: doc.revision + 1 },
+    );
+    doc.state = decided.state;
+    doc.revision += 1;
+
+    variants.set(VERTICAL, { ...variants.get(VERTICAL), finishing: null });
+    await finishing.advance(BRANDED, vertical());
+    expect(beds().map((item) => item.state)).toEqual(["rejected"]);
+    expect(recordOf(VERTICAL)?.steps.music).toMatchObject({ state: "done", applied: 0 });
+  });
+
+  it("sits the medium level louder than the quiet one", async () => {
+    kit = {
+      settings: { ...DEFAULT_BRAND_KIT_SETTINGS, music: { enabled: true, level: "medium" } },
+      music: TRACK,
+    };
+    await finishing.advance(BRANDED, vertical());
+    const [bed] = beds();
+    expect(bed?.kind === "music" ? bed.payload.gainDb : undefined).toBe(-14);
+  });
+});
+
+describe("ClipFinishing on an audiogram (2026-10-04)", () => {
+  it("never zooms a clip whose source has no picture", async () => {
+    source = { width: null, height: null };
+    plan = { autocut: false, reframeZoom: true };
+    expect(await finishing.advance(RUN, vertical())).toBe("just-finished");
+    expect(passes.startZoom).not.toHaveBeenCalled();
+    expect(recordOf(VERTICAL)?.steps.zoom).toMatchObject({ state: "skipped", reason: "audiogram" });
+    // The hook title still goes on.
+    expect(recordOf(VERTICAL)?.steps.hook).toMatchObject({ state: "done" });
   });
 });
 
