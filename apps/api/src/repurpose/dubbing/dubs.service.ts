@@ -769,7 +769,7 @@ export class RepurposeDubsService {
               tracks: result.tracks as unknown as Prisma.InputJsonValue,
               vendorJobId: result.vendorJobId,
               failureCode: DUB_ERRORS.vendorFailed,
-              failureMessage: "Sarvam finished without dubbed audio for any language.",
+              failureMessage: "The dubbing service finished without dubbed audio for any language.",
               completedAt: new Date(),
             },
     });
@@ -1187,7 +1187,7 @@ export class RepurposeDubsService {
         status: languageStatus(dub, track, formats),
         reason:
           track?.status === "failed"
-            ? (track.reason ?? "Sarvam did not dub this language.")
+            ? (track.reason ?? "The dubbing service did not dub this language.")
             : dub.status === "failed"
               ? dub.failureMessage
               : null,

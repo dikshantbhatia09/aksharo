@@ -475,7 +475,7 @@ def _vendor_message(response: httpx2.Response) -> str:
     try:
         body = response.json()
     except ValueError:
-        return f"Sarvam refused the request ({response.status_code})."
+        return f"The request was refused ({response.status_code})."
     if isinstance(body, dict):
         for key in ("message", "detail", "error"):
             value = body.get(key)
@@ -494,7 +494,7 @@ def _vendor_message(response: httpx2.Response) -> str:
                 ]
                 if parts:
                     return _clean("; ".join(parts), _MESSAGE_MAX)
-    return f"Sarvam refused the request ({response.status_code})."
+    return f"The request was refused ({response.status_code})."
 
 
 def _clean(text: str, limit: int) -> str:

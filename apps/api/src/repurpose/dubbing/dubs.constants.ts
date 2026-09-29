@@ -11,7 +11,7 @@ export const DUB_FLAG = "repurpose_dubbing";
 /**
  * Refusals and failures a dub is named by. Each is one sentence on the run
  * page (`apps/web/components/repurpose/dubbing/copy.ts`); a vendor's own words
- * are only ever shown for the three the vendor wrote (`VENDOR_WORDS`).
+ * are only ever shown for the two the vendor wrote (`VENDOR_WORDS`).
  */
 export const DUB_ERRORS = {
   /** 403: the flag is off for this workspace. */
@@ -53,11 +53,14 @@ export const DUB_ERRORS = {
   cancelled: "dub/cancelled",
 } as const;
 
-/** Failure codes whose message is the vendor's own words, shown as they are. */
+/**
+ * Failure codes whose message is the vendor's own words, shown as they are.
+ * Not `vendor_auth`: its message is about our key, which is no one's business
+ * but the operator's (it stays on the job row).
+ */
 export const VENDOR_WORDS: ReadonlySet<string> = new Set([
   DUB_ERRORS.vendorRefused,
   DUB_ERRORS.vendorFailed,
-  DUB_ERRORS.vendorAuth,
 ]);
 
 /**

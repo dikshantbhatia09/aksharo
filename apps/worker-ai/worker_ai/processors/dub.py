@@ -172,7 +172,7 @@ class _DubJob:
         if not ready:
             raise JobFailureError(
                 "dub/vendor_failed",
-                "Sarvam finished without dubbed audio for any language.",
+                "The dubbing service finished without dubbed audio for any language.",
                 retryable=False,
             )
         result = DubRunResult.model_validate(
@@ -235,7 +235,7 @@ class _DubJob:
                 raise JobFailureError(
                     "dub/vendor_failed",
                     (status.error_message if status is not None else None)
-                    or "Sarvam no longer has this dub, or could not finish it.",
+                    or "The dubbing service no longer has this dub, or could not finish it.",
                     retryable=False,
                 )
             return None
@@ -271,7 +271,7 @@ class _DubJob:
         _log.info("created a dub's vendor job", extra={**self.log, "vendorJobId": job_id})
         try:
             await self._record(
-                job_id, "created", percent=2, message="Handing the clip to Sarvam", required=True
+                job_id, "created", percent=2, message="Sending the clip to be dubbed", required=True
             )
         except _CheckpointUnsavedError as error:
             await self._quietly_cancel(job_id)
@@ -291,7 +291,7 @@ class _DubJob:
             await self._quietly_cancel(job_id)
             raise _failure(error) from error
         await self._record(
-            job_id, "uploaded", percent=8, message="The clip is with Sarvam", required=False
+            job_id, "uploaded", percent=8, message="The clip has been sent", required=False
         )
         await self._start(job_id)
         return job_id
@@ -370,19 +370,21 @@ class _DubJob:
             status = await self._status(job_id)
             if status is None:
                 raise JobFailureError(
-                    "dub/vendor_failed", "Sarvam no longer has this dub.", retryable=False
+                    "dub/vendor_failed",
+                    "The dubbing service no longer has this dub.",
+                    retryable=False,
                 )
             if status.status in DUBBING_FINISHED:
                 return status
             if status.status in DUBBING_FAILED:
                 raise JobFailureError(
                     "dub/vendor_failed",
-                    status.error_message or "Sarvam could not dub this clip.",
+                    status.error_message or "The dubbing service could not dub this clip.",
                     retryable=False,
                 )
             vendor_progress = min(max(status.progress or 0.0, 0.0), 100.0)
             ack = await self.context.beat(
-                round(10 + 75 * vendor_progress / 100, 1), message=status.step or "Dubbing"
+                round(10 + 75 * vendor_progress / 100, 1), message=status.step
             )
             await self._stop_if_settled(ack, job_id)
             if waited >= self.vendor.poll_timeout_s:
@@ -427,13 +429,15 @@ class _DubJob:
                         {
                             "language": language,
                             "status": "failed",
-                            "reason": plan.failed.get(language, "Sarvam returned no files for it."),
+                            "reason": plan.failed.get(
+                                language, "The dubbing service returned no files for it."
+                            ),
                         }
                     )
                 )
                 continue
             await self.context.progress(
-                90 + 8 * index / len(targets), message=f"Saving the {language} dub"
+                90 + 8 * index / len(targets), message="Saving the dubbed files"
             )
             tracks.append(await self._store_language(language, *chosen))
         return tracks
@@ -566,11 +570,11 @@ def plan_exports(
             plan.ready[language] = (audio, srt)
         elif "failed" in (audio, srt):
             kind = "audio" if audio == "failed" else "captions"
-            plan.failed[language] = f"Sarvam could not make this language's {kind}."
+            plan.failed[language] = f"The dubbing service could not make this language's {kind}."
         elif "pending" in (audio, srt):
             plan.pending.append(language)
         elif final_status == "partial_failure":
-            plan.failed[language] = "Sarvam did not dub this language."
+            plan.failed[language] = "The dubbing service did not dub this language."
         else:
             plan.pending.append(language)
     return plan

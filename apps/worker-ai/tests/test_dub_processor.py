@@ -150,6 +150,7 @@ class DubCallbacks(CallbackClient):
         super().__init__("http://callbacks.invalid", "r" * 64)
         self.progress_calls: list[tuple[float, str | None]] = []
         self.checkpoints: list[dict[str, Any]] = []
+        self.checkpoint_messages: list[str | None] = []
         self.completions: list[JobCompletion] = []
         #: After this many beats, every answer says the row is settled.
         self.settle_after: int | None = None
@@ -189,6 +190,7 @@ class DubCallbacks(CallbackClient):
                 applied=False, job_id=job_id, status="cancelled", reason=self.checkpoint_reason
             )
         self.checkpoints.append(dict(checkpoint))
+        self.checkpoint_messages.append(message)
         return CallbackAck(
             applied=True, job_id=job_id, status="running", checkpoint=dict(checkpoint)
         )
@@ -263,6 +265,7 @@ async def test_records_the_vendor_job_before_it_starts_it_then_files_every_langu
     vendor = FakeSarvam(
         statuses=[
             {"status": "queued", "progress": 0, "current_step_label": "Waiting"},
+            {"status": "in_progress", "progress": 20},
             {"status": "in_progress", "progress": 60, "current_step_label": "Cloning the voice"},
             {"status": "completed", "progress": 100},
         ],
@@ -285,8 +288,13 @@ async def test_records_the_vendor_job_before_it_starts_it_then_files_every_langu
     assert [c["vendorPhase"] for c in callbacks.checkpoints] == ["created", "uploaded", "started"]
     assert vendor.uploaded == [s3.objects[SOURCE_KEY]]
     assert vendor.started == ["job-1"]
-    # Every poll is a heartbeat, with the vendor's own step.
+    # Every poll is a heartbeat, with the vendor's own step; one without a
+    # step says none, so the page shows the percent alone.
     assert (55.0, "Cloning the voice") in callbacks.progress_calls
+    assert (25.0, None) in callbacks.progress_calls
+    # The run page shows these as the dub's step: none names the vendor.
+    shown = [m for _, m in callbacks.progress_calls] + callbacks.checkpoint_messages
+    assert [m for m in shown if m is not None and "sarvam" in m.lower()] == []
 
     result = DubRunResult.model_validate(outcome.result)
     assert result.vendor_job_id == "job-1"
@@ -319,7 +327,7 @@ async def test_a_partial_failure_keeps_the_languages_that_came_back() -> None:
         ("hi-IN", "ready"),
         ("ta-IN", "failed"),
     ]
-    assert result.tracks[1].reason == "Sarvam did not dub this language."
+    assert result.tracks[1].reason == "The dubbing service did not dub this language."
 
 
 async def test_a_language_whose_export_failed_is_failed_not_waited_for() -> None:

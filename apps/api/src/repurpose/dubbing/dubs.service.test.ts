@@ -574,6 +574,21 @@ describe("the vendor's answer", () => {
     expect(h.budget.release).toHaveBeenCalledWith("2026-10-04", dubVendorPaise(34_000, 2));
   });
 
+  it("keeps a refused key's words off the page: they are about our key, not the clip", async () => {
+    h.t.dubs.push(dubRow());
+    await h.service.applyJobFailed(
+      "01JCDVB0000000000000000000",
+      dubRow()["jobId"] as string,
+      { code: "dub/vendor_auth", message: "Sarvam refused the API key (401)." },
+      { vendorJobId: "job-1", vendorPhase: "created" },
+    );
+    expect(h.t.dubs[0]).toMatchObject({
+      status: "failed",
+      failureCode: "dub/vendor_auth",
+      failureMessage: null,
+    });
+  });
+
   it("keeps a started vendor job for Retry to resume, and its rupees counted", async () => {
     h.t.dubs.push(dubRow());
     await h.service.applyJobFailed(
