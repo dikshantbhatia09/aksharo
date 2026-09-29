@@ -51,7 +51,9 @@ function harness(enqueue: () => Promise<unknown>) {
 
 describe("neverProbed", () => {
   it("is the signature media.clip left: ready, with nothing measured and no preview", () => {
-    expect(neverProbed({ status: "ready", hasAudio: null, width: null, proxyKey: null })).toBe(true);
+    expect(neverProbed({ status: "ready", hasAudio: null, width: null, proxyKey: null })).toBe(
+      true,
+    );
   });
 
   it.each([
@@ -111,6 +113,49 @@ describe("MediaProbeRestart.restart", () => {
     });
     await expect(restart.restart(MEDIA, "01WS")).resolves.toBe("busy");
     expect(updateMany).not.toHaveBeenCalled();
+  });
+});
+
+describe("MediaProbeRestart.restartStranded (2026-09-29)", () => {
+  it("queues the probe, then puts the asset back in the pipeline only if it still reads as seen", async () => {
+    const { restart, jobs, updateMany } = harness(async () => ({
+      job: { id: "01PROBE" },
+      deduplicated: false,
+    }));
+
+    await expect(restart.restartStranded({ ...MEDIA, status: "failed" }, "01WS")).resolves.toBe(
+      "queued",
+    );
+
+    expect(jobs.enqueue).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "media.probe",
+        jobKey: "media.probe:01MEDIA",
+        reason: "media.probe · 01MEDIA (restarted)",
+      }),
+    );
+    expect(updateMany).toHaveBeenCalledWith({
+      where: { id: "01MEDIA", status: "failed" },
+      data: { status: "uploaded", failureReason: null },
+    });
+  });
+
+  it("changes nothing when the probe cannot be queued, and says a full lane is busy", async () => {
+    const down = harness(async () => {
+      throw new Error("redis is down");
+    });
+    await expect(
+      down.restart.restartStranded({ ...MEDIA, status: "uploaded" }, "01WS"),
+    ).resolves.toBe("failed");
+    expect(down.updateMany).not.toHaveBeenCalled();
+
+    const full = harness(async () => {
+      throw new AppException("jobs/concurrency_cap", "lane full", HttpStatus.TOO_MANY_REQUESTS);
+    });
+    await expect(
+      full.restart.restartStranded({ ...MEDIA, status: "probing" }, "01WS"),
+    ).resolves.toBe("busy");
+    expect(full.updateMany).not.toHaveBeenCalled();
   });
 });
 

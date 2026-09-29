@@ -80,6 +80,8 @@ import {
   CAPTIONED_QUIET_MS,
   CAPTIONED_RENDER_ATTEMPTS,
   CAPTIONED_REQUEST_ATTEMPTS,
+  SHAPE_MEDIA_PROBES,
+  STRANDED_MEDIA_MS,
   CAPTIONED_URL_TTL_SECONDS,
   CLIP_PROFILE_VERSION,
   RECONCILE_INTERVAL_MS,
@@ -99,12 +101,15 @@ import { ExportsService } from "../exports/exports.service.js";
 import { JOB_ERROR_CODES } from "../jobs/jobs.errors.js";
 import { JobsService } from "../jobs/jobs.service.js";
 import { FacesTrigger, facesJobKey } from "../media/faces.js";
+import { MEDIA_JOB_KEYS } from "../media/media.constants.js";
+import { MediaProbeRestart } from "../media/probe-restart.js";
 import { workspaceRoom } from "../realtime/realtime.protocol.js";
 import { RealtimePublisher } from "../realtime/realtime.publisher.js";
 import { EntitlementService } from "../workspaces/entitlement.service.js";
 
 import type { AddCandidateInput, CreateClipInput } from "./repurpose-clips.dto.js";
 import type {
+  $Enums,
   ClipCandidate,
   MediaAsset,
   Prisma,
@@ -292,6 +297,8 @@ export class RepurposeClipsService {
     @Optional() private readonly exports?: ExportsService,
     /** Finishes each Autopilot clip's edit before its captioned video; absent in harnesses. */
     @Optional() private readonly finishing?: ClipFinishing,
+    /** Sends a shape's stranded media back through the probe; absent in harnesses. */
+    @Optional() private readonly probeRestart?: MediaProbeRestart,
   ) {}
 
   // -------------------------------------------------------------------------
@@ -699,6 +706,11 @@ export class RepurposeClipsService {
                 durationMs: true,
                 width: true,
                 uploadedAt: true,
+                // What a probe restart needs (`healShapeMedia`).
+                storageKey: true,
+                mime: true,
+                sizeBytes: true,
+                createdAt: true,
               },
             },
           },
@@ -710,7 +722,11 @@ export class RepurposeClipsService {
       try {
         const doc = variant.project.edgDocument;
         const media = variant.project.mediaAssets[0];
-        if (doc === null || media === undefined || media.status !== "ready") continue;
+        if (media !== undefined && media.status !== "ready") {
+          await this.healShapeMedia(run, variant.projectId, media, now);
+          continue;
+        }
+        if (doc === null || media === undefined) continue;
         const fingerprint = `edg:${String(doc.revision)}`;
         const latest = variant.latestExport;
         const current = variant.editFingerprint === fingerprint;
@@ -1286,6 +1302,66 @@ export class RepurposeClipsService {
       { runId: run.id, clipId: clip.id, shape, layout: layoutOfReframe(reframe) },
       "autopilot asked for a clip's other format",
     );
+  }
+
+  /**
+   * An Autopilot shape whose media never finished its pipeline (2026-09-29).
+   * A probe or proxy that failed on a passing error (its callback lost to the
+   * tunnel, its worker stopped by a deploy) or a probe that was never enqueued
+   * left five of the owner's podcast shapes at `failed`/`uploaded` for good: no
+   * preview, no captioned video, and their clips' images waiting on them.
+   * Once nothing has moved for {@link STRANDED_MEDIA_MS} such media goes back
+   * through the probe, at most {@link SHAPE_MEDIA_PROBES} probes per media. A
+   * refusal (too long, unreadable) is left alone, as is anything still moving.
+   * Never throws.
+   */
+  private async healShapeMedia(
+    run: RepurposeRun,
+    projectId: string,
+    media: {
+      readonly id: string;
+      readonly status: $Enums.MediaStatus;
+      readonly storageKey: string;
+      readonly mime: string | null;
+      readonly sizeBytes: bigint | null;
+      readonly createdAt: Date;
+    },
+    now: number,
+  ): Promise<void> {
+    if (this.probeRestart === undefined) return;
+    try {
+      const probeKey = MEDIA_JOB_KEYS.probe(media.id);
+      const jobs = await this.prisma.job.findMany({
+        where: {
+          workspaceId: run.workspaceId,
+          jobKey: { in: [probeKey, MEDIA_JOB_KEYS.proxy(media.id)] },
+        },
+        select: { status: true, jobKey: true, error: true, queuedAt: true, finishedAt: true },
+        orderBy: { queuedAt: "desc" },
+      });
+      if (jobs.some((job) => job.status === "queued" || job.status === "running")) return;
+      if (jobs.filter((job) => job.jobKey === probeKey).length >= SHAPE_MEDIA_PROBES) return;
+      const last = jobs[0];
+      if (last?.status === "failed" && !passingFailure(last.error)) return;
+      // Failed by something other than its own last job (a probe that found it
+      // too long, say): that is a verdict, not a break in the pipeline.
+      if (media.status === "failed" && last?.status !== "failed") return;
+      const moved = last?.finishedAt ?? last?.queuedAt ?? media.createdAt;
+      if (now - moved.getTime() < STRANDED_MEDIA_MS) return;
+      const outcome = await this.probeRestart.restartStranded(
+        { ...media, projectId },
+        run.workspaceId,
+      );
+      this.logger.log(
+        { runId: run.id, projectId, mediaId: media.id, from: media.status, outcome },
+        "sent a clip shape's stranded media back through the probe",
+      );
+    } catch (error) {
+      this.logger.warn(
+        { runId: run.id, projectId, mediaId: media.id, err: error },
+        "could not look at a clip shape's stranded media",
+      );
+    }
   }
 
   private async setVariant(
@@ -2219,6 +2295,15 @@ function cutInterval(
 }
 
 /** The plan's lane or its enqueued-credit cap: both clear as jobs finish. */
+/** A job error the worker marked as worth another try (`JobError.retryable`). */
+function passingFailure(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    (error as { readonly retryable?: unknown }).retryable === true
+  );
+}
+
 /** A refusal from the API's own rules (a 4xx), as opposed to something going wrong. */
 function isRefusal(error: unknown): boolean {
   return error instanceof AppException && error.httpStatus < 500;

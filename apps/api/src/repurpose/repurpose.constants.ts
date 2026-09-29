@@ -168,6 +168,14 @@ export const CAPTIONED_RENDER_ATTEMPTS = 3;
  */
 export const CAPTIONED_REQUEST_ATTEMPTS = 5;
 
+/**
+ * An Autopilot clip shape's media whose pipeline broke off (2026-09-29): sent
+ * back through the probe once nothing has moved for {@link STRANDED_MEDIA_MS},
+ * up to {@link SHAPE_MEDIA_PROBES} probes per media in all.
+ */
+export const STRANDED_MEDIA_MS = 10 * 60_000;
+export const SHAPE_MEDIA_PROBES = 3;
+
 /** How long the captioned video's play and download links stay signed. */
 export const CAPTIONED_URL_TTL_SECONDS = 60 * 60;
 

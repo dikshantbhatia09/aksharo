@@ -8,6 +8,7 @@ import { JOB_ERROR_CODES } from "../jobs/jobs.errors.js";
 import { JobsService } from "../jobs/jobs.service.js";
 
 import type { ObjectStore } from "../common/storage/index.js";
+import type { $Enums } from "@prisma/client";
 
 /**
  * Largest mezzanine {@link promoteToRaw} will copy. The API's object store reads
@@ -166,24 +167,76 @@ export class MediaProbeRestart {
       );
       return "queued";
     } catch (error) {
-      if (error instanceof AppException && error.code === JOB_ERROR_CODES.concurrencyCap) {
-        // Found live (2026-09-25): three stuck clips repaired at once on a Free
-        // workspace — the third met a full lane and was opened with no preview.
-        this.logger.log(
-          { mediaId: media.id, projectId: media.projectId },
-          "workspace lane is full; the probe will be restarted on the next look",
-        );
-        return "busy";
-      }
-      this.logger.warn(
-        {
-          mediaId: media.id,
-          projectId: media.projectId,
-          error: error instanceof Error ? error.message : String(error),
-        },
-        "could not restart the probe for never-probed media",
-      );
-      return "failed";
+      return this.outcomeOf(error, media, "never-probed media");
     }
+  }
+
+  /**
+   * Send media whose pipeline broke off back through the probe (2026-09-29): a
+   * probe or proxy that failed on a passing error (its callback lost to the
+   * tunnel, its worker stopped by a deploy), or a probe that was never
+   * enqueued. The probe is enqueued first, as in {@link restart}; the row then
+   * goes back to `uploaded` only if it still reads as the caller saw it, so a
+   * probe that already landed is never knocked back.
+   */
+  async restartStranded(
+    media: ProbeTarget & { readonly projectId: string; readonly status: $Enums.MediaStatus },
+    workspaceId: string,
+  ): Promise<ProbeRestartOutcome> {
+    try {
+      await promoteToRaw(
+        { raw: this.raw, derived: this.derived },
+        media.storageKey,
+        media.mime ?? "video/mp4",
+      );
+      const probe = await this.jobs.enqueue({
+        type: "media.probe",
+        workspaceId,
+        projectId: media.projectId,
+        params: probeJobPayload(media, media.projectId, {
+          raw: this.raw.kind,
+          derived: this.derived.kind,
+        }),
+        jobKey: MEDIA_JOB_KEYS.probe(media.id),
+        worstCaseTenths: MEDIA_JOB_QUOTES.probeTenths,
+        reason: `media.probe · ${media.id} (restarted)`,
+      });
+      await this.prisma.mediaAsset.updateMany({
+        where: { id: media.id, status: media.status },
+        data: { status: "uploaded", failureReason: null },
+      });
+      this.logger.log(
+        { mediaId: media.id, projectId: media.projectId, probeJobId: probe.job.id },
+        "sent stranded media back through the pipeline",
+      );
+      return "queued";
+    } catch (error) {
+      return this.outcomeOf(error, media, "stranded media");
+    }
+  }
+
+  private outcomeOf(
+    error: unknown,
+    media: { readonly id: string; readonly projectId: string },
+    what: string,
+  ): ProbeRestartOutcome {
+    if (error instanceof AppException && error.code === JOB_ERROR_CODES.concurrencyCap) {
+      // Found live (2026-09-25): three stuck clips repaired at once on a Free
+      // workspace — the third met a full lane and was opened with no preview.
+      this.logger.log(
+        { mediaId: media.id, projectId: media.projectId },
+        "workspace lane is full; the probe will be restarted on the next look",
+      );
+      return "busy";
+    }
+    this.logger.warn(
+      {
+        mediaId: media.id,
+        projectId: media.projectId,
+        error: error instanceof Error ? error.message : String(error),
+      },
+      `could not restart the probe for ${what}`,
+    );
+    return "failed";
   }
 }

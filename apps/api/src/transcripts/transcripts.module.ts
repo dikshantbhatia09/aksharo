@@ -49,6 +49,12 @@ import { WorkspaceMemberGuard } from "../workspaces/workspace-member.guard.js";
     WorkspaceMemberGuard,
     { provide: CAPTION_RENDER_CONTEXT, useFactory: captionRenderContext },
   ],
-  exports: [TranscriptsService, TranscriptsRepository, TranscriptDocumentService],
+  exports: [
+    TranscriptsService,
+    TranscriptsRepository,
+    TranscriptDocumentService,
+    // For Autopilot's shapes whose media broke off mid-pipeline (2026-09-29).
+    MediaProbeRestart,
+  ],
 })
 export class TranscriptsModule {}

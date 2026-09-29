@@ -271,7 +271,9 @@ interface Harness {
   prisma: ReturnType<typeof fakePrisma>;
 }
 
-function harness(overrides: { run?: Row; media?: Row; finishing?: unknown } = {}): Harness {
+function harness(
+  overrides: { run?: Row; media?: Row; finishing?: unknown; probeRestart?: unknown } = {},
+): Harness {
   const tables: Tables = {
     runs: [
       {
@@ -396,6 +398,7 @@ function harness(overrides: { run?: Row; media?: Row; finishing?: unknown } = {}
     } as never,
     { requestExport } as never,
     overrides.finishing as never,
+    overrides.probeRestart as never,
   );
   // Plenty of disk unless a test says otherwise.
   service.freeBytes = async () => Number.POSITIVE_INFINITY;
@@ -1306,6 +1309,93 @@ describe("Autopilot's captioned videos", () => {
     expect(h.tables.variants[0]).toMatchObject({ status: "failed", editFingerprint: "edg:3" });
     await h.service.reconcileClips(RUN);
     expect(h.requestExport).toHaveBeenCalledTimes(1);
+  });
+
+  describe("a shape whose media broke off mid-pipeline (2026-09-29)", () => {
+    const MEDIA_ID = "01JCCH1LDMED1A000000000000";
+    const longAgo = new Date(Date.now() - 30 * 60_000);
+    function stranded(media: Row, jobs: Row[] = []) {
+      const restartStranded = vi.fn(async () => "queued");
+      h = harness({ run: ready, probeRestart: { restartStranded } });
+      readyClip(h, {}, undefined, {
+        facesKey: null,
+        storageKey: "ws/x/p/child/master.mp4",
+        mime: "video/mp4",
+        sizeBytes: 1_000n,
+        createdAt: longAgo,
+        ...media,
+      });
+      h.tables.jobs.push(
+        ...jobs.map((job) => ({ workspaceId: WS, queuedAt: longAgo, finishedAt: longAgo, ...job })),
+      );
+      return restartStranded;
+    }
+
+    it("sends media whose proxy failed on a passing error back through the probe", async () => {
+      const restart = stranded({ status: "failed" }, [
+        { jobKey: `media.probe:${MEDIA_ID}`, status: "succeeded", error: null },
+        {
+          jobKey: `media.proxy:${MEDIA_ID}`,
+          status: "failed",
+          error: { code: "media/failed", retryable: true },
+          queuedAt: new Date(longAgo.getTime() + 1),
+        },
+      ]);
+      await h.service.reconcileClips(RUN);
+      expect(restart).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: MEDIA_ID,
+          status: "failed",
+          projectId: "01JCCH1LD0000000000000000A",
+        }),
+        WS,
+      );
+      expect(h.requestExport).not.toHaveBeenCalled();
+    });
+
+    it("restarts a probe that was never enqueued, once nothing has moved for ten minutes", async () => {
+      const restart = stranded({ status: "uploaded" });
+      await h.service.reconcileClips(RUN);
+      expect(restart).toHaveBeenCalledTimes(1);
+
+      const fresh = stranded({ status: "uploaded", createdAt: new Date() });
+      await h.service.reconcileClips(RUN);
+      expect(fresh).not.toHaveBeenCalled();
+    });
+
+    it("leaves a refusal, a pipeline still moving, and a media probed three times alone", async () => {
+      const refused = stranded({ status: "failed" }, [
+        {
+          jobKey: `media.proxy:${MEDIA_ID}`,
+          status: "failed",
+          error: { code: "media/unreadable", retryable: false },
+        },
+      ]);
+      await h.service.reconcileClips(RUN);
+      expect(refused).not.toHaveBeenCalled();
+
+      const moving = stranded({ status: "probing" }, [
+        { jobKey: `media.proxy:${MEDIA_ID}`, status: "running", error: null },
+      ]);
+      await h.service.reconcileClips(RUN);
+      expect(moving).not.toHaveBeenCalled();
+
+      const probe = {
+        jobKey: `media.probe:${MEDIA_ID}`,
+        status: "failed",
+        error: { retryable: true },
+      };
+      const spent = stranded({ status: "failed" }, [probe, probe, probe]);
+      await h.service.reconcileClips(RUN);
+      expect(spent).not.toHaveBeenCalled();
+
+      // Too long for the plan: the probe succeeded and said so. A verdict.
+      const tooLong = stranded({ status: "failed" }, [
+        { jobKey: `media.probe:${MEDIA_ID}`, status: "succeeded", error: null },
+      ]);
+      await h.service.reconcileClips(RUN);
+      expect(tooLong).not.toHaveBeenCalled();
+    });
   });
 
   it("shows the finished file, and makes it again a minute after the captions change", async () => {
