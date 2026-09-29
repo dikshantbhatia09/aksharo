@@ -1,8 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Env } from "@montaj/config";
+import { applyOps, fromProjection, newId, toProjection, type EdgState } from "@montaj/edg";
+import type { EdgOp, Pass, WordId } from "@montaj/edg/schemas";
 import { clipMasterKey, MediaClipPayloadSchema } from "@montaj/repurpose-contracts";
 
+import { ClipFinishing, HOOK_TITLE_MS } from "./clip-finishing.js";
 import { FACE_TRACK_WAIT_MS, faceDetectionRunWaitMs } from "./reframe.js";
 import { REPURPOSE_CLIP_ERRORS } from "./repurpose-clips.dto.js";
 import { RepurposeClipsService, timecode } from "./repurpose-clips.service.js";
@@ -264,6 +267,8 @@ interface Harness {
   env: { FEATURE_FLAGS_JSON: Record<string, boolean> };
   /** What `jobs.enqueue` does next: `ok`, lane full, or throw this error. */
   enqueueMode: { next: "ok" | "lane" | Error };
+  /** The fake Prisma itself, for a test that wires more of the app onto it. */
+  prisma: ReturnType<typeof fakePrisma>;
 }
 
 function harness(overrides: { run?: Row; media?: Row; finishing?: unknown } = {}): Harness {
@@ -409,6 +414,7 @@ function harness(overrides: { run?: Row; media?: Row; finishing?: unknown } = {}
     publish,
     env,
     enqueueMode,
+    prisma,
   };
 }
 
@@ -1420,6 +1426,218 @@ describe("Autopilot's finishing pass (clip-finishing.ts)", () => {
     expect(h.requestExport).not.toHaveBeenCalled();
     const [item] = (await h.service.listClips(WS, RUN)).clips;
     expect(item?.captioned).toBeNull();
+  });
+});
+
+describe("Autopilot's finishing pass, end to end", () => {
+  // The real `ClipFinishing` on this harness, over an editing document run by
+  // the real ops engine: what lands in the document before the video is asked
+  // for is exactly what the video is made from.
+  const ready = { config: { automation: "auto" }, status: "review_ready", currentStage: "review" };
+  const CHILD = "01JCCH1LD0000000000000000A";
+  const VARIANT = "01JCVAR1ANT000000000000000";
+  const EDG = "01JCEDG0000000000000000000";
+  const CUT_JOB = "01JCJ0BCVTPASS000000000000";
+  const ZOOM_JOB = "01JCJ0BZ00MPASS00000000000";
+  const CUT_PASS = "01JCPASSCVT000000000000000";
+  const ZOOM_PASS = "01JCPASSZ00M00000000000000";
+  const SPOKEN = ["Log", "paise", "bachane", "ke", "5", "tarike", "nahi", "jaante"];
+
+  it("cuts, emphasises, zooms and titles the clip, then makes the video from that document", async () => {
+    const words = SPOKEN.map((t, index) => ({
+      wid: `0:${String(index)}` as WordId,
+      t,
+      s: index * 1_000,
+      e: index * 1_000 + 800,
+    }));
+    const chunks = [{ chunkIdx: 0, startMs: 0, endMs: 30_000, words }];
+    let state: EdgState = fromProjection(
+      {
+        meta: { edgId: EDG, projectId: CHILD, revision: 3, schemaVersion: 2 },
+        media: [{ mediaId: "01JCCH1LDMED1A000000000000", role: "primary", durationMs: 30_000 }],
+        transcript: { transcriptId: TR, revision: 1, language: "hi-Latn", scripts: ["roman"] },
+        canvas: { aspect: "9:16", width: 1080, height: 1920 },
+        styles: { defaultStyleId: "punch-pop" },
+        segments: [
+          {
+            id: "01JCSEG1000000000000000000",
+            seq: "V",
+            startWordId: "0:0" as WordId,
+            endWordId: "0:7" as WordId,
+            startMs: 0,
+            endMs: 7_800,
+          },
+        ],
+        passes: [],
+      },
+      { chunks },
+    );
+    const jobs = new Map<string, { status: string; finishedAt: Date | null }>();
+    const edg = {
+      applyWorkerOps: vi.fn(async (input: { ops: readonly EdgOp[] }) => {
+        const doc = h.tables.docs[0] ?? {};
+        const revision = Number(doc["revision"]) + 1;
+        const result = applyOps(state, input.ops, { source: "worker", revision });
+        state = result.state;
+        Object.assign(doc, { revision, updatedAt: new Date() });
+        return { revision, applied: result.applied, rebased: [], rejected: result.rejected };
+      }),
+    };
+    /** What the pass completion handler does: `MergePass`, from the worker. */
+    const land = async (pass: Pass): Promise<void> => {
+      await edg.applyWorkerOps({ ops: [{ opId: newId(), type: "MergePass", pass }] });
+    };
+    const finishingRef: { current?: ClipFinishing } = {};
+    h = harness({
+      run: ready,
+      finishing: {
+        advance: (...args: Parameters<ClipFinishing["advance"]>) =>
+          (finishingRef.current as ClipFinishing).advance(...args),
+      },
+    });
+    Object.assign(h.prisma, {
+      edgDocument: {
+        findUnique: vi.fn(async () => ({ id: EDG, revision: h.tables.docs[0]?.["revision"] })),
+      },
+      stylePreset: { findMany: vi.fn(async () => []) },
+    });
+    Object.assign(h.prisma.job, {
+      findUnique: vi.fn(async (args: { where: { id: string } }) => jobs.get(args.where.id) ?? null),
+    });
+    finishingRef.current = new ClipFinishing(
+      h.prisma as never,
+      edg as never,
+      {
+        projectionOf: vi.fn(async () => toProjection(state)),
+        loadChunks: vi.fn(async () => chunks),
+      } as never,
+      {
+        forWorkspace: vi.fn(async () => ({
+          entitlements: { passes: { autocut: true, reframeZoom: true } },
+        })),
+      } as never,
+      {
+        startAutocut: vi.fn(async () => {
+          jobs.set(CUT_JOB, { status: "queued", finishedAt: null });
+          return { jobId: CUT_JOB, passId: CUT_PASS };
+        }),
+        startZoom: vi.fn(async () => {
+          jobs.set(ZOOM_JOB, { status: "queued", finishedAt: null });
+          return { jobId: ZOOM_JOB, passId: ZOOM_PASS };
+        }),
+      } as never,
+    );
+
+    h.tables.candidates.length = 1;
+    h.tables.clips.push(clipRow(CAND_A, { mezzanineKey: "ws/master.mp4", title: "A moment" }));
+    h.tables.variants.push({
+      id: VARIANT,
+      clipId: h.tables.clips[0]?.["id"],
+      aspect: "r9x16",
+      profileVersion: CLIP_PROFILE_VERSION,
+      projectId: CHILD,
+      editFingerprint: "",
+      status: "ready",
+      latestExportId: null,
+      finishing: null,
+    });
+    h.tables.media.push({
+      id: "01JCCH1LDMED1A000000000000",
+      projectId: CHILD,
+      role: "primary",
+      status: "ready",
+      durationMs: 30_000,
+      facesKey: "faces.json",
+      createdAt: new Date(clock++),
+    });
+    h.tables.docs.push({
+      projectId: CHILD,
+      revision: 3,
+      updatedAt: new Date(Date.now() - 600_000),
+    });
+
+    // Pass 1: the autocut is asked for; no video yet, and the clip says why.
+    await h.service.reconcileClips(RUN);
+    expect(h.requestExport).not.toHaveBeenCalled();
+    expect((await h.service.listClips(WS, RUN)).clips[0]?.captioned).toMatchObject({
+      status: "finishing",
+    });
+
+    // Pass 2: the cuts land and are taken; the keyword goes on; zooms asked for.
+    await land({
+      passId: CUT_PASS,
+      type: "autocut",
+      engine: "autocut@standard",
+      params: {},
+      status: "ready",
+      items: [
+        {
+          itemId: "01JCCVT1000000000000000000",
+          passId: CUT_PASS,
+          kind: "cut",
+          startMs: 850,
+          endMs: 990,
+          payload: {},
+          confidence: 0.9,
+          reason: "pause",
+          state: "proposed",
+        },
+      ],
+    });
+    jobs.set(CUT_JOB, { status: "succeeded", finishedAt: new Date() });
+    await h.service.reconcileClips(RUN);
+    expect(h.requestExport).not.toHaveBeenCalled();
+
+    // Pass 3: the zooms land (the one after the title is taken), the hook
+    // title goes on, and the edit is finished; the video waits one more pass.
+    await land({
+      passId: ZOOM_PASS,
+      type: "zoom",
+      engine: "zoom@standard",
+      params: {},
+      status: "ready",
+      items: [
+        {
+          itemId: "01JCZ00M1000000000000000A0",
+          passId: ZOOM_PASS,
+          kind: "zoom",
+          startMs: 4_000,
+          endMs: 5_000,
+          payload: {
+            target: { x: 0.3, y: 0.2, w: 0.4, h: 0.4 },
+            scaleFrom: 1,
+            scaleTo: 1.15,
+            easing: "easeInOut",
+            keyframesRef: "ws/k.bin",
+          },
+          state: "proposed",
+        },
+      ],
+    });
+    jobs.set(ZOOM_JOB, { status: "succeeded", finishedAt: new Date() });
+    await h.service.reconcileClips(RUN);
+    expect(h.requestExport).not.toHaveBeenCalled();
+
+    const finished = toProjection(state);
+    expect(finished.passes.flatMap((pass) => pass.items).map((item) => item.state)).toEqual([
+      "accepted",
+      "accepted",
+    ]);
+    expect(finished.segments[0]?.emphasis).toEqual([{ wordId: "0:4", presetId: "pop" }]);
+    // The title covers the first 2.5 s as cut: the 140 ms pause is gone.
+    expect(finished.overlays).toEqual([
+      { id: VARIANT, kind: "hook-title", text: "A moment", startMs: 0, endMs: HOOK_TITLE_MS + 140 },
+    ]);
+
+    // Pass 4: the captioned video, from the finished revision.
+    await h.service.reconcileClips(RUN);
+    expect(h.requestExport).toHaveBeenCalledTimes(1);
+    const revision = Number(h.tables.docs[0]?.["revision"]);
+    expect(h.tables.variants[0]).toMatchObject({
+      status: "rendering",
+      editFingerprint: `edg:${String(revision)}`,
+    });
+    expect(h.tables.variants[0]?.["finishing"]).toMatchObject({ state: "done" });
   });
 });
 
