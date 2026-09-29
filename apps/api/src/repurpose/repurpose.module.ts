@@ -12,6 +12,7 @@ import { RepurposeHighlightsCompletionHandler } from "./highlights-completion.ha
 import { RepurposeTranscriptCompletedListener } from "./listeners/transcript-completed.listener.js";
 import { RepurposeReconciler } from "./reconciler.js";
 import { RepurposeClipsService } from "./repurpose-clips.service.js";
+import { RepurposeCoversController } from "./repurpose-covers.controller.js";
 import { RepurposeSteeringController } from "./repurpose-steering.controller.js";
 import { RepurposeSteeringService } from "./repurpose-steering.service.js";
 import { RepurposeStuckRunsSweepTask } from "./repurpose-stuck-runs-sweep.task.js";
@@ -69,6 +70,8 @@ import { WorkspacesModule } from "../workspaces/workspaces.module.js";
     RepurposeEpisodePackController,
     // Compilations and series (2026-10-03).
     RepurposeCompilationsController,
+    // A run's cover, for the audiograms of a source with no picture (2026-10-04).
+    RepurposeCoversController,
   ],
   providers: [
     RepurposeService,

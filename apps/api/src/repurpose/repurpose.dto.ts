@@ -162,6 +162,13 @@ export const createRunSchema = z.object({
      * with no kit saved, the clips are made exactly as without one.
      */
     brand: z.boolean().optional(),
+    /**
+     * Audiograms (2026-10-04): the cover a source with no picture - an audio
+     * file - has its clips drawn with, uploaded first through
+     * `POST /repurpose/covers`. Left out, the brand kit's logo (with `brand`)
+     * or nothing is the artwork; a source with a picture never uses it.
+     */
+    audiogram: z.object({ coverAssetId: ulid }).strict().optional(),
   }),
   /** Optional title; defaults to the source's safe display form. */
   title: shortLabel.optional(),

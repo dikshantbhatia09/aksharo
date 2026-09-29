@@ -36,6 +36,12 @@ import type { Prisma, RepurposeRun } from "@prisma/client";
 const ADVANCED_BY_A_CUT: readonly RepurposeRun["status"][] = ["candidates_ready", "materializing"];
 
 /**
+ * A clip's media refused because its cut has no picture although one was asked
+ * for (2026-10-04, audiograms): cut by a worker-media older than the API.
+ */
+export const NO_PICTURE = "media/no_picture";
+
+/**
  * Written by the code before 2026-09-26, which failed the whole run when one
  * clip failed. A cut that lands on such a run restores it: the clip that failed
  * was the only thing wrong with it.
@@ -312,25 +318,42 @@ export class RepurposeClipCompletionHandler implements JobCompletionHandler, OnM
     //     offers a retry — instead of thrown: a throw leaves this job `running`
     //     for the worker to redeliver, holding one of the plan's lane slots, and
     //     every redelivery gets the same answer.
+    //
+    //     So is a cut that was asked to draw a picture for a source with none
+    //     (an audiogram, 2026-10-04) and does not say it did: a worker from
+    //     before audiograms ignores the field and cuts the clip's sound alone,
+    //     which nothing after the cut can use (the render needs a picture, and
+    //     so do the images). The clip reads failed (`media/no_picture`) and a
+    //     retry, once worker-media is deployed, cuts it again with its picture.
     const promotable = result.sizeBytes <= PROMOTE_MAX_BYTES;
-    if (!promotable) {
+    const pictureMissing = askedAudiogram(context.job.params) && result.picture === undefined;
+    const refusal = !promotable ? "media/too_large" : pictureMissing ? NO_PICTURE : null;
+    if (refusal !== null) {
       childMedia = await this.prisma.mediaAsset.update({
         where: { id: childMedia.id },
         data: {
           status: "failed",
-          failureReason: "media/too_large",
+          failureReason: refusal,
           sizeBytes: BigInt(result.sizeBytes),
           contentHash: result.checksum,
           durationMs: result.durationMs,
         },
       });
-      this.logger.warn(
-        { clipId: clip.id, mediaId: childMedia.id, sizeBytes: result.sizeBytes },
-        "clip mezzanine is too large to prepare; the clip reads failed",
-      );
+      if (refusal === NO_PICTURE) {
+        this.logger.error(
+          { clipId: clip.id, mediaId: childMedia.id, jobId: context.job.id },
+          "media.clip was asked for an audiogram and cut none: worker-media is older than this " +
+            "API. Deploy it; the clip reads failed until it is cut again",
+        );
+      } else {
+        this.logger.warn(
+          { clipId: clip.id, mediaId: childMedia.id, sizeBytes: result.sizeBytes },
+          "clip mezzanine is too large to prepare; the clip reads failed",
+        );
+      }
     }
     const recut =
-      promotable &&
+      refusal === null &&
       (childMedia.status === "failed" ||
         (childMedia.contentHash !== null &&
           childMedia.contentHash !== result.checksum &&
@@ -638,6 +661,13 @@ function layoutOf(params: Prisma.JsonValue): "single" | "stacked" {
     reframe["layout"] === "stacked"
     ? "stacked"
     : "single";
+}
+
+/** Whether a `media.clip` job asked for an audiogram: its payload's `audiogram` (2026-10-04). */
+function askedAudiogram(params: Prisma.JsonValue): boolean {
+  if (typeof params !== "object" || params === null || Array.isArray(params)) return false;
+  const audiogram = params["audiogram"];
+  return typeof audiogram === "object" && audiogram !== null && !Array.isArray(audiogram);
 }
 
 function askedFor(params: Prisma.JsonValue): { clipId?: unknown; key?: unknown } {

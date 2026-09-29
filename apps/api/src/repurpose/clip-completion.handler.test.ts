@@ -410,6 +410,61 @@ describe("RepurposeClipCompletionHandler — a finished cut", () => {
     expect(h.completeAcquisition).not.toHaveBeenCalled();
   });
 
+  describe("audiograms (2026-10-04)", () => {
+    const asked = {
+      runId: RUN,
+      clipId: CLIP,
+      destination: { bucket: "s3", key: MEZZANINE },
+      audiogram: { background: "#141217", accent: "#f1ece6" },
+    };
+
+    it("prepares a cut that drew the picture it was asked for, like any clip", async () => {
+      const h = harness();
+      const outcome = await h.handler.handle(context(clipResult({ picture: "audiogram" }), asked));
+      expect(outcome.data).toMatchObject({ applied: true });
+      expect(h.mediaUpdate).not.toHaveBeenCalled();
+      expect(h.raw.put).toHaveBeenCalledTimes(1);
+      expect(h.completeAcquisition).toHaveBeenCalledTimes(1);
+    });
+
+    it("fails the clip's media, loudly, when an older worker cut no picture", async () => {
+      // A worker from before audiograms ignores the field and says nothing of
+      // a picture: the cut is the sound alone, which no render can use.
+      const h = harness();
+      const outcome = await h.handler.handle(context(clipResult(), asked));
+      expect(outcome.data?.["applied"]).toBe(true);
+      const data = (h.mediaUpdate.mock.calls[0] as unknown as [{ data: Row }])[0].data;
+      expect(data).toMatchObject({ status: "failed", failureReason: "media/no_picture" });
+      expect(h.raw.put).not.toHaveBeenCalled();
+      expect(h.completeAcquisition).not.toHaveBeenCalled();
+    });
+
+    it("prepares a cut whose source turned out to have its own picture", async () => {
+      const h = harness();
+      await h.handler.handle(context(clipResult({ picture: "source" }), asked));
+      expect(h.mediaUpdate).not.toHaveBeenCalled();
+      expect(h.completeAcquisition).toHaveBeenCalledTimes(1);
+    });
+
+    it("cuts a failed picture-less clip again once a worker draws its picture", async () => {
+      const h = harness({
+        childMedia: {
+          id: CHILD_MEDIA,
+          status: "failed",
+          failureReason: "media/no_picture",
+          contentHash: "a".repeat(64),
+          facesKey: null,
+        },
+      });
+      await h.handler.handle(context(clipResult({ picture: "audiogram" }), asked));
+      const data = (h.mediaUpdate.mock.calls[0] as unknown as [{ data: Row }])[0].data;
+      expect(data).toMatchObject({ status: "pending", failureReason: null });
+      // The new picture replaces the old copy in raw, and goes through the pipeline.
+      expect(h.raw.put).toHaveBeenCalled();
+      expect(h.completeAcquisition).toHaveBeenCalledTimes(1);
+    });
+  });
+
   it("keeps a cut that finishes after the run was stopped, and leaves the run stopped", async () => {
     // The Stop dialog promises that clips being cut "still finish and stay", and
     // `stopRunJobs` leaves `media.clip` running for it. The handler used to turn

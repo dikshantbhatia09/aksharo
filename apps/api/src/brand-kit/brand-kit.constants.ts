@@ -51,6 +51,35 @@ export const LOGO_ASSET_KIND = "logo";
 /** The name v1's one kit per workspace is stored under (`brand_kits.name` is required). */
 export const DEFAULT_BRAND_KIT_NAME = "Brand kit";
 
+/**
+ * A run's cover image (2026-10-04, audiograms): the artwork a clip of a
+ * source with no picture is drawn with, given on the start form. Kept as a
+ * `brand_assets` row of this kind, so workspace erasure deletes it with the
+ * workspace's other images.
+ */
+export const COVER_ASSET_KIND = "cover";
+
+/** The largest cover a run takes: a podcast's cover is a few megabytes at 3000 x 3000. */
+export const COVER_MAX_BYTES = 10 * 1024 * 1024;
+
+/** The smallest and largest side a cover may have, in pixels. */
+export const COVER_MIN_SIDE = 64;
+export const COVER_MAX_SIDE = 4096;
+
+/** Error codes for a run's cover (`POST /repurpose/covers`). */
+export const COVER_ERROR_CODES = {
+  /** Not a PNG, JPEG or WebP, or its declared type does not match its bytes. */
+  invalid: "repurpose/cover_invalid",
+  /** Over {@link COVER_MAX_BYTES}. */
+  tooLarge: "repurpose/cover_too_large",
+  /** Smaller or larger than a cover can usefully be. */
+  badSize: "repurpose/cover_bad_size",
+  /** `complete` before the bytes arrived. */
+  notUploaded: "repurpose/cover_not_uploaded",
+  /** The asset id names nothing that is this workspace's cover. */
+  notFound: "repurpose/cover_not_found",
+} as const;
+
 /** Error codes (CONTRACTS §8: `namespace/slug`). */
 export const BRAND_KIT_ERROR_CODES = {
   /** A typeface that is not in the bundled catalogue. */
@@ -77,5 +106,12 @@ export const BRAND_KIT_RATE_LIMITS = {
     by: "user",
     capacity: 30,
     refillPerSec: 30 / 3600,
+  },
+  /** A cover per run started from an audio file: a batch of twenty, and room to redo them. */
+  cover: {
+    name: "repurpose:cover:user",
+    by: "user",
+    capacity: 60,
+    refillPerSec: 60 / 3600,
   },
 } as const satisfies Record<string, RateLimitRule>;

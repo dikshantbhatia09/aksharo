@@ -87,3 +87,24 @@ export type LogoUploadTicket = z.infer<typeof logoUploadTicketSchema>;
 export type LogoUploadInput = z.infer<typeof logoUploadSchema>;
 export type LogoCompleteInput = z.infer<typeof logoCompleteSchema>;
 export type { BrandKitSettings };
+
+/**
+ * A run's cover (2026-10-04, audiograms): `POST /repurpose/covers` takes what
+ * is about to be uploaded, as a logo does, and `complete` the type it was
+ * signed for. Covers may be larger than logos (`COVER_MAX_BYTES`).
+ */
+export class CoverUploadDto extends zodDto(logoUploadSchema) {}
+export class CoverCompleteDto extends zodDto(logoCompleteSchema) {}
+
+/** A run's cover, checked: its id goes in `setup.audiogram.coverAssetId`. */
+export const coverViewSchema = z.object({
+  assetId: z.string(),
+  format: z.enum(["png", "jpeg", "webp"]),
+  width: z.number().int(),
+  height: z.number().int(),
+  sizeBytes: z.number().int().nullable(),
+  /** Signed for an hour: the start form shows it back. */
+  url: z.string(),
+});
+
+export type CoverView = z.infer<typeof coverViewSchema>;

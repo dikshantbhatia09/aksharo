@@ -2,7 +2,12 @@ import { describe, expect, it, vi } from "vitest";
 
 import { DEFAULT_BRAND_KIT_SETTINGS, type BrandKitSettings } from "@montaj/edg";
 
-import { BRAND_KIT_ERROR_CODES, LOGO_MAX_BYTES } from "./brand-kit.constants.js";
+import {
+  BRAND_KIT_ERROR_CODES,
+  COVER_ERROR_CODES,
+  COVER_MAX_BYTES,
+  LOGO_MAX_BYTES,
+} from "./brand-kit.constants.js";
 import { BRAND_FONT_FAMILIES, BrandKitService } from "./brand-kit.service.js";
 
 const WS = "01JBKWS0000000000000000000";
@@ -382,5 +387,121 @@ describe("imageUrls", () => {
     });
     expect(await h.service.imageUrls(OTHER_WS, [ticket.assetId])).toEqual({});
     expect(await h.service.imageUrls(WS, [])).toEqual({});
+  });
+});
+
+describe("a run's cover (2026-10-04, audiograms)", () => {
+  const COVER = pngOfSize(1_400, 1_400);
+
+  async function uploadCover(
+    h: ReturnType<typeof harness>,
+    bytes: Uint8Array = COVER,
+    workspaceId: string = WS,
+  ) {
+    const ticket = await h.service.createCoverUpload(workspaceId, {
+      contentType: "image/png",
+      sizeBytes: bytes.byteLength,
+    });
+    h.put(ticket.uploadUrl, bytes);
+    return {
+      ticket,
+      view: await h.service.completeCover(workspaceId, USER, ticket.assetId, {
+        contentType: "image/png",
+      }),
+    };
+  }
+
+  it("signs a PUT under the brand prefix, and takes a larger file than a logo", async () => {
+    const h = harness();
+    const ticket = await h.service.createCoverUpload(WS, {
+      contentType: "image/jpeg",
+      sizeBytes: LOGO_MAX_BYTES + 1,
+    });
+    expect(h.store.presignPut).toHaveBeenCalledWith(
+      `ws/${WS}/brand/${ticket.assetId}.jpg`,
+      600,
+      "image/jpeg",
+    );
+    expect(ticket.maxBytes).toBe(COVER_MAX_BYTES);
+    await expect(
+      h.service.createCoverUpload(WS, { contentType: "image/png", sizeBytes: COVER_MAX_BYTES + 1 }),
+    ).rejects.toMatchObject({ code: COVER_ERROR_CODES.tooLarge, httpStatus: 413 });
+  });
+
+  it("keeps a real image as a cover - not the kit's logo - and reads it back as artwork", async () => {
+    const h = harness();
+    const { ticket, view } = await uploadCover(h);
+    expect(view).toMatchObject({
+      assetId: ticket.assetId,
+      format: "png",
+      width: 1_400,
+      height: 1_400,
+      url: `https://cdn.example.test/ws/${WS}/brand/${ticket.assetId}.png`,
+    });
+    expect(h.assets.get(ticket.assetId)).toMatchObject({ kind: "cover", createdBy: USER });
+    // Not a kit, and not a logo the kit would tidy away.
+    expect(h.kits.size).toBe(0);
+    expect(await h.service.collectUnusedLogos(WS)).toBe(0);
+    expect(h.assets.has(ticket.assetId)).toBe(true);
+
+    expect(await h.service.coverArtwork(WS, ticket.assetId)).toEqual({
+      key: `ws/${WS}/brand/${ticket.assetId}.png`,
+      format: "png",
+    });
+    expect(await h.service.coverExists(WS, ticket.assetId)).toBe(true);
+    // Idempotent.
+    const again = await h.service.completeCover(WS, USER, ticket.assetId, {
+      contentType: "image/png",
+    });
+    expect(again.assetId).toBe(ticket.assetId);
+    expect(h.assets.size).toBe(1);
+  });
+
+  it("is never another workspace's cover, nor a logo", async () => {
+    const h = harness();
+    const { ticket } = await uploadCover(h);
+    expect(await h.service.coverArtwork(OTHER_WS, ticket.assetId)).toBeNull();
+    expect(await h.service.coverExists(OTHER_WS, ticket.assetId)).toBe(false);
+    await expect(
+      h.service.completeCover(OTHER_WS, USER, ticket.assetId, { contentType: "image/png" }),
+    ).rejects.toMatchObject({ code: COVER_ERROR_CODES.notFound, httpStatus: 404 });
+
+    const { ticket: logo } = await uploadLogo(h);
+    expect(await h.service.coverArtwork(WS, logo.assetId)).toBeNull();
+    await expect(
+      h.service.completeCover(WS, USER, logo.assetId, { contentType: "image/png" }),
+    ).rejects.toMatchObject({ code: COVER_ERROR_CODES.notFound });
+    expect(await h.service.coverArtwork(WS, "../../x")).toBeNull();
+  });
+
+  it("refuses and deletes what is not a usable image, with a cover's own codes", async () => {
+    const h = harness();
+    const notYet = await h.service.createCoverUpload(WS, {
+      contentType: "image/png",
+      sizeBytes: 10,
+    });
+    await expect(
+      h.service.completeCover(WS, USER, notYet.assetId, { contentType: "image/png" }),
+    ).rejects.toMatchObject({ code: COVER_ERROR_CODES.notUploaded, httpStatus: 409 });
+
+    await expect(uploadCover(h, pngOfSize(32, 32))).rejects.toMatchObject({
+      code: COVER_ERROR_CODES.badSize,
+      httpStatus: 422,
+    });
+    await expect(uploadCover(h, new TextEncoder().encode("not an image"))).rejects.toMatchObject({
+      code: COVER_ERROR_CODES.invalid,
+      httpStatus: 422,
+    });
+    expect(h.objects.size).toBe(0);
+    expect(h.assets.size).toBe(0);
+  });
+
+  it("names the kit's logo as the object it was uploaded to", () => {
+    const h = harness();
+    const assetId = "01JBK1060000000000000000A0";
+    expect(h.service.logoArtwork(WS, { assetId, format: "jpeg", width: 10, height: 10 })).toEqual({
+      key: `ws/${WS}/brand/${assetId}.jpg`,
+      format: "jpeg",
+    });
   });
 });

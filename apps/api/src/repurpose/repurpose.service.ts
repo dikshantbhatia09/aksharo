@@ -11,6 +11,7 @@ import {
   mediaAcquireJobKey,
 } from "@montaj/repurpose-contracts";
 
+import { coverAssetIdOf } from "./audiogram.js";
 import { failureDetailOf, runFailureCode } from "./failure-codes.js";
 import { discoveryModelOptionsFor } from "./highlights-options.js";
 import {
@@ -56,6 +57,7 @@ import {
   steeringOptionsOf,
   withLengthPreset,
 } from "./steering.js";
+import { COVER_ASSET_KIND } from "../brand-kit/brand-kit.constants.js";
 import { CommonAuditService } from "../common/audit/audit.service.js";
 import { AppException, PrismaService } from "../common/index.js";
 import { DERIVED_STORE, type ObjectStore } from "../common/storage/index.js";
@@ -565,8 +567,10 @@ export class RepurposeService {
    *
    * A feature nobody is entitled to see should not advertise its own existence,
    * and "not found" is the truthful answer for a route that is not serving.
+   * Public so the run's cover uploads (`repurpose-covers.controller.ts`,
+   * 2026-10-04) answer the same way.
    */
-  private async assertAvailable(workspaceId: string): Promise<void> {
+  async assertAvailable(workspaceId: string): Promise<void> {
     if (await this.flagEnabled(workspaceId, REPURPOSE_FLAGS.flow)) return;
     throw new AppException(
       REPURPOSE_ERRORS.disabled,
@@ -586,6 +590,25 @@ export class RepurposeService {
    */
   private async assertEntitled(workspaceId: string): Promise<void> {
     await this.entitlements.forWorkspace(workspaceId);
+  }
+
+  /**
+   * A cover given for the run's audiograms (2026-10-04) has to be one this
+   * workspace uploaded (`POST /repurpose/covers`), since the run freezes its
+   * id and a clip's cut reads the object it names.
+   */
+  private async assertCoverExists(workspaceId: string, assetId: string | undefined): Promise<void> {
+    if (assetId === undefined) return;
+    const cover = await this.prisma.brandAsset.findFirst({
+      where: { id: assetId, workspaceId, kind: COVER_ASSET_KIND },
+      select: { id: true },
+    });
+    if (cover !== null) return;
+    throw new AppException(
+      REPURPOSE_ERRORS.coverUnknown,
+      "That cover image is not available. Choose it again.",
+      HttpStatus.BAD_REQUEST,
+    );
   }
 
   /**
@@ -626,6 +649,7 @@ export class RepurposeService {
     // the only ordering in which a refusal leaves nothing behind at all.
     const source = await this.resolveSource(workspaceId, input);
     await this.assertStyleExists(workspaceId, input.setup.caption.styleId);
+    await this.assertCoverExists(workspaceId, input.setup.audiogram?.coverAssetId);
     // A link starts downloading the moment the run exists, so how much of it to
     // process - and whether the balance pays for a minute of it - is settled
     // here too. An upload's length is only known once its probe has run, and
@@ -879,6 +903,11 @@ export class RepurposeService {
             automation: input.setup.automation ?? "manual",
             // The brand kit (`brandOf`, 2026-10-02): only when asked for.
             ...(input.setup.brand === true ? { brand: true } : {}),
+            // The cover a source with no picture is drawn with (`coverAssetIdOf`,
+            // 2026-10-04): only when one was given.
+            ...(input.setup.audiogram === undefined
+              ? {}
+              : { audiogram: { coverAssetId: input.setup.audiogram.coverAssetId } }),
             // Formats and enhancements are chosen at Stage 3; the snapshot records
             // the defaults the run started from so a later change to those defaults
             // cannot reinterpret this run (§6.9).
@@ -1376,6 +1405,7 @@ export class RepurposeService {
     // the frozen config carries a `styleVersion` the request does not, and the
     // parse drops it and fills in anything an older run never recorded.
     const config = (run.config as Record<string, unknown> | null) ?? {};
+    const cover = coverAssetIdOf(run);
     const parsed = createRunSchema.safeParse({
       source: { kind: "url", url, rightsAttested: true },
       setup: {
@@ -1384,9 +1414,10 @@ export class RepurposeService {
         caption: config["caption"],
         discovery: config["discovery"] ?? { mode: run.mode },
         window: { startMs },
-        // The next part runs the way this one did, brand kit and all.
+        // The next part runs the way this one did, brand kit and cover and all.
         automation: automationOf(run),
         ...(brandOf(run) ? { brand: true } : {}),
+        ...(cover === undefined ? {} : { audiogram: { coverAssetId: cover } }),
       },
     });
     if (!parsed.success) {

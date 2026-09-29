@@ -16,6 +16,11 @@ import {
   BRAND_IMAGE_URL_TTL_SECONDS,
   BRAND_KIT_ERROR_CODES,
   contentTypeOfFormat,
+  COVER_ASSET_KIND,
+  COVER_ERROR_CODES,
+  COVER_MAX_BYTES,
+  COVER_MAX_SIDE,
+  COVER_MIN_SIDE,
   DEFAULT_BRAND_KIT_NAME,
   LOGO_ASSET_KIND,
   LOGO_CONTENT_TYPE_LIST,
@@ -27,13 +32,14 @@ import {
   type LogoContentType,
   type LogoFormat,
 } from "./brand-kit.constants.js";
-import { probeImage } from "./image-probe.js";
+import { probeImage, type ImageFacts } from "./image-probe.js";
 import { AppException, PrismaService } from "../common/index.js";
 import { brandAssetKey, DERIVED_STORE, type ObjectStore } from "../common/storage/index.js";
 
 import type {
   BrandKitLogoView,
   BrandKitView,
+  CoverView,
   LogoCompleteInput,
   LogoUploadInput,
   LogoUploadTicket,
@@ -195,42 +201,7 @@ export class BrandKitService {
 
     const type = LOGO_CONTENT_TYPES[input.contentType];
     const key = brandAssetKey(workspaceId, assetId, type.extension);
-    const head = await this.store.head(key);
-    if (head === null) {
-      throw new AppException(
-        BRAND_KIT_ERROR_CODES.logoNotUploaded,
-        "The logo has not finished uploading. Try again in a moment.",
-        HttpStatus.CONFLICT,
-      );
-    }
-    if (head.sizeBytes > LOGO_MAX_BYTES) {
-      await this.discard(key);
-      throw tooLarge(head.sizeBytes);
-    }
-    const bytes = new Uint8Array(await this.store.get(key));
-    if (bytes.byteLength > LOGO_MAX_BYTES) {
-      await this.discard(key);
-      throw tooLarge(bytes.byteLength);
-    }
-    const facts = probeImage(bytes);
-    if (facts === undefined || facts.format !== type.format) {
-      await this.discard(key);
-      throw new AppException(
-        BRAND_KIT_ERROR_CODES.logoInvalid,
-        "That file is not a PNG, JPEG or WebP image.",
-        HttpStatus.UNPROCESSABLE_ENTITY,
-      );
-    }
-    const sides = [facts.width, facts.height];
-    if (sides.some((side) => side < LOGO_MIN_SIDE || side > LOGO_MAX_SIDE)) {
-      await this.discard(key);
-      throw new AppException(
-        BRAND_KIT_ERROR_CODES.logoBadSize,
-        `A logo must be between ${String(LOGO_MIN_SIDE)} and ${String(LOGO_MAX_SIDE)} pixels on each side; this one is ${String(facts.width)} × ${String(facts.height)}.`,
-        HttpStatus.UNPROCESSABLE_ENTITY,
-        { width: facts.width, height: facts.height },
-      );
-    }
+    const { facts, sizeBytes } = await this.checkUploadedImage(key, type.format, LOGO_RULES);
 
     await this.prisma.brandAsset.create({
       data: {
@@ -239,7 +210,7 @@ export class BrandKitService {
         kind: LOGO_ASSET_KIND,
         storageKey: key,
         contentType: input.contentType,
-        sizeBytes: bytes.byteLength,
+        sizeBytes,
         width: facts.width,
         height: facts.height,
         createdBy: userId,
@@ -268,6 +239,116 @@ export class BrandKitService {
     }
     await this.collectUnusedLogos(workspaceId);
     return { view: await this.view(workspaceId), removed };
+  }
+
+  /**
+   * `POST /repurpose/covers` (2026-10-04, audiograms): a presigned PUT for the
+   * cover a run started from an audio file is drawn with. Nothing is recorded
+   * until {@link completeCover} has seen the bytes.
+   *
+   * @throws AppException 413 `repurpose/cover_too_large`.
+   */
+  async createCoverUpload(workspaceId: string, input: LogoUploadInput): Promise<LogoUploadTicket> {
+    if (input.sizeBytes > COVER_MAX_BYTES) throw COVER_RULES.tooLarge(input.sizeBytes);
+    const assetId = ulid();
+    const key = brandAssetKey(
+      workspaceId,
+      assetId,
+      LOGO_CONTENT_TYPES[input.contentType].extension,
+    );
+    const uploadUrl = await this.store.presignPut(
+      key,
+      LOGO_UPLOAD_URL_TTL_SECONDS,
+      input.contentType,
+    );
+    return {
+      assetId,
+      uploadUrl,
+      contentType: input.contentType,
+      expiresAt: new Date(Date.now() + LOGO_UPLOAD_URL_TTL_SECONDS * 1_000).toISOString(),
+      maxBytes: COVER_MAX_BYTES,
+    };
+  }
+
+  /**
+   * `POST /repurpose/covers/{assetId}/complete`: keeps the uploaded bytes when
+   * they open as the PNG, JPEG or WebP they were declared as, at a usable
+   * size; otherwise deletes them and refuses. Idempotent. The answer's
+   * `assetId` is what the start form sends as `setup.audiogram.coverAssetId`.
+   */
+  async completeCover(
+    workspaceId: string,
+    userId: string | null,
+    assetId: string,
+    input: LogoCompleteInput,
+  ): Promise<CoverView> {
+    if (!ULID_PATTERN.test(assetId)) throw coverNotFound();
+    const existing = await this.prisma.brandAsset.findUnique({ where: { id: assetId } });
+    if (existing !== null) {
+      if (existing.workspaceId !== workspaceId || existing.kind !== COVER_ASSET_KIND) {
+        throw coverNotFound();
+      }
+      return this.coverView(existing);
+    }
+
+    const type = LOGO_CONTENT_TYPES[input.contentType];
+    const key = brandAssetKey(workspaceId, assetId, type.extension);
+    const { facts, sizeBytes } = await this.checkUploadedImage(key, type.format, COVER_RULES);
+    const row = await this.prisma.brandAsset.create({
+      data: {
+        id: assetId,
+        workspaceId,
+        kind: COVER_ASSET_KIND,
+        storageKey: key,
+        contentType: input.contentType,
+        sizeBytes,
+        width: facts.width,
+        height: facts.height,
+        createdBy: userId,
+      },
+    });
+    return this.coverView(row);
+  }
+
+  /**
+   * Whether `assetId` is a cover this workspace keeps: what `POST
+   * /repurpose/runs` checks `setup.audiogram.coverAssetId` against.
+   */
+  async coverExists(workspaceId: string, assetId: string): Promise<boolean> {
+    return (await this.coverArtwork(workspaceId, assetId)) !== null;
+  }
+
+  /**
+   * A run's cover as an audiogram draws it: its object and its type, or
+   * `null` when the workspace no longer keeps it (the clip is then drawn with
+   * the next artwork there is, or none).
+   */
+  async coverArtwork(workspaceId: string, assetId: string): Promise<ArtworkObject | null> {
+    if (!ULID_PATTERN.test(assetId)) return null;
+    const row = await this.prisma.brandAsset.findUnique({ where: { id: assetId } });
+    if (row === null || row.workspaceId !== workspaceId || row.kind !== COVER_ASSET_KIND) {
+      return null;
+    }
+    const format = formatOfContentType(row.contentType);
+    return format === undefined ? null : { key: row.storageKey, format };
+  }
+
+  /** The kit's logo as an audiogram draws it: the object it was uploaded to. */
+  logoArtwork(workspaceId: string, logo: OverlayImage): ArtworkObject {
+    const format = logo.format as LogoFormat;
+    const extension = LOGO_CONTENT_TYPES[contentTypeOfFormat(format)].extension;
+    return { key: brandAssetKey(workspaceId, logo.assetId, extension), format };
+  }
+
+  private async coverView(row: BrandAsset): Promise<CoverView> {
+    return {
+      assetId: row.id,
+      format: formatOfContentType(row.contentType) ?? "png",
+      width: row.width ?? 0,
+      height: row.height ?? 0,
+      sizeBytes: row.sizeBytes,
+      url: await this.store.presignGet(row.storageKey, BRAND_IMAGE_URL_TTL_SECONDS),
+    };
   }
 
   /**
@@ -417,6 +498,40 @@ export class BrandKitService {
     return rows.length > 0;
   }
 
+  /**
+   * Reads back an uploaded image - at most `rules.maxBytes` - and keeps it only
+   * if it opens as `format` at a usable size; otherwise deletes it and throws
+   * the rules' refusal. The logo and a run's cover share this.
+   */
+  private async checkUploadedImage(
+    key: string,
+    format: LogoFormat,
+    rules: ImageRules,
+  ): Promise<{ readonly facts: ImageFacts; readonly sizeBytes: number }> {
+    const head = await this.store.head(key);
+    if (head === null) throw rules.notUploaded();
+    if (head.sizeBytes > rules.maxBytes) {
+      await this.discard(key);
+      throw rules.tooLarge(head.sizeBytes);
+    }
+    const bytes = new Uint8Array(await this.store.get(key));
+    if (bytes.byteLength > rules.maxBytes) {
+      await this.discard(key);
+      throw rules.tooLarge(bytes.byteLength);
+    }
+    const facts = probeImage(bytes);
+    if (facts === undefined || facts.format !== format) {
+      await this.discard(key);
+      throw rules.invalid();
+    }
+    const sides = [facts.width, facts.height];
+    if (sides.some((side) => side < rules.minSide || side > rules.maxSide)) {
+      await this.discard(key);
+      throw rules.badSize(facts);
+    }
+    return { facts, sizeBytes: bytes.byteLength };
+  }
+
   private async discard(key: string): Promise<void> {
     await this.store.delete(key).catch((error: unknown) => {
       this.logger.warn({ key, err: error }, "could not delete a refused logo upload");
@@ -463,6 +578,93 @@ function tooLarge(sizeBytes: number): AppException {
     HttpStatus.PAYLOAD_TOO_LARGE,
     { sizeBytes, maxBytes: LOGO_MAX_BYTES },
   );
+}
+
+/** An image a worker reads from the derived store: an audiogram's artwork (2026-10-04). */
+export interface ArtworkObject {
+  readonly key: string;
+  readonly format: LogoFormat;
+}
+
+/** The format a stored image was uploaded as, from its content type. */
+function formatOfContentType(contentType: string): LogoFormat | undefined {
+  return Object.hasOwn(LOGO_CONTENT_TYPES, contentType)
+    ? LOGO_CONTENT_TYPES[contentType as LogoContentType].format
+    : undefined;
+}
+
+/** What an uploaded image is held to, and how each refusal is worded. */
+interface ImageRules {
+  readonly maxBytes: number;
+  readonly minSide: number;
+  readonly maxSide: number;
+  readonly notUploaded: () => AppException;
+  readonly tooLarge: (sizeBytes: number) => AppException;
+  readonly invalid: () => AppException;
+  readonly badSize: (facts: ImageFacts) => AppException;
+}
+
+const LOGO_RULES: ImageRules = {
+  maxBytes: LOGO_MAX_BYTES,
+  minSide: LOGO_MIN_SIDE,
+  maxSide: LOGO_MAX_SIDE,
+  notUploaded: () =>
+    new AppException(
+      BRAND_KIT_ERROR_CODES.logoNotUploaded,
+      "The logo has not finished uploading. Try again in a moment.",
+      HttpStatus.CONFLICT,
+    ),
+  tooLarge,
+  invalid: () =>
+    new AppException(
+      BRAND_KIT_ERROR_CODES.logoInvalid,
+      "That file is not a PNG, JPEG or WebP image.",
+      HttpStatus.UNPROCESSABLE_ENTITY,
+    ),
+  badSize: (facts) =>
+    new AppException(
+      BRAND_KIT_ERROR_CODES.logoBadSize,
+      `A logo must be between ${String(LOGO_MIN_SIDE)} and ${String(LOGO_MAX_SIDE)} pixels on each side; this one is ${String(facts.width)} × ${String(facts.height)}.`,
+      HttpStatus.UNPROCESSABLE_ENTITY,
+      { width: facts.width, height: facts.height },
+    ),
+};
+
+/** A run's cover (2026-10-04): larger than a logo may be, and never tiny. */
+const COVER_RULES: ImageRules = {
+  maxBytes: COVER_MAX_BYTES,
+  minSide: COVER_MIN_SIDE,
+  maxSide: COVER_MAX_SIDE,
+  notUploaded: () =>
+    new AppException(
+      COVER_ERROR_CODES.notUploaded,
+      "The cover has not finished uploading. Try again in a moment.",
+      HttpStatus.CONFLICT,
+    ),
+  tooLarge: (sizeBytes) =>
+    new AppException(
+      COVER_ERROR_CODES.tooLarge,
+      `A cover can be at most ${String(COVER_MAX_BYTES / (1024 * 1024))} MB.`,
+      HttpStatus.PAYLOAD_TOO_LARGE,
+      { sizeBytes, maxBytes: COVER_MAX_BYTES },
+    ),
+  invalid: () =>
+    new AppException(
+      COVER_ERROR_CODES.invalid,
+      "That file is not a PNG, JPEG or WebP image.",
+      HttpStatus.UNPROCESSABLE_ENTITY,
+    ),
+  badSize: (facts) =>
+    new AppException(
+      COVER_ERROR_CODES.badSize,
+      `A cover must be between ${String(COVER_MIN_SIDE)} and ${String(COVER_MAX_SIDE)} pixels on each side; this one is ${String(facts.width)} × ${String(facts.height)}.`,
+      HttpStatus.UNPROCESSABLE_ENTITY,
+      { width: facts.width, height: facts.height },
+    ),
+};
+
+function coverNotFound(): AppException {
+  return new AppException(COVER_ERROR_CODES.notFound, "No such cover.", HttpStatus.NOT_FOUND);
 }
 
 function logoNotFound(): AppException {

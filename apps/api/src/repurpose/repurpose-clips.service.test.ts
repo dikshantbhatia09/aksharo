@@ -1,7 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Env } from "@montaj/config";
-import { applyOps, fromProjection, newId, toProjection, type EdgState } from "@montaj/edg";
+import {
+  applyOps,
+  DEFAULT_BRAND_KIT_SETTINGS,
+  fromProjection,
+  newId,
+  toProjection,
+  type EdgState,
+} from "@montaj/edg";
 import type { EdgOp, Pass, WordId } from "@montaj/edg/schemas";
 import { clipMasterKey, MediaClipPayloadSchema } from "@montaj/repurpose-contracts";
 
@@ -272,7 +279,13 @@ interface Harness {
 }
 
 function harness(
-  overrides: { run?: Row; media?: Row; finishing?: unknown; probeRestart?: unknown } = {},
+  overrides: {
+    run?: Row;
+    media?: Row;
+    finishing?: unknown;
+    probeRestart?: unknown;
+    brandKits?: unknown;
+  } = {},
 ): Harness {
   const tables: Tables = {
     runs: [
@@ -399,6 +412,9 @@ function harness(
     { requestExport } as never,
     overrides.finishing as never,
     overrides.probeRestart as never,
+    undefined,
+    undefined,
+    overrides.brandKits as never,
   );
   // Plenty of disk unless a test says otherwise.
   service.freeBytes = async () => Number.POSITIVE_INFINITY;
@@ -879,6 +895,143 @@ describe("createClip", () => {
       "repurpose/not_available",
       404,
     );
+  });
+});
+
+describe("audiograms: a source with no picture (2026-10-04)", () => {
+  const AUDIO = {
+    width: null,
+    height: null,
+    storageKey: `ws/${WS}/p/${SRC}/media/${MEDIA}/raw.mp3`,
+  };
+  const COVER_ID = "01JCC0VER00000000000000000";
+  const LOGO_ID = "01JCL0G0000000000000000000";
+  const cover = { key: `ws/${WS}/brand/${COVER_ID}.jpg`, format: "jpeg" as const };
+
+  function brandKits(options: { cover?: boolean; kit?: boolean; throws?: boolean } = {}) {
+    return {
+      coverArtwork: vi.fn(async () => {
+        if (options.throws === true) throw new Error("database down");
+        return options.cover === false ? null : cover;
+      }),
+      forClips: vi.fn(async () =>
+        options.kit === false
+          ? null
+          : {
+              settings: {
+                ...DEFAULT_BRAND_KIT_SETTINGS,
+                colors: { primary: "#ffd400", secondary: "#102040", text: "#ffffff" },
+              },
+              logo: { assetId: LOGO_ID, format: "png", width: 400, height: 400 },
+            },
+      ),
+      logoArtwork: vi.fn((workspaceId: string, logo: { assetId: string }) => ({
+        key: `ws/${workspaceId}/brand/${logo.assetId}.png`,
+        format: "png" as const,
+      })),
+    };
+  }
+
+  it("asks for a picture to be drawn, on the default colours, with the new profile", async () => {
+    h = harness({ media: AUDIO });
+
+    await h.service.createClip(WS, USER, RUN, { candidateId: CAND_A });
+
+    const payload = enqueuedPayload(h);
+    expect(payload.audiogram).toEqual({ background: "#141217", accent: "#f1ece6" });
+    expect(payload.profileVersion).toBe("4");
+    expect(CLIP_PROFILE_VERSION).toBe("4");
+    const input = h.enqueue.mock.calls[0]?.[0] as { jobKey: string };
+    expect(input.jobKey.endsWith(":4")).toBe(true);
+    // Centred: a source with no picture has no face track to frame by.
+    expect(payload.reframe).toEqual({ centerX: 0.5, basis: "centre" });
+  });
+
+  it("asks for nothing new for a source with a picture", async () => {
+    h = harness({ media: { width: 1_920, height: 1_080 }, brandKits: brandKits() });
+
+    await h.service.createClip(WS, USER, RUN, { candidateId: CAND_A });
+
+    expect(enqueuedPayload(h)).not.toHaveProperty("audiogram");
+  });
+
+  it("draws the run's cover on the brand kit's colours when the run uses the kit", async () => {
+    const kits = brandKits();
+    h = harness({
+      media: AUDIO,
+      run: { config: { brand: true, audiogram: { coverAssetId: COVER_ID } } },
+      brandKits: kits,
+    });
+
+    await h.service.createClip(WS, USER, RUN, { candidateId: CAND_A });
+
+    expect(enqueuedPayload(h).audiogram).toEqual({
+      background: "#102040",
+      accent: "#ffd400",
+      artwork: cover,
+    });
+    expect(kits.coverArtwork).toHaveBeenCalledWith(WS, COVER_ID);
+  });
+
+  it("draws the kit's logo when the run uses the kit and has no cover", async () => {
+    h = harness({ media: AUDIO, run: { config: { brand: true } }, brandKits: brandKits() });
+
+    await h.service.createClip(WS, USER, RUN, { candidateId: CAND_A });
+
+    expect(enqueuedPayload(h).audiogram?.artwork).toEqual({
+      key: `ws/${WS}/brand/${LOGO_ID}.png`,
+      format: "png",
+    });
+  });
+
+  it("never reads the kit for a run that does not use it: the cover alone, on the defaults", async () => {
+    const kits = brandKits();
+    h = harness({
+      media: AUDIO,
+      run: { config: { audiogram: { coverAssetId: COVER_ID } } },
+      brandKits: kits,
+    });
+
+    await h.service.createClip(WS, USER, RUN, { candidateId: CAND_A });
+
+    expect(enqueuedPayload(h).audiogram).toEqual({
+      background: "#141217",
+      accent: "#f1ece6",
+      artwork: cover,
+    });
+    expect(kits.forClips).not.toHaveBeenCalled();
+  });
+
+  it("still cuts the clip when the cover cannot be read, without artwork", async () => {
+    h = harness({
+      media: AUDIO,
+      run: { config: { audiogram: { coverAssetId: COVER_ID } } },
+      brandKits: brandKits({ throws: true }),
+    });
+
+    const clip = await h.service.createClip(WS, USER, RUN, { candidateId: CAND_A });
+
+    expect(clip.state).toBe("cutting");
+    expect(enqueuedPayload(h).audiogram).toEqual({ background: "#141217", accent: "#f1ece6" });
+  });
+
+  it("draws every other format of an Autopilot clip too, each at its own size", async () => {
+    h = harness({
+      media: AUDIO,
+      run: { config: { automation: "auto" }, status: "review_ready", currentStage: "review" },
+    });
+    h.tables.candidates.length = 1;
+    h.tables.clips.push(clipRow(CAND_A, { mezzanineKey: "ws/master.mp4" }));
+
+    await h.service.reconcileClips(RUN);
+
+    const cuts = enqueuedPayloads(h).filter((payload) => payload.aspect !== undefined);
+    expect(cuts.map((payload) => [payload.aspect, payload.profile.maxHeight])).toEqual([
+      ["4:5", 1_350],
+      ["1:1", 1_080],
+      ["16:9", 1_080],
+    ]);
+    for (const payload of cuts) expect(payload.audiogram).toBeDefined();
   });
 });
 

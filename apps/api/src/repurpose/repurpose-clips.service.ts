@@ -16,9 +16,11 @@ import {
   clipMasterKey,
   layoutKeySuffix,
   mediaClipJobKey,
+  type Audiogram,
   type ClipLayout,
 } from "@montaj/repurpose-contracts";
 
+import { audiogramOf, coverAssetIdOf, hasNoPicture } from "./audiogram.js";
 import { clipCopyOf } from "./clip-copy.js";
 import { ClipFinishing, finishingInProgress } from "./clip-finishing.js";
 import {
@@ -90,10 +92,12 @@ import {
   REPURPOSE_FLAGS,
   automationOf,
   autopilotClipCount,
+  brandOf,
 } from "./repurpose.constants.js";
 import { progressForStatus, projectRun, stageForStatus } from "./repurpose.projection.js";
 import { RepurposeSeriesService } from "./series.service.js";
 import { autopilotPicks, cutBoundsOf, isRemoved } from "./steering.js";
+import { BrandKitService } from "../brand-kit/brand-kit.service.js";
 import { CommonAuditService } from "../common/audit/audit.service.js";
 import { AppException, ERROR_CODES, PrismaService, RateLimitService } from "../common/index.js";
 import { DERIVED_STORE, type ObjectStore } from "../common/storage/index.js";
@@ -310,6 +314,11 @@ export class RepurposeClipsService {
     @Optional() private readonly series?: RepurposeSeriesService,
     /** Offers waiting compilations the lane again (2026-10-03); absent in harnesses. */
     @Optional() private readonly compilations?: RepurposeCompilationsService,
+    /**
+     * An audiogram's artwork and colours (2026-10-04): the run's cover and the
+     * brand kit. Absent in harnesses, where a picture is drawn with neither.
+     */
+    @Optional() private readonly brandKits?: BrandKitService,
   ) {}
 
   // -------------------------------------------------------------------------
@@ -1304,6 +1313,8 @@ export class RepurposeClipsService {
       },
       reframe,
       aspect: shape,
+      // A source with no picture gets one drawn (2026-10-04).
+      ...(await this.audiogramPart(run, media)),
       profileVersion: CLIP_PROFILE_VERSION,
     });
     await this.jobs.enqueue({
@@ -1673,6 +1684,8 @@ export class RepurposeClipsService {
         maxHeight: CLIP_MAX_HEIGHT,
       },
       reframe,
+      // A source with no picture gets one drawn (2026-10-04, `audiogram.ts`).
+      ...(await this.audiogramPart(run, media)),
       profileVersion: CLIP_PROFILE_VERSION,
     });
 
@@ -1701,6 +1714,64 @@ export class RepurposeClipsService {
       );
       return "waiting";
     }
+  }
+
+  /**
+   * The payload's `audiogram` for a cut of `media` (2026-10-04), as a part to
+   * spread into it: nothing for a source with a picture, which is cut exactly
+   * as before; for one without, the picture `media.clip` draws for it.
+   */
+  private async audiogramPart(
+    run: RepurposeRun,
+    media: MediaAsset,
+  ): Promise<{ readonly audiogram?: Audiogram }> {
+    if (!hasNoPicture(media)) return {};
+    return { audiogram: await this.audiogramFor(run) };
+  }
+
+  /**
+   * What a clip of this run is drawn with when its source has no picture
+   * (`audiogram.ts`): the cover the run was started with, else the brand kit's
+   * logo when the run uses the kit (`setup.brand`), else no artwork; the kit's
+   * colours when it uses the kit, else the defaults. Never throws: a kit or a
+   * cover that cannot be read costs the clip its artwork, never the clip.
+   */
+  async audiogramFor(run: RepurposeRun): Promise<Audiogram> {
+    const kits = this.brandKits;
+    if (kits === undefined) return audiogramOf({ kit: null, cover: null });
+    const coverId = coverAssetIdOf(run);
+    const [cover, kit] = await Promise.all([
+      coverId === undefined
+        ? null
+        : kits.coverArtwork(run.workspaceId, coverId).catch((error: unknown) => {
+            this.logger.warn(
+              { runId: run.id, coverId, err: error },
+              "could not read the run's cover; its audiograms are drawn without it",
+            );
+            return null;
+          }),
+      !brandOf(run)
+        ? null
+        : kits.forClips(run.workspaceId).catch((error: unknown) => {
+            this.logger.warn(
+              { runId: run.id, err: error },
+              "could not read the brand kit; the run's audiograms are drawn without it",
+            );
+            return null;
+          }),
+    ]);
+    return audiogramOf({
+      cover,
+      kit:
+        kit === null
+          ? null
+          : {
+              settings: kit.settings,
+              ...(kit.logo === undefined
+                ? {}
+                : { logo: kits.logoArtwork(run.workspaceId, kit.logo) }),
+            },
+    });
   }
 
   /**
