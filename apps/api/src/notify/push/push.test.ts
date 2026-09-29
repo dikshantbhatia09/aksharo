@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { createDecipheriv, createECDH, hkdfSync } from "node:crypto";
-import { fileURLToPath } from "node:url";
+import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
@@ -200,8 +200,9 @@ describe("WEB_PUSH_* settings", () => {
   });
 
   it("takes the pair `scripts/generate-vapid-keys.mjs` prints, as the deploy step runs it", () => {
+    // From the package root, as the tests run (and as the deploy step runs it).
     const printed = execFileSync(process.execPath, [
-      fileURLToPath(new URL("../../../scripts/generate-vapid-keys.mjs", import.meta.url)),
+      resolve(process.cwd(), "scripts/generate-vapid-keys.mjs"),
     ]).toString();
     const env = Object.fromEntries(
       printed
