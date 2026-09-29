@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  ForbiddenException,
   Get,
   HttpCode,
   HttpStatus,
@@ -21,11 +22,14 @@ import {
   affiliateViewSchema,
   attachCodeSchema,
   recordClickSchema,
-  type AdminAffiliateActionDto,
+  // Value imports, not `type`: the validation pipe reads each body's class
+  // off the decorator metadata, which a type-only import leaves as `Object`,
+  // and then validates nothing (found 2026-09-29).
+  AdminAffiliateActionDto,
   type AffiliateView,
-  type ApplyAffiliateDto,
-  type AttachCodeDto,
-  type RecordClickDto,
+  ApplyAffiliateDto,
+  AttachCodeDto,
+  RecordClickDto,
   applyAffiliateSchema,
 } from "./affiliates.dto.js";
 import { AffiliatesService } from "./affiliates.service.js";
@@ -148,15 +152,26 @@ export class AffiliatesController {
   }
 
   @Post("attribution/attach")
-  @Public()
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth("access-token")
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: "Resolve attribution for a newly-created workspace (code beats cookie)",
     operationId: "attachAffiliateAttribution",
   })
   @ApiBody(zodBody(attachCodeSchema))
-  async attach(@Body() body: AttachCodeDto) {
+  async attach(@CurrentUser() principal: AuthPrincipal, @Body() body: AttachCodeDto) {
     this.assertSurfaceEnabled();
+    // The signed-in person's own user and workspace only (2026-09-29). This
+    // route was public and took both ids from the body, so anyone who knew a
+    // workspace's id could attribute it to their own code; onboarding, its
+    // only caller, sends the person's own.
+    if (
+      body.referredUserId !== principal.userId ||
+      body.referredWorkspaceId !== principal.workspaceId
+    ) {
+      throw new ForbiddenException("An affiliate code can only be attached to your own workspace.");
+    }
     const result = await this.attribution.attach({
       referredWorkspaceId: body.referredWorkspaceId,
       referredUserId: body.referredUserId,

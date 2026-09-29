@@ -1,4 +1,4 @@
-import { NotFoundException } from "@nestjs/common";
+import { ForbiddenException, NotFoundException } from "@nestjs/common";
 import { describe, expect, it, vi } from "vitest";
 
 import { type Env } from "@montaj/config";
@@ -55,11 +55,14 @@ describe("Affiliates Surface Availability (RLS-006)", () => {
     );
 
     await expect(
-      controller.attach({
-        referredWorkspaceId: "ws-2",
-        referredUserId: "u-2",
-        code: "partner123",
-      } as never),
+      controller.attach(
+        { userId: "u-2", workspaceId: "ws-2" } as never,
+        {
+          referredWorkspaceId: "ws-2",
+          referredUserId: "u-2",
+          code: "partner123",
+        } as never,
+      ),
     ).rejects.toThrow(NotFoundException);
   });
 
@@ -83,5 +86,32 @@ describe("Affiliates Surface Availability (RLS-006)", () => {
     const clickResult = await controller.recordClick({ code: "partner123" } as never);
     expect(clickResult).toEqual({ attributed: false, attributionExpiresAt: null });
     expect((attribution as any).recordClick).toHaveBeenCalled();
+  });
+});
+
+describe("attaching an affiliate code (2026-09-29)", () => {
+  const me = { userId: "u-2", workspaceId: "ws-2" } as never;
+
+  it("attaches a code to the signed-in person's own workspace", async () => {
+    const { controller, attribution } = createController({ "affiliates.enabled": true });
+    await controller.attach(me, {
+      referredWorkspaceId: "ws-2",
+      referredUserId: "u-2",
+      code: "PARTNER123",
+    } as never);
+    expect((attribution as any).attach).toHaveBeenCalledWith(
+      expect.objectContaining({ referredWorkspaceId: "ws-2", referredUserId: "u-2" }),
+    );
+  });
+
+  it("refuses anyone else's workspace or user, which the route used to take on trust", async () => {
+    const { controller, attribution } = createController({ "affiliates.enabled": true });
+    for (const body of [
+      { referredWorkspaceId: "ws-victim", referredUserId: "u-2", code: "PARTNER123" },
+      { referredWorkspaceId: "ws-2", referredUserId: "u-victim", code: "PARTNER123" },
+    ]) {
+      await expect(controller.attach(me, body as never)).rejects.toThrow(ForbiddenException);
+    }
+    expect((attribution as any).attach).not.toHaveBeenCalled();
   });
 });

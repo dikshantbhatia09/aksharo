@@ -1069,7 +1069,8 @@ export const affiliateEndpoints = {
   attach: defineEndpoint<AttachAffiliateAttributionRequest, AttachAffiliateAttributionResult>({
     method: "POST",
     path: "/affiliate/attribution/attach",
-    auth: "public",
+    // Signed in since 2026-09-29: the API attaches a code to the caller's own workspace only.
+    auth: "bearer",
     operationId: "attachAffiliateAttribution",
   }),
 } as const;

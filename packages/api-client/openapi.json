@@ -23860,6 +23860,11 @@
             "description": ""
           }
         },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
         "summary": "Resolve attribution for a newly-created workspace (code beats cookie)",
         "tags": [
           "affiliate"
@@ -23978,7 +23983,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/Function"
+                "$ref": "#/components/schemas/AdminAffiliateActionDto"
               }
             }
           }
@@ -24082,7 +24087,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/Function"
+                "$ref": "#/components/schemas/AdminAffiliateActionDto"
               }
             }
           }
@@ -36681,7 +36686,7 @@
         "type": "object",
         "properties": {}
       },
-      "Function": {
+      "AdminAffiliateActionDto": {
         "type": "object",
         "properties": {}
       },
