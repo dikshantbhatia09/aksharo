@@ -79,6 +79,7 @@ import {
   type FormatShape,
   CAPTIONED_QUIET_MS,
   CAPTIONED_RENDER_ATTEMPTS,
+  CAPTIONED_REQUEST_ATTEMPTS,
   CAPTIONED_URL_TTL_SECONDS,
   CLIP_PROFILE_VERSION,
   RECONCILE_INTERVAL_MS,
@@ -788,6 +789,7 @@ export class RepurposeClipsService {
             editFingerprint: fingerprint,
           },
         });
+        this.captionRequestErrors.delete(variant.id);
         this.logger.log(
           {
             runId: run.id,
@@ -799,6 +801,18 @@ export class RepurposeClipsService {
         );
       } catch (error) {
         if (isLaneFull(error)) return; // every clip shares the lane: the next pass asks again
+        // A refusal (4xx) stays final until the captions change. Anything else
+        // is tried again on a later pass, a few times, before it is.
+        const tries = (this.captionRequestErrors.get(variant.id) ?? 0) + 1;
+        if (!isRefusal(error) && tries < CAPTIONED_REQUEST_ATTEMPTS) {
+          this.captionRequestErrors.set(variant.id, tries);
+          this.logger.warn(
+            { runId: run.id, projectId: variant.projectId, tries, err: error },
+            "could not ask for a captioned video; trying again on a later pass",
+          );
+          continue;
+        }
+        this.captionRequestErrors.delete(variant.id);
         this.logger.warn(
           { runId: run.id, projectId: variant.projectId, err: error },
           "could not ask for a captioned video; left until the captions change",
@@ -834,6 +848,14 @@ export class RepurposeClipsService {
   };
 
   private lowDiskLoggedAt = 0;
+
+  /**
+   * Passes that failed to ask for a variant's captioned video with an error
+   * that was not a refusal, by variant ({@link CAPTIONED_REQUEST_ATTEMPTS}).
+   * In memory on purpose: a restart is a fresh start, which is what a blip
+   * deserves, and a lasting fault still ends in `failed` five passes later.
+   */
+  private readonly captionRequestErrors = new Map<string, number>();
 
   private async roomForFormats(run: RepurposeRun): Promise<boolean> {
     const free = await this.freeBytes();
@@ -2197,6 +2219,11 @@ function cutInterval(
 }
 
 /** The plan's lane or its enqueued-credit cap: both clear as jobs finish. */
+/** A refusal from the API's own rules (a 4xx), as opposed to something going wrong. */
+function isRefusal(error: unknown): boolean {
+  return error instanceof AppException && error.httpStatus < 500;
+}
+
 function isLaneFull(error: unknown): boolean {
   return (
     error instanceof AppException &&

@@ -159,6 +159,15 @@ export const CAPTIONED_QUIET_MS = 60_000;
 /** How many failed renders of one clip before Autopilot leaves it to a person. */
 export const CAPTIONED_RENDER_ATTEMPTS = 3;
 
+/**
+ * How many passes in a row may fail to ASK for a clip's captioned video with
+ * an error that is not a refusal (a database or queue blip, a timeout under
+ * load) before it is marked failed (2026-09-29). Before this, the first such
+ * error was final until someone edited the captions: six clips of one run lost
+ * their captioned video that way while the API was answering 500s.
+ */
+export const CAPTIONED_REQUEST_ATTEMPTS = 5;
+
 /** How long the captioned video's play and download links stay signed. */
 export const CAPTIONED_URL_TTL_SECONDS = 60 * 60;
 

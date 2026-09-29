@@ -1266,6 +1266,48 @@ describe("Autopilot's captioned videos", () => {
     expect(h.requestExport).toHaveBeenCalledTimes(1);
   });
 
+  it("asks again on a later pass when asking failed with something other than a refusal", async () => {
+    h = harness({ run: ready });
+    readyClip(h);
+    h.requestExport.mockRejectedValue(new Error("Timed out fetching a new connection"));
+    for (let pass = 1; pass <= 4; pass += 1) {
+      await h.service.reconcileClips(RUN);
+      expect(h.requestExport).toHaveBeenCalledTimes(pass);
+      // Not failed: the next pass asks again.
+      expect(h.tables.variants[0]?.["status"]).toBe("ready");
+    }
+    // The fifth failure in a row is final until the captions change.
+    await h.service.reconcileClips(RUN);
+    expect(h.tables.variants[0]).toMatchObject({ status: "failed", editFingerprint: "edg:3" });
+    await h.service.reconcileClips(RUN);
+    expect(h.requestExport).toHaveBeenCalledTimes(5);
+  });
+
+  it("forgets the earlier failures once asking works", async () => {
+    h = harness({ run: ready });
+    readyClip(h);
+    h.requestExport
+      .mockRejectedValueOnce(new Error("blip"))
+      .mockRejectedValueOnce(new Error("blip"));
+    await h.service.reconcileClips(RUN);
+    await h.service.reconcileClips(RUN);
+    await h.service.reconcileClips(RUN);
+    expect(h.requestExport).toHaveBeenCalledTimes(3);
+    expect(h.tables.variants[0]).toMatchObject({ status: "rendering", editFingerprint: "edg:3" });
+  });
+
+  it("takes a refusal as final at once", async () => {
+    h = harness({ run: ready });
+    readyClip(h);
+    h.requestExport.mockRejectedValueOnce(
+      new AppException("exports/no_credits", "Out of credits.", 402),
+    );
+    await h.service.reconcileClips(RUN);
+    expect(h.tables.variants[0]).toMatchObject({ status: "failed", editFingerprint: "edg:3" });
+    await h.service.reconcileClips(RUN);
+    expect(h.requestExport).toHaveBeenCalledTimes(1);
+  });
+
   it("shows the finished file, and makes it again a minute after the captions change", async () => {
     h = harness({ run: ready });
     readyClip(h, { latestExportId: "01JCEXP0000000000000000001", editFingerprint: "edg:3" });
