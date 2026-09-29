@@ -22,6 +22,7 @@ export const EN_MESSAGES: MessageCatalogue = {
     project: "your project",
     author: "Someone",
     plan: "your plan",
+    video: "your video",
   },
 
   kinds: {
@@ -193,6 +194,65 @@ export const EN_MESSAGES: MessageCatalogue = {
       paragraphs: ["Hi {name}, our support team replied to your ticket:", "{replyBody}"],
       cta: "View your ticket",
       footnotes: ["Ticket id {ticketId}."],
+    },
+
+    "clips-ready": {
+      subject: "Your first clips from {video} are ready",
+      heading: "Your clips are ready",
+      paragraphs: [
+        "Hi {name}, {count, plural, one {# clip from {video} is} other {# clips from {video} are}} ready to watch.",
+        "Open the run to watch, edit or download them. Any still being made appear there as they finish.",
+      ],
+      cta: "Open your clips",
+      footnotes: ["You get this once for each video."],
+      push: {
+        title: "Your clips are ready",
+        body: "{count, plural, one {# clip} other {# clips}} from {video} ready to watch.",
+      },
+    },
+
+    "run-complete": {
+      subject: "All done: {count, plural, one {# clip} other {# clips}} from {video}",
+      heading: "Everything is ready",
+      paragraphs: [
+        "Hi {name}, we finished {video}: {count, plural, one {# clip} other {# clips}}, with their sizes and images.",
+        "Download them from the run, or open any one in the editor to change it.",
+      ],
+      cta: "Open your clips",
+      push: {
+        title: "Everything is ready",
+        body: "{count, plural, one {# clip} other {# clips}} from {video}, with their sizes and images.",
+      },
+    },
+
+    "run-failed": {
+      subject: "We could not finish {video}",
+      heading: "This video stopped",
+      paragraphs: [
+        "Hi {name}, we could not finish {video}. Anything already made is safe.",
+        "Open the run to see what happened and what to try next.",
+      ],
+      cta: "Open the run",
+      push: {
+        title: "A video stopped",
+        body: "We could not finish {video}. Open it to see why.",
+      },
+    },
+
+    "run-needs-you": {
+      subject:
+        "{reason, select, credits {Add credits to finish {video}} upload {Upload the file for {video}} add {{video} is ready for your moments} other {Your moments from {video} are ready}}",
+      heading:
+        "{reason, select, credits {You are out of credits} upload {YouTube keeps refusing this video} add {Add your moments} other {Pick your moments}}",
+      paragraphs: [
+        "Hi {name}, {reason, select, credits {{video} needs more credits than this workspace has left. Add credits, then try again from the run.} upload {YouTube keeps refusing to send us {video}. Upload the file from your device and the run carries on with it.} add {{video} is ready. Add the moments you want as clips by their start and end times.} other {the moments in {video} are ready. Choose the ones you want as clips.}}",
+      ],
+      cta: "Open the run",
+      push: {
+        title:
+          "{reason, select, credits {Out of credits} upload {Upload the file instead} add {Add your moments} other {Your moments are ready}}",
+        body: "{reason, select, credits {Add credits to finish {video}.} upload {YouTube keeps refusing {video}. Upload it from your device.} add {Add the moments you want from {video}.} other {Pick the moments you want from {video}.}}",
+      },
     },
   },
 };

@@ -3,8 +3,10 @@ import { describe, expect, it } from "vitest";
 import {
   allowsUnsubscribe,
   CRITICAL_KINDS,
+  DEVICE_KINDS,
   IN_APP_KINDS,
   isCriticalKind,
+  isDeviceKind,
   isInAppKind,
   isNotifyKind,
   NON_TRANSACTIONAL_KINDS,
@@ -16,6 +18,7 @@ import { HI_MESSAGES } from "./templates/messages.hi.js";
 describe("the kind list", () => {
   it("is the templates the briefs name (B06 adds streak-nudge, B16 adds retention-warning)", () => {
     expect([...NOTIFY_KINDS].sort()).toEqual([
+      "clips-ready",
       "device-approval",
       "export-ready",
       "login-new-device",
@@ -25,6 +28,9 @@ describe("the kind list", () => {
       "password-changed",
       "renewal-notice",
       "retention-warning",
+      "run-complete",
+      "run-failed",
+      "run-needs-you",
       "share-comment",
       "share-report-resolved",
       "streak-nudge",
@@ -57,10 +63,35 @@ describe("the kind list", () => {
   });
 });
 
-describe("the three classifications", () => {
+describe("the four classifications", () => {
   it("only classifies real kinds", () => {
-    for (const list of [CRITICAL_KINDS, IN_APP_KINDS, NON_TRANSACTIONAL_KINDS]) {
+    for (const list of [CRITICAL_KINDS, IN_APP_KINDS, NON_TRANSACTIONAL_KINDS, DEVICE_KINDS]) {
       for (const kind of list) expect(isNotifyKind(kind)).toBe(true);
+    }
+  });
+
+  /**
+   * A tap on a phone notification opens the app; the bell is where the person
+   * finds it again. A device kind with no bell row would be news that vanished
+   * the moment it was swiped away.
+   */
+  it("keeps every device kind in the bell too, with device text in both languages", () => {
+    for (const kind of DEVICE_KINDS) {
+      expect(isInAppKind(kind), kind).toBe(true);
+      expect(isDeviceKind(kind)).toBe(true);
+      // eslint-disable-next-line security/detect-object-injection -- a typed kind from the closed list
+      expect(EN_MESSAGES.kinds[kind].push, `en ${kind} has no push strings`).toBeDefined();
+      // eslint-disable-next-line security/detect-object-injection -- as above
+      expect(HI_MESSAGES.kinds[kind].push, `hi ${kind} has no push strings`).toBeDefined();
+    }
+    expect(isDeviceKind("export-ready")).toBe(false);
+    expect(isDeviceKind("magic-link")).toBe(false);
+  });
+
+  it("sends the run notifications as the answer to what the person started, not as marketing", () => {
+    for (const kind of ["clips-ready", "run-complete", "run-failed", "run-needs-you"] as const) {
+      expect(isCriticalKind(kind)).toBe(false);
+      expect(allowsUnsubscribe(kind)).toBe(false);
     }
   });
 

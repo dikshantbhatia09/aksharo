@@ -6,6 +6,7 @@ import { NotifyJobPayloadSchema } from "./notify.types.js";
 import { createFakePrisma, FakeDb, FakeQueueRegistry } from "../../test/fakes.js";
 import { isJobEnvelope } from "../jobs/contracts/job-envelope.js";
 
+import type { ChannelDelivery, DeviceMessage, NotificationChannel } from "./notify.channels.js";
 import type { PrismaService } from "../common/prisma/prisma.service.js";
 import type { QueueRegistry } from "../jobs/queue.registry.js";
 import type { RealtimePublisher } from "../realtime/realtime.publisher.js";
@@ -287,5 +288,97 @@ describe("helpers", () => {
     expect(view.readAt).toBe("2026-09-02T05:00:00.000Z");
     expect(view.createdAt).toBe("2026-09-02T05:00:00.000Z");
     expect(view.workspaceId).toBeNull();
+  });
+});
+
+describe("device channels (Web Push, and whatever comes after it)", () => {
+  function buildWithChannel(deliver: (message: DeviceMessage) => Promise<ChannelDelivery>) {
+    const db = new FakeDb();
+    const queues = new DedupingQueueRegistry();
+    const received: DeviceMessage[] = [];
+    const channel: NotificationChannel = {
+      name: "test-device",
+      deliver: async (message) => {
+        received.push(message);
+        return deliver(message);
+      },
+    };
+    const realtime = {
+      notificationCreated: async () => undefined,
+    } as unknown as RealtimePublisher;
+    const service = new NotifyService(
+      createFakePrisma(db) as unknown as PrismaService,
+      queues as unknown as QueueRegistry,
+      realtime,
+      [channel],
+    );
+    return { service, queues, received };
+  }
+
+  const RUN_LINK = "https://app.example.test/repurpose/01JRUN0000000000000000000A";
+
+  it("hands a device kind to every channel, rendered in the person's language", async () => {
+    const { service, queues, received } = buildWithChannel(async () => ({
+      sent: 1,
+      failed: 0,
+      removed: 0,
+    }));
+    await service.enqueue({
+      kind: "clips-ready",
+      to: "asha@example.test",
+      locale: "hi-IN",
+      userId: USER,
+      workspaceId: WORKSPACE,
+      data: { name: "Asha", video: "Diwali vlog", count: 2, link: RUN_LINK },
+      idempotencyKey: "clips-ready-run-1",
+      thread: "01JRUN0000000000000000000A",
+    });
+    expect(received).toEqual([
+      {
+        userId: USER,
+        kind: "clips-ready",
+        title: "आपकी क्लिप तैयार हैं",
+        body: "Diwali vlog की 2 क्लिप देखने के लिए तैयार।",
+        url: RUN_LINK,
+        thread: "01JRUN0000000000000000000A",
+      },
+    ]);
+    // The email still goes.
+    expect(queues.added).toHaveLength(1);
+  });
+
+  it("keeps everything that is not a device kind off people's phones", async () => {
+    const { service, received } = buildWithChannel(async () => ({
+      sent: 1,
+      failed: 0,
+      removed: 0,
+    }));
+    await service.enqueue({
+      kind: "export-ready",
+      to: "asha@example.test",
+      userId: USER,
+      data: { name: "Asha", project: "Promo", days: 7, link: "https://x.test/e" },
+    });
+    await service.enqueue({
+      kind: "run-failed",
+      to: "asha@example.test",
+      data: { name: "Asha", video: "Diwali vlog", link: RUN_LINK },
+    });
+    // The second has no user to find devices for.
+    expect(received).toHaveLength(0);
+  });
+
+  it("still queues the email when a channel throws", async () => {
+    const { service, queues, received } = buildWithChannel(async () => {
+      throw new Error("push service exploded");
+    });
+    await service.enqueue({
+      kind: "run-failed",
+      to: "asha@example.test",
+      userId: USER,
+      data: { name: "Asha", video: "Diwali vlog", link: RUN_LINK },
+    });
+    expect(received).toHaveLength(1);
+    expect(queues.added).toHaveLength(1);
   });
 });

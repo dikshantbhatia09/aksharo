@@ -218,5 +218,45 @@ export function renderNotification(input: RenderInput): RenderedMessage {
   }
 }
 
+/** A device notification's text: what a lock screen shows. */
+export interface RenderedDeviceText {
+  readonly title: string;
+  readonly body: string;
+  readonly locale: SupportedLocale;
+}
+
+/**
+ * Render a kind's `push` strings (2026-09-29) with the same values the email
+ * uses — the person's language, the same defaults, the same brand variables —
+ * as plain text: a notification shows no markup, so nothing is escaped.
+ *
+ * Null for a kind with no `push` strings, which is every kind that is not a
+ * device kind. A missing variable throws {@link TemplateRenderError}, as the
+ * email does: a notification that reads "Your clips from  are ready" is worse
+ * than one that is not sent.
+ */
+export function renderDeviceText(input: RenderInput): RenderedDeviceText | null {
+  const locale = normaliseLocale(input.locale);
+  // eslint-disable-next-line security/detect-object-injection -- `locale` is one of the two SUPPORTED_LOCALES
+  const catalogue = CATALOGUES[locale];
+  const push = catalogue.kinds[input.kind].push;
+  if (push === undefined) return null;
+  const values: TemplateData = {
+    ...catalogue.defaults,
+    brand: BRAND.name,
+    support: BRAND.supportEmail,
+    ...(input.data ?? {}),
+  };
+  try {
+    return {
+      title: format(catalogue.locale, push.title, values),
+      body: format(catalogue.locale, push.body, values),
+      locale,
+    };
+  } catch (error) {
+    throw new TemplateRenderError(input.kind, locale, error);
+  }
+}
+
 /** Re-exported so callers building a CTA get the same scheme check the layout uses. */
 export { safeUrl };

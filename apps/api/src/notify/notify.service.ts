@@ -1,6 +1,7 @@
-import { HttpStatus, Injectable, Logger } from "@nestjs/common";
+import { HttpStatus, Inject, Injectable, Logger, Optional } from "@nestjs/common";
 import { ulid } from "ulid";
 
+import { NOTIFICATION_CHANNELS } from "./notify.channels.js";
 import {
   NOTIFICATIONS_MAX_PAGE_SIZE,
   NOTIFICATIONS_PAGE_SIZE,
@@ -9,13 +10,15 @@ import {
   NOTIFY_PRIORITY,
   NO_WORKSPACE,
 } from "./notify.constants.js";
-import { isCriticalKind, isInAppKind, isNotifyKind } from "./notify.kinds.js";
+import { isCriticalKind, isDeviceKind, isInAppKind, isNotifyKind } from "./notify.kinds.js";
+import { renderDeviceText } from "./templates/render.js";
 import { AppException, ERROR_CODES, maskEmail, PrismaService } from "../common/index.js";
 import { buildJobEnvelope } from "../jobs/contracts/job-envelope.js";
 import { queuePolicyFor } from "../jobs/jobs.config.js";
 import { QueueRegistry } from "../jobs/queue.registry.js";
 import { RealtimePublisher } from "../realtime/realtime.publisher.js";
 
+import type { DeviceMessage, NotificationChannel } from "./notify.channels.js";
 import type {
   NotificationView,
   NotifyEnqueueInput,
@@ -42,17 +45,20 @@ export interface NotificationPage {
 /**
  * The producer side of `notify`, and the in-app notification store.
  *
- * `enqueue` does three things and in this order:
+ * `enqueue` does four things and in this order:
  *
  * ```
- * notifications row (when the kind has one) → realtime notification.created → BullMQ job
+ * notifications row (when the kind has one) → realtime notification.created
+ *   → device channels (device kinds: Web Push) → BullMQ job (email)
  * ```
  *
  * The row is written first because it is the durable record: an email that fails
  * every retry still leaves the user something in the bell, whereas a row written
- * after a successful send would be missing exactly when delivery is broken. The
- * BullMQ job is last for the reason `JobsService.enqueue` puts it last — it is
- * the only step a consumer can observe, so nothing is half-done before it.
+ * after a successful send would be missing exactly when delivery is broken. A
+ * device is told after the row, so a tap on it opens to something the bell
+ * already has. The BullMQ job is last for the reason `JobsService.enqueue` puts
+ * it last — it is the only step a consumer can observe, so nothing is half-done
+ * before it.
  *
  * Enqueueing never throws for a delivery reason. A caller is doing something else
  * (finishing a sign-up, closing an export) and a notification is a side effect of
@@ -64,11 +70,17 @@ export interface NotificationPage {
 export class NotifyService {
   private readonly logger = new Logger(NotifyService.name);
 
+  private readonly channels: readonly NotificationChannel[];
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly queues: QueueRegistry,
     private readonly realtime: RealtimePublisher,
-  ) {}
+    /** Device channels (`notify.channels.ts`); none in harnesses that do not bind them. */
+    @Optional() @Inject(NOTIFICATION_CHANNELS) channels?: readonly NotificationChannel[],
+  ) {
+    this.channels = channels ?? [];
+  }
 
   // -------------------------------------------------------------------------
   // Producing
@@ -95,6 +107,7 @@ export class NotifyService {
     const idempotencyKey = normaliseKey(input.idempotencyKey ?? `${input.kind}-${ulid()}`);
 
     const notificationId = await this.writeInAppRow(input);
+    await this.deliverToDevices(input);
 
     const payload: NotifyJobPayload = {
       kind: input.kind,
@@ -164,6 +177,50 @@ export class NotifyService {
       removeOnComplete: { age: 3_600, count: 1_000 },
       removeOnFail: { age: 7 * 24 * 3_600, count: 5_000 },
     };
+  }
+
+  /**
+   * A device kind (`DEVICE_KINDS`) goes to every device channel, rendered in
+   * the person's language from the catalogue's `push` strings; its link is
+   * where a tap opens. Each channel is awaited on its own and never allowed to
+   * throw: one unreachable phone must not stop the email, nor the caller's work.
+   */
+  private async deliverToDevices(input: NotifyEnqueueInput): Promise<void> {
+    if (this.channels.length === 0 || input.userId === undefined || !isDeviceKind(input.kind)) {
+      return;
+    }
+    let text;
+    try {
+      text = renderDeviceText({
+        kind: input.kind,
+        ...(input.locale === undefined ? {} : { locale: input.locale }),
+        ...(input.data === undefined ? {} : { data: input.data }),
+      });
+    } catch (error) {
+      this.logger.warn({ err: error, kind: input.kind }, "device notification not rendered");
+      return;
+    }
+    if (text === null) return;
+
+    const link = input.data?.["link"];
+    const message: DeviceMessage = {
+      userId: input.userId,
+      kind: input.kind,
+      title: text.title,
+      body: text.body,
+      url: typeof link === "string" ? link : "/",
+      ...(input.thread === undefined ? {} : { thread: input.thread }),
+    };
+    for (const channel of this.channels) {
+      try {
+        await channel.deliver(message);
+      } catch (error) {
+        this.logger.warn(
+          { err: error, kind: input.kind, channel: channel.name },
+          "device notification not delivered",
+        );
+      }
+    }
   }
 
   /** The `notifications` row and its realtime event, or `undefined` for kinds without one. */

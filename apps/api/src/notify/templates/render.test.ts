@@ -9,11 +9,12 @@ import {
   catalogueFor,
   normaliseLocale,
   placeholdersIn,
+  renderDeviceText,
   renderNotification,
   resetTemplateCache,
   TemplateRenderError,
 } from "./render.js";
-import { NOTIFY_KINDS } from "../notify.kinds.js";
+import { DEVICE_KINDS, NOTIFY_KINDS } from "../notify.kinds.js";
 
 import type { TemplateData } from "./render.js";
 import type { NotifyKind } from "../notify.kinds.js";
@@ -98,6 +99,33 @@ const DATA: Readonly<Record<NotifyKind, TemplateData>> = {
     ticketId: "01JTICKET00000000000000000",
     link: "https://app.example.test/support/01JTICKET00000000000000000",
   },
+  "clips-ready": {
+    name: "Asha",
+    video: "Diwali vlog",
+    count: 3,
+    runId: "01JRUN0000000000000000000A",
+    link: "https://app.example.test/repurpose/01JRUN0000000000000000000A",
+  },
+  "run-complete": {
+    name: "Asha",
+    video: "Diwali vlog",
+    count: 12,
+    runId: "01JRUN0000000000000000000A",
+    link: "https://app.example.test/repurpose/01JRUN0000000000000000000A",
+  },
+  "run-failed": {
+    name: "Asha",
+    video: "Diwali vlog",
+    runId: "01JRUN0000000000000000000A",
+    link: "https://app.example.test/repurpose/01JRUN0000000000000000000A",
+  },
+  "run-needs-you": {
+    name: "Asha",
+    video: "Diwali vlog",
+    reason: "upload",
+    runId: "01JRUN0000000000000000000A",
+    link: "https://app.example.test/repurpose/01JRUN0000000000000000000A",
+  },
 };
 
 const UNSUBSCRIBE = "https://app.example.test/settings/notifications";
@@ -141,6 +169,9 @@ describe("the two catalogues", () => {
           ...placeholdersIn(strings.heading),
           ...strings.paragraphs.flatMap((line) => [...placeholdersIn(line)]),
           ...(strings.footnotes ?? []).flatMap((line) => [...placeholdersIn(line)]),
+          ...(strings.push === undefined
+            ? []
+            : [...placeholdersIn(strings.push.title), ...placeholdersIn(strings.push.body)]),
         ].sort();
       expect([...new Set(namesOf(hi))], `${kind} differs`).toEqual([...new Set(namesOf(en))]);
     }
@@ -313,6 +344,64 @@ describe("rendering", () => {
     const first = renderNotification({ kind: "low-credits", data: DATA["low-credits"] });
     const second = renderNotification({ kind: "low-credits", data: DATA["low-credits"] });
     expect(second.html).toBe(first.html);
+  });
+});
+
+describe("device text (the push strings)", () => {
+  it.each(DEVICE_KINDS)("renders %s for a lock screen, in English and Hindi", (kind) => {
+    for (const locale of ["en-IN", "hi-IN"]) {
+      // eslint-disable-next-line security/detect-object-injection -- a typed kind from the closed list
+      const text = renderDeviceText({ kind, locale, data: DATA[kind] });
+      expect(text).not.toBeNull();
+      expect(text?.title.length).toBeGreaterThan(0);
+      expect(text?.body).toContain("Diwali vlog");
+      // Nothing a lock screen would print literally.
+      expect(`${text?.title ?? ""} ${text?.body ?? ""}`).not.toMatch(/[{}<>]/);
+    }
+  });
+
+  it("says what each needs-you reason asks of the person", () => {
+    const text = (reason: string) =>
+      renderDeviceText({ kind: "run-needs-you", data: { ...DATA["run-needs-you"], reason } });
+    expect(text("credits")?.title).toBe("Out of credits");
+    expect(text("upload")?.title).toBe("Upload the file instead");
+    expect(text("moments")?.title).toBe("Your moments are ready");
+    expect(text("add")?.title).toBe("Add your moments");
+    expect(
+      renderDeviceText({
+        kind: "run-needs-you",
+        locale: "hi",
+        data: { ...DATA["run-needs-you"], reason: "credits" },
+      })?.title,
+    ).toBe("क्रेडिट ख़त्म");
+  });
+
+  it("counts clips in the person's own grammar", () => {
+    const one = renderDeviceText({
+      kind: "clips-ready",
+      data: { ...DATA["clips-ready"], count: 1 },
+    });
+    expect(one?.body).toBe("1 clip from Diwali vlog ready to watch.");
+    const many = renderDeviceText({ kind: "clips-ready", data: DATA["clips-ready"] });
+    expect(many?.body).toBe("3 clips from Diwali vlog ready to watch.");
+  });
+
+  it("falls back to 'your video' in each language when the title is not known", () => {
+    const { video: _video, ...untitled } = DATA["run-failed"];
+    expect(renderDeviceText({ kind: "run-failed", data: untitled })?.body).toContain("your video");
+    expect(renderDeviceText({ kind: "run-failed", locale: "hi", data: untitled })?.body).toContain(
+      "आपका वीडियो",
+    );
+  });
+
+  it("has nothing to say for a kind that is not a device kind", () => {
+    expect(renderDeviceText({ kind: "export-ready", data: DATA["export-ready"] })).toBeNull();
+  });
+
+  it("fails loudly on a missing count rather than lock-screening a gap", () => {
+    expect(() => renderDeviceText({ kind: "clips-ready", data: { video: "Diwali vlog" } })).toThrow(
+      TemplateRenderError,
+    );
   });
 });
 

@@ -88,6 +88,10 @@ export const NOTIFY_ERRORS = {
   notFound: "notify/not_found",
   unknownKind: "notify/unknown_kind",
   suppressed: "notify/suppressed",
+  /** 409: this deployment has no VAPID keys, so no browser can be subscribed. */
+  pushUnavailable: "notify/push_unavailable",
+  /** 400: an endpoint off the allow-list, or keys that cannot be encrypted to. */
+  pushSubscriptionInvalid: "notify/push_subscription_invalid",
 } as const;
 
 /** Audit actions written to `audit_log` (the durable half of the suppression list). */
