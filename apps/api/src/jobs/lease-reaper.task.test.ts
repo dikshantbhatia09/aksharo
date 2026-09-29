@@ -94,14 +94,15 @@ beforeEach(() => {
   mediaUpdates = [];
   complete = vi.fn(async () => ({ applied: true, jobId: "x", status: "failed" }));
 
-  findMany = vi.fn(async ({ where, take }: { where: { status: string }; take: number }) =>
+  findMany = vi.fn(async ({ where, take }: { where: { status: { in: string[] } }; take: number }) =>
     rows
-      .filter((r) => r.status === where.status)
+      .filter((r) => where.status.in.includes(r.status))
       .sort((a, b) => a.queuedAt.getTime() - b.queuedAt.getTime())
       .slice(0, take)
-      .map(({ id, type, attemptId, queuedAt, startedAt }) => ({
+      .map(({ id, type, status, attemptId, queuedAt, startedAt }) => ({
         id,
         type,
+        status,
         attemptId,
         queuedAt,
         startedAt,
@@ -375,6 +376,72 @@ describe("sweep: nothing to deliver", () => {
     const report = await task.sweep(NOW);
 
     expect(report.reaped).toHaveLength(LEASE_REAPER_BATCH);
+  });
+});
+
+describe("sweep: a queued row whose attempt already ended (2026-09-29)", () => {
+  /** Queued long ago, never started: its first progress post never landed. */
+  function queued(id: string): Row {
+    return row({ id, status: "queued", startedAt: null, queuedAt: ago(PROXY_SILENCE_MS + 60_000) });
+  }
+
+  it("fails a queued row BullMQ has already failed, as a final stalled failure", async () => {
+    rows = [queued("01QLOST")];
+    states.set("01QLOST-01QLOSTA", "failed");
+
+    const report = await task.sweep(NOW);
+
+    expect(report).toEqual({ silent: 1, reaped: ["01QLOST"], delivered: [], spared: 0 });
+    const { jobId, attemptId, body } = completionOf();
+    expect([jobId, attemptId]).toEqual(["01QLOST", "01QLOSTA"]);
+    expect(body.status).toBe("failed");
+    expect(body.finalAttempt).toBe(true);
+    expect(body.error?.code).toBe(JOB_STALLED_CODE);
+  });
+
+  it("delivers what a queued row's worker carried, like a running one's", async () => {
+    rows = [queued("01QDONE")];
+    states.set("01QDONE-01QDONEA", "failed");
+    jobData.set("01QDONE-01QDONEA", {
+      pendingOutcome: {
+        attemptId: "01QDONEA",
+        completion: {
+          status: "failed",
+          error: { code: "media/unreadable", message: "x", retryable: false },
+        },
+      },
+    });
+
+    const report = await task.sweep(NOW);
+
+    expect(report.delivered).toEqual(["01QDONE"]);
+    expect(completionOf().body.error?.code).toBe("media/unreadable");
+  });
+
+  it("spares a queued row BullMQ has no job for: it may not be enqueued yet", async () => {
+    rows = [queued("01QHELD")];
+
+    const report = await task.sweep(NOW);
+
+    expect(report).toEqual({ silent: 1, reaped: [], delivered: [], spared: 1 });
+    expect(complete).not.toHaveBeenCalled();
+  });
+
+  it("spares a queued row still waiting in BullMQ, however long it has waited", async () => {
+    rows = [queued("01QWAIT")];
+    states.set("01QWAIT-01QWAITA", "waiting");
+
+    expect((await task.sweep(NOW)).spared).toBe(1);
+    expect(complete).not.toHaveBeenCalled();
+  });
+
+  it("leaves a queued row that started running since the scan to the running rules", async () => {
+    rows = [queued("01QMOVED")];
+    states.set("01QMOVED-01QMOVEDA", "failed");
+    findUnique.mockImplementationOnce(async () => ({ ...queued("01QMOVED"), status: "running" }));
+
+    expect((await task.sweep(NOW)).reaped).toEqual([]);
+    expect(complete).not.toHaveBeenCalled();
   });
 });
 

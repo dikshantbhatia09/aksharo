@@ -83,6 +83,8 @@ type CarriedOutcome = z.infer<typeof CarriedOutcomeSchema>;
 interface Candidate {
   readonly id: string;
   readonly type: QueueName;
+  /** `running`, or `queued` whose attempt BullMQ already finished ({@link LeaseReaperTask}). */
+  readonly status: "queued" | "running";
   readonly attemptId: string | null;
   /** The newest sign of life: a job event (every progress call writes one), the start, or the enqueue. */
   readonly lastSignalAt: Date;
@@ -100,7 +102,17 @@ export interface LeaseReaperReport {
 }
 
 /**
- * Settles `running` jobs that nothing will ever report on again.
+ * Settles `running` jobs that nothing will ever report on again - and `queued`
+ * ones whose BullMQ attempt has already finished (2026-09-29).
+ *
+ * A queued row is the same failure one step earlier: the worker took the job,
+ * its very first progress post (the one that flips the row to `running`) never
+ * reached the API, the job failed in BullMQ, and its failure report was lost
+ * the same way. Production had eleven `render.video` rows like that, queued for
+ * hours while the clips behind them waited on renders nobody would ever report,
+ * every one lost to a tunnel error on the way back. A queued row is only
+ * settled when BullMQ has FINISHED this attempt (`completed`/`failed`): with no
+ * job at all it may simply not be enqueued yet, and one still waiting will run.
  *
  * `jobs.status = 'running'` is only moved on by the worker's completion callback
  * (or a cancel). When the worker dies without calling back, the final report is
@@ -196,6 +208,12 @@ export class LeaseReaperTask implements OnModuleInit {
         spared += 1;
         continue;
       }
+      // A queued row with no job in BullMQ may not have been enqueued yet: only
+      // an attempt BullMQ has finished is certain never to report.
+      if (row.status === "queued" && !FINISHED_STATES.has(state)) {
+        spared += 1;
+        continue;
+      }
       const carried = FINISHED_STATES.has(state)
         ? await this.carriedOutcome(queue, bullId, row)
         : undefined;
@@ -208,7 +226,8 @@ export class LeaseReaperTask implements OnModuleInit {
   }
 
   /**
-   * Every running row with its newest sign of life, oldest first.
+   * Every in-flight (queued or running) row with its newest sign of life,
+   * oldest first.
    *
    * Two typed reads rather than one raw statement, so a renamed column is a
    * compile error and the definition of a heartbeat ({@link lastSignalAt}) is
@@ -216,13 +235,21 @@ export class LeaseReaperTask implements OnModuleInit {
    */
   private async candidates(): Promise<Candidate[]> {
     const rows = await this.prisma.job.findMany({
-      where: { status: "running" },
-      select: { id: true, type: true, attemptId: true, queuedAt: true, startedAt: true },
+      where: { status: { in: ["queued", "running"] } },
+      select: {
+        id: true,
+        type: true,
+        status: true,
+        attemptId: true,
+        queuedAt: true,
+        startedAt: true,
+      },
       orderBy: { queuedAt: "asc" },
       take: LEASE_REAPER_SCAN,
     });
-    const known = rows.filter((row): row is typeof row & { type: QueueName } =>
-      isQueueName(row.type),
+    const known = rows.filter(
+      (row): row is typeof row & { type: QueueName; status: "queued" | "running" } =>
+        isQueueName(row.type) && (row.status === "queued" || row.status === "running"),
     );
     if (known.length === 0) return [];
 
@@ -237,6 +264,7 @@ export class LeaseReaperTask implements OnModuleInit {
       .map((row) => ({
         id: row.id,
         type: row.type,
+        status: row.status,
         attemptId: row.attemptId,
         lastSignalAt: lastSignalAt({ ...row, lastEventAt: lastEvent.get(row.id) ?? null }),
       }))
@@ -296,7 +324,7 @@ export class LeaseReaperTask implements OnModuleInit {
     // Re-read: the scan is a snapshot, and a callback may have settled the row,
     // or a dead-letter replay minted a new attempt, since.
     const job = await this.prisma.job.findUnique({ where: { id: row.id } });
-    if (job === null || job.status !== "running" || job.attemptId !== row.attemptId) {
+    if (job === null || job.status !== row.status || job.attemptId !== row.attemptId) {
       return "skipped";
     }
     const attemptId = job.attemptId ?? job.id;
