@@ -6,12 +6,18 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   UseGuards,
 } from "@nestjs/common";
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiTags } from "@nestjs/swagger";
 
 import { CLIP_RATE_LIMITS } from "./repurpose-clips.dto.js";
-import { AdjustCandidateDto, adjustCandidateSchema } from "./repurpose-steering.dto.js";
+import {
+  AdjustCandidateDto,
+  ClipLayoutDto,
+  adjustCandidateSchema,
+  clipLayoutSchema,
+} from "./repurpose-steering.dto.js";
 import { RepurposeSteeringService } from "./repurpose-steering.service.js";
 import { zodBody } from "../auth/dto/openapi.js";
 import {
@@ -25,7 +31,7 @@ import {
 } from "../common/guards/index.js";
 import { WorkspaceMemberGuard } from "../workspaces/workspace-member.guard.js";
 
-import type { SteeringResult } from "./repurpose-steering.service.js";
+import type { LayoutResult, SteeringResult } from "./repurpose-steering.service.js";
 
 /**
  * Steering a run's moments (2026-09-29): remove one, bring it back, change its
@@ -33,9 +39,9 @@ import type { SteeringResult } from "./repurpose-steering.service.js";
  * with the same guard chain - `editor` to change anything - and the clip
  * routes' rate limit, since each can cut or cancel a clip.
  *
- * All three are naturally idempotent, so no `Idempotency-Key` is needed:
- * removing a removed moment, restoring a restored one, or asking for the times
- * a moment already has changes nothing.
+ * All four are naturally idempotent, so no `Idempotency-Key` is needed:
+ * removing a removed moment, restoring a restored one, asking for the times a
+ * moment already has, or for the layout a clip already has, changes nothing.
  */
 @ApiTags("repurpose")
 @ApiBearerAuth("access-token")
@@ -89,6 +95,31 @@ export class RepurposeSteeringController {
     @Param("candidateId") candidateId: string,
   ): Promise<SteeringResult> {
     return this.steering.removeCandidate(workspaceId, userId, runId, candidateId);
+  }
+
+  @Put(":runId/clips/:clipId/layout")
+  @Roles("editor")
+  @UseGuards(RateLimitGuard)
+  @RateLimit(CLIP_RATE_LIMITS.mutate)
+  @ApiOperation({
+    summary: "Choose a clip's layout: auto, one speaker, or both speakers stacked",
+    description:
+      "Saved on the clip. The clip is cut again (its 9:16 and 4:5 shapes; its captions are " +
+      "kept) only when its picture would change: `applied` says what it is, and `recut` " +
+      'whether it is being cut again. "Both speakers" in a moment with one person in it ' +
+      "stays one window. 409 `repurpose/clip_busy` while the clip is being cut, " +
+      "`repurpose/candidate_removed`, `repurpose/source_expired` or `repurpose/source_failed`.",
+    operationId: "setRepurposeClipLayout",
+  })
+  @ApiBody(zodBody(clipLayoutSchema))
+  async setLayout(
+    @CurrentWorkspace() workspaceId: string,
+    @CurrentUser("userId") userId: string,
+    @Param("runId") runId: string,
+    @Param("clipId") clipId: string,
+    @Body() body: ClipLayoutDto,
+  ): Promise<LayoutResult> {
+    return this.steering.setClipLayout(workspaceId, userId, runId, clipId, body);
   }
 
   @Post(":runId/candidates/:candidateId/restore")

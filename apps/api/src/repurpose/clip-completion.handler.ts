@@ -1,10 +1,11 @@
-import { Inject, Injectable, Logger, type OnModuleInit } from "@nestjs/common";
+import { Inject, Injectable, Logger, Optional, type OnModuleInit } from "@nestjs/common";
 import { ulid } from "ulid";
 
 import { makeWordId } from "@montaj/edg";
 import { TranscriptChunkSchema, type Word } from "@montaj/edg/schemas";
 import { type MediaClipResult, MediaClipResultSchema } from "@montaj/repurpose-contracts";
 
+import { ClipFinishing } from "./clip-finishing.js";
 import { settleRunAfterClips } from "./clip-state.js";
 import { ASPECT_OF_SHAPE, CLIP_PROFILE_VERSION } from "./repurpose.constants.js";
 import { RepurposeService } from "./repurpose.service.js";
@@ -83,6 +84,8 @@ export class RepurposeClipCompletionHandler implements JobCompletionHandler, OnM
     private readonly realtime: RealtimePublisher,
     @Inject(RAW_STORE) private readonly raw: ObjectStore,
     @Inject(DERIVED_STORE) private readonly derived: ObjectStore,
+    /** Turns down zooms a stacked picture would not survive; absent in hand-built harnesses. */
+    @Optional() private readonly finishing?: ClipFinishing,
   ) {}
 
   onModuleInit(): void {
@@ -164,6 +167,9 @@ export class RepurposeClipCompletionHandler implements JobCompletionHandler, OnM
     const shape = shapeOf(context.job.params);
     // eslint-disable-next-line security/detect-object-injection -- `shapeOf` returns a closed enum
     const aspect = ASPECT_OF_SHAPE[shape];
+    // How this cut laid the picture out (two-speaker layouts, 2026-10-01): the
+    // shape's variant records it, and the clip's other stacked shape follows it.
+    const layout = layoutOf(context.job.params);
 
     // 1. Update clip mezzanine facts
     if (shape === "9:16") {
@@ -235,6 +241,7 @@ export class RepurposeClipCompletionHandler implements JobCompletionHandler, OnM
         profileVersion: CLIP_PROFILE_VERSION,
         captionConfig,
         status: "ready",
+        layout,
       },
       create: {
         id: variantId,
@@ -244,6 +251,7 @@ export class RepurposeClipCompletionHandler implements JobCompletionHandler, OnM
         profileVersion: CLIP_PROFILE_VERSION,
         captionConfig,
         status: "ready",
+        layout,
       },
     });
 
@@ -360,8 +368,28 @@ export class RepurposeClipCompletionHandler implements JobCompletionHandler, OnM
           );
         });
       }
+      // The captioned video shows the OLD picture too. `captionClips` makes it
+      // again only when its fingerprint stops matching, and that names the
+      // editing document, which a re-cut keeps - so without this a clip cut
+      // again (both speakers now, say) would go on showing the old video as
+      // ready. Stale shows the old one as being updated until the new one lands.
+      if (existingVariant !== null && existingVariant.latestExportId !== null) {
+        await this.prisma.clipVariant.update({
+          where: { id: existingVariant.id },
+          data: { editFingerprint: "", status: "stale" },
+        });
+      }
+      // One window become two people stacked: the punch-in zooms the edit was
+      // finished with are aimed at the old picture, and would crop a half away.
+      if (
+        existingVariant !== null &&
+        existingVariant.layout !== "stacked" &&
+        layout === "stacked"
+      ) {
+        await this.finishing?.dropZooms(childProjectId);
+      }
       this.logger.log(
-        { clipId: clip.id, mediaId: childMedia.id },
+        { clipId: clip.id, mediaId: childMedia.id, layout },
         "re-cut clip: replacing the child project's picture and re-running its media pipeline",
       );
     }
@@ -372,8 +400,13 @@ export class RepurposeClipCompletionHandler implements JobCompletionHandler, OnM
     //    probed asset back to `uploaded`, and the probe enqueue dedupes on the
     //    media id anyway. (A mezzanine refused above is `failed`, so never.)
     if (["pending", "uploading", "uploaded"].includes(childMedia.status)) {
+      // New bytes for a picture whose probe has not read the old ones yet (a
+      // clip cut again moments after it appeared: a new layout, 2026-10-01)
+      // replace them too, or the queued probe would prepare the old picture.
+      const newBytes =
+        childMedia.contentHash !== null && childMedia.contentHash !== result.checksum;
       await promoteToRaw({ raw: this.raw, derived: this.derived }, result.key, "video/mp4", {
-        overwrite: freshChild,
+        overwrite: freshChild || newBytes,
       });
       const childProject = await this.prisma.project.findUniqueOrThrow({
         where: { id: childProjectId },
@@ -592,6 +625,18 @@ function shapeOf(params: Prisma.JsonValue): keyof typeof ASPECT_OF_SHAPE {
   return typeof aspect === "string" && Object.hasOwn(ASPECT_OF_SHAPE, aspect)
     ? (aspect as keyof typeof ASPECT_OF_SHAPE)
     : "9:16";
+}
+
+/** The layout a `media.clip` job cut: its payload's `reframe.layout`, one window when absent. */
+function layoutOf(params: Prisma.JsonValue): "single" | "stacked" {
+  if (typeof params !== "object" || params === null || Array.isArray(params)) return "single";
+  const reframe = params["reframe"];
+  return typeof reframe === "object" &&
+    reframe !== null &&
+    !Array.isArray(reframe) &&
+    reframe["layout"] === "stacked"
+    ? "stacked"
+    : "single";
 }
 
 function askedFor(params: Prisma.JsonValue): { clipId?: unknown; key?: unknown } {

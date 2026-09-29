@@ -10,6 +10,7 @@ import {
   FACE_TRACK_QUEUE_WAIT_MS,
   FACE_TRACK_WAIT_MS,
   awaitingFaceDetection,
+  awaitingPictureFaces,
   faceDetectionRunWaitMs,
   reframeForClip,
   reframeFromFaces,
@@ -411,5 +412,48 @@ describe("awaitingFaceDetection", () => {
         now,
       ),
     ).toBe(false);
+  });
+});
+
+describe("awaitingPictureFaces (a clip's own picture, 2026-10-01)", () => {
+  const now = Date.parse("2026-10-01T12:00:00Z");
+  const ago = (ms: number): Date => new Date(now - ms);
+  const job = (status: string, queuedMs: number, finishedMs: number | null = null) => ({
+    status,
+    queuedAt: ago(queuedMs),
+    startedAt: status === "queued" ? null : ago(queuedMs),
+    finishedAt: finishedMs === null ? null : ago(finishedMs),
+  });
+
+  it("waits for the detection of a picture cut again, which an older job says nothing of", () => {
+    // The first picture's detection finished an hour ago; the clip was cut
+    // again (a new layout) and its new picture uploaded a minute ago.
+    const old = job("succeeded", 3_600_000, 3_590_000);
+    expect(awaitingFaceDetection(old, 30_000, now)).toBe(false);
+    expect(awaitingPictureFaces(old, ago(60_000), 30_000, now)).toBe(true);
+    // ...and with no detection at all yet.
+    expect(awaitingPictureFaces(null, ago(60_000), 30_000, now)).toBe(true);
+  });
+
+  it("waits no longer than any detection is waited for", () => {
+    const old = job("succeeded", 3_600_000, 3_590_000);
+    expect(awaitingPictureFaces(old, ago(FACE_TRACK_MAX_WAIT_MS + 1), 30_000, now)).toBe(false);
+  });
+
+  it("follows the picture's own detection once it is queued", () => {
+    const picture = ago(120_000);
+    expect(awaitingPictureFaces(job("queued", 30_000), picture, 30_000, now)).toBe(true);
+    expect(awaitingPictureFaces(job("succeeded", 100_000, 10_000), picture, 30_000, now)).toBe(
+      true,
+    );
+    expect(
+      awaitingPictureFaces(job("failed", 100_000, FACE_TRACK_WAIT_MS), picture, 30_000, now),
+    ).toBe(false);
+  });
+
+  it("is the source's rule when no picture time is given", () => {
+    const old = job("succeeded", 3_600_000, 3_590_000);
+    expect(awaitingPictureFaces(old, null, 30_000, now)).toBe(false);
+    expect(awaitingPictureFaces(null, undefined, 30_000, now)).toBe(false);
   });
 });

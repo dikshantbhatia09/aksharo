@@ -150,6 +150,26 @@ function harness(overrides: { run?: Row; media?: Row } = {}) {
                 .map((v) => ({ projectId: v["projectId"] })),
             };
       }),
+      findFirst: vi.fn(async (args: { where: Row }) => {
+        const clip = t.clips.find(
+          (c) => c["id"] === args.where["id"] && c["runId"] === args.where["runId"],
+        );
+        return clip === undefined
+          ? null
+          : {
+              layout: "auto",
+              updatedAt: new Date(0),
+              ...clip,
+              candidate: { ...candidateById(clip["candidateId"]) },
+              variants: t.variants
+                .filter((v) => v["clipId"] === clip["id"])
+                .map((v) => ({
+                  aspect: v["aspect"],
+                  projectId: v["projectId"],
+                  layout: v["layout"] ?? "single",
+                })),
+            };
+      }),
       count: vi.fn(
         async (args: { where: Row }) =>
           t.clips.filter((c) => c["candidateId"] === args.where["candidateId"]).length,
@@ -176,13 +196,15 @@ function harness(overrides: { run?: Row; media?: Row } = {}) {
     job: {
       findFirst: vi.fn(
         async (args: { where: Row }) =>
-          t.jobs.find(
-            (job) =>
-              job["status"] === args.where["status"] &&
-              String(job["jobKey"]).startsWith(
-                (args.where["jobKey"] as { startsWith: string }).startsWith,
-              ),
-          ) ?? null,
+          t.jobs.find((job) => {
+            if (job["status"] !== args.where["status"]) return false;
+            const prefixes = Array.isArray(args.where["OR"])
+              ? (args.where["OR"] as Row[]).map(
+                  (branch) => (branch["jobKey"] as { startsWith: string }).startsWith,
+                )
+              : [(args.where["jobKey"] as { startsWith: string }).startsWith];
+            return prefixes.some((prefix) => String(job["jobKey"]).startsWith(prefix));
+          }) ?? null,
       ),
       findMany: vi.fn(async (args: { where: { OR: Row[] } }) =>
         t.jobs.filter(
@@ -223,6 +245,10 @@ function harness(overrides: { run?: Row; media?: Row } = {}) {
   const clips = {
     createClip: vi.fn(async () => ({ id: CLIP_A, candidateId: CAND_A, state: "cutting" })),
     reconcileClips: vi.fn(async (): Promise<{ enqueued: string[] }> => ({ enqueued: [] })),
+    /** What a cut would decide under a choice: here, two people are found. */
+    layoutFor: vi.fn(async (_run: unknown, _candidate: unknown, choice: string) =>
+      choice === "single" ? "single" : "stacked",
+    ),
   };
   const projects = { softDelete: vi.fn(async (_ws: string, id: string) => ({ id })) };
   const audit = { record: vi.fn(async () => undefined) };
@@ -517,5 +543,180 @@ describe("adjustCandidate", () => {
     expect(result.candidate).toMatchObject({ startMs: 60_000, endMs: 70_000 });
     expect(h.prisma.$transaction).not.toHaveBeenCalled();
     expect(h.clips.createClip).not.toHaveBeenCalled();
+  });
+});
+
+describe("setClipLayout (two-speaker layouts, 2026-10-01)", () => {
+  it("cuts a clip again when its picture changes, keeping its shapes and captions", async () => {
+    const h = harness({ run: { config: { automation: "auto" } } });
+    withReadyClip(h);
+    h.t.jobs.push({
+      id: "J-4x5",
+      type: "media.clip",
+      projectId: SRC,
+      status: "queued",
+      jobKey: `media.clip.format:${CAND_A}:4x5:60000-70000:3`,
+    });
+
+    const result = await h.service.setClipLayout(WS, USER, RUN, CLIP_A, { layout: "stacked" });
+
+    expect(result).toMatchObject({
+      clipId: CLIP_A,
+      layout: "stacked",
+      applied: "stacked",
+      recut: true,
+    });
+    // No picture until the new cut lands; the choice is the clip's.
+    expect(h.t.clips[0]).toMatchObject({
+      layout: "stacked",
+      mezzanineKey: null,
+      mezzanineJobId: null,
+    });
+    // Its shapes, their projects and their captions documents stay.
+    expect(h.t.variants).toHaveLength(2);
+    expect(h.projects.softDelete).not.toHaveBeenCalled();
+    // What was being made from the old 9:16 and 4:5 pictures stops; the 1:1
+    // shape's cut, the projects' own pipeline and another moment's cut do not.
+    expect(h.cancel.mock.calls.map((call) => call[0]).sort()).toEqual(
+      ["J-4x5", "J-render", "J-stills"].sort(),
+    );
+    // Cut again through the ordinary cut, which reads the new choice.
+    expect(h.clips.createClip).toHaveBeenCalledWith(WS, USER, RUN, { candidateId: CAND_A });
+    expect(result.clip).toMatchObject({ state: "cutting" });
+    expect(h.audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "repurpose.clip.layout_changed",
+        resourceId: CLIP_A,
+        data: expect.objectContaining({ from: "auto", to: "stacked", recut: true }) as unknown,
+      }),
+    );
+  });
+
+  it("goes back to one window the same way", async () => {
+    const h = harness();
+    withReadyClip(h);
+    h.t.clips[0] = { ...h.t.clips[0], layout: "stacked" };
+    for (const variant of h.t.variants) variant["layout"] = "stacked";
+
+    const result = await h.service.setClipLayout(WS, USER, RUN, CLIP_A, { layout: "single" });
+
+    expect(result).toMatchObject({ applied: "single", recut: true });
+    expect(h.clips.createClip).toHaveBeenCalledTimes(1);
+  });
+
+  it("saves the choice and cuts nothing when the picture would come out the same", async () => {
+    // "Both speakers" for a moment with one person in it: still one window.
+    const h = harness();
+    withReadyClip(h);
+    h.clips.layoutFor.mockResolvedValue("single");
+    const before = new Date(1_000);
+    h.t.clips[0] = { ...h.t.clips[0], updatedAt: before };
+
+    const result = await h.service.setClipLayout(WS, USER, RUN, CLIP_A, { layout: "stacked" });
+
+    expect(result).toMatchObject({
+      layout: "stacked",
+      applied: "single",
+      recut: false,
+      clip: null,
+    });
+    expect(h.clips.createClip).not.toHaveBeenCalled();
+    expect(h.cancel).not.toHaveBeenCalled();
+    // Saved without reading as a cut asked for: `updatedAt` is kept.
+    expect(h.prisma.repurposeClip.update).toHaveBeenCalledWith({
+      where: { id: CLIP_A },
+      data: { layout: "stacked", updatedAt: before },
+    });
+    expect(h.t.clips[0]?.["mezzanineKey"]).toBe("ws/master.mp4");
+  });
+
+  it("writes nothing when the clip already has that layout and picture", async () => {
+    const h = harness();
+    withReadyClip(h);
+    h.t.clips[0] = { ...h.t.clips[0], layout: "single" };
+    const result = await h.service.setClipLayout(WS, USER, RUN, CLIP_A, { layout: "single" });
+    expect(result).toMatchObject({ recut: false });
+    expect(h.prisma.repurposeClip.update).not.toHaveBeenCalled();
+  });
+
+  it("asks again for a clip with no picture yet only when its choice changes", async () => {
+    const h = harness();
+    h.t.clips.push({ id: CLIP_A, runId: RUN, candidateId: CAND_A, mezzanineKey: null });
+    const changed = await h.service.setClipLayout(WS, USER, RUN, CLIP_A, { layout: "single" });
+    expect(changed).toMatchObject({ recut: true, applied: "single" });
+    expect(h.t.clips[0]?.["layout"]).toBe("single");
+    expect(h.clips.createClip).toHaveBeenCalledTimes(1);
+
+    h.clips.createClip.mockClear();
+    const same = await h.service.setClipLayout(WS, USER, RUN, CLIP_A, { layout: "single" });
+    expect(same).toMatchObject({ recut: false });
+    expect(h.clips.createClip).not.toHaveBeenCalled();
+  });
+
+  it("waits for a cut of the clip that is running, rather than race it", async () => {
+    for (const jobKey of [
+      `media.clip:${CAND_A}:60000-70000:3`,
+      `media.clip.format:${CAND_A}:4x5:60000-70000:3`,
+    ]) {
+      const h = harness();
+      withReadyClip(h);
+      h.t.jobs.push({ id: "J-cut", type: "media.clip", status: "running", jobKey });
+      const error = await refusal(
+        h.service.setClipLayout(WS, USER, RUN, CLIP_A, { layout: "stacked" }),
+      );
+      expect(error.code).toBe(REPURPOSE_STEERING_ERRORS.clipBusy);
+      expect(error.httpStatus).toBe(409);
+      expect(h.prisma.repurposeClip.update).not.toHaveBeenCalled();
+    }
+    // A square or wide shape being cut is not in the way: its picture does not change.
+    const h = harness();
+    withReadyClip(h);
+    h.t.jobs.push({
+      id: "J-1x1",
+      type: "media.clip",
+      status: "running",
+      jobKey: `media.clip.format:${CAND_A}:1x1:60000-70000:3`,
+    });
+    await expect(
+      h.service.setClipLayout(WS, USER, RUN, CLIP_A, { layout: "stacked" }),
+    ).resolves.toMatchObject({ recut: true });
+  });
+
+  it("refuses a removed moment, a stopped run, a lost source and another run's clip", async () => {
+    const removed = harness();
+    withReadyClip(removed);
+    removed.t.candidates[0] = { ...removed.t.candidates[0], state: "rejected" };
+    expect(
+      (await refusal(removed.service.setClipLayout(WS, USER, RUN, CLIP_A, { layout: "stacked" })))
+        .code,
+    ).toBe(REPURPOSE_STEERING_ERRORS.candidateRemoved);
+
+    const stopped = harness({ run: { status: "cancelled" } });
+    withReadyClip(stopped);
+    expect(
+      (await refusal(stopped.service.setClipLayout(WS, USER, RUN, CLIP_A, { layout: "stacked" })))
+        .code,
+    ).toBe(REPURPOSE_CLIP_ERRORS.runNotReady);
+
+    for (const media of [{ rawPurgedAt: new Date(0) }, { status: "failed" }]) {
+      const lost = harness({ media });
+      withReadyClip(lost);
+      const error = await refusal(
+        lost.service.setClipLayout(WS, USER, RUN, CLIP_A, { layout: "stacked" }),
+      );
+      expect([REPURPOSE_CLIP_ERRORS.sourceExpired, REPURPOSE_CLIP_ERRORS.sourceFailed]).toContain(
+        error.code,
+      );
+      // Refused before anything was written: the clip keeps its picture.
+      expect(lost.t.clips[0]?.["mezzanineKey"]).toBe("ws/master.mp4");
+    }
+
+    const missing = harness();
+    const error = await refusal(
+      missing.service.setClipLayout(WS, USER, RUN, "01JCC11PZ00000000000000000", {
+        layout: "stacked",
+      }),
+    );
+    expect(error.httpStatus).toBe(404);
   });
 });

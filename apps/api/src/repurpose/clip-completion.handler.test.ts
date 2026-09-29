@@ -70,6 +70,8 @@ interface Options {
   deleteFails?: boolean;
   /** The clip's run no longer exists. */
   runGone?: boolean;
+  /** More of the shape's existing variant (with `childMedia`): its captioned video, say. */
+  variant?: Row;
 }
 
 function harness(options: Options = {}) {
@@ -136,9 +138,15 @@ function harness(options: Options = {}) {
       findUnique: vi.fn(async () =>
         options.childMedia === undefined
           ? null
-          : { id: "01JCVAR1ANT000000000000000", projectId: CHILD },
+          : {
+              id: "01JCVAR1ANT000000000000000",
+              projectId: CHILD,
+              latestExportId: null,
+              ...options.variant,
+            },
       ),
       upsert: vi.fn(async () => ({})),
+      update: vi.fn(async () => ({})),
     },
     project: {
       findUnique: vi.fn(async () => ({ sourceLanguage: "en", scripts: [] })),
@@ -196,6 +204,8 @@ function harness(options: Options = {}) {
     }),
   };
 
+  const finishing = { dropZooms: vi.fn(async () => 1) };
+
   const handler = new RepurposeClipCompletionHandler(
     prisma as never,
     { create: vi.fn(async () => ({ id: CHILD })) } as never,
@@ -205,9 +215,11 @@ function harness(options: Options = {}) {
     { publish: vi.fn() } as never,
     raw as never,
     derived as never,
+    finishing as never,
   );
   return {
     handler,
+    finishing,
     prisma,
     tx,
     run,
@@ -598,5 +610,125 @@ describe("RepurposeClipCompletionHandler — a re-cut", () => {
     await h.handler.handle(context(clipResult()));
     expect(h.mediaUpdate).not.toHaveBeenCalled();
     expect(h.derived.delete).not.toHaveBeenCalled();
+  });
+
+  // Two-speaker layouts (2026-10-01): a clip cut again in a new layout keeps
+  // its captions document, so its captioned video's fingerprint still matched
+  // and the video of the OLD picture stayed "ready" for good.
+  it("has the captioned video made again from the new picture", async () => {
+    const h = harness({
+      childMedia: settled,
+      variant: { latestExportId: "01JCEXP0000000000000000000" },
+    });
+    await h.handler.handle(context(clipResult()));
+    expect(h.prisma.clipVariant.update).toHaveBeenCalledWith({
+      where: { id: "01JCVAR1ANT000000000000000" },
+      data: { editFingerprint: "", status: "stale" },
+    });
+  });
+
+  it("leaves the captioned video alone on a replay, or when none was made", async () => {
+    const replay = harness({
+      childMedia: { ...settled, contentHash: "a".repeat(64) },
+      variant: { latestExportId: "01JCEXP0000000000000000000" },
+    });
+    await replay.handler.handle(context(clipResult()));
+    expect(replay.prisma.clipVariant.update).not.toHaveBeenCalled();
+
+    const manual = harness({ childMedia: settled });
+    await manual.handler.handle(context(clipResult()));
+    expect(manual.prisma.clipVariant.update).not.toHaveBeenCalled();
+  });
+
+  it("gives a picture still waiting for its probe the new cut's bytes", async () => {
+    // Cut again moments after it appeared: the probe of the first picture is
+    // still queued, and must read the new one.
+    const h = harness({ childMedia: { ...settled, status: "uploaded", facesKey: null } });
+    h.raw.head.mockResolvedValue({ sizeBytes: 4_096 } as never);
+    await h.handler.handle(context(clipResult()));
+    expect(h.raw.put).toHaveBeenCalledTimes(1);
+    expect(h.completeAcquisition).toHaveBeenCalledWith(
+      expect.objectContaining({ contentHash: "a".repeat(64) }),
+    );
+  });
+
+  it("copies nothing again for a replay of a cut still waiting for its probe", async () => {
+    const h = harness({
+      childMedia: { ...settled, status: "uploaded", contentHash: "a".repeat(64), facesKey: null },
+    });
+    h.raw.head.mockResolvedValue({ sizeBytes: 4_096 } as never);
+    await h.handler.handle(context(clipResult()));
+    expect(h.raw.put).not.toHaveBeenCalled();
+  });
+});
+
+describe("RepurposeClipCompletionHandler — two-speaker layouts (2026-10-01)", () => {
+  const params = (reframe: Row | undefined): Row => ({
+    runId: RUN,
+    clipId: CLIP,
+    destination: { bucket: "s3", key: MEZZANINE },
+    ...(reframe === undefined ? {} : { reframe }),
+  });
+  const upserted = (h: ReturnType<typeof harness>): { update: Row; create: Row } =>
+    (h.prisma.clipVariant.upsert.mock.calls[0] as unknown as [{ update: Row; create: Row }])[0];
+
+  it("records a stacked cut's layout on its shape", async () => {
+    const h = harness();
+    await h.handler.handle(
+      context(
+        clipResult(),
+        params({
+          centerX: 0.3,
+          basis: "faces",
+          layout: "stacked",
+          people: [
+            { centerX: 0.3, centerY: 0.4, size: 0.14 },
+            { centerX: 0.72, centerY: 0.42, size: 0.13 },
+          ],
+        }),
+      ),
+    );
+    expect(upserted(h).create["layout"]).toBe("stacked");
+    expect(upserted(h).update["layout"]).toBe("stacked");
+  });
+
+  it("turns down the zooms of a picture that becomes two people stacked", async () => {
+    const settled = {
+      id: CHILD_MEDIA,
+      projectId: CHILD,
+      status: "ready",
+      contentHash: "b".repeat(64),
+      facesKey: null,
+      storageKey: MEZZANINE,
+    };
+    const stackedParams = params({
+      centerX: 0.3,
+      basis: "faces",
+      layout: "stacked",
+      people: [
+        { centerX: 0.3, centerY: 0.4, size: 0.14 },
+        { centerX: 0.72, centerY: 0.42, size: 0.13 },
+      ],
+    });
+    const h = harness({ childMedia: settled, variant: { layout: "single" } });
+    await h.handler.handle(context(clipResult(), stackedParams));
+    expect(h.finishing.dropZooms).toHaveBeenCalledWith(CHILD);
+
+    // Not for a picture that stays as it was laid out, or goes back to one window.
+    const again = harness({ childMedia: settled, variant: { layout: "stacked" } });
+    await again.handler.handle(context(clipResult(), stackedParams));
+    const back = harness({ childMedia: settled, variant: { layout: "stacked" } });
+    await back.handler.handle(context(clipResult(), params({ centerX: 0.3, basis: "faces" })));
+    expect(again.finishing.dropZooms).not.toHaveBeenCalled();
+    expect(back.finishing.dropZooms).not.toHaveBeenCalled();
+  });
+
+  it("records one window for a cut with no layout, or from before layouts", async () => {
+    for (const reframe of [{ centerX: 0.5, basis: "centre" }, undefined]) {
+      const h = harness();
+      await h.handler.handle(context(clipResult(), params(reframe)));
+      expect(upserted(h).create["layout"]).toBe("single");
+      expect(upserted(h).update["layout"]).toBe("single");
+    }
   });
 });

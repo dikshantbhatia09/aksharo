@@ -14,7 +14,9 @@ import {
   VIDEO_SHAPES,
   VIDEO_SHAPE_SIZE,
   clipMasterKey,
+  layoutKeySuffix,
   mediaClipJobKey,
+  type ClipLayout,
 } from "@montaj/repurpose-contracts";
 
 import { ClipFinishing, finishingInProgress } from "./clip-finishing.js";
@@ -45,7 +47,14 @@ import {
   stalledCode,
 } from "./clip-state.js";
 import { STAGE_OF_FAILURE } from "./failure-codes.js";
-import { awaitingFaceDetection, loadFaceTrack, reframeFromTrack } from "./reframe.js";
+import { layoutChoiceOf, shapeLayoutOf, type ClipLayoutChoice } from "./layout.js";
+import {
+  awaitingPictureFaces,
+  framingFromTrack,
+  layoutOfReframe,
+  loadFaceTrack,
+  reframeFromTrack,
+} from "./reframe.js";
 import {
   CLIP_HANDLE_MS,
   CLIP_MAX_HEIGHT,
@@ -681,7 +690,14 @@ export class RepurposeClipsService {
               where: { role: "primary" },
               orderBy: { createdAt: "desc" },
               take: 1,
-              select: { id: true, status: true, facesKey: true, durationMs: true },
+              select: {
+                id: true,
+                status: true,
+                facesKey: true,
+                durationMs: true,
+                width: true,
+                uploadedAt: true,
+              },
             },
           },
         },
@@ -736,10 +752,15 @@ export class RepurposeClipsService {
         ) {
           continue;
         }
-        // Captions keep off faces in the render: wait for the face track.
+        // Captions keep off faces in the render: wait for the face track - of
+        // this picture, which a clip cut again (a new layout) has replaced.
         if (
           media.facesKey === null &&
-          (await this.faceDetectionPending(media.id, media.durationMs))
+          (await this.faceDetectionPending(
+            media.id,
+            media.durationMs,
+            media.width === null ? null : media.uploadedAt,
+          ))
         ) {
           continue;
         }
@@ -1077,6 +1098,12 @@ export class RepurposeClipsService {
    * Only once every 9:16 clip of the run is made, so Reels and Shorts are
    * ready first. A format that failed is cut again up to
    * {@link FORMAT_CUT_ATTEMPTS} times; a full lane stops the pass.
+   *
+   * **Two-speaker layouts (2026-10-01):** the 4:5 shape has the layout the 9:16
+   * picture has (its variant's `layout`): both speakers stacked, or one
+   * window. 1:1 and 16:9 are never stacked. A 4:5 shape cut before its clip's
+   * layout changed is cut again in the new one - into the same variant and
+   * project, so its captions document stays - a few tries at most.
    */
   private async cutFormats(run: RepurposeRun): Promise<void> {
     const clips = await this.prisma.repurposeClip.findMany({
@@ -1098,16 +1125,22 @@ export class RepurposeClipsService {
     if (!(await this.roomForFormats(run))) return;
     const shapesHad = await this.prisma.clipVariant.findMany({
       where: { clipId: { in: ready.map((clip) => clip.id) } },
-      select: { clipId: true, aspect: true },
+      select: { clipId: true, aspect: true, layout: true },
     });
-    const had = new Set(shapesHad.map((row) => `${row.clipId}:${row.aspect}`));
+    // Each shape a clip has, and the layout it was cut in.
+    const had = new Map(
+      shapesHad.map((row) => [`${row.clipId}:${row.aspect}`, shapeLayoutOf(row.layout)] as const),
+    );
 
     let media: MediaAsset | "preparing" | "failed" | undefined;
     for (const clip of ready) {
       if (isRemoved(clip.candidate)) continue;
+      const vertical = had.get(`${clip.id}:r9x16`) ?? "single";
       for (const shape of FORMAT_SHAPES) {
+        const want: ClipLayout = shape === "4:5" ? vertical : "single";
         // eslint-disable-next-line security/detect-object-injection -- key is a closed enum (image file id / video shape), not input
-        if (had.has(`${clip.id}:${ASPECT_OF_SHAPE[shape]}`)) continue;
+        const have = had.get(`${clip.id}:${ASPECT_OF_SHAPE[shape]}`);
+        if (have === want) continue;
         media ??= await this.cuttableSource(run);
         if (media === undefined || media === "preparing" || media === "failed") return;
         // The cuts of these bounds only: a moment whose times were changed has
@@ -1120,18 +1153,27 @@ export class RepurposeClipsService {
             type: "media.clip",
             jobKey: { startsWith: prefix },
           },
-          select: { status: true },
+          select: { status: true, jobKey: true },
         });
         if (jobs.some((job) => job.status === "queued" || job.status === "running")) continue;
-        if (jobs.some((job) => job.status === "succeeded")) continue; // its completion is landing
+        // Made in another layout: only the cuts in this one count.
+        const relevant =
+          have === undefined
+            ? jobs
+            : jobs.filter(
+                (job) => job.jobKey === `${prefix}${CLIP_PROFILE_VERSION}${layoutKeySuffix(want)}`,
+              );
+        if (relevant.some((job) => job.status === "succeeded")) continue; // its completion is landing
         if (
-          jobs.filter((job) => job.status === "failed" || job.status === "cancelled").length >=
+          relevant.filter((job) => job.status === "failed" || job.status === "cancelled").length >=
           FORMAT_CUT_ATTEMPTS
         ) {
           continue;
         }
         try {
-          await this.enqueueFormatCut(run, clip, clip.candidate, media, shape);
+          await this.enqueueFormatCut(run, clip, clip.candidate, media, shape, want, {
+            recut: have !== undefined,
+          });
         } catch (error) {
           if (isLaneFull(error)) return;
           this.logger.warn(
@@ -1143,22 +1185,39 @@ export class RepurposeClipsService {
     }
   }
 
-  /** One format cut of `clip` ({@link cutFormats}); throws what the enqueue throws. */
+  /**
+   * One format cut of `clip` ({@link cutFormats}), in `layout` where the track
+   * can make it; throws what the enqueue throws. A re-cut (`recut`) the track
+   * cannot make in `layout` is not asked for: it would come out as the shape
+   * already is, and be asked for again on every pass.
+   */
   private async enqueueFormatCut(
     run: RepurposeRun,
     clip: RepurposeClip,
     candidate: ClipCandidate,
     media: MediaAsset,
     shape: FormatShape,
+    layout: ClipLayout,
+    options: { readonly recut?: boolean } = {},
   ): Promise<void> {
     const sourceDurationMs = media.durationMs ?? candidate.endMs;
     const endMs = Math.min(candidate.endMs, sourceDurationMs);
     if (endMs <= candidate.startMs) return;
     const track = await this.faceTrackOf(media);
-    const reframe = reframeFromTrack(track, {
-      fromMs: Math.max(0, candidate.startMs - CLIP_HANDLE_MS),
-      toMs: Math.min(sourceDurationMs, endMs + CLIP_HANDLE_MS),
-    });
+    const reframe = framingFromTrack(
+      track,
+      cutInterval(candidate.startMs, endMs, sourceDurationMs),
+      layout,
+      shape,
+    );
+    if (options.recut === true && layoutOfReframe(reframe) !== layout) {
+      // Debug, not warn: the next pass finds the same, every 30 s.
+      this.logger.debug(
+        { runId: run.id, clipId: clip.id, shape, layout },
+        "a shape's new layout cannot be made from the face track; left as it is",
+      );
+      return;
+    }
     const master = clipMasterKey({
       workspaceId: run.workspaceId,
       sourceProjectId: run.sourceProjectId,
@@ -1195,12 +1254,13 @@ export class RepurposeClipsService {
       workspaceId: run.workspaceId,
       projectId: run.sourceProjectId,
       params: payload,
-      jobKey: `${formatCutKeyPrefix(candidate.id, shape)}${cutBoundsOf(candidate, media.durationMs)}:${CLIP_PROFILE_VERSION}`,
+      // The layout is in the key (`layoutKeySuffix`), so a cut in a new one is new work.
+      jobKey: `${formatCutKeyPrefix(candidate.id, shape)}${cutBoundsOf(candidate, media.durationMs)}:${CLIP_PROFILE_VERSION}${layoutKeySuffix(layoutOfReframe(reframe))}`,
       worstCaseTenths: 0,
       reason: `media.clip ${shape} · ${clip.id}`,
     });
     this.logger.log(
-      { runId: run.id, clipId: clip.id, shape },
+      { runId: run.id, clipId: clip.id, shape, layout: layoutOfReframe(reframe) },
       "autopilot asked for a clip's other format",
     );
   }
@@ -1458,10 +1518,13 @@ export class RepurposeClipsService {
       );
       return "waiting";
     }
-    const reframe = reframeFromTrack(track, {
-      fromMs: Math.max(0, candidate.startMs - CLIP_HANDLE_MS),
-      toMs: Math.min(sourceDurationMs, endMs + CLIP_HANDLE_MS),
-    });
+    // Two speakers stacked, when the clip's layout choice and the track say so
+    // (`layout.ts`, 2026-10-01); one window on the speaker otherwise.
+    const reframe = framingFromTrack(
+      track,
+      cutInterval(candidate.startMs, endMs, sourceDurationMs),
+      layoutChoiceOf(clip.layout),
+    );
 
     // Parsed, not assembled: the contract is the wire format the worker checks
     // too, and a payload it would refuse is better refused here, in a request.
@@ -1502,10 +1565,12 @@ export class RepurposeClipsService {
         workspaceId: run.workspaceId,
         projectId: run.sourceProjectId,
         params: payload,
+        // A new layout is new work, like new bounds (`mediaClipJobKey`).
         jobKey: mediaClipJobKey(
           candidate.id,
           `${String(candidate.startMs)}-${String(endMs)}`,
           CLIP_PROFILE_VERSION,
+          layoutOfReframe(reframe),
         ),
         worstCaseTenths: 0,
         reason: `media.clip · ${clip.id}`,
@@ -1519,6 +1584,32 @@ export class RepurposeClipsService {
       );
       return "waiting";
     }
+  }
+
+  /**
+   * The layout a cut of `candidate` gets now under `choice` (two-speaker
+   * layouts, 2026-10-01): what {@link enqueueCut} would decide, from the same
+   * track over the same interval. For a layout change on the run page, which
+   * cuts a clip again only when its picture would change. `single` when there
+   * is no source to read.
+   */
+  async layoutFor(
+    run: RepurposeRun,
+    candidate: ClipCandidate,
+    choice: ClipLayoutChoice,
+  ): Promise<ClipLayout> {
+    if (choice === "single") return "single";
+    const media = await this.cuttableSource(run);
+    if (media === undefined || media === "preparing" || media === "failed") return "single";
+    const sourceDurationMs = media.durationMs ?? candidate.endMs;
+    const endMs = Math.min(candidate.endMs, sourceDurationMs);
+    return layoutOfReframe(
+      framingFromTrack(
+        await this.faceTrackOf(media),
+        cutInterval(candidate.startMs, endMs, sourceDurationMs),
+        choice,
+      ),
+    );
   }
 
   /**
@@ -1561,11 +1652,14 @@ export class RepurposeClipsService {
    * {@link awaitingFaceDetection} for the source's newest `ai.faces` job —
    * including one {@link faceTrackOf} queued a moment ago. The source's
    * duration sets how long detection is given to run. A lookup that fails does
-   * not hold the cut: framing never costs a clip.
+   * not hold the cut: framing never costs a clip. `pictureSince`: a clip
+   * shape's picture, uploaded then; an older job is not its own
+   * ({@link awaitingPictureFaces}).
    */
   private async faceDetectionPending(
     mediaId: string,
     sourceDurationMs: number | null,
+    pictureSince: Date | null = null,
   ): Promise<boolean> {
     try {
       const job = await this.prisma.job.findFirst({
@@ -1573,7 +1667,7 @@ export class RepurposeClipsService {
         orderBy: [{ queuedAt: "desc" }, { id: "desc" }],
         select: { status: true, queuedAt: true, startedAt: true, finishedAt: true },
       });
-      return awaitingFaceDetection(job, sourceDurationMs);
+      return awaitingPictureFaces(job, pictureSince, sourceDurationMs);
     } catch (error) {
       this.logger.warn(
         { mediaId, err: error },
@@ -2080,6 +2174,22 @@ function cutDue(clip: ClipRowWithChild, latest: LatestClipJob | undefined): bool
     facts.profileVersion !== null &&
     facts.profileVersion !== CLIP_PROFILE_VERSION
   );
+}
+
+/**
+ * The part of the source a cut's framing is read from: the moment and its edit
+ * handles, inside the source. The same for every shape of a clip, so its 9:16
+ * and 4:5 shapes find the same people.
+ */
+function cutInterval(
+  startMs: number,
+  endMs: number,
+  sourceDurationMs: number,
+): { readonly fromMs: number; readonly toMs: number } {
+  return {
+    fromMs: Math.max(0, startMs - CLIP_HANDLE_MS),
+    toMs: Math.min(sourceDurationMs, endMs + CLIP_HANDLE_MS),
+  };
 }
 
 /** The plan's lane or its enqueued-credit cap: both clear as jobs finish. */

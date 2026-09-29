@@ -1,12 +1,19 @@
 import { HttpStatus, Inject, Injectable, Logger } from "@nestjs/common";
 
 import type { Env } from "@montaj/config";
+import type { ClipLayout } from "@montaj/repurpose-contracts";
 
 import { stillsKeyPrefix } from "./clip-images.js";
+import { shapeLayoutOf, type ClipLayoutChoice } from "./layout.js";
 import { MAX_CLIP_MS, MIN_CLIP_MS, REPURPOSE_CLIP_ERRORS } from "./repurpose-clips.dto.js";
 import { RepurposeClipsService, timecode } from "./repurpose-clips.service.js";
 import { REPURPOSE_STEERING_ERRORS } from "./repurpose-steering.dto.js";
-import { REPURPOSE_ERRORS, REPURPOSE_FLAGS } from "./repurpose.constants.js";
+import {
+  REPURPOSE_ERRORS,
+  REPURPOSE_FLAGS,
+  formatCutKeyPrefix,
+  type FormatShape,
+} from "./repurpose.constants.js";
 import { excerptOf, isRemoved, snapToWords } from "./steering.js";
 import { CommonAuditService } from "../common/audit/audit.service.js";
 import { AppException, PrismaService } from "../common/index.js";
@@ -18,7 +25,7 @@ import { ProjectsService } from "../projects/projects.service.js";
 import { EntitlementService } from "../workspaces/entitlement.service.js";
 
 import type { RepurposeClipItemView } from "./repurpose-clips.service.js";
-import type { AdjustCandidateInput } from "./repurpose-steering.dto.js";
+import type { AdjustCandidateInput, ClipLayoutInput } from "./repurpose-steering.dto.js";
 import type { SnapWord } from "./steering.js";
 import type { ClipCandidate, RepurposeRun } from "@prisma/client";
 
@@ -32,6 +39,23 @@ export interface SteeringResult {
   readonly clip: RepurposeClipItemView | null;
   /** On an Autopilot run, the moments that were given a clip in a removed one's place. */
   readonly promoted: readonly string[];
+}
+
+/** What changing a clip's layout answers with (two-speaker layouts, 2026-10-01). */
+export interface LayoutResult {
+  readonly clipId: string;
+  /** The layout picked, now the clip's. */
+  readonly layout: ClipLayoutChoice;
+  /**
+   * What the clip's picture is, or is being cut as: both speakers stacked, or
+   * one window. "Both speakers" in a moment with one person in it is one
+   * window, and the page says so.
+   */
+  readonly applied: ClipLayout;
+  /** Whether the clip is being cut again for it. */
+  readonly recut: boolean;
+  /** The clip as its new cut left it, when one was asked for; null otherwise. */
+  readonly clip: RepurposeClipItemView | null;
 }
 
 /**
@@ -350,9 +374,185 @@ export class RepurposeSteeringService {
     return { candidate: adjusted, clip: recut, promoted: [] };
   }
 
+  /**
+   * "Auto", "One speaker" or "Both speakers" for one clip (two-speaker layouts,
+   * 2026-10-01). The choice is saved on the clip, and the clip is cut again
+   * through the ordinary cut only when its picture would change: a moment with
+   * one person in it is one window under "Both speakers" too, and cutting it
+   * again would make the same clip.
+   *
+   * Unlike new times, a new layout keeps the clip's shapes, their projects and
+   * their captions documents - the words are the same. Its 9:16 picture is
+   * replaced when the new cut lands, its 4:5 shape follows it
+   * (`RepurposeClipsService.cutFormats`), and their captioned videos and images
+   * are made again from the new pictures. 1:1 and 16:9 are never stacked, and
+   * nothing of theirs is stopped.
+   *
+   * @throws 409 `repurpose/clip_busy` while a cut of the clip is running (the
+   *   picture of the old layout would land over the new one),
+   *   `repurpose/candidate_removed` for a removed moment, and the source's
+   *   own refusals (`source_expired`, `source_failed`); 404 for a clip that is
+   *   not this run's.
+   */
+  async setClipLayout(
+    workspaceId: string,
+    userId: string,
+    runId: string,
+    clipId: string,
+    input: ClipLayoutInput,
+  ): Promise<LayoutResult> {
+    await this.assertAvailable(workspaceId);
+    const run = await this.requireRun(workspaceId, runId);
+    if (run.status === "cancelled") {
+      throw new AppException(
+        REPURPOSE_CLIP_ERRORS.runNotReady,
+        "This run was stopped, so nothing new can be made from it.",
+        HttpStatus.CONFLICT,
+      );
+    }
+    const clip = await this.prisma.repurposeClip.findFirst({
+      where: { id: clipId, runId: run.id },
+      include: {
+        candidate: true,
+        variants: { select: { aspect: true, projectId: true, layout: true } },
+      },
+    });
+    if (clip === null) {
+      throw new AppException(
+        REPURPOSE_ERRORS.notFound,
+        "We could not find that clip.",
+        HttpStatus.NOT_FOUND,
+      );
+    }
+    if (isRemoved(clip.candidate)) {
+      throw new AppException(
+        REPURPOSE_STEERING_ERRORS.candidateRemoved,
+        "Bring this moment back before changing its layout.",
+        HttpStatus.CONFLICT,
+      );
+    }
+
+    // Everything that can refuse, refuses before anything is written. Both of
+    // the shapes a layout changes write one picture each under a fixed key: a
+    // cut of the old layout still running would land over the new one.
+    const cutting = await this.prisma.job.findFirst({
+      where: {
+        workspaceId: run.workspaceId,
+        type: "media.clip",
+        status: "running",
+        OR: [
+          { jobKey: { startsWith: `media.clip:${clip.candidateId}:` } },
+          { jobKey: { startsWith: formatCutKeyPrefix(clip.candidateId, "4:5") } },
+        ],
+      },
+      select: { id: true },
+    });
+    if (cutting !== null) {
+      throw new AppException(
+        REPURPOSE_STEERING_ERRORS.clipBusy,
+        "This clip is being cut right now. Change its layout once it is ready.",
+        HttpStatus.CONFLICT,
+      );
+    }
+    const source = await this.prisma.mediaAsset.findFirst({
+      where: { projectId: run.sourceProjectId, role: "primary" },
+      orderBy: { createdAt: "desc" },
+      select: { status: true, rawPurgedAt: true },
+    });
+    const refusal = uncuttableSource(source);
+    if (refusal !== null) throw refusal;
+
+    const choice = input.layout;
+    const applied = await this.clips.layoutFor(run, clip.candidate, choice);
+    // What the picture is now: its 9:16 shape's layout. A clip with no picture
+    // yet is cut in the new layout whenever it is cut; it is asked for again
+    // now only when the choice changed.
+    const picture =
+      clip.mezzanineKey === null
+        ? null
+        : shapeLayoutOf(clip.variants.find((variant) => variant.aspect === "r9x16")?.layout);
+    const recutting = picture === null ? clip.layout !== choice : applied !== picture;
+
+    if (!recutting) {
+      if (clip.layout !== choice) {
+        // `updatedAt` kept as it was: a touch after the clip's last cut ended
+        // reads as a cut asked for (`clip-state.ts`), and none is.
+        await this.prisma.repurposeClip.update({
+          where: { id: clip.id },
+          data: { layout: choice, updatedAt: clip.updatedAt },
+        });
+      }
+      await this.recordLayout(workspaceId, userId, run.id, clip.id, {
+        from: clip.layout,
+        to: choice,
+        applied,
+        recut: false,
+        jobsStopped: 0,
+      });
+      return { clipId: clip.id, layout: choice, applied, recut: false, clip: null };
+    }
+
+    // Stop what is being made from the old picture - the queued cuts of the
+    // 9:16 and 4:5 shapes, their captioned videos, the images - then start the
+    // clip over: no picture until the new cut lands (it reads "cutting"). The
+    // write comes after the stops, so the clip reads as owed a cut even if the
+    // cut below is refused for now, and the reconcile makes it.
+    const changing = clip.variants
+      .filter((variant) => variant.aspect === "r9x16" || variant.aspect === "r4x5")
+      .map((variant) => variant.projectId);
+    const stopped = await this.stopClipWork(run, clip, {
+      projectIds: changing,
+      childPipeline: false,
+      formatShapes: ["4:5"],
+    });
+    await this.prisma.repurposeClip.update({
+      where: { id: clip.id },
+      data: {
+        layout: choice,
+        mezzanineKey: null,
+        mezzanineChecksum: null,
+        mezzanineDurationMs: null,
+        mezzanineJobId: null,
+      },
+    });
+    const recut = await this.recut(workspaceId, userId, run, clip.candidateId);
+
+    await this.recordLayout(workspaceId, userId, run.id, clip.id, {
+      from: clip.layout,
+      to: choice,
+      applied,
+      recut: true,
+      jobsStopped: stopped,
+    });
+    return { clipId: clip.id, layout: choice, applied, recut: true, clip: recut };
+  }
+
   // -------------------------------------------------------------------------
   // Internals
   // -------------------------------------------------------------------------
+
+  private async recordLayout(
+    workspaceId: string,
+    userId: string,
+    runId: string,
+    clipId: string,
+    data: {
+      readonly from: string;
+      readonly to: ClipLayoutChoice;
+      readonly applied: ClipLayout;
+      readonly recut: boolean;
+      readonly jobsStopped: number;
+    },
+  ): Promise<void> {
+    await this.audit.record({
+      action: "repurpose.clip.layout_changed",
+      resource: "repurpose_clip",
+      resourceId: clipId,
+      actorId: userId,
+      workspaceId,
+      data: { runId, ...data },
+    });
+  }
 
   /**
    * The run source's words (its newest transcript) and its probed length, for
@@ -373,20 +573,8 @@ export class RepurposeSteeringService {
         select: { status: true, durationMs: true, rawPurgedAt: true },
       }),
     ]);
-    if (media?.status === "failed") {
-      throw new AppException(
-        REPURPOSE_CLIP_ERRORS.sourceFailed,
-        "This video could not be prepared, so no clips can be cut from it.",
-        HttpStatus.CONFLICT,
-      );
-    }
-    if (media?.rawPurgedAt !== null && media?.rawPurgedAt !== undefined) {
-      throw new AppException(
-        REPURPOSE_CLIP_ERRORS.sourceExpired,
-        "The original video is no longer kept, so new clips cannot be cut from it. Start again from the same link.",
-        HttpStatus.CONFLICT,
-      );
-    }
+    const refusal = uncuttableSource(media);
+    if (refusal !== null) throw refusal;
     if (transcript === null || media === null || media.durationMs === null) {
       throw new AppException(
         REPURPOSE_CLIP_ERRORS.runNotReady,
@@ -412,7 +600,12 @@ export class RepurposeSteeringService {
   private async stopClipWork(
     run: RepurposeRun,
     clip: { readonly id: string; readonly candidateId: string },
-    options: { readonly projectIds: readonly string[]; readonly childPipeline: boolean },
+    options: {
+      readonly projectIds: readonly string[];
+      readonly childPipeline: boolean;
+      /** Only these shapes' format cuts (a new layout changes 4:5 only); all when absent. */
+      readonly formatShapes?: readonly FormatShape[];
+    },
   ): Promise<number> {
     const projectTypes: string[] = [
       ...RENDER_TYPES,
@@ -424,7 +617,17 @@ export class RepurposeSteeringService {
         status: { in: ["queued", "running"] },
         OR: [
           { type: "media.clip", jobKey: { startsWith: `media.clip:${clip.candidateId}:` } },
-          { type: "media.clip", jobKey: { startsWith: `media.clip.format:${clip.candidateId}:` } },
+          ...(options.formatShapes === undefined
+            ? [
+                {
+                  type: "media.clip",
+                  jobKey: { startsWith: `media.clip.format:${clip.candidateId}:` },
+                },
+              ]
+            : options.formatShapes.map((shape) => ({
+                type: "media.clip",
+                jobKey: { startsWith: formatCutKeyPrefix(clip.candidateId, shape) },
+              }))),
           { type: "media.stills", jobKey: { startsWith: stillsKeyPrefix(clip.id) } },
           ...(options.projectIds.length === 0
             ? []
@@ -578,6 +781,30 @@ export class RepurposeSteeringService {
       HttpStatus.NOT_FOUND,
     );
   }
+}
+
+/**
+ * Why no clip can be cut from the run's source any more, or null when one
+ * can: it failed its preparation, or its original has been purged.
+ */
+function uncuttableSource(
+  media: { readonly status: string; readonly rawPurgedAt: Date | null } | null,
+): AppException | null {
+  if (media?.status === "failed") {
+    return new AppException(
+      REPURPOSE_CLIP_ERRORS.sourceFailed,
+      "This video could not be prepared, so no clips can be cut from it.",
+      HttpStatus.CONFLICT,
+    );
+  }
+  if (media?.rawPurgedAt !== null && media?.rawPurgedAt !== undefined) {
+    return new AppException(
+      REPURPOSE_CLIP_ERRORS.sourceExpired,
+      "The original video is no longer kept, so new clips cannot be cut from it. Start again from the same link.",
+      HttpStatus.CONFLICT,
+    );
+  }
+  return null;
 }
 
 function boundsTaken(otherCandidateId: string | null): AppException {
