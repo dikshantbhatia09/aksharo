@@ -10,6 +10,7 @@ import {
   Palette,
   Plug,
   SlidersHorizontal,
+  Stamp,
   Users,
   Waypoints,
   Zap,
@@ -18,7 +19,6 @@ import {
 import { BRAND } from "@montaj/config";
 
 import type { LucideIcon } from "lucide-react";
-
 
 /**
  * The navigation of the premium design canvas ("Aksharo Studio (premium)"), in
@@ -179,6 +179,16 @@ export const SECONDARY_NAV: readonly NavItem[] = [
   },
   { key: "team", label: "Team", short: "Team", href: "/team", icon: Users, ready: true },
   {
+    // 2026-10-02: the workspace's logo, colours and end card, which Autopilot
+    // puts on a run's clips. It lives in Settings; this is the way to it.
+    key: "brand-kit",
+    label: "Brand kit",
+    short: "Brand",
+    href: "/settings/brand-kit",
+    icon: Stamp,
+    ready: true,
+  },
+  {
     key: "affiliate",
     label: "Refer & earn",
     short: "Refer",
@@ -233,6 +243,12 @@ export const SETTINGS_NAV: readonly SettingsSection[] = [
     label: "Privacy",
     href: "/settings/privacy",
     description: "Consents, exporting your data and deleting your account.",
+  },
+  {
+    key: "brand-kit",
+    label: "Brand kit",
+    href: "/settings/brand-kit",
+    description: "Your logo, colours and end card, on the clips Autopilot makes.",
   },
   {
     key: "notifications",
@@ -303,4 +319,26 @@ export const BILLING_NAV: readonly SettingsSection[] = [
 export function isActivePath(pathname: string, href: string): boolean {
   if (href === "/") return pathname === "/";
   return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+/**
+ * Whether `item` is the current page's row among `items`: a ready row whose
+ * path matches, unless a ready row nested under it matches too. The brand kit
+ * (2026-10-02) lives under Settings and has its own row; on its page it is
+ * the one row lit, because two accent-tinted rows is not a state the shell has.
+ */
+export function isActiveNavItem(
+  pathname: string,
+  item: NavItem,
+  items: readonly NavItem[] = ALL_NAV,
+): boolean {
+  if (!item.ready || !isActivePath(pathname, item.href)) return false;
+  return !items.some(
+    (other) =>
+      other !== item &&
+      other.ready &&
+      other.href.length > item.href.length &&
+      isActivePath(other.href, item.href) &&
+      isActivePath(pathname, other.href),
+  );
 }

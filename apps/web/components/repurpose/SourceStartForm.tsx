@@ -44,7 +44,12 @@ import { Button, Field, Input, cn } from "@montaj/ui";
 import { PICKABLE_STYLES } from "@/components/editor/panels/system-styles";
 import { LanguagePicker } from "@/components/projects/language-picker";
 import { WritingScriptPicker } from "@/components/projects/writing-script-picker";
-import { AUTOPILOT_COPY, DETAIL_COPY, STEERING_COPY } from "@/components/repurpose/copy";
+import {
+  AUTOPILOT_COPY,
+  BRAND_COPY,
+  DETAIL_COPY,
+  STEERING_COPY,
+} from "@/components/repurpose/copy";
 import { SOURCE_CEILING_MS, formatBytes, spanPhrase } from "@/components/repurpose/failure-detail";
 import { formatClock, parseClock } from "@/components/repurpose/moment-time";
 import { isPlausibleLink, normaliseSourceLink } from "@/components/repurpose/source-link";
@@ -89,6 +94,12 @@ export interface StartFormValue {
    */
   readonly autopilot: boolean;
   /**
+   * The brand kit (2026-10-02): Autopilot puts the workspace's logo, colours
+   * and end card on the clips (`setup.brand`). Offered only with Autopilot on
+   * and a kit saved; on by default whenever it is offered.
+   */
+  readonly useBrand: boolean;
+  /**
    * Steering (2026-09-29), for "Suggest the strongest moments for me" only:
    * what the clips should be about (empty is anything strong), how long they
    * should be, and the minutes of the start and end to take no clip from, as
@@ -126,6 +137,7 @@ export const EMPTY_START_FORM: StartFormValue = Object.freeze({
   requestedCandidates: 5,
   rightsAttested: false,
   autopilot: true,
+  useBrand: true,
   topic: "",
   clipLength: DEFAULT_CLIP_LENGTH,
   skipIntro: "",
@@ -301,6 +313,8 @@ export interface SourceStartFormProps {
   readonly knownLength?: KnownLength;
   /** Put the cursor in "Start at": the person came here to pick a start. */
   readonly focusStartAt?: boolean;
+  /** The workspace has a saved brand kit (2026-10-02): the brand switch is offered. */
+  readonly brandKit?: boolean;
   readonly className?: string;
 }
 
@@ -317,6 +331,7 @@ export function SourceStartForm({
   processesWholeVideos = false,
   knownLength,
   focusStartAt = false,
+  brandKit = false,
   className,
 }: SourceStartFormProps): React.JSX.Element {
   const [showProblems, setShowProblems] = React.useState(false);
@@ -891,6 +906,36 @@ export function SourceStartForm({
             }}
           />
         </div>
+
+        {brandKit && value.autopilot ? (
+          <div className="flex items-start justify-between gap-4" data-testid="brand-kit-option">
+            <div className="min-w-0">
+              <label htmlFor="repurpose-brand" className="text-sm font-medium text-fg-1">
+                {BRAND_COPY.label}
+              </label>
+              <p className="mt-1 text-xs text-fg-2" data-testid="brand-hint">
+                {value.useBrand ? BRAND_COPY.on : BRAND_COPY.off}{" "}
+                <NextLink
+                  href="/settings/brand-kit"
+                  className="text-accent-300 rounded-sm underline underline-offset-4 hover:text-accent-200"
+                >
+                  Edit
+                </NextLink>
+              </p>
+            </div>
+            <input
+              id="repurpose-brand"
+              type="checkbox"
+              role="switch"
+              className="panel-switch mt-0.5 shrink-0"
+              checked={value.useBrand}
+              data-testid="brand-switch"
+              onChange={(event) => {
+                set("useBrand", event.target.checked);
+              }}
+            />
+          </div>
+        ) : null}
 
         <div className="border-t border-border pt-4">
           <Button

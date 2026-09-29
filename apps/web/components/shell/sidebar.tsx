@@ -28,7 +28,7 @@ import type { NavItem } from "@/lib/nav";
 
 import { useRuntimeConfig } from "@/components/providers";
 import { StreakChip } from "@/components/streak/streak-chip";
-import { isActivePath } from "@/lib/nav";
+import { isActiveNavItem } from "@/lib/nav";
 
 /**
  * K04: Storage used, best-effort and bounded.
@@ -126,7 +126,7 @@ function NavRow({
   // A row nobody can click is never the current page, whatever the path
   // says: the Editor entry falls back to `/projects` while the workspace
   // is empty, and two accent-tinted rows is not a state the rail has.
-  const active = item.ready && isActivePath(pathname, item.href);
+  const active = isActiveNavItem(pathname, item);
   const Icon = item.icon;
   const classes = cn(
     "flex min-h-9 w-full items-center gap-2.5 rounded-sm px-2.5 py-2 text-sm",
@@ -321,9 +321,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }): React.JSX.
             <Monitor className="text-fg-2 size-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />
             <span>
               Get the desktop app
-              <span className="text-fg-2 block">
-                Local mode, watch folders, offline queue
-              </span>
+              <span className="text-fg-2 block">Local mode, watch folders, offline queue</span>
             </span>
           </a>
         ) : null}

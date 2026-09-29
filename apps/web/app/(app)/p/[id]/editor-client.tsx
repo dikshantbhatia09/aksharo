@@ -48,6 +48,8 @@ import type { SetAudioCleanOp } from "@/components/editor/audio/use-audio-clean"
 import type { SegmentCardAction } from "@/components/editor/transcript/SegmentCard";
 import type { EditorSnapshot, EditorStore } from "@/lib/edg/store";
 
+import { editorEndCardOverlay, editorLogoOverlay } from "@/components/brand-kit/brand-overlays";
+import { useBrandKit } from "@/components/brand-kit/use-brand-kit";
 import { CaptionStage } from "@/components/editor/canvas/CaptionStage";
 import { CropWindowOverlay } from "@/components/editor/canvas/CropWindowOverlay";
 import { aspectRatioOf, containWidth } from "@/components/editor/canvas/stage-fit";
@@ -655,6 +657,73 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
               { type: "RemoveOverlay", opId: newId(), overlayId: hookOverlay.id },
               { label: "Remove hook title" },
             );
+          },
+        };
+
+  // --- Brand kit (2026-10-02) ----------------------------------------------
+  // The logos the document may draw (signed by `GET /brand-kit`), and the Look
+  // tab's switches: off takes the logo or the end card off this clip, on puts
+  // the workspace's kit's back. Each is one undoable op.
+  const brandKit = useBrandKit();
+  const brandImages = brandKit.data?.images;
+  const kitLogo =
+    brandKit.data?.logo === null || brandKit.data?.logo === undefined
+      ? undefined
+      : {
+          assetId: brandKit.data.logo.assetId,
+          format: brandKit.data.logo.format,
+          width: brandKit.data.logo.width,
+          height: brandKit.data.logo.height,
+        };
+  const logoOverlay = state.hot.overlays?.find((overlay) => overlay.kind === "logo");
+  const endCardOverlay = state.hot.overlays?.find((overlay) => overlay.kind === "end-card");
+  const clipDurationMs = primaryMedia?.durationMs ?? 0;
+  const kitSettings = brandKit.data?.settings;
+  const logoToAdd =
+    kitSettings === undefined
+      ? undefined
+      : editorLogoOverlay(kitSettings, kitLogo, newId(), clipDurationMs);
+  const endCardToAdd =
+    kitSettings === undefined
+      ? undefined
+      : editorEndCardOverlay(kitSettings, kitLogo, newId(), passItems, clipDurationMs);
+  // Shown where there is something to do: a saved kit, or a clip that already
+  // carries a brand overlay. A workspace that never made a kit sees nothing new.
+  const brand =
+    brandKit.data === undefined ||
+    brandKit.data === null ||
+    (!brandKit.data.exists && logoOverlay === undefined && endCardOverlay === undefined)
+      ? undefined
+      : {
+          logoOn: logoOverlay !== undefined,
+          logoAvailable: logoToAdd !== undefined,
+          endCardOn: endCardOverlay !== undefined,
+          endCardAvailable: endCardToAdd !== undefined,
+          onLogo: (on: boolean): void => {
+            if (!on && logoOverlay !== undefined) {
+              store.submitOp(
+                { type: "RemoveOverlay", opId: newId(), overlayId: logoOverlay.id },
+                { label: "Remove logo" },
+              );
+            } else if (on && logoToAdd !== undefined) {
+              store.submitOp(
+                { type: "SetOverlay", opId: newId(), overlay: logoToAdd },
+                { label: "Add logo" },
+              );
+            }
+          },
+          onEndCard: (on: boolean): void => {
+            if (!on && endCardOverlay !== undefined) {
+              store.submitOp(
+                { type: "RemoveOverlay", opId: newId(), overlayId: endCardOverlay.id },
+                { label: "Remove end card" },
+              );
+            } else if (on && endCardToAdd !== undefined) {
+              store.submitOp(
+                { type: "SetOverlay", opId: newId(), overlay: endCardToAdd },
+                { label: "Add end card" },
+              );
+            }
           },
         };
 
@@ -1366,6 +1435,7 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
                       onMediaError={() => timelineMedia.refresh()}
                       projection={projection}
                       {...(faceTrack === undefined ? {} : { faces: faceTrack })}
+                      {...(brandImages === undefined ? {} : { images: brandImages })}
                       catalogue={SYSTEM_STYLE_MAP}
                       script={script}
                       showSafeZones={safeZonesOn}
@@ -1472,6 +1542,7 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
               myPresets={myPresets}
               onDeletePreset={onDeletePreset}
               {...(hookTitle === undefined ? {} : { hookTitle })}
+              {...(brand === undefined ? {} : { brand })}
               footer={
                 <span data-coach-mark="export" className="inline-flex">
                   <ExportButton
@@ -1483,6 +1554,7 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
                     }
                     projection={toRenderProjection(state)}
                     {...(faceTrack === undefined ? {} : { faces: faceTrack })}
+                    {...(brandImages === undefined ? {} : { images: brandImages })}
                     catalogue={SYSTEM_STYLE_MAP}
                     registry={registry}
                     shaper={shaper}

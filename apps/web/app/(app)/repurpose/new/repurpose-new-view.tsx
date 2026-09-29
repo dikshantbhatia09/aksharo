@@ -30,6 +30,7 @@ import {
 } from "@montaj/api-client";
 import { PageHeader } from "@montaj/ui";
 
+import { useBrandKit } from "@/components/brand-kit/use-brand-kit";
 import { rememberLanguage } from "@/components/projects/language-picker";
 import { SOURCE_CEILING_MS } from "@/components/repurpose/failure-detail";
 import { describeRefusal } from "@/components/repurpose/refusal";
@@ -108,6 +109,9 @@ export function RepurposeNewView(): React.JSX.Element {
   // over — so a repurposing upload is an ordinary upload that happens to have a
   // run attached, rather than a second pipeline that has to be kept in step.
   const uploads = useUploadQueue();
+  // The brand kit (2026-10-02): the switch is offered once one is saved.
+  const brandKit = useBrandKit();
+  const hasBrandKit = brandKit.data?.exists === true;
   const lastRequest = React.useRef<{ readonly key: string; readonly body: string } | null>(null);
   const [value, setValue] = React.useState<StartFormValue>(() =>
     // A failed run's own setup when it sent one; otherwise detect.
@@ -170,6 +174,8 @@ export function RepurposeNewView(): React.JSX.Element {
       // Only with a start: no window leaves the choice to the server.
       ...(startMs === undefined ? {} : { window: { startMs, policy: "range" as const } }),
       automation: value.autopilot ? "auto" : "manual",
+      // Only what was offered and left on: Autopilot, a saved kit, the switch.
+      ...(value.autopilot && hasBrandKit && value.useBrand ? { brand: true } : {}),
     };
     rememberAutopilot(value.autopilot);
     const body: CreateRepurposeRunRequest = { source, setup };
@@ -239,6 +245,7 @@ export function RepurposeNewView(): React.JSX.Element {
           {...(maxFileBytes === undefined ? {} : { maxFileBytes })}
           {...(planWindowMs === undefined ? {} : { planWindowMs })}
           processesWholeVideos={processesWholeVideos}
+          brandKit={hasBrandKit}
           // The length holds only while the link is still the one it came
           // with (`validateStartForm`).
           {...(startContext.knownLength === undefined

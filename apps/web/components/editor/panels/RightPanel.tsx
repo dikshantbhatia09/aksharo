@@ -50,6 +50,7 @@ import type { Depth3d, EmphasisPreset, StyleDoc } from "@montaj/caption-styles";
 import { resolveColour } from "@montaj/caption-styles/browser";
 import { CATALOGUE } from "@montaj/fonts";
 
+import { BrandOverlaysField, type BrandOverlaysFieldProps } from "./BrandOverlaysField";
 import {
   ColorOrGradientField,
   ColourField,
@@ -183,6 +184,11 @@ export interface RightPanelProps {
    * it can be reworded or removed; omitted when the document has none.
    */
   readonly hookTitle?: HookTitleFieldProps;
+  /**
+   * The brand kit's logo and end card on this clip (2026-10-02), shown under the
+   * hook title in the Text tab; omitted while the kit is loading.
+   */
+  readonly brand?: BrandOverlaysFieldProps;
   /** The document's canvas, so every preview in the panel uses the project's aspect. */
   readonly canvas?: CanvasSize;
   /**
@@ -209,6 +215,7 @@ export function RightPanel({
   onUploadFont,
   audio,
   hookTitle,
+  brand,
   canvas = DEFAULT_PREVIEW_CANVAS,
   footer,
   className,
@@ -355,6 +362,11 @@ export function RightPanel({
               {hookTitle === undefined ? null : (
                 <Section title="Hook title">
                   <HookTitleField {...hookTitle} />
+                </Section>
+              )}
+              {brand === undefined ? null : (
+                <Section title="Brand">
+                  <BrandOverlaysField {...brand} />
                 </Section>
               )}
               <LookPanel
