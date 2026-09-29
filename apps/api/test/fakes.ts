@@ -302,6 +302,7 @@ export class FakeDb {
       dlq: false,
       dlqReason: null,
       dlqAt: null,
+      checkpoint: null,
       ...overrides,
     };
     this.jobs.set(job.id, job);

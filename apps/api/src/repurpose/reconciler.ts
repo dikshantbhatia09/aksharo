@@ -11,6 +11,7 @@ import {
 import { MediaAcquirePayloadSchema } from "@montaj/repurpose-contracts";
 
 import { RepurposeCompilationsService } from "./compilations.service.js";
+import { RepurposeDubsService } from "./dubbing/dubs.service.js";
 import {
   LEGACY_RUN_FAILURE_CODES,
   STAGE_OF_FAILURE,
@@ -884,6 +885,8 @@ export class RepurposeReconciler
      * settled is not swept above, and its clips can still be joined.
      */
     @Optional() private readonly compilations?: RepurposeCompilationsService,
+    /** Dubs in motion on any run, settled or not (2026-10-04). */
+    @Optional() private readonly dubs?: RepurposeDubsService,
   ) {}
 
   /**
@@ -969,6 +972,7 @@ export class RepurposeReconciler
       // Once the runs have moved: who needs telling (`run-notifications.ts`).
       await this.notices?.sweep(now ?? Date.now());
       await this.compilations?.sweep();
+      await this.dubs?.sweep();
     } catch (error) {
       this.logger.warn({ err: error }, "run reconcile watchdog pass failed; the next one retries");
     }

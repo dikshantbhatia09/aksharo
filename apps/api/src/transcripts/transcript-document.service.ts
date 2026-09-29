@@ -83,10 +83,16 @@ export class TranscriptDocumentService {
     // (2026-09-29): its shape's frozen `clip_variants.caption_config`, when that
     // style can still be picked (`clipDocumentStyle`). Every clip used to start
     // on the default, whatever the run chose. Anything else keeps the default.
-    const variant = await this.prisma.clipVariant.findFirst({
-      where: { projectId },
-      select: { captionConfig: true },
-    });
+    // A dubbed shape (2026-10-04) starts on its clip's style the same way.
+    const variant =
+      (await this.prisma.clipVariant.findFirst({
+        where: { projectId },
+        select: { captionConfig: true },
+      })) ??
+      (await this.prisma.clipDubVariant.findFirst({
+        where: { projectId },
+        select: { captionConfig: true },
+      }));
     const styleRef = variant === null ? undefined : clipDocumentStyle(variant.captionConfig);
 
     const chunks = (await newestChunkRows(this.prisma, transcript.id)).map(toChunk);

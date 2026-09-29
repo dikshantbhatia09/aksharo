@@ -48,6 +48,7 @@ import {
   stalledCode,
 } from "./clip-state.js";
 import { RepurposeCompilationsService } from "./compilations.service.js";
+import { RepurposeDubsService } from "./dubbing/dubs.service.js";
 import { STAGE_OF_FAILURE } from "./failure-codes.js";
 import { layoutChoiceOf, shapeLayoutOf, type ClipLayoutChoice } from "./layout.js";
 import {
@@ -310,6 +311,8 @@ export class RepurposeClipsService {
     @Optional() private readonly series?: RepurposeSeriesService,
     /** Offers waiting compilations the lane again (2026-10-03); absent in harnesses. */
     @Optional() private readonly compilations?: RepurposeCompilationsService,
+    /** Moves the run's dubs on (2026-10-04); absent in harnesses. */
+    @Optional() private readonly dubs?: RepurposeDubsService,
   ) {}
 
   // -------------------------------------------------------------------------
@@ -578,6 +581,10 @@ export class RepurposeClipsService {
     // Compilations of these clips waiting for the lane (2026-10-03).
     await this.compilations?.reconcileRun(run.id).catch((error: unknown) => {
       this.logger.warn({ runId: run.id, err: error }, "could not reconcile the run's compilations");
+    });
+    // Its dubs: waiting ones offered the lane, made ones laid and captioned (2026-10-04).
+    await this.dubs?.reconcileRun(run.id).catch((error: unknown) => {
+      this.logger.warn({ runId: run.id, err: error }, "could not reconcile the run's dubs");
     });
     return { enqueued };
   }
