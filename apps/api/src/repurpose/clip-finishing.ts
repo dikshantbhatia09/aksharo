@@ -34,10 +34,11 @@ import type { Prisma, RepurposeRun } from "@prisma/client";
  *    the same moment), so every format runs the same length and none of them
  *    pays for the pass again.
  * 2. **emphasis** — one keyword per caption, two in a long one with a number
- *    or a name (`keyword-emphasis.ts`), with the style's own default emphasis
- *    (`emphasisPresets[0]`, what "Emphasise word" uses in the editor). After
- *    the cuts, so it never lands on a word that was cut; before the zooms, so
- *    the zoom pass punches in on it.
+ *    or a name (`keyword-emphasis.ts`), in the style's first preset that reads
+ *    as a keyword ({@link keywordPresetId}; usually `emphasisPresets[0]`, what
+ *    "Emphasise word" uses in the editor). After the cuts, so it never lands
+ *    on a word that was cut; before the zooms, so the zoom pass punches in on
+ *    it.
  * 3. **zoom** — punch-ins on emphasis and energy (`startZoom`, `standard`),
  *    accepted, except any that would start while the hook title is up (a zoom
  *    moves the face the title was placed off, and two things moving at once in
@@ -125,7 +126,8 @@ export function finishingInProgress(value: unknown): boolean {
 /**
  * The hook title's words: the clip's own hook (`copy.hook`, written by the
  * copy model), else its title, cut to {@link HOOK_MAX_WORDS} words without a
- * dangling "and" or comma at the cut. Empty for a moment a person marked
+ * dangling "and" or "ka" at the cut, and without closing punctuation other
+ * than a question or an exclamation mark. Empty for a moment a person marked
  * without naming it ("Moment at 1:23–1:45" is a label, not a hook).
  */
 export function hookTextOf(copy: unknown, title: string): string {
@@ -147,7 +149,7 @@ export function hookTextOf(copy: unknown, title: string): string {
   }
   return kept
     .join(" ")
-    .replace(/[\s,;:–—-]+$/u, "")
+    .replace(/[\s,.;:–—-]+$/u, "")
     .slice(0, HOOK_MAX_CHARS);
 }
 
@@ -207,6 +209,8 @@ interface ShapeContext {
   readonly variant: FinishingVariant;
   readonly now: Date;
   readonly previous: FinishingStepRecord | undefined;
+  /** Past {@link FINISHING_MAX_MS}: nothing new is started, and nothing is waited for. */
+  readonly overdue: boolean;
 }
 
 @Injectable()
@@ -273,11 +277,20 @@ export class ClipFinishing {
       const previous = steps[name];
       if (previous !== undefined && previous.state !== "requested") continue;
       let result: StepResult;
-      if (overdue) {
-        result = { state: "skipped", at: now.toISOString(), reason: "timeout" };
-      } else {
-        result = await this.runStep(name, { run, variant, now, previous });
+      try {
+        result = await this.runStep(name, { run, variant, now, previous, overdue });
+      } catch (error) {
+        // Overdue, a step that keeps failing is let go rather than retried.
+        if (!overdue) throw error;
+        this.logger.warn(
+          { runId: run.id, variantId: variant.id, step: name, err: error },
+          "an overdue finishing step failed; skipped",
+        );
+        result = skipped(now, "error");
       }
+      // Overdue, what still waits (a pass that never landed, the 9:16 cuts)
+      // is let go: emphasis and the hook title, which never wait, still run.
+      if (overdue && result === "wait") result = skipped(now, "timeout", previous);
       if (result === "wait") {
         if (changed) await this.save(variant.id, { ...record, steps });
         return "waiting";
@@ -380,7 +393,7 @@ export class ClipFinishing {
       }
     }
     if (ops.length === 0) return { state: "done", at: now.toISOString(), applied: 0 };
-    const applied = await this.apply(variant.projectId, document.projection.meta.revision, ops);
+    const applied = await this.apply(variant.projectId, document.revision, ops);
     return { state: "done", at: now.toISOString(), applied };
   }
 
@@ -404,7 +417,7 @@ export class ClipFinishing {
       primaryDurationOf(document.projection),
     );
     if (window === undefined) return skipped(now, "too-short");
-    const applied = await this.apply(variant.projectId, document.projection.meta.revision, [
+    const applied = await this.apply(variant.projectId, document.revision, [
       {
         opId: newId(),
         type: "SetOverlay",
@@ -424,6 +437,8 @@ export class ClipFinishing {
     const passes = this.passes;
     const { run, variant, now } = context;
     if (passes === undefined) return skipped(now, "unavailable");
+    // Too late to pay for a pass the video would no longer wait for.
+    if (context.overdue) return skipped(now, "timeout");
     try {
       const request = { projectId: variant.projectId, workspaceId: run.workspaceId };
       const started =
@@ -484,7 +499,7 @@ export class ClipFinishing {
       const applied =
         accept.length === 0
           ? 0
-          : await this.apply(variant.projectId, document.projection.meta.revision, [
+          : await this.apply(variant.projectId, document.revision, [
               {
                 opId: newId(),
                 type: "DecideItems",
@@ -581,7 +596,7 @@ export class ClipFinishing {
         state: "accepted",
       })),
     };
-    const applied = await this.apply(variant.projectId, mine.projection.meta.revision, [
+    const applied = await this.apply(variant.projectId, mine.revision, [
       { opId: newId(), type: "MergePass", pass },
     ]);
     return {
@@ -608,17 +623,23 @@ export class ClipFinishing {
   }
 
   /** The document and its words, or `undefined` when the project has none yet. */
+  /**
+   * The document, its words, and the revision to write against — the row's
+   * own, read first, so a write is never based on anything newer than it saw.
+   */
   private async documentOf(
     projectId: string,
-  ): Promise<{ projection: EdgProjection; chunks: TranscriptChunk[] } | undefined> {
+  ): Promise<
+    { projection: EdgProjection; chunks: TranscriptChunk[]; revision: number } | undefined
+  > {
     const row = await this.prisma.edgDocument.findUnique({
       where: { projectId },
-      select: { id: true },
+      select: { id: true, revision: true },
     });
     if (row === null) return undefined;
     const projection = await this.edgRepository.projectionOf(row.id);
     const chunks = await this.edgRepository.loadChunks(projection.transcript.transcriptId);
-    return { projection, chunks };
+    return { projection, chunks, revision: row.revision };
   }
 
   /**

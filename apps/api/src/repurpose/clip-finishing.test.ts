@@ -244,9 +244,12 @@ beforeEach(() => {
 
   const prisma = {
     edgDocument: {
-      findUnique: vi.fn(async (args: { where: { projectId: string } }) =>
-        docs.has(args.where.projectId) ? { id: edgIdOf(args.where.projectId) } : null,
-      ),
+      findUnique: vi.fn(async (args: { where: { projectId: string } }) => {
+        const doc = docs.get(args.where.projectId);
+        return doc === undefined
+          ? null
+          : { id: edgIdOf(args.where.projectId), revision: doc.revision };
+      }),
     },
     clipVariant: {
       update: vi.fn(async (args: { where: { id: string }; data: Record<string, unknown> }) => {
@@ -453,15 +456,18 @@ describe("ClipFinishing on a 9:16 shape", () => {
     expect(recordOf(VERTICAL)?.steps.autocut).toMatchObject({ state: "skipped", reason: "failed" });
   });
 
-  it("gives up waiting after the whole pass has run too long, and lets the video be made", async () => {
+  it("gives up waiting after the whole pass has run too long, and still titles the clip", async () => {
     expect(await finishing.advance(RUN, vertical())).toBe("waiting");
     const later = new Date(Date.now() + FINISHING_MAX_MS + 1_000);
     expect(await finishing.advance(RUN, vertical(), later)).toBe("just-finished");
+    // The pass that never landed is let go and no new one is paid for; the
+    // steps that never wait still run.
+    expect(passes.startZoom).not.toHaveBeenCalled();
     expect(recordOf(VERTICAL)?.steps).toMatchObject({
       autocut: { state: "skipped", reason: "timeout" },
-      emphasis: { state: "skipped", reason: "timeout" },
+      emphasis: { state: "done", applied: 2 },
       zoom: { state: "skipped", reason: "timeout" },
-      hook: { state: "skipped", reason: "timeout" },
+      hook: { state: "done", applied: 1 },
     });
   });
 
@@ -554,6 +560,10 @@ describe("hookTextOf", () => {
       "Why most people never manage to save",
     );
     expect(hookTextOf({ hook: "" }, "Short title")).toBe("Short title");
+    expect(hookTextOf({ hook: "Paise bachao." }, "x")).toBe("Paise bachao");
+    expect(hookTextOf({ hook: "Kya aap ye galti karte ho?" }, "x")).toBe(
+      "Kya aap ye galti karte ho?",
+    );
   });
 
   it("does not end on a dangling word or comma where it was cut", () => {
