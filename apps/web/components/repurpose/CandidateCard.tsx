@@ -35,11 +35,13 @@ import {
 } from "@montaj/api-client";
 import { Badge, Button } from "@montaj/ui";
 
+import { ClipControls, RemovedMoment } from "@/components/repurpose/ClipControls";
 import { ClipFormats } from "@/components/repurpose/ClipFormats";
 import { ClipPreview } from "@/components/repurpose/ClipPreview";
 import { CAPTIONED_COPY, CLIP_STATE_COPY, clipFailureCopy } from "@/components/repurpose/copy";
 import { formatClock } from "@/components/repurpose/moment-time";
 import { describeRefusal } from "@/components/repurpose/refusal";
+import { isRemovedCandidate } from "@/components/repurpose/steering";
 import { useStableUrl } from "@/components/repurpose/use-stable-url";
 
 const CLIP_STATES: ReadonlySet<string> = new Set(["waiting", "cutting", "ready", "failed"]);
@@ -188,6 +190,11 @@ export function CandidateCard({
   const failure = state === "failed" ? clipFailureCopy(clip?.failureCode) : null;
   // Waiting on a stopped run: the API never enqueues it now.
   const stoppedWaiting = runStopped && state === "waiting";
+
+  // Removed by the person (steering): one line, with "Restore".
+  if (isRemovedCandidate(candidate)) {
+    return <RemovedMoment runId={runId} candidate={candidate} title={title} />;
+  }
 
   return (
     <li
@@ -453,6 +460,15 @@ export function CandidateCard({
           images={clip.images}
         />
       ) : null}
+
+      <ClipControls
+        runId={runId}
+        candidate={candidate}
+        clip={clip}
+        clipState={state}
+        title={title}
+        runStopped={runStopped}
+      />
     </li>
   );
 }

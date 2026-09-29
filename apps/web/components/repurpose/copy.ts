@@ -582,6 +582,23 @@ export const REFUSAL_COPY = Object.freeze({
     network: "We could not reach the server. Check your connection and try again.",
     fallback: "The next part could not be started. Try again in a moment.",
   },
+  /** Removing, restoring or changing the times of a moment on the run page (2026-09-29). */
+  steer: {
+    "repurpose/clip_bounds_invalid":
+      "Those times do not work. A clip is 3 seconds to 3 minutes long, inside the video.",
+    "repurpose/clip_bounds_taken": "Another moment already has these times.",
+    "repurpose/clip_busy": "This clip is being cut right now. Change its times once it is ready.",
+    "repurpose/candidate_removed": "Bring this moment back before changing its times.",
+    "repurpose/run_not_ready":
+      "This run was stopped, or its transcript is not ready yet, so its moments cannot change.",
+    "repurpose/source_expired":
+      "The original video is no longer kept, so this clip cannot be cut again. Start again from the same link.",
+    "repurpose/source_failed": "This video could not be prepared, so no clips can be cut from it.",
+    "repurpose/not_found": "This moment is no longer available. Refresh the page.",
+    "common/rate_limited": "That was a lot of requests at once. Wait a moment, then try again.",
+    network: "We could not reach the server. Check your connection and try again.",
+    fallback: "That did not work. Try again in a moment.",
+  },
   /** "Upload the file instead", on a link run whose video never arrived. */
   useUpload: {
     "repurpose/source_not_replaceable":
@@ -599,11 +616,13 @@ export const REFUSAL_COPY = Object.freeze({
  */
 export const AUTOPILOT_COPY = Object.freeze({
   label: "Autopilot",
-  on: "Every moment we find becomes a clip by itself, and anything that fails for a passing reason is tried again. You do not need to stay on this page.",
+  // The strongest moments, not every one (steering, 2026-09-29): a few more are
+  // found than are cut, and wait for the place of a clip the person removes.
+  on: "The strongest moments become clips by themselves, with a few more kept in reserve, and anything that fails for a passing reason is tried again. You do not need to stay on this page.",
   off: "You choose which moments become clips.",
   runOn:
-    "Autopilot is on: every moment becomes a clip by itself, and anything that fails for a passing reason is tried again.",
-  cutting: " Autopilot is making a vertical 9:16 clip of each one.",
+    "Autopilot is on: the strongest moments become clips by themselves. Remove one you do not want and the next best takes its place.",
+  cutting: " Autopilot is making a vertical 9:16 clip of the strongest ones.",
 });
 
 /**
@@ -754,3 +773,61 @@ export function beginnerSafetyViolations(text: string): string[] {
   const haystack = text.toLowerCase();
   return FORBIDDEN_USER_FACING_WORDS.filter((word) => haystack.includes(word));
 }
+
+/**
+ * Steering (2026-09-29): the start form's topic, clip length and skips, the
+ * run page's line about them, and the controls that remove a clip or move its
+ * start and end.
+ */
+export const STEERING_COPY = Object.freeze({
+  topicLabel: "What should the clips be about? (optional)",
+  topicPlaceholder: "money habits, startup failures",
+  topicHint:
+    "We look for moments about this first. Leave it empty for the strongest moments of any kind.",
+  topicTooShort: "Say a little more, like “money habits”.",
+  topicTooLong: "Keep it under 200 characters.",
+  lengthLegend: "Clip length",
+  length: Object.freeze({ short: "Short", medium: "Medium", long: "Long" }),
+  skipLegend: "Skip the start and end (optional)",
+  skipFirst: "Skip the first",
+  skipLast: "Skip the last",
+  minutes: "min",
+  skipHint: "No clip is taken from these parts, like an intro, a sponsor read or the credits.",
+  skipInvalid: "Type a number of minutes from 0 to 30.",
+  // The run page's line about a steered run.
+  about: (topic: string): string => `About: ${topic}`,
+  runLength: Object.freeze({
+    short: "Short clips",
+    medium: "Medium clips",
+    long: "Long clips",
+  }),
+  skipsFirst: (span: string): string => `Skips the first ${span}`,
+  skipsLast: (span: string): string => `Skips the last ${span}`,
+  skipsBoth: (first: string, last: string): string =>
+    `Skips the first ${first} and the last ${last}`,
+  // A moment's own controls.
+  remove: "Remove",
+  removeClip: (title: string): string => `Remove this clip: ${title}`,
+  removeMoment: (title: string): string => `Remove this moment: ${title}`,
+  removing: "Removing…",
+  removed: "Removed",
+  restore: "Restore",
+  restoreLabel: (title: string): string => `Restore: ${title}`,
+  restoring: "Restoring…",
+  adjust: "Adjust",
+  adjustLabel: (title: string): string => `Adjust the start and end: ${title}`,
+  adjustWhileCutting: "You can change the times once this clip is cut.",
+  start: "Start",
+  end: "End",
+  nudge: (side: "start" | "end", seconds: number): string =>
+    `${side === "start" ? "Start" : "End"} ${String(Math.abs(seconds))} ${Math.abs(seconds) === 1 ? "second" : "seconds"} ${seconds < 0 ? "earlier" : "later"}`,
+  lengthNow: (length: string): string => `${length} long`,
+  recut: "Re-cut",
+  recutting: "Re-cutting…",
+  saveTimes: "Save times",
+  saving: "Saving…",
+  cancel: "Cancel",
+  recutNote:
+    "The clip is made again from these times, snapped to the nearest words. Changes made to its captions are not kept.",
+  saveNote: "The times are snapped to the nearest words.",
+});

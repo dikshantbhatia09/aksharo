@@ -48,6 +48,7 @@ import {
   startAtMs,
   type StartFormValue,
 } from "@/components/repurpose/SourceStartForm";
+import { discoverySteeringOf } from "@/components/repurpose/steering";
 import { useUploadQueue } from "@/lib/upload/use-upload-queue";
 
 /** A positive entitlement number, or `undefined` while unknown or unset. */
@@ -162,6 +163,9 @@ export function RepurposeNewView(): React.JSX.Element {
       discovery: {
         mode: value.method,
         requestedCandidates: value.method === "manual" ? 0 : value.requestedCandidates,
+        // What the clips are about, how long, and what of the video to skip:
+        // only when we pick the moments (steering, 2026-09-29).
+        ...(value.method === "manual" ? {} : discoverySteeringOf(value)),
       },
       // Only with a start: no window leaves the choice to the server.
       ...(startMs === undefined ? {} : { window: { startMs, policy: "range" as const } }),

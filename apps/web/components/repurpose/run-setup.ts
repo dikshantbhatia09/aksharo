@@ -20,6 +20,13 @@ import {
   type KnownLength,
   type StartFormValue,
 } from "@/components/repurpose/SourceStartForm";
+import {
+  TOPIC_MAX_LENGTH,
+  discoverySteeringOf,
+  isClipLength,
+  skipMsOf,
+  type ClipLength,
+} from "@/components/repurpose/steering";
 
 export interface RunSetup {
   /** A language tag, or `auto` for "Detect automatically". */
@@ -33,6 +40,14 @@ export interface RunSetup {
   readonly link?: string;
   /** Where its window was asked to start, for a link run given a start. */
   readonly startMs?: number;
+  /**
+   * Steering (2026-09-29), for a run whose moments we picked: the topic, the
+   * clip length, and the start and end it skipped.
+   */
+  readonly topic?: string;
+  readonly clipLength?: ClipLength;
+  readonly skipIntroMs?: number;
+  readonly skipOutroMs?: number;
 }
 
 /** The longest source anyone can send (the 12-hour ceiling), with room to spare. */
@@ -93,6 +108,8 @@ export function setupOf(value: StartFormValue): RunSetup {
     requestedCandidates: value.requestedCandidates,
     ...(link === "" ? {} : { link }),
     ...(link === "" || startMs === undefined ? {} : { startMs }),
+    // Only what was sent: a manual run is steered by nothing.
+    ...(value.method === "ai" ? discoverySteeringOf(value) : {}),
   };
 }
 
@@ -188,7 +205,28 @@ export function newRunHref(
   params.set("style", setup.styleId);
   params.set("method", setup.method);
   if (setup.method === "ai") params.set("n", String(setup.requestedCandidates));
+  if (setup.method === "ai") {
+    if (setup.topic !== undefined) params.set("about", setup.topic);
+    if (setup.clipLength !== undefined) params.set("clip", setup.clipLength);
+    if (setup.skipIntroMs !== undefined) params.set("skipStart", minutesOf(setup.skipIntroMs));
+    if (setup.skipOutroMs !== undefined) params.set("skipEnd", minutesOf(setup.skipOutroMs));
+  }
   return `/repurpose/new?${params.toString()}`;
+}
+
+/** A skip in milliseconds as the form's minutes field holds it ("2", "1.5"). */
+function minutesOf(ms: number): string {
+  return String(Math.round((ms / 60_000) * 100) / 100);
+}
+
+/**
+ * A skip in minutes from a query string, as the form field would hold it, or
+ * empty: a number of minutes the form accepts (`skipMsOf`), since anyone can
+ * craft the URL.
+ */
+function skipParam(raw: string | null): string {
+  const ms = skipMsOf(raw ?? "");
+  return typeof ms === "number" ? minutesOf(ms) : "";
 }
 
 /**
@@ -226,6 +264,8 @@ export function startFormFromParams(
   // Re-formatted from the parsed value, so what the field shows is exactly
   // what will be sent; anything that is not a time is dropped.
   const start = parseClock(params.get("start") ?? "");
+  const about = (params.get("about") ?? "").trim().slice(0, TOPIC_MAX_LENGTH);
+  const clip = params.get("clip");
   return {
     ...EMPTY_START_FORM,
     // A link that came with the URL is what the form is about, whatever else
@@ -248,6 +288,16 @@ export function startFormFromParams(
         : Number.isInteger(n) && n >= 1 && n <= 20
           ? n
           : EMPTY_START_FORM.requestedCandidates,
+    // Steering, kept for a run whose moments we picked (and ignored for one
+    // whose person did, which had none).
+    ...(method === "manual"
+      ? {}
+      : {
+          topic: about,
+          clipLength: isClipLength(clip) ? clip : EMPTY_START_FORM.clipLength,
+          skipIntro: skipParam(params.get("skipStart")),
+          skipOutro: skipParam(params.get("skipEnd")),
+        }),
   };
 }
 

@@ -240,3 +240,59 @@ describe("the start and the detected language through the query string", () => {
     });
   });
 });
+
+/**
+ * Steering (2026-09-29): a run's topic, clip length and skips go back to the
+ * form with the rest of its setup, and only for a run whose moments we picked.
+ */
+describe("steering through the query string", () => {
+  it("remembers what a run was steered with, and hands it back to the form", () => {
+    const setup = setupOf({
+      ...EMPTY_START_FORM,
+      url: "https://youtu.be/dQw4w9WgXcQ",
+      topic: " money habits ",
+      clipLength: "long",
+      skipIntro: "2",
+      skipOutro: "0.5",
+    });
+    expect(setup).toMatchObject({
+      topic: "money habits",
+      clipLength: "long",
+      skipIntroMs: 120_000,
+      skipOutroMs: 30_000,
+    });
+
+    const form = startFormFromParams(
+      new URL(newRunHref(setup, { keepLink: false }), "https://app.test").searchParams,
+      "en",
+    );
+    expect(form).toMatchObject({
+      topic: "money habits",
+      clipLength: "long",
+      skipIntro: "2",
+      skipOutro: "0.5",
+    });
+  });
+
+  it("carries none of it for a run whose person picked the moments", () => {
+    const setup = setupOf({
+      ...EMPTY_START_FORM,
+      method: "manual",
+      requestedCandidates: 0,
+      topic: "money habits",
+    });
+    expect(setup).not.toHaveProperty("topic");
+    expect(setup).not.toHaveProperty("clipLength");
+  });
+
+  it("ignores lengths and skips nobody could have picked", () => {
+    const form = startFormFromParams(
+      new URLSearchParams(`clip=epic&skipStart=45&skipEnd=-1&about=${"y".repeat(300)}`),
+      "en",
+    );
+    expect(form.clipLength).toBe(EMPTY_START_FORM.clipLength);
+    expect(form.skipIntro).toBe("");
+    expect(form.skipOutro).toBe("");
+    expect(form.topic).toHaveLength(200);
+  });
+});
