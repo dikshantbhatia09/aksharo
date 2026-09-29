@@ -1694,6 +1694,26 @@ describe("Autopilot's images, disk guard and old renders", () => {
     ]);
   });
 
+  it("takes one set at a time: a new set waits for an older one still running", async () => {
+    h = harness({ run: auto });
+    everyShapeMade(h);
+    const clipId = String(h.tables.clips[0]?.["id"]);
+    h.tables.jobs.push({
+      id: "01JCST1LLS0000000000000001",
+      workspaceId: WS,
+      type: "media.stills",
+      jobKey: `media.stills:${clipId}:0000000000000000`,
+      status: "running",
+      queuedAt: new Date(clock++),
+    });
+    await h.service.reconcileClips(RUN);
+    expect(stills(h)).toHaveLength(0);
+
+    Object.assign(h.tables.jobs[h.tables.jobs.length - 1] ?? {}, { status: "succeeded" });
+    await h.service.reconcileClips(RUN);
+    expect(stills(h)).toHaveLength(1);
+  });
+
   it("waits for a shape that is still being made", async () => {
     h = harness({ run: auto });
     everyShapeMade(h);

@@ -13,6 +13,7 @@ import {
   animate,
   cuePhase,
   cueTiming,
+  lineSpread,
   __testing,
   toGlyphRun,
   watermarkCommand,
@@ -495,6 +496,50 @@ describe("animate", () => {
     expect(
       transforms.some((command) => command.kind === "transform" && command.matrix[0] > 1),
     ).toBe(true);
+  });
+
+  // Live, 2026-09-29: Punch Pop's spoken word grew 18 % about its own centre
+  // and covered the spaces either side ("ITSTARTEDBEFORE I").
+  it("moves the neighbours of a word that grows, so the gaps between words stay", () => {
+    const doc = style("punch-pop");
+    const long: RenderWord[] = [
+      { wid: "0:0", t: "it", s: 0, e: 400 },
+      { wid: "0:1", t: "started", s: 400, e: 1400 },
+      { wid: "0:2", t: "before", s: 1400, e: 2200 },
+      { wid: "0:3", t: "i", s: 2200, e: 3000 },
+    ];
+    const tMs = 1000; // "started", fully grown
+    const layout = lay(doc, tMs, long);
+    const line = layout.lines.find((row) => row.words.some((word) => word.wid === "0:1"));
+    if (line === undefined) throw new Error("no line");
+    const spread = lineSpread(line, doc, tMs);
+    const scaleOf = (wid: string): number =>
+      wid === "0:1" ? (doc.animation.wordHighlight.scale ?? 1.15) : 1;
+    const drawn = line.words.map((word, index) => {
+      const width = word.box[2] - word.box[0];
+      const centre = (word.box[0] + word.box[2]) / 2 + (spread.at(index) ?? 0);
+      const half = (width * scaleOf(word.wid)) / 2;
+      return [centre - half, centre + half] as const;
+    });
+    for (let index = 1; index < drawn.length; index += 1) {
+      const laidGap = (line.words.at(index)?.box[0] ?? 0) - (line.words.at(index - 1)?.box[2] ?? 0);
+      const drawnGap = (drawn.at(index)?.[0] ?? 0) - (drawn.at(index - 1)?.[1] ?? 0);
+      expect(drawnGap).toBeCloseTo(laidGap, 3);
+    }
+    // Centred text keeps its centre.
+    const laidCentre = (line.box[0] + line.box[2]) / 2;
+    const drawnCentre = ((drawn[0]?.[0] ?? 0) + (drawn[drawn.length - 1]?.[1] ?? 0)) / 2;
+    expect(drawnCentre).toBeCloseTo(laidCentre, 1);
+  });
+
+  it("moves nothing on a line where no word is scaled", () => {
+    const base = style("punch-pop");
+    const doc = style("punch-pop", {
+      animation: { ...base.animation, wordHighlight: { type: "color", durationMs: 120 } },
+    });
+    for (const line of lay(doc, 1000).lines) {
+      expect(lineSpread(line, doc, 1000)).toEqual(line.words.map(() => 0));
+    }
   });
 
   it("draws an underline that grows across the word", () => {

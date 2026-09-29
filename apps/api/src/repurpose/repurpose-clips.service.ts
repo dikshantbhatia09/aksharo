@@ -26,6 +26,7 @@ import {
   fileOfImage,
   planClipImages,
   stillsJobKey,
+  stillsKeyPrefix,
   storedImagesOf,
 } from "./clip-images.js";
 import {
@@ -902,12 +903,20 @@ export class RepurposeClipsService {
         if (storedImagesOf(clip.images)?.fingerprint === plan.fingerprint) continue;
         const jobKey = stillsJobKey(clip.id, plan.fingerprint);
         const jobs = await this.prisma.job.findMany({
-          where: { workspaceId: run.workspaceId, type: "media.stills", jobKey },
-          select: { status: true },
+          where: {
+            workspaceId: run.workspaceId,
+            type: "media.stills",
+            jobKey: { startsWith: stillsKeyPrefix(clip.id) },
+          },
+          select: { status: true, jobKey: true },
         });
-        // Live, or succeeded with its completion landing.
-        if (jobs.some((job) => job.status !== "failed" && job.status !== "cancelled")) continue;
-        if (jobs.length >= IMAGE_ATTEMPTS) continue;
+        // One set at a time per clip: an older set still being taken would
+        // otherwise land after this one and file itself over it.
+        if (jobs.some((job) => job.status === "queued" || job.status === "running")) continue;
+        const ofThisSet = jobs.filter((job) => job.jobKey === jobKey);
+        // Succeeded: its completion is landing (or has, and the set is stored).
+        if (ofThisSet.some((job) => job.status === "succeeded")) continue;
+        if (ofThisSet.length >= IMAGE_ATTEMPTS) continue;
         if (!roomChecked) {
           if (!(await this.roomForFormats(run))) return;
           roomChecked = true;

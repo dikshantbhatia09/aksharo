@@ -554,22 +554,22 @@
    "style": "gradient-sweep",
    "fixture": "hinglish",
    "tMs": 80,
-   "commands": 15,
-   "hash": "abbb7f74b64db2ffa32b0cf29904dddef129d3d2bb3d5f856eab9c17bbc483a9"
+   "commands": 17,
+   "hash": "ba90a80a7bb7c3519a03c328b1da725eb0b99032672de7913bcb53abf1ce2d22"
   },
   {
    "style": "gradient-sweep",
    "fixture": "hinglish",
    "tMs": 1500,
-   "commands": 14,
-   "hash": "603d64f0c495465d4d1fe190e5002ee59147c7b5d64358dcc1acca66b37160fa"
+   "commands": 19,
+   "hash": "b90e22b5ba03b2c59e803855d05af1bf907100cb5984c8117e3b205de68b2f00"
   },
   {
    "style": "gradient-sweep",
    "fixture": "hinglish",
    "tMs": 2940,
-   "commands": 14,
-   "hash": "8dda8f5b3294a4691904cd7359f105af587d75a7531fc90deb2a21700830c750"
+   "commands": 19,
+   "hash": "47a84d3a83d3ff1923de6a79968ce45434ba7c7a13614d877e1f99205a200289"
   },
   {
    "style": "handwritten-marker",
@@ -1016,36 +1016,36 @@
    "style": "prism-split",
    "fixture": "hinglish",
    "tMs": 80,
-   "commands": 22,
-   "hash": "cb51aec6b8a58893b6eeb2cfd70efb3fd0d02a3465186dfdb6e40af7f2b74bf8"
+   "commands": 24,
+   "hash": "19592516b2946d1e4efbd5357799912dba3a10c7e494dbff3f8a1030cf4a2df8"
   },
   {
    "style": "prism-split",
    "fixture": "hinglish",
    "tMs": 1500,
-   "commands": 21,
-   "hash": "30087635debb1ca381e0af66b5d4bc8064520246ee2aae670b63a382f5075419"
+   "commands": 26,
+   "hash": "46e92e2475027114df5c0cfa9fac5373db3d67095d62b8d76d1a631875125cda"
   },
   {
    "style": "prism-split",
    "fixture": "hinglish",
    "tMs": 2940,
-   "commands": 21,
-   "hash": "c6185191ef6a43f9d1fda39f4cd3b92f477c4815e8af305159d13fd7cad1c2ec"
+   "commands": 26,
+   "hash": "63f49f965ab922bc3f440fe17a51a8b4f2c2180022fd0ab627e7dc7e1dd25d6b"
   },
   {
    "style": "punch-pop",
    "fixture": "hinglish",
    "tMs": 80,
-   "commands": 12,
-   "hash": "d30e8ba06fb93858406e95f18a40c053574dd4bbee9722b4bea70dd8c480ec30"
+   "commands": 13,
+   "hash": "35c4cd3c298f3b75e0925851cf6d6dca0ccd6b4181df117be5b1e85b2565485b"
   },
   {
    "style": "punch-pop",
    "fixture": "hinglish",
    "tMs": 1500,
-   "commands": 11,
-   "hash": "2495eb14d35827b52c17e897bbccb366fd257d632fa316c6e8cce89bcde47d70"
+   "commands": 14,
+   "hash": "d53a7d88bf34fabd397004a8833d42b69ae68235ea9293bb2343153468051b3e"
   },
   {
    "style": "punch-pop",
@@ -1163,22 +1163,22 @@
    "style": "spotlight-word",
    "fixture": "hinglish",
    "tMs": 80,
-   "commands": 21,
-   "hash": "a92a7e325fc5c6bcee7621e28b1b1eb05b972b5ac17b244d806e9d6ca6067a4f"
+   "commands": 23,
+   "hash": "02da6a2918ae68de314437e369b29b029006c7a8b2a3cdbd6ce551cf34822816"
   },
   {
    "style": "spotlight-word",
    "fixture": "hinglish",
    "tMs": 1500,
-   "commands": 21,
-   "hash": "9594b36f6bcffd641e596cc51785c26f24a7eb4342ac3c7dd2390a8784f19b9c"
+   "commands": 26,
+   "hash": "ec9d8137bca1080eebceef46b658832efc0c2f3a454e3479c7b4c9934fafabfa"
   },
   {
    "style": "spotlight-word",
    "fixture": "hinglish",
    "tMs": 2940,
-   "commands": 21,
-   "hash": "9abf2a3e7ad0a3459d163905e95d753c211b669f9d1f5b3f9be477fd70c6be25"
+   "commands": 26,
+   "hash": "e56a701c4047fe55ed30cb6cade6422b7404ee91815ed9d871119eab5d2cc25a"
   },
   {
    "style": "stencil-alert",
@@ -1940,8 +1940,8 @@
    "style": "gradient-sweep",
    "fixture": "hindi",
    "tMs": 80,
-   "commands": 14,
-   "hash": "e995d2e1f8e5aecd2bbf7b13f1db6dc303dee43ad0e52ece6dd04caab8a14ff8"
+   "commands": 17,
+   "hash": "e25d481e46e1fac76fdab62a407a80260858093146a2e265ff0e50291366d101"
   },
   {
    "style": "gradient-sweep",
@@ -1954,8 +1954,8 @@
    "style": "gradient-sweep",
    "fixture": "hindi",
    "tMs": 2940,
-   "commands": 13,
-   "hash": "c9d747490509674bb93672cd7bf437f39ee58985c564e57dc1873de4322474b4"
+   "commands": 16,
+   "hash": "11efb0f2b8a418bbefbaf6488a848a63f16b6c998cbf5a0cf9732da1fc7f2960"
   },
   {
    "style": "handwritten-marker",
@@ -2402,8 +2402,8 @@
    "style": "prism-split",
    "fixture": "hindi",
    "tMs": 80,
-   "commands": 20,
-   "hash": "ea0ec3e833b24b3e0dfd835a37660ec40a6c065c109a3008c40106e6bf1d6797"
+   "commands": 23,
+   "hash": "05c888658cc1209a527cfa47a6fe9e21f7acd8b1e57971a409be0153efdf7323"
   },
   {
    "style": "prism-split",
@@ -2416,15 +2416,15 @@
    "style": "prism-split",
    "fixture": "hindi",
    "tMs": 2940,
-   "commands": 19,
-   "hash": "5188858e7b2a80f600d62e47897611fed785e03a42bde4ea96cd3da02cfaad09"
+   "commands": 22,
+   "hash": "c3bff71c0a6dab6541b4021aff43ca937a4c04d9e90815a3da7db0fa992507fd"
   },
   {
    "style": "punch-pop",
    "fixture": "hindi",
    "tMs": 80,
-   "commands": 12,
-   "hash": "f939093346c8043b367072138c152bfa62d2acbccb8f013f9850afa85e900877"
+   "commands": 13,
+   "hash": "9ceea50ddb7dd1b3dc67f86956931d42d298a896cdb9d8860f9a68296d2cbdfc"
   },
   {
    "style": "punch-pop",
@@ -2437,8 +2437,8 @@
    "style": "punch-pop",
    "fixture": "hindi",
    "tMs": 2940,
-   "commands": 11,
-   "hash": "d85807f43b6a4ac3e7800196d1e1a2cec9362ea0bd4895bdf97339773403209b"
+   "commands": 14,
+   "hash": "af8275ba04bccf62c253e1a563b8db3a233bf2a8bf59e439e923ee6df96eceee"
   },
   {
    "style": "punjabi-native",
@@ -2549,8 +2549,8 @@
    "style": "spotlight-word",
    "fixture": "hindi",
    "tMs": 80,
-   "commands": 19,
-   "hash": "599dc97f283d6d1da199c0f7b6ded0da975458c994f52c46d3e457cc365fff74"
+   "commands": 22,
+   "hash": "69d90c68aad5a3d7428019e38f1a495d0436ac36d4c045852de1749e7c48fcdd"
   },
   {
    "style": "spotlight-word",
@@ -2563,8 +2563,8 @@
    "style": "spotlight-word",
    "fixture": "hindi",
    "tMs": 2940,
-   "commands": 19,
-   "hash": "1e308783e46f1b7e4f05a902cf838fdbaab36f75870fb6f6bd6d7aa9593ecb85"
+   "commands": 22,
+   "hash": "4884d4b798ca391c5a35d9cd3cd9fc05c5580dc26457860db7ef3ad884391185"
   },
   {
    "style": "stencil-alert",
@@ -3326,8 +3326,8 @@
    "style": "gradient-sweep",
    "fixture": "tamil",
    "tMs": 80,
-   "commands": 12,
-   "hash": "c489290d01f6a6038860ca7904f44bfa667af056db6968230a269a5c63e5415a"
+   "commands": 15,
+   "hash": "393ce351ba2c282234d4ed0f1578c9ce8e208c63d6c5b2cb886f82d6c2880ecb"
   },
   {
    "style": "gradient-sweep",
@@ -3340,8 +3340,8 @@
    "style": "gradient-sweep",
    "fixture": "tamil",
    "tMs": 2940,
-   "commands": 11,
-   "hash": "85ef97aca266847f6665789da4c9e39010cb75df0d1f5722d0e8587db7ad2b4f"
+   "commands": 12,
+   "hash": "bcf2fffdd44a7396c72962baf09ee05612d2c47c92c7713f7486e8562461d2b9"
   },
   {
    "style": "handwritten-marker",
@@ -3788,8 +3788,8 @@
    "style": "prism-split",
    "fixture": "tamil",
    "tMs": 80,
-   "commands": 16,
-   "hash": "86ddc3c36d754e9feca4bafe8abccaa11371dcccc29e3cd5281325eb7eff601e"
+   "commands": 19,
+   "hash": "6278939e99467e76a4d4204a2614f8b37ef2e4c88aa21531ea592466d5d85a5b"
   },
   {
    "style": "prism-split",
@@ -3802,15 +3802,15 @@
    "style": "prism-split",
    "fixture": "tamil",
    "tMs": 2940,
-   "commands": 15,
-   "hash": "3d25e3dbd0deb66d514759a244cd6b65c8a857a86206e8de9d26464bd6d3b61f"
+   "commands": 16,
+   "hash": "80bce467b542792899fb11eaed5fbf3a2856578bcb89a5acfc2c91eca5f25b72"
   },
   {
    "style": "punch-pop",
    "fixture": "tamil",
    "tMs": 80,
-   "commands": 12,
-   "hash": "4700ace898b0edfeaa3f15f234657f51ef3c2f33bd5ffc0ac98f8e49b61d4d60"
+   "commands": 14,
+   "hash": "0c922c2ed9bf03dfc6c08664579d07a1c5129b356b8ea3f533b063a7d7624405"
   },
   {
    "style": "punch-pop",
@@ -3823,8 +3823,8 @@
    "style": "punch-pop",
    "fixture": "tamil",
    "tMs": 2940,
-   "commands": 7,
-   "hash": "24bc3d4d7816b296e7bceaa0198b9601a00d8d6ca9d7dfcfe2a2768438a9bef3"
+   "commands": 8,
+   "hash": "3e03ba9e00c5fc54781c0f03b84fd7d197aabf122262d806b2d687560a1dd81a"
   },
   {
    "style": "punjabi-native",
@@ -3935,8 +3935,8 @@
    "style": "spotlight-word",
    "fixture": "tamil",
    "tMs": 80,
-   "commands": 15,
-   "hash": "b2ec899605401f2842e0e3e4006797926a0e404b4e86acdc1011a5efc8573ad4"
+   "commands": 18,
+   "hash": "aa25ecfbdacc70b3fce05bfa3125f75ad38b4cd74d9653e52fd57034dd1c97a2"
   },
   {
    "style": "spotlight-word",
@@ -3949,8 +3949,8 @@
    "style": "spotlight-word",
    "fixture": "tamil",
    "tMs": 2940,
-   "commands": 15,
-   "hash": "06fe5fd51959bbedab8560170b6bc0bb8b369c1812909ade485ae9404c78850c"
+   "commands": 16,
+   "hash": "969b7dec2f2c2682c17672707f6c2fee7a2f8f7a5774533edcc0e8d7ea122b4b"
   },
   {
    "style": "stencil-alert",
@@ -4712,8 +4712,8 @@
    "style": "gradient-sweep",
    "fixture": "english",
    "tMs": 80,
-   "commands": 16,
-   "hash": "1aa7b66d87765dbb37708a81af64291791281c64ca69c9cfbf7579caae12de3d"
+   "commands": 19,
+   "hash": "c3986edaefb5dc03ff648ccc07689064b6e2dd120bec5ed85e9af6581dacf092"
   },
   {
    "style": "gradient-sweep",
@@ -4726,8 +4726,8 @@
    "style": "gradient-sweep",
    "fixture": "english",
    "tMs": 2940,
-   "commands": 15,
-   "hash": "6023cc9e58d7d0f5a50ca0aaa318214ff03c21bb21c4bc44cc1dd05658bb5b07"
+   "commands": 20,
+   "hash": "c57832ae1feffe0f3b08c49df9b1f7d2625efb5be166d59e0a591f385e5957af"
   },
   {
    "style": "handwritten-marker",
@@ -5174,8 +5174,8 @@
    "style": "prism-split",
    "fixture": "english",
    "tMs": 80,
-   "commands": 24,
-   "hash": "1de2f577c9efd450bd24ded911c06bcdabdd194d245314e7ec541b822890c212"
+   "commands": 27,
+   "hash": "7897c69e134446be9d498d0d359cc43cd61c5ad2d1ccdcc95353057b5f2b6a57"
   },
   {
    "style": "prism-split",
@@ -5188,15 +5188,15 @@
    "style": "prism-split",
    "fixture": "english",
    "tMs": 2940,
-   "commands": 23,
-   "hash": "d3dc0f36ec1bc28dbdf13b28ad524cab0ee49229a2fa5dc1a48cf1237b449285"
+   "commands": 28,
+   "hash": "6d547943e98623324ae5ee17f285b880888f935c3befdb5eaed8ce26d8789a4d"
   },
   {
    "style": "punch-pop",
    "fixture": "english",
    "tMs": 80,
-   "commands": 12,
-   "hash": "b9ad6c4bcde0ee79f55254d1c374bb58e02ba3a6292fd2c509a8061d3f29805d"
+   "commands": 13,
+   "hash": "aa17b154703d0e6042494f919fb0d9301f8dd59272f0ce2ce7caf2dbbd48e4ea"
   },
   {
    "style": "punch-pop",
@@ -5321,8 +5321,8 @@
    "style": "spotlight-word",
    "fixture": "english",
    "tMs": 80,
-   "commands": 23,
-   "hash": "8e50a41f2e6d616bad105297d3374620663cc688c871d018a2d0e4e0f4c715fc"
+   "commands": 26,
+   "hash": "9b03f671d131af99560398c62b29c100e062a2034150325ba9e997ab55c8f0dd"
   },
   {
    "style": "spotlight-word",
@@ -5335,8 +5335,8 @@
    "style": "spotlight-word",
    "fixture": "english",
    "tMs": 2940,
-   "commands": 23,
-   "hash": "690b24af536300ef3dbac895e3bf5aadd8f3e4310c27d265e5428a3d32c0d03d"
+   "commands": 28,
+   "hash": "c8cd01974f3482630a3103d8be1953e9c0e93519939ffbb9240ec6eefc5902fb"
   },
   {
    "style": "stencil-alert",

@@ -637,6 +637,48 @@ function emphasisGround(preset: EmphasisPreset, word: LayoutWord, layout: Layout
   }
 }
 
+/** The scale one word is drawn at now: its highlight's growth times its emphasis scale. */
+function wordScaleAt(word: LayoutWord, style: StyleDoc, tMs: number): number {
+  const highlight = style.animation.wordHighlight;
+  const highlightScale =
+    wordState(word, tMs) === "speaking" && highlight.type === "scale"
+      ? lerp(
+          1,
+          highlight.scale ?? 1.15,
+          easeOutBack(highlightProgress(word, tMs, highlight.durationMs)),
+        )
+      : 1;
+  return highlightScale * (emphasisOf(style, word)?.scale ?? 1);
+}
+
+/**
+ * How far each word of a line moves sideways so that a word drawn larger than
+ * its laid-out box pushes its neighbours aside instead of covering them.
+ *
+ * A word scales about its own centre. Punch Pop's highlight grows the spoken
+ * word by 18 %, which for a word of six or more capitals is wider than the
+ * space either side of it, so live renders read "ITSTARTEDBEFORE I" and
+ * "WHYDID" (2026-09-29). Each word now moves by the growth of the words before
+ * it, and the line as a whole by the anchor its alignment keeps still: the
+ * centre for centred text, the left or right edge otherwise. Words that are
+ * not scaled cost nothing: a line with no growth moves nothing.
+ */
+export function lineSpread(line: LayoutLine, style: StyleDoc, tMs: number): readonly number[] {
+  const growth = line.words.map(
+    (word) => (wordScaleAt(word, style, tMs) - 1) * rectWidth(word.box),
+  );
+  const total = growth.reduce((sum, value) => sum + value, 0);
+  if (total === 0) return growth.map(() => 0);
+  const align = style.layout.align;
+  const kept = align === "left" ? 0 : align === "right" ? total : total / 2;
+  let before = 0;
+  return growth.map((value) => {
+    const shift = before + value / 2 - kept;
+    before += value;
+    return shift;
+  });
+}
+
 /** Everything drawn for one word: ground, type, karaoke overlay, transforms. */
 function wordCommands(
   word: LayoutWord,
@@ -644,6 +686,8 @@ function wordCommands(
   layout: Layout,
   tMs: number,
   options: AnimateOptions,
+  /** Sideways shift from {@link lineSpread}. */
+  dx = 0,
 ): DrawCommand[] {
   const preset = emphasisOf(style, word);
   const state = wordState(word, tMs);
@@ -723,24 +767,16 @@ function wordCommands(
   const children = [...ground, ...ink, ...underline, ...strikethrough];
 
   // Per-word scale: the highlight's own growth multiplied by the emphasis scale.
-  const highlightScale =
-    state === "speaking" && highlight.type === "scale"
-      ? lerp(
-          1,
-          highlight.scale ?? 1.15,
-          easeOutBack(highlightProgress(word, tMs, highlight.durationMs)),
-        )
-      : 1;
-  const scale = highlightScale * (preset?.scale ?? 1);
+  const scale = wordScaleAt(word, style, tMs);
   const shake =
     preset?.effect === "shake"
       ? shakeOffset(tMs, ofFontSize(3, layout.fontSizePx), word.index)
       : { x: 0, y: 0 };
 
-  if (scale === 1 && shake.x === 0 && shake.y === 0) return children;
+  if (scale === 1 && shake.x === 0 && shake.y === 0 && dx === 0) return children;
   const cx = (word.box[0] + word.box[2]) / 2;
   const cy = (word.box[1] + word.box[3]) / 2;
-  return [transform(scaleTranslateMatrix(scale, cx, cy, shake.x, shake.y), children)];
+  return [transform(scaleTranslateMatrix(scale, cx, cy, shake.x + dx, shake.y), children)];
 }
 
 function lineCommands(
@@ -759,7 +795,10 @@ function lineCommands(
       }),
     );
   }
-  for (const word of line.words) children.push(...wordCommands(word, style, layout, tMs, options));
+  const spread = lineSpread(line, style, tMs);
+  line.words.forEach((word, index) => {
+    children.push(...wordCommands(word, style, layout, tMs, options, spread.at(index) ?? 0));
+  });
   return children;
 }
 
@@ -952,11 +991,12 @@ function animateWordScope(options: AnimateOptions): DrawCommand[] {
       );
     }
 
-    for (const word of line.words) {
+    const spread = lineSpread(line, style, tMs);
+    for (const [index, word] of line.words.entries()) {
       const phase = wordCuePhase(word, layout, style, tMs);
       if (phase.opacity <= 0) continue;
 
-      let wordContent = wordCommands(word, style, layout, tMs, options);
+      let wordContent = wordCommands(word, style, layout, tMs, options, spread.at(index) ?? 0);
 
       if (phase.reveal < 1) {
         const revealed = phase.reveal * rectWidth(word.box);
