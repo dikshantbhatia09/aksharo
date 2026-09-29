@@ -161,6 +161,7 @@ export {
   type OverlayImageRef,
   OverlayLayoutCache,
   overlayActiveAt,
+  overlayImageIds,
   type OverlayTrack,
 } from "./overlay/types.js";
 export {

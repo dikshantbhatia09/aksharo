@@ -82,6 +82,22 @@ export interface EndCardTrack {
 /** Any overlay, told apart by `kind`. */
 export type OverlayTrack = HookTitleTrack | LogoTrack | EndCardTrack;
 
+/**
+ * Every image the overlays draw (a brand logo, in a corner or on an end card),
+ * once each: what a host fetches and registers with its backend before
+ * drawing, so an `image` command finds its bytes.
+ */
+export function overlayImageIds(overlays: readonly OverlayTrack[] | undefined): string[] {
+  const ids = new Set<string>();
+  for (const overlay of overlays ?? []) {
+    if (overlay.kind === LOGO_KIND) ids.add(overlay.image.assetId);
+    if (overlay.kind === END_CARD_KIND && overlay.image !== undefined) {
+      ids.add(overlay.image.assetId);
+    }
+  }
+  return [...ids];
+}
+
 /** Whether an overlay is on screen at `sourceMs`: its window is start-inclusive, end-exclusive. */
 export function overlayActiveAt(overlay: OverlayTrack, sourceMs: number): boolean {
   return sourceMs >= overlay.startMs && sourceMs < overlay.endMs;

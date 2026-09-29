@@ -22,7 +22,12 @@ import {
   layoutEndCard,
 } from "./end-card.js";
 import { drawLogo, LOGO_MAX_HEIGHT, logoRect, placeLogo } from "./logo.js";
-import { type EndCardTrack, type HookTitleTrack, type LogoTrack } from "./types.js";
+import {
+  type EndCardTrack,
+  type HookTitleTrack,
+  type LogoTrack,
+  overlayImageIds,
+} from "./types.js";
 
 const catalogue = loadSystemStyleMap();
 const PORTRAIT = { width: 1080, height: 1920 };
@@ -67,6 +72,14 @@ const CARD: EndCardTrack = {
   accent: "#f0508a",
   image: LOGO.image,
 };
+
+describe("overlayImageIds", () => {
+  it("names every image the overlays draw, once, and nothing for a document without any", () => {
+    expect(overlayImageIds([LOGO, CARD])).toEqual([LOGO.image.assetId]);
+    expect(overlayImageIds([{ ...CARD, image: undefined } as EndCardTrack])).toEqual([]);
+    expect(overlayImageIds(undefined)).toEqual([]);
+  });
+});
 
 describe("logoRect", () => {
   it("sizes the logo by the frame's width at the file's own aspect, in its corner", () => {
