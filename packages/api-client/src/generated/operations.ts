@@ -2098,6 +2098,13 @@ export const API_OPERATIONS = [
     summary: "Set (or clear) a project's client tag",
   },
   {
+    operationId: "setRepurposeClipLayout",
+    method: "PUT",
+    path: "/repurpose/runs/{runId}/clips/{clipId}/layout",
+    tags: ["repurpose"],
+    summary: "Choose a clip's layout: auto, one speaker, or both speakers stacked",
+  },
+  {
     operationId: "setWorkspaceTaxProfile",
     method: "PUT",
     path: "/workspaces/{id}/tax-profile",

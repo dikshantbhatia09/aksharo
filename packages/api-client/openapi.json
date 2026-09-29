@@ -27522,6 +27522,67 @@
         ]
       }
     },
+    "/repurpose/runs/{runId}/clips/{clipId}/layout": {
+      "put": {
+        "description": "Saved on the clip. The clip is cut again (its 9:16 and 4:5 shapes; its captions are kept) only when its picture would change: `applied` says what it is, and `recut` whether it is being cut again. \"Both speakers\" in a moment with one person in it stays one window. 409 `repurpose/clip_busy` while the clip is being cut, `repurpose/candidate_removed`, `repurpose/source_expired` or `repurpose/source_failed`.",
+        "operationId": "setRepurposeClipLayout",
+        "parameters": [
+          {
+            "name": "runId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "clipId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "layout": {
+                    "type": "string",
+                    "enum": [
+                      "auto",
+                      "single",
+                      "stacked"
+                    ]
+                  }
+                },
+                "required": [
+                  "layout"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Choose a clip's layout: auto, one speaker, or both speakers stacked",
+        "tags": [
+          "repurpose"
+        ]
+      }
+    },
     "/repurpose/runs/{runId}/candidates/{candidateId}/restore": {
       "post": {
         "description": "Its clip comes back as it was, and whatever removing it stopped is made again.",
