@@ -86,18 +86,71 @@ export const ProjectedWordSchema = z.object({
   scripts: z.record(z.string(), z.string()).optional(),
 });
 
+const HexColourSchema = z.string().regex(/^#[0-9a-fA-F]{6}$/);
+
 /**
- * An overlay drawn over the captions (`EdgHot.overlays`, 2026-09-29): the hook
- * title, on the source clock like a segment. Only the kind this renderer knows
- * is accepted; the document refuses any other.
+ * An image an overlay draws (2026-10-02): a workspace's brand logo. Only the id
+ * and the format travel; the bytes are read from the workspace's own brand
+ * prefix (`brandAssetKey`), the workspace taken from the signed manifest, so a
+ * payload can never point a render at another tenant's object.
  */
-export const ProjectedOverlaySchema = z.object({
-  id: z.string().min(1),
-  kind: z.literal("hook-title"),
-  text: z.string().min(1).max(120),
-  startMs: z.number().int().min(0),
-  endMs: z.number().int().min(0),
+export const OverlayImageSchema = z.object({
+  assetId: z.string().regex(/^[0-9A-HJKMNP-TV-Z]{26}$/),
+  format: z.enum(["png", "jpeg", "webp"]),
+  width: z.number().int().min(1).max(8192),
+  height: z.number().int().min(1).max(8192),
 });
+
+export type OverlayImage = z.infer<typeof OverlayImageSchema>;
+
+/**
+ * An overlay drawn with the captions (`EdgHot.overlays`), on the source clock
+ * like a segment: the hook title (2026-09-29), and a brand kit's logo and end
+ * card (2026-10-02). Only the kinds this renderer knows are accepted; the
+ * document refuses any other. Restated from `@montaj/edg`'s `OverlaySchema`
+ * rather than imported (this worker is deployed without it); `queues.test.ts`
+ * holds the two to the same samples.
+ */
+export const ProjectedOverlaySchema = z.discriminatedUnion("kind", [
+  z.object({
+    id: z.string().min(1),
+    kind: z.literal("hook-title"),
+    text: z.string().min(1).max(120),
+    startMs: z.number().int().min(0),
+    endMs: z.number().int().min(0),
+    appearance: z
+      .object({
+        fontFamily: z.string().min(1).max(120).optional(),
+        background: HexColourSchema.optional(),
+        text: HexColourSchema.optional(),
+      })
+      .optional(),
+  }),
+  z.object({
+    id: z.string().min(1),
+    kind: z.literal("logo"),
+    startMs: z.number().int().min(0),
+    endMs: z.number().int().min(0),
+    image: OverlayImageSchema,
+    corner: z.enum(["top-left", "top-right", "bottom-left", "bottom-right"]),
+    sizePct: z.number().min(5).max(40),
+    opacity: z.number().min(0.1).max(1),
+    marginPct: z.number().min(0).max(15),
+  }),
+  z.object({
+    id: z.string().min(1),
+    kind: z.literal("end-card"),
+    startMs: z.number().int().min(0),
+    endMs: z.number().int().min(0),
+    cta: z.string().max(60).optional(),
+    handle: z.string().max(40).optional(),
+    background: HexColourSchema,
+    text: HexColourSchema.optional(),
+    accent: HexColourSchema.optional(),
+    fontFamily: z.string().min(1).max(120).optional(),
+    image: OverlayImageSchema.optional(),
+  }),
+]);
 
 /** The read model a render needs, pinned at the manifest's revision. */
 export const RenderProjectionSchema = z.object({

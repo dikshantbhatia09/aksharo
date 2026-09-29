@@ -38,6 +38,7 @@ import {
   type FrameSource,
   type FrameStats,
 } from "./frames.js";
+import { extensionOfFormat, loadOverlayImages, overlayImagesOf } from "./overlay-images.js";
 import { assertPartnerGrantForTrack, type VerifyPartnerGrant } from "./partner-grant.js";
 import { createRasterPool, defaultPoolSize, type RasterPool } from "./pool.js";
 import { buildRenderTimeMap, parseStyleCatalogue, toEdgProjection } from "./projection.js";
@@ -48,7 +49,7 @@ import { buildFfmpegArgs, type VideoEncoder } from "../ffmpeg/graph.js";
 import { probeAudioAsset, probeMedia } from "../ffmpeg/probe.js";
 import { brandAssetKey, contentTypeFor, exportKey, type ObjectStore } from "../storage.js";
 
-import type { RenderVideoPayload } from "../queues.js";
+import type { OverlayImage, RenderVideoPayload } from "../queues.js";
 
 /** Same bound the API applies before framing a clip (`reframe.ts`). */
 const FACE_TRACK_MAX_BYTES = 64 * 1024 * 1024;
@@ -80,6 +81,12 @@ export interface RenderDependencies {
    * deployment that keeps the platform mark somewhere else.
    */
   readonly resolveBrandAsset?: (assetId: string) => Promise<Uint8Array>;
+  /**
+   * Reads the bytes of an image an overlay draws (a brand kit's logo,
+   * 2026-10-02). Defaults to R2 under `ws/{workspaceId}/brand/{assetId}.{ext}`,
+   * the workspace being the signed manifest's; injected in tests.
+   */
+  readonly resolveOverlayImage?: (image: OverlayImage) => Promise<Uint8Array>;
   readonly now?: () => number;
   readonly signal?: AbortSignal;
   /** Overrides the rasteriser worker entry point; a test points it elsewhere. */
@@ -229,6 +236,21 @@ export async function renderVideo(
       // the pool, which has its own Skia and its own image table.
       images.push({ assetId: manifest.watermark.assetId, bytes });
       await backend.registerImage(manifest.watermark.assetId, bytes);
+    }
+    // A brand kit's logo (2026-10-02), in a corner and on an end card. Read
+    // from the signed manifest's workspace only; a projection without logo
+    // overlays reads nothing here.
+    const overlayImages = await loadOverlayImages(
+      overlayImagesOf(payload.projection),
+      dependencies.resolveOverlayImage ??
+        ((image: OverlayImage) =>
+          dependencies.derivedStore.getBytes(
+            brandAssetKey(manifest.workspaceId, image.assetId, extensionOfFormat(image.format)),
+          )),
+    );
+    for (const image of overlayImages) {
+      images.push(image);
+      await backend.registerImage(image.assetId, image.bytes);
     }
 
     // Every overlay is transparent: `overlay` composites it onto the decoded

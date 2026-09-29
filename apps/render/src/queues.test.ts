@@ -3,6 +3,7 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { OverlaySchema } from "@montaj/edg/schemas";
 import { signedFixtureManifest } from "@montaj/render-manifest/testing";
 
 import {
@@ -140,5 +141,74 @@ describe("the payload schemas", () => {
       RenderProjectionSchema.safeParse({ ...projection, overlays: [{ ...hook, kind: "sticker" }] })
         .success,
     ).toBe(false);
+  });
+
+  describe("a brand kit's overlays (2026-10-02)", () => {
+    const image = {
+      assetId: "01JASSET000000000000000000",
+      format: "png",
+      width: 400,
+      height: 200,
+    };
+    const samples = {
+      hook: {
+        id: "01JHQQK0000000000000000000",
+        kind: "hook-title",
+        text: "Paisa bachana easy hai",
+        startMs: 0,
+        endMs: 2_500,
+        appearance: { fontFamily: "Poppins", background: "#f0508a", text: "#0b0a0c" },
+      },
+      logo: {
+        id: "01JMGG00000000000000000000",
+        kind: "logo",
+        startMs: 0,
+        endMs: 30_000,
+        image,
+        corner: "top-right",
+        sizePct: 16,
+        opacity: 0.9,
+        marginPct: 4,
+      },
+      card: {
+        id: "01JCRD00000000000000000000",
+        kind: "end-card",
+        startMs: 27_000,
+        endMs: 30_000,
+        cta: "Follow for more",
+        handle: "@aksharo",
+        background: "#141217",
+        accent: "#f0508a",
+        image,
+      },
+    };
+
+    it("carries a styled hook title, a logo and an end card", () => {
+      const overlays = [samples.hook, samples.logo, samples.card];
+      expect(RenderProjectionSchema.parse({ ...projection, overlays }).overlays).toEqual(overlays);
+    });
+
+    it("refuses what the document would refuse, and takes what it takes", () => {
+      const bad = [
+        { ...samples.logo, image: { ...image, assetId: "../../ws/other/brand/x" } },
+        { ...samples.logo, image: { ...image, format: "gif" } },
+        { ...samples.logo, sizePct: 90 },
+        { ...samples.card, background: "red" },
+        { ...samples.card, cta: "x".repeat(61) },
+        { ...samples.hook, appearance: { background: "pink" } },
+      ];
+      for (const overlay of [samples.hook, samples.logo, samples.card, ...bad]) {
+        const here = RenderProjectionSchema.safeParse({ ...projection, overlays: [overlay] });
+        // The renderer's restated schema and the document's own agree.
+        expect(here.success, JSON.stringify(overlay)).toBe(
+          OverlaySchema.safeParse(overlay).success,
+        );
+      }
+      for (const overlay of bad) {
+        expect(
+          RenderProjectionSchema.safeParse({ ...projection, overlays: [overlay] }).success,
+        ).toBe(false);
+      }
+    });
   });
 });

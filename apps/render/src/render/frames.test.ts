@@ -140,3 +140,50 @@ describe("createFrameSource with a hook title (2026-09-29)", () => {
     expect(source.commandsAt(2_600)).toEqual([]);
   });
 });
+
+describe("createFrameSource with a brand kit's logo (2026-10-02)", () => {
+  /** An 8×4 opaque red PNG, the logo. */
+  const RED_PNG = Uint8Array.from(
+    Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAECAYAAACzzX7wAAAAEklEQVR4nGP4z8DwHx9moL0CAHD0P8F+ACg+AAAAAElFTkSuQmCC",
+      "base64",
+    ),
+  );
+  const ASSET = "01JASSET000000000000000000";
+
+  it("rasterises the logo in its corner, from the image the render registered", async () => {
+    await backend.registerImage(ASSET, RED_PNG);
+    const source = createFrameSource({
+      ...baseOptions(),
+      projection: {
+        ...EMPTY_PROJECTION,
+        overlays: [
+          {
+            id: "01JMGG00000000000000000000",
+            kind: "logo",
+            startMs: 0,
+            endMs: 10_000,
+            image: { assetId: ASSET, format: "png", width: 8, height: 4 },
+            corner: "top-right",
+            sizePct: 25,
+            opacity: 1,
+            marginPct: 5,
+          },
+        ],
+      },
+      backend,
+      batch: backend.createBatch({ width: 320, height: 480 }),
+    });
+    const bytes = await source.frame(5);
+    // 25 % of 320 wide = 80 × 40, 16 px (5 % of 320) in from the top right.
+    const at = (x: number, y: number): number[] => {
+      const offset = (y * 320 + x) * 4;
+      return [...bytes.slice(offset, offset + 4)];
+    };
+    const inside = at(320 - 16 - 40, 16 + 20);
+    expect(inside[0]).toBeGreaterThan(200);
+    expect(inside[3]).toBeGreaterThan(200);
+    // The opposite corner is untouched.
+    expect(at(20, 460)[3]).toBe(0);
+  });
+});
