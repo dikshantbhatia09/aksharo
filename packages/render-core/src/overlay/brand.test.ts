@@ -367,6 +367,32 @@ describe("renderFrame with a brand kit's overlays", () => {
     );
   });
 
+  it("places a logo over a long video's thousands of captions in well under a second", () => {
+    const count = 1_500;
+    const manyWords = Array.from({ length: count * 3 }, (_, index) => ({
+      wid: `0:${String(index)}`,
+      s: index * 1_000,
+      e: index * 1_000 + 900,
+      t: ["Paisa", "bachana", "easy"][index % 3] ?? "hai",
+    }));
+    const long: EdgProjection = {
+      ...projection([{ ...LOGO, endMs: count * 3_000 }]),
+      segments: Array.from({ length: count }, (_, index) => ({
+        id: `seg-${String(index)}`,
+        seq: `A${String(index).padStart(5, "0")}`,
+        startWordId: `0:${String(index * 3)}`,
+        endWordId: `0:${String(index * 3 + 2)}`,
+        startMs: index * 3_000,
+        endMs: index * 3_000 + 2_900,
+      })),
+      words: manyWords,
+    };
+    const started = performance.now();
+    const commands = frame(long, 1_000);
+    expect(images(commands)).toHaveLength(1);
+    expect(performance.now() - started).toBeLessThan(5_000);
+  });
+
   it("keeps the hook title off the logo", () => {
     const wide = { ...LOGO, sizePct: 30, image: { ...LOGO.image, width: 300, height: 300 } };
     const commands = frame(projection([HOOK, wide]), 1_200);

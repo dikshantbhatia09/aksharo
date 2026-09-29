@@ -370,6 +370,14 @@ function safeCaptionExtents(
 }
 
 /**
+ * Past this many captions in a window, each is laid out at its start only: a
+ * logo put on a long video by hand is up for thousands of captions, and every
+ * word of every one of them would cost seconds for a nearly identical answer.
+ * A clip, or a hook title's few seconds, is far below it.
+ */
+const MAX_CAPTIONS_SAMPLED_BY_WORD = 120;
+
+/**
  * Everything the captions draw during `[startMs, endMs)` on the source clock:
  * each caption on screen then, laid out at its start and at every word that
  * starts inside the window (a style that shows words in chunks, or one word at
@@ -382,10 +390,14 @@ function captionExtentsDuring(
   endMs: number,
 ): Rect[] {
   const { projection } = options;
+  const shown = projection.segments.filter(
+    (segment) => segment.hidden !== true && segment.endMs > startMs && segment.startMs < endMs,
+  );
+  const everyWord = shown.length <= MAX_CAPTIONS_SAMPLED_BY_WORD;
   const instants = new Set<number>();
-  for (const segment of projection.segments) {
-    if (segment.hidden === true || segment.endMs <= startMs || segment.startMs >= endMs) continue;
+  for (const segment of shown) {
     instants.add(Math.max(segment.startMs, startMs));
+    if (!everyWord) continue;
     for (const word of wordsBetween(projection.words, segment.startWordId, segment.endWordId)) {
       if (word.s > startMs && word.s < endMs) instants.add(word.s);
     }
