@@ -38,7 +38,7 @@ import type {
   LogoUploadInput,
   LogoUploadTicket,
 } from "./brand-kit.dto.js";
-import type { BrandAsset } from "@prisma/client";
+import type { BrandAsset, Prisma } from "@prisma/client";
 
 /** Every typeface a kit may name: the families this product bundles (`@montaj/fonts`). */
 export const BRAND_FONT_FAMILIES: readonly string[] = [
@@ -136,17 +136,7 @@ export class BrandKitService {
       }
     }
     const doc = { v: BRAND_KIT_VERSION, ...settings };
-    await this.prisma.brandKit.upsert({
-      where: { workspaceId },
-      create: {
-        id: ulid(),
-        workspaceId,
-        name: DEFAULT_BRAND_KIT_NAME,
-        isDefault: true,
-        doc,
-      },
-      update: { doc },
-    });
+    await this.upsertKit(workspaceId, { doc }, { doc });
     return this.view(workspaceId);
   }
 
@@ -327,6 +317,37 @@ export class BrandKitService {
     return urls;
   }
 
+  /**
+   * Creates the workspace's one kit with `create`, or changes it with `update`.
+   * Two first writes at once (a save and a logo upload) both try to create it,
+   * and the unique `workspace_id` refuses the second; asked again, it finds
+   * the row the first made and updates that.
+   */
+  private async upsertKit(
+    workspaceId: string,
+    create: { readonly doc: Prisma.InputJsonValue; readonly logoAssetId?: string },
+    update: { readonly doc?: Prisma.InputJsonValue; readonly logoAssetId?: string },
+  ): Promise<void> {
+    const write = () =>
+      this.prisma.brandKit.upsert({
+        where: { workspaceId },
+        create: {
+          id: ulid(),
+          workspaceId,
+          name: DEFAULT_BRAND_KIT_NAME,
+          isDefault: true,
+          ...create,
+        },
+        update,
+      });
+    try {
+      await write();
+    } catch (error) {
+      if (!isUniqueViolation(error)) throw error;
+      await write();
+    }
+  }
+
   /** Makes `assetId` the kit's logo, creating the kit if there is none. Returns the logo it replaced. */
   private async pointKitAt(workspaceId: string, assetId: string): Promise<string | null> {
     const kit = await this.prisma.brandKit.findUnique({
@@ -334,18 +355,11 @@ export class BrandKitService {
       select: { id: true, logoAssetId: true },
     });
     if (kit === null) {
-      await this.prisma.brandKit.upsert({
-        where: { workspaceId },
-        create: {
-          id: ulid(),
-          workspaceId,
-          name: DEFAULT_BRAND_KIT_NAME,
-          isDefault: true,
-          doc: { v: BRAND_KIT_VERSION, ...DEFAULT_BRAND_KIT_SETTINGS },
-          logoAssetId: assetId,
-        },
-        update: { logoAssetId: assetId },
-      });
+      await this.upsertKit(
+        workspaceId,
+        { doc: { v: BRAND_KIT_VERSION, ...DEFAULT_BRAND_KIT_SETTINGS }, logoAssetId: assetId },
+        { logoAssetId: assetId },
+      );
       return null;
     }
     if (kit.logoAssetId === assetId) return null;
@@ -430,6 +444,16 @@ function logoView(asset: BrandAsset, url: string): BrandKitLogoView | null {
     sizeBytes: asset.sizeBytes,
     url,
   };
+}
+
+/** A unique constraint refused the write (Prisma `P2002`). */
+function isUniqueViolation(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code?: unknown }).code === "P2002"
+  );
 }
 
 function tooLarge(sizeBytes: number): AppException {

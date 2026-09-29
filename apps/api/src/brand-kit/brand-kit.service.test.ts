@@ -204,6 +204,20 @@ describe("BrandKitService.update", () => {
     expect(await h.service.forClips(WS)).toEqual({ settings: { ...settings, captions: {} } });
   });
 
+  it("updates the kit a concurrent first write created, rather than failing", async () => {
+    const h = harness();
+    const real = h.prisma.brandKit.upsert.getMockImplementation();
+    // The other writer's row lands between our read and our insert: the unique
+    // workspace_id refuses ours, as Postgres would.
+    h.prisma.brandKit.upsert.mockImplementationOnce(async (args) => {
+      await real?.({ ...args, update: {} });
+      throw Object.assign(new Error("Unique constraint failed"), { code: "P2002" });
+    });
+    const view = await h.service.update(WS, settings);
+    expect(view.settings).toEqual(settings);
+    expect(h.kits.size).toBe(1);
+  });
+
   it("refuses a typeface this product does not bundle", async () => {
     const h = harness();
     await expect(
