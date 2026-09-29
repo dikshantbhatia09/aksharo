@@ -426,6 +426,30 @@ describe("RepurposeClipCompletionHandler — a finished cut", () => {
     expect(h.runUpdate).not.toHaveBeenCalled();
   });
 
+  it("files a 4:5 cut under its own variant and project, never on the clip", async () => {
+    const key = MEZZANINE.replace("master.mp4", "master-4x5.mp4");
+    const h = harness();
+    const outcome = await h.handler.handle(
+      context(clipResult({ key }), {
+        runId: RUN,
+        clipId: CLIP,
+        aspect: "4:5",
+        destination: { bucket: "s3", key },
+      }),
+    );
+    expect(outcome.data).toMatchObject({ applied: true, clipId: CLIP });
+    // The clip's own picture is its 9:16 cut; a format never replaces it.
+    expect(h.clipUpdate).not.toHaveBeenCalled();
+    expect(h.prisma.clipVariant.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { clipId_aspect: { clipId: CLIP, aspect: "r4x5" } },
+        create: expect.objectContaining({ aspect: "r4x5" }) as unknown,
+      }),
+    );
+    // ...and it is made editable like any clip: its own probe, proxy, faces and captions.
+    expect(h.completeAcquisition).toHaveBeenCalledTimes(1);
+  });
+
   it("turns a cut away only when its run no longer exists", async () => {
     const h = harness({ runGone: true });
     const outcome = await h.handler.handle(context(clipResult()));

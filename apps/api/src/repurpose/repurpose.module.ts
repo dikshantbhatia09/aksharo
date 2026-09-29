@@ -10,6 +10,7 @@ import { RepurposeStuckRunsSweepTask } from "./repurpose-stuck-runs-sweep.task.j
 import { RepurposeController } from "./repurpose.controller.js";
 import { RepurposeService } from "./repurpose.service.js";
 import { SourceGate } from "./source-gate.js";
+import { RepurposeStillsCompletionHandler } from "./stills-completion.handler.js";
 import { ExportsModule } from "../exports/exports.module.js";
 import { JobsModule } from "../jobs/jobs.module.js";
 import { MediaModule } from "../media/media.module.js";
@@ -44,6 +45,7 @@ import { WorkspacesModule } from "../workspaces/workspaces.module.js";
     RepurposeAcquireCompletionHandler,
     RepurposeHighlightsCompletionHandler,
     RepurposeClipCompletionHandler,
+    RepurposeStillsCompletionHandler,
     RepurposeTranscriptCompletedListener,
     RepurposeStuckRunsSweepTask,
     IdempotencyService,

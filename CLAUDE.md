@@ -1209,3 +1209,52 @@ server-side, so it works with the page closed:
   plays that file (resting on a frame 1.2 s in, where the first caption shows),
   "Download video" gives it, and "Without captions" keeps the clean cut. Costs
   the cloud render rate (0.5 credit per output minute).
+
+---
+
+## 19. 2026-09-29 — every format from one link; more clips, only strong ones
+
+Owner request: one pasted link should give every format (Instagram, Facebook,
+YouTube, WhatsApp, Threads, X, Pinterest, TikTok), caption placement must keep
+working in each, and as many clips as the video has strong moments. Owner
+decisions: every format automatically on Autopilot, 9:16 first, with disk
+safeguards and cleanup; "balanced" clip count. The research and the full
+target list are in `docs/repurpose/FORMATS-2026-09-29.md`; the single source is
+`packages/repurpose-contracts/src/formats.ts` (the run page keeps a copy,
+`apps/web/components/repurpose/formats.ts`, held equal by `formats.test.ts`).
+
+- **More clips.** An Autopilot run asks highlights for one clip per 2 minutes
+  of video (5 to 40, `autopilotClipCount`) and only moments scoring at least
+  60 % potential (`minPotential`, applied in worker-ai before selection).
+  Manual runs are unchanged. The highlights contract's cap is now 40.
+- **Four video shapes per clip.** After every 9:16 clip of a run is made,
+  `RepurposeClipsService.cutFormats` cuts each clip again in 4:5, 1:1 and 16:9
+  (`media.clip` with `aspect`, job key `media.clip.format:{candidate}:{shape}:`,
+  so a format cut never becomes the clip's state). The frame is centred on the
+  speaker both ways (`reframe.centerX`/`centerY`, `clip-frame.ts`). Each lands
+  as its own variant + project through `RepurposeClipCompletionHandler` (only a
+  9:16 cut writes the clip row's mezzanine), gets its own face track, and
+  `captionClips` renders it with its own preset (`reels`, `instagram-feed`,
+  `square`, custom 1920 x 1080). **Caption placement is the editor's**
+  (render-core `placement.ts` on each shape's own face track), not a copy of
+  the 9:16 positions.
+- **Eleven image files per clip** (`media.stills`, a new worker-media queue on
+  the plain worker: `WORKER_MEDIA_QUEUES=media.probe,media.proxy,media.clip,media.stills`).
+  Once every shape has settled, one job takes 15 JPEG frames (carousel 5) from
+  the captioned videos, or clean frames for covers and banners, cropped down at
+  the speaker's face (`focusY`). Filed on `repurpose_clips.images`
+  (`{fingerprint, images}`, migration `20260929090000_clip_images`); new
+  captions change the fingerprint and make a new set; 3 attempts per set.
+- **Run page**: "All formats" under each ready Autopilot clip: each video shape
+  (captioned download, "Without captions", Edit, where it fits, and "too long
+  for" warnings from each place's limit) and each image with its downloads.
+- **Disk safeguards.** Below 8 GiB free (`FORMATS_MIN_FREE_BYTES`, measured on
+  the API's volume) the other shapes' cuts and renders and the images wait;
+  the 9:16 clip is never held by this. worker-media's own admission also
+  holds `media.stills`. **Cleanup:** when a shape's captioned video is made
+  again, the older render's object is deleted (`dropSupersededRenders`; the
+  export row stays with `storage_key` null).
+- Cost of a 1-hour video on Autopilot: up to ~30 clips x 4 renders, about
+  2-3 h of CPU and 5-6 GB of disk; renders charge the cloud rate.
+- Not covered: animated GIFs, per-platform copy/hashtags, publishing, the
+  Facebook/YouTube banner safe-area crops beyond the face-centred crop.

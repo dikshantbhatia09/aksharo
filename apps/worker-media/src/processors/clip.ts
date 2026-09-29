@@ -8,7 +8,7 @@ import { FFMPEG_BASE_ARGS, inputArgs, run } from "../ffmpeg/run.js";
 import { logger } from "../logger.js";
 import { DERIVED_OBJECT_TAGS } from "../storage.js";
 import { withWorkspace } from "../workspace.js";
-import { MAX_CLIP_HEIGHT, clipFilter, clipFrame } from "./clip-frame.js";
+import { MAX_CLIP_HEIGHT, clipFilter, clipFrame, type ClipAspect } from "./clip-frame.js";
 
 import type { ProbeContainer } from "../ffmpeg/ffprobe.js";
 import type { JobContext, ProcessorOutcome } from "../runtime.js";
@@ -29,11 +29,14 @@ export interface ClipPayload {
     readonly audioCodec: "aac";
     readonly maxHeight: number;
   };
-  /** Where the 9:16 window sits across the source; absent means the centre. */
+  /** Where the window sits across the source; absent means the centre. */
   readonly reframe?: {
     readonly centerX: number;
+    readonly centerY?: number;
     readonly basis: "faces" | "centre";
   };
+  /** The shape to cut (2026-09-29); 9:16 when absent. */
+  readonly aspect?: ClipAspect;
   readonly profileVersion?: string;
 }
 
@@ -126,7 +129,9 @@ export async function processClip(context: JobContext): Promise<ProcessorOutcome
       ? null
       : clipFrame(source.video, {
           maxHeight,
+          ...(payload.aspect === undefined ? {} : { aspect: payload.aspect }),
           ...(payload.reframe === undefined ? {} : { centerX: payload.reframe.centerX }),
+          ...(payload.reframe?.centerY === undefined ? {} : { centerY: payload.reframe.centerY }),
         });
   if (source.video !== null && frame === null) {
     throw unreadableMedia("The source's picture size could not be read.", "media/probe_failed");

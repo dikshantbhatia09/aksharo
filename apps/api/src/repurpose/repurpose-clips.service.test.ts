@@ -197,6 +197,14 @@ function fakePrisma(t: Tables) {
       count: vi.fn(
         async (args: { where: Row }) => t.exports.filter((e) => matches(e, args.where)).length,
       ),
+      findMany: vi.fn(async (args: { where: Row }) =>
+        t.exports.filter((e) => matches(e, args.where)),
+      ),
+      update: vi.fn(async (args: { where: Row; data: Row }) => {
+        const row = t.exports.find((e) => e["id"] === args.where["id"]);
+        if (row === undefined) throw new Error("no such export");
+        return Object.assign(row, args.data);
+      }),
     },
     mediaAsset: { findFirst: vi.fn(findNewest(t.media)) },
     transcript: { findFirst: vi.fn(findNewest(t.transcripts)) },
@@ -248,6 +256,7 @@ interface Harness {
   maybeEnqueueFaces: ReturnType<typeof vi.fn>;
   derivedHead: ReturnType<typeof vi.fn>;
   derivedGet: ReturnType<typeof vi.fn>;
+  derivedDelete: ReturnType<typeof vi.fn>;
   /** `prisma.job.findFirst`: the source's face-detection lookup. */
   jobFindFirst: ReturnType<typeof vi.fn>;
   consume: ReturnType<typeof vi.fn>;
@@ -354,6 +363,7 @@ function harness(overrides: { run?: Row; media?: Row } = {}): Harness {
   const maybeEnqueueFaces = vi.fn(async () => undefined);
   const derivedHead = vi.fn(async () => ({ sizeBytes: 1_024 }));
   const derivedGet = vi.fn(async () => Buffer.from("{}"));
+  const derivedDelete = vi.fn(async () => undefined);
   const consume = vi.fn(async () => ({ allowed: true, remaining: 10, retryAfterSec: 0 }));
   const publish = vi.fn(async () => undefined);
   const env = { FEATURE_FLAGS_JSON: {} as Record<string, boolean> };
@@ -377,9 +387,12 @@ function harness(overrides: { run?: Row; media?: Row } = {}): Harness {
       presignGet: vi.fn(async (key: string) => `https://cdn.example.test/${key}`),
       head: derivedHead,
       get: derivedGet,
+      delete: derivedDelete,
     } as never,
     { requestExport } as never,
   );
+  // Plenty of disk unless a test says otherwise.
+  service.freeBytes = async () => Number.POSITIVE_INFINITY;
   return {
     service,
     tables,
@@ -389,6 +402,7 @@ function harness(overrides: { run?: Row; media?: Row } = {}): Harness {
     maybeEnqueueFaces,
     derivedHead,
     derivedGet,
+    derivedDelete,
     jobFindFirst: prisma.job.findFirst,
     consume,
     publish,
@@ -575,7 +589,7 @@ describe("createClip", () => {
     await h.service.createClip(WS, USER, RUN, { candidateId: CAND_A });
 
     expect(h.derivedGet).toHaveBeenCalledWith(FACES_KEY);
-    expect(enqueuedPayload(h).reframe).toEqual({ centerX: 0.72, basis: "faces" });
+    expect(enqueuedPayload(h).reframe).toMatchObject({ centerX: 0.72, basis: "faces" });
     expect(h.maybeEnqueueFaces).not.toHaveBeenCalled();
   });
 
@@ -1125,6 +1139,44 @@ describe("Autopilot", () => {
   });
 });
 
+describe("Autopilot's other formats", () => {
+  const auto = { config: { automation: "auto" }, status: "review_ready", currentStage: "review" };
+  const formatCuts = (h: Harness) =>
+    h.enqueue.mock.calls
+      .map((call) => call[0] as { jobKey: string; params: { aspect?: string } })
+      .filter((input) => input.jobKey.startsWith("media.clip.format:"));
+
+  it("cuts 4:5, 1:1 and 16:9 once every 9:16 clip of the run is made", async () => {
+    h = harness({ run: auto });
+    h.tables.candidates.length = 1;
+    h.tables.clips.push(clipRow(CAND_A, { mezzanineKey: "ws/master.mp4" }));
+    await h.service.reconcileClips(RUN);
+    const cuts = formatCuts(h);
+    expect(cuts.map((cut) => cut.params.aspect)).toEqual(["4:5", "1:1", "16:9"]);
+    expect(cuts[0]?.jobKey.startsWith(`media.clip.format:${CAND_A}:4x5:`)).toBe(true);
+
+    // In flight: not asked for again.
+    h.enqueue.mockClear();
+    await h.service.reconcileClips(RUN);
+    expect(formatCuts(h)).toHaveLength(0);
+  });
+
+  it("waits while any 9:16 clip is still being cut, so Reels come first", async () => {
+    h = harness({ run: auto });
+    h.tables.clips.push(clipRow(CAND_A, { mezzanineKey: "ws/master.mp4" }), clipRow(CAND_B));
+    h.tables.jobs.push(jobRow(CAND_B, "running"));
+    await h.service.reconcileClips(RUN);
+    expect(formatCuts(h)).toHaveLength(0);
+  });
+
+  it("cuts nothing for a run whose person picks the moments", async () => {
+    h = harness({ run: { status: "review_ready", currentStage: "review" } });
+    h.tables.clips.push(clipRow(CAND_A, { mezzanineKey: "ws/master.mp4" }));
+    await h.service.reconcileClips(RUN);
+    expect(formatCuts(h)).toHaveLength(0);
+  });
+});
+
 describe("Autopilot's captioned videos", () => {
   const ready = { config: { automation: "auto" }, status: "review_ready", currentStage: "review" };
   const CHILD = "01JCCH1LD0000000000000000A";
@@ -1285,7 +1337,7 @@ describe("a source whose face track is still being made", () => {
 
     trackLands(h);
     expect((await h.service.reconcileClips(RUN)).enqueued).toEqual([clip.id]);
-    expect(enqueuedPayload(h).reframe).toEqual({ centerX: 0.72, basis: "faces" });
+    expect(enqueuedPayload(h).reframe).toMatchObject({ centerX: 0.72, basis: "faces" });
   });
 
   it("cuts none of a run's waiting clips while detection runs, and all of them on the track after", async () => {
@@ -1303,7 +1355,7 @@ describe("a source whose face track is still being made", () => {
 
     trackLands(h);
     expect((await h.service.reconcileClips(RUN)).enqueued).toHaveLength(2);
-    expect(enqueuedPayloads(h).map((payload) => payload.reframe)).toEqual([
+    expect(enqueuedPayloads(h).map((payload) => payload.reframe)).toMatchObject([
       { centerX: 0.72, basis: "faces" },
       { centerX: 0.72, basis: "faces" },
     ]);
@@ -1357,7 +1409,7 @@ describe("a source whose face track is still being made", () => {
 
     trackLands(h);
     expect((await h.service.reconcileClips(RUN)).enqueued).toEqual([clip.id]);
-    expect(enqueuedPayload(h).reframe).toEqual({ centerX: 0.72, basis: "faces" });
+    expect(enqueuedPayload(h).reframe).toMatchObject({ centerX: 0.72, basis: "faces" });
   });
 
   // The lookup only decides framing, so a database that fails it must cost the
@@ -1527,5 +1579,168 @@ describe("timecode", () => {
     expect(timecode(0)).toBe("0:00");
     expect(timecode(83_000)).toBe("1:23");
     expect(timecode(3_723_000)).toBe("1:02:03");
+  });
+});
+
+describe("Autopilot's images, disk guard and old renders", () => {
+  const auto = { config: { automation: "auto" }, status: "review_ready", currentStage: "review" };
+  const SHAPES = [
+    ["r9x16", "9x16"],
+    ["r4x5", "4x5"],
+    ["r1x1", "1x1"],
+    ["r16x9", "16x9"],
+  ] as const;
+  const stills = (h: Harness) =>
+    h.enqueue.mock.calls
+      .map((call) => call[0] as { type: string; jobKey: string; params: Row })
+      .filter((input) => input.type === "media.stills");
+
+  /** One ready clip whose four shapes each have a finished captioned video. */
+  function everyShapeMade(h: Harness): void {
+    h.tables.candidates.length = 1;
+    h.tables.clips.push(
+      clipRow(CAND_A, {
+        mezzanineKey: "ws/w/p/s/repurpose/r/clips/c/master.mp4",
+        mezzanineDurationMs: 30_000,
+        title: "A moment",
+        images: {},
+      }),
+    );
+    const clipId = h.tables.clips[0]?.["id"];
+    SHAPES.forEach(([aspect, tag], index) => {
+      const project = `01JCCH1LD000000000000000${String(index)}A`;
+      const exportId = `01JCEXP00000000000000000${String(index)}A`;
+      h.tables.variants.push({
+        id: `01JCVAR1ANT00000000000000${String(index)}`,
+        clipId,
+        aspect,
+        profileVersion: CLIP_PROFILE_VERSION,
+        projectId: project,
+        editFingerprint: "edg:3",
+        status: "ready",
+        latestExportId: exportId,
+      });
+      h.tables.media.push({
+        id: `01JCCH1LDMED00000000000${String(index)}A`,
+        projectId: project,
+        role: "primary",
+        status: "ready",
+        storageKey: `ws/w/p/s/repurpose/r/clips/c/master-${tag}.mp4`,
+        facesKey: null,
+        durationMs: 30_000,
+        failureReason: null,
+        createdAt: new Date(clock++),
+      });
+      h.tables.docs.push({ projectId: project, revision: 3, updatedAt: new Date(0) });
+      h.tables.exports.push({
+        id: exportId,
+        projectId: project,
+        status: "succeeded",
+        storageKey: `exports/${tag}.mp4`,
+      });
+    });
+  }
+
+  it("takes every image from the clip's videos once all four shapes are made", async () => {
+    h = harness({ run: auto });
+    everyShapeMade(h);
+    await h.service.reconcileClips(RUN);
+
+    const [job] = stills(h);
+    expect(job).toBeDefined();
+    const images = job?.params["images"] as { name: string; sourceKey: string; width: number }[];
+    // Eleven image files, the carousel five slides: fifteen frames.
+    expect(images).toHaveLength(15);
+    expect(images.find((row) => row.name === "carousel-5")?.sourceKey).toBe("exports/4x5.mp4");
+    expect(images.find((row) => row.name === "pin-1")?.sourceKey).toBe("exports/9x16.mp4");
+    // A banner is a clean frame: no captions across a channel's header.
+    expect(images.find((row) => row.name === "youtube-banner-1")).toMatchObject({
+      sourceKey: "ws/w/p/s/repurpose/r/clips/c/master-16x9.mp4",
+      width: 2560,
+    });
+
+    // Asked once while it runs.
+    h.tables.jobs.push({
+      id: "01JCST1LLS0000000000000000",
+      workspaceId: WS,
+      type: "media.stills",
+      jobKey: job?.jobKey,
+      status: "running",
+      queuedAt: new Date(clock++),
+    });
+    h.enqueue.mockClear();
+    await h.service.reconcileClips(RUN);
+    expect(stills(h)).toHaveLength(0);
+
+    // Filed: the card lists them, and nothing more is asked for.
+    Object.assign(h.tables.clips[0] ?? {}, {
+      images: {
+        fingerprint: job?.params["fingerprint"],
+        images: [
+          { name: "carousel-1", key: "i/carousel-1.jpg", width: 1080, height: 1350 },
+          { name: "carousel-2", key: "i/carousel-2.jpg", width: 1080, height: 1350 },
+          { name: "thumbnail-1", key: "i/thumbnail-1.jpg", width: 1280, height: 720 },
+        ],
+      },
+    });
+    Object.assign(h.tables.jobs[h.tables.jobs.length - 1] ?? {}, { status: "succeeded" });
+    await h.service.reconcileClips(RUN);
+    expect(stills(h)).toHaveLength(0);
+    const [item] = (await h.service.listClips(WS, RUN)).clips;
+    expect(item?.images.status).toBe("ready");
+    expect(item?.images.files.map((file) => [file.id, file.items.length])).toEqual([
+      ["carousel", 2],
+      ["thumbnail", 1],
+    ]);
+  });
+
+  it("waits for a shape that is still being made", async () => {
+    h = harness({ run: auto });
+    everyShapeMade(h);
+    Object.assign(h.tables.variants[3] ?? {}, { status: "rendering" });
+    Object.assign(h.tables.exports[3] ?? {}, { status: "rendering", storageKey: null });
+    await h.service.reconcileClips(RUN);
+    expect(stills(h)).toHaveLength(0);
+    const [item] = (await h.service.listClips(WS, RUN)).clips;
+    expect(item?.images.status).toBe("preparing");
+  });
+
+  it("holds the other shapes and the images while the disk is low, never the 9:16 clip", async () => {
+    h = harness({ run: auto });
+    everyShapeMade(h);
+    h.service.freeBytes = async () => 2 * 1024 ** 3;
+    await h.service.reconcileClips(RUN);
+    expect(stills(h)).toHaveLength(0);
+
+    h = harness({ run: auto });
+    h.service.freeBytes = async () => 2 * 1024 ** 3;
+    h.tables.candidates.length = 1;
+    h.tables.clips.push(clipRow(CAND_A, { mezzanineKey: "ws/master.mp4" }));
+    await h.service.reconcileClips(RUN);
+    const formatCuts = h.enqueue.mock.calls.filter((call) =>
+      String((call[0] as { jobKey: string }).jobKey).startsWith("media.clip.format:"),
+    );
+    expect(formatCuts).toHaveLength(0);
+  });
+
+  it("deletes the older render of a shape once a newer one is made", async () => {
+    h = harness({ run: auto });
+    everyShapeMade(h);
+    // The 9:16 video was made again after an edit; the first file is still stored.
+    Object.assign(h.tables.variants[0] ?? {}, {
+      status: "rendering",
+      latestExportId: "01JCEXP0000000000000000NEW",
+    });
+    h.tables.exports.push({
+      id: "01JCEXP0000000000000000NEW",
+      projectId: h.tables.variants[0]?.["projectId"],
+      status: "succeeded",
+      storageKey: "exports/9x16-v2.mp4",
+    });
+    await h.service.reconcileClips(RUN);
+    expect(h.derivedDelete).toHaveBeenCalledWith("exports/9x16.mp4");
+    expect(h.derivedDelete).not.toHaveBeenCalledWith("exports/9x16-v2.mp4");
+    expect(h.tables.exports[0]?.["storageKey"]).toBeNull();
+    expect(h.tables.variants[0]?.["status"]).toBe("ready");
   });
 });

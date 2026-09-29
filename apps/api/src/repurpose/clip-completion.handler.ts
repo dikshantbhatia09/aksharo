@@ -6,7 +6,7 @@ import { TranscriptChunkSchema, type Word } from "@montaj/edg/schemas";
 import { type MediaClipResult, MediaClipResultSchema } from "@montaj/repurpose-contracts";
 
 import { settleRunAfterClips } from "./clip-state.js";
-import { CLIP_PROFILE_VERSION } from "./repurpose.constants.js";
+import { ASPECT_OF_SHAPE, CLIP_PROFILE_VERSION } from "./repurpose.constants.js";
 import { RepurposeService } from "./repurpose.service.js";
 import { PrismaService } from "../common/prisma/prisma.service.js";
 import { DERIVED_STORE, RAW_STORE } from "../common/storage/index.js";
@@ -158,23 +158,32 @@ export class RepurposeClipCompletionHandler implements JobCompletionHandler, OnM
       return { actualTenths: 0, data: { applied: false, reason: "run_not_found" } };
     }
 
-    // 1. Update clip mezzanine facts
-    await this.prisma.repurposeClip.update({
-      where: { id: clip.id },
-      data: {
-        mezzanineKey: result.key,
-        mezzanineChecksum: result.checksum,
-        mezzanineDurationMs: result.durationMs,
-        mezzanineJobId: context.job.id,
-      },
-    });
+    // Which shape this cut is (2026-09-29): 9:16 is the clip itself; 4:5, 1:1
+    // and 16:9 are format cuts, each filed under its own variant and project,
+    // and never written onto the clip row.
+    const shape = shapeOf(context.job.params);
+    // eslint-disable-next-line security/detect-object-injection -- `shapeOf` returns a closed enum
+    const aspect = ASPECT_OF_SHAPE[shape];
 
-    // 2. Find or create child project for 9:16 variant
+    // 1. Update clip mezzanine facts
+    if (shape === "9:16") {
+      await this.prisma.repurposeClip.update({
+        where: { id: clip.id },
+        data: {
+          mezzanineKey: result.key,
+          mezzanineChecksum: result.checksum,
+          mezzanineDurationMs: result.durationMs,
+          mezzanineJobId: context.job.id,
+        },
+      });
+    }
+
+    // 2. Find or create the child project for this shape's variant
     const existingVariant = await this.prisma.clipVariant.findUnique({
       where: {
         clipId_aspect: {
           clipId: clip.id,
-          aspect: "r9x16",
+          aspect,
         },
       },
     });
@@ -195,7 +204,7 @@ export class RepurposeClipCompletionHandler implements JobCompletionHandler, OnM
         clip.run.workspaceId,
         clip.run.createdBy ?? "system",
         {
-          title: `${clip.title} (9:16)`,
+          title: `${clip.title} (${shape})`,
           sourceLanguage,
         },
       );
@@ -218,7 +227,7 @@ export class RepurposeClipCompletionHandler implements JobCompletionHandler, OnM
       where: {
         clipId_aspect: {
           clipId: clip.id,
-          aspect: "r9x16",
+          aspect,
         },
       },
       update: {
@@ -231,7 +240,7 @@ export class RepurposeClipCompletionHandler implements JobCompletionHandler, OnM
         id: variantId,
         clipId: clip.id,
         projectId: childProjectId,
-        aspect: "r9x16",
+        aspect,
         profileVersion: CLIP_PROFILE_VERSION,
         captionConfig,
         status: "ready",
@@ -569,6 +578,15 @@ export class RepurposeClipCompletionHandler implements JobCompletionHandler, OnM
  * loosely rather than through `MediaClipPayloadSchema`: jobs the code before
  * 2026-09-26 enqueued carry the same two fields in an older payload.
  */
+/** The shape a `media.clip` job cut: its payload's `aspect`, 9:16 when absent. */
+function shapeOf(params: Prisma.JsonValue): keyof typeof ASPECT_OF_SHAPE {
+  if (typeof params !== "object" || params === null || Array.isArray(params)) return "9:16";
+  const aspect = params["aspect"];
+  return typeof aspect === "string" && Object.hasOwn(ASPECT_OF_SHAPE, aspect)
+    ? (aspect as keyof typeof ASPECT_OF_SHAPE)
+    : "9:16";
+}
+
 function askedFor(params: Prisma.JsonValue): { clipId?: unknown; key?: unknown } {
   if (typeof params !== "object" || params === null || Array.isArray(params)) return {};
   const destination = params["destination"];

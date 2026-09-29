@@ -22,14 +22,23 @@
  * inside its time limit, rather than stopping at 1080p.
  */
 
-/** A vertical short: nine wide, sixteen tall. */
-const ASPECT_WIDTH = 9;
-const ASPECT_HEIGHT = 16;
+/**
+ * The shapes a clip is cut in (2026-09-29), width to height: 9:16 for Reels,
+ * Shorts, Stories and Status; 4:5 for feed posts; 1:1 for square posts; 16:9
+ * for YouTube and landscape posts. A payload with none is cut 9:16.
+ */
+export const CLIP_ASPECTS = {
+  "9:16": { width: 9, height: 16 },
+  "4:5": { width: 4, height: 5 },
+  "1:1": { width: 1, height: 1 },
+  "16:9": { width: 16, height: 9 },
+} as const;
+export type ClipAspect = keyof typeof CLIP_ASPECTS;
 
 /**
  * The tallest mezzanine this worker cuts, whatever the payload asks for.
  *
- * 1920 is the clip project's canvas (1080 x 1920). Every export draws the
+ * 1920 is the 9:16 clip project's canvas (1080 x 1920). Every export draws the
  * mezzanine onto that canvas, so a taller picture is only bytes the export
  * scales back down. Reaching it needs a 9:16 window at least 1920 tall: a
  * landscape source at least that tall (in practice 2160p), or a portrait one
@@ -39,6 +48,7 @@ export const MAX_CLIP_HEIGHT = 1920;
 
 /** Where the window goes when the payload says nothing: the frame centre. */
 export const DEFAULT_CENTER_X = 0.5;
+export const DEFAULT_CENTER_Y = 0.5;
 
 export interface ClipFrame {
   /** The picture size the crop was computed for: the source as probed. */
@@ -59,6 +69,10 @@ export interface ClipFrameOptions {
   readonly maxHeight?: number;
   /** `reframe.centerX`: the window's centre as a fraction of the source width. */
   readonly centerX?: number;
+  /** `reframe.centerY`: the window's centre as a fraction of the source height. */
+  readonly centerY?: number;
+  /** The shape to cut; 9:16 when absent. */
+  readonly aspect?: ClipAspect;
 }
 
 /**
@@ -68,13 +82,12 @@ export interface ClipFrameOptions {
  * how `readVideo` reports them and how ffmpeg's autorotate hands the frame to
  * the filtergraph.
  *
- * - A source wider than 9:16 keeps its full height; the window slides across it
- *   to centre on `centerX`, clamped so it never leaves the frame.
- * - A source that is already 9:16 or narrower has nothing to cut sideways. A
- *   narrower one (a tall phone screen recording) loses its top and bottom
- *   equally, as it always has.
+ * - A source wider than the shape keeps its full height; the window slides
+ *   across it to centre on `centerX`, clamped so it never leaves the frame.
+ * - A source taller than the shape keeps its full width; the window slides up
+ *   or down to centre on `centerY` (the middle when absent), clamped likewise.
  * - The output is the crop, scaled down to `maxHeight` when the crop is taller.
- *   It is never scaled up: a 720p source makes a 406 x 720 mezzanine, and
+ *   It is never scaled up: a 720p source makes a 406 x 720 9:16 mezzanine, and
  *   inventing pixels here would only make every later encode slower.
  *
  * Returns `null` when the source has no usable picture size.
@@ -85,35 +98,30 @@ export function clipFrame(
 ): ClipFrame | null {
   const { width, height } = source;
   if (!Number.isFinite(width) || !Number.isFinite(height) || width < 2 || height < 2) return null;
+  const shape = CLIP_ASPECTS[options.aspect ?? "9:16"];
 
   let crop: ClipFrame["crop"];
-  if (width * ASPECT_HEIGHT > height * ASPECT_WIDTH) {
+  if (width * shape.height > height * shape.width) {
     const cropHeight = floorEven(height);
-    const cropWidth = Math.min(even((cropHeight * ASPECT_WIDTH) / ASPECT_HEIGHT), floorEven(width));
-    const centerX =
-      typeof options.centerX === "number" && Number.isFinite(options.centerX)
-        ? options.centerX
-        : DEFAULT_CENTER_X;
+    const cropWidth = Math.min(even((cropHeight * shape.width) / shape.height), floorEven(width));
+    const centerX = finiteOr(options.centerX, DEFAULT_CENTER_X);
     const left = clamp(Math.round(centerX * width - cropWidth / 2), 0, width - cropWidth);
     crop = {
       width: cropWidth,
       height: cropHeight,
-      // Even offsets: ffmpeg's crop rounds a 4:2:0 picture's offsets down to
-      // even anyway, and saying so here keeps the numbers what was cut.
       x: Math.floor(left / 2) * 2,
       y: Math.floor((height - cropHeight) / 4) * 2,
     };
   } else {
     const cropWidth = floorEven(width);
-    const cropHeight = Math.min(
-      floorEven(height),
-      even((cropWidth * ASPECT_HEIGHT) / ASPECT_WIDTH),
-    );
+    const cropHeight = Math.min(floorEven(height), even((cropWidth * shape.height) / shape.width));
+    const centerY = finiteOr(options.centerY, DEFAULT_CENTER_Y);
+    const top = clamp(Math.round(centerY * height - cropHeight / 2), 0, height - cropHeight);
     crop = {
       width: cropWidth,
       height: cropHeight,
       x: 0,
-      y: Math.floor((height - cropHeight) / 4) * 2,
+      y: Math.floor(top / 2) * 2,
     };
   }
 
@@ -127,10 +135,14 @@ export function clipFrame(
   );
   const output =
     crop.height > limit
-      ? { width: even((limit * ASPECT_WIDTH) / ASPECT_HEIGHT), height: limit }
+      ? { width: even((limit * shape.width) / shape.height), height: limit }
       : { width: crop.width, height: crop.height };
 
   return { source: { width, height }, crop, output };
+}
+
+function finiteOr(value: number | undefined, fallback: number): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
 }
 
 /**

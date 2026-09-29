@@ -940,3 +940,28 @@ async def test_discovery_runs_off_the_event_loop(monkeypatch: pytest.MonkeyPatch
 
     assert threads
     assert threads[0] != threading.get_ident()
+
+
+async def test_autopilot_returns_only_the_moments_that_clear_its_bar() -> None:
+    """``minPotential``: a moment under the bar is not worth a clip, however many slots are left."""
+    words = talk_with_moments(18 * MINUTE, {12 * MINUTE: STRONG_AT_12, 16 * MINUTE: STRONG_AT_16})
+
+    everything = (await discover_in(words, count=40))["proposals"]
+    scores = sorted(p["potentialScore"] for p in everything)
+    assert len(everything) > 2
+    bar = scores[-1]  # only the strongest moments clear it
+
+    kept = (await discover_in(words, count=40, minPotential=bar / 100))["proposals"]
+    assert 0 < len(kept) < len(everything)
+    assert all(p["potentialScore"] >= bar for p in kept)
+
+
+async def test_autopilot_returns_nothing_when_no_moment_clears_the_bar() -> None:
+    words = talk_with_moments(8 * MINUTE, {})
+    result = await discover_in(words, count=40, minPotential=1.0)
+    assert result["proposals"] == []
+
+
+def test_the_contract_allows_forty_moments_and_a_bar() -> None:
+    assert options(count=40, minPotential=0.6).min_potential == 0.6
+    assert options().min_potential is None

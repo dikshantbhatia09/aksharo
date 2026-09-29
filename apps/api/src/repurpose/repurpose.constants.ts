@@ -68,6 +68,23 @@ export const DEFAULT_WINDOW_POLICY: WindowPolicy = "most_replayed";
 export const AUTOMATION_MODES = ["auto", "manual"] as const;
 export type AutomationMode = (typeof AUTOMATION_MODES)[number];
 
+/**
+ * Autopilot's clip bar (owner decision 2026-09-29, "balanced"): every
+ * non-overlapping moment scoring at least 60 % potential, up to about one clip
+ * per two minutes of processed video, never fewer than five asked for and never
+ * more than forty.
+ */
+export const AUTOPILOT_MIN_POTENTIAL = 0.6;
+export const AUTOPILOT_MS_PER_CLIP = 2 * 60_000;
+export const AUTOPILOT_MIN_ASKED = 5;
+export const AUTOPILOT_MAX_CLIPS = 40;
+
+/** How many moments Autopilot asks discovery for, for `durationMs` of processed video. */
+export function autopilotClipCount(durationMs: number | null | undefined): number {
+  const byLength = Math.ceil(Math.max(0, durationMs ?? 0) / AUTOPILOT_MS_PER_CLIP);
+  return Math.min(AUTOPILOT_MAX_CLIPS, Math.max(AUTOPILOT_MIN_ASKED, byLength));
+}
+
 /** How many cuts Autopilot gives one moment: the first, and two more. */
 export const AUTOPILOT_CLIP_ATTEMPTS = 3;
 
@@ -94,6 +111,43 @@ export const AUTOPILOT_CLIP_RETRY_CODES: ReadonlySet<string> = new Set([
   "jobs/stalled",
   "worker/disk_full",
 ]);
+
+/**
+ * Every clip is cut in four shapes (2026-09-29, `@montaj/repurpose-contracts`
+ * `VIDEO_SHAPES`): 9:16 is the clip itself (`repurpose_clips.mezzanine_*`);
+ * the others are FORMAT cuts, each filed under its own 9:16-less variant.
+ */
+export const FORMAT_SHAPES = ["4:5", "1:1", "16:9"] as const;
+export type FormatShape = (typeof FORMAT_SHAPES)[number];
+
+/** A shape as the `clip_variants.aspect` enum spells it. */
+export const ASPECT_OF_SHAPE = {
+  "9:16": "r9x16",
+  "4:5": "r4x5",
+  "1:1": "r1x1",
+  "16:9": "r16x9",
+} as const;
+export type AspectEnum = (typeof ASPECT_OF_SHAPE)[keyof typeof ASPECT_OF_SHAPE];
+
+/** And back. */
+export const SHAPE_OF_ASPECT: Readonly<Record<AspectEnum, keyof typeof ASPECT_OF_SHAPE>> = {
+  r9x16: "9:16",
+  r4x5: "4:5",
+  r1x1: "1:1",
+  r16x9: "16:9",
+};
+
+/**
+ * The job key of a format cut. Its own prefix, never `media.clip:{candidate}:`:
+ * a clip's state is read from the newest job under that prefix
+ * (`latestClipJobs`), and a format cut must not become the clip's state.
+ */
+export function formatCutKeyPrefix(candidateId: string, shape: FormatShape): string {
+  return `media.clip.format:${candidateId}:${shape.replace(":", "x")}:`;
+}
+
+/** How many failed cuts of one format before Autopilot leaves it. */
+export const FORMAT_CUT_ATTEMPTS = 3;
 
 /**
  * Captioned clips (2026-09-28, Autopilot runs only): how long after the last
@@ -425,3 +479,10 @@ export const RUN_PAGE_MAX = 50;
 // up to 1080 x 1920 instead of a centre crop at 720 x 1280. A new version is
 // what makes an existing clip re-cut on its next request.
 export const CLIP_PROFILE_VERSION = "3";
+
+/**
+ * Below this much free disk, Autopilot holds a clip's other shapes and its
+ * images (2026-09-29): 8 GiB, above worker-media's own 5 GiB floor, so the
+ * 9:16 clips people are waiting for keep the room that is left.
+ */
+export const FORMATS_MIN_FREE_BYTES = 8 * 1024 ** 3;

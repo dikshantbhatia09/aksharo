@@ -55,7 +55,7 @@ describe("reframeFromFaces", () => {
       0,
       10_000,
     );
-    expect(reframe).toEqual({ centerX: 0.3, basis: "faces" });
+    expect(reframe).toMatchObject({ centerX: 0.3, basis: "faces" });
   });
 
   it("prefers the face that is there most of the time over a bigger one glimpsed briefly", () => {
@@ -89,7 +89,7 @@ describe("reframeFromFaces", () => {
       0,
       12_500,
     );
-    expect(reframe).toEqual({ centerX: 0.28, basis: "faces" });
+    expect(reframe).toMatchObject({ centerX: 0.28, basis: "faces" });
   });
 
   it("uses the median, so a few stray detections do not drag the window", () => {
@@ -188,7 +188,7 @@ describe("reframeFromTrack", () => {
         track(40, () => [face(0.3)]),
         { fromMs: 0, toMs: 10_000 },
       ),
-    ).toEqual({ centerX: 0.3, basis: "faces" });
+    ).toMatchObject({ centerX: 0.3, basis: "faces" });
   });
 
   it("is the centre, not an exception, for a track it cannot even walk", () => {
@@ -228,7 +228,7 @@ describe("reframeForClip", () => {
       { id: "M1", facesKey: "ws/w/p/p/media/M1/faces.json" },
       interval,
     );
-    expect(reframe).toEqual({ centerX: 0.7, basis: "faces" });
+    expect(reframe).toMatchObject({ centerX: 0.7, basis: "faces" });
     expect(d.faces.maybeEnqueue).not.toHaveBeenCalled();
   });
 
@@ -248,7 +248,7 @@ describe("reframeForClip", () => {
   it("still reads a track exactly at the size bound", async () => {
     const body = Buffer.from(JSON.stringify(track(40, () => [face(0.7)])));
     const d = deps(body, FACE_TRACK_MAX_BYTES);
-    expect(await reframeForClip(d, { id: "M1", facesKey: "k" }, interval)).toEqual({
+    expect(await reframeForClip(d, { id: "M1", facesKey: "k" }, interval)).toMatchObject({
       centerX: 0.7,
       basis: "faces",
     });

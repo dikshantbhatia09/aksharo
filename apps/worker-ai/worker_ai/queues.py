@@ -33,6 +33,7 @@ QUEUE_NAMES: Final[tuple[str, ...]] = (
     "media.proxy",
     "media.acquire",
     "media.clip",
+    "media.stills",
     "ai.vad",
     "ai.transcribe",
     "ai.align",

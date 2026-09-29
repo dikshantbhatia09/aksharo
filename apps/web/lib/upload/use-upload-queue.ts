@@ -99,7 +99,9 @@ export function useUploadQueue(): {
   React.useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const resumable = await listResumableUploads();
+      // No IndexedDB (a private window in some browsers, a test page) means
+      // nothing to resume, not an unhandled rejection on every mount.
+      const resumable = await listResumableUploads().catch(() => []);
       if (cancelled) return;
       for (const record of resumable) {
         if (jobs.current.has(record.id)) continue;

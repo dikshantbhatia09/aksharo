@@ -95,7 +95,10 @@ class StorageObject(_Strict):
 
 
 class HighlightsOptions(_Strict):
-    count: int = Field(ge=1, le=20)
+    count: int = Field(ge=1, le=40)
+    #: The bar a moment must clear to be returned at all (0-1); ``None`` keeps
+    #: the best ``count`` however they score.
+    min_potential: float | None = Field(default=None, alias="minPotential", ge=0, le=1)
     min_duration_ms: int = Field(alias="minDurationMs", ge=MIN_DURATION_MS, le=MAX_DURATION_MS)
     max_duration_ms: int = Field(alias="maxDurationMs", ge=MIN_DURATION_MS, le=MAX_DURATION_MS)
     content_goal: Literal["reach", "education", "authority", "engagement"] = Field(
@@ -180,7 +183,7 @@ class HighlightsResult(_Strict):
     run_id: Ulid = Field(alias="runId")
     transcript_id: Ulid = Field(alias="transcriptId")
     transcript_revision: int = Field(alias="transcriptRevision", ge=1)
-    proposals: tuple[HighlightProposal, ...] = Field(max_length=20)
+    proposals: tuple[HighlightProposal, ...] = Field(max_length=40)
     feature_version: Annotated[str, _trimmed(1, 100)] = Field(alias="featureVersion")
     prompt_version: Annotated[str, _trimmed(1, 100)] = Field(alias="promptVersion")
     model: Annotated[str, _trimmed(1, 100)]

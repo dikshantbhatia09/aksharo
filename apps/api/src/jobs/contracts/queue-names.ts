@@ -15,6 +15,7 @@ export const QUEUE_NAMES = [
   "media.proxy",
   "media.acquire",
   "media.clip",
+  "media.stills",
   "ai.vad",
   "ai.transcribe",
   "ai.align",

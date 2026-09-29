@@ -28,8 +28,10 @@ import {
   STAGE_TIMEOUT_CUSTOMER_MESSAGE,
   WINDOW_POLICIES,
   WINDOW_TOLERANCE_MS,
+  AUTOPILOT_MIN_POTENTIAL,
   acquireTimeoutMs,
   automationOf,
+  autopilotClipCount,
 } from "./repurpose.constants.js";
 import { createRunSchema } from "./repurpose.dto.js";
 import {
@@ -2097,7 +2099,14 @@ export class RepurposeService {
       },
       waveform: null,
       options: {
-        count: run.requestedCandidates || (discovery["requestedCandidates"] as number) || 5,
+        // Autopilot: every moment that clears the bar, scaled to the video's
+        // length (`autopilotClipCount`); otherwise the number the form asked for.
+        ...(automationOf(run) === "auto"
+          ? {
+              count: autopilotClipCount(media?.durationMs),
+              minPotential: AUTOPILOT_MIN_POTENTIAL,
+            }
+          : { count: run.requestedCandidates || (discovery["requestedCandidates"] as number) || 5 }),
         minDurationMs: (discovery["minDurationMs"] as number) || 15_000,
         maxDurationMs: (discovery["maxDurationMs"] as number) || 60_000,
         contentGoal:

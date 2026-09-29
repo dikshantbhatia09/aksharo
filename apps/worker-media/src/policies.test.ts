@@ -141,7 +141,8 @@ describe("the resolved media policies", () => {
   it("gives media queues appropriate lock duration and three attempts, acquisition two", () => {
     for (const queue of MEDIA_QUEUES) {
       const policy = queuePolicyFor(queue);
-      const expectedLock = queue === "media.clip" ? 300_000 : 600_000;
+      const expectedLock =
+        queue === "media.clip" || queue === "media.stills" ? 300_000 : 600_000;
       expect(policy.lockDurationMs, queue).toBe(expectedLock);
       expect(policy.stalledIntervalMs, queue).toBe(60_000);
       expect(policy.attempts, queue).toBe(queue === "media.acquire" ? 2 : 3);

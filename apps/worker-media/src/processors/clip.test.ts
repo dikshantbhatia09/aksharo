@@ -480,6 +480,41 @@ afterAll(async () => {
   if (dir !== "") await rm(dir, { recursive: true, force: true });
 });
 
+describe("clipFrame — every format a clip is cut in (2026-09-29)", () => {
+  const uhd = { width: 3840, height: 2160 };
+
+  it("cuts 4:5 and 1:1 windows across a landscape source, centred on the face", () => {
+    const portrait = clipFrame(uhd, { aspect: "4:5", maxHeight: 1350, centerX: 0.3 });
+    expect(portrait?.crop).toMatchObject({ width: 1728, height: 2160, y: 0 });
+    expect(portrait?.output).toEqual({ width: 1080, height: 1350 });
+    // Centred on 30 % of the width: 1152 - 864 = 288.
+    expect(portrait?.crop.x).toBe(288);
+
+    const square = clipFrame(uhd, { aspect: "1:1", maxHeight: 1080 });
+    expect(square?.crop).toMatchObject({ width: 2160, height: 2160, x: 840 });
+    expect(square?.output).toEqual({ width: 1080, height: 1080 });
+  });
+
+  it("keeps a 16:9 source whole for 16:9, scaled to 1080p", () => {
+    const wide = clipFrame(uhd, { aspect: "16:9", maxHeight: 1080 });
+    expect(wide?.crop).toEqual({ width: 3840, height: 2160, x: 0, y: 0 });
+    expect(wide?.output).toEqual({ width: 1920, height: 1080 });
+  });
+
+  it("cuts a band out of a vertical source for 16:9, around the face's height", () => {
+    const band = clipFrame({ width: 1080, height: 1920 }, { aspect: "16:9", centerY: 0.3 });
+    expect(band?.crop).toMatchObject({ width: 1080, height: 608, x: 0 });
+    // Centred on 30 % of the height: 576 - 304 = 272.
+    expect(band?.crop.y).toBe(272);
+    // Middle when no face says otherwise.
+    expect(clipFrame({ width: 1080, height: 1920 }, { aspect: "16:9" })?.crop.y).toBe(656);
+  });
+
+  it("still cuts 9:16 when no shape is named", () => {
+    expect(clipFrame(uhd)?.crop).toMatchObject({ width: 1216, height: 2160 });
+  });
+});
+
 describe("clipFrame", () => {
   it("cuts a 4K landscape source to a 1080 x 1920 mezzanine from its full height", () => {
     expect(clipFrame({ width: 3840, height: 2160 }, { maxHeight: 1920 })).toEqual({

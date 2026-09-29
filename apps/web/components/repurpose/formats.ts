@@ -1,0 +1,321 @@
+/**
+ * A copy of `packages/repurpose-contracts/src/formats.ts`, the formats every
+ * clip is prepared in, for the run page. The web does not depend on the
+ * contracts package (its barrel brings zod and every schema into the client
+ * bundle); `formats.test.ts` holds the two copies equal.
+ */
+
+/** The four shapes a clip's videos are cut in, width to height. */
+export const VIDEO_SHAPES = ["9:16", "4:5", "1:1", "16:9"] as const;
+export type VideoShape = (typeof VIDEO_SHAPES)[number];
+
+/** The pixel size each shape's video is made at. */
+export const VIDEO_SHAPE_SIZE: Readonly<Record<VideoShape, { width: number; height: number }>> =
+  Object.freeze({
+    "9:16": { width: 1080, height: 1920 },
+    "4:5": { width: 1080, height: 1350 },
+    "1:1": { width: 1080, height: 1080 },
+    "16:9": { width: 1920, height: 1080 },
+  });
+
+/** An image made from one of a clip's videos. */
+export interface ImageFile {
+  readonly id: ImageFileId;
+  /** The video it is taken from. */
+  readonly from: VideoShape;
+  /** A frame of the captioned video, or a clean frame (covers, banners). */
+  readonly captioned: boolean;
+  readonly width: number;
+  readonly height: number;
+  /** How many frames: one, or a carousel's slides spread through the clip. */
+  readonly count: number;
+}
+
+export const IMAGE_FILE_IDS = [
+  "portrait-post",
+  "carousel",
+  "square-post",
+  "landscape-post",
+  "vertical-image",
+  "pin",
+  "thumbnail",
+  "youtube-banner",
+  "facebook-cover",
+  "facebook-event-cover",
+  "facebook-group-cover",
+] as const;
+export type ImageFileId = (typeof IMAGE_FILE_IDS)[number];
+
+export const IMAGE_FILES: Readonly<Record<ImageFileId, ImageFile>> = Object.freeze({
+  "portrait-post": {
+    id: "portrait-post",
+    from: "4:5",
+    captioned: true,
+    width: 1080,
+    height: 1350,
+    count: 1,
+  },
+  carousel: { id: "carousel", from: "4:5", captioned: true, width: 1080, height: 1350, count: 5 },
+  "square-post": {
+    id: "square-post",
+    from: "1:1",
+    captioned: true,
+    width: 1080,
+    height: 1080,
+    count: 1,
+  },
+  "landscape-post": {
+    id: "landscape-post",
+    from: "16:9",
+    captioned: true,
+    width: 1600,
+    height: 900,
+    count: 1,
+  },
+  "vertical-image": {
+    id: "vertical-image",
+    from: "9:16",
+    captioned: true,
+    width: 1080,
+    height: 1920,
+    count: 1,
+  },
+  pin: { id: "pin", from: "9:16", captioned: true, width: 1000, height: 1500, count: 1 },
+  thumbnail: { id: "thumbnail", from: "16:9", captioned: true, width: 1280, height: 720, count: 1 },
+  "youtube-banner": {
+    id: "youtube-banner",
+    from: "16:9",
+    captioned: false,
+    width: 2560,
+    height: 1440,
+    count: 1,
+  },
+  // Displayed at 851 x 315; made at twice that so it stays sharp on phones.
+  "facebook-cover": {
+    id: "facebook-cover",
+    from: "16:9",
+    captioned: false,
+    width: 1702,
+    height: 630,
+    count: 1,
+  },
+  "facebook-event-cover": {
+    id: "facebook-event-cover",
+    from: "16:9",
+    captioned: false,
+    width: 1920,
+    height: 1005,
+    count: 1,
+  },
+  "facebook-group-cover": {
+    id: "facebook-group-cover",
+    from: "16:9",
+    captioned: false,
+    width: 1640,
+    height: 856,
+    count: 1,
+  },
+});
+
+export const PLATFORMS = [
+  "Instagram",
+  "Facebook",
+  "YouTube",
+  "WhatsApp",
+  "Threads",
+  "X",
+  "Pinterest",
+  "TikTok",
+] as const;
+export type Platform = (typeof PLATFORMS)[number];
+
+/** One place a clip can be posted, and the file that fits it. */
+export interface FormatTarget {
+  readonly id: string;
+  readonly platform: Platform;
+  readonly label: string;
+  /** The video shape, or the image file, that fits it. */
+  readonly file:
+    | { readonly kind: "video"; readonly shape: VideoShape }
+    | {
+        readonly kind: "image";
+        readonly image: ImageFileId;
+      };
+  /** The longest video the platform takes here, when it limits it. */
+  readonly maxDurationMs?: number;
+  /** One line a person needs before posting (a safe area, a limit). */
+  readonly note?: string;
+}
+
+const video = (shape: VideoShape) => ({ kind: "video" as const, shape });
+const image = (id: ImageFileId) => ({ kind: "image" as const, image: id });
+
+export const FORMAT_TARGETS: readonly FormatTarget[] = Object.freeze([
+  // Instagram
+  {
+    id: "instagram-reel",
+    platform: "Instagram",
+    label: "Reel",
+    file: video("9:16"),
+    maxDurationMs: 180_000,
+  },
+  {
+    id: "instagram-story",
+    platform: "Instagram",
+    label: "Story",
+    file: video("9:16"),
+    maxDurationMs: 60_000,
+    note: "A story plays up to 60 s; a longer clip is split into several.",
+  },
+  {
+    id: "instagram-feed-video",
+    platform: "Instagram",
+    label: "Post (video, 4:5)",
+    file: video("4:5"),
+  },
+  {
+    id: "instagram-square-video",
+    platform: "Instagram",
+    label: "Post (video, square)",
+    file: video("1:1"),
+  },
+  {
+    id: "instagram-post-image",
+    platform: "Instagram",
+    label: "Post (image, 4:5)",
+    file: image("portrait-post"),
+  },
+  {
+    id: "instagram-carousel",
+    platform: "Instagram",
+    label: "Carousel (5 slides)",
+    file: image("carousel"),
+    note: "The profile grid previews posts at 3:4; keep faces and words away from the top and bottom edges.",
+  },
+  // Facebook
+  {
+    id: "facebook-reel",
+    platform: "Facebook",
+    label: "Reel",
+    file: video("9:16"),
+    maxDurationMs: 90_000,
+  },
+  {
+    id: "facebook-story",
+    platform: "Facebook",
+    label: "Story",
+    file: video("9:16"),
+    maxDurationMs: 60_000,
+  },
+  {
+    id: "facebook-feed-video",
+    platform: "Facebook",
+    label: "Feed video (4:5)",
+    file: video("4:5"),
+  },
+  {
+    id: "facebook-landscape-video",
+    platform: "Facebook",
+    label: "Feed video (landscape)",
+    file: video("16:9"),
+  },
+  {
+    id: "facebook-post-image",
+    platform: "Facebook",
+    label: "Feed image (4:5)",
+    file: image("portrait-post"),
+  },
+  {
+    id: "facebook-cover",
+    platform: "Facebook",
+    label: "Page cover (banner)",
+    file: image("facebook-cover"),
+    note: "Shown at 851 x 315; phones crop the sides, so the middle 640 x 312 is always visible.",
+  },
+  {
+    id: "facebook-event-cover",
+    platform: "Facebook",
+    label: "Event cover",
+    file: image("facebook-event-cover"),
+  },
+  {
+    id: "facebook-group-cover",
+    platform: "Facebook",
+    label: "Group cover",
+    file: image("facebook-group-cover"),
+  },
+  // YouTube
+  {
+    id: "youtube-short",
+    platform: "YouTube",
+    label: "Short",
+    file: video("9:16"),
+    maxDurationMs: 180_000,
+  },
+  { id: "youtube-video", platform: "YouTube", label: "Video (16:9)", file: video("16:9") },
+  { id: "youtube-thumbnail", platform: "YouTube", label: "Thumbnail", file: image("thumbnail") },
+  {
+    id: "youtube-post",
+    platform: "YouTube",
+    label: "Community post image",
+    file: image("square-post"),
+  },
+  {
+    id: "youtube-banner",
+    platform: "YouTube",
+    label: "Channel banner",
+    file: image("youtube-banner"),
+    note: "Only the middle 1546 x 423 shows on every device.",
+  },
+  // WhatsApp
+  {
+    id: "whatsapp-status",
+    platform: "WhatsApp",
+    label: "Status (video)",
+    file: video("9:16"),
+    maxDurationMs: 90_000,
+  },
+  {
+    id: "whatsapp-status-image",
+    platform: "WhatsApp",
+    label: "Status (image)",
+    file: image("vertical-image"),
+  },
+  // Threads
+  {
+    id: "threads-video",
+    platform: "Threads",
+    label: "Video",
+    file: video("9:16"),
+    maxDurationMs: 300_000,
+  },
+  { id: "threads-image", platform: "Threads", label: "Image (4:5)", file: image("portrait-post") },
+  // X
+  {
+    id: "x-video",
+    platform: "X",
+    label: "Video (16:9)",
+    file: video("16:9"),
+    maxDurationMs: 140_000,
+    note: "Standard accounts post up to 2 min 20 s; Premium goes longer.",
+  },
+  {
+    id: "x-square-video",
+    platform: "X",
+    label: "Video (square)",
+    file: video("1:1"),
+    maxDurationMs: 140_000,
+  },
+  { id: "x-image", platform: "X", label: "Image (16:9)", file: image("landscape-post") },
+  // Pinterest
+  {
+    id: "pinterest-video-pin",
+    platform: "Pinterest",
+    label: "Video pin",
+    file: video("9:16"),
+    maxDurationMs: 900_000,
+  },
+  { id: "pinterest-pin", platform: "Pinterest", label: "Pin (2:3 image)", file: image("pin") },
+  // TikTok
+  { id: "tiktok-video", platform: "TikTok", label: "Video", file: video("9:16") },
+] satisfies FormatTarget[]);

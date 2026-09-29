@@ -30,8 +30,8 @@ const validEnvelope = {
 };
 
 describe("queue contract (CONTRACTS §3)", () => {
-  it("lists all twenty frozen queue names", () => {
-    expect(QUEUE_NAMES).toHaveLength(20);
+  it("lists all twenty-one frozen queue names", () => {
+    expect(QUEUE_NAMES).toHaveLength(21);
     expect(new Set(QUEUE_NAMES).size).toBe(QUEUE_NAMES.length);
   });
 
@@ -47,12 +47,13 @@ describe("queue contract (CONTRACTS §3)", () => {
 
   it("consumes exactly the media queues it has processors for", () => {
     expect(MEDIA_PROBE_QUEUE).toBe("media.probe");
-    // Four media queues now that media.clip processor is wired
+    // Five: media.stills (a clip's image formats) since 2026-09-29.
     expect(MEDIA_QUEUES).toEqual([
       "media.acquire",
       "media.probe",
       "media.proxy",
       "media.clip",
+      "media.stills",
     ]);
     expect(MEDIA_QUEUES).toContain("media.clip");
   });

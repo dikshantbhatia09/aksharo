@@ -3,7 +3,12 @@ import { tmpdir } from "node:os";
 
 import { describeError } from "./errors.js";
 import { logger } from "./logger.js";
-import { MEDIA_ACQUIRE_QUEUE, MEDIA_CLIP_QUEUE, MEDIA_PROXY_QUEUE } from "./queues.js";
+import {
+  MEDIA_ACQUIRE_QUEUE,
+  MEDIA_CLIP_QUEUE,
+  MEDIA_PROXY_QUEUE,
+  MEDIA_STILLS_QUEUE,
+} from "./queues.js";
 
 /**
  * Disk admission: a download, an encode or a cut does not START without room
@@ -42,6 +47,9 @@ export const DISK_GUARDED_QUEUES: ReadonlySet<string> = new Set([
   MEDIA_ACQUIRE_QUEUE,
   MEDIA_PROXY_QUEUE,
   MEDIA_CLIP_QUEUE,
+  // A clip's images are small, but they come in bursts of many clips, and on
+  // a nearly full volume they are the first thing worth holding back.
+  MEDIA_STILLS_QUEUE,
 ]);
 
 /** How long a job that did not fit waits before it asks again. */

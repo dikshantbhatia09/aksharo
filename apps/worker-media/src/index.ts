@@ -11,11 +11,13 @@ import { processAcquire } from "./processors/acquire.js";
 import { processClip } from "./processors/clip.js";
 import { processProbe } from "./processors/probe.js";
 import { processProxy } from "./processors/proxy.js";
+import { processStills } from "./processors/stills.js";
 import {
   MEDIA_ACQUIRE_QUEUE,
   MEDIA_CLIP_QUEUE,
   MEDIA_PROBE_QUEUE,
   MEDIA_PROXY_QUEUE,
+  MEDIA_STILLS_QUEUE,
 } from "./queues.js";
 import { buildServices, makeHandler } from "./runtime.js";
 import { loadRepoDotenv, resolveSettings } from "./settings.js";
@@ -51,6 +53,7 @@ const PROCESSORS: Readonly<Record<MediaQueue, Processor>> = {
   [MEDIA_PROBE_QUEUE]: processProbe,
   [MEDIA_PROXY_QUEUE]: processProxy,
   [MEDIA_CLIP_QUEUE]: processClip,
+  [MEDIA_STILLS_QUEUE]: processStills,
 };
 
 function startWorkers(

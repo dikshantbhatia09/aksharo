@@ -177,10 +177,21 @@ export const MediaClipPayloadSchema = z
     reframe: z
       .strictObject({
         centerX: z.number().min(0).max(1),
+        /**
+         * The speaking face's vertical centre (2026-09-29), for a source taller
+         * than the shape being cut (a vertical video cut to 16:9, say); absent
+         * keeps the band in the middle.
+         */
+        centerY: z.number().min(0).max(1).optional(),
         /** `faces`: from the face track; `centre`: no usable faces. */
         basis: z.enum(["faces", "centre"]),
       })
       .optional(),
+    /**
+     * The shape to cut (2026-09-29): every clip is cut 9:16 first, then 4:5,
+     * 1:1 and 16:9 for the other platforms. Absent means 9:16.
+     */
+    aspect: AspectSchema.optional(),
     profileVersion: z.string().trim().min(1).max(100),
     subtitles: z
       .array(
@@ -251,7 +262,14 @@ export const HighlightsPayloadSchema = z
     proxy: StorageObjectSchema,
     waveform: z.union([StorageObjectSchema, z.null()]),
     options: z.strictObject({
-      count: z.int().min(1).max(20),
+      /** The most moments to return (Autopilot asks for up to 40, 2026-09-29). */
+      count: z.int().min(1).max(40),
+      /**
+       * The bar a moment must clear to be returned at all, as a potential of
+       * 0-1 (`potentialScore` / 100). Absent: the best `count`, however they
+       * score - what every run before Autopilot's "only what can go viral" got.
+       */
+      minPotential: z.number().min(0).max(1).optional(),
       minDurationMs: z.int().min(3_000).max(180_000),
       maxDurationMs: z.int().min(3_000).max(180_000),
       contentGoal: z.enum(["reach", "education", "authority", "engagement"]),
@@ -330,7 +348,7 @@ export const HighlightsResultSchema = z.strictObject({
   transcriptId: UlidSchema,
   transcriptRevision: z.int().positive(),
   /** Fewer, better candidates is a valid answer; padding with weak clips is not. */
-  proposals: z.array(HighlightProposalSchema).max(20),
+  proposals: z.array(HighlightProposalSchema).max(40),
   /** Aggregate features only — never a face identity or an inferred trait. */
   featureVersion: z.string().trim().min(1).max(100),
   promptVersion: z.string().trim().min(1).max(100),
@@ -394,6 +412,48 @@ export function clipMasterKey(input: {
 }
 
 /** The aspect families a run may request, as the materialiser enumerates them. */
+/**
+ * `media.stills` (2026-09-29): a clip's image formats, each one frame of one of
+ * its videos (derived store) cropped to a size and written as a JPEG. The API
+ * picks the frames and the keys; the worker only takes them.
+ */
+const StillNameSchema = z.string().regex(/^[a-z0-9-]{1,64}$/);
+export const StillRequestSchema = z.strictObject({
+  name: StillNameSchema,
+  sourceKey: StorageKeySchema,
+  atMs: z.number().int().nonnegative(),
+  width: z.number().int().min(16).max(4096),
+  height: z.number().int().min(16).max(4096),
+  focusY: z.number().min(0).max(1).optional(),
+  destinationKey: StorageKeySchema,
+});
+export const MediaStillsPayloadSchema = z.strictObject({
+  schemaVersion: z.literal(REPURPOSE_SCHEMA_VERSION),
+  runId: UlidSchema,
+  clipId: UlidSchema,
+  destination: StorageObjectSchema,
+  images: z.array(StillRequestSchema).min(1).max(40),
+  /** Which videos the images were taken from; echoed in the result. */
+  fingerprint: z.string().min(1).max(512),
+});
+export const MediaStillsResultSchema = z.object({
+  schemaVersion: z.literal(1),
+  clipId: UlidSchema,
+  fingerprint: z.string().min(1).max(512),
+  images: z
+    .array(
+      z.object({
+        name: StillNameSchema,
+        key: z.string().min(1),
+        width: z.number().int().positive(),
+        height: z.number().int().positive(),
+        sizeBytes: z.number().int().nonnegative(),
+        atMs: z.number().nonnegative(),
+      }),
+    )
+    .max(40),
+});
+
 export const RequestedAspectsSchema = z.array(AspectSchema).min(1).max(4);
 
 export type MediaAcquirePayload = z.infer<typeof MediaAcquirePayloadSchema>;
@@ -403,3 +463,6 @@ export type MediaClipResult = z.infer<typeof MediaClipResultSchema>;
 export type HighlightsPayload = z.infer<typeof HighlightsPayloadSchema>;
 export type HighlightProposal = z.infer<typeof HighlightProposalSchema>;
 export type HighlightsResult = z.infer<typeof HighlightsResultSchema>;
+export type StillRequest = z.infer<typeof StillRequestSchema>;
+export type MediaStillsPayload = z.infer<typeof MediaStillsPayloadSchema>;
+export type MediaStillsResult = z.infer<typeof MediaStillsResultSchema>;

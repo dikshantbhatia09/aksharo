@@ -29,6 +29,11 @@ import type { FacesTrigger } from "../media/faces.js";
 export interface ClipReframe {
   /** Horizontal centre of the window, 0 (left edge) to 1 (right edge) of the source. */
   readonly centerX: number;
+  /**
+   * The speaking face's vertical centre, 0 (top) to 1 (bottom), for a source
+   * taller than the shape being cut (2026-09-29); absent when no face was found.
+   */
+  readonly centerY?: number;
   /** `faces`: taken from the face track; `centre`: no usable face, so the frame centre. */
   readonly basis: "faces" | "centre";
 }
@@ -62,6 +67,8 @@ interface FaceTrackBuild {
   /** Where this person was last seen, which is what the next detection is linked to. */
   lastCx: number;
   readonly centres: number[];
+  /** Vertical centres, beside `centres`. */
+  readonly rows: number[];
   areaSum: number;
   widthSum: number;
   /** Sample indexes this person appears in (once per sample). */
@@ -105,7 +112,13 @@ export function reframeFromFaces(
         const [x, , w, h] = asArray(box);
         return isFiniteNumber(x) && isFiniteNumber(w) && isFiniteNumber(h);
       })
-      .map(([x = 0, , w = 0, h = 0]) => ({ cx: x + w / 2, w, h, area: w * h }))
+      .map(([x = 0, y = 0, w = 0, h = 0]) => ({
+        cx: x + w / 2,
+        cy: (isFiniteNumber(y) ? y : 0) + h / 2,
+        w,
+        h,
+        area: w * h,
+      }))
       .filter((face) => face.h >= MIN_FACE_HEIGHT && face.w > 0)
       .sort((a, b) => b.area - a.area);
 
@@ -127,11 +140,19 @@ export function reframeFromFaces(
       }
       let owner = nearest;
       if (owner === undefined) {
-        owner = { lastCx: face.cx, centres: [], areaSum: 0, widthSum: 0, seenIn: new Set() };
+        owner = {
+          lastCx: face.cx,
+          centres: [],
+          rows: [],
+          areaSum: 0,
+          widthSum: 0,
+          seenIn: new Set(),
+        };
         tracks.push(owner);
       }
       owner.lastCx = face.cx;
       owner.centres.push(face.cx);
+      owner.rows.push(face.cy);
       owner.areaSum += face.area;
       owner.widthSum += face.w;
       owner.seenIn.add(sampleIndex);
@@ -154,7 +175,11 @@ export function reframeFromFaces(
   }
   if (dominant === undefined) return CENTRE_REFRAME;
 
-  return { centerX: roundFraction(median(dominant.centres)), basis: "faces" };
+  return {
+    centerX: roundFraction(median(dominant.centres)),
+    centerY: roundFraction(median(dominant.rows)),
+    basis: "faces",
+  };
 }
 
 function isFiniteNumber(value: unknown): value is number {

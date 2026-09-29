@@ -14,6 +14,7 @@ const CONTRACT_QUEUES = [
   "media.proxy",
   "media.acquire",
   "media.clip",
+  "media.stills",
   "ai.vad",
   "ai.transcribe",
   "ai.align",

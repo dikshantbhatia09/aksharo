@@ -60,7 +60,10 @@ export {
   MediaAcquireResultSchema,
   MediaClipPayloadSchema,
   MediaClipResultSchema,
+  MediaStillsPayloadSchema,
+  MediaStillsResultSchema,
   RequestedAspectsSchema,
+  StillRequestSchema,
   StorageObjectSchema,
   clipMasterKey,
   highlightsJobKey,
@@ -74,4 +77,8 @@ export {
   type MediaAcquireResult,
   type MediaClipPayload,
   type MediaClipResult,
+  type MediaStillsPayload,
+  type MediaStillsResult,
+  type StillRequest,
 } from "./jobs.js";
+export * from "./formats.js";

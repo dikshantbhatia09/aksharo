@@ -1471,7 +1471,39 @@ export interface RepurposeClipItem {
    * null for a run whose person picks the moments, and until one is asked for.
    */
   captioned?: RepurposeCaptionedClip | null;
+  /**
+   * Every shape of a ready clip (2026-09-29): 9:16 and, on Autopilot, 4:5, 1:1
+   * and 16:9, each with its captioned video and its clean cut. Absent from an
+   * API older than that.
+   */
+  formats?: RepurposeClipFormat[];
+  /** An Autopilot clip's images: posts, carousel, pin, thumbnail, covers, banners. */
+  images?: RepurposeClipImages;
   [key: string]: unknown;
+}
+
+/** See {@link RepurposeClipItem.formats}. */
+export interface RepurposeClipFormat {
+  shape: "9:16" | "4:5" | "1:1" | "16:9";
+  /** `preparing` while it is cut and prepared; then the captioned video's own states. */
+  status: "preparing" | "rendering" | "ready" | "stale" | "failed";
+  /** Its own editable project, once cut. */
+  projectId: string | null;
+  captioned: RepurposeCaptionedClip | null;
+  /** The same shape without captions, signed to download. */
+  cleanUrl: string | null;
+}
+
+/** See {@link RepurposeClipItem.images}. */
+export interface RepurposeClipImages {
+  status: "none" | "preparing" | "ready" | "failed";
+  /** One entry per image file (`carousel` has several items); what is made so far. */
+  files: Array<{
+    id: string;
+    width: number;
+    height: number;
+    items: Array<{ url: string; downloadUrl: string }>;
+  }>;
 }
 
 /** See {@link RepurposeClipItem.captioned}. */

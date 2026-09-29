@@ -217,6 +217,13 @@ def discover(
         signals = features.signals(window.first, window.last, window.start_ms, window.end_ms)
         candidates.append(_Candidate(window, signals, score(signals, options.content_goal)))
 
+    # Autopilot keeps only what clears the bar (`minPotential`): a moment that
+    # scores under it is not worth a clip, however many slots are left.
+    if options.min_potential is not None:
+        floor = options.min_potential
+        candidates = [candidate for candidate in candidates if candidate.score.potential >= floor]
+        if not candidates:
+            return [], min(len(windows), _MAX_WINDOWS_REPORTED)
     picked = select(
         candidates,
         count=options.count,

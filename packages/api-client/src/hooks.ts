@@ -2096,6 +2096,10 @@ export function clipsStillMoving(
  */
 export const CLIP_URL_REFRESH_MS = 10 * 60_000;
 
+/** How often a clip list is re-read while an Autopilot clip's formats are made. */
+export const FORMATS_POLL_MS = 10_000;
+const MOVING_FORMAT: ReadonlySet<string> = new Set(["preparing", "rendering", "stale"]);
+
 /** `useRepurposeClips`' poll: `pollMs` while a clip moves, a slow refresh while any has a URL. */
 export function clipsPollDelay(
   clips: readonly RepurposeClipItem[],
@@ -2110,6 +2114,17 @@ export function clipsPollDelay(
     )
   ) {
     return pollMs;
+  }
+  // An Autopilot clip's other shapes and images are still being made: minutes,
+  // not seconds, so a slower beat.
+  if (
+    clips.some(
+      (clip) =>
+        clip.images?.status === "preparing" ||
+        (clip.formats ?? []).some((format) => MOVING_FORMAT.has(format.status)),
+    )
+  ) {
+    return Math.max(pollMs, FORMATS_POLL_MS);
   }
   return clips.some((clip) => typeof clip.mezzanineUrl === "string") ? CLIP_URL_REFRESH_MS : false;
 }
@@ -2221,6 +2236,8 @@ export type {
   CreateRepurposeCandidateRequest,
   RepurposeAutomation,
   RepurposeCaptionedClip,
+  RepurposeClipFormat,
+  RepurposeClipImages,
   ProjectRenderPreview,
   RepurposeClipState,
   RepurposeNextWindowResponse,

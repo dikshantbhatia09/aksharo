@@ -3687,6 +3687,8 @@ model RepurposeClip {
   mezzanineDurationMs Int?     @map("mezzanine_duration_ms")
   /// The `media.clip` job that produced it, for support and replay.
   mezzanineJobId      String?  @map("mezzanine_job_id") @db.Char(26)
+  /// The clip's image formats (2026-09-29, `media.stills`): `{ fingerprint, images }`.
+  images              Json     @default("{}") @db.JsonB
   createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt           DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 

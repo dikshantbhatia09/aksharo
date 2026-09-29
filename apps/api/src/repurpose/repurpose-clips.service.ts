@@ -1,3 +1,5 @@
+import { statfs } from "node:fs/promises";
+
 import { HttpStatus, Inject, Injectable, Logger, Optional } from "@nestjs/common";
 import { ulid } from "ulid";
 
@@ -5,12 +7,27 @@ import type { Env } from "@montaj/config";
 import type { Word } from "@montaj/edg/schemas";
 import type { FaceTrackDocument } from "@montaj/render-core";
 import {
+  IMAGE_FILES,
   MediaClipPayloadSchema,
+  MediaStillsPayloadSchema,
   REPURPOSE_SCHEMA_VERSION,
+  VIDEO_SHAPES,
+  VIDEO_SHAPE_SIZE,
   clipMasterKey,
   mediaClipJobKey,
 } from "@montaj/repurpose-contracts";
 
+import {
+  IMAGE_ATTEMPTS,
+  IMAGE_URL_TTL_SECONDS,
+  type ImagePlan,
+  type ShapeVideos,
+  clipFolder,
+  fileOfImage,
+  planClipImages,
+  stillsJobKey,
+  storedImagesOf,
+} from "./clip-images.js";
 import {
   CLIP_CHILD_VARIANTS,
   type ClipRowWithChild,
@@ -38,8 +55,15 @@ import {
   REPURPOSE_CLIP_ERRORS,
 } from "./repurpose-clips.dto.js";
 import {
+  ASPECT_OF_SHAPE,
   AUTOPILOT_CLIP_ATTEMPTS,
   AUTOPILOT_CLIP_RETRY_CODES,
+  FORMAT_CUT_ATTEMPTS,
+  FORMAT_SHAPES,
+  FORMATS_MIN_FREE_BYTES,
+  SHAPE_OF_ASPECT,
+  formatCutKeyPrefix,
+  type FormatShape,
   CAPTIONED_QUIET_MS,
   CAPTIONED_RENDER_ATTEMPTS,
   CAPTIONED_URL_TTL_SECONDS,
@@ -88,6 +112,35 @@ export interface CaptionedClipView {
   readonly downloadUrl: string | null;
 }
 
+/**
+ * One shape of a ready clip (2026-09-29). `preparing` while it is cut, probed
+ * and captioned; then the captioned video's own states. `cleanUrl` downloads
+ * the same shape without captions.
+ */
+export interface ClipFormatView {
+  readonly shape: (typeof VIDEO_SHAPES)[number];
+  readonly status: "preparing" | CaptionedClipView["status"];
+  readonly projectId: string | null;
+  readonly captioned: CaptionedClipView | null;
+  readonly cleanUrl: string | null;
+}
+
+/**
+ * A clip's image formats (2026-09-29): `preparing` until its videos have
+ * settled and the images are taken, `ready` with every image file, `failed`
+ * when they could not be made. `files` holds what is made, even while a newer
+ * set is being prepared.
+ */
+export interface ClipImagesView {
+  readonly status: "none" | "preparing" | "ready" | "failed";
+  readonly files: readonly {
+    readonly id: string;
+    readonly width: number;
+    readonly height: number;
+    readonly items: readonly { readonly url: string; readonly downloadUrl: string }[];
+  }[];
+}
+
 export interface RepurposeClipItemView {
   readonly id: string;
   readonly candidateId: string;
@@ -96,6 +149,10 @@ export interface RepurposeClipItemView {
   readonly mezzanineUrl: string | null;
   /** The captioned video, for an Autopilot run's ready clip; null otherwise. */
   readonly captioned: CaptionedClipView | null;
+  /** Every shape of the clip, once it is ready ({@link ClipFormatView}). */
+  readonly formats: readonly ClipFormatView[];
+  /** The clip's images, on an Autopilot run's ready clip ({@link ClipImagesView}). */
+  readonly images: ClipImagesView;
   readonly [field: string]: unknown;
 }
 
@@ -172,6 +229,17 @@ const FAILED_AFTER_TRANSCRIPT: ReadonlySet<string> = new Set([
  *     against the same flag names and the same projection.
  */
 /**
+ * The cloud export each shape is rendered with: the preset of that canvas, or
+ * 1920 x 1080 for 16:9 (the only 16:9 preset is 4K).
+ */
+const RENDER_SIZE_OF_ASPECT = {
+  r9x16: { preset: "reels" },
+  r4x5: { preset: "instagram-feed" },
+  r1x1: { preset: "square" },
+  r16x9: { preset: "custom", customWidth: 1920, customHeight: 1080 },
+} as const;
+
+/**
  * Where Autopilot asks for clips: the run has its moments and is cutting or
  * showing them. Not before (no moments yet), and not once it failed or was
  * stopped (a failed run is retried as a run, by the reconciler).
@@ -242,7 +310,9 @@ export class RepurposeClipsService {
     return {
       runId: run.id,
       clips: await Promise.all(
-        clips.map((clip) => this.toItem(clip, latest.get(clip.candidateId), sourceGone)),
+        clips.map((clip) =>
+          this.toItem(clip, latest.get(clip.candidateId), sourceGone, automationOf(run) === "auto"),
+        ),
       ),
     };
   }
@@ -522,6 +592,8 @@ export class RepurposeClipsService {
 
       if (cut > 0) await this.advanceRun(run);
       await this.captionClips(run);
+      await this.cutFormats(run);
+      await this.makeImages(run);
       if (cut + retried > 0) {
         this.logger.log({ runId: run.id, cut, retried }, "autopilot asked for clips");
         await this.audit.record({
@@ -564,7 +636,7 @@ export class RepurposeClipsService {
     const exports = this.exports;
     if (exports === undefined) return;
     const variants = await this.prisma.clipVariant.findMany({
-      where: { aspect: "r9x16", clip: { runId: run.id, mezzanineKey: { not: null } } },
+      where: { clip: { runId: run.id, mezzanineKey: { not: null } } },
       include: {
         latestExport: { select: { id: true, status: true } },
         project: {
@@ -598,7 +670,10 @@ export class RepurposeClipsService {
           continue;
         }
         if (latest !== null && latest.status === "succeeded" && current) {
-          if (variant.status !== "ready") await this.setVariant(variant.id, "ready");
+          if (variant.status !== "ready") {
+            await this.setVariant(variant.id, "ready");
+            await this.dropSupersededRenders(variant.projectId, latest.id);
+          }
           continue;
         }
         if (latest !== null && latest.status === "failed" && current) {
@@ -624,13 +699,15 @@ export class RepurposeClipsService {
           continue;
         }
 
+        // Reels and Shorts first: another shape's video waits for disk.
+        if (variant.aspect !== "r9x16" && !(await this.roomForFormats(run))) continue;
         const requested = await exports.requestExport({
           projectId: variant.projectId,
           workspaceId: run.workspaceId,
           userId: run.createdBy,
           kind: "video",
           outputKind: "video",
-          preset: "reels",
+          ...RENDER_SIZE_OF_ASPECT[variant.aspect],
           script: "roman",
           mode: "cloud",
           dropFillers: false,
@@ -671,6 +748,399 @@ export class RepurposeClipsService {
           .catch(() => undefined);
       }
     }
+  }
+
+  /**
+   * Free space on the volume the stores sit on. Below
+   * {@link FORMATS_MIN_FREE_BYTES} Autopilot stops making a clip's other
+   * shapes and images (2026-09-29) until there is room again; the 9:16 clip and
+   * its captioned video are never held here (worker-media holds any cut the
+   * disk cannot take). A field so a test can set it.
+   */
+  freeBytes: () => Promise<number> = async () => {
+    try {
+      const facts = await statfs(process.cwd());
+      return Number(facts.bavail) * Number(facts.bsize);
+    } catch {
+      return Number.POSITIVE_INFINITY;
+    }
+  };
+
+  private lowDiskLoggedAt = 0;
+
+  private async roomForFormats(run: RepurposeRun): Promise<boolean> {
+    const free = await this.freeBytes();
+    if (free >= FORMATS_MIN_FREE_BYTES) return true;
+    if (Date.now() - this.lowDiskLoggedAt > 10 * 60_000) {
+      this.lowDiskLoggedAt = Date.now();
+      this.logger.warn(
+        { runId: run.id, freeBytes: free, needBytes: FORMATS_MIN_FREE_BYTES },
+        "low disk: holding the other formats and images until there is room",
+      );
+    }
+    return false;
+  }
+
+  /**
+   * Old renders of one clip shape (2026-09-29): once a newer captioned video
+   * is made, the files of the earlier ones are deleted. Edits re-make it, and
+   * with four shapes a clip would otherwise keep every version it ever had.
+   * The export rows stay (their history); only the objects go.
+   */
+  private async dropSupersededRenders(projectId: string, keepExportId: string): Promise<void> {
+    try {
+      const old = await this.prisma.export.findMany({
+        where: {
+          projectId,
+          id: { not: keepExportId },
+          status: "succeeded",
+          storageKey: { not: null },
+        },
+        select: { id: true, storageKey: true },
+      });
+      for (const row of old) {
+        if (row.storageKey === null) continue;
+        await this.derived.delete(row.storageKey);
+        await this.prisma.export.update({ where: { id: row.id }, data: { storageKey: null } });
+      }
+      if (old.length > 0) {
+        this.logger.log({ projectId, dropped: old.length }, "deleted superseded clip renders");
+      }
+    } catch (error) {
+      this.logger.warn({ projectId, err: error }, "could not delete superseded clip renders");
+    }
+  }
+
+  /** The shapes of a clip, as its images see them ({@link planClipImages}). */
+  private shapeVideosOf(clip: ClipWithRelations): ShapeVideos[] {
+    return clip.variants.map((variant) => {
+      const made =
+        variant.latestExportId === null
+          ? undefined
+          : variant.project.exports.find(
+              (row) =>
+                row.id === variant.latestExportId &&
+                row.status === "succeeded" &&
+                row.storageKey !== null,
+            );
+      const clean = variant.project.mediaAssets
+        .filter((media) => media.role === "primary" && media.storageKey !== "")
+        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0];
+      return {
+        shape: SHAPE_OF_ASPECT[variant.aspect],
+        settled: variant.status === "ready" || variant.status === "failed",
+        captioned:
+          variant.status === "ready" && made !== undefined && made.storageKey !== null
+            ? { exportId: made.id, key: made.storageKey }
+            : null,
+        clean:
+          clean === undefined || clean.status !== "ready"
+            ? null
+            : { mediaId: clean.id, key: clean.storageKey },
+      };
+    });
+  }
+
+  /** Shapes of an Autopilot clip whose cut was given up. */
+  private async abandonedShapes(
+    workspaceId: string | undefined,
+    clip: ClipWithRelations,
+  ): Promise<Set<(typeof VIDEO_SHAPES)[number]>> {
+    const had = new Set(clip.variants.map((variant) => SHAPE_OF_ASPECT[variant.aspect]));
+    const abandoned = new Set<(typeof VIDEO_SHAPES)[number]>();
+    for (const shape of FORMAT_SHAPES) {
+      if (had.has(shape)) continue;
+      // The key names the candidate (a ULID), so the workspace only narrows it.
+      const ended = await this.prisma.job.count({
+        where: {
+          ...(workspaceId === undefined ? {} : { workspaceId }),
+          type: "media.clip",
+          jobKey: { startsWith: formatCutKeyPrefix(clip.candidateId, shape) },
+          status: { in: ["failed", "cancelled"] },
+        },
+      });
+      if (ended >= FORMAT_CUT_ATTEMPTS) abandoned.add(shape);
+    }
+    return abandoned;
+  }
+
+  private async imagePlanOf(
+    workspaceId: string | undefined,
+    clip: ClipWithRelations,
+  ): Promise<ImagePlan> {
+    if (clip.mezzanineKey === null) return { kind: "none" };
+    return planClipImages({
+      videos: this.shapeVideosOf(clip),
+      abandoned: await this.abandonedShapes(workspaceId, clip),
+      folder: clipFolder(clip.mezzanineKey),
+      durationMs: clip.mezzanineDurationMs ?? clip.sourceEndMs - clip.sourceStartMs,
+    });
+  }
+
+  /**
+   * Autopilot's images (2026-09-29): once every shape of a clip has settled,
+   * one `media.stills` job takes its posts, carousel slides, pin, thumbnail,
+   * covers and banners from its videos ({@link planClipImages}). New captions
+   * make a new set; a set that failed {@link IMAGE_ATTEMPTS} times is left.
+   */
+  private async makeImages(run: RepurposeRun): Promise<void> {
+    const clips = await this.prisma.repurposeClip.findMany({
+      where: { runId: run.id, mezzanineKey: { not: null } },
+      include: CLIP_INCLUDE,
+    });
+    let roomChecked = false;
+    for (const clip of clips) {
+      if (clip.mezzanineKey === null) continue;
+      try {
+        const plan = await this.imagePlanOf(run.workspaceId, clip);
+        if (plan.kind !== "ready") continue;
+        if (storedImagesOf(clip.images)?.fingerprint === plan.fingerprint) continue;
+        const jobKey = stillsJobKey(clip.id, plan.fingerprint);
+        const jobs = await this.prisma.job.findMany({
+          where: { workspaceId: run.workspaceId, type: "media.stills", jobKey },
+          select: { status: true },
+        });
+        // Live, or succeeded with its completion landing.
+        if (jobs.some((job) => job.status !== "failed" && job.status !== "cancelled")) continue;
+        if (jobs.length >= IMAGE_ATTEMPTS) continue;
+        if (!roomChecked) {
+          if (!(await this.roomForFormats(run))) return;
+          roomChecked = true;
+        }
+
+        // A clean frame (covers, banners) is cropped down at the speaker's face.
+        let focusY: number | undefined;
+        if (plan.cleanFrom !== null) {
+          const variant = clip.variants.find(
+            (row) => SHAPE_OF_ASPECT[row.aspect] === plan.cleanFrom,
+          );
+          const media = variant?.project.mediaAssets.find((row) => row.role === "primary");
+          if (media !== undefined && media.facesKey !== null) {
+            const reframe = reframeFromTrack(await this.faceTrackOf(media), {
+              fromMs: 0,
+              toMs: media.durationMs ?? clip.sourceEndMs - clip.sourceStartMs,
+            });
+            if (reframe.basis === "faces" && reframe.centerY !== undefined) {
+              focusY = reframe.centerY;
+            }
+          }
+        }
+        const images = plan.images.map((image) => {
+          const file = fileOfImage(image.name);
+          // eslint-disable-next-line security/detect-object-injection -- key is a closed enum (image file id / video shape), not input
+          return focusY !== undefined && file !== null && !IMAGE_FILES[file].captioned
+            ? { ...image, focusY }
+            : image;
+        });
+        const payload = MediaStillsPayloadSchema.parse({
+          schemaVersion: REPURPOSE_SCHEMA_VERSION,
+          runId: run.id,
+          clipId: clip.id,
+          destination: { bucket: "s3", key: `${clipFolder(clip.mezzanineKey)}/images` },
+          images,
+          fingerprint: plan.fingerprint,
+        });
+        await this.jobs.enqueue({
+          type: "media.stills",
+          workspaceId: run.workspaceId,
+          projectId: run.sourceProjectId,
+          params: payload,
+          jobKey,
+          worstCaseTenths: 0,
+          reason: `media.stills · ${clip.id}`,
+        });
+        this.logger.log(
+          { runId: run.id, clipId: clip.id, images: images.length },
+          "autopilot asked for a clip's images",
+        );
+      } catch (error) {
+        if (isLaneFull(error)) return;
+        this.logger.warn(
+          { runId: run.id, clipId: clip.id, err: error },
+          "could not ask for a clip's images; the next pass tries again",
+        );
+      }
+    }
+  }
+
+  /** The images of a ready Autopilot clip, signed ({@link ClipImagesView}). */
+  private async imagesOf(clip: ClipWithRelations): Promise<ClipImagesView> {
+    const stored = storedImagesOf(clip.images);
+    const plan = await this.imagePlanOf(undefined, clip);
+    let status: ClipImagesView["status"];
+    if (plan.kind === "none") status = stored === null ? "none" : "ready";
+    else if (plan.kind === "waiting") status = "preparing";
+    else if (stored?.fingerprint === plan.fingerprint) status = "ready";
+    else {
+      const failed = await this.prisma.job.count({
+        where: {
+          type: "media.stills",
+          jobKey: stillsJobKey(clip.id, plan.fingerprint),
+          status: { in: ["failed", "cancelled"] },
+        },
+      });
+      if (failed < IMAGE_ATTEMPTS) status = "preparing";
+      else status = stored === null ? "failed" : "ready";
+    }
+
+    const files = new Map<
+      string,
+      { id: string; width: number; height: number; items: { url: string; downloadUrl: string }[] }
+    >();
+    const title = clip.title.slice(0, 60) || "clip";
+    for (const image of stored?.images ?? []) {
+      const id = fileOfImage(image.name);
+      if (id === null) continue;
+      try {
+        const [url, downloadUrl] = await Promise.all([
+          this.derived.presignGet(image.key, IMAGE_URL_TTL_SECONDS),
+          this.derived.presignGet(image.key, IMAGE_URL_TTL_SECONDS, {
+            downloadFilename: `${title} ${image.name}.jpg`,
+          }),
+        ]);
+        const file = files.get(id) ?? { id, width: image.width, height: image.height, items: [] };
+        file.items.push({ url, downloadUrl });
+        files.set(id, file);
+      } catch (error) {
+        this.logger.warn({ clipId: clip.id, err: error }, "could not sign a clip image");
+      }
+    }
+    return { status, files: [...files.values()] };
+  }
+
+  /**
+   * Autopilot's other formats (owner decision, 2026-09-29): every clip is cut
+   * again in 4:5, 1:1 and 16:9, each on its own frame centred on the speaker
+   * (`reframeFromTrack`, with the face's height for a source taller than the
+   * shape), and each becomes its own variant and project through the same
+   * completion as the 9:16 cut - its own face track, its captions placed off
+   * faces, its own captioned video ({@link captionClips}).
+   *
+   * Only once every 9:16 clip of the run is made, so Reels and Shorts are
+   * ready first. A format that failed is cut again up to
+   * {@link FORMAT_CUT_ATTEMPTS} times; a full lane stops the pass.
+   */
+  private async cutFormats(run: RepurposeRun): Promise<void> {
+    const clips = await this.prisma.repurposeClip.findMany({
+      where: { runId: run.id },
+      include: { candidate: true, variants: CLIP_CHILD_VARIANTS },
+    });
+    if (clips.length === 0) return;
+    const latest = await this.latestJobs(
+      run.workspaceId,
+      clips.map((clip) => clip.candidateId),
+    );
+    const states = clips.map((clip) =>
+      clipStateOf(clipFactsOf(clip), latest.get(clip.candidateId)),
+    );
+    if (states.some(({ state }) => state === "waiting" || state === "cutting")) return;
+
+    const ready = clips.filter((clip, index) => states.at(index)?.state === "ready");
+    if (ready.length === 0) return;
+    if (!(await this.roomForFormats(run))) return;
+    const shapesHad = await this.prisma.clipVariant.findMany({
+      where: { clipId: { in: ready.map((clip) => clip.id) } },
+      select: { clipId: true, aspect: true },
+    });
+    const had = new Set(shapesHad.map((row) => `${row.clipId}:${row.aspect}`));
+
+    let media: MediaAsset | "preparing" | "failed" | undefined;
+    for (const clip of ready) {
+      for (const shape of FORMAT_SHAPES) {
+        // eslint-disable-next-line security/detect-object-injection -- key is a closed enum (image file id / video shape), not input
+        if (had.has(`${clip.id}:${ASPECT_OF_SHAPE[shape]}`)) continue;
+        const prefix = formatCutKeyPrefix(clip.candidateId, shape);
+        const jobs = await this.prisma.job.findMany({
+          where: {
+            workspaceId: run.workspaceId,
+            type: "media.clip",
+            jobKey: { startsWith: prefix },
+          },
+          select: { status: true },
+        });
+        if (jobs.some((job) => job.status === "queued" || job.status === "running")) continue;
+        if (jobs.some((job) => job.status === "succeeded")) continue; // its completion is landing
+        if (
+          jobs.filter((job) => job.status === "failed" || job.status === "cancelled").length >=
+          FORMAT_CUT_ATTEMPTS
+        ) {
+          continue;
+        }
+        media ??= await this.cuttableSource(run);
+        if (media === undefined || media === "preparing" || media === "failed") return;
+        try {
+          await this.enqueueFormatCut(run, clip, clip.candidate, media, shape);
+        } catch (error) {
+          if (isLaneFull(error)) return;
+          this.logger.warn(
+            { runId: run.id, clipId: clip.id, shape, err: error },
+            "could not cut a clip's other format; the next pass tries again",
+          );
+        }
+      }
+    }
+  }
+
+  /** One format cut of `clip` ({@link cutFormats}); throws what the enqueue throws. */
+  private async enqueueFormatCut(
+    run: RepurposeRun,
+    clip: RepurposeClip,
+    candidate: ClipCandidate,
+    media: MediaAsset,
+    shape: FormatShape,
+  ): Promise<void> {
+    const sourceDurationMs = media.durationMs ?? candidate.endMs;
+    const endMs = Math.min(candidate.endMs, sourceDurationMs);
+    if (endMs <= candidate.startMs) return;
+    const track = await this.faceTrackOf(media);
+    const reframe = reframeFromTrack(track, {
+      fromMs: Math.max(0, candidate.startMs - CLIP_HANDLE_MS),
+      toMs: Math.min(sourceDurationMs, endMs + CLIP_HANDLE_MS),
+    });
+    const master = clipMasterKey({
+      workspaceId: run.workspaceId,
+      sourceProjectId: run.sourceProjectId,
+      runId: run.id,
+      candidateId: candidate.id,
+    });
+    const payload = MediaClipPayloadSchema.parse({
+      schemaVersion: REPURPOSE_SCHEMA_VERSION,
+      runId: run.id,
+      candidateId: candidate.id,
+      clipId: clip.id,
+      source: { bucket: media.bucket, key: media.storageKey },
+      sourceDurationMs,
+      startMs: candidate.startMs,
+      endMs,
+      handleMs: CLIP_HANDLE_MS,
+      destination: {
+        bucket: "s3",
+        key: master.replace(/master\.mp4$/, `master-${shape.replace(":", "x")}.mp4`),
+      },
+      profile: {
+        container: "mp4",
+        videoCodec: "h264",
+        audioCodec: "aac",
+        // eslint-disable-next-line security/detect-object-injection -- key is a closed enum (image file id / video shape), not input
+        maxHeight: VIDEO_SHAPE_SIZE[shape].height,
+      },
+      reframe,
+      aspect: shape,
+      profileVersion: CLIP_PROFILE_VERSION,
+    });
+    await this.jobs.enqueue({
+      type: "media.clip",
+      workspaceId: run.workspaceId,
+      projectId: run.sourceProjectId,
+      params: payload,
+      jobKey: `${formatCutKeyPrefix(candidate.id, shape)}${String(candidate.startMs)}-${String(endMs)}:${CLIP_PROFILE_VERSION}`,
+      worstCaseTenths: 0,
+      reason: `media.clip ${shape} · ${clip.id}`,
+    });
+    this.logger.log(
+      { runId: run.id, clipId: clip.id, shape },
+      "autopilot asked for a clip's other format",
+    );
   }
 
   private async setVariant(
@@ -1156,7 +1626,12 @@ export class RepurposeClipsService {
     });
     const latest = await this.latestJobs(run.workspaceId, [clip.candidateId]);
     const sourceGone = await this.sourceGoneFor(run, [clip], latest);
-    return this.toItem(clip, latest.get(clip.candidateId), sourceGone);
+    return this.toItem(
+      clip,
+      latest.get(clip.candidateId),
+      sourceGone,
+      automationOf(run) === "auto",
+    );
   }
 
   /** Only asked when a clip is waiting — the one state a purged source changes. */
@@ -1175,6 +1650,7 @@ export class RepurposeClipsService {
     clip: ClipWithRelations,
     latest: LatestClipJob | undefined,
     sourceGone: boolean,
+    autopilot = false,
   ): Promise<RepurposeClipItemView> {
     let mezzanineUrl: string | null = null;
     if (clip.mezzanineKey !== null) {
@@ -1186,11 +1662,14 @@ export class RepurposeClipsService {
     }
     const { state, failureCode } = clipStateOf(clipFactsOf(clip), latest, { sourceGone });
     const captioned = state === "ready" ? await this.captionedOf(clip) : null;
+    const formats = state === "ready" ? await this.formatsOf(clip, autopilot) : [];
+    const images: ClipImagesView =
+      state === "ready" && autopilot ? await this.imagesOf(clip) : { status: "none", files: [] };
     // JSON round trip: `sizeBytes` on the child media is a BigInt, which the
     // response serialiser cannot write.
     return JSON.parse(
       JSON.stringify(
-        { ...clip, mezzanineUrl, state, failureCode, captioned },
+        { ...clip, mezzanineUrl, state, failureCode, captioned, formats, images },
         (_, value: unknown) => (typeof value === "bigint" ? value.toString() : value),
       ),
     ) as RepurposeClipItemView;
@@ -1204,9 +1683,56 @@ export class RepurposeClipsService {
    */
   private async captionedOf(clip: ClipWithRelations): Promise<CaptionedClipView | null> {
     const variant = clip.variants.find((row) => row.aspect === "r9x16");
-    if (variant === undefined || (variant.latestExportId === null && variant.status !== "failed")) {
-      return null;
+    return variant === undefined ? null : this.captionedOfVariant(clip, variant);
+  }
+
+  /**
+   * Every shape of a ready clip (2026-09-29): 9:16 and, on Autopilot, 4:5, 1:1
+   * and 16:9 - each with its captioned video once made, and its clean cut.
+   * A shape still being cut or prepared reads `preparing`.
+   */
+  private async formatsOf(clip: ClipWithRelations, autopilot: boolean): Promise<ClipFormatView[]> {
+    const formats: ClipFormatView[] = [];
+    for (const shape of VIDEO_SHAPES) {
+      const variant = clip.variants.find((row) => SHAPE_OF_ASPECT[row.aspect] === shape);
+      if (variant === undefined) {
+        if (autopilot)
+          formats.push({
+            shape,
+            status: "preparing",
+            projectId: null,
+            captioned: null,
+            cleanUrl: null,
+          });
+        continue;
+      }
+      const captioned = await this.captionedOfVariant(clip, variant);
+      const clean = variant.project.mediaAssets.find((media) => media.role === "primary");
+      let cleanUrl: string | null = null;
+      if (clean !== undefined && clean.storageKey !== "") {
+        cleanUrl = await this.derived
+          .presignGet(clean.storageKey, CAPTIONED_URL_TTL_SECONDS, {
+            downloadFilename: `${clip.title.slice(0, 70) || "clip"} ${shape.replace(":", "x")} no captions.mp4`,
+          })
+          .catch(() => null);
+      }
+      formats.push({
+        shape,
+        status: captioned?.status ?? (autopilot ? "preparing" : "ready"),
+        projectId: variant.projectId,
+        captioned,
+        cleanUrl,
+      });
     }
+    return formats;
+  }
+
+  private async captionedOfVariant(
+    clip: ClipWithRelations,
+    variant: ClipWithRelations["variants"][number],
+  ): Promise<CaptionedClipView | null> {
+    if (variant.latestExportId === null && variant.status !== "failed") return null;
+    const shape = SHAPE_OF_ASPECT[variant.aspect];
     const exports = variant.project.exports;
     const done = exports.find((row) => row.status === "succeeded" && row.storageKey !== null);
     const status: CaptionedClipView["status"] =
@@ -1222,7 +1748,7 @@ export class RepurposeClipsService {
       const [playUrl, downloadUrl] = await Promise.all([
         this.derived.presignGet(done.storageKey, CAPTIONED_URL_TTL_SECONDS),
         this.derived.presignGet(done.storageKey, CAPTIONED_URL_TTL_SECONDS, {
-          downloadFilename: `${clip.title.slice(0, 80) || "clip"}.mp4`,
+          downloadFilename: `${clip.title.slice(0, 70) || "clip"} ${shape.replace(":", "x")}.mp4`,
         }),
       ]);
       return { status, playUrl, downloadUrl };

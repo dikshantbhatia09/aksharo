@@ -45,6 +45,7 @@ describe("resolveSettings", () => {
       "media.probe",
       "media.proxy",
       "media.clip",
+      "media.stills",
     ]);
   });
 

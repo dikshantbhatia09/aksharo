@@ -35,6 +35,7 @@ import {
 } from "@montaj/api-client";
 import { Badge, Button } from "@montaj/ui";
 
+import { ClipFormats } from "@/components/repurpose/ClipFormats";
 import { ClipPreview } from "@/components/repurpose/ClipPreview";
 import { CAPTIONED_COPY, CLIP_STATE_COPY, clipFailureCopy } from "@/components/repurpose/copy";
 import { formatClock } from "@/components/repurpose/moment-time";
@@ -172,8 +173,11 @@ export function CandidateCard({
   const score = candidate.potentialScore ?? candidate.score;
   const title = candidate.title ?? candidate.headline ?? "Suggested moment";
   const picked = candidate["source"] === "manual";
-  // The clip's own project: where its captions live and are exported.
-  const clipProjectId = clip?.variants?.[0]?.projectId;
+  // The clip's own project: where its captions live and are exported. The
+  // 9:16 one: an Autopilot clip has a project per shape (2026-09-29).
+  const clipProjectId = (
+    clip?.variants?.find((variant) => variant.aspect === "r9x16") ?? clip?.variants?.[0]
+  )?.projectId;
   const creating = createClip.isPending;
   // A stopped run's card offers neither, so a refusal from before the page saw
   // the stop (another tab) has nothing left to explain.
@@ -438,6 +442,16 @@ export function CandidateCard({
         >
           {CAPTIONED_COPY.withoutCaptions}
         </a>
+      ) : null}
+
+      {state === "ready" && clip !== undefined && (clip.formats?.length ?? 0) > 0 ? (
+        <ClipFormats
+          candidateId={candidate.id}
+          title={title}
+          durationMs={candidate.endMs - candidate.startMs}
+          formats={clip.formats ?? []}
+          images={clip.images}
+        />
       ) : null}
     </li>
   );
