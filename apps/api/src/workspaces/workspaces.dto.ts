@@ -39,6 +39,12 @@ export const workspaceSettingsSchema = z.object({
   notifyOnJobComplete: z.boolean().optional(),
   /** Members below `admin` may not invite (team scaffolding for B08). */
   membersCanInvite: z.boolean().optional(),
+  /**
+   * Clip review (2026-10-03): a run's clip is posted only once it is approved,
+   * and only the video that was approved (`repurpose/review/clip-approval.gate.ts`).
+   * Off unless set; changed here, by an owner or admin, like every setting.
+   */
+  clipsNeedApproval: z.boolean().optional(),
 });
 
 export type WorkspaceSettings = z.infer<typeof workspaceSettingsSchema>;
