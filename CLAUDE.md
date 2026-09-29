@@ -1258,3 +1258,18 @@ target list are in `docs/repurpose/FORMATS-2026-09-29.md`; the single source is
   2-3 h of CPU and 5-6 GB of disk; renders charge the cloud rate.
 - Not covered: animated GIFs, per-platform copy/hashtags, publishing, the
   Facebook/YouTube banner safe-area crops beyond the face-centred crop.
+- **Deployed 2026-09-29** as `5fbb6309` (`deploy-20260929a.ps1`, DB backup
+  `_orchestration/backups/montaj_main-pre-20260929a.dump`), then API-only
+  `540105e2` (images waited for 9:16 only: a format variant is created
+  `ready` before its render is asked for, so "settled" now needs the render),
+  then `acc4da1d` (`deploy-20260929b.ps1`: api, render, web). Undo in order:
+  `rollback-20260929b.ps1`, then
+  `deploy-api-swap.ps1 -Sha 540105e2 -PreviousSha 5fbb6309 -Rollback`, then
+  `rollback-20260929a.ps1 -Sha 5fbb6309`.
+- **Captions no longer run words together.** Punch Pop's highlight grows the
+  spoken word 18 % about its centre, which covered the spaces either side
+  ("ITSTARTEDBEFORE I", "WHYDID"). render-core `lineSpread` moves each word of
+  a line by the growth of the words before it (the line keeps its alignment
+  anchor), on every surface. Golden hashes moved for the four scale-highlight
+  styles only. Captioned videos made before `acc4da1d` still have the old
+  spacing until they are rendered again.
