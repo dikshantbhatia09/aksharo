@@ -593,6 +593,7 @@ describe.skipIf(!available)("database schema and seed", () => {
         "publishing_postiz",
         "publishing_tiktok",
         "repurpose_automations",
+        "repurpose_dubbing",
         "repurpose_flow",
         "source_youtube_acquire",
         "streak_experiment",
