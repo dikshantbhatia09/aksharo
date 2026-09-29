@@ -202,7 +202,7 @@ export async function safeFetch(
   const maxBytes = options.maxBytes ?? DEFAULT_MAX_BYTES;
   const maxRedirects = options.maxRedirects ?? DEFAULT_MAX_REDIRECTS;
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-  const transport = options.transport ?? defaultTransport;
+  const transport = options.transport ?? pinnedTransport;
   const deadline = Date.now() + timeoutMs;
 
   const redirects: string[] = [];
@@ -305,8 +305,16 @@ async function defaultResolver(hostname: string): Promise<readonly LookupAddress
  * is the whole point: the agent never performs a second DNS query, so there is no
  * window in which the answer can change. `servername` keeps TLS validating
  * against the name the user typed rather than against the literal IP.
+ *
+ * The lookup answers in both of Node's forms (2026-09-29). Since Node 20 a
+ * socket asks with `{ all: true }` (happy eyeballs, `autoSelectFamily`) and
+ * wants an array of `{ address, family }`; answered with the one-address form,
+ * Node read `.address` off the string's first character and every request
+ * failed before it left the machine ("Invalid IP address: undefined"): outgoing
+ * webhooks, payouts, subtitle and source-URL imports, and the channel reader.
+ * The unit tests inject their own transport, so none of them ever ran this.
  */
-const defaultTransport: SafeTransport = async (input) =>
+export const pinnedTransport: SafeTransport = async (input) =>
   new Promise<SafeTransportResponse>((resolve, reject) => {
     const secure = input.url.protocol === "https:";
     const send = secure ? httpsRequest : httpRequest;
@@ -321,12 +329,8 @@ const defaultTransport: SafeTransport = async (input) =>
         method: "GET",
         headers: input.headers,
         ...(secure ? { servername: input.url.hostname } : {}),
-        lookup: (
-          _hostname: string,
-          _options: unknown,
-          callback: (error: Error | null, address: string, family: number) => void,
-        ) => {
-          callback(null, input.address, input.family);
+        lookup: (_hostname: string, options: unknown, callback: PinnedLookupCallback) => {
+          answerLookup(options, callback, input.address, input.family);
         },
       },
       (message: IncomingMessage) => {
@@ -357,4 +361,30 @@ const defaultTransport: SafeTransport = async (input) =>
 
 function describe(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+/** Node's `lookup` callback: one address, or (with `options.all`) every one. */
+type PinnedLookupCallback = (
+  error: NodeJS.ErrnoException | null,
+  address: string | LookupAddress[],
+  family?: number,
+) => void;
+
+/**
+ * Answer a socket's `lookup` with the one vetted address, in the form it asked
+ * for: `{ all: true }` wants an array (Node 20+ by default), anything else the
+ * address and its family.
+ */
+export function answerLookup(
+  options: unknown,
+  callback: PinnedLookupCallback,
+  address: string,
+  family: 4 | 6,
+): void {
+  const all =
+    typeof options === "object" &&
+    options !== null &&
+    (options as { readonly all?: unknown }).all === true;
+  if (all) callback(null, [{ address, family }]);
+  else callback(null, address, family);
 }
