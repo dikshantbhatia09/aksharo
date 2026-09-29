@@ -37,6 +37,7 @@ import { Badge, Button } from "@montaj/ui";
 
 import { ClipControls, RemovedMoment } from "@/components/repurpose/ClipControls";
 import { ClipFormats } from "@/components/repurpose/ClipFormats";
+import { ClipLayoutControl } from "@/components/repurpose/ClipLayoutControl";
 import { ClipPreview } from "@/components/repurpose/ClipPreview";
 import { CAPTIONED_COPY, CLIP_STATE_COPY, clipFailureCopy } from "@/components/repurpose/copy";
 import { formatClock } from "@/components/repurpose/moment-time";
@@ -466,6 +467,14 @@ export function CandidateCard({
       <ClipControls
         runId={runId}
         candidate={candidate}
+        clip={clip}
+        clipState={state}
+        title={title}
+        runStopped={runStopped}
+      />
+      <ClipLayoutControl
+        runId={runId}
+        candidateId={candidate.id}
         clip={clip}
         clipState={state}
         title={title}
