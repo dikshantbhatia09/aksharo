@@ -102,7 +102,6 @@ export function NotificationBell(): React.JSX.Element {
         ) : (
           items.map((item) => {
             const copy = notificationText(item, t, config.webOrigin);
-
             const Icon = TONE_ICON[copy.tone];
             const isUnread = item.readAt === null;
             return (
@@ -116,7 +115,6 @@ export function NotificationBell(): React.JSX.Element {
                 data-kind={item.kind}
                 data-unread={isUnread ? "true" : "false"}
               >
-                {}
                 <Icon className={cn("mt-0.5 size-4 shrink-0", TONE_CLASS[copy.tone])} />
                 <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                   <span className="text-fg-0 text-sm font-medium">{copy.title}</span>
