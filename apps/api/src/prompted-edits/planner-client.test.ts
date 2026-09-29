@@ -6,6 +6,7 @@ import {
   AnthropicPlannerClient,
   MockPlannerClient,
   OllamaPlannerClient,
+  plannerClientFor,
 } from "./planner-client.js";
 
 const INPUT: EditPlanInput = {
@@ -217,5 +218,31 @@ describe("AnthropicPlannerClient", () => {
     const client = new AnthropicPlannerClient("sk-test");
     await expect(client.generate(INPUT)).rejects.toThrow(/failed schema validation twice/);
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("plannerClientFor — which planner a deployment binds", () => {
+  it("uses the local model under ollama, and still under sarvam (worker-ai's fallback model)", () => {
+    expect(plannerClientFor({ LLM_PROVIDER: "ollama", LLM_MODEL: "qwen2.5:3b" })).toBeInstanceOf(
+      OllamaPlannerClient,
+    );
+    const sarvam = plannerClientFor({
+      LLM_PROVIDER: "sarvam",
+      LLM_MODEL: "sarvam-105b-conversations",
+      LLM_FALLBACK_MODEL: "qwen2.5:3b",
+    });
+    expect(sarvam).toBeInstanceOf(OllamaPlannerClient);
+    // Never the Sarvam model name, which Ollama does not have.
+    expect((sarvam as unknown as { model: string }).model).toBe("qwen2.5:3b");
+  });
+
+  it("falls back to Anthropic with a key, else the mock", () => {
+    expect(
+      plannerClientFor({ LLM_PROVIDER: "sarvam", LLM_FALLBACK_PROVIDER: "none" }),
+    ).toBeInstanceOf(MockPlannerClient);
+    expect(plannerClientFor({ ANTHROPIC_API_KEY: "test-key" })).toBeInstanceOf(
+      AnthropicPlannerClient,
+    );
+    expect(plannerClientFor({})).toBeInstanceOf(MockPlannerClient);
   });
 });

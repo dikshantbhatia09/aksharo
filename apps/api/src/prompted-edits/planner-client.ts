@@ -260,3 +260,27 @@ function repairUserMessage(user: string, reason: string): string {
     `Errors: ${reason}. Reply again with corrected strict JSON only, same shape as requested.\n</repair>`
   );
 }
+
+/**
+ * The planner this deployment binds (`PLANNER_CLIENT`), from its environment.
+ *
+ * The local Ollama model when `LLM_PROVIDER=ollama` - and also when it is
+ * `sarvam` (2026-09-29): Sarvam is worker-ai's primary for moments and copy,
+ * there is no Sarvam planner here, and worker-ai's own fallback is this same
+ * local model (`LLM_FALLBACK_MODEL`, `LLM_MODEL` then naming the Sarvam model).
+ * Before this, switching worker-ai to Sarvam quietly turned the editor's
+ * prompted edits into the mock. Then Anthropic when a key is set, else the mock.
+ */
+export function plannerClientFor(env: NodeJS.ProcessEnv): PlannerClient {
+  const provider = env["LLM_PROVIDER"]?.trim();
+  const fallback = env["LLM_FALLBACK_PROVIDER"]?.trim() || "ollama";
+  if (provider === "ollama" || (provider === "sarvam" && fallback === "ollama")) {
+    const baseUrl = env["LLM_BASE_URL"]?.trim() || "http://127.0.0.1:11434/v1";
+    const named = provider === "sarvam" ? env["LLM_FALLBACK_MODEL"] : env["LLM_MODEL"];
+    return new OllamaPlannerClient(baseUrl, named?.trim() || "qwen2.5:3b");
+  }
+  const apiKey = env["ANTHROPIC_API_KEY"];
+  return apiKey === undefined || apiKey === ""
+    ? new MockPlannerClient()
+    : new AnthropicPlannerClient(apiKey);
+}
