@@ -301,12 +301,8 @@ function BrandPreview({
         {projection === undefined ? null : (
           <CaptionStage
             src={undefined}
-            backdrop={
-              <div
-                aria-hidden="true"
-                className="from-bg-2 via-surface to-sunken h-full w-full bg-gradient-to-b"
-              />
-            }
+            // A plain frame where the video would be: the kit is what is shown.
+            backdrop={<div aria-hidden="true" className="bg-bg-2 h-full w-full" />}
             projection={projection}
             catalogue={SYSTEM_STYLE_MAP}
             images={view?.images ?? {}}

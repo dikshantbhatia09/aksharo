@@ -36,8 +36,9 @@ import { type Shaper } from "../fonts/shaper.js";
 import { type FontRegistry } from "../fonts/types.js";
 import { layoutSegment } from "../layout/layout.js";
 import { type Layout, type RenderWord } from "../layout/types.js";
+import { charCount } from "../script.js";
 import { assertCanvas, type CanvasSize, clamp01, q } from "../units.js";
-import { glyphRunOf } from "./hook-title.js";
+import { balancedBreaks, glyphRunOf } from "./hook-title.js";
 import { type EndCardTrack } from "./types.js";
 
 /** How far the frame dims, at full: the video still shows through. */
@@ -153,13 +154,18 @@ interface LineSpec {
   readonly maxLines: number;
 }
 
-/** One line of the card laid out with its top at `top`, or `undefined` if it cannot be. */
+/**
+ * One line of the card laid out with its top at `top`, or `undefined` if it
+ * cannot be. A call to action that needs more than one line is balanced like
+ * the hook title ({@link balancedBreaks}): lines of even length rather than a
+ * full line and a straggler, kept only when it needs no more shrinking.
+ */
 function layLine(input: EndCardInput, spec: LineSpec, top: number): Layout | undefined {
   const { overlay, canvas } = input;
   const words = wordsOf(`${overlay.id}:${spec.key}`, spec.text, overlay.startMs, overlay.endMs);
   if (words.length === 0) return undefined;
-  try {
-    return layoutSegment({
+  const layOut = (tokens: readonly RenderWord[], maxChars: number | undefined): Layout =>
+    layoutSegment({
       style: lineStyleOf(
         input.style,
         canvas,
@@ -174,12 +180,34 @@ function layLine(input: EndCardInput, spec: LineSpec, top: number): Layout | und
         endMs: overlay.endMs,
         position: { x: 0.5, y: top / canvas.height, anchor: "top-center" },
       },
-      words,
+      words: tokens,
       canvas,
       registry: input.registry,
       shaper: input.shaper,
       tMs: overlay.startMs,
+      ...(maxChars === undefined ? {} : { maxChars }),
     });
+  try {
+    const plain = layOut(words, undefined);
+    if (plain.lines.length <= 1 || words.length <= plain.lines.length) return plain;
+    const breaks = balancedBreaks(
+      words.map((word) => charCount(word.t)),
+      plain.lines.length,
+    );
+    const starts = [0, ...breaks];
+    const lineTokens = starts.map((from, index) => ({
+      wid: `${overlay.id}:${spec.key}:line:${String(index)}`,
+      t: words
+        .slice(from, starts.at(index + 1) ?? words.length)
+        .map((word) => word.t)
+        .join(" "),
+      s: overlay.startMs,
+      e: overlay.endMs,
+    }));
+    const balanced = layOut(lineTokens, 1);
+    return balanced.lines.length === plain.lines.length && balanced.shrink >= plain.shrink
+      ? balanced
+      : plain;
   } catch (error) {
     // A line that cannot be laid out (no face covers it) is left off the card
     // rather than taking the frame, and the captions under it, down with it.
