@@ -3,6 +3,7 @@ import { Inject, Injectable, Logger, type OnModuleInit } from "@nestjs/common";
 import { PrismaService } from "../../common/prisma/prisma.service.js";
 import { ScheduledTasksService } from "../../common/scheduler/scheduled-tasks.service.js";
 import { DERIVED_STORE } from "../../common/storage/index.js";
+import { notExemptWorkspace, retentionExemptWorkspaceIds } from "../../media/retention-policy.js";
 
 import type { ObjectStore } from "../../common/storage/index.js";
 
@@ -67,7 +68,12 @@ export class ExportRetentionTask implements OnModuleInit {
 
   private async expireExports(now: Date): Promise<number> {
     const due = await this.prisma.export.findMany({
-      where: { expiresAt: { lte: now }, storageKey: { not: null } },
+      where: {
+        expiresAt: { lte: now },
+        storageKey: { not: null },
+        // The owner's workspace is never swept (retention-policy.ts).
+        ...notExemptWorkspace(retentionExemptWorkspaceIds()),
+      },
       select: { id: true, storageKey: true },
       take: BATCH,
     });

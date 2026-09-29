@@ -1,5 +1,10 @@
 import { Inject, Injectable, Logger } from "@nestjs/common";
 
+import {
+  notExemptWorkspace,
+  retentionExemptWorkspaceIds,
+  retentionPurgesDerived,
+} from "./retention-policy.js";
 import { PrismaService } from "../common/index.js";
 import { DERIVED_STORE, RAW_STORE } from "../common/storage/index.js";
 import { PURGE_BATCH } from "../projects/projects.constants.js";
@@ -22,6 +27,10 @@ export interface PurgeOptions {
   /** Overridable so a test can move time rather than wait a week. */
   readonly now?: Date;
   readonly limit?: number;
+  /** Workspaces never swept; default `RETENTION_EXEMPT_WORKSPACE_IDS`. */
+  readonly exemptWorkspaceIds?: readonly string[];
+  /** Whether derived files go too; default `RETENTION_PURGE_DERIVED` (on). */
+  readonly purgeDerived?: boolean;
 }
 
 /**
@@ -60,9 +69,15 @@ export class RetentionService {
   async purgeDueMedia(options: PurgeOptions = {}): Promise<PurgeReport> {
     const now = options.now ?? new Date();
     const take = options.limit ?? PURGE_BATCH;
+    // Operator switches (retention-policy.ts): exempt workspaces are never
+    // swept, and derived files can be left alone while originals still go.
+    const exempt = options.exemptWorkspaceIds ?? retentionExemptWorkspaceIds();
+    const purgeDerived = options.purgeDerived ?? retentionPurgesDerived();
 
-    const rawResult = await this.purgeRaw(now, take);
-    const derivedResult = await this.purgeDerived(now, take);
+    const rawResult = await this.purgeRaw(now, take, exempt);
+    const derivedResult = purgeDerived
+      ? await this.purgeDerived(now, take, exempt)
+      : { rows: 0, objects: 0, failed: 0 };
 
     return {
       rawPurged: rawResult.rows,
@@ -76,6 +91,7 @@ export class RetentionService {
   private async purgeRaw(
     now: Date,
     take: number,
+    exempt: readonly string[],
   ): Promise<{ rows: number; objects: number; failed: number }> {
     const due = await this.prisma.mediaAsset.findMany({
       where: {
@@ -84,6 +100,7 @@ export class RetentionService {
         // An import has no raw object; its sidecar lives in the derived bucket
         // and is swept by the other half of this service.
         bucket: "s3",
+        ...(exempt.length === 0 ? {} : { project: notExemptWorkspace(exempt) }),
       },
       select: { id: true, storageKey: true },
       orderBy: { rawPurgeAt: "asc" },
@@ -120,9 +137,14 @@ export class RetentionService {
   private async purgeDerived(
     now: Date,
     take: number,
+    exempt: readonly string[],
   ): Promise<{ rows: number; objects: number; failed: number }> {
     const due = await this.prisma.mediaAsset.findMany({
-      where: { derivedPurgeAt: { lte: now }, derivedPurgedAt: null },
+      where: {
+        derivedPurgeAt: { lte: now },
+        derivedPurgedAt: null,
+        ...(exempt.length === 0 ? {} : { project: notExemptWorkspace(exempt) }),
+      },
       select: {
         id: true,
         bucket: true,

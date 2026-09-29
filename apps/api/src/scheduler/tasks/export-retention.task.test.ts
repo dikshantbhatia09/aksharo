@@ -57,3 +57,18 @@ describe("sweep", () => {
     expect(del).not.toHaveBeenCalled();
   });
 });
+
+describe("exempt workspaces (owner decision 2026-09-29)", () => {
+  it("never selects a render from an exempt workspace", async () => {
+    vi.stubEnv("RETENTION_EXEMPT_WORKSPACE_IDS", "01M1KFX35NJRD5N58H0J6YGAPC");
+    try {
+      const { task, findMany } = harness([], 0);
+      await task.sweep();
+      const where = (findMany.mock.calls[0] as unknown as [{ where: Record<string, unknown> }])[0]
+        .where;
+      expect(where["workspaceId"]).toEqual({ notIn: ["01M1KFX35NJRD5N58H0J6YGAPC"] });
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+});
