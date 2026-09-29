@@ -24516,6 +24516,29 @@
                               "authority",
                               "engagement"
                             ]
+                          },
+                          "topic": {
+                            "type": "string",
+                            "minLength": 2,
+                            "maxLength": 200
+                          },
+                          "clipLength": {
+                            "type": "string",
+                            "enum": [
+                              "short",
+                              "medium",
+                              "long"
+                            ]
+                          },
+                          "skipIntroMs": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 1800000
+                          },
+                          "skipOutroMs": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 1800000
                           }
                         }
                       },
@@ -24786,6 +24809,41 @@
                           "required": [
                             "reason",
                             "until"
+                          ]
+                        },
+                        "steering": {
+                          "nullable": true,
+                          "type": "object",
+                          "properties": {
+                            "topic": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "clipLength": {
+                              "nullable": true,
+                              "type": "string",
+                              "enum": [
+                                "short",
+                                "medium",
+                                "long"
+                              ]
+                            },
+                            "skipIntroMs": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "skipOutroMs": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": [
+                            "topic",
+                            "clipLength",
+                            "skipIntroMs",
+                            "skipOutroMs"
                           ]
                         },
                         "activity": {
@@ -25201,6 +25259,41 @@
                               "until"
                             ]
                           },
+                          "steering": {
+                            "nullable": true,
+                            "type": "object",
+                            "properties": {
+                              "topic": {
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "clipLength": {
+                                "nullable": true,
+                                "type": "string",
+                                "enum": [
+                                  "short",
+                                  "medium",
+                                  "long"
+                                ]
+                              },
+                              "skipIntroMs": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "skipOutroMs": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              }
+                            },
+                            "required": [
+                              "topic",
+                              "clipLength",
+                              "skipIntroMs",
+                              "skipOutroMs"
+                            ]
+                          },
                           "activity": {
                             "nullable": true,
                             "type": "object",
@@ -25535,6 +25628,41 @@
                         "until"
                       ]
                     },
+                    "steering": {
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "topic": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "clipLength": {
+                          "nullable": true,
+                          "type": "string",
+                          "enum": [
+                            "short",
+                            "medium",
+                            "long"
+                          ]
+                        },
+                        "skipIntroMs": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "skipOutroMs": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "topic",
+                        "clipLength",
+                        "skipIntroMs",
+                        "skipOutroMs"
+                      ]
+                    },
                     "activity": {
                       "nullable": true,
                       "type": "object",
@@ -25859,6 +25987,41 @@
                         "until"
                       ]
                     },
+                    "steering": {
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "topic": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "clipLength": {
+                          "nullable": true,
+                          "type": "string",
+                          "enum": [
+                            "short",
+                            "medium",
+                            "long"
+                          ]
+                        },
+                        "skipIntroMs": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "skipOutroMs": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "topic",
+                        "clipLength",
+                        "skipIntroMs",
+                        "skipOutroMs"
+                      ]
+                    },
                     "activity": {
                       "nullable": true,
                       "type": "object",
@@ -26180,6 +26343,41 @@
                       "required": [
                         "reason",
                         "until"
+                      ]
+                    },
+                    "steering": {
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "topic": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "clipLength": {
+                          "nullable": true,
+                          "type": "string",
+                          "enum": [
+                            "short",
+                            "medium",
+                            "long"
+                          ]
+                        },
+                        "skipIntroMs": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "skipOutroMs": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "topic",
+                        "clipLength",
+                        "skipIntroMs",
+                        "skipOutroMs"
                       ]
                     },
                     "activity": {
@@ -26507,6 +26705,41 @@
                           "required": [
                             "reason",
                             "until"
+                          ]
+                        },
+                        "steering": {
+                          "nullable": true,
+                          "type": "object",
+                          "properties": {
+                            "topic": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "clipLength": {
+                              "nullable": true,
+                              "type": "string",
+                              "enum": [
+                                "short",
+                                "medium",
+                                "long"
+                              ]
+                            },
+                            "skipIntroMs": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "skipOutroMs": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": [
+                            "topic",
+                            "clipLength",
+                            "skipIntroMs",
+                            "skipOutroMs"
                           ]
                         },
                         "activity": {
@@ -26838,6 +27071,41 @@
                         "until"
                       ]
                     },
+                    "steering": {
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "topic": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "clipLength": {
+                          "nullable": true,
+                          "type": "string",
+                          "enum": [
+                            "short",
+                            "medium",
+                            "long"
+                          ]
+                        },
+                        "skipIntroMs": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "skipOutroMs": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "topic",
+                        "clipLength",
+                        "skipIntroMs",
+                        "skipOutroMs"
+                      ]
+                    },
                     "activity": {
                       "nullable": true,
                       "type": "object",
@@ -27151,6 +27419,198 @@
           }
         ],
         "summary": "Cut a clip again whose cut failed, or that is still waiting",
+        "tags": [
+          "repurpose"
+        ]
+      }
+    },
+    "/repurpose/runs/{runId}/candidates/{candidateId}": {
+      "patch": {
+        "description": "Snapped to the nearest word start and word end. A moment with a clip is cut again at the new times, and its captions, other shapes and images are made again from it. 400 `repurpose/clip_bounds_invalid` outside 3 s - 3 min or the video; 409 `repurpose/clip_bounds_taken`, `repurpose/clip_busy` (being cut right now) or `repurpose/candidate_removed`.",
+        "operationId": "adjustRepurposeCandidate",
+        "parameters": [
+          {
+            "name": "runId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "candidateId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "startMs": {
+                    "type": "number"
+                  },
+                  "endMs": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "startMs",
+                  "endMs"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Change a moment's start and end",
+        "tags": [
+          "repurpose"
+        ]
+      }
+    },
+    "/repurpose/runs/{runId}/candidates/{candidateId}/remove": {
+      "post": {
+        "description": "Stops everything still being made for its clip and hides the clip; what was made is kept for a restore. On an Autopilot run the best moment in reserve is cut in its place (`promoted`).",
+        "operationId": "removeRepurposeCandidate",
+        "parameters": [
+          {
+            "name": "runId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "candidateId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Remove a moment and its clip",
+        "tags": [
+          "repurpose"
+        ]
+      }
+    },
+    "/repurpose/runs/{runId}/candidates/{candidateId}/restore": {
+      "post": {
+        "description": "Its clip comes back as it was, and whatever removing it stopped is made again.",
+        "operationId": "restoreRepurposeCandidate",
+        "parameters": [
+          {
+            "name": "runId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "candidateId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Bring back a removed moment",
+        "tags": [
+          "repurpose"
+        ]
+      }
+    },
+    "/repurpose/runs/{runId}/episode-pack": {
+      "get": {
+        "operationId": "getRepurposeEpisodePack",
+        "parameters": [
+          {
+            "name": "runId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "`{runId, status, pack, createdAt, disclosure}`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "The run's episode text: chapters, descriptions and posts for the whole video",
+        "tags": [
+          "repurpose"
+        ]
+      },
+      "post": {
+        "operationId": "writeRepurposeEpisodePack",
+        "parameters": [
+          {
+            "name": "runId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The pack as it now stands, usually `writing`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Write the run's episode text now (or again, after it failed)",
         "tags": [
           "repurpose"
         ]

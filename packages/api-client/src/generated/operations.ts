@@ -54,6 +54,13 @@ export const API_OPERATIONS = [
     summary: "Comment through a share link",
   },
   {
+    operationId: "adjustRepurposeCandidate",
+    method: "PATCH",
+    path: "/repurpose/runs/{runId}/candidates/{candidateId}",
+    tags: ["repurpose"],
+    summary: "Change a moment's start and end",
+  },
+  {
     operationId: "adminAdjustCredits",
     method: "POST",
     path: "/admin/credits/adjust",
@@ -1132,6 +1139,13 @@ export const API_OPERATIONS = [
     summary: "This workspace's referral code and reward counts",
   },
   {
+    operationId: "getRepurposeEpisodePack",
+    method: "GET",
+    path: "/repurpose/runs/{runId}/episode-pack",
+    tags: ["repurpose"],
+    summary: "The run's episode text: chapters, descriptions and posts for the whole video",
+  },
+  {
     operationId: "getRepurposePreview",
     method: "GET",
     path: "/repurpose/runs/{runId}/preview",
@@ -1818,6 +1832,13 @@ export const API_OPERATIONS = [
     summary: "Register (or refresh) this device",
   },
   {
+    operationId: "removeRepurposeCandidate",
+    method: "POST",
+    path: "/repurpose/runs/{runId}/candidates/{candidateId}/remove",
+    tags: ["repurpose"],
+    summary: "Remove a moment and its clip",
+  },
+  {
     operationId: "removeWorkspaceMember",
     method: "DELETE",
     path: "/workspaces/{id}/members/{membershipId}",
@@ -1921,6 +1942,13 @@ export const API_OPERATIONS = [
     path: "/projects/{projectId}/edg/snapshots/{revision}/restore",
     tags: ["edg"],
     summary: "Restore a snapshot as a new revision",
+  },
+  {
+    operationId: "restoreRepurposeCandidate",
+    method: "POST",
+    path: "/repurpose/runs/{runId}/candidates/{candidateId}/restore",
+    tags: ["repurpose"],
+    summary: "Bring back a removed moment",
   },
   {
     operationId: "resumeSubscription",
@@ -2327,6 +2355,13 @@ export const API_OPERATIONS = [
     path: "/v1/projects/{projectId}/transcribe",
     tags: ["public"],
     summary: "Start transcription",
+  },
+  {
+    operationId: "writeRepurposeEpisodePack",
+    method: "POST",
+    path: "/repurpose/runs/{runId}/episode-pack",
+    tags: ["repurpose"],
+    summary: "Write the run's episode text now (or again, after it failed)",
   },
 ] as const satisfies readonly ApiOperation[];
 
