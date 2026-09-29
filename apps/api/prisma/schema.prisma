@@ -1174,6 +1174,8 @@ model Project {
   repurposeRunsAsSource RepurposeRun[]       @relation("RepurposeRunSource")
   /// Set when this project IS one aspect variant of a repurposed clip (REP-003).
   clipVariant           ClipVariant?
+  /// Set when this project IS one shape of a clip dubbed into another language (2026-10-04).
+  clipDubVariant        ClipDubVariant?
 
   @@index([workspaceId])
   @@index([lastActivityAt])
@@ -1708,6 +1710,12 @@ model Job {
   dlq                  Boolean   @default(false)
   dlqReason            String?   @map("dlq_reason")
   dlqAt                DateTime? @map("dlq_at") @db.Timestamptz(6)
+  /// What the worker said to resume from (2026-10-04): the progress callback's
+  /// `checkpoint`, a flat object, echoed on every progress answer so a retried
+  /// attempt picks the work up where the last one left it. `ai.dub` records the
+  /// vendor's job id here BEFORE it starts that job, so no attempt pays for a
+  /// second one. Null for every queue that never sends one.
+  checkpoint           Json?     @db.JsonB
 
   workspace           Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   project             Project?             @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -1973,15 +1981,17 @@ model Export {
   downloads   Int           @default(0)
   createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  workspace      Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  project        Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  job            Job?                  @relation(fields: [jobId], references: [id], onDelete: SetNull)
-  manifest       ExportManifest?       @relation(fields: [manifestId], references: [id], onDelete: SetNull)
-  assetUsages    AssetUsage[]
-  clipVariants   ClipVariant[]
-  publishTargets PublishTarget[]
+  workspace       Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  project         Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  job             Job?                  @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  manifest        ExportManifest?       @relation(fields: [manifestId], references: [id], onDelete: SetNull)
+  assetUsages     AssetUsage[]
+  clipVariants    ClipVariant[]
+  publishTargets  PublishTarget[]
   /// A run's clips joined into this file (2026-10-03), when it is one.
-  compilation    RepurposeCompilation?
+  compilation     RepurposeCompilation?
+  /// A dubbed shape's captioned video (2026-10-04), when it is one.
+  clipDubVariants ClipDubVariant[]
 
   @@index([projectId])
   @@index([workspaceId])
@@ -3675,6 +3685,8 @@ model RepurposeRun {
   /// Its clips joined into one video, and its numbered series (2026-10-03).
   compilations     RepurposeCompilation[]
   series           RepurposeSeries[]
+  /// Its clips dubbed into other languages (2026-10-04).
+  dubs             ClipDub[]
 
   @@index([workspaceId])
   @@index([workspaceId, createdAt])
@@ -3905,6 +3917,9 @@ model RepurposeClip {
   review         ClipReview?
   reviewEvents   ClipReviewEvent[]
   comments       ClipComment[]
+  /// The clip in other languages (2026-10-04). Nothing here writes the clip row:
+  /// it is only ever written while its cut is open (`clip-state.ts`).
+  dubs           ClipDub[]
 
   @@index([runId])
   @@map("repurpose_clips")
@@ -4035,6 +4050,117 @@ model RepurposeSeries {
 
   @@index([runId])
   @@map("repurpose_series")
+}
+
+/// Where a dub stands (2026-10-04). `waiting`: asked for while the plan's lane
+/// was full, and started by the reconcile once it frees; `dubbing`: its `ai.dub`
+/// job (the vendor's job) is queued or running; `making`: the vendor's audio and
+/// captions are filed and each shape is being made in each language; `ready`:
+/// every shape of every language that came back has settled; `failed` and
+/// `cancelled` (the person stopped it) are the ends.
+enum DubStatus {
+  waiting
+  dubbing
+  making
+  ready
+  failed
+  cancelled
+}
+
+/// One clip dubbed into other languages in the speaker's own voice (2026-10-04,
+/// `repurpose/dubbing`): ONE vendor job (Sarvam's Dubbing API) for every
+/// language of the request, then each language laid under each shape of the
+/// clip as its own project (`clip_dub_variants`), captioned in that language.
+///
+/// The speaker's voice is cloned, so the request carries the person's consent:
+/// `consent_by`/`consent_at` say who ticked "I have the right to use this
+/// speaker's voice" and when, and `audit_log` has the same.
+///
+/// Money: `cost_tenths` is held on the `ai.dub` job (settled on the languages
+/// that came back, released when the dub fails); `budget_paise` is what the
+/// request reserved of the day's rupee budget (`budget_day`, UTC), given back
+/// when no vendor job was ever started.
+model ClipDub {
+  id             String    @id @db.Char(26)
+  runId          String    @map("run_id") @db.Char(26)
+  clipId         String    @map("clip_id") @db.Char(26)
+  workspaceId    String    @map("workspace_id") @db.Char(26)
+  /// The clip's language, as the vendor spells it (`en-IN`, `hi-IN`, ...).
+  sourceLanguage String    @map("source_language")
+  /// The languages asked for, as the vendor spells them, in the order asked.
+  languages      String[]
+  status         DubStatus @default(waiting)
+  /// `dub/...` (`dubs.constants.ts`); null unless failed.
+  failureCode    String?   @map("failure_code")
+  /// The vendor's own words for a refusal or a failure, trimmed; shown as they are.
+  failureMessage String?   @map("failure_message")
+  /// The clip's clean 9:16 length: what the price and the vendor's work are measured on.
+  durationMs     Int       @map("duration_ms")
+  /// What the request holds: every language, at the dubbing rate.
+  costTenths     Int       @map("cost_tenths")
+  /// Speakers told to the vendor: 1-10, or -1 to let it count them.
+  speakers       Int       @default(-1)
+  /// The vendor's job id, once known (from the `ai.dub` job's checkpoint or result).
+  vendorJobId    String?   @map("vendor_job_id")
+  /// The newest `ai.dub` job, and how many were asked for (the job key's attempt).
+  jobId          String?   @map("job_id") @db.Char(26)
+  attempts       Int       @default(0)
+  /// `[{language, status, audio?, captions?, reason?}]`: the vendor's files per language.
+  tracks         Json      @default("[]") @db.JsonB
+  /// The UTC day (`YYYY-MM-DD`) and the paise this request reserved of the daily budget.
+  budgetDay      String?   @map("budget_day")
+  budgetPaise    Int       @default(0) @map("budget_paise")
+  /// Who confirmed the right to clone this voice, and when.
+  consentBy      String    @map("consent_by") @db.Char(26)
+  consentAt      DateTime  @map("consent_at") @db.Timestamptz(6)
+  createdBy      String?   @map("created_by") @db.Char(26)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  completedAt    DateTime? @map("completed_at") @db.Timestamptz(6)
+  cancelledAt    DateTime? @map("cancelled_at") @db.Timestamptz(6)
+
+  run      RepurposeRun     @relation(fields: [runId], references: [id], onDelete: Cascade)
+  clip     RepurposeClip    @relation(fields: [clipId], references: [id], onDelete: Cascade)
+  variants ClipDubVariant[]
+
+  @@index([runId])
+  @@index([clipId])
+  @@index([status])
+  @@map("clip_dubs")
+}
+
+/// One shape of a dubbed clip in one language (2026-10-04): that shape's clean
+/// video with the language's audio laid under it (`media.dub`), as a NORMAL
+/// project, so the editor, captions, face track and export all work on it
+/// unchanged. Its transcript is built from the vendor's SRT, never copied from
+/// the clip's own document, so no overlay in the clip's language (a hook title,
+/// a series label) comes with it. The captioned video is the ordinary cloud
+/// export, recorded like `clip_variants` records Autopilot's.
+model ClipDubVariant {
+  id              String        @id @db.Char(26)
+  dubId           String        @map("dub_id") @db.Char(26)
+  /// The vendor's spelling (`hi-IN`); one of the dub's `languages`.
+  language        String
+  aspect          Aspect
+  projectId       String        @unique @map("project_id") @db.Char(26)
+  /// The clip's own shape's caption setup (`CaptionConfigSchema`): the run's style.
+  captionConfig   Json          @default("{}") @map("caption_config") @db.JsonB
+  /// `edg:<revision>` the captioned video was made from, as for `clip_variants`.
+  editFingerprint String        @default("") @map("edit_fingerprint")
+  status          VariantStatus @default(preparing)
+  latestExportId  String?       @map("latest_export_id") @db.Char(26)
+  /// The `media.dub` job that made its picture.
+  muxJobId        String?       @map("mux_job_id") @db.Char(26)
+  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  dub          ClipDub @relation(fields: [dubId], references: [id], onDelete: Cascade)
+  project      Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  latestExport Export? @relation(fields: [latestExportId], references: [id], onDelete: SetNull)
+
+  @@unique([dubId, language, aspect])
+  @@index([dubId])
+  @@map("clip_dub_variants")
 }
 
 /// Run-level review aggregate (§6.6). Per-project review keeps working through the

@@ -147,6 +147,7 @@ describe("FEATURE_FLAG_SEEDS", () => {
       "publishing_postiz",
       "publishing_tiktok",
       "repurpose_automations",
+      "repurpose_dubbing",
       "repurpose_flow",
       "source_youtube_acquire",
       "streak_experiment",
