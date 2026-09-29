@@ -506,9 +506,11 @@ describe.skipIf(!available)("database schema and seed", () => {
       await seed(prisma);
       const plans = await prisma.plan.findMany({ orderBy: { creditsPerMonthTenths: "asc" } });
 
+      // Free is 200 credits a month during the beta (2026-09-29), above
+      // Starter's 150, so it sorts second by credits until the beta ends.
       expect(plans.map((plan) => plan.key)).toEqual([
-        "free",
         "starter",
+        "free",
         "creator",
         "agency",
         "studio",
@@ -590,6 +592,7 @@ describe.skipIf(!available)("database schema and seed", () => {
         "provider_bhashini",
         "publishing_postiz",
         "publishing_tiktok",
+        "repurpose_automations",
         "repurpose_flow",
         "source_youtube_acquire",
         "streak_experiment",
@@ -611,8 +614,8 @@ describe.skipIf(!available)("database schema and seed", () => {
       // balance = Σ lot remainders = Σ ledger deltas (06 invariant 1).
       expect(account?.balanceTenths).toBe(lotSum);
       expect(account?.balanceTenths).toBe(ledgerSum);
-      // Free plan: 20 credits = 200 tenths.
-      expect(account?.balanceTenths).toBe(200);
+      // The Free grant: 200 credits = 2,000 tenths during the beta (2026-09-29).
+      expect(account?.balanceTenths).toBe(2_000);
       expect(workspace.subscriptions).toHaveLength(1);
       expect(workspace.billingStateCode).toBe("27");
     });
