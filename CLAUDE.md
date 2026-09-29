@@ -1361,7 +1361,22 @@ worktrees (`wt/<name>`, branch `feat/<name>`), each merged and verified in
   Prisma reads milliseconds. Code that claims a row by equality on a value it
   read (the grant reset's `updateMany where grant_reset_at = ...`) never
   matches such a row. Use `date_trunc('milliseconds', now())`.
-- **Known, not fixed**: a `media.clip` completion takes ~8 s (p50) because the
-  run's whole reconcile runs inside the callback; worker timeouts (15 s)
-  retry it. API unit tests write BullMQ keys (`montaj-test-*`) into the
-  production Redis because `test/setup-env.ts` assigns `localhost:6379`.
+- **Self-healing added the same evening** (API-only swaps 378cb6bf, then
+  5a83cd97; `deploy-api-swap.ps1 -Rollback` undoes each):
+  - a clip's completion answers the worker first and reconciles its run
+    straight after (`reconcileRunSoon`, coalesced per run) — it used to
+    take ~8 s inside the callback, past the worker's 15 s timeout under load;
+  - the lease reaper settles a queued job BullMQ has no job for at all
+    (admission refuses before a row exists, so such a row is lost);
+  - clip images are timed on their own video: a captioned video the
+    finishing pass cut short ends before the clip, and a frame asked for past
+    its end fails the JPEG encoder ("Non full-range YUV is non-standard");
+  - Autopilot sends a shape's stranded media (a probe/proxy failed on a
+    passing error, or a probe never enqueued) back through the probe after
+    10 min of no movement, at most 3 probes per media
+    (`MediaProbeRestart.restartStranded`).
+  - `jobs.queue-timeout` must stay OFF: every job's `max_queue_wait_ms` is
+    10 min, and Autopilot runs legitimately queue renders for hours.
+- **Known, not fixed**: API unit tests and past dev sessions left ~40 MB of
+  keys under test prefixes (`montaj-test-*`, `a23`, `montaj-s07`, ...) in the
+  production Redis (`test/setup-env.ts` assigns `localhost:6379`).
