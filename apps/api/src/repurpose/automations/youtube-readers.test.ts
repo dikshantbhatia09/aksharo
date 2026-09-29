@@ -164,6 +164,16 @@ describe("channelFromPage", () => {
     });
   });
 
+  it("finds the tags where a real page puts them, past its inline script", () => {
+    // TED's page (2026-09-29): ~700 KB of script first, a `</head>` inside
+    // it, and the canonical link, og tags and title after that.
+    const script = `<script nonce="x">var big = "${"x".repeat(700_000)}</head>";</script>`;
+    expect(channelFromPage(script + channelPage())).toEqual({
+      channelId: CHANNEL,
+      title: "Aksharo Test Kitchen & Friends",
+    });
+  });
+
   it("never takes a featured channel from the page's data for the page's own", () => {
     // The data names two other channels before anything else could.
     const page = channelFromPage(channelPage({ omitHeadIds: true }));

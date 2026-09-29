@@ -7,16 +7,23 @@ import { decodeEntities } from "./safe-xml.js";
  * name. A handle or a legacy name is how a person knows a channel; the id is
  * how its feed is asked for.
  *
- * The page's `<head>` says the id three ways - its canonical link
+ * The page's tags say the id three ways - its canonical link
  * (`/channel/UC…`), its RSS link (`?channel_id=UC…`) and its `og:url` - and
  * they must agree: a page naming two channels there is not a page this reads.
- * The page's data (`"externalId":"UC…"`) is the fallback when the head says
+ * The page's data (`"externalId":"UC…"`) is the fallback when the tags say
  * nothing. Nothing on the page is executed or followed; a link it names is a
  * string matched against one pattern.
  */
 
-/** The `<head>` is the first few kilobytes; this bounds the tag scan whatever the page does. */
-const HEAD_SCAN_CHARS = 600_000;
+/**
+ * How much of the page the tag scan reads: all of it, up to the reader's own
+ * cap (`PAGE_MAX_BYTES`). A real channel page does not keep these tags in its
+ * first kilobytes: on 2026-09-29 TED's page carried ~700 KB of inline script
+ * first, a `</head>` inside it, and its canonical link, og tags and title at
+ * ~752 KB - past both the old 600,000-character scan and that `</head>`, so
+ * the name was never found and the id only through the data fallback.
+ */
+const TAG_SCAN_CHARS = 4 * 1024 * 1024;
 const TAG = /<(link|meta)\b([^<>]{0,2000})>/gi;
 const ATTRIBUTE = /([A-Za-z_:][A-Za-z0-9_:.-]*)\s*=\s*(?:"([^"]*)"|'([^']*)')/g;
 const CHANNEL_PATH =
@@ -48,8 +55,7 @@ function titleOf(value: string | undefined): string | null {
 
 /** The channel a page is about, or null when it does not say, or says two things. */
 export function channelFromPage(html: string): PageChannel | null {
-  const headEnd = html.search(/<\/head\s*>/i);
-  const head = html.slice(0, headEnd === -1 ? HEAD_SCAN_CHARS : Math.min(headEnd, HEAD_SCAN_CHARS));
+  const head = html.slice(0, TAG_SCAN_CHARS);
 
   const ids = new Set<string>();
   let ogTitle: string | undefined;
