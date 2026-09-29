@@ -156,6 +156,12 @@ export const createRunSchema = z.object({
      * `manual` (the default) waits for the person to pick the moments.
      */
     automation: z.enum(AUTOMATION_MODES).optional(),
+    /**
+     * The brand kit (2026-10-02): Autopilot gives the clips the workspace's
+     * logo, end card, caption and title colours and typefaces. Left out, or
+     * with no kit saved, the clips are made exactly as without one.
+     */
+    brand: z.boolean().optional(),
   }),
   /** Optional title; defaults to the source's safe display form. */
   title: shortLabel.optional(),
@@ -254,6 +260,11 @@ export const runViewSchema = z.object({
   nextWindowAvailable: z.boolean(),
   /** Autopilot (`auto`) or the person picks the moments (`manual`); see `setup.automation`. */
   automation: z.enum(AUTOMATION_MODES),
+  /**
+   * Whether the run asked for the brand kit (`setup.brand`, 2026-10-02).
+   * Optional only so a view described before it still reads as one.
+   */
+  brand: z.boolean().optional(),
   /**
    * Why a run that is not failed is not moving, and until when: YouTube is
    * refusing this server's downloads, and the run continues by itself after

@@ -18,6 +18,7 @@ import { RunActivityReader } from "./run-activity.reader.js";
 import { RunNotifier } from "./run-notifications.js";
 import { SourceGate } from "./source-gate.js";
 import { RepurposeStillsCompletionHandler } from "./stills-completion.handler.js";
+import { BrandKitModule } from "../brand-kit/brand-kit.module.js";
 import { EdgModule } from "../edg/index.js";
 import { ExportsModule } from "../exports/exports.module.js";
 import { InsightsModule } from "../insights/insights.module.js";
@@ -54,6 +55,9 @@ import { WorkspacesModule } from "../workspaces/workspaces.module.js";
     TranscriptsModule,
     // The episode text pack is an `ai.llm` job through the insights producer.
     InsightsModule,
+    // Autopilot's finishing pass applies the workspace's brand kit to a run
+    // that asks for it (2026-10-02).
+    BrandKitModule,
   ],
   controllers: [RepurposeController, RepurposeSteeringController, RepurposeEpisodePackController],
   providers: [

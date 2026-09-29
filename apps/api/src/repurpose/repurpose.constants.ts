@@ -208,6 +208,17 @@ export function automationOf(run: { readonly config: unknown }): AutomationMode 
 }
 
 /**
+ * Whether Autopilot applies the workspace's brand kit to this run's clips
+ * (`config.brand`, 2026-10-02). Absent reads as off, as every run from before
+ * the brand kit was; on, a workspace with no kit still gets nothing.
+ */
+export function brandOf(run: { readonly config: unknown }): boolean {
+  const config = run.config;
+  if (typeof config !== "object" || config === null || Array.isArray(config)) return false;
+  return (config as Record<string, unknown>)["brand"] === true;
+}
+
+/**
  * The latest start a request may name: `media.acquire`'s own bound on a source
  * (24 h). The plan's ceiling (`maxSourceDurationMs`, 12 h) is lower and is the
  * downloader's to apply, once it knows how long the video really is.
