@@ -834,7 +834,7 @@ export function SourceStartForm({
                   <label key={field.key} className="flex items-center gap-2 text-sm text-fg-1">
                     {field.label}
                     <Input
-                      // No numeric keypad: "1.5" needs a decimal point most lack.
+                      // A number pad with a decimal point: minutes may be "1.5".
                       inputMode="decimal"
                       autoComplete="off"
                       className="w-16 bg-sunken"

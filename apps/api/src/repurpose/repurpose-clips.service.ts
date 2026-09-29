@@ -55,6 +55,7 @@ import {
   MIN_CLIP_MS,
   REPURPOSE_CLIP_ERRORS,
 } from "./repurpose-clips.dto.js";
+import { REPURPOSE_STEERING_ERRORS } from "./repurpose-steering.dto.js";
 import {
   ASPECT_OF_SHAPE,
   AUTOPILOT_CLIP_ATTEMPTS,
@@ -357,6 +358,7 @@ export class RepurposeClipsService {
         HttpStatus.NOT_FOUND,
       );
     }
+    if (isRemoved(candidate)) throw momentRemoved();
 
     const existingClip = await this.prisma.repurposeClip.findUnique({
       where: { candidateId: candidate.id },
@@ -446,6 +448,7 @@ export class RepurposeClipsService {
         HttpStatus.NOT_FOUND,
       );
     }
+    if (isRemoved(clip.candidate)) throw momentRemoved();
 
     const latest = (await this.latestJobs(run.workspaceId, [clip.candidateId])).get(
       clip.candidateId,
@@ -2009,6 +2012,19 @@ export class RepurposeClipsService {
       HttpStatus.CONFLICT,
     );
   }
+}
+
+/**
+ * A cut asked of a moment the person removed (a stale tab, an API caller):
+ * removing it stopped what was being made for it, and nothing more is spent
+ * on it until it is restored (steering, 2026-09-29).
+ */
+function momentRemoved(): AppException {
+  return new AppException(
+    REPURPOSE_STEERING_ERRORS.candidateRemoved,
+    "This moment was removed. Bring it back before making its clip.",
+    HttpStatus.CONFLICT,
+  );
 }
 
 function isFailedAfterTranscript(run: RepurposeRun): boolean {

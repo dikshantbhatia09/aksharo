@@ -1834,6 +1834,24 @@ describe("Steering (2026-09-29): Autopilot's reserve, removed clips, re-timed mo
     expect(cuts.some((key) => key.includes(CAND_A))).toBe(false);
   });
 
+  it("spends no cut on a removed moment, asked for or retried", async () => {
+    h.tables.candidates[0] = { ...h.tables.candidates[0], state: "rejected" };
+    await expectCode(
+      h.service.createClip(WS, USER, RUN, { candidateId: CAND_A }),
+      "repurpose/candidate_removed",
+      409,
+    );
+    const clip = clipRow(CAND_A);
+    h.tables.clips.push(clip);
+    h.tables.jobs.push(jobRow(CAND_A, "failed", { code: "media/corrupt" }));
+    await expectCode(
+      h.service.retryClip(WS, USER, RUN, String(clip["id"])),
+      "repurpose/candidate_removed",
+      409,
+    );
+    expect(h.enqueue).not.toHaveBeenCalled();
+  });
+
   it("cuts a re-timed moment's shapes afresh: its old times' cuts are not this cut's", async () => {
     h = harness({ run: { ...auto, status: "review_ready", currentStage: "review" } });
     h.tables.candidates.length = 1;

@@ -108,7 +108,8 @@ export function ClipControls({
             variant="ghost"
             size="sm"
             aria-expanded={editing}
-            aria-controls={panelId}
+            // Only while the panel exists: a reference to nothing is worse than none.
+            {...(editing ? { "aria-controls": panelId } : {})}
             aria-label={STEERING_COPY.adjustLabel(title)}
             disabled={cutting && !editing}
             onClick={() => {
