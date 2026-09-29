@@ -93,3 +93,20 @@ export {
   type StillRequest,
 } from "./jobs.js";
 export * from "./formats.js";
+export {
+  COMPILATION_LIMITS,
+  CompilationClipSchema,
+  CompilationIntroSchema,
+  EXPORT_KEY_PATTERN,
+  RenderCompilationPayloadSchema,
+  RenderCompilationResultSchema,
+  SERIES_LIMITS,
+  compilationExportKey,
+  compilationJobKey,
+  compilationOutputMs,
+  compilationSize,
+  type CompilationClip,
+  type CompilationIntro,
+  type RenderCompilationPayload,
+  type RenderCompilationResult,
+} from "./compilations.js";
