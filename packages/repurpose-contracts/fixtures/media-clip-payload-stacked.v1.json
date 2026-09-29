@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "runId": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+  "candidateId": "01ARZ3NDEKTSV4RRFFQ69G5FAW",
+  "clipId": "01ARZ3NDEKTSV4RRFFQ69G5FAY",
+  "source": {
+    "bucket": "s3",
+    "key": "ws/01ARZ3NDEKTSV4RRFFQ69G5FB0/p/01ARZ3NDEKTSV4RRFFQ69G5FAX/media/01ARZ3NDEKTSV4RRFFQ69G5FB6/raw.mp4"
+  },
+  "sourceDurationMs": 1140000,
+  "startMs": 330000,
+  "endMs": 360000,
+  "handleMs": 500,
+  "destination": {
+    "bucket": "s3",
+    "key": "ws/01ARZ3NDEKTSV4RRFFQ69G5FB0/p/01ARZ3NDEKTSV4RRFFQ69G5FAX/repurpose/01ARZ3NDEKTSV4RRFFQ69G5FAV/clips/01ARZ3NDEKTSV4RRFFQ69G5FAW/master.mp4"
+  },
+  "profile": {
+    "container": "mp4",
+    "videoCodec": "h264",
+    "audioCodec": "aac",
+    "maxHeight": 1920
+  },
+  "reframe": {
+    "centerX": 0.3,
+    "centerY": 0.4,
+    "basis": "faces",
+    "layout": "stacked",
+    "people": [
+      { "centerX": 0.3, "centerY": 0.4, "size": 0.14 },
+      { "centerX": 0.72, "centerY": 0.42, "size": 0.12 }
+    ]
+  },
+  "profileVersion": "3"
+}

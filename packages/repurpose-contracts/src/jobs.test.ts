@@ -12,6 +12,7 @@ import {
   MediaClipResultSchema,
   clipMasterKey,
   highlightsJobKey,
+  layoutKeySuffix,
   mediaAcquireJobKey,
   mediaClipJobKey,
   repurposeFeaturesKey,
@@ -159,6 +160,60 @@ describe("media.clip@1", () => {
     expect(mediaClipJobKey(CANDIDATE, "abc123", "mezzanine-1")).not.toBe(
       mediaClipJobKey(CANDIDATE, "abc123", "mezzanine-2"),
     );
+  });
+});
+
+describe("media.clip@1, two-speaker layouts (2026-10-01)", () => {
+  const stacked = fixture("media-clip-payload-stacked.v1.json");
+  const reframe = stacked["reframe"] as Record<string, unknown>;
+
+  it("accepts a stacked cut naming its two people, top first", () => {
+    const parsed = MediaClipPayloadSchema.parse(stacked);
+    expect(parsed.reframe?.layout).toBe("stacked");
+    expect(parsed.reframe?.people?.map((person) => person.centerX)).toEqual([0.3, 0.72]);
+    // A 4:5 cut may be stacked too.
+    expect(MediaClipPayloadSchema.safeParse({ ...stacked, aspect: "4:5" }).success).toBe(true);
+  });
+
+  it("still accepts every payload from before: no layout is one window", () => {
+    const { layout: _layout, people: _people, ...single } = reframe;
+    expect(MediaClipPayloadSchema.safeParse({ ...stacked, reframe: single }).success).toBe(true);
+    expect(
+      MediaClipPayloadSchema.safeParse({
+        ...stacked,
+        reframe: { ...single, layout: "single" },
+      }).success,
+    ).toBe(true);
+  });
+
+  it("refuses a stack without exactly two people, and people without a stack", () => {
+    const people = reframe["people"] as unknown[];
+    for (const broken of [
+      { ...reframe, people: undefined },
+      { ...reframe, people: people.slice(0, 1) },
+      { ...reframe, people: [...people, people[0]] },
+      { ...reframe, layout: "single" },
+      { ...reframe, people: [{ centerX: 0.3, centerY: 0.4, size: 0 }, people[1]] },
+      { ...reframe, people: [{ centerX: 1.3, centerY: 0.4, size: 0.1 }, people[1]] },
+    ]) {
+      expect(MediaClipPayloadSchema.safeParse({ ...stacked, reframe: broken }).success).toBe(false);
+    }
+  });
+
+  it("refuses a stacked square or landscape cut", () => {
+    for (const aspect of ["1:1", "16:9"]) {
+      expect(MediaClipPayloadSchema.safeParse({ ...stacked, aspect }).success).toBe(false);
+    }
+  });
+
+  it("names a stacked cut in its key, and leaves a one-window key as it always was", () => {
+    expect(mediaClipJobKey(CANDIDATE, "0-1", "3", "stacked")).toBe(
+      `media.clip:${CANDIDATE}:0-1:3:stacked`,
+    );
+    expect(mediaClipJobKey(CANDIDATE, "0-1", "3", "single")).toBe(`media.clip:${CANDIDATE}:0-1:3`);
+    expect(mediaClipJobKey(CANDIDATE, "0-1", "3")).toBe(mediaClipJobKey(CANDIDATE, "0-1", "3"));
+    expect(layoutKeySuffix("stacked")).toBe(":stacked");
+    expect(layoutKeySuffix("single")).toBe("");
   });
 });
 
