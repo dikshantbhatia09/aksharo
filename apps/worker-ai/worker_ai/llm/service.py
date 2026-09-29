@@ -125,6 +125,11 @@ async def generate_insight(
             errors.append(f"{candidate.name}: {error}")
             retryable_failure = retryable_failure or error.retryable
             continue
+        except Exception as error:
+            # An adapter's own bug ends that provider's turn, not the chain.
+            errors.append(f"{candidate.name}: {type(error).__name__}: {error}")
+            retryable_failure = True
+            continue
 
         outcome = _parse_and_validate(kind, response.text, candidate.name)
         if not outcome.ok:
@@ -132,8 +137,8 @@ async def generate_insight(
             repair_request = _repair_request(candidate, messages, config, outcome.errors, region)
             try:
                 repaired = await _respond(candidate, kind, transcript, repair_request)
-            except LlmError as error:
-                invalid.extend((*outcome.errors, str(error)))
+            except Exception as error:
+                invalid.extend((*outcome.errors, f"{type(error).__name__}: {error}"))
                 continue
             outcome = _parse_and_validate(kind, repaired.text, candidate.name)
             if not outcome.ok:

@@ -108,15 +108,27 @@ class OllamaLlmProvider(LlmProvider):
         if response.status_code >= 400:
             raise LlmError(f"ollama {response.status_code}", provider=self.name, retryable=False)
 
-        data = response.json()
-        choices = data.get("choices", [])
-        text = choices[0]["message"]["content"] if choices else ""
-        usage = data.get("usage", {})
+        # Since 2026-09-29 this adapter is the paid model's fallback in
+        # production: a body that is not the expected JSON is its failure, for
+        # the chain to handle, never an exception that escapes the job.
+        try:
+            data = response.json()
+            choices = data.get("choices", [])
+            text = choices[0]["message"]["content"] if choices else ""
+        except (ValueError, KeyError, IndexError, TypeError, AttributeError) as error:
+            raise LlmError(
+                f"ollama answered with an unexpected body: {type(error).__name__}",
+                provider=self.name,
+                retryable=True,
+            ) from error
+        if not isinstance(text, str):
+            raise LlmError("ollama answered with no text", provider=self.name, retryable=True)
+        usage = data.get("usage") if isinstance(data.get("usage"), dict) else {}
         return LlmResponse(
             text=text,
             usage=LlmUsage(
-                input_tokens=int(usage.get("prompt_tokens", 0)),
-                output_tokens=int(usage.get("completion_tokens", 0)),
+                input_tokens=int(usage.get("prompt_tokens") or 0),
+                output_tokens=int(usage.get("completion_tokens") or 0),
                 # A local model costs nothing per call; leave cost unset rather
                 # than reporting a fabricated zero-with-currency.
                 cost_minor=None,

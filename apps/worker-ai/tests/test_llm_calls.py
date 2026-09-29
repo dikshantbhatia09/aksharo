@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import json
 
+import httpx2
 import pytest
 
 from worker_ai.llm.calls import CallLedger, Deadline, complete_json, model_chain
 from worker_ai.llm.json_reply import extract_json_object, first_json_object_text
 from worker_ai.llm.providers.base import LlmError, LlmRequest, LlmUsage
 from worker_ai.llm.providers.mock import MockLlmProvider
+from worker_ai.llm.providers.ollama import OllamaLlmProvider
 from worker_ai.llm.service import InvalidOutputError, generate_insight
 from worker_ai.llm.templates import TranscriptInput, TranscriptSegment
 
@@ -170,6 +172,40 @@ async def test_a_fenced_reply_is_valid_output() -> None:
     result = await generate_insight("chapters", _transcript(), (fenced,), "in")
     assert result.output["chapters"][0]["title"] == "Intro"
     assert len(fenced.requests) == 1
+
+
+async def test_an_adapter_that_raises_something_else_hands_over_too() -> None:
+    def broken(_request: LlmRequest) -> str:
+        raise RuntimeError("an adapter's bug")
+
+    good = FakeLlm(lambda _r: {"chapters": [{"startMs": 0, "title": "Intro"}]}, name="good")
+    result = await generate_insight("chapters", _transcript(), (FakeLlm(broken), good), "in")
+    assert result.provider == "good"
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "<html>502 Bad Gateway</html>",
+        '{"choices": []}',
+        '{"choices": [{"message": {"content": null}}]}',
+        '{"choices": [{"nope": 1}]}',
+    ],
+)
+async def test_the_ollama_adapter_turns_an_unexpected_body_into_its_failure(body: str) -> None:
+    """In production it is the paid model's fallback: a strange body must be a
+    failure the chain handles, never an exception that escapes the job."""
+
+    async def handler(_request: httpx2.Request) -> httpx2.Response:
+        return httpx2.Response(200, content=body.encode())
+
+    provider = OllamaLlmProvider(client=httpx2.AsyncClient(transport=httpx2.MockTransport(handler)))
+    if body == '{"choices": []}':
+        # No choice is an empty answer (as before), which the caller refuses.
+        assert (await provider.generate(REQUEST)).text == ""
+        return
+    with pytest.raises(LlmError):
+        await provider.generate(REQUEST)
 
 
 async def test_output_no_provider_gets_right_still_fails_as_invalid() -> None:
