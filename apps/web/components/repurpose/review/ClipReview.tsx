@@ -43,6 +43,8 @@ import {
   type ReviewState,
 } from "./use-review";
 
+import { useStableUrl } from "@/components/repurpose/use-stable-url";
+
 /** Buttons a thumb can hit: 44 px on a phone, the compact size from `sm` up. */
 const TOUCH = "h-11 sm:h-8";
 
@@ -121,6 +123,12 @@ export function ClipReview({
   const [threadOpen, setThreadOpen] = React.useState(false);
   const ownPlayer = React.useRef<HTMLVideoElement>(null);
   const [ownPlayhead, setOwnPlayhead] = React.useState<number | null>(null);
+  // The run's review is polled and signs its video afresh each time; a playing
+  // video must not restart because of it.
+  const stableVideoUrl = useStableUrl(
+    showVideo ? (review?.video?.url ?? undefined) : undefined,
+    review?.video?.exportId,
+  );
 
   if (review === undefined) return null;
   const hasVideo = Object.keys(review.videos).length > 0;
@@ -133,7 +141,7 @@ export function ClipReview({
       ? REVIEW_COPY.approveAlso
       : REVIEW_COPY.approve;
   const refusal = decide.isError ? describeReviewError(decide.error) : null;
-  const videoUrl = showVideo ? (review.video?.url ?? null) : null;
+  const videoUrl = stableVideoUrl ?? null;
   const playhead = videoUrl === null ? playheadMs : ownPlayhead;
   const seek = (ms: number): void => {
     if (videoUrl !== null && ownPlayer.current !== null) {

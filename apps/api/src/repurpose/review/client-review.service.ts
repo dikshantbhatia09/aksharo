@@ -173,10 +173,16 @@ export class ClientReviewService {
         HttpStatus.GONE,
       );
     }
+    // A deleted workspace's links reach nothing, and neither do a workspace's
+    // whose clips surface is off.
+    const workspace = await this.prisma.workspace.findFirst({
+      where: { id: link.workspaceId, deletedAt: null },
+      select: { id: true },
+    });
+    if (workspace === null) throw linkNotFound();
     try {
       await this.reviews.assertAvailable(link.workspaceId);
     } catch {
-      // The workspace's clips surface is off: the link reaches nothing.
       throw linkNotFound();
     }
     return link;

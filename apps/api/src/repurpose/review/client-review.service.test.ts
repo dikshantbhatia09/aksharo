@@ -128,6 +128,17 @@ describe("opening a review link", () => {
   });
 });
 
+describe("a deleted workspace's link", () => {
+  it("reaches nothing", async () => {
+    const h = reviewHarness();
+    seedClip(h.db, 1);
+    const { token } = await link(h);
+    const workspace = h.db.tables.workspace[0];
+    if (workspace !== undefined) workspace["deletedAt"] = new Date();
+    expect((await refusal(h.clients.open(token))).code).toBe(REVIEW_ERRORS.linkNotFound);
+  });
+});
+
 describe("a client's decision", () => {
   it("lands as a review event from the client, pinned to the 9:16 they watched", async () => {
     const h = reviewHarness();
