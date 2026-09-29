@@ -136,6 +136,20 @@ export function creditsOf(tenths: number): number {
   return Math.max(0, Math.floor(tenths)) / TENTHS_PER_CREDIT;
 }
 
+/**
+ * Where a run started through `RepurposeService.create` comes from, when that
+ * is not a person at the start form (2026-10-02): the attestation its source is
+ * fetched under - when, by whom, and where it was given (`watch:<id>` for a
+ * channel automation).
+ */
+export interface CreateRunOrigin {
+  readonly attestation?: {
+    readonly at: Date;
+    readonly by: string;
+    readonly of: string;
+  };
+}
+
 /** What a run asks the downloader for, before any budget is applied. */
 export interface WindowRequest {
   readonly policy: WindowPolicy;
@@ -554,10 +568,18 @@ export class RepurposeService {
     );
   }
 
+  /**
+   * @param origin where the run comes from when it is not a person at the start
+   *   form: a channel automation (`automations/source-watch.poller.ts`) starts
+   *   its runs through this same path, so credits, plan limits, windows and
+   *   lanes all apply, and passes the attestation its channel was connected
+   *   under rather than claiming a fresh one now (2026-10-02).
+   */
   async create(
     workspaceId: string,
     userId: string,
     input: CreateRunInput,
+    origin: CreateRunOrigin = {},
   ): Promise<CreateRunResponse> {
     await this.assertAvailable(workspaceId);
     await this.assertEntitled(workspaceId);
@@ -572,7 +594,7 @@ export class RepurposeService {
     // its transcription is refused for credits then, as any upload's is.
     const budget = source.normalizedUrl === null ? null : await this.acquisitionBudget(workspaceId);
 
-    return this.startRun(workspaceId, userId, input, source, budget);
+    return this.startRun(workspaceId, userId, input, source, budget, origin);
   }
 
   /**
@@ -731,7 +753,8 @@ export class RepurposeService {
     origin: {
       /**
        * The attestation the source was fetched under, when it is not this
-       * request's: when, by whom, and on which run it was given.
+       * request's: when, by whom, and where it was given - a run's id, or
+       * `watch:<id>` for the channel automation it was ticked on.
        */
       readonly attestation?: {
         readonly at: Date;

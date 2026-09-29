@@ -975,6 +975,33 @@ describe("create — a link is processed a window at a time", () => {
     expect(enqueued(h).params.window).toEqual({ maxMs: 20 * MINUTE, policy: "first" });
   });
 
+  // 2026-10-02: a channel automation starts its runs through this same path, as
+  // its person, under the attestation they ticked when they connected the channel.
+  it("records an automation's attestation, not a fresh one, and says where it came from", async () => {
+    const h = harness();
+    const connectedAt = new Date("2026-10-01T09:00:00Z");
+    await h.service.create(WS, USER, linkRun(), {
+      attestation: { at: connectedAt, by: USER, of: "watch:01JWATCH000000000000000000" },
+    });
+
+    expect(createdRunData(h)).toMatchObject({
+      rightsAttestedAt: connectedAt,
+      rightsAttestedBy: USER,
+      createdBy: USER,
+    });
+    expect(h.audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "repurpose.run.created",
+        data: expect.objectContaining({
+          rightsAttestedAt: connectedAt.toISOString(),
+          rightsAttestationOf: "watch:01JWATCH000000000000000000",
+        }),
+      }),
+    );
+    // Everything else is the ordinary link run: the window, the download.
+    expect(enqueued(h).type).toBe("media.acquire");
+  });
+
   it("processes only what the balance pays for", async () => {
     const h = harness({ balanceTenths: 100 });
     await h.service.create(WS, USER, linkRun());
