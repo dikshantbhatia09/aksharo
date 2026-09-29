@@ -83,7 +83,7 @@ type CarriedOutcome = z.infer<typeof CarriedOutcomeSchema>;
 interface Candidate {
   readonly id: string;
   readonly type: QueueName;
-  /** `running`, or `queued` whose attempt BullMQ already finished ({@link LeaseReaperTask}). */
+  /** `running` or `queued`: both are settled on the same rules ({@link LeaseReaperTask}). */
   readonly status: "queued" | "running";
   readonly attemptId: string | null;
   /** The newest sign of life: a job event (every progress call writes one), the start, or the enqueue. */
@@ -110,9 +110,13 @@ export interface LeaseReaperReport {
  * reached the API, the job failed in BullMQ, and its failure report was lost
  * the same way. Production had eleven `render.video` rows like that, queued for
  * hours while the clips behind them waited on renders nobody would ever report,
- * every one lost to a tunnel error on the way back. A queued row is only
- * settled when BullMQ has FINISHED this attempt (`completed`/`failed`): with no
- * job at all it may simply not be enqueued yet, and one still waiting will run.
+ * every one lost to a tunnel error on the way back. A queued row is settled
+ * on the running row's rules: one BullMQ holds live (waiting, delayed, in a
+ * lane's queue for hours behind a big run) is spared, however old. One BullMQ
+ * has no job for is lost - admission refuses a job BEFORE its row exists, and
+ * a failed enqueue marks the row failed, so a queued row with no job is one
+ * whose process died between the two writes, or whose finished job BullMQ has
+ * since trimmed (`removeOnFail`). One lived for eleven hours in production.
  *
  * `jobs.status = 'running'` is only moved on by the worker's completion callback
  * (or a cancel). When the worker dies without calling back, the final report is
@@ -205,12 +209,6 @@ export class LeaseReaperTask implements OnModuleInit {
       const bullId = bullJobId(row.id, row.attemptId ?? row.id);
       const state = await this.bullState(queue, bullId, row.id);
       if (state === null || LIVE_STATES.has(state)) {
-        spared += 1;
-        continue;
-      }
-      // A queued row with no job in BullMQ may not have been enqueued yet: only
-      // an attempt BullMQ has finished is certain never to report.
-      if (row.status === "queued" && !FINISHED_STATES.has(state)) {
         spared += 1;
         continue;
       }

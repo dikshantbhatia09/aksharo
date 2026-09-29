@@ -418,13 +418,25 @@ describe("sweep: a queued row whose attempt already ended (2026-09-29)", () => {
     expect(completionOf().body.error?.code).toBe("media/unreadable");
   });
 
-  it("spares a queued row BullMQ has no job for: it may not be enqueued yet", async () => {
-    rows = [queued("01QHELD")];
+  it("fails a queued row BullMQ has no job for: nothing can ever run it", async () => {
+    // Admission refuses before a row exists and a failed enqueue marks the row
+    // failed, so this is a row whose process died between the two writes, or
+    // whose finished job BullMQ has trimmed.
+    rows = [queued("01QLOSTJOB")];
 
     const report = await task.sweep(NOW);
 
-    expect(report).toEqual({ silent: 1, reaped: [], delivered: [], spared: 1 });
-    expect(complete).not.toHaveBeenCalled();
+    expect(report).toEqual({ silent: 1, reaped: ["01QLOSTJOB"], delivered: [], spared: 0 });
+    expect(completionOf().body.error?.facts).toMatchObject({ queueState: "unknown" });
+  });
+
+  it("spares a queued row BullMQ has no job for until it has been silent long enough", async () => {
+    rows = [row({ id: "01QNEW", status: "queued", startedAt: null, queuedAt: ago(60_000) })];
+
+    const report = await task.sweep(NOW);
+
+    expect(report).toEqual({ silent: 0, reaped: [], delivered: [], spared: 0 });
+    expect(queriedBullIds).toEqual([]);
   });
 
   it("spares a queued row still waiting in BullMQ, however long it has waited", async () => {
