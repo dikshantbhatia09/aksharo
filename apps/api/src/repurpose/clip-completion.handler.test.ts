@@ -189,7 +189,7 @@ function harness(options: Options = {}) {
 
   const completeAcquisition = vi.fn(async () => ({ media: { id: CHILD_MEDIA }, probeJobId: "P" }));
   const publishStage = vi.fn(async () => undefined);
-  const reconcileRun = vi.fn(async () => undefined);
+  const reconcileRunSoon = vi.fn(async () => undefined);
   const raw = {
     kind: "s3",
     head: vi.fn(async () => null),
@@ -210,7 +210,7 @@ function harness(options: Options = {}) {
     prisma as never,
     { create: vi.fn(async () => ({ id: CHILD })) } as never,
     { completeAcquisition } as never,
-    { publishStage, reconcileRun } as never,
+    { publishStage, reconcileRunSoon } as never,
     new JobCompletionRegistry(),
     { publish: vi.fn() } as never,
     raw as never,
@@ -229,7 +229,7 @@ function harness(options: Options = {}) {
     clipUpdate,
     completeAcquisition,
     publishStage,
-    reconcileRun,
+    reconcileRunSoon,
     raw,
     derived,
   };
@@ -290,7 +290,7 @@ describe("RepurposeClipCompletionHandler — a failed cut", () => {
     expect(h.runUpdateMany).not.toHaveBeenCalled();
     expect(h.publishStage).not.toHaveBeenCalled();
     // The run still carries on from its durable state.
-    expect(h.reconcileRun).toHaveBeenCalledWith(RUN);
+    expect(h.reconcileRunSoon).toHaveBeenCalledWith(RUN);
   });
 
   it("moves the run on to review when the last clip it waited for fails and another is ready", async () => {
@@ -355,7 +355,7 @@ describe("RepurposeClipCompletionHandler — a finished cut", () => {
     await waiting.handler.handle(context(clipResult()));
     expect(waiting.run.status).toBe("review_ready");
     // A clip that waited for a slot is the run's next piece of work.
-    expect(waiting.reconcileRun).toHaveBeenCalledWith(RUN);
+    expect(waiting.reconcileRunSoon).toHaveBeenCalledWith(RUN);
 
     const analysing = harness({ run: { status: "analyzing" } });
     await analysing.handler.handle(context(clipResult()));

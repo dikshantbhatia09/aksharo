@@ -427,8 +427,9 @@ export class RepurposeClipCompletionHandler implements JobCompletionHandler, OnM
     await this.runs.publishStage(await this.advanceRun(clip.run));
     // And the run carries on from what is now true of it — a clip that waited
     // for a slot is the run's next piece of work (docs/repurpose/CLIPS-HARDENING
-    // §1). Never throws.
-    await this.runs.reconcileRun(clip.run.id);
+    // §1). After this answer, not before it (`reconcileRunSoon`): the worker is
+    // waiting on this callback. Never throws.
+    void this.runs.reconcileRunSoon(clip.run.id);
 
     this.logger.log(
       { runId: clip.run.id, clipId: clip.id, variantId },
@@ -460,7 +461,7 @@ export class RepurposeClipCompletionHandler implements JobCompletionHandler, OnM
       finishingJobId: context.job.id,
     });
     if (settled !== undefined) await this.runs.publishStage(settled);
-    await this.runs.reconcileRun(runId);
+    void this.runs.reconcileRunSoon(runId);
   }
 
   /**

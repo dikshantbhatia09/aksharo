@@ -463,6 +463,43 @@ export class RepurposeService {
     }
   }
 
+  /** Runs {@link reconcileRunSoon} is reconciling, and whether one more pass was asked for. */
+  private readonly reconcilingRuns = new Map<string, { again: boolean; done: Promise<void> }>();
+
+  /**
+   * {@link reconcileRun} without making the caller wait (2026-09-29).
+   *
+   * A clip's completion used to await its run's whole reconcile inside the
+   * worker's callback - every clip, shape, render and image of the run, about
+   * 8 s at the median on a 40-clip podcast - past the worker's 15 s timeout
+   * under load, which then sent the completion again while its handler was
+   * still running. Now the callback answers and the reconcile runs straight
+   * after. Calls for a run already being reconciled fold into ONE more pass
+   * after the current one, so forty clips finishing together cost two passes,
+   * not forty. The promise settles when that pass has run (tests wait on it;
+   * callers need not). Never rejects.
+   */
+  reconcileRunSoon(runId: string): Promise<void> {
+    const current = this.reconcilingRuns.get(runId);
+    if (current !== undefined) {
+      current.again = true;
+      return current.done;
+    }
+    const entry = { again: false, done: Promise.resolve() };
+    entry.done = (async () => {
+      try {
+        do {
+          entry.again = false;
+          await this.reconcileRun(runId);
+        } while (entry.again);
+      } finally {
+        this.reconcilingRuns.delete(runId);
+      }
+    })();
+    this.reconcilingRuns.set(runId, entry);
+    return entry.done;
+  }
+
   /** A read's view of `run`, reconciled first when it is due. */
   private async reconciled(
     run: RepurposeRun,

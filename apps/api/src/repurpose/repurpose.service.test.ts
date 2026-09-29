@@ -1966,3 +1966,35 @@ describe("activity — the step a run is on and its real bar (2026-09-29)", () =
     expect(listed.items[1]?.activity).toBeNull();
   });
 });
+
+describe("reconcileRunSoon — a completion does not wait for its run's reconcile (2026-09-29)", () => {
+  it("folds calls for a run already being reconciled into one more pass", async () => {
+    const h = harness();
+    let release: () => void = () => undefined;
+    h.reconciler.reconcile.mockImplementationOnce(
+      async (value: RepurposeRun) =>
+        new Promise<RepurposeRun>((resolve) => {
+          release = () => resolve(value);
+        }),
+    );
+    const first = h.service.reconcileRunSoon(RUN);
+    // Let the first pass read the run and reach the reconciler.
+    await vi.waitFor(() => expect(h.reconciler.reconcile).toHaveBeenCalledTimes(1));
+    const second = h.service.reconcileRunSoon(RUN);
+    const third = h.service.reconcileRunSoon(RUN);
+    release();
+    await Promise.all([first, second, third]);
+    // The first pass, then ONE more for the two that came while it ran.
+    expect(h.reconciler.reconcile).toHaveBeenCalledTimes(2);
+
+    // Once it has settled, the next call is a fresh pass.
+    await h.service.reconcileRunSoon(RUN);
+    expect(h.reconciler.reconcile).toHaveBeenCalledTimes(3);
+  });
+
+  it("never rejects, whatever the reconcile does", async () => {
+    const h = harness();
+    h.reconciler.reconcile.mockRejectedValueOnce(new Error("database gone"));
+    await expect(h.service.reconcileRunSoon(RUN)).resolves.toBeUndefined();
+  });
+});
