@@ -34,7 +34,9 @@ import {
 type DeviceState = "checking" | "unsupported" | "unavailable" | "denied" | "off" | "on";
 
 const STATE_NOTE: Readonly<Partial<Record<DeviceState, string>>> = Object.freeze({
-  unsupported: `This browser cannot show notifications from websites. On an iPhone or iPad, add ${BRAND.name} to your Home Screen first, then open it from there.`,
+  // Not a promise about iPhones: Safari there only notifies an installed web
+  // app, which needs a manifest this app does not have yet.
+  unsupported: `This browser cannot show notifications from ${BRAND.name}. Chrome, Edge or Firefox on a computer, or Chrome on Android, can.`,
   unavailable: "Notifications on devices are not switched on for this account yet.",
   denied:
     "Notifications are blocked for this site in your browser's settings. Allow them there, then turn this on.",
