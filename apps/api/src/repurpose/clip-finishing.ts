@@ -1,6 +1,13 @@
 import { HttpStatus, Injectable, Logger, Optional } from "@nestjs/common";
 
-import { newId } from "@montaj/edg";
+import {
+  brandCaptionOverrides,
+  brandEndCardOverlay,
+  brandHookAppearance,
+  brandLogoOverlay,
+  newId,
+  stableOverlayId,
+} from "@montaj/edg";
 import type {
   CutPassItem,
   EdgOp,
@@ -10,9 +17,12 @@ import type {
   TranscriptChunk,
   WordId,
 } from "@montaj/edg/schemas";
+import { mergeOverrides } from "@montaj/render-core";
 import { fromAcceptedItems } from "@montaj/timemap";
 
 import { chooseEmphasis, normaliseWord } from "./keyword-emphasis.js";
+import { brandOf } from "./repurpose.constants.js";
+import { BrandKitService } from "../brand-kit/brand-kit.service.js";
 import { AppException, PrismaService } from "../common/index.js";
 import { EdgRepository, EdgService } from "../edg/index.js";
 import { resolveStyleSnapshot } from "../exports/projection.js";
@@ -49,6 +59,14 @@ import type { Prisma, RepurposeRun } from "@prisma/client";
  * 4. **hook** — the hook title (`EdgHot.overlays`, drawn by render-core): the
  *    clip's `copy.hook`, else its title cut to seven words, over the first
  *    2.5 seconds of the finished (cut) video.
+ * 5. **brand** (2026-10-02) — when the run asked for it (`setup.brand`) and the
+ *    workspace has a brand kit: the captions in the kit's typeface and colours
+ *    (document style overrides, merged onto the document's own), the hook
+ *    title on the kit's card, the logo in its corner for the whole clip, and
+ *    the end card over the last seconds of the finished video. Last, so it
+ *    dresses the edit the steps above made. A run without it, or a workspace
+ *    without a kit, gets exactly the clip it got before (`skipped`, `off` or
+ *    `no-kit`).
  *
  * **Never a failure.** A step the plan does not include, the credits cannot
  * pay for, or that fails or runs too long is recorded as skipped and the next
@@ -82,7 +100,7 @@ const SAME_TIMELINE_MS = 100;
 const MIN_CUT_CONFIDENCE = 0.5;
 const MIN_RETAKE_CONFIDENCE = 0.75;
 
-export const FINISHING_STEPS = ["autocut", "emphasis", "zoom", "hook"] as const;
+export const FINISHING_STEPS = ["autocut", "emphasis", "zoom", "hook", "brand"] as const;
 export type FinishingStep = (typeof FINISHING_STEPS)[number];
 
 export interface FinishingStepRecord {
@@ -181,6 +199,26 @@ export function hookWindow(
   return endMs > startMs ? { startMs, endMs } : undefined;
 }
 
+/**
+ * The source-clock window an end card covers (2026-10-02): the last `tailMs`
+ * of the video as it plays after `items`' accepted cuts, so a cut near the end
+ * never leaves the card short. `undefined` when the finished video is too
+ * short to carry both the hook title and the card without one covering the
+ * other.
+ */
+export function endCardWindow(
+  items: readonly PassItem[],
+  sourceDurationMs: number,
+  tailMs: number,
+): { readonly startMs: number; readonly endMs: number } | undefined {
+  if (sourceDurationMs <= 0 || tailMs <= 0) return undefined;
+  const timeMap = fromAcceptedItems(items, { sourceDurationMs });
+  const outputEnd = timeMap.outputDurationMs;
+  if (outputEnd < tailMs + HOOK_TITLE_MS) return undefined;
+  const startMs = Math.max(0, Math.round(timeMap.toSource(outputEnd - tailMs)));
+  return sourceDurationMs > startMs ? { startMs, endMs: sourceDurationMs } : undefined;
+}
+
 /** Whether an autocut proposal is sure enough to take on a person's behalf. */
 export function acceptableCut(item: PassItem): boolean {
   if (item.kind !== "cut" || item.state !== "proposed") return false;
@@ -227,6 +265,8 @@ export class ClipFinishing {
     private readonly edgRepository: EdgRepository,
     private readonly entitlements: EntitlementService,
     @Optional() private readonly passes?: PassesService,
+    /** The workspace's brand kit (2026-10-02); without it the brand step is skipped. */
+    @Optional() private readonly brandKits?: BrandKitService,
   ) {}
 
   /**
@@ -329,6 +369,8 @@ export class ClipFinishing {
         return this.zoom(context);
       case "hook":
         return this.hook(context);
+      case "brand":
+        return this.brand(context);
     }
   }
 
@@ -465,6 +507,84 @@ export class ClipFinishing {
         overlay: { id: variant.id, kind: "hook-title", text, ...window },
       },
     ]);
+    return { state: "done", at: now.toISOString(), applied };
+  }
+
+  /**
+   * The brand kit (2026-10-02), for a run that asked for it and a workspace
+   * that has one. Free: it only writes to the document. What the document
+   * already has is kept — a person's own hook title (Autopilot's is the
+   * shape's own id), and any logo or end card — so a repeated ask, or a clip a
+   * person has already dressed, gets nothing twice.
+   */
+  private async brand(context: ShapeContext): Promise<StepResult> {
+    const { run, variant, now } = context;
+    if (!brandOf(run)) return skipped(now, "off");
+    const kits = this.brandKits;
+    if (kits === undefined) return skipped(now, "unavailable");
+    const kit = await kits.forClips(run.workspaceId);
+    if (kit === null) return skipped(now, "no-kit");
+    const document = await this.documentOf(variant.projectId);
+    if (document === undefined) return skipped(now, "no-document");
+    const { projection } = document;
+    const ops: EdgOp[] = [];
+
+    const presets = await this.emphasisPresetsOf(run.workspaceId, projection);
+    const keyword = keywordPresetId(presets);
+    const overrides = brandCaptionOverrides(kit.settings, {
+      presets,
+      ...(keyword === undefined ? {} : { keywordPresetId: keyword }),
+    });
+    if (overrides !== undefined) {
+      // `SetStyle` replaces the document's overrides wholesale: the kit's go
+      // on top of whatever the document already had.
+      const inline = projection.styles.inline as { doc?: Record<string, unknown> } | undefined;
+      ops.push({
+        opId: newId(),
+        type: "SetStyle",
+        scope: "doc",
+        overrides: mergeOverrides(inline?.doc ?? {}, overrides),
+      });
+    }
+
+    const overlays = projection.overlays ?? [];
+    const hook = overlays.find((overlay) => overlay.id === variant.id);
+    if (hook?.kind === "hook-title" && hook.appearance === undefined) {
+      ops.push({
+        opId: newId(),
+        type: "SetOverlay",
+        overlay: { ...hook, appearance: brandHookAppearance(kit.settings) },
+      });
+    }
+
+    const durationMs = primaryDurationOf(projection);
+    if (!overlays.some((overlay) => overlay.kind === "logo")) {
+      const logo = brandLogoOverlay(kit.settings, kit.logo, stableOverlayId(`${variant.id}:logo`), {
+        startMs: 0,
+        endMs: durationMs,
+      });
+      if (logo !== undefined) ops.push({ opId: newId(), type: "SetOverlay", overlay: logo });
+    }
+    if (!overlays.some((overlay) => overlay.kind === "end-card")) {
+      const window = endCardWindow(
+        projection.passes.flatMap((pass) => pass.items),
+        durationMs,
+        kit.settings.endCard.durationMs,
+      );
+      const card =
+        window === undefined
+          ? undefined
+          : brandEndCardOverlay(
+              kit.settings,
+              kit.logo,
+              stableOverlayId(`${variant.id}:end-card`),
+              window,
+            );
+      if (card !== undefined) ops.push({ opId: newId(), type: "SetOverlay", overlay: card });
+    }
+
+    if (ops.length === 0) return { state: "done", at: now.toISOString(), applied: 0 };
+    const applied = await this.apply(variant.projectId, document.revision, ops);
     return { state: "done", at: now.toISOString(), applied };
   }
 
@@ -696,14 +816,30 @@ export class ClipFinishing {
     workspaceId: string,
     projection: EdgProjection,
   ): Promise<string | undefined> {
+    return keywordPresetId(await this.emphasisPresetsOf(workspaceId, projection));
+  }
+
+  /**
+   * The emphasis presets the document's captions wear: the document's own list
+   * when it overrides them (an override replaces the list), else the style's.
+   */
+  private async emphasisPresetsOf(
+    workspaceId: string,
+    projection: EdgProjection,
+  ): Promise<Record<string, unknown>[]> {
     const inline = projection.styles.inline as { doc?: { emphasisPresets?: unknown } } | undefined;
-    if (Array.isArray(inline?.doc?.emphasisPresets)) {
-      return keywordPresetId(inline.doc.emphasisPresets);
-    }
-    const snapshot = await resolveStyleSnapshot(this.prisma, workspaceId, projection);
-    const style = snapshot.styles[projection.styles.defaultStyleId] as
-      { emphasisPresets?: unknown } | undefined;
-    return keywordPresetId(style?.emphasisPresets);
+    const own = inline?.doc?.emphasisPresets;
+    const presets = Array.isArray(own)
+      ? own
+      : ((
+          (await resolveStyleSnapshot(this.prisma, workspaceId, projection)).styles[
+            projection.styles.defaultStyleId
+          ] as { emphasisPresets?: unknown } | undefined
+        )?.emphasisPresets ?? []);
+    return (Array.isArray(presets) ? (presets as unknown[]) : []).filter(
+      (preset): preset is Record<string, unknown> =>
+        typeof preset === "object" && preset !== null && !Array.isArray(preset),
+    );
   }
 
   /** Applies worker ops; how many landed. A refused op is logged, never thrown. */

@@ -27,6 +27,7 @@ import {
   type Watch,
 } from "./use-automations";
 
+import { useBrandKit } from "@/components/brand-kit/use-brand-kit";
 import { formatRelative } from "@/components/projects/project-table";
 import {
   RunSetupFields,
@@ -79,6 +80,9 @@ function SettingsEditor({
   }));
   const [showProblems, setShowProblems] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  // A saved brand kit offers the brand switch for the channel's runs (2026-10-02).
+  const brandKit = useBrandKit();
+  const hasBrandKit = brandKit.data?.exists === true;
   const problems = validateRunSetup(value);
 
   const save = (event: React.FormEvent): void => {
@@ -87,7 +91,10 @@ function SettingsEditor({
     if (Object.keys(problems).length > 0) return;
     setError(null);
     update.mutate(
-      { watchId: watch.id, setup: runSetupRequest(value, { forChannel: true }) },
+      {
+        watchId: watch.id,
+        setup: runSetupRequest(value, { forChannel: true, brandKit: hasBrandKit }),
+      },
       {
         onSuccess: onDone,
         onError: (refused) => {
@@ -110,6 +117,7 @@ function SettingsEditor({
         onChange={setValue}
         problems={showProblems ? problems : {}}
         forChannel
+        brandKit={hasBrandKit}
         idPrefix={`watch-${watch.id}`}
       />
       {error === null ? null : (

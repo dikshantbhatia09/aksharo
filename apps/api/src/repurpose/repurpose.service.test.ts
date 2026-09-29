@@ -1942,6 +1942,37 @@ describe("steering (2026-09-29): topic, clip length and skipped start and end", 
   });
 });
 
+describe("the brand kit on a run (2026-10-02)", () => {
+  const next = (config: Record<string, unknown>) =>
+    harness({
+      run: runRow({
+        status: "review_ready",
+        windowStartMs: 0,
+        windowEndMs: 20 * MINUTE,
+        windowPolicy: "first",
+        sourceDurationMs: 45 * MINUTE,
+        config: {
+          sourceLanguage: "en",
+          caption: { styleId: "punch-pop", outputLanguage: "same", scriptMode: "auto" },
+          discovery: { mode: "ai", requestedCandidates: 5 },
+          ...config,
+        },
+      }),
+    });
+
+  it("keeps the brand kit on when the next part of a long video is started", async () => {
+    const h = next({ automation: "auto", brand: true });
+    await h.service.nextWindow(WS, USER, RUN);
+    expect(createdRunData(h)["config"]).toMatchObject({ automation: "auto", brand: true });
+  });
+
+  it("records nothing about it for a run that did not ask", async () => {
+    const h = next({ automation: "auto" });
+    await h.service.nextWindow(WS, USER, RUN);
+    expect(createdRunData(h)["config"]).not.toHaveProperty("brand");
+  });
+});
+
 describe("activity — the step a run is on and its real bar (2026-09-29)", () => {
   const downloading = {
     activity: {

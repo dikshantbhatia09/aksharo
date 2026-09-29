@@ -22,7 +22,9 @@ export type {
 export { encodeTags, ObjectStoreError, S3ObjectStore } from "./s3-object-store.js";
 export type { S3ObjectStoreConfig } from "./s3-object-store.js";
 export {
+  BRAND_ASSET_EXTENSIONS,
   brandAssetKey,
+  type BrandAssetExtension,
   DERIVED_ARTEFACTS,
   derivedKey,
   exportKey,

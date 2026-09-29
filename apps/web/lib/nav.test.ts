@@ -3,7 +3,14 @@ import { describe, expect, it } from "vitest";
 import { BRAND, CODENAME } from "@montaj/config";
 
 import { parseFlags } from "./flags";
-import { ALL_NAV, isActivePath, PRIMARY_NAV, SECONDARY_NAV, SETTINGS_NAV } from "./nav";
+import {
+  ALL_NAV,
+  isActiveNavItem,
+  isActivePath,
+  PRIMARY_NAV,
+  SECONDARY_NAV,
+  SETTINGS_NAV,
+} from "./nav";
 
 describe("PRIMARY_NAV", () => {
   it("is the premium canvas's rail, in its order", () => {
@@ -41,6 +48,7 @@ describe("PRIMARY_NAV", () => {
       "Academy",
       "Plugins",
       "Team",
+      "Brand kit",
       "Refer & earn",
       "Help",
     ]);
@@ -69,13 +77,14 @@ describe("PRIMARY_NAV", () => {
 });
 
 describe("SETTINGS_NAV", () => {
-  it("covers the sections of 08 §Settings that A13 owns, plus B04's Subscription section, B08's Licence keys, and B14's Developers", () => {
+  it("covers the sections of 08 §Settings that A13 owns, plus B04's Subscription section, B08's Licence keys, B14's Developers and the brand kit", () => {
     expect(SETTINGS_NAV.map((item) => item.key)).toEqual([
       "profile",
       "languages",
       "memory",
       "devices",
       "privacy",
+      "brand-kit",
       "notifications",
       "support",
       "subscription",
@@ -99,6 +108,21 @@ describe("isActivePath", () => {
 
   it("does not match a prefix that is only a partial segment", () => {
     expect(isActivePath("/settings-old", "/settings")).toBe(false);
+  });
+});
+
+describe("isActiveNavItem", () => {
+  const settings = ALL_NAV.find((item) => item.key === "settings");
+  const brandKit = ALL_NAV.find((item) => item.key === "brand-kit");
+
+  it("lights the brand kit alone on its page, and Settings on every other settings page", () => {
+    if (settings === undefined || brandKit === undefined) throw new Error("missing nav items");
+    expect(isActiveNavItem("/settings/brand-kit", brandKit)).toBe(true);
+    expect(isActiveNavItem("/settings/brand-kit", settings)).toBe(false);
+    expect(isActiveNavItem("/settings/privacy", settings)).toBe(true);
+    expect(isActiveNavItem("/settings/privacy", brandKit)).toBe(false);
+    // The rail has no brand kit row, so Settings stays lit there.
+    expect(isActiveNavItem("/settings/brand-kit", settings, PRIMARY_NAV)).toBe(true);
   });
 });
 

@@ -31,7 +31,16 @@ import { type Shaper } from "../fonts/shaper.js";
 import { type FontRegistry } from "../fonts/types.js";
 import { layoutSegment } from "../layout/layout.js";
 import { type Layout } from "../layout/types.js";
+import {
+  drawEndCardBackdrop,
+  drawEndCardContent,
+  type EndCardLayout,
+  endCardProgress,
+  layoutEndCard,
+} from "../overlay/end-card.js";
 import { HookTitleCache, renderHookTitles } from "../overlay/hook-title.js";
+import { drawLogo, type LogoPlacement, placeLogo } from "../overlay/logo.js";
+import { type EndCardTrack, type LogoTrack, OverlayLayoutCache } from "../overlay/types.js";
 import { type CanvasSize, assertCanvas } from "../units.js";
 
 export interface RenderFrameOptions {
@@ -85,6 +94,10 @@ const SHARED_PLACEMENTS = new PlacementCache();
 
 /** Used when a caller passes no hook-title cache. Weakly keyed by projection. */
 const SHARED_HOOK_TITLES = new HookTitleCache();
+
+/** Brand logos and end cards (2026-10-02), placed once per document. Weakly keyed by projection. */
+const SHARED_LOGOS = new OverlayLayoutCache<LogoPlacement>();
+const SHARED_END_CARDS = new OverlayLayoutCache<EndCardLayout>();
 
 /** The layouts that make up one frame; `renderFrame` is this plus `animate`. */
 export function layoutFrame(options: RenderFrameOptions): { layout: Layout; style: StyleDoc }[] {
@@ -163,8 +176,18 @@ export function renderFrame(options: RenderFrameOptions): DrawCommand[] {
   const { projection, timemap } = options;
   const sourceMs = timemap === null ? options.outputMs : timemap.toSource(options.outputMs);
   const watermarkAssetId = projection.render?.watermarkAssetId;
+  const overlays = projection.overlays ?? [];
 
   const commands: DrawCommand[] = [];
+  // An end card's dim goes under the captions (2026-10-02), so a line still
+  // being spoken reads on top of it. Only a document with an end card on
+  // screen draws anything here.
+  for (const overlay of overlays) {
+    if (overlay.kind !== "end-card") continue;
+    commands.push(
+      ...drawEndCardBackdrop(overlay, assertCanvas(options.canvas ?? projection.canvas), sourceMs),
+    );
+  }
   for (const { layout, style } of layoutFrame(options)) {
     commands.push(
       ...animate({
@@ -178,10 +201,11 @@ export function renderFrame(options: RenderFrameOptions): DrawCommand[] {
       }),
     );
   }
-  // The hook title sits over the captions (it never shares their space). Only
-  // a projection that carries overlays reaches this; every other frame is the
-  // same list it was before overlays existed.
-  if (projection.overlays !== undefined && projection.overlays.length > 0) {
+  // The hook title, a logo and an end card's content sit over the captions
+  // (they never share their space). Only a projection that carries overlays
+  // reaches this; every other frame is the same list it was before overlays
+  // existed.
+  if (overlays.length > 0) {
     commands.push(...overlayCommands(options, sourceMs));
   }
   if (watermarkAssetId !== undefined && commands.length >= 0) {
@@ -196,6 +220,10 @@ export function renderFrame(options: RenderFrameOptions): DrawCommand[] {
  * style — its default with the document overrides, the same one a caption
  * without a style of its own is drawn in — and kept off the captions shown
  * while each one is up, as well as off the faces.
+ *
+ * A brand logo (2026-10-02) is placed first, off the captions; the hook title
+ * then keeps off the captions and the logo; an end card's content keeps off
+ * the captions shown under it, and the corner logo fades out as it comes in.
  */
 function overlayCommands(options: RenderFrameOptions, sourceMs: number): DrawCommand[] {
   const { projection } = options;
@@ -218,19 +246,136 @@ function overlayCommands(options: RenderFrameOptions, sourceMs: number): DrawCom
     if (!isRenderError(error)) throw error;
     style = undefined;
   }
-  return renderHookTitles({
-    overlays,
-    sourceMs,
-    style,
-    canvas,
-    registry: options.registry,
-    shaper: options.shaper,
-    ...(options.faces === undefined ? {} : { faces: options.faces }),
-    captionsDuring: (startMs, endMs) => captionExtentsDuring(options, canvas, startMs, endMs),
-    cache: options.hookTitleCache ?? SHARED_HOOK_TITLES,
-    cacheOwner: projection,
-  });
+  const commands: DrawCommand[] = [];
+  const logos = logoPlacements(options, canvas, style);
+  if (logos.length > 0) {
+    let card = 0;
+    for (const overlay of overlays) {
+      if (overlay.kind !== "end-card") continue;
+      card = Math.max(card, endCardProgress(sourceMs, overlay.startMs, overlay.endMs));
+    }
+    for (const logo of logos) {
+      if (sourceMs < logo.startMs || sourceMs >= logo.endMs) continue;
+      commands.push(...drawLogo(logo, 1 - card));
+    }
+  }
+
+  commands.push(
+    ...renderHookTitles({
+      overlays,
+      sourceMs,
+      style,
+      canvas,
+      registry: options.registry,
+      shaper: options.shaper,
+      ...(options.faces === undefined ? {} : { faces: options.faces }),
+      captionsDuring: (startMs, endMs) => [
+        ...captionExtentsDuring(options, canvas, startMs, endMs),
+        // A logo up at the same time is one more thing to keep off.
+        ...logos
+          .filter((logo) => logo.startMs < endMs && logo.endMs > startMs)
+          .map((logo) => logo.dest),
+      ],
+      cache: options.hookTitleCache ?? SHARED_HOOK_TITLES,
+      cacheOwner: projection,
+    }),
+  );
+
+  if (style !== undefined) {
+    const cardStyle = style;
+    for (const overlay of overlays) {
+      if (overlay.kind !== "end-card") continue;
+      if (sourceMs < overlay.startMs || sourceMs >= overlay.endMs) continue;
+      const card = SHARED_END_CARDS.get(
+        projection,
+        brandOverlayKey(overlay, options, canvas, cardStyle),
+        () =>
+          layoutEndCard({
+            overlay,
+            style: cardStyle,
+            canvas,
+            registry: options.registry,
+            shaper: options.shaper,
+            captions: safeCaptionExtents(options, canvas, overlay.startMs, overlay.endMs),
+          }),
+      );
+      if (card !== undefined) commands.push(...drawEndCardContent(card, sourceMs));
+    }
+  }
+  return commands;
 }
+
+/**
+ * What decides a brand overlay's place besides the projection itself (the
+ * cache's owner): the overlay, the canvas, the style, the face track and which
+ * of the words' scripts the captions are drawn in.
+ */
+function brandOverlayKey(
+  overlay: LogoTrack | EndCardTrack,
+  options: RenderFrameOptions,
+  canvas: CanvasSize,
+  style: StyleDoc | undefined,
+): string {
+  return [
+    JSON.stringify(overlay),
+    canvas.width,
+    canvas.height,
+    style?.id ?? "-",
+    options.faces === undefined ? "-" : String(options.faces.times.length),
+    options.script ?? "roman",
+    options.dropFillers === true ? "drop" : "keep",
+  ].join("|");
+}
+
+/** Every logo in the document, placed off the captions shown while it is up. */
+function logoPlacements(
+  options: RenderFrameOptions,
+  canvas: CanvasSize,
+  style: StyleDoc | undefined,
+): LogoPlacement[] {
+  const placements: LogoPlacement[] = [];
+  for (const overlay of options.projection.overlays ?? []) {
+    if (overlay.kind !== "logo") continue;
+    const placement = SHARED_LOGOS.get(
+      options.projection,
+      brandOverlayKey(overlay, options, canvas, style),
+      () =>
+        placeLogo(
+          overlay,
+          canvas,
+          safeCaptionExtents(options, canvas, overlay.startMs, overlay.endMs),
+        ),
+    );
+    if (placement !== undefined) placements.push(placement);
+  }
+  return placements;
+}
+
+/**
+ * {@link captionExtentsDuring}, or nothing to avoid when the captions cannot be
+ * laid out: a caption the frame cannot draw is not one a logo has to dodge.
+ */
+function safeCaptionExtents(
+  options: RenderFrameOptions,
+  canvas: CanvasSize,
+  startMs: number,
+  endMs: number,
+): Rect[] {
+  try {
+    return captionExtentsDuring(options, canvas, startMs, endMs);
+  } catch (error) {
+    if (isRenderError(error)) return [];
+    throw error;
+  }
+}
+
+/**
+ * Past this many captions in a window, each is laid out at its start only: a
+ * logo put on a long video by hand is up for thousands of captions, and every
+ * word of every one of them would cost seconds for a nearly identical answer.
+ * A clip, or a hook title's few seconds, is far below it.
+ */
+const MAX_CAPTIONS_SAMPLED_BY_WORD = 120;
 
 /**
  * Everything the captions draw during `[startMs, endMs)` on the source clock:
@@ -245,10 +390,14 @@ function captionExtentsDuring(
   endMs: number,
 ): Rect[] {
   const { projection } = options;
+  const shown = projection.segments.filter(
+    (segment) => segment.hidden !== true && segment.endMs > startMs && segment.startMs < endMs,
+  );
+  const everyWord = shown.length <= MAX_CAPTIONS_SAMPLED_BY_WORD;
   const instants = new Set<number>();
-  for (const segment of projection.segments) {
-    if (segment.hidden === true || segment.endMs <= startMs || segment.startMs >= endMs) continue;
+  for (const segment of shown) {
     instants.add(Math.max(segment.startMs, startMs));
+    if (!everyWord) continue;
     for (const word of wordsBetween(projection.words, segment.startWordId, segment.endWordId)) {
       if (word.s > startMs && word.s < endMs) instants.add(word.s);
     }

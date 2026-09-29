@@ -558,6 +558,13 @@ export const API_OPERATIONS = [
     summary: "Clear every memory entry for the workspace",
   },
   {
+    operationId: "completeBrandKitLogo",
+    method: "POST",
+    path: "/brand-kit/logo/{assetId}/complete",
+    tags: ["brand-kit"],
+    summary: "Make an uploaded logo the kit's",
+  },
+  {
     operationId: "completeExportManifest",
     method: "POST",
     path: "/exports/manifests/{manifestId}/complete",
@@ -619,6 +626,13 @@ export const API_OPERATIONS = [
     path: "/workspaces/{id}/brand-assets",
     tags: ["exports"],
     summary: "Start uploading a brand asset (watermark or logo PNG)",
+  },
+  {
+    operationId: "createBrandKitLogoUpload",
+    method: "POST",
+    path: "/brand-kit/logo",
+    tags: ["brand-kit"],
+    summary: "Start uploading a logo (PNG, JPEG or WebP, up to 2 MB)",
   },
   {
     operationId: "createBreachIncident",
@@ -787,6 +801,13 @@ export const API_OPERATIONS = [
     path: "/workspaces/{id}/brand-assets/{assetId}",
     tags: ["exports"],
     summary: "Delete a brand asset",
+  },
+  {
+    operationId: "deleteBrandKitLogo",
+    method: "DELETE",
+    path: "/brand-kit/logo",
+    tags: ["brand-kit"],
+    summary: "Take the logo off the brand kit",
   },
   {
     operationId: "deleteFolder",
@@ -962,6 +983,13 @@ export const API_OPERATIONS = [
     path: "/batch/{batchId}",
     tags: ["batch"],
     summary: "Batch progress: per-project status",
+  },
+  {
+    operationId: "getBrandKit",
+    method: "GET",
+    path: "/brand-kit",
+    tags: ["brand-kit"],
+    summary: "The workspace's brand kit",
   },
   {
     operationId: "getBreachIncidentTemplates",
@@ -2355,6 +2383,13 @@ export const API_OPERATIONS = [
     path: "/s/{token}/unlock",
     tags: ["share-public"],
     summary: "Unlock a password-gated share link",
+  },
+  {
+    operationId: "updateBrandKit",
+    method: "PUT",
+    path: "/brand-kit",
+    tags: ["brand-kit"],
+    summary: "Save the brand kit",
   },
   {
     operationId: "updateBreachIncident",

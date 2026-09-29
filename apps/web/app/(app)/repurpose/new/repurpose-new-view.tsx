@@ -37,6 +37,7 @@ import {
 } from "@montaj/api-client";
 import { PageHeader } from "@montaj/ui";
 
+import { useBrandKit } from "@/components/brand-kit/use-brand-kit";
 import { rememberLanguage } from "@/components/projects/language-picker";
 import { AUTOMATIONS_FLAG, useBulkRuns } from "@/components/repurpose/automations/use-automations";
 import { SOURCE_CEILING_MS } from "@/components/repurpose/failure-detail";
@@ -144,6 +145,9 @@ export function RepurposeNewView(): React.JSX.Element {
   // over — so a repurposing upload is an ordinary upload that happens to have a
   // run attached, rather than a second pipeline that has to be kept in step.
   const uploads = useUploadQueue();
+  // The brand kit (2026-10-02): the switch is offered once one is saved.
+  const brandKit = useBrandKit();
+  const hasBrandKit = brandKit.data?.exists === true;
   const lastRequest = React.useRef<{ readonly key: string; readonly body: string } | null>(null);
   const [value, setValue] = React.useState<StartFormValue>(() =>
     // A failed run's own setup when it sent one; otherwise detect.
@@ -201,7 +205,7 @@ export function RepurposeNewView(): React.JSX.Element {
   const submitLinks = (): void => {
     const body = {
       links: linksToSend(linkLinesOf(value.links)),
-      setup: runSetupRequest(value),
+      setup: runSetupRequest(value, { brandKit: hasBrandKit }),
       rightsAttested: true as const,
     };
     lastRequest.current = idempotencyKeyFor(lastRequest.current, JSON.stringify(body));
@@ -224,7 +228,7 @@ export function RepurposeNewView(): React.JSX.Element {
    */
   const submitFiles = async (): Promise<void> => {
     setStartingFiles(true);
-    const setup = runSetupRequest(value);
+    const setup = runSetupRequest(value, { brandKit: hasBrandKit });
     const lines: SeveralLine[] = [];
     const pairs: { file: File; projectId: string }[] = [];
     const failed: File[] = [];
@@ -296,7 +300,7 @@ export function RepurposeNewView(): React.JSX.Element {
         : uploadSource(value.file);
 
     const setup: CreateRepurposeRunRequest["setup"] = {
-      ...runSetupRequest(value),
+      ...runSetupRequest(value, { brandKit: hasBrandKit }),
       // Only with a start: no window leaves the choice to the server.
       ...(startMs === undefined ? {} : { window: { startMs, policy: "range" as const } }),
     };
@@ -357,6 +361,7 @@ export function RepurposeNewView(): React.JSX.Element {
           {...(maxFileBytes === undefined ? {} : { maxFileBytes })}
           {...(planWindowMs === undefined ? {} : { planWindowMs })}
           processesWholeVideos={processesWholeVideos}
+          brandKit={hasBrandKit}
           // The length holds only while the link is still the one it came
           // with (`validateStartForm`).
           {...(startContext.knownLength === undefined

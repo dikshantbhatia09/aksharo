@@ -1,11 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { applyOps, fromProjection, newId, toProjection, type EdgState } from "@montaj/edg";
+import {
+  applyOps,
+  DEFAULT_BRAND_KIT_SETTINGS,
+  fromProjection,
+  newId,
+  stableOverlayId,
+  toProjection,
+  type EdgState,
+} from "@montaj/edg";
 import type { EdgOp, Pass, PassItem, TranscriptChunk, WordId } from "@montaj/edg/schemas";
 
 import {
   acceptableCut,
   ClipFinishing,
+  endCardWindow,
   FINISHING_MAX_MS,
   finishingInProgress,
   finishingRecordOf,
@@ -18,6 +27,7 @@ import {
 import { AppException } from "../common/index.js";
 import { JOB_ERROR_CODES } from "../jobs/jobs.errors.js";
 
+import type { KitForClips } from "../brand-kit/brand-kit.service.js";
 import type { RepurposeRun } from "@prisma/client";
 
 const WS = "01JFWS0000000000000000000A";
@@ -121,6 +131,8 @@ let passes: {
   startZoom: ReturnType<typeof vi.fn>;
 };
 let finishing: ClipFinishing;
+/** The workspace's brand kit, as `BrandKitService.forClips` answers; none by default. */
+let kit: KitForClips | null;
 
 function edgIdOf(projectId: string): string {
   return `${projectId.slice(0, 24)}ED`;
@@ -229,6 +241,7 @@ beforeEach(() => {
     [WIDE, { id: WIDE, projectId: PROJECT_16X9, finishing: null, latestExportId: null }],
   ]);
   jobs = new Map();
+  kit = null;
   plan = { autocut: true, reframeZoom: true };
   applied = [];
   passes = {
@@ -315,6 +328,7 @@ beforeEach(() => {
     edgRepository as never,
     entitlements as never,
     passes as never,
+    { forClips: vi.fn(async () => kit) } as never,
   );
 });
 
@@ -502,7 +516,11 @@ describe("ClipFinishing on a 9:16 shape", () => {
     doc.revision = 2;
     expect(await finishing.advance(RUN, vertical())).toBe("just-finished");
     const after = projection(PROJECT_9X16);
-    expect(after.overlays?.map((overlay) => overlay.text)).toEqual(["Mine"]);
+    expect(
+      after.overlays?.map((overlay) =>
+        overlay.kind === "hook-title" ? overlay.text : overlay.kind,
+      ),
+    ).toEqual(["Mine"]);
     expect(after.segments[0]?.emphasis).toEqual([{ wordId: "0:1", presetId: "shout" }]);
     expect(after.segments[1]?.emphasis).toEqual([{ wordId: "0:8", presetId: "pop" }]);
   });
@@ -690,5 +708,181 @@ describe("keywordPresetId", () => {
     ).toBe("underline");
     expect(keywordPresetId([{ id: "mark", effect: "highlight" }])).toBeUndefined();
     expect(keywordPresetId(undefined)).toBeUndefined();
+  });
+});
+
+describe("ClipFinishing with a brand kit (2026-10-02)", () => {
+  const BRANDED = { ...RUN, config: { automation: "auto", brand: true } } as RepurposeRun;
+  const LOGO = {
+    assetId: "01JFL0G0ASSET0000000000000",
+    format: "png" as const,
+    width: 400,
+    height: 200,
+  };
+  const KIT: KitForClips = {
+    settings: {
+      ...DEFAULT_BRAND_KIT_SETTINGS,
+      captions: { fontFamily: "Poppins", highlight: "#f0508a", stroke: "#000000" },
+      endCard: {
+        ...DEFAULT_BRAND_KIT_SETTINGS.endCard,
+        enabled: true,
+        cta: "Follow for more",
+        handle: "@aksharo",
+      },
+    },
+    logo: LOGO,
+  };
+
+  beforeEach(() => {
+    plan = { autocut: false, reframeZoom: false };
+  });
+
+  it("dresses the finished clip: caption colours and typeface, the hook's card, the logo and the end card", async () => {
+    kit = KIT;
+    expect(await finishing.advance(BRANDED, vertical())).toBe("just-finished");
+    expect(recordOf(VERTICAL)?.steps.brand).toMatchObject({ state: "done", applied: 4 });
+
+    const after = projection(PROJECT_9X16);
+    const doc = (after.styles.inline as { doc?: Record<string, unknown> } | undefined)?.doc;
+    expect(doc).toMatchObject({
+      typography: { fontFamily: "Poppins" },
+      colors: { activeText: "#f0508a" },
+      stroke: { color: "#000000" },
+    });
+    // The keyword emphasis Autopilot put on wears the brand's highlight.
+    const presets = doc?.["emphasisPresets"] as { id: string; color?: string }[];
+    expect(presets.find((preset) => preset.id === "pop")?.color).toBe("#f0508a");
+
+    const overlays = after.overlays ?? [];
+    expect(overlays.map((overlay) => overlay.kind).sort()).toEqual([
+      "end-card",
+      "hook-title",
+      "logo",
+    ]);
+    expect(overlays.find((overlay) => overlay.kind === "hook-title")).toMatchObject({
+      id: VERTICAL,
+      appearance: { fontFamily: "Poppins", background: "#f0508a" },
+    });
+    expect(overlays.find((overlay) => overlay.kind === "logo")).toMatchObject({
+      id: stableOverlayId(VERTICAL + ":logo"),
+      startMs: 0,
+      endMs: 30_000,
+      image: LOGO,
+      corner: "top-right",
+    });
+    // The last three seconds of the clip, which keeps its length.
+    expect(overlays.find((overlay) => overlay.kind === "end-card")).toMatchObject({
+      id: stableOverlayId(VERTICAL + ":end-card"),
+      startMs: 27_000,
+      endMs: 30_000,
+      cta: "Follow for more",
+      handle: "@aksharo",
+      image: LOGO,
+    });
+    expect(after.media[0]?.durationMs).toBe(30_000);
+  });
+
+  it("makes exactly today's clip for a run that did not ask, or a workspace with no kit", async () => {
+    // The same clip finished three ways: brand off, brand on with no kit, and
+    // brand off with a kit. All three documents are the same document.
+    const finish = async (run: RepurposeRun): Promise<unknown> => {
+      docs.set(PROJECT_9X16, { state: documentOf(PROJECT_9X16, "9:16"), revision: 1 });
+      variants.set(VERTICAL, {
+        id: VERTICAL,
+        projectId: PROJECT_9X16,
+        finishing: null,
+        latestExportId: null,
+      });
+      expect(await finishing.advance(run, vertical())).toBe("just-finished");
+      const { meta: _meta, ...rest } = projection(PROJECT_9X16);
+      return rest;
+    };
+    const plain = await finish(RUN);
+    expect(recordOf(VERTICAL)?.steps.brand).toMatchObject({ state: "skipped", reason: "off" });
+
+    kit = null;
+    expect(await finish(BRANDED)).toEqual(plain);
+    expect(recordOf(VERTICAL)?.steps.brand).toMatchObject({ state: "skipped", reason: "no-kit" });
+
+    kit = KIT;
+    expect(await finish(RUN)).toEqual(plain);
+    expect(recordOf(VERTICAL)?.steps.brand).toMatchObject({ state: "skipped", reason: "off" });
+  });
+
+  it("keeps what the clip already has: a person's own title and logo", async () => {
+    kit = KIT;
+    const doc = docFor(PROJECT_9X16);
+    const theirs = applyOps(
+      doc.state,
+      [
+        {
+          opId: newId(),
+          type: "SetOverlay",
+          overlay: {
+            id: "01JFPERS0NHQQK000000000000",
+            kind: "hook-title",
+            text: "Mine",
+            startMs: 0,
+            endMs: 2_000,
+          },
+        },
+        {
+          opId: newId(),
+          type: "SetOverlay",
+          overlay: {
+            id: "01JFPERS0NL0G0000000000000",
+            kind: "logo",
+            startMs: 0,
+            endMs: 30_000,
+            image: LOGO,
+            corner: "bottom-left",
+            sizePct: 10,
+            opacity: 1,
+            marginPct: 2,
+          },
+        },
+      ],
+      { source: "worker", revision: 2 },
+    );
+    doc.state = theirs.state;
+    doc.revision = 2;
+    expect(await finishing.advance(BRANDED, vertical())).toBe("just-finished");
+    const overlays = projection(PROJECT_9X16).overlays ?? [];
+    // Their title is kept as it is; their logo too; only the end card is added.
+    expect(overlays.find((overlay) => overlay.kind === "hook-title")).not.toHaveProperty(
+      "appearance",
+    );
+    expect(overlays.filter((overlay) => overlay.kind === "logo")).toHaveLength(1);
+    expect(overlays.filter((overlay) => overlay.kind === "end-card")).toHaveLength(1);
+  });
+
+  it("leaves the logo off when the kit does not show it in a corner", async () => {
+    kit = { ...KIT, settings: { ...KIT.settings, logo: { ...KIT.settings.logo, show: false } } };
+    expect(await finishing.advance(BRANDED, vertical())).toBe("just-finished");
+    const kinds = (projection(PROJECT_9X16).overlays ?? []).map((overlay) => overlay.kind);
+    expect(kinds).not.toContain("logo");
+    expect(kinds).toContain("end-card");
+  });
+});
+
+describe("endCardWindow", () => {
+  it("covers the last seconds of the video as it plays after its cuts", () => {
+    expect(endCardWindow([], 30_000, 3_000)).toEqual({ startMs: 27_000, endMs: 30_000 });
+    // Two seconds cut from inside the last three: the card starts two earlier.
+    const cut = {
+      itemId: "01JFCVTEND0000000000000000",
+      passId: CUT_PASS,
+      kind: "cut",
+      startMs: 28_000,
+      endMs: 30_000,
+      payload: {},
+      state: "accepted",
+    } as PassItem;
+    expect(endCardWindow([cut], 30_000, 3_000)).toEqual({ startMs: 25_000, endMs: 30_000 });
+  });
+
+  it("is nothing for a video too short to carry it beside the hook title", () => {
+    expect(endCardWindow([], 4_000, 3_000)).toBeUndefined();
+    expect(endCardWindow([], 0, 3_000)).toBeUndefined();
   });
 });

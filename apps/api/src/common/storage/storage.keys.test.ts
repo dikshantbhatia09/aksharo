@@ -58,6 +58,12 @@ describe("CONTRACTS §6 key shapes", () => {
     expect(() => brandAssetKey(WS, "")).toThrow(StorageKeyError);
   });
 
+  it("files a brand kit's logo under its own extension, and no other (2026-10-02)", () => {
+    expect(brandAssetKey(WS, EXPORT, "jpg")).toBe(`ws/${WS}/brand/${EXPORT}.jpg`);
+    expect(brandAssetKey(WS, EXPORT, "webp")).toBe(`ws/${WS}/brand/${EXPORT}.webp`);
+    expect(() => brandAssetKey(WS, EXPORT, "svg" as "png")).toThrow(StorageKeyError);
+  });
+
   it("files the imported-subtitle sidecar under the media prefix", () => {
     expect(subtitleKey(WS, PROJECT, MEDIA)).toBe(
       `${mediaPrefix(WS, PROJECT, MEDIA)}/subtitle.json`,

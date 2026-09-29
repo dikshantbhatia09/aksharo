@@ -136,7 +136,6 @@ export {
 
 export {
   drawHookTitle,
-  HOOK_TITLE_KIND,
   HOOK_TITLE_SIZE,
   HookTitleCache,
   type HookTitleInput,
@@ -145,10 +144,42 @@ export {
   hookTitlePhase,
   layoutHookTitle,
   MIN_HOOK_TITLE_SCALE,
-  type OverlayTrack,
   renderHookTitles,
   type RenderHookTitlesOptions,
 } from "./overlay/hook-title.js";
+
+// The overlay tracks, and the brand kit's logo and end card (2026-10-02).
+export {
+  END_CARD_KIND,
+  type EndCardTrack,
+  HOOK_TITLE_KIND,
+  type HookTitleAppearance,
+  type HookTitleTrack,
+  LOGO_KIND,
+  type LogoTrack,
+  type OverlayCorner,
+  type OverlayImageRef,
+  OverlayLayoutCache,
+  overlayActiveAt,
+  overlayImageIds,
+  type OverlayTrack,
+} from "./overlay/types.js";
+export {
+  drawLogo,
+  LOGO_MAX_HEIGHT,
+  type LogoPlacement,
+  logoRect,
+  placeLogo,
+} from "./overlay/logo.js";
+export {
+  drawEndCardBackdrop,
+  drawEndCardContent,
+  END_CARD_DIM,
+  type EndCardInput,
+  type EndCardLayout,
+  endCardProgress,
+  layoutEndCard,
+} from "./overlay/end-card.js";
 
 export { isRenderError, RenderError, type RenderErrorCode } from "./errors.js";
 

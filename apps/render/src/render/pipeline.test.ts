@@ -27,7 +27,7 @@ import { isRenderManifestError } from "@montaj/render-manifest";
 import { fixtureManifest } from "@montaj/render-manifest/testing";
 
 import { renderVideo, type RenderDependencies } from "./pipeline.js";
-import { rawKey } from "../storage.js";
+import { brandAssetKey, rawKey } from "../storage.js";
 import {
   createDirectoryStore,
   FIXTURE_IDS,
@@ -256,6 +256,77 @@ describe("a whole cloud render", () => {
     expect(pixel).toHaveLength(3);
     expect(pixel[0]).toBeGreaterThan((pixel[1] ?? 0) + 30);
     expect(pixel[0]).toBeGreaterThan((pixel[2] ?? 0) + 30);
+  }, 600_000);
+
+  it("burns in a brand kit's logo, read from the workspace's own brand prefix (2026-10-02)", async () => {
+    const assetId = "01JASSET000000000000000000";
+    // An 8×4 opaque red PNG, uploaded by the brand kit as `{assetId}.png`.
+    await derivedStore.seedBytes(
+      brandAssetKey(FIXTURE_IDS.workspaceId, assetId, "png"),
+      Uint8Array.from(
+        Buffer.from(
+          "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAECAYAAACzzX7wAAAAEklEQVR4nGP4z8DwHx9moL0CAHD0P8F+ACg+AAAAAElFTkSuQmCC",
+          "base64",
+        ),
+      ),
+    );
+    const payload = await samplePayload(SECRET, baseOverrides(), CLIP_SECONDS * 1000);
+    const branded: RenderVideoPayload = {
+      ...payload,
+      projection: {
+        ...payload.projection,
+        overlays: [
+          {
+            id: "01JMGG00000000000000000000",
+            kind: "logo",
+            startMs: 0,
+            endMs: CLIP_SECONDS * 1000,
+            image: { assetId, format: "png", width: 8, height: 4 },
+            corner: "top-right",
+            sizePct: 25,
+            opacity: 1,
+            marginPct: 5,
+          },
+        ],
+      },
+    };
+    // Inline, so the one test that proves the default resolver does not also
+    // start a pool of rasterisers.
+    const outcome = await renderVideo(
+      branded,
+      FIXTURE_IDS.workspaceId,
+      dependencies({ rasterWorkers: 0 }),
+    );
+
+    // 25 % of 540 wide is 135 × 67.5, 27 px (5 %) in from the top right.
+    const frame = join(scratch, "logo-frame.png");
+    await run(
+      "ffmpeg",
+      [
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-y",
+        "-ss",
+        "1",
+        "-i",
+        derivedStore.pathFor(outcome.outputKey),
+        "-frames:v",
+        "1",
+        "-vf",
+        `crop=64:24:${String(WIDTH - 27 - 100)}:40,scale=1:1`,
+        "-f",
+        "rawvideo",
+        "-pix_fmt",
+        "rgb24",
+        frame,
+      ],
+      { timeout: 120_000, windowsHide: true },
+    );
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
+    const pixel = await readFile(frame);
+    expect(pixel[0]).toBeGreaterThan((pixel[1] ?? 0) + 60);
+    expect(pixel[0]).toBeGreaterThan((pixel[2] ?? 0) + 60);
   }, 600_000);
 
   it("rasterises far fewer frames than it writes, because captions hold still", async () => {

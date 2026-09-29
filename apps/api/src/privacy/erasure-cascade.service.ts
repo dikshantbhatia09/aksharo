@@ -257,6 +257,22 @@ export class ErasureCascadeService {
       }
     }
 
+    // Brand assets (a watermark, a brand kit's logos, 2026-10-02): the rows are
+    // deleted with the workspace's other rows below, and their objects here,
+    // first, or nothing would ever name them again.
+    const brandAssets = await this.prisma.brandAsset.findMany({
+      where: { workspaceId },
+      select: { storageKey: true },
+    });
+    const brandKeys = brandAssets.map((asset) => asset.storageKey).filter((key) => key !== "");
+    if (brandKeys.length > 0) {
+      try {
+        derivedObjectsDeleted += await this.derived.deleteMany(brandKeys);
+      } catch (error) {
+        this.logger.warn({ err: describe(error) }, "brand assets not erased");
+      }
+    }
+
     const exports = await this.prisma.export.findMany({
       where: { workspaceId, storageKey: { not: null } },
       select: { storageKey: true },

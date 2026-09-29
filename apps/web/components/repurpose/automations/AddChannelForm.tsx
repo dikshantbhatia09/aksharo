@@ -20,6 +20,7 @@ import { AUTOMATIONS_COPY, automationRefusal } from "./automations-copy";
 import { looksLikeChannelLink, normaliseChannelLink } from "./channel-link";
 import { useCreateWatch, useResolveChannel, type ResolvedChannel } from "./use-automations";
 
+import { useBrandKit } from "@/components/brand-kit/use-brand-kit";
 import {
   EMPTY_RUN_SETUP,
   RunSetupFields,
@@ -41,6 +42,9 @@ export function AddChannelForm({
 }): React.JSX.Element {
   const resolve = useResolveChannel();
   const create = useCreateWatch();
+  // A saved brand kit offers the brand switch for the channel's runs (2026-10-02).
+  const brandKit = useBrandKit();
+  const hasBrandKit = brandKit.data?.exists === true;
   const [link, setLink] = React.useState("");
   const [found, setFound] = React.useState<ResolvedChannel | null>(null);
   const [setup, setSetup] = React.useState<RunSetupValue>(EMPTY_RUN_SETUP);
@@ -92,7 +96,7 @@ export function AddChannelForm({
     create.mutate(
       {
         url: normalised,
-        setup: runSetupRequest(setup, { forChannel: true }),
+        setup: runSetupRequest(setup, { forChannel: true, brandKit: hasBrandKit }),
         backfill,
         rightsAttested: true,
       },
@@ -203,6 +207,7 @@ export function AddChannelForm({
               onChange={setSetup}
               problems={visible}
               forChannel
+              brandKit={hasBrandKit}
               idPrefix="watch-new"
             />
 

@@ -6,6 +6,7 @@ import {
   RunConfigSchema,
 } from "@montaj/repurpose-contracts";
 
+import { brandOf } from "./repurpose.constants.js";
 import { createRunSchema, listRunsSchema, runViewSchema } from "./repurpose.dto.js";
 import { withLengthPreset } from "./steering.js";
 
@@ -323,6 +324,40 @@ describe("run view DTO — what the page reads about windows (2026-09-27)", () =
     ).toBe(true);
     // Missing is not the same as null: every run view carries all four.
     expect(runViewSchema.safeParse(base).success).toBe(false);
+  });
+});
+
+describe("create-run DTO — the brand kit (2026-10-02)", () => {
+  const body = (setup: Record<string, unknown>) => ({
+    source: {
+      kind: "url",
+      url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+      rightsAttested: true,
+    },
+    setup: {
+      sourceLanguage: "auto",
+      caption: { outputLanguage: "same", scriptMode: "auto", styleId: "punch-pop" },
+      discovery: { mode: "ai", requestedCandidates: 5 },
+      automation: "auto",
+      ...setup,
+    },
+  });
+
+  it("takes the brand kit switch, and runs without it as before", () => {
+    const on = createRunSchema.safeParse(body({ brand: true }));
+    expect(on.success).toBe(true);
+    expect(on.data?.setup.brand).toBe(true);
+    const absent = createRunSchema.safeParse(body({}));
+    expect(absent.success).toBe(true);
+    expect(absent.data?.setup).not.toHaveProperty("brand");
+    expect(createRunSchema.safeParse(body({ brand: "yes" })).success).toBe(false);
+  });
+
+  it("reads a run's brand switch off its frozen config, off unless it is true", () => {
+    expect(brandOf({ config: { brand: true } })).toBe(true);
+    expect(brandOf({ config: { brand: "true" } })).toBe(false);
+    expect(brandOf({ config: {} })).toBe(false);
+    expect(brandOf({ config: null })).toBe(false);
   });
 });
 

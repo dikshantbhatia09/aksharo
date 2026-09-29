@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { EdgProjection, TranscriptChunk } from "@montaj/edg/schemas";
 
-import { buildRenderProjection } from "./projection.js";
+import { buildRenderProjection, overlayImageIds } from "./projection.js";
 
 const EDG_ID = "01JA20EDG00000000000000000";
 const PROJECT_ID = "01JA20PRJECT00000000000000";
@@ -46,6 +46,72 @@ describe("buildRenderProjection", () => {
     };
     expect(buildRenderProjection(baseEdg({ overlays: [hook] }), []).overlays).toEqual([hook]);
     expect(buildRenderProjection(baseEdg(), [])).not.toHaveProperty("overlays");
+  });
+
+  describe("a brand kit's overlays (2026-10-02)", () => {
+    const KEPT = "01JKEPT0000000000000000000";
+    const GONE = "01JG0NE0000000000000000000";
+    const image = (assetId: string) => ({
+      assetId,
+      format: "webp" as const,
+      width: 512,
+      height: 256,
+    });
+    const logo = (assetId: string) => ({
+      id: `01JL0G0${assetId.slice(7)}`,
+      kind: "logo" as const,
+      startMs: 0,
+      endMs: 30_000,
+      image: image(assetId),
+      corner: "top-right" as const,
+      sizePct: 16,
+      opacity: 0.9,
+      marginPct: 4,
+    });
+    const card = (assetId: string, words = true) => ({
+      id: "01JCRD00000000000000000000",
+      kind: "end-card" as const,
+      startMs: 27_000,
+      endMs: 30_000,
+      ...(words ? { cta: "Follow for more" } : {}),
+      background: "#141217",
+      image: image(assetId),
+    });
+    const styledHook = {
+      id: "01JHQQK0000000000000000000",
+      kind: "hook-title" as const,
+      text: "Paisa bachana easy hai",
+      startMs: 0,
+      endMs: 2_500,
+      appearance: { background: "#f0508a" },
+    };
+
+    it("names every logo the document draws, once", () => {
+      expect(overlayImageIds(baseEdg({ overlays: [logo(KEPT), card(KEPT), styledHook] }))).toEqual([
+        KEPT,
+      ]);
+      expect(overlayImageIds(baseEdg())).toEqual([]);
+    });
+
+    it("passes them as stored, the hook title's look included", () => {
+      const overlays = [styledHook, logo(KEPT), card(KEPT)];
+      expect(buildRenderProjection(baseEdg({ overlays }), []).overlays).toEqual(overlays);
+    });
+
+    it("leaves out a logo the workspace no longer keeps, and draws an end card without it", () => {
+      const images = new Set([KEPT]);
+      const projection = buildRenderProjection(
+        baseEdg({ overlays: [logo(KEPT), logo(GONE), card(GONE)] }),
+        [],
+        { images },
+      );
+      expect(projection.overlays?.map((overlay) => overlay.kind)).toEqual(["logo", "end-card"]);
+      expect(projection.overlays?.[1]).not.toHaveProperty("image");
+      // A card that was only its logo is left out altogether.
+      expect(
+        buildRenderProjection(baseEdg({ overlays: [card(GONE, false)] }), [], { images }),
+      ).not.toHaveProperty("overlays");
+    });
   });
 
   it("maps every documented segment field, and omits absent optionals", () => {

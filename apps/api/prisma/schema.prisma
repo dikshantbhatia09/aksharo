@@ -1504,18 +1504,26 @@ model StylePreset {
   @@map("style_presets")
 }
 
+/// A workspace's brand kit (live 2026-10-02, `apps/api/src/brand-kit/`): one per
+/// workspace in v1 (`brand_kits_workspace_id_key`), which Autopilot applies to a
+/// run's clips when the run says so (`setup.brand`).
 model BrandKit {
   id          String   @id @db.Char(26)
-  workspaceId String   @map("workspace_id") @db.Char(26)
+  workspaceId String   @unique @map("workspace_id") @db.Char(26)
   name        String
-  /// Zod: `BrandKitSchema` — palette, fonts, logo keys, caption defaults.
+  /// Zod: `BrandKitSettingsSchema` (`@montaj/edg` `brand.ts`) under `{ v: 1 }` —
+  /// colours, caption and hook-title typeface and colours, logo placement, end card.
   doc         Json     @default("{}") @db.JsonB
+  /// Unused (from the initial schema); the logo is `logoAssetId`.
   logoKey     String?  @map("logo_key")
+  /// The logo the kit adds to clips: a `brand_assets` row of kind `logo`.
+  logoAssetId String?  @map("logo_asset_id") @db.Char(26)
   isDefault   Boolean  @default(false) @map("is_default")
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspace Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  logoAsset BrandAsset? @relation(fields: [logoAssetId], references: [id], onDelete: SetNull)
 
   @@unique([workspaceId, name])
   @@index([workspaceId])
@@ -2050,15 +2058,21 @@ enum AudioCleanStatus {
 model BrandAsset {
   id          String   @id @db.Char(26)
   workspaceId String   @map("workspace_id") @db.Char(26)
-  /// `watermark` today; open for a future logo/brand-kit asset kind.
+  /// `watermark`, or `logo` (2026-10-02): a brand kit's logo, stored at
+  /// `ws/{workspaceId}/brand/{assetId}.{png|jpg|webp}`, kept while the kit or a
+  /// document still draws it.
   kind        String   @default("watermark")
   storageKey  String   @map("storage_key")
   contentType String   @map("content_type")
   sizeBytes   Int?     @map("size_bytes")
+  /// Pixel size, measured on upload (logos only), so a renderer can size it undecoded.
+  width       Int?
+  height      Int?
   createdBy   String?  @map("created_by") @db.Char(26)
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspace Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  brandKits BrandKit[]
 
   @@index([workspaceId])
   @@map("brand_assets")

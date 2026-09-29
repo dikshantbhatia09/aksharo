@@ -17,6 +17,8 @@ export interface ExportButtonProps {
   readonly catalogue: ReadonlyMap<string, StyleDoc>;
   readonly registry: FontRegistry | undefined;
   readonly shaper: Shaper | undefined;
+  /** The brand logos the projection may draw, asset id to a signed URL (2026-10-02). */
+  readonly images?: Readonly<Record<string, string>>;
   /**
    * Opens the dialog on mount. The projects "⋯" menu's Export navigates here
    * with `?export=1` rather than dropping the user in the editor and leaving
@@ -84,6 +86,7 @@ export function ExportButton(props: ExportButtonProps): React.JSX.Element {
         catalogue={props.catalogue}
         registry={props.registry}
         shaper={props.shaper}
+        {...(props.images === undefined ? {} : { images: props.images })}
       />
     </>
   );

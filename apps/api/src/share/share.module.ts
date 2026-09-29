@@ -5,6 +5,7 @@ import { ShareLinksController } from "./share-links.controller.js";
 import { ShareLinksService } from "./share-links.service.js";
 import { ShareSessionSigner } from "./token.js";
 import { PasswordService } from "../auth/password.service.js";
+import { BrandKitModule } from "../brand-kit/brand-kit.module.js";
 import { EdgModule } from "../edg/index.js";
 import { WorkspacesModule } from "../workspaces/workspaces.module.js";
 
@@ -26,7 +27,7 @@ import { WorkspacesModule } from "../workspaces/workspaces.module.js";
  * routes) needs the same scope and liveness checks.
  */
 @Module({
-  imports: [WorkspacesModule, EdgModule],
+  imports: [WorkspacesModule, EdgModule, BrandKitModule],
   controllers: [ShareLinksController, PublicViewerController],
   providers: [ShareLinksService, ShareSessionSigner, PasswordService],
   exports: [ShareLinksService, ShareSessionSigner],

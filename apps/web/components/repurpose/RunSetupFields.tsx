@@ -22,6 +22,7 @@
  * `<fieldset><legend>`, and each error is attached to its control.
  */
 import { ChevronRight } from "lucide-react";
+import NextLink from "next/link";
 import * as React from "react";
 
 import type { CreateRepurposeRunRequest } from "@montaj/api-client";
@@ -30,7 +31,7 @@ import { Button, Field, Input, cn } from "@montaj/ui";
 import { PICKABLE_STYLES } from "@/components/editor/panels/system-styles";
 import { LanguagePicker } from "@/components/projects/language-picker";
 import { WritingScriptPicker } from "@/components/projects/writing-script-picker";
-import { AUTOPILOT_COPY, STEERING_COPY } from "@/components/repurpose/copy";
+import { AUTOPILOT_COPY, BRAND_COPY, STEERING_COPY } from "@/components/repurpose/copy";
 import {
   CLIP_LENGTHS,
   DEFAULT_CLIP_LENGTH,
@@ -77,6 +78,12 @@ export interface RunSetupValue {
    */
   readonly autopilot: boolean;
   /**
+   * The brand kit (2026-10-02): Autopilot puts the workspace's logo, colours
+   * and end card on the clips (`setup.brand`). Offered only with Autopilot on
+   * and a kit saved; on by default whenever it is offered.
+   */
+  readonly useBrand: boolean;
+  /**
    * Steering (2026-09-29), for "Suggest the strongest moments for me" only:
    * what the clips should be about (empty is anything strong), how long they
    * should be, and the minutes of the start and end to take no clip from, as
@@ -97,6 +104,7 @@ export const EMPTY_RUN_SETUP: RunSetupValue = Object.freeze({
   method: "ai",
   requestedCandidates: 5,
   autopilot: true,
+  useBrand: true,
   topic: "",
   clipLength: DEFAULT_CLIP_LENGTH,
   skipIntro: "",
@@ -142,9 +150,10 @@ export function validateRunSetup(value: RunSetupValue): RunSetupProblems {
  */
 export function runSetupRequest(
   value: RunSetupValue,
-  options: { readonly forChannel?: boolean } = {},
+  options: { readonly forChannel?: boolean; readonly brandKit?: boolean } = {},
 ): CreateRepurposeRunRequest["setup"] {
   const method = options.forChannel === true ? "ai" : value.method;
+  const autopilot = options.forChannel === true || value.autopilot;
   return {
     // The form never submits without a choice; `auto` is the safe reading
     // of a missing one, where "en" was a guess that cost money.
@@ -161,7 +170,9 @@ export function runSetupRequest(
       // only when we pick the moments (steering, 2026-09-29).
       ...(method === "manual" ? {} : discoverySteeringOf(value)),
     },
-    automation: options.forChannel === true || value.autopilot ? "auto" : "manual",
+    automation: autopilot ? "auto" : "manual",
+    // Only what was offered and left on: Autopilot, a saved kit, the switch.
+    ...(autopilot && options.brandKit === true && value.useBrand ? { brand: true } : {}),
   };
 }
 
@@ -186,6 +197,7 @@ export function runSetupValueOf(setup: CreateRepurposeRunRequest["setup"]): RunS
     method: manual ? "manual" : "ai",
     requestedCandidates: discovery.requestedCandidates ?? EMPTY_RUN_SETUP.requestedCandidates,
     autopilot: setup.automation !== "manual",
+    useBrand: setup.brand === true,
     topic: discovery.topic ?? "",
     clipLength: discovery.clipLength ?? EMPTY_RUN_SETUP.clipLength,
     skipIntro: minutesText(discovery.skipIntroMs),
@@ -237,6 +249,8 @@ export interface RunSetupFieldsProps<V extends RunSetupValue> {
    * own (`repurpose`), so its ids, and the tests that find them, are unchanged.
    */
   readonly idPrefix?: string;
+  /** The workspace has a saved brand kit (2026-10-02): the brand switch is offered. */
+  readonly brandKit?: boolean;
 }
 
 export function RunSetupFields<V extends RunSetupValue>({
@@ -245,6 +259,7 @@ export function RunSetupFields<V extends RunSetupValue>({
   problems,
   forChannel = false,
   idPrefix = "repurpose",
+  brandKit = false,
 }: RunSetupFieldsProps<V>): React.JSX.Element {
   const [advancedOpen, setAdvancedOpen] = React.useState(false);
   // The last language picked by hand, so "I'll choose it" after a detour to
@@ -595,6 +610,36 @@ export function RunSetupFields<V extends RunSetupValue>({
           />
         </div>
       )}
+
+      {brandKit && (forChannel || value.autopilot) ? (
+        <div className="flex items-start justify-between gap-4" data-testid="brand-kit-option">
+          <div className="min-w-0">
+            <label htmlFor={id("brand")} className="text-sm font-medium text-fg-1">
+              {BRAND_COPY.label}
+            </label>
+            <p className="mt-1 text-xs text-fg-2" data-testid="brand-hint">
+              {value.useBrand ? BRAND_COPY.on : BRAND_COPY.off}{" "}
+              <NextLink
+                href="/settings/brand-kit"
+                className="text-accent-300 rounded-sm underline underline-offset-4 hover:text-accent-200"
+              >
+                Edit
+              </NextLink>
+            </p>
+          </div>
+          <input
+            id={id("brand")}
+            type="checkbox"
+            role="switch"
+            className="panel-switch mt-0.5 shrink-0"
+            checked={value.useBrand}
+            data-testid="brand-switch"
+            onChange={(event) => {
+              set("useBrand", event.target.checked);
+            }}
+          />
+        </div>
+      ) : null}
 
       <div className="border-t border-border pt-4">
         <Button

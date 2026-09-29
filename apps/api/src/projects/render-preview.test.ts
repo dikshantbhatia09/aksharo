@@ -18,6 +18,8 @@ function deps(
     media?: Record<string, unknown> | null;
     document?: boolean;
     project?: Record<string, unknown> | null;
+    overlays?: readonly Record<string, unknown>[];
+    keptLogos?: readonly string[];
   } = {},
 ) {
   const media =
@@ -43,6 +45,7 @@ function deps(
       canvas: { width: 1080, height: 1920 },
       styles: { defaultStyleId: "punch-pop" },
       segments: [],
+      ...(options.overlays === undefined ? {} : { overlays: options.overlays }),
     })),
     loadChunks: vi.fn(async () => []),
   };
@@ -52,7 +55,16 @@ function deps(
     ),
   };
   const faces = { maybeEnqueue: vi.fn(async () => undefined) };
-  return { prisma, edg, derived, faces };
+  const brandKits = {
+    imageUrls: vi.fn(async (_workspaceId: string, ids: readonly string[]) =>
+      Object.fromEntries(
+        ids
+          .filter((id) => (options.keptLogos ?? []).includes(id))
+          .map((id) => [id, `https://cdn.example.test/brand/${id}`]),
+      ),
+    ),
+  };
+  return { prisma, edg, derived, faces, brandKits };
 }
 
 /** Every TTL `presignGet` was asked for, by key. */
@@ -130,8 +142,51 @@ describe("RenderPreviewService.forProject", () => {
       d.edg as never,
       d.derived as never,
       d.faces as never,
+      d.brandKits as never,
     );
   }
+
+  it("signs the brand logos the document draws, and leaves out one the workspace no longer keeps (2026-10-02)", async () => {
+    const image = (assetId: string) => ({ assetId, format: "png", width: 400, height: 200 });
+    const logo = (id: string, assetId: string) => ({
+      id,
+      kind: "logo",
+      startMs: 0,
+      endMs: 30_000,
+      image: image(assetId),
+      corner: "top-right",
+      sizePct: 16,
+      opacity: 0.9,
+      marginPct: 4,
+    });
+    const KEPT = "01JKEPT0000000000000000000";
+    const GONE = "01JG0NE0000000000000000000";
+    const d = deps({
+      project: { id: PROJECT, aspect: "r9x16", workspaceId: WS },
+      overlays: [
+        logo("01JL0G0A000000000000000000", KEPT),
+        logo("01JL0G0B000000000000000000", GONE),
+      ],
+      keptLogos: [KEPT],
+    });
+    const preview = await service(d).forProject(WS, PROJECT);
+    expect(d.brandKits.imageUrls).toHaveBeenCalledWith(
+      WS,
+      [KEPT, GONE],
+      WORKSPACE_PREVIEW_URL_TTL_SECONDS,
+    );
+    expect(preview.images).toEqual({ [KEPT]: `https://cdn.example.test/brand/${KEPT}` });
+    expect(preview.projection?.overlays?.map((overlay) => overlay.id)).toEqual([
+      "01JL0G0A000000000000000000",
+    ]);
+  });
+
+  it("asks for no logo at all for a document that draws none", async () => {
+    const d = deps({ project: { id: PROJECT, aspect: "r9x16", workspaceId: WS } });
+    const preview = await service(d).forProject(WS, PROJECT);
+    expect(d.brandKits.imageUrls).not.toHaveBeenCalled();
+    expect(preview).not.toHaveProperty("images");
+  });
 
   it("previews a project of the caller's own workspace", async () => {
     const d = deps();

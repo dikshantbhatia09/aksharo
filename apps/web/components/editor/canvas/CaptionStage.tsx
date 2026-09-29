@@ -23,6 +23,7 @@ import { Lock, Unlock } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import type { StyleDoc } from "@montaj/caption-styles";
+import type { CanvasKitBackend } from "@montaj/render-canvaskit";
 import { layoutFrame, PlacementCache, renderFrame } from "@montaj/render-core";
 import type { CanvasFaceTrack, DisplayScript, EdgProjection } from "@montaj/render-core";
 
@@ -67,6 +68,72 @@ interface MaybeFrameCallbackVideo {
  */
 export function displayScriptOf(script: string | undefined): DisplayScript {
   return script === "native" || script === "en" ? script : "roman";
+}
+
+/**
+ * The brand logos (2026-10-02) each renderer on the page has been given, by
+ * asset id. A logo's bytes never change under its id, so each is fetched once
+ * per page and registered with the shared backend, whichever stage asked
+ * first; a failed fetch is forgotten, so a fresh URL can try again.
+ */
+const REGISTERED_IMAGES = new WeakMap<CanvasKitBackend, Map<string, Promise<boolean>>>();
+
+function registerImage(backend: CanvasKitBackend, assetId: string, url: string): Promise<boolean> {
+  let byId = REGISTERED_IMAGES.get(backend);
+  if (byId === undefined) {
+    byId = new Map();
+    REGISTERED_IMAGES.set(backend, byId);
+  }
+  const known = byId.get(assetId);
+  if (known !== undefined) return known;
+  const pending = fetch(url)
+    .then(async (response) => {
+      if (!response.ok) throw new Error(`HTTP ${String(response.status)}`);
+      backend.registerImage(assetId, new Uint8Array(await response.arrayBuffer()));
+      return true;
+    })
+    .catch((error: unknown) => {
+      console.warn(
+        `[renderer] could not load the logo ${assetId}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      byId.delete(assetId);
+      return false;
+    });
+  byId.set(assetId, pending);
+  return pending;
+}
+
+/**
+ * Registers `images` with the backend and counts the ones that land, so the
+ * overlay is drawn again with each logo as it arrives.
+ */
+function useOverlayImages(
+  backend: CanvasKitBackend | undefined,
+  images: Readonly<Record<string, string>> | undefined,
+): number {
+  const [landed, setLanded] = useState(0);
+  const key =
+    images === undefined
+      ? ""
+      : Object.entries(images)
+          .map(([assetId, url]) => `${assetId}=${url}`)
+          .sort()
+          .join("|");
+  useEffect(() => {
+    if (backend === undefined || images === undefined) return undefined;
+    let cancelled = false;
+    for (const [assetId, url] of Object.entries(images)) {
+      void registerImage(backend, assetId, url).then((ok) => {
+        if (ok && !cancelled) setLanded((count) => count + 1);
+      });
+    }
+    return (): void => {
+      cancelled = true;
+    };
+    // Keyed on the ids and URLs, not the object: a parent re-creating the same
+    // map every render must not start the loads again.
+  }, [backend, key]);
+  return landed;
 }
 
 export interface CaptionStageProps {
@@ -119,6 +186,19 @@ export interface CaptionStageProps {
    */
   readonly script?: string;
   readonly showSafeZones?: boolean;
+  /**
+   * The brand logos the projection's overlays draw (2026-10-02), asset id to a
+   * URL for its bytes: `GET /brand-kit`'s `images` in the editor, a render
+   * preview's `images` elsewhere. A logo with no URL is not drawn, exactly as
+   * an export leaves out a logo the workspace no longer keeps.
+   */
+  readonly images?: Readonly<Record<string, string>>;
+  /**
+   * What to show behind the overlay when there is no video (`src` undefined):
+   * the brand kit's preview draws its sample frame here. Without it the
+   * placeholder says why there is no picture.
+   */
+  readonly backdrop?: React.ReactNode;
   readonly className?: string;
   /**
    * Extra layers (B20's proposal overlays) drawn above the caption overlay.
@@ -164,6 +244,8 @@ export function CaptionStage({
   onMediaError,
   script,
   showSafeZones = true,
+  images,
+  backdrop,
   className,
   children,
 }: CaptionStageProps): React.JSX.Element {
@@ -175,6 +257,7 @@ export function CaptionStage({
   const dragRef = useRef<DragState | undefined>(undefined);
 
   const { backend, engine, error, loading } = useRenderer();
+  const imagesLanded = useOverlayImages(backend, images);
   const surfaceCanvas = canvas ?? projection.canvas;
   const [fit, setFit] = useState<StageFit>({ width: 0, height: 0, left: 0, top: 0, scale: 0 });
   const [outputMs, setOutputMs] = useState(0);
@@ -263,9 +346,10 @@ export function CaptionStage({
   // arrive here — that is the whole point of the sequence number.
   useEffect(() => {
     const video = videoRef.current;
-    if (video === null || seekSeq === undefined || seekMs === undefined) return;
+    if (seekSeq === undefined || seekMs === undefined) return;
     if (seekSeq === 0) return; // initial mount, no command yet
-    video.currentTime = seekMs / 1000;
+    // No video (the brand kit's sample frame): the seek only moves the overlay.
+    if (video !== null) video.currentTime = seekMs / 1000;
     setOutputMs(seekMs); // repaint the overlay immediately, even while paused
     // Deliberately keyed on `seekSeq` alone — `seekMs` rides with its seq, and
     // depending on it too would re-seek on every mirrored time update.
@@ -349,6 +433,7 @@ export function CaptionStage({
     dragPreview,
     displayScript,
     faces,
+    imagesLanded,
   ]);
 
   const styleOf = useCallback(
@@ -443,7 +528,15 @@ export function CaptionStage({
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
     >
-      {src === undefined ? (
+      {src === undefined && backdrop !== undefined ? (
+        <div
+          className="absolute overflow-hidden rounded-md"
+          style={{ left: fit.left, top: fit.top, width: fit.width, height: fit.height }}
+          data-testid="caption-stage-backdrop"
+        >
+          {backdrop}
+        </div>
+      ) : src === undefined ? (
         <div
           className="bg-bg-2 text-fg-2 absolute flex items-center justify-center overflow-hidden rounded-md p-4 text-center text-xs"
           style={{ left: fit.left, top: fit.top, width: fit.width, height: fit.height }}

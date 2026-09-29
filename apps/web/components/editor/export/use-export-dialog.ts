@@ -55,6 +55,12 @@ export interface ExportDialogDeps {
    * `NotAllowedError` and the whole export aborts) do its job instead.
    */
   readonly preferFileSystemAccess?: boolean;
+  /**
+   * The brand logos the projection's overlays may draw, asset id to a signed
+   * URL (`GET /brand-kit`'s `images`, 2026-10-02). A logo without one is left
+   * out of the export, as the cloud render leaves it out.
+   */
+  readonly images?: Readonly<Record<string, string>>;
 }
 
 /**
@@ -494,6 +500,11 @@ export function useExportDialog(deps: ExportDialogDeps): {
             aacPolyfillAvailable: true,
             fetchWatermarkAsset:
               watermarkUrl === undefined ? undefined : () => fetchWatermarkBytes(watermarkUrl),
+            fetchOverlayImage: async (assetId) => {
+              // eslint-disable-next-line security/detect-object-injection -- an asset id the document names, looked up in the kit's own map
+              const url = deps.images?.[assetId];
+              return url === undefined ? undefined : fetchWatermarkBytes(url);
+            },
             onProgress: (progress) => setState((s) => ({ ...s, progress })),
             // K07: browser-render-time-only, see `BrowserRenderOptions`'s doc
             // comment above for why this never travels through `request`.

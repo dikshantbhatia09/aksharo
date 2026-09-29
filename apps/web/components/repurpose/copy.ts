@@ -641,6 +641,13 @@ export const AUTOPILOT_COPY = Object.freeze({
   cutting: " Autopilot is making a vertical 9:16 clip of the strongest ones.",
 });
 
+/** The start form's brand kit switch (2026-10-02), shown under Autopilot when the workspace has a kit. */
+export const BRAND_COPY = Object.freeze({
+  label: "Use my brand kit",
+  on: "Your logo, colours and end card go on every clip Autopilot makes.",
+  off: "Clips are made without your brand kit.",
+});
+
 /**
  * The run page's way round YouTube (Wave B): while YouTube is refusing this
  * server the run waits and continues by itself, and a person who has the file

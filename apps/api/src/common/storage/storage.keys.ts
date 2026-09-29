@@ -166,19 +166,33 @@ export function fontKey(workspaceId: string, fontId: string, extension: FontExte
   return `ws/${checkedId("workspaceId", workspaceId)}/fonts/${checkedId("fontId", fontId)}.${extension}`;
 }
 
+/** The file types a brand asset is stored as: the watermark's PNG, and a logo's (2026-10-02). */
+export const BRAND_ASSET_EXTENSIONS = ["png", "jpg", "webp"] as const;
+
+export type BrandAssetExtension = (typeof BRAND_ASSET_EXTENSIONS)[number];
+
 /**
  * Brand asset key (watermark, logo), in the R2 bucket (A21 writes these).
  *
  * Added 2026-09-02 after A20: `watermark.assetId` in the signed render manifest
- * names one of these when a workspace deliberately overlays its own logo.
+ * names one of these when a workspace deliberately overlays its own logo. A
+ * brand kit's logo (2026-10-02) may also be a JPEG or a WebP, stored under its
+ * own extension; every watermark stays `.png`.
  */
-export function brandAssetKey(workspaceId: string, assetId: string): string {
+export function brandAssetKey(
+  workspaceId: string,
+  assetId: string,
+  extension: BrandAssetExtension = "png",
+): string {
   if (!BRAND_ASSET_ID_PATTERN.test(assetId)) {
     throw new StorageKeyError(
       `assetId is not a ULID or a known asset slug: ${JSON.stringify(assetId)}`,
     );
   }
-  return `ws/${checkedId("workspaceId", workspaceId)}/brand/${assetId}.png`;
+  if (!BRAND_ASSET_EXTENSIONS.includes(extension)) {
+    throw new StorageKeyError(`${JSON.stringify(extension)} is not a brand asset extension`);
+  }
+  return `ws/${checkedId("workspaceId", workspaceId)}/brand/${assetId}.${extension}`;
 }
 
 /**

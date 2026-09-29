@@ -33,6 +33,7 @@ import {
   acquireTimeoutMs,
   automationOf,
   autopilotClipCount,
+  brandOf,
 } from "./repurpose.constants.js";
 import { createRunSchema } from "./repurpose.dto.js";
 import {
@@ -876,6 +877,8 @@ export class RepurposeService {
             // Autopilot (`automationOf`): absent reads as manual, as every
             // run from before it was.
             automation: input.setup.automation ?? "manual",
+            // The brand kit (`brandOf`, 2026-10-02): only when asked for.
+            ...(input.setup.brand === true ? { brand: true } : {}),
             // Formats and enhancements are chosen at Stage 3; the snapshot records
             // the defaults the run started from so a later change to those defaults
             // cannot reinterpret this run (§6.9).
@@ -1381,8 +1384,9 @@ export class RepurposeService {
         caption: config["caption"],
         discovery: config["discovery"] ?? { mode: run.mode },
         window: { startMs },
-        // The next part runs the way this one did.
+        // The next part runs the way this one did, brand kit and all.
         automation: automationOf(run),
+        ...(brandOf(run) ? { brand: true } : {}),
       },
     });
     if (!parsed.success) {
@@ -2134,6 +2138,7 @@ export class RepurposeService {
       failureDetail: shown.status === "failed" ? failureDetailOf(run.failureDetail) : null,
       nextWindowAvailable: nextWindowAvailable(run),
       automation: automationOf(run),
+      brand: brandOf(run),
       waitingFor,
       steering: steeringOf(run.config),
       activity: activity?.activity ?? null,

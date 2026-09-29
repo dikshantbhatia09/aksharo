@@ -247,6 +247,8 @@ export interface SourceStartFormProps {
   readonly allowSeveralFiles?: boolean;
   /** Replaces the submit button's label (the page says how many runs it starts). */
   readonly submitLabel?: string;
+  /** The workspace has a saved brand kit (2026-10-02): the brand switch is offered. */
+  readonly brandKit?: boolean;
   readonly className?: string;
 }
 
@@ -272,6 +274,7 @@ export function SourceStartForm({
   allowSeveralLinks = false,
   allowSeveralFiles = false,
   submitLabel,
+  brandKit = false,
   className,
 }: SourceStartFormProps): React.JSX.Element {
   const [showProblems, setShowProblems] = React.useState(false);
@@ -598,7 +601,7 @@ export function SourceStartForm({
       </section>
 
       {/* One setup panel, whichever tab is open (§3.3). */}
-      <RunSetupFields value={value} onChange={onChange} problems={visible} />
+      <RunSetupFields value={value} onChange={onChange} problems={visible} brandKit={brandKit} />
 
       {serverError !== null && (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">

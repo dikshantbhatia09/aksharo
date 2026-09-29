@@ -7,7 +7,7 @@
  */
 
 import { type RenderSegment } from "../layout/types.js";
-import { type OverlayTrack } from "../overlay/hook-title.js";
+import { type OverlayTrack } from "../overlay/types.js";
 import { type CanvasSize } from "../units.js";
 import { type StyleOverrides, type TranscriptWord } from "./resolve.js";
 
@@ -47,9 +47,9 @@ export interface EdgProjection {
   /** Per-speaker caption colours, for the podcast styles. */
   readonly speakerColours?: Readonly<Record<string, string>>;
   /**
-   * `EdgHot.overlays` (2026-09-29): the hook title, drawn over the captions by
-   * `renderFrame`. Absent — every projection built before it — draws exactly
-   * what it drew before.
+   * `EdgHot.overlays` (2026-09-29): the hook title, and a brand kit's logo and
+   * end card (2026-10-02), drawn by `renderFrame`. Absent — every projection
+   * built before it — draws exactly what it drew before.
    */
   readonly overlays?: readonly OverlayTrack[];
 }

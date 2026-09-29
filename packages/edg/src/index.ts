@@ -17,3 +17,5 @@ export * from "./segmenter/index.js";
 export * from "./migrations/index.js";
 export * from "./passes/keyframes.js";
 export * from "./timeline-ops.js";
+// How a workspace's brand kit becomes style overrides and overlays (2026-10-02).
+export * from "./brand.js";
