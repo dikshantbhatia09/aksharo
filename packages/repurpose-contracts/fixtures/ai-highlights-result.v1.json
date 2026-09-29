@@ -31,7 +31,39 @@
           "label": "standalone",
           "explanation": "Makes sense without the rest of the episode."
         }
-      ]
+      ],
+      "copy": {
+        "summary": "Log shuru mein hi bade goals rakh lete hain, aur wahi sabse badi galti hai.",
+        "hook": "Sabse badi galti yahi hai",
+        "cta": "Poora episode dekhiye",
+        "hashtags": ["#Goals", "#Motivation", "#Hinglish"],
+        "locale": "hi-Latn",
+        "title": "Sabse bada galti jo log karte hain",
+        "description": "Bade goals se shuru karna kyun ulta padta hai.",
+        "platforms": {
+          "youtube": {
+            "title": "Sabse bada galti jo log karte hain #shorts",
+            "description": "Bade goals se shuru karna kyun ulta padta hai."
+          },
+          "instagram": {
+            "caption": "Aap bhi ye galti karte ho? #Goals #Motivation"
+          },
+          "linkedin": {
+            "text": "Most people start with goals that are too big. Here is why that backfires."
+          },
+          "x": {
+            "text": "Sabse badi galti: shuru mein hi bade goals."
+          }
+        },
+        "source": "model"
+      },
+      "judgement": {
+        "standalone": 8,
+        "payoff": 9,
+        "humour": 2,
+        "topicFit": 7,
+        "model": "sarvam-105b-conversations"
+      }
     }
   ],
   "featureVersion": "features-1",

@@ -333,4 +333,7 @@ async def process_highlights(context: JobContext) -> ProcessorOutcome:
 
     await context.progress(100, message="Highlight discovery complete")
 
-    return ProcessorOutcome(result=result.model_dump(by_alias=True, mode="json"))
+    # `exclude_none`: an optional field the worker did not fill (a proposal's
+    # `copy` or `judgement`) is left out, never sent as null - the TypeScript
+    # contract's optional fields accept a missing key, not a null one.
+    return ProcessorOutcome(result=result.model_dump(by_alias=True, mode="json", exclude_none=True))

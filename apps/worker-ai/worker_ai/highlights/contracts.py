@@ -23,10 +23,15 @@ __all__ = [
     "HIGHLIGHTS_SCHEMA_VERSION",
     "MAX_DURATION_MS",
     "MIN_DURATION_MS",
+    "ClipCopy",
+    "CopyOptions",
+    "ExcludeRange",
     "HighlightProposal",
     "HighlightsOptions",
     "HighlightsPayload",
     "HighlightsResult",
+    "Judgement",
+    "PlatformCopy",
     "ProposalReason",
     "ScoreBreakdown",
     "StorageObject",
@@ -94,6 +99,26 @@ class StorageObject(_Strict):
         return self
 
 
+class ExcludeRange(_Strict):
+    """A part of the source to take no clip from (2026-09-29)."""
+
+    start_ms: int = Field(alias="startMs", ge=0)
+    end_ms: int = Field(alias="endMs", gt=0)
+
+    @model_validator(mode="after")
+    def _ends_after_it_starts(self) -> ExcludeRange:
+        if self.end_ms <= self.start_ms:
+            raise ValueError("a range must end after it starts")
+        return self
+
+
+class CopyOptions(_Strict):
+    """Write each proposal's copy with the language model, in this language."""
+
+    language: Annotated[str, _trimmed(2, 64)]
+    script_mode: Literal["auto", "roman", "native", "bilingual"] = Field(alias="scriptMode")
+
+
 class HighlightsOptions(_Strict):
     count: int = Field(ge=1, le=40)
     #: The bar a moment must clear to be returned at all (0-1); ``None`` keeps
@@ -106,6 +131,14 @@ class HighlightsOptions(_Strict):
     )
     #: The language to reason IN. Hinglish is ``hi-Latn``, never flattened to English.
     language: Annotated[str, _trimmed(2, 64)]
+    #: What the clips should be about, in the person's words (2026-09-29).
+    topic: Annotated[str, _trimmed(2, 200)] | None = None
+    #: Parts of the source to take no clip from.
+    exclude_ranges: tuple[ExcludeRange, ...] | None = Field(
+        default=None, alias="excludeRanges", max_length=20
+    )
+    #: Write per-proposal copy with the language model.
+    copy_options: CopyOptions | None = Field(default=None, alias="copy")
 
     @model_validator(mode="after")
     def _duration_range_is_ordered(self) -> HighlightsOptions:
@@ -144,6 +177,67 @@ class ProposalReason(_Strict):
     explanation: Annotated[str, _trimmed(1, 240)]
 
 
+#: A hashtag as the TypeScript `HashtagSchema` pins it: `#` then letters,
+#: digits or underscores, in any script.
+_HASHTAG_PATTERN: Final[str] = r"^#[\w]+$"
+
+
+class _YouTubeCopy(_Strict):
+    title: Annotated[str, _trimmed(1, 100)]
+    description: Annotated[str, _trimmed(0, 5_000)]
+
+
+class _CaptionCopy(_Strict):
+    caption: Annotated[str, _trimmed(1, 2_200)]
+
+
+class _TextCopy(_Strict):
+    text: Annotated[str, _trimmed(1, 5_000)]
+
+
+class _XCopy(_Strict):
+    text: Annotated[str, _trimmed(1, 280)]
+
+
+class _LinkedInCopy(_Strict):
+    text: Annotated[str, _trimmed(1, 3_000)]
+
+
+class PlatformCopy(_Strict):
+    youtube: _YouTubeCopy | None = None
+    instagram: _CaptionCopy | None = None
+    tiktok: _CaptionCopy | None = None
+    linkedin: _LinkedInCopy | None = None
+    x: _XCopy | None = None
+    facebook: _TextCopy | None = None
+
+
+class ClipCopy(_Strict):
+    """Mirrors ``ClipCopySchema``: the words that go with a clip when posted."""
+
+    summary: Annotated[str, _trimmed(0, 2_000)]
+    hook: Annotated[str, _trimmed(0, 500)]
+    cta: Annotated[str, _trimmed(0, 500)]
+    hashtags: tuple[
+        Annotated[str, StringConstraints(pattern=_HASHTAG_PATTERN, max_length=100)], ...
+    ] = Field(max_length=30)
+    locale: Annotated[str, _trimmed(2, 64)]
+    title: Annotated[str, _trimmed(1, 160)] | None = None
+    description: Annotated[str, _trimmed(0, 2_000)] | None = None
+    platforms: PlatformCopy | None = None
+    source: Literal["model", "heuristic", "person"] | None = None
+
+
+class Judgement(_Strict):
+    """The language model's reading of a moment, 0-10 each."""
+
+    standalone: int = Field(ge=0, le=10)
+    payoff: int = Field(ge=0, le=10)
+    humour: int = Field(ge=0, le=10)
+    topic_fit: int | None = Field(default=None, alias="topicFit", ge=0, le=10)
+    model: Annotated[str, _trimmed(1, 100)]
+
+
 class HighlightProposal(_Strict):
     """One proposal.
 
@@ -162,6 +256,8 @@ class HighlightProposal(_Strict):
     potential_score: int = Field(alias="potentialScore", ge=0, le=100)
     score_breakdown: ScoreBreakdown = Field(alias="scoreBreakdown")
     reasons: tuple[ProposalReason, ...] = Field(min_length=1, max_length=12)
+    copy_text: ClipCopy | None = Field(default=None, alias="copy")
+    judgement: Judgement | None = None
 
     @model_validator(mode="after")
     def _duration_is_within_hard_limits(self) -> HighlightProposal:

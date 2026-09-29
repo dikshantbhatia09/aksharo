@@ -244,13 +244,66 @@ export const CandidateListResponseSchema = z.strictObject({
   candidates: z.array(ClipCandidateSchema).max(100),
 });
 
+/**
+ * The words that go with one clip when it is posted (2026-09-29): a title, the
+ * on-screen hook, a description and hashtags, and the text each platform wants.
+ * Written by the language model from the clip's own words, in the speaker's
+ * language and script (Hinglish stays Roman). `source` says who wrote it: a
+ * person's edit always wins over a model's draft.
+ */
+const HashtagSchema = z
+  .string()
+  .regex(/^#[\p{L}\p{N}_]+$/u)
+  .max(100);
+
+export const PlatformCopySchema = z.strictObject({
+  youtube: z
+    .strictObject({
+      title: z.string().trim().min(1).max(100),
+      description: z.string().trim().max(5_000),
+    })
+    .optional(),
+  instagram: z.strictObject({ caption: z.string().trim().min(1).max(2_200) }).optional(),
+  tiktok: z.strictObject({ caption: z.string().trim().min(1).max(2_200) }).optional(),
+  linkedin: z.strictObject({ text: z.string().trim().min(1).max(3_000) }).optional(),
+  x: z.strictObject({ text: z.string().trim().min(1).max(280) }).optional(),
+  facebook: z.strictObject({ text: z.string().trim().min(1).max(5_000) }).optional(),
+});
+
 export const ClipCopySchema = z.strictObject({
   summary: z.string().trim().max(2_000),
+  /** The on-screen hook for the first seconds: 7 words at most. */
   hook: z.string().trim().max(500),
   cta: z.string().trim().max(500),
-  hashtags: z.array(z.string().regex(/^#[\p{L}\p{N}_]+$/u)).max(30),
+  hashtags: z.array(HashtagSchema).max(30),
   locale: LanguageSchema,
+  title: z.string().trim().min(1).max(160).optional(),
+  description: z.string().trim().max(2_000).optional(),
+  platforms: PlatformCopySchema.optional(),
+  source: z.enum(["model", "heuristic", "person"]).optional(),
 });
+
+/**
+ * How long the clips should be, as the start form offers it (2026-09-29). Each
+ * preset is a duration band the highlight search keeps to.
+ */
+export const CLIP_LENGTH_PRESETS = Object.freeze({
+  short: Object.freeze({ minDurationMs: 15_000, maxDurationMs: 35_000 }),
+  medium: Object.freeze({ minDurationMs: 30_000, maxDurationMs: 60_000 }),
+  long: Object.freeze({ minDurationMs: 55_000, maxDurationMs: 95_000 }),
+});
+export const ClipLengthPresetSchema = z.enum(["short", "medium", "long"]);
+
+/** A part of the source the person wants no clip from (the intro, an ad). */
+export const ExcludeRangeSchema = z
+  .strictObject({
+    startMs: MillisecondsSchema,
+    endMs: z.int().positive(),
+  })
+  .refine((range) => range.endMs > range.startMs, {
+    message: "A range must end after it starts.",
+    path: ["endMs"],
+  });
 
 export const RepurposeClipViewSchema = z
   .strictObject({
@@ -412,6 +465,15 @@ export const CreateRunRequestSchema = z
         mode: RunModeSchema,
         requestedCandidates: z.int().min(0).max(20),
         contentGoal: z.enum(["reach", "education", "authority", "engagement"]),
+        /**
+         * Steering (2026-09-29): what the clips should be about, how long they
+         * should be, and how much of the start and end to leave out (intros,
+         * sponsor reads, outros). All optional; absent is the run as before.
+         */
+        topic: z.string().trim().min(2).max(200).optional(),
+        clipLength: ClipLengthPresetSchema.optional(),
+        skipIntroMs: z.int().min(0).max(1_800_000).optional(),
+        skipOutroMs: z.int().min(0).max(1_800_000).optional(),
       }),
       /**
        * Which part of a long video to process (2026-09-27): a start the person

@@ -62,8 +62,10 @@ const HIGHLIGHTS_RESULT_FIELDS = [
   "windowsConsidered",
 ];
 const HIGHLIGHT_PROPOSAL_FIELDS = [
+  "copy",
   "endMs",
   "endWordId",
+  "judgement",
   "potentialScore",
   "reasons",
   "scoreBreakdown",
@@ -76,12 +78,12 @@ const HIGHLIGHT_PROPOSAL_FIELDS = [
 
 describe("media.acquire@1", () => {
   it("accepts the documented payload and result", () => {
-    expect(MediaAcquirePayloadSchema.safeParse(fixture("media-acquire-payload.v1.json")).success).toBe(
-      true,
-    );
-    expect(MediaAcquireResultSchema.safeParse(fixture("media-acquire-result.v1.json")).success).toBe(
-      true,
-    );
+    expect(
+      MediaAcquirePayloadSchema.safeParse(fixture("media-acquire-payload.v1.json")).success,
+    ).toBe(true);
+    expect(
+      MediaAcquireResultSchema.safeParse(fixture("media-acquire-result.v1.json")).success,
+    ).toBe(true);
   });
 
   it("refuses a source that is not HTTPS", () => {
@@ -126,7 +128,9 @@ describe("media.clip@1", () => {
     expect(MediaClipPayloadSchema.safeParse(fixture("media-clip-payload.v1.json")).success).toBe(
       true,
     );
-    expect(MediaClipResultSchema.safeParse(fixture("media-clip-result.v1.json")).success).toBe(true);
+    expect(MediaClipResultSchema.safeParse(fixture("media-clip-result.v1.json")).success).toBe(
+      true,
+    );
   });
 
   it("refuses bounds that run backwards or past the end of the source", () => {
@@ -160,9 +164,9 @@ describe("media.clip@1", () => {
 
 describe("ai.highlights@1", () => {
   it("accepts the documented payload and result", () => {
-    expect(HighlightsPayloadSchema.safeParse(fixture("ai-highlights-payload.v1.json")).success).toBe(
-      true,
-    );
+    expect(
+      HighlightsPayloadSchema.safeParse(fixture("ai-highlights-payload.v1.json")).success,
+    ).toBe(true);
     expect(HighlightsResultSchema.safeParse(fixture("ai-highlights-result.v1.json")).success).toBe(
       true,
     );
@@ -201,9 +205,10 @@ describe("ai.highlights@1", () => {
     const result = fixture("ai-highlights-result.v1.json") as { proposals: object[] };
     for (const endMs of [330_500, 600_000]) {
       const proposals = result.proposals.map((proposal) => ({ ...proposal, endMs }));
-      expect(HighlightsResultSchema.safeParse({ ...result, proposals }).success, String(endMs)).toBe(
-        false,
-      );
+      expect(
+        HighlightsResultSchema.safeParse({ ...result, proposals }).success,
+        String(endMs),
+      ).toBe(false);
     }
   });
 
@@ -239,10 +244,10 @@ describe("storage keys", () => {
       candidateId: CANDIDATE,
     });
 
-    expect(features).toBe(
-      `ws/${WORKSPACE}/p/${PROJECT}/repurpose/${RUN}/features/features-1.json`,
+    expect(features).toBe(`ws/${WORKSPACE}/p/${PROJECT}/repurpose/${RUN}/features/features-1.json`);
+    expect(master).toBe(
+      `ws/${WORKSPACE}/p/${PROJECT}/repurpose/${RUN}/clips/${CANDIDATE}/master.mp4`,
     );
-    expect(master).toBe(`ws/${WORKSPACE}/p/${PROJECT}/repurpose/${RUN}/clips/${CANDIDATE}/master.mp4`);
     for (const key of [features, master]) {
       expect(key.startsWith(`ws/${WORKSPACE}/`)).toBe(true);
       expect(key).not.toContain("..");

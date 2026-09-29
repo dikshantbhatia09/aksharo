@@ -2,6 +2,8 @@ import { z } from "zod";
 
 import {
   AspectSchema,
+  ClipCopySchema,
+  ExcludeRangeSchema,
   MillisecondsSchema,
   REPURPOSE_SCHEMA_VERSION,
   UlidSchema,
@@ -275,6 +277,20 @@ export const HighlightsPayloadSchema = z
       contentGoal: z.enum(["reach", "education", "authority", "engagement"]),
       /** The language to reason IN. Hinglish is `hi-Latn`, never flattened to en. */
       language: z.string().trim().min(2).max(64),
+      /** What the clips should be about, in the person's words (2026-09-29). */
+      topic: z.string().trim().min(2).max(200).optional(),
+      /** Parts of the source to take no clip from: an intro, an ad, an outro. */
+      excludeRanges: z.array(ExcludeRangeSchema).max(20).optional(),
+      /**
+       * Write each proposal's copy (title, hook, description, hashtags, per
+       * platform) with the language model, in this language and script.
+       */
+      copy: z
+        .strictObject({
+          language: z.string().trim().min(2).max(64),
+          scriptMode: z.enum(["auto", "roman", "native", "bilingual"]),
+        })
+        .optional(),
     }),
     promptVersion: z.string().trim().min(1).max(100),
     featureVersion: z.string().trim().min(1).max(100),
@@ -330,6 +346,22 @@ export const HighlightProposalSchema = z
       )
       .min(1)
       .max(12),
+    /** The clip's words for posting, when the model wrote them (2026-09-29). */
+    copy: ClipCopySchema.optional(),
+    /**
+     * The language model's reading of the moment, 0-10 each: does it stand on
+     * its own, does it land its point, is it funny, and (with a topic) is it
+     * about what was asked for.
+     */
+    judgement: z
+      .strictObject({
+        standalone: z.int().min(0).max(10),
+        payoff: z.int().min(0).max(10),
+        humour: z.int().min(0).max(10),
+        topicFit: z.int().min(0).max(10).optional(),
+        model: z.string().trim().min(1).max(100),
+      })
+      .optional(),
   })
   .superRefine((value, context) => {
     const duration = value.endMs - value.startMs;

@@ -51,8 +51,10 @@ RESULT_FIELDS = [
     "windowsConsidered",
 ]
 PROPOSAL_FIELDS = [
+    "copy",
     "endMs",
     "endWordId",
+    "judgement",
     "potentialScore",
     "reasons",
     "scoreBreakdown",
@@ -121,7 +123,8 @@ def test_round_trips_the_result_without_changing_it() -> None:
     """What Python emits must be what TypeScript accepts, key for key."""
     source = fixture("ai-highlights-result.v1.json")
     parsed = HighlightsResult.model_validate(source)
-    assert json.loads(parsed.model_dump_json(by_alias=True)) == source
+    # `exclude_none` because that is how the worker emits it (processors/highlights.py).
+    assert json.loads(parsed.model_dump_json(by_alias=True, exclude_none=True)) == source
 
 
 def test_rejects_an_unknown_field() -> None:
