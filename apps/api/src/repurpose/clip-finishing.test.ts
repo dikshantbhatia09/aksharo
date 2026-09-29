@@ -970,6 +970,40 @@ describe("ClipFinishing with the kit's music (2026-10-04)", () => {
 });
 
 describe("ClipFinishing on an audiogram (2026-10-04)", () => {
+  const BRANDED = { ...RUN, config: { automation: "auto", brand: true } } as RepurposeRun;
+  const LOGO = {
+    assetId: "01JFL0G0ASSET0000000000000",
+    format: "png" as const,
+    width: 400,
+    height: 200,
+  };
+
+  it("puts no second logo in the corner of an audiogram drawn with the logo", async () => {
+    source = { width: null, height: null };
+    plan = { autocut: false, reframeZoom: false };
+    kit = { settings: DEFAULT_BRAND_KIT_SETTINGS, logo: LOGO };
+    await finishing.advance(BRANDED, vertical());
+    const kinds = (projection(PROJECT_9X16).overlays ?? []).map((overlay) => overlay.kind);
+    expect(kinds).not.toContain("logo");
+  });
+
+  it("keeps the corner logo when the audiogram is drawn with a cover of its own", async () => {
+    source = { width: null, height: null };
+    plan = { autocut: false, reframeZoom: false };
+    kit = { settings: DEFAULT_BRAND_KIT_SETTINGS, logo: LOGO };
+    const withCover = {
+      ...BRANDED,
+      config: {
+        automation: "auto",
+        brand: true,
+        audiogram: { coverAssetId: "01JFC0VER00000000000000000" },
+      },
+    } as RepurposeRun;
+    await finishing.advance(withCover, vertical());
+    const kinds = (projection(PROJECT_9X16).overlays ?? []).map((overlay) => overlay.kind);
+    expect(kinds).toContain("logo");
+  });
+
   it("never zooms a clip whose source has no picture", async () => {
     source = { width: null, height: null };
     plan = { autocut: false, reframeZoom: true };

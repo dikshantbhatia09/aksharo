@@ -21,7 +21,7 @@ import type {
 import { mergeOverrides } from "@montaj/render-core";
 import { fromAcceptedItems } from "@montaj/timemap";
 
-import { hasNoPicture } from "./audiogram.js";
+import { coverAssetIdOf, hasNoPicture } from "./audiogram.js";
 import { chooseEmphasis, normaliseWord } from "./keyword-emphasis.js";
 import { brandOf } from "./repurpose.constants.js";
 import { BrandKitService } from "../brand-kit/brand-kit.service.js";
@@ -573,7 +573,11 @@ export class ClipFinishing {
     }
 
     const durationMs = primaryDurationOf(projection);
-    if (!overlays.some((overlay) => overlay.kind === "logo")) {
+    // An audiogram without a cover is drawn with the logo as its artwork
+    // (2026-10-04): the logo again in a corner would be the same mark twice.
+    const logoIsArtwork =
+      kit.logo !== undefined && coverAssetIdOf(run) === undefined && (await this.isAudiogram(run));
+    if (!logoIsArtwork && !overlays.some((overlay) => overlay.kind === "logo")) {
       const logo = brandLogoOverlay(kit.settings, kit.logo, stableOverlayId(`${variant.id}:logo`), {
         startMs: 0,
         endMs: durationMs,
