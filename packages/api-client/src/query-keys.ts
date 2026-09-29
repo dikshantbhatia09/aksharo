@@ -16,6 +16,13 @@ export const queryKeys = {
   usage: (workspaceId: string) => ["ws", workspaceId, "usage"] as const,
   sessions: () => ["auth", "sessions"] as const,
   consents: () => ["consents"] as const,
+  /**
+   * The bell: the person's own, whichever workspace is open, so not under
+   * `["ws", id]` — a workspace switch does not change what they were told.
+   */
+  notifications: () => ["me", "notifications"] as const,
+  /** The deployment's Web Push key (`GET /me/push-subscriptions/key`). */
+  pushKey: () => ["me", "push", "key"] as const,
   memory: () => ["memory"] as const,
   affiliate: () => ["affiliate", "me"] as const,
   affiliateStats: () => ["affiliate", "me", "stats"] as const,

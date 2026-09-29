@@ -31,6 +31,11 @@ export interface RealtimeEventMap {
     message: string;
     at: string;
   };
+  /**
+   * A25: a row landed in someone's bell. On the WORKSPACE room, so it names the
+   * user it is for; a pointer, not the notification (re-read the bell).
+   */
+  "notification.created": { notificationId: string; userId: string; kind: string; at: string };
 }
 
 export type RealtimeEventName = keyof RealtimeEventMap;
