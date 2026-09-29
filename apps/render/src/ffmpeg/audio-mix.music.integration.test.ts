@@ -171,15 +171,7 @@ beforeAll(async () => {
   ]);
   // The track: four seconds of a steady tone, shorter than the clip.
   bed = join(scratch, "track.wav");
-  await ffmpeg([
-    "-f",
-    "lavfi",
-    "-i",
-    "aevalsrc=0.5*sin(2*PI*440*t):s=48000:d=4",
-    "-ac",
-    "2",
-    bed,
-  ]);
+  await ffmpeg(["-f", "lavfi", "-i", "aevalsrc=0.5*sin(2*PI*440*t):s=48000:d=4", "-ac", "2", bed]);
 }, 120_000);
 
 afterAll(async () => {
