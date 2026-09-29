@@ -37,10 +37,11 @@ Read this before touching anything. The most important section is
 > - Production still runs `NODE_ENV=development` and `MAIL_PROVIDER=dev` (no
 >   email is sent). Switching NODE_ENV to production needs a real mail provider
 >   and a SENTRY_DSN or its opt-out flag first.
-> - **Scheduler: seven tasks (since 2026-09-29, §20).**
+> - **Scheduler: eight tasks (since 2026-09-29, §20).**
 >   `MONTAJ_SCHEDULER_DISABLED=0` with `MONTAJ_SCHEDULER_TASKS=ops.watch,`
 >   `jobs.dlq-depth,jobs.lease-reaper,credits.grant-reset,credits.lot-expiry,`
->   `scheduler.export-retention,scheduler.media-retention`. Every other task
+>   `scheduler.export-retention,scheduler.media-retention,repurpose.source-watch`.
+>   `jobs.queue-timeout` must stay off (§20). Every other task
 >   (project retention — it would soft-delete 151 projects — stuck-run sweep,
 >   payouts, dunning, status snapshots) stays off. `DISABLED=1` still wins;
 >   `TASKS` set but empty runs none. An API older than 64984aca does not know
@@ -1402,6 +1403,49 @@ worktrees (`wt/<name>`, branch `feat/<name>`), each merged and verified in
     first test that drives the real transport.
   - A real channel page keeps its canonical/og tags ~750 KB in, past a
     `</head>` inside an inline script: the reader scans the whole page now.
+- **Wave 4, deployed as a4d3e14b** (`deploy-20260929j.ps1`, undo
+  `rollback-20260929j.ps1`; DB backup `montaj_main-pre-20260929j.dump`;
+  migrations `20261003100000_compilations_and_series` and
+  `20261003110000_clip_review`, both additive):
+  - **Compilations** (`repurpose/compilations.*`,
+    `GET/POST /repurpose/runs/:id/compilations`): 2 to 20 of a run's clips
+    joined into one video in one shape, at most 15 min, 0.5 s fades, an
+    optional 2 s title card (the brand kit's colours, typeface and logo when
+    one is saved), 30 fps. It joins the clips' **captioned videos**, so only
+    a clip with one in that shape can go in (Autopilot clips). New render
+    queue `render.compilation`, one at a time and never beside a video render
+    (`apps/render/src/heavy-slot.ts`). The file is an `exports` row of the
+    run's source project, so it expires like any render (7 days, owner
+    exempt) and then reads `expired`; it reads `stale` once a clip's captioned
+    video changes. Charged at the cloud render rate. Verified live on the
+    owner's podcast run: 2 clips and a card, 36 s at 1080 x 1920, made in
+    ~13 s on NVENC (then deleted).
+  - **Series** (`POST .../series`, 2 to 10 clips): "Part N of M" over the
+    start of each part and "Part N+1 next" near its end, as hook-title
+    overlays placed off faces like Autopilot's hook. It replaces Autopilot's
+    own hook ("Remove series labels" puts it back) and never a hook title the
+    person wrote.
+  - **Clip review** (`repurpose/review`): approve or request changes, and
+    comment, per clip (owners and admins decide). The workspace setting
+    `clipsNeedApproval` (a key in `workspaces.settings`) holds posting until
+    a clip is approved; a video changed after approval needs approving again.
+    Client review links (`/share/review/<token>`, 1 to 30 days, default 7, at
+    most 20 per run) let someone without an account approve and comment on
+    the 9:16 clips. The token travels in the `x-review-token` header, never
+    in an API path (the request log records paths), and only its SHA-256 is
+    stored. Reads are limited to 60 a minute per IP.
+  - **Security, found while merging.** Eleven routes validated nothing (the
+    commit `bb20bdc6` says ten; it is eleven): their controller imported the
+    body/query DTO with `type`, so the decorator metadata said `Object` and
+    `ZodValidationPipe` let anything through (six billing routes: checkout,
+    pass and top-up checkout, plan change and its preview, pass refund; five
+    affiliate: apply, click, attach, admin suspend and reject).
+    `common/validation/dto-imports.test.ts` now fails on any `@Body()` or
+    `@Query()` whose class is a type-only import. And
+    `POST /affiliate/attribution/attach` was public and took both ids from
+    the body, so anyone who knew a workspace's id could attribute it to their
+    own code; it now needs a signed-in caller and attaches only to the
+    caller's own user and workspace (onboarding sends its bearer token).
 - **Known, not fixed**: API unit tests and past dev sessions left ~40 MB of
   keys under test prefixes (`montaj-test-*`, `a23`, `montaj-s07`, ...) in the
   production Redis (`test/setup-env.ts` assigns `localhost:6379`).
