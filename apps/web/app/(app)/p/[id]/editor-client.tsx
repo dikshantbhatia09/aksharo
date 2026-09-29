@@ -16,7 +16,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 
 import { ApiError, useProject, useRecordSpellingFixMemory } from "@montaj/api-client";
 import type { StyleDoc } from "@montaj/caption-styles";
-import { newId, orderedSegments, wordsBetween } from "@montaj/edg";
+import { isWorkspaceMusicItem, newId, orderedSegments, wordsBetween } from "@montaj/edg";
 import type { Segment } from "@montaj/edg";
 import { faceTrackOnCanvas, resolveStyle } from "@montaj/render-core";
 import type { FontRegistry, Shaper } from "@montaj/render-core";
@@ -687,45 +687,73 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
     kitSettings === undefined
       ? undefined
       : editorEndCardOverlay(kitSettings, kitLogo, newId(), passItems, clipDurationMs);
-  // Shown where there is something to do: a saved kit, or a clip that already
-  // carries a brand overlay. A workspace that never made a kit sees nothing new.
-  const brand =
-    brandKit.data === undefined ||
-    brandKit.data === null ||
-    (!brandKit.data.exists && logoOverlay === undefined && endCardOverlay === undefined)
+  // The kit's music under this clip (2026-10-04): the bed Autopilot laid, on
+  // while it is accepted. Off turns the item down (it stays, so on is the same
+  // bed again); one undoable op either way.
+  const musicBed = passItems.find(isWorkspaceMusicItem);
+  const musicTitle = musicBed?.payload.licenceSnapshot["title"];
+  const music =
+    musicBed === undefined
       ? undefined
       : {
-          logoOn: logoOverlay !== undefined,
-          logoAvailable: logoToAdd !== undefined,
-          endCardOn: endCardOverlay !== undefined,
-          endCardAvailable: endCardToAdd !== undefined,
-          onLogo: (on: boolean): void => {
-            if (!on && logoOverlay !== undefined) {
-              store.submitOp(
-                { type: "RemoveOverlay", opId: newId(), overlayId: logoOverlay.id },
-                { label: "Remove logo" },
-              );
-            } else if (on && logoToAdd !== undefined) {
-              store.submitOp(
-                { type: "SetOverlay", opId: newId(), overlay: logoToAdd },
-                { label: "Add logo" },
-              );
-            }
-          },
-          onEndCard: (on: boolean): void => {
-            if (!on && endCardOverlay !== undefined) {
-              store.submitOp(
-                { type: "RemoveOverlay", opId: newId(), overlayId: endCardOverlay.id },
-                { label: "Remove end card" },
-              );
-            } else if (on && endCardToAdd !== undefined) {
-              store.submitOp(
-                { type: "SetOverlay", opId: newId(), overlay: endCardToAdd },
-                { label: "Add end card" },
-              );
-            }
+          on: musicBed.state === "accepted" || musicBed.state === "modified",
+          title: typeof musicTitle === "string" && musicTitle !== "" ? musicTitle : null,
+          onMusic: (on: boolean): void => {
+            store.submitOp(
+              {
+                type: "DecideItems",
+                opId: newId(),
+                itemIds: [musicBed.itemId],
+                state: on ? "accepted" : "rejected",
+              },
+              { label: on ? "Add music" : "Remove music" },
+            );
           },
         };
+  // Shown where there is something to do: a saved kit, or a clip that already
+  // carries a brand overlay or the kit's music. A workspace that never made a
+  // kit sees nothing new.
+  const brand =
+    (brandKit.data === undefined || brandKit.data === null) && music === undefined
+      ? undefined
+      : brandKit.data?.exists !== true &&
+          logoOverlay === undefined &&
+          endCardOverlay === undefined &&
+          music === undefined
+        ? undefined
+        : {
+            logoOn: logoOverlay !== undefined,
+            logoAvailable: logoToAdd !== undefined,
+            endCardOn: endCardOverlay !== undefined,
+            endCardAvailable: endCardToAdd !== undefined,
+            onLogo: (on: boolean): void => {
+              if (!on && logoOverlay !== undefined) {
+                store.submitOp(
+                  { type: "RemoveOverlay", opId: newId(), overlayId: logoOverlay.id },
+                  { label: "Remove logo" },
+                );
+              } else if (on && logoToAdd !== undefined) {
+                store.submitOp(
+                  { type: "SetOverlay", opId: newId(), overlay: logoToAdd },
+                  { label: "Add logo" },
+                );
+              }
+            },
+            onEndCard: (on: boolean): void => {
+              if (!on && endCardOverlay !== undefined) {
+                store.submitOp(
+                  { type: "RemoveOverlay", opId: newId(), overlayId: endCardOverlay.id },
+                  { label: "Remove end card" },
+                );
+              } else if (on && endCardToAdd !== undefined) {
+                store.submitOp(
+                  { type: "SetOverlay", opId: newId(), overlay: endCardToAdd },
+                  { label: "Add end card" },
+                );
+              }
+            },
+            ...(music === undefined ? {} : { music }),
+          };
 
   const audioClean = (state.hot.audio as { clean?: { cleanId?: string | null } } | undefined)
     ?.clean;

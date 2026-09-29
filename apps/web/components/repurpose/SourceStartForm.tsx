@@ -40,10 +40,17 @@
  * YouTube links on too), and the upload tab takes several files
  * (`allowSeveralFiles`). Each becomes its own run with the one setup below. The
  * setup panel itself is `RunSetupFields`, shared with the Automations page.
+ *
+ * Audio files (2026-10-04): the upload tab takes a podcast or a voice note as
+ * well as a video - every format an upload may be (`MEDIA_ACCEPT_ATTRIBUTE`,
+ * which the file picker had narrowed to video) - and each of its clips is
+ * drawn a picture: an optional cover image, offered once a sound-only file is
+ * picked, above a live waveform (an audiogram).
  */
 import NextLink from "next/link";
 import * as React from "react";
 
+import { MEDIA_ACCEPT_ATTRIBUTE } from "@montaj/config";
 import { Button, Field, Input, Textarea, cn } from "@montaj/ui";
 
 import { DETAIL_COPY } from "@/components/repurpose/copy";
@@ -63,6 +70,12 @@ import {
   severalLinksProblem,
 } from "@/components/repurpose/several-links";
 import { isPlausibleLink, normaliseSourceLink } from "@/components/repurpose/source-link";
+import {
+  COVER_CONTENT_TYPES,
+  COVER_MAX_BYTES,
+  coverFileProblem,
+  isAudioFile,
+} from "@/components/repurpose/use-cover";
 
 export {
   DEFAULT_STYLE_ID,
@@ -89,6 +102,11 @@ export interface StartFormValue extends RunSetupValue {
   readonly file: File | null;
   /** Every file picked, when several may be (`allowSeveralFiles`); empty otherwise. */
   readonly files: readonly File[];
+  /**
+   * The cover an audio file's clips are drawn with (2026-10-04), picked but not
+   * yet uploaded; offered only while a sound-only file is picked.
+   */
+  readonly cover: File | null;
   readonly rightsAttested: boolean;
 }
 
@@ -100,6 +118,7 @@ export const EMPTY_START_FORM: StartFormValue = Object.freeze({
   startAt: "",
   file: null,
   files: [],
+  cover: null,
   rightsAttested: false,
 });
 
@@ -108,6 +127,7 @@ export interface StartFormProblems extends RunSetupProblems {
   readonly links?: string;
   readonly startAt?: string;
   readonly file?: string;
+  readonly cover?: string;
   readonly rights?: string;
 }
 
@@ -125,6 +145,20 @@ export function startAtMs(value: Pick<StartFormValue, "tab" | "startAt">): numbe
 export function filesOf(value: Pick<StartFormValue, "file" | "files">): readonly File[] {
   if (value.files.length > 0) return value.files;
   return value.file === null ? [] : [value.file];
+}
+
+/** Whether any picked file is sound only, so its clips are audiograms and a cover is offered. */
+export function picksAudio(value: Pick<StartFormValue, "tab" | "file" | "files">): boolean {
+  return value.tab === "upload" && filesOf(value).some((file) => isAudioFile(file));
+}
+
+/**
+ * The cover to upload with the run: the one picked, while a sound-only file is
+ * picked too (a cover picked for an audio file that was then swapped for a
+ * video is not sent).
+ */
+export function coverToSend(value: StartFormValue): File | null {
+  return picksAudio(value) ? value.cover : null;
 }
 
 /**
@@ -193,9 +227,9 @@ export function validateStartForm(
   } else {
     const files = filesOf(value);
     if (files.length === 0) {
-      problems.file = "Choose a video from your device.";
+      problems.file = "Choose a video or audio file from your device.";
     } else if (files.length > MAX_FILES) {
-      problems.file = `Up to ${String(MAX_FILES)} videos at a time.`;
+      problems.file = `Up to ${String(MAX_FILES)} files at a time.`;
     } else if (cap !== undefined && Number.isFinite(cap) && cap > 0) {
       const over = files.find((file) => file.size > cap);
       if (over !== undefined) {
@@ -205,6 +239,12 @@ export function validateStartForm(
             : `${over.name} is larger than your plan allows (up to ${formatBytes(cap)}). Choose a smaller copy.`;
       }
     }
+  }
+
+  const cover = coverToSend(value);
+  if (cover !== null) {
+    const problem = coverFileProblem(cover);
+    if (problem !== null) problems.cover = problem;
   }
 
   return { ...problems, ...validateRunSetup(value) };
@@ -255,7 +295,7 @@ export interface SourceStartFormProps {
 const TAB_LABELS: Readonly<Record<StartFormValue["tab"], string>> = Object.freeze({
   link: "Paste a link",
   links: "Several links",
-  upload: "Upload a video",
+  upload: "Upload a file",
 });
 
 export function SourceStartForm({
@@ -552,17 +592,21 @@ export function SourceStartForm({
             className="space-y-3"
           >
             <Field
-              label={allowSeveralFiles ? "Video files" : "Video file"}
+              label={allowSeveralFiles ? "Video or audio files" : "Video or audio file"}
               htmlFor="repurpose-file"
-              {...(allowSeveralFiles
-                ? { hint: `Choose one, or up to ${String(MAX_FILES)}: each becomes its own run.` }
-                : {})}
+              hint={
+                allowSeveralFiles
+                  ? `Choose one, or up to ${String(MAX_FILES)}: each becomes its own run. A podcast or voice note gets a picture drawn for its clips.`
+                  : "A podcast or voice note gets a picture drawn for its clips."
+              }
               {...(visible.file === undefined ? {} : { error: visible.file })}
             >
               <input
                 id="repurpose-file"
                 type="file"
-                accept="video/*"
+                // Every format an upload may be, audio among them (2026-10-04):
+                // "video/*" hid every podcast from the picker.
+                accept={MEDIA_ACCEPT_ATTRIBUTE}
                 multiple={allowSeveralFiles}
                 data-testid="source-file"
                 aria-describedby={visible.file === undefined ? undefined : "repurpose-file-error"}
@@ -596,6 +640,15 @@ export function SourceStartForm({
                 ))}
               </ul>
             )}
+            {picksAudio(value) ? (
+              <CoverField
+                cover={value.cover}
+                error={visible.cover}
+                onChange={(cover) => {
+                  set("cover", cover);
+                }}
+              />
+            ) : null}
           </div>
         )}
       </section>
@@ -635,5 +688,102 @@ export function SourceStartForm({
         {submitting ? "Starting…" : (submitLabel ?? "Start finding clips")}
       </Button>
     </form>
+  );
+}
+
+/**
+ * The cover for an audio file's clips (2026-10-04): optional, shown back as a
+ * thumbnail once picked, and taken off again with Remove. It is uploaded when
+ * the run starts, not before.
+ */
+function CoverField({
+  cover,
+  error,
+  onChange,
+}: {
+  readonly cover: File | null;
+  readonly error: string | undefined;
+  readonly onChange: (cover: File | null) => void;
+}): React.JSX.Element {
+  const inputRef = React.useRef<HTMLInputElement | null>(null);
+  const [preview, setPreview] = React.useState<string | null>(null);
+  React.useEffect(() => {
+    if (cover === null || typeof URL.createObjectURL !== "function") {
+      setPreview(null);
+      return undefined;
+    }
+    const url = URL.createObjectURL(cover);
+    setPreview(url);
+    return () => {
+      URL.revokeObjectURL(url);
+    };
+  }, [cover]);
+
+  return (
+    <Field
+      label="Cover image (optional)"
+      htmlFor="repurpose-cover"
+      hint={`Drawn above the waveform in every clip. PNG, JPEG or WebP, up to ${String(COVER_MAX_BYTES / (1024 * 1024))} MB. Without one, clips show your brand kit's logo when the run uses it, or just the waveform.`}
+      {...(error === undefined ? {} : { error })}
+    >
+      <div className="flex flex-wrap items-center gap-3" data-testid="source-cover">
+        <div className="flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-sm bg-sunken">
+          {preview === null ? (
+            <span className="text-2xs text-fg-2">No cover</span>
+          ) : (
+            <img
+              src={preview}
+              alt="The cover you picked"
+              className="size-full object-cover"
+              data-testid="source-cover-preview"
+            />
+          )}
+        </div>
+        <input
+          ref={inputRef}
+          id="repurpose-cover"
+          type="file"
+          accept={COVER_CONTENT_TYPES.join(",")}
+          className="sr-only"
+          data-testid="source-cover-input"
+          aria-describedby={error === undefined ? "repurpose-cover-hint" : "repurpose-cover-error"}
+          onChange={(event) => {
+            const picked = event.target.files?.[0];
+            event.target.value = "";
+            if (picked !== undefined) onChange(picked);
+          }}
+        />
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          onClick={() => inputRef.current?.click()}
+          data-testid="source-cover-choose"
+        >
+          {cover === null ? "Choose a cover" : "Replace"}
+        </Button>
+        {cover === null ? null : (
+          <>
+            <span
+              className="min-w-0 max-w-full truncate text-xs text-fg-1"
+              data-testid="source-cover-name"
+            >
+              {cover.name}
+            </span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                onChange(null);
+              }}
+              data-testid="source-cover-remove"
+            >
+              Remove
+            </Button>
+          </>
+        )}
+      </div>
+    </Field>
   );
 }

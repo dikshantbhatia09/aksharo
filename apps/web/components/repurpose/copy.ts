@@ -483,6 +483,20 @@ export const CLIP_FAILURE_COPY: Readonly<Record<string, ClipFailureCopy>> = Obje
     reassurance: "Your video and your other clips are safe. Trying again starts it afresh.",
     retryable: true,
   },
+  // A clip of an audio file cut by a worker older than audiograms (2026-10-04):
+  // the sound with no picture. Cutting it again, once the worker is updated,
+  // draws its picture.
+  "media/no_picture": {
+    title: "This clip came out without a picture",
+    reassurance: "Your video and your other clips are safe. Trying again usually fixes it.",
+    retryable: true,
+  },
+  // The cut asked for something the worker that picked it up cannot do yet.
+  "worker/outdated": {
+    title: "This clip could not be made just yet",
+    reassurance: "Your video and your other clips are safe. Try again in a few minutes.",
+    retryable: true,
+  },
   "jobs/cancelled": CLIP_CUT_STOPPED,
   "media/source_missing": CLIP_SOURCE_GONE,
   "repurpose/source_expired": CLIP_SOURCE_GONE,
@@ -521,6 +535,14 @@ export const REFUSAL_COPY = Object.freeze({
     "repurpose/source_already_running": "You are already working on this video.",
     "repurpose/style_unknown": "That caption look is no longer available. Choose another one.",
     "repurpose/not_available": "The clips pipeline is not on for this workspace yet.",
+    // The cover for an audio file's clips (2026-10-04), refused before any run starts.
+    "repurpose/cover_invalid":
+      "That cover is not a PNG, JPEG or WebP image. Choose another one, or remove it.",
+    "repurpose/cover_too_large": "That cover is larger than 10 MB. Choose a smaller one.",
+    "repurpose/cover_bad_size":
+      "That cover is too small or too large. Use one between 64 and 4096 pixels on each side.",
+    "repurpose/cover_not_uploaded": "The cover did not finish uploading. Try again.",
+    "repurpose/cover_not_found": "That cover is not available any more. Choose it again.",
     // Refused before anything was created: not even one minute is affordable.
     // With the balance in the refusal, `DETAIL_COPY.creditsLeftRefusal` says it.
     "repurpose/no_credits":

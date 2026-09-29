@@ -482,3 +482,119 @@ describe("<RepurposeNewView /> steering (2026-09-29)", () => {
     expect(body.setup.discovery).toEqual({ mode: "manual", requestedCandidates: 0 });
   });
 });
+
+describe("<RepurposeNewView /> an audio file's cover (2026-10-04)", () => {
+  const COVER_ID = "01JC0VER000000000000000000";
+  const created = (): Response =>
+    json(201, {
+      run: { id: RUN_ID },
+      projectId: "01JPROJECT",
+      upload: null,
+      next: { rel: "run", href: `/repurpose/runs/${RUN_ID}` },
+    });
+  const ticket = (): Response =>
+    json(201, {
+      assetId: COVER_ID,
+      uploadUrl: "https://upload.test/cover.png",
+      contentType: "image/png",
+      expiresAt: "2026-10-04T10:00:00.000Z",
+      maxBytes: 10 * 1024 * 1024,
+    });
+
+  beforeEach(() => {
+    routerMock.push.mockClear();
+    addFilesToProjects.mockClear();
+    searchParamsMock.value = new URLSearchParams({ source: "upload" });
+  });
+
+  async function pickAudioWithCover(): Promise<void> {
+    const user = userEvent.setup();
+    await user.upload(
+      screen.getByTestId("source-file"),
+      new File(["id3"], "episode-12.mp3", { type: "audio/mpeg" }),
+    );
+    await user.upload(
+      screen.getByTestId("source-cover-input"),
+      new File(["png"], "cover.png", { type: "image/png" }),
+    );
+    await user.click(screen.getByTestId("start-run"));
+  }
+
+  it("uploads the cover first, then starts the run with it", async () => {
+    const put = vi.fn(async () => new Response(null, { status: 200 }));
+    vi.stubGlobal("fetch", put);
+    try {
+      const { fetchMock } = renderWithProviders(<RepurposeNewView />, {
+        routes: {
+          "/repurpose/covers": ticket(),
+          [`/repurpose/covers/${COVER_ID}/complete`]: {
+            assetId: COVER_ID,
+            format: "png",
+            width: 1_400,
+            height: 1_400,
+            sizeBytes: 3,
+            url: "https://cdn.test/cover.png",
+          },
+          [RUNS]: created(),
+        },
+      });
+      await pickAudioWithCover();
+
+      await waitFor(() => {
+        expect(routerMock.push).toHaveBeenCalledWith(`/repurpose/${RUN_ID}`);
+      });
+      expect(put).toHaveBeenCalledWith(
+        "https://upload.test/cover.png",
+        expect.objectContaining({ method: "PUT", headers: { "Content-Type": "image/png" } }),
+      );
+      const paths = fetchMock.mock.calls.map(([input]) => new URL(String(input)).pathname);
+      expect(paths.indexOf("/repurpose/covers")).toBeLessThan(paths.indexOf(RUNS));
+      const [body] = createBodies(fetchMock) as [
+        { source: { mime: string }; setup: Record<string, unknown> },
+      ];
+      expect(body.source.mime).toBe("audio/mpeg");
+      expect(body.setup["audiogram"]).toEqual({ coverAssetId: COVER_ID });
+      expect(addFilesToProjects).toHaveBeenCalledOnce();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("starts nothing, and says why, when the cover is refused", async () => {
+    const { fetchMock } = renderWithProviders(<RepurposeNewView />, {
+      routes: {
+        "/repurpose/covers": json(413, {
+          error: { code: "repurpose/cover_too_large", message: "A cover can be at most 10 MB." },
+        }),
+        [RUNS]: created(),
+      },
+    });
+    await pickAudioWithCover();
+
+    expect(
+      await screen.findByText("That cover is larger than 10 MB. Choose a smaller one."),
+    ).toBeInTheDocument();
+    expect(createBodies(fetchMock)).toHaveLength(0);
+    expect(routerMock.push).not.toHaveBeenCalled();
+  });
+
+  it("starts an audio file without a cover exactly as before", async () => {
+    const user = userEvent.setup();
+    const { fetchMock } = renderWithProviders(<RepurposeNewView />, {
+      routes: { [RUNS]: created() },
+    });
+    await user.upload(
+      screen.getByTestId("source-file"),
+      new File(["id3"], "episode-12.mp3", { type: "audio/mpeg" }),
+    );
+    await user.click(screen.getByTestId("start-run"));
+
+    await waitFor(() => {
+      expect(routerMock.push).toHaveBeenCalledWith(`/repurpose/${RUN_ID}`);
+    });
+    const [body] = createBodies(fetchMock) as [{ setup: Record<string, unknown> }];
+    expect(body.setup).not.toHaveProperty("audiogram");
+    const paths = fetchMock.mock.calls.map(([input]) => new URL(String(input)).pathname);
+    expect(paths).not.toContain("/repurpose/covers");
+  });
+});
