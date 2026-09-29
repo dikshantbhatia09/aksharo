@@ -1705,6 +1705,18 @@ describe("Autopilot's images, disk guard and old renders", () => {
     expect(item?.images.status).toBe("preparing");
   });
 
+  // Live, 2026-09-29: a format cut files its variant as `ready` before its
+  // captioned video is asked for, and the images were taken from 9:16 alone.
+  it("does not count a freshly cut shape as made before its captioned video exists", async () => {
+    h = harness({ run: auto });
+    everyShapeMade(h);
+    Object.assign(h.tables.variants[1] ?? {}, { status: "ready", latestExportId: null });
+    // Its captions document is not built yet, so nothing asks for its render.
+    h.tables.docs.splice(1, 1);
+    await h.service.reconcileClips(RUN);
+    expect(stills(h)).toHaveLength(0);
+  });
+
   it("holds the other shapes and the images while the disk is low, never the 9:16 clip", async () => {
     h = harness({ run: auto });
     everyShapeMade(h);

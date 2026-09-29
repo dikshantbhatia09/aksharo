@@ -828,7 +828,12 @@ export class RepurposeClipsService {
         .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0];
       return {
         shape: SHAPE_OF_ASPECT[variant.aspect],
-        settled: variant.status === "ready" || variant.status === "failed",
+        // Made, or failed for good. A variant is created `ready` by its cut,
+        // before its captioned video is even asked for, so `ready` alone is
+        // not "made": the first image sets were taken from 9:16 alone.
+        settled:
+          variant.status === "failed" ||
+          (variant.status === "ready" && made !== undefined && made.storageKey !== null),
         captioned:
           variant.status === "ready" && made !== undefined && made.storageKey !== null
             ? { exportId: made.id, key: made.storageKey }
