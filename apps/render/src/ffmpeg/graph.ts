@@ -103,7 +103,8 @@ export interface GraphInput {
   readonly musicCues?: readonly MusicMixCue[];
   /** Where speech is, on the **source** clock — `audio-mix.ts`'s
    * `speechRangesFromWords` over `payload.projection.words`. Needed only when
-   * a cue/bed carries a `duck`/`bedDuck` curve. */
+   * a cue/bed carries a `duck`/`bedDuck` curve; `buildAudioMixPlan` moves it
+   * onto the output clock the ducks run on (`outputSpeechRanges`, 2026-10-04). */
   readonly speechRanges?: readonly SpeechRange[];
   /**
    * The same `TimeMap` `outputCropKeyframesFromTracks` was given — used to

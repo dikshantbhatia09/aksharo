@@ -6,6 +6,7 @@ import {
   buildAudioMixPlan,
   buildCueFilters,
   buildMusicFilters,
+  outputSpeechRanges,
   speechRangesFromWords,
   type MusicMixCue,
   type SfxMixCue,
@@ -164,7 +165,43 @@ describe("buildMusicFilters", () => {
   it("does not loop a bed already at least as long as its window", () => {
     const { filters } = buildMusicFilters({ ...MUSIC, assetDurationMs: 10_000 }, 0, null, []);
     expect(filters[0]).not.toContain("aloop");
-    expect(filters[0]).toContain("atrim=start=0.000000:end=6.000000");
+    expect(filters[0]).toContain("atrim=start=0:end=6.000000");
+  });
+
+  // 2026-10-04: a looped bed (the brand kit's music) under a clip with cuts
+  // used to restart from the top of its asset at every retained piece.
+  it("plays a looped bed straight through the cuts, as one chain on the output clock", () => {
+    const map = buildTimeMap({
+      sourceDurationMs: 10_000,
+      edits: [cutEdit(3_000, 3_200), cutEdit(5_000, 5_500)],
+    });
+    const { filters, labels } = buildMusicFilters(
+      { ...MUSIC, startMs: 0, endMs: 10_000, assetDurationMs: 4_000 },
+      2,
+      map,
+      [],
+    );
+    expect(labels).toEqual(["music2_0"]);
+    expect(filters).toHaveLength(1);
+    // 10 s less 0.7 s of cuts: 9.3 s of bed, the 4 s asset looped to fill it.
+    expect(filters[0]).toContain("aloop=loop=-1");
+    expect(filters[0]).toContain("atrim=start=0:end=9.300000");
+    expect(filters[0]).toContain("afade=type=in:start_time=0:duration=0.300000");
+    expect(filters[0]).toContain("afade=type=out:start_time=8.500000:duration=0.800000");
+    expect(filters[0]).toContain("adelay=0|0");
+  });
+
+  it("starts a looped bed where its window starts on the output clock", () => {
+    const map = buildTimeMap({ sourceDurationMs: 10_000, edits: [cutEdit(0, 1_000)] });
+    const { filters } = buildMusicFilters(
+      { ...MUSIC, startMs: 2_000, endMs: 8_000, assetDurationMs: 60_000 },
+      0,
+      map,
+      [],
+    );
+    expect(filters[0]).not.toContain("aloop");
+    expect(filters[0]).toContain("adelay=1000|1000");
+    expect(filters[0]).toContain("atrim=start=0:end=6.000000");
   });
 
   it("applies bedDuck as a per-frame duck expression when speech ranges exist", () => {
@@ -197,6 +234,35 @@ describe("buildMusicFilters", () => {
     expect(filters[0]).not.toContain("afade=type=out");
     expect(filters[1]).toContain("afade=type=out");
     expect(filters[1]).not.toContain("afade=type=in");
+  });
+});
+
+describe("outputSpeechRanges (2026-10-04)", () => {
+  it("is the ranges as they are for an unedited render", () => {
+    const ranges = [{ startMs: 1_000, endMs: 2_000 }];
+    expect(outputSpeechRanges(ranges, null)).toEqual(ranges);
+  });
+
+  it("moves speech after a cut earlier by the cut, and splits and rejoins a range a cut runs through", () => {
+    const map = buildTimeMap({ sourceDurationMs: 10_000, edits: [cutEdit(1_000, 2_000)] });
+    expect(
+      outputSpeechRanges(
+        [
+          { startMs: 3_000, endMs: 4_000 },
+          { startMs: 500, endMs: 2_500 },
+        ],
+        map,
+      ),
+    ).toEqual([
+      // 500-1000 and 2000-2500 abut once the cut is gone: one range, 500-1500.
+      { startMs: 500, endMs: 1_500 },
+      { startMs: 2_000, endMs: 3_000 },
+    ]);
+  });
+
+  it("drops speech a cut removed entirely", () => {
+    const map = buildTimeMap({ sourceDurationMs: 10_000, edits: [cutEdit(1_000, 2_000)] });
+    expect(outputSpeechRanges([{ startMs: 1_200, endMs: 1_800 }], map)).toEqual([]);
   });
 });
 
