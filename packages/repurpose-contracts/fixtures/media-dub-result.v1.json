@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "dubId": "01JCDVB0000000000000000000",
+  "clipId": "01ARZ3NDEKTSV4RRFFQ69G5FAY",
+  "language": "hi-IN",
+  "shape": "4:5",
+  "key": "ws/01ARZ3NDEKTSV4RRFFQ69G5FB0/p/01ARZ3NDEKTSV4RRFFQ69G5FAX/repurpose/01ARZ3NDEKTSV4RRFFQ69G5FAV/dubs/01JCDVB0000000000000000000/hi-IN/4x5.mp4",
+  "checksum": "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
+  "sizeBytes": 7342190,
+  "durationMs": 34000,
+  "audioDurationMs": 35120,
+  "fit": "trimmed",
+  "adjustMs": 1120,
+  "mixed": false
+}
