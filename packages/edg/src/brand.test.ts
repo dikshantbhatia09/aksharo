@@ -1,19 +1,25 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  BRAND_MUSIC_DUCK,
+  BRAND_MUSIC_LEVELS,
   brandCaptionOverrides,
   brandEndCardOverlay,
   brandHookAppearance,
   brandKitSettingsOf,
   BrandKitSettingsSchema,
   brandLogoOverlay,
+  brandMusicPass,
   contrastRatio,
   DEFAULT_BRAND_KIT_SETTINGS,
+  isWorkspaceMusicItem,
   stableOverlayId,
+  WORKSPACE_MUSIC_PACK_ID,
   type BrandKitSettings,
 } from "./brand.js";
 import { ULID_PATTERN } from "./ids.js";
 import { OverlaySchema } from "./schemas/document.js";
+import { PassSchema } from "./schemas/pass.js";
 
 const IMAGE = {
   assetId: "01JASSET000000000000000000",
@@ -200,5 +206,98 @@ describe("contrastRatio and stableOverlayId", () => {
     expect(id).toMatch(ULID_PATTERN);
     expect(stableOverlayId("01JVARIANT0000000000000000:logo")).toBe(id);
     expect(stableOverlayId("01JVARIANT0000000000000000:end-card")).not.toBe(id);
+  });
+});
+
+describe("the kit's music (2026-10-04)", () => {
+  const TRACK = {
+    assetId: "01JM0S1C000000000000000000",
+    rightsAttestedAt: "2026-10-04T09:00:00.000Z",
+    rightsAttestedBy: "01JUSER0000000000000000000",
+    title: "Morning theme",
+  } as const;
+  const ids = {
+    passId: stableOverlayId("01JVAR1ANT000000000000000:music-pass"),
+    itemId: stableOverlayId("01JVAR1ANT000000000000000:music"),
+  };
+
+  it("is on and quiet by default, and a kit saved without it still parses", () => {
+    expect(DEFAULT_BRAND_KIT_SETTINGS.music).toEqual({ enabled: true, level: "quiet" });
+    const { music: _music, ...older } = DEFAULT_BRAND_KIT_SETTINGS;
+    const parsed = BrandKitSettingsSchema.parse(older);
+    expect(parsed.music).toEqual({ enabled: true, level: "quiet" });
+    expect(
+      BrandKitSettingsSchema.safeParse({ ...kit(), music: { enabled: true, level: "loud" } })
+        .success,
+    ).toBe(false);
+  });
+
+  it("reads a stored kit's music, and the default for a kit from before it", () => {
+    expect(brandKitSettingsOf({ v: 1 }).music).toEqual(DEFAULT_BRAND_KIT_SETTINGS.music);
+    expect(brandKitSettingsOf({ v: 1, music: { enabled: false } }).music).toEqual({
+      enabled: false,
+      level: "quiet",
+    });
+  });
+
+  it("lays one accepted, looped, ducked bed over the whole clip", () => {
+    const pass = brandMusicPass({
+      settings: kit({ music: { enabled: true, level: "medium" } }),
+      music: TRACK,
+      durationMs: 31_250.4,
+      ...ids,
+    });
+    expect(pass).toBeDefined();
+    const parsed = PassSchema.parse(pass);
+    expect(parsed).toMatchObject({ type: "music", status: "ready", passId: ids.passId });
+    expect(ULID_PATTERN.test(parsed.passId)).toBe(true);
+    const [item] = parsed.items;
+    expect(item).toMatchObject({
+      itemId: ids.itemId,
+      kind: "music",
+      state: "accepted",
+      startMs: 0,
+      endMs: 31_250,
+      payload: {
+        assetId: TRACK.assetId,
+        packId: WORKSPACE_MUSIC_PACK_ID,
+        durationMs: 31_250,
+        gainDb: BRAND_MUSIC_LEVELS.medium,
+        loopPolicy: "loop",
+        bedDuck: BRAND_MUSIC_DUCK,
+        licenceSnapshot: {
+          source: "workspace",
+          rightsAttestedAt: TRACK.rightsAttestedAt,
+          rightsAttestedBy: TRACK.rightsAttestedBy,
+          title: "Morning theme",
+        },
+      },
+    });
+    expect(item !== undefined && isWorkspaceMusicItem(item)).toBe(true);
+    expect(BRAND_MUSIC_LEVELS.quiet).toBeLessThan(BRAND_MUSIC_LEVELS.medium);
+  });
+
+  it("lays nothing when the kit's music is off, or the clip has no length", () => {
+    expect(
+      brandMusicPass({
+        settings: kit({ music: { enabled: false, level: "quiet" } }),
+        music: TRACK,
+        durationMs: 30_000,
+        ...ids,
+      }),
+    ).toBeUndefined();
+    expect(
+      brandMusicPass({ settings: kit(), music: TRACK, durationMs: 0, ...ids }),
+    ).toBeUndefined();
+  });
+
+  it("tells a workspace's bed from a catalogue one", () => {
+    const pass = brandMusicPass({ settings: kit(), music: TRACK, durationMs: 5_000, ...ids });
+    const item = pass?.items[0];
+    expect(item).toBeDefined();
+    if (item === undefined || item.kind !== "music") return;
+    expect(
+      isWorkspaceMusicItem({ ...item, payload: { ...item.payload, packId: "d05-core" } }),
+    ).toBe(false);
   });
 });
