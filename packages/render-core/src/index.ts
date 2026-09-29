@@ -119,8 +119,10 @@ export {
 
 export {
   type CanvasFaceTrack,
+  captionExtent,
   combineShrink,
   FACE_TRACK_VERSION,
+  type FacePadding,
   facesDuring,
   type FaceTrackDocument,
   faceTrackOnCanvas,
@@ -131,6 +133,22 @@ export {
   placeCaption,
   placementKey,
 } from "./frame/placement.js";
+
+export {
+  drawHookTitle,
+  HOOK_TITLE_KIND,
+  HOOK_TITLE_SIZE,
+  HookTitleCache,
+  type HookTitleInput,
+  type HookTitleLayout,
+  type HookTitlePhase,
+  hookTitlePhase,
+  layoutHookTitle,
+  MIN_HOOK_TITLE_SCALE,
+  type OverlayTrack,
+  renderHookTitles,
+  type RenderHookTitlesOptions,
+} from "./overlay/hook-title.js";
 
 export { isRenderError, RenderError, type RenderErrorCode } from "./errors.js";
 

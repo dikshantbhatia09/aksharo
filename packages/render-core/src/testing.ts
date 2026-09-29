@@ -15,11 +15,15 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
+import { type StyleDoc } from "@montaj/caption-styles";
+
+import { type DrawCommand } from "./commands/types.js";
 import { createHarfBuzzShaper } from "./fonts/harfbuzz.js";
 import { createFontRegistry } from "./fonts/registry.js";
 import { type Shaper } from "./fonts/shaper.js";
 import { type FontRegistry, type FontResource } from "./fonts/types.js";
 import { type RenderWord } from "./layout/types.js";
+import { HookTitleCache, renderHookTitles } from "./overlay/hook-title.js";
 import { type WordScript } from "./script.js";
 import { type CanvasSize } from "./units.js";
 
@@ -206,3 +210,47 @@ export const GOLDEN_CANVAS: CanvasSize = { width: 1080, height: 1920 };
 
 /** The 540p proxy the editor previews at; used by the relative-sizing tests. */
 export const PROXY_CANVAS: CanvasSize = { width: 540, height: 960 };
+
+/**
+ * The hook-title golden inputs (2026-09-29): a Hinglish and a Hindi hook, on a
+ * vertical and a wide canvas, at its entry, its middle and its exit. The
+ * caption goldens above never draw an overlay, so these are the only hashes
+ * the hook title can move.
+ */
+export const HOOK_TITLE_FIXTURES: readonly { readonly name: string; readonly text: string }[] = [
+  { name: "hinglish", text: "Paisa bachane ka sabse easy tarika" },
+  { name: "hindi", text: "पैसे बचाने का सबसे आसान तरीका" },
+];
+
+export const HOOK_TITLE_CANVASES: Readonly<Record<string, CanvasSize>> = {
+  portrait: { width: 1080, height: 1920 },
+  landscape: { width: 1920, height: 1080 },
+};
+
+export const HOOK_TITLE_TIMESTAMPS_MS: readonly number[] = [100, 1250, 2400];
+
+/** The window every hook-title golden overlay spans. */
+export const HOOK_TITLE_WINDOW = { startMs: 0, endMs: 2500 } as const;
+
+/** One hook-title golden frame: the golden build script and its test draw exactly this. */
+export function hookTitleGoldenCommands(
+  style: StyleDoc,
+  text: string,
+  canvas: CanvasSize,
+  tMs: number,
+  renderer: FixtureRenderer,
+): DrawCommand[] {
+  return renderHookTitles({
+    overlays: [
+      { id: "01JHOOKGOLDEN0000000000000", kind: "hook-title", text, ...HOOK_TITLE_WINDOW },
+    ],
+    sourceMs: tMs,
+    style,
+    canvas,
+    registry: renderer.registry,
+    shaper: renderer.shaper,
+    captionsDuring: () => [],
+    cache: new HookTitleCache(),
+    cacheOwner: {},
+  });
+}

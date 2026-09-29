@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { AudioCleanSchema, AudioDuckingSchema } from "./document.js";
+import { AudioCleanSchema, AudioDuckingSchema, OverlaySchema } from "./document.js";
 import { ItemStateSchema, PassSchema } from "./pass.js";
 import {
   JsonObjectSchema,
@@ -211,6 +211,17 @@ export const SetRenderOpSchema = op("SetRender", {
   presets: z.array(z.string().min(1).max(64)).optional(),
 });
 
+/**
+ * Adds an overlay, or replaces the one with the same id (added 2026-09-29):
+ * editing a hook title's words is the same op as placing it. The engine clamps
+ * the window to the media and refuses an empty one. Rebase field
+ * `overlay:<id>`, last-write-wins.
+ */
+export const SetOverlayOpSchema = op("SetOverlay", { overlay: OverlaySchema });
+
+/** Removes one overlay (added 2026-09-29). Rebase field `overlay:<id>`, like `SetOverlay`. */
+export const RemoveOverlayOpSchema = op("RemoveOverlay", { overlayId: UlidSchema });
+
 /** Every op, discriminated on `type` (CONTRACTS §2). */
 export const EdgOpSchema = z
   .discriminatedUnion("type", [
@@ -233,6 +244,8 @@ export const EdgOpSchema = z
     MergePassOpSchema,
     SetAudioOpSchema,
     SetRenderOpSchema,
+    SetOverlayOpSchema,
+    RemoveOverlayOpSchema,
   ])
   .meta({ id: "EdgOp", title: "EdgOp", description: "Semantic, id-addressed EDG mutation (D29)" });
 
@@ -257,6 +270,8 @@ export const EDG_OP_TYPES = [
   "MergePass",
   "SetAudio",
   "SetRender",
+  "SetOverlay",
+  "RemoveOverlay",
 ] as const;
 
 /** `POST /projects/{id}/edg/ops` body (D29). */
@@ -372,6 +387,8 @@ export type EditPassItemOp = z.infer<typeof EditPassItemOpSchema>;
 export type MergePassOp = z.infer<typeof MergePassOpSchema>;
 export type SetAudioOp = z.infer<typeof SetAudioOpSchema>;
 export type SetRenderOp = z.infer<typeof SetRenderOpSchema>;
+export type SetOverlayOp = z.infer<typeof SetOverlayOpSchema>;
+export type RemoveOverlayOp = z.infer<typeof RemoveOverlayOpSchema>;
 export type EdgOp = z.infer<typeof EdgOpSchema>;
 export type EdgOpType = (typeof EDG_OP_TYPES)[number];
 export type OpRejectionReason = z.infer<typeof OpRejectionReasonSchema>;

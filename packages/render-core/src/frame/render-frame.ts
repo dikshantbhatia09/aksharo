@@ -14,6 +14,7 @@ import { type StyleDoc } from "@montaj/caption-styles";
 import { type TimeQuery } from "@montaj/timemap";
 
 import {
+  captionExtent,
   type CanvasFaceTrack,
   combineShrink,
   PlacementCache,
@@ -24,11 +25,13 @@ import { type EdgProjection, visibleSegments, wordsBetween } from "./projection.
 import { type DisplayScript, resolveStyle, resolveWords } from "./resolve.js";
 import { type TrackShrink, trackShrinkFor } from "./track-shrink.js";
 import { animate } from "../animate/animate.js";
-import { type DrawCommand } from "../commands/types.js";
+import { type DrawCommand, type Rect } from "../commands/types.js";
+import { isRenderError } from "../errors.js";
 import { type Shaper } from "../fonts/shaper.js";
 import { type FontRegistry } from "../fonts/types.js";
 import { layoutSegment } from "../layout/layout.js";
 import { type Layout } from "../layout/types.js";
+import { HookTitleCache, renderHookTitles } from "../overlay/hook-title.js";
 import { type CanvasSize, assertCanvas } from "../units.js";
 
 export interface RenderFrameOptions {
@@ -70,16 +73,34 @@ export interface RenderFrameOptions {
   readonly faces?: CanvasFaceTrack;
   /** Re-used across frames so each caption is placed once, not thirty times a second. */
   readonly placementCache?: PlacementCache;
+  /**
+   * Re-used across frames so a hook title (`projection.overlays`) is laid out
+   * and placed once, not thirty times a second. A shared one is used without it.
+   */
+  readonly hookTitleCache?: HookTitleCache;
 }
 
 /** Used when a caller passes faces but no cache: still once per caption per module. */
 const SHARED_PLACEMENTS = new PlacementCache();
 
+/** Used when a caller passes no hook-title cache. Weakly keyed by projection. */
+const SHARED_HOOK_TITLES = new HookTitleCache();
+
 /** The layouts that make up one frame; `renderFrame` is this plus `animate`. */
 export function layoutFrame(options: RenderFrameOptions): { layout: Layout; style: StyleDoc }[] {
-  const { projection, timemap, catalogue, registry, shaper } = options;
+  const { projection, timemap } = options;
   const canvas = assertCanvas(options.canvas ?? projection.canvas);
   const sourceMs = timemap === null ? options.outputMs : timemap.toSource(options.outputMs);
+  return layoutAtSource(options, canvas, sourceMs);
+}
+
+/** {@link layoutFrame} at an instant already on the source clock. */
+function layoutAtSource(
+  options: RenderFrameOptions,
+  canvas: CanvasSize,
+  sourceMs: number,
+): { layout: Layout; style: StyleDoc }[] {
+  const { projection, catalogue, registry, shaper } = options;
   const source = {
     catalogue,
     defaultStyleId: projection.styles.defaultStyleId,
@@ -125,8 +146,7 @@ export function layoutFrame(options: RenderFrameOptions): { layout: Layout; styl
       style,
       layout: layoutSegment({
         style,
-        segment:
-          placement === undefined ? segment : { ...segment, position: placement.position },
+        segment: placement === undefined ? segment : { ...segment, position: placement.position },
         words,
         canvas,
         registry,
@@ -158,11 +178,88 @@ export function renderFrame(options: RenderFrameOptions): DrawCommand[] {
       }),
     );
   }
+  // The hook title sits over the captions (it never shares their space). Only
+  // a projection that carries overlays reaches this; every other frame is the
+  // same list it was before overlays existed.
+  if (projection.overlays !== undefined && projection.overlays.length > 0) {
+    commands.push(...overlayCommands(options, sourceMs));
+  }
   if (watermarkAssetId !== undefined && commands.length >= 0) {
     const canvas = assertCanvas(options.canvas ?? projection.canvas);
     commands.push(watermarkFor(watermarkAssetId, canvas));
   }
   return commands;
+}
+
+/**
+ * The frame's overlays (`projection.overlays`), drawn in the document's own
+ * style — its default with the document overrides, the same one a caption
+ * without a style of its own is drawn in — and kept off the captions shown
+ * while each one is up, as well as off the faces.
+ */
+function overlayCommands(options: RenderFrameOptions, sourceMs: number): DrawCommand[] {
+  const { projection } = options;
+  const overlays = projection.overlays ?? [];
+  const canvas = assertCanvas(options.canvas ?? projection.canvas);
+  let style: StyleDoc | undefined;
+  try {
+    style = resolveStyle(
+      {
+        catalogue: options.catalogue,
+        defaultStyleId: projection.styles.defaultStyleId,
+        ...(projection.styles.inline?.doc === undefined
+          ? {}
+          : { documentOverrides: projection.styles.inline.doc }),
+      },
+      {},
+      options.styleCache,
+    );
+  } catch (error) {
+    if (!isRenderError(error)) throw error;
+    style = undefined;
+  }
+  return renderHookTitles({
+    overlays,
+    sourceMs,
+    style,
+    canvas,
+    registry: options.registry,
+    shaper: options.shaper,
+    ...(options.faces === undefined ? {} : { faces: options.faces }),
+    captionsDuring: (startMs, endMs) => captionExtentsDuring(options, canvas, startMs, endMs),
+    cache: options.hookTitleCache ?? SHARED_HOOK_TITLES,
+    cacheOwner: projection,
+  });
+}
+
+/**
+ * Everything the captions draw during `[startMs, endMs)` on the source clock:
+ * each caption on screen then, laid out at its start and at every word that
+ * starts inside the window (a style that shows words in chunks, or one word at
+ * a time, changes shape at each), placed off the faces exactly as it is drawn.
+ */
+function captionExtentsDuring(
+  options: RenderFrameOptions,
+  canvas: CanvasSize,
+  startMs: number,
+  endMs: number,
+): Rect[] {
+  const { projection } = options;
+  const instants = new Set<number>();
+  for (const segment of projection.segments) {
+    if (segment.hidden === true || segment.endMs <= startMs || segment.startMs >= endMs) continue;
+    instants.add(Math.max(segment.startMs, startMs));
+    for (const word of wordsBetween(projection.words, segment.startWordId, segment.endWordId)) {
+      if (word.s > startMs && word.s < endMs) instants.add(word.s);
+    }
+  }
+  const extents: Rect[] = [];
+  for (const instant of [...instants].sort((a, b) => a - b)) {
+    for (const { layout } of layoutAtSource(options, canvas, instant)) {
+      extents.push(captionExtent(layout));
+    }
+  }
+  return extents;
 }
 
 /** The watermark rectangle, independent of whether any caption is on screen. */

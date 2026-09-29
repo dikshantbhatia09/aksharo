@@ -210,6 +210,29 @@ function checkPasses(projection: EdgProjection, issues: ProjectionIssue[]): void
   }
 }
 
+/** Overlays (2026-09-29): unique ids, and a window that is not empty. */
+function checkOverlays(projection: EdgProjection, issues: ProjectionIssue[]): void {
+  const seen = new Set<string>();
+  for (const [index, overlay] of (projection.overlays ?? []).entries()) {
+    const at = `overlays[${index}]`;
+    if (seen.has(overlay.id)) {
+      issues.push({
+        code: "duplicate-id",
+        path: `${at}.id`,
+        message: `duplicate overlay id ${overlay.id}`,
+      });
+    }
+    seen.add(overlay.id);
+    if (overlay.startMs >= overlay.endMs) {
+      issues.push({
+        code: "time-order",
+        path: `${at}.endMs`,
+        message: `startMs ${overlay.startMs} is not before endMs ${overlay.endMs}`,
+      });
+    }
+  }
+}
+
 /**
  * Checks a projection and returns everything wrong with it. An empty array means
  * the document is well formed: it parses, its ids are unique, its segments
@@ -232,6 +255,7 @@ export function validateProjection(
   const issues: ProjectionIssue[] = [];
   checkSegments(parsed.data, issues, options.wordIndex);
   checkPasses(parsed.data, issues);
+  checkOverlays(parsed.data, issues);
   return issues;
 }
 

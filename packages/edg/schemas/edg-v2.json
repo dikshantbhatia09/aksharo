@@ -38,6 +38,13 @@
             "$ref": "#/$defs/ProtectedRange"
           }
         },
+        "overlays": {
+          "maxItems": 8,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Overlay"
+          }
+        },
         "segments": {
           "type": "array",
           "items": {
@@ -279,6 +286,42 @@
       "required": ["id", "s", "e"],
       "additionalProperties": false,
       "title": "ProtectedRange"
+    },
+    "Overlay": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/Ulid"
+        },
+        "kind": {
+          "$ref": "#/$defs/OverlayKind"
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "startMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "title": "Milliseconds"
+        },
+        "endMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "title": "Milliseconds"
+        }
+      },
+      "required": ["id", "kind", "text", "startMs", "endMs"],
+      "additionalProperties": false,
+      "title": "Overlay"
+    },
+    "OverlayKind": {
+      "type": "string",
+      "enum": ["hook-title"],
+      "title": "OverlayKind"
     },
     "Segment": {
       "type": "object",

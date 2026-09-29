@@ -90,6 +90,8 @@ const RENDER_FIELD = "doc:render:presets";
 const itemField = (itemId: string) => `item:${itemId}`;
 const timingField = (wordId: string) => `timing:${wordId}`;
 const passField = (passId: string) => `pass:${passId}`;
+/** One overlay, whichever op wrote it: a later edit or removal wins over an older one. */
+const overlayField = (overlayId: string) => `overlay:${overlayId}`;
 
 /** Reads `opsSince` once and collects everything the transforms ask about. */
 export function analyseOpsSince(opsSince: readonly EdgOp[]): Since {
@@ -181,6 +183,12 @@ export function analyseOpsSince(opsSince: readonly EdgOp[]): Since {
         break;
       case "SetWordTiming":
         since.fields.add(timingField(op.wordId));
+        break;
+      case "SetOverlay":
+        since.fields.add(overlayField(op.overlay.id));
+        break;
+      case "RemoveOverlay":
+        since.fields.add(overlayField(op.overlayId));
         break;
       default: {
         const exhaustive: never = op;
@@ -335,6 +343,10 @@ function writtenFields(op: EdgOp): string[] {
       return [PROTECTED_FIELD];
     case "EditPassItem":
       return [itemField(op.itemId)];
+    case "SetOverlay":
+      return [overlayField(op.overlay.id)];
+    case "RemoveOverlay":
+      return [overlayField(op.overlayId)];
     default:
       return [];
   }

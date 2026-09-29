@@ -424,3 +424,44 @@ describe("an empty op log", () => {
     expect(rebaseOps(incoming, [])).toEqual({ rebased: incoming, rejected: [] });
   });
 });
+
+describe("SetOverlay and RemoveOverlay", () => {
+  const nextOverlayId = idFactory(2_000);
+  const HOOK = nextOverlayId();
+  const OTHER = nextOverlayId();
+  const overlay = (id: string, text: string) => ({
+    id,
+    kind: "hook-title" as const,
+    text,
+    startMs: 0,
+    endMs: 2_500,
+  });
+
+  it("last write wins on one overlay, whether it was edited or removed since the base", () => {
+    const edited = rebaseOps(
+      [op("SetOverlay", { overlay: overlay(HOOK, "mine") })],
+      [op("SetOverlay", { overlay: overlay(HOOK, "theirs") })],
+    );
+    expect(edited.rebased).toEqual([]);
+    expect(reasons(edited.rejected)).toEqual(["rebased-away"]);
+
+    const removed = rebaseOps(
+      [op("SetOverlay", { overlay: overlay(HOOK, "mine") })],
+      [op("RemoveOverlay", { overlayId: HOOK })],
+    );
+    expect(reasons(removed.rejected)).toEqual(["rebased-away"]);
+  });
+
+  it("keeps a write to another overlay, and survives a Resegment (it names no segment)", () => {
+    const incoming = [
+      op("SetOverlay", { overlay: overlay(OTHER, "mine") }),
+      op("RemoveOverlay", { overlayId: HOOK }),
+    ];
+    const { rebased, rejected } = rebaseOps(incoming, [
+      op("SetOverlay", { overlay: overlay(nextOverlayId(), "theirs") }),
+      op("Resegment", { maxChars: 32, maxLines: 2, minMs: 700, maxMs: 6_000 }),
+    ]);
+    expect(rejected).toEqual([]);
+    expect(rebased).toEqual(incoming);
+  });
+});

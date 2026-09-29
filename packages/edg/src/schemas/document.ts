@@ -124,6 +124,38 @@ export const ProtectedRangeSchema = z
   })
   .meta({ id: "ProtectedRange", title: "ProtectedRange" });
 
+/** The longest overlay text: a hook is seven words or so, and this still bounds a paste. */
+export const OVERLAY_TEXT_MAX = 120;
+
+/** The most overlays one document carries: one hook title per clip, with room to grow. */
+export const MAX_OVERLAYS = 8;
+
+/** What an overlay is. Only the hook title so far (2026-09-29). */
+export const OverlayKindSchema = z
+  .enum(["hook-title"])
+  .meta({ id: "OverlayKind", title: "OverlayKind" });
+
+/**
+ * Something drawn over the video that is not a caption (added 2026-09-29, the
+ * Autopilot "auto-finish" work). Today only the hook title: a title card over
+ * the first seconds of a clip, the line that makes a viewer stay.
+ *
+ * On the **source** clock like segments and pass items, so every surface maps
+ * it through the same timemap. Only the words and the window are stored: where
+ * it sits (the top safe area, off the faces and the captions) and how it looks
+ * (the document style's own typeface) are worked out when it is drawn, by
+ * `render-core`, so a style change or a new face track moves it too.
+ */
+export const OverlaySchema = z
+  .object({
+    id: UlidSchema,
+    kind: OverlayKindSchema,
+    text: z.string().min(1).max(OVERLAY_TEXT_MAX),
+    startMs: MsSchema,
+    endMs: MsSchema,
+  })
+  .meta({ id: "Overlay", title: "Overlay" });
+
 /**
  * The hot document stored in `edg_documents.doc` — under 64 KB, no segments and
  * no pass items (D28). Frozen as `EdgHot` in CONTRACTS §2.
@@ -141,6 +173,11 @@ export const EdgHotSchema = z
     render: JsonObjectSchema.optional(),
     /** User-marked ranges no pass may cut, zoom or reframe (CONTRACTS §2). */
     protected: z.array(ProtectedRangeSchema).optional(),
+    /**
+     * Title cards and the like, drawn over the captions (2026-09-29). Absent on
+     * every document written before them, which renders exactly as before.
+     */
+    overlays: z.array(OverlaySchema).max(MAX_OVERLAYS).optional(),
   })
   .meta({
     id: "EdgHot",
@@ -172,5 +209,7 @@ export type DocStyles = z.infer<typeof DocStylesSchema>;
 export type AudioClean = z.infer<typeof AudioCleanSchema>;
 export type AudioDucking = z.infer<typeof AudioDuckingSchema>;
 export type ProtectedRange = z.infer<typeof ProtectedRangeSchema>;
+export type OverlayKind = z.infer<typeof OverlayKindSchema>;
+export type Overlay = z.infer<typeof OverlaySchema>;
 export type EdgHot = z.infer<typeof EdgHotSchema>;
 export type EdgProjection = z.infer<typeof EdgProjectionSchema>;

@@ -23,6 +23,10 @@ import {
   createFixtureRenderer,
   GOLDEN_CANVAS,
   GOLDEN_TIMESTAMPS_MS,
+  HOOK_TITLE_CANVASES,
+  HOOK_TITLE_FIXTURES,
+  HOOK_TITLE_TIMESTAMPS_MS,
+  hookTitleGoldenCommands,
 } from "../src/testing.js";
 
 export const GOLDEN_DIR = join(__dirname, "..", "fixtures", "goldens");
@@ -88,9 +92,44 @@ async function main(): Promise<void> {
     `${JSON.stringify({ canvas: GOLDEN_CANVAS, entries: hashes }, null, 1)}\n`,
     "utf8",
   );
-  console.log(
-    `wrote ${String(hashes.length)} golden hashes and ${String(CAPTION_FIXTURES.length)} snapshots`,
+  // The hook title (2026-09-29), in the default style: its own file, so a
+  // change to it can never be mistaken for a change to a caption.
+  const punchPop = styles.find((style) => style.id === "punch-pop");
+  if (punchPop === undefined) throw new Error("punch-pop is missing from the catalogue");
+  const hookEntries: HookTitleEntry[] = [];
+  for (const fixture of HOOK_TITLE_FIXTURES) {
+    for (const [shape, canvas] of Object.entries(HOOK_TITLE_CANVASES)) {
+      for (const tMs of HOOK_TITLE_TIMESTAMPS_MS) {
+        const commands = hookTitleGoldenCommands(punchPop, fixture.text, canvas, tMs, {
+          registry,
+          shaper,
+        });
+        hookEntries.push({
+          fixture: fixture.name,
+          shape,
+          tMs,
+          commands: countCommands(commands),
+          hash: hashCommands(commands),
+        });
+      }
+    }
+  }
+  writeFileSync(
+    join(GOLDEN_DIR, "hook-title.json"),
+    `${JSON.stringify({ style: "punch-pop", entries: hookEntries }, null, 1)}\n`,
+    "utf8",
   );
+  console.log(
+    `wrote ${String(hashes.length)} golden hashes, ${String(CAPTION_FIXTURES.length)} snapshots and ${String(hookEntries.length)} hook-title hashes`,
+  );
+}
+
+interface HookTitleEntry {
+  readonly fixture: string;
+  readonly shape: string;
+  readonly tMs: number;
+  readonly commands: number;
+  readonly hash: string;
 }
 
 void main().catch((error: unknown) => {
