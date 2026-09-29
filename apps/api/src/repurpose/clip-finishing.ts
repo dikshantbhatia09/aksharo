@@ -197,6 +197,8 @@ export interface FinishingVariant {
   readonly projectId: string;
   readonly aspect: "r9x16" | "r4x5" | "r1x1" | "r16x9";
   readonly finishing: Prisma.JsonValue | null;
+  /** How the shape's picture was cut (`clip_variants.layout`, 2026-10-01); one window when absent. */
+  readonly layout?: string;
 }
 
 /** What one ask did: finished before it started, finished just now, or not yet. */
@@ -330,6 +332,41 @@ export class ClipFinishing {
     }
   }
 
+  /**
+   * Two-speaker layouts (2026-10-01): a clip cut again with both speakers
+   * stacked keeps its captions document, and with it the punch-in zooms this
+   * pass accepted for the one-window picture - aimed at a face that is no longer
+   * where it was, and cropping the other half away. They are turned down
+   * (rejected, so the editor still lists them to take back) when the stacked
+   * picture lands (`RepurposeClipCompletionHandler`). How many; never throws,
+   * since the new picture matters more than its zooms.
+   */
+  async dropZooms(projectId: string): Promise<number> {
+    try {
+      const document = await this.documentOf(projectId);
+      if (document === undefined) return 0;
+      const zooms = document.projection.passes
+        .flatMap((pass) => pass.items)
+        .filter((item) => item.kind === "zoom" && item.state === "accepted");
+      if (zooms.length === 0) return 0;
+      await this.apply(projectId, document.revision, [
+        {
+          opId: newId(),
+          type: "DecideItems",
+          itemIds: zooms.map((item) => item.itemId),
+          state: "rejected",
+        },
+      ]);
+      return zooms.length;
+    } catch (error) {
+      this.logger.warn(
+        { projectId, err: error },
+        "could not turn down a re-laid-out clip's zooms; they stay",
+      );
+      return 0;
+    }
+  }
+
   // -------------------------------------------------------------------------
   // Steps
   // -------------------------------------------------------------------------
@@ -351,6 +388,9 @@ export class ClipFinishing {
     const { variant, previous } = context;
     if (previous?.state === "requested") return this.landPass(context, "zoom");
     if (variant.aspect === "r16x9") return skipped(context.now, "shape");
+    // Two people stacked (2026-10-01): a punch-in on one of them is a zoom into
+    // the middle of the picture, and crops the other half away.
+    if (variant.layout === "stacked") return skipped(context.now, "layout");
     if (!(await this.planIncludes(context.run.workspaceId, "reframeZoom"))) {
       return skipped(context.now, "plan");
     }
@@ -484,6 +524,10 @@ export class ClipFinishing {
       let accept: PassItem[];
       if (kind === "cut") {
         accept = pass.items.filter(acceptableCut);
+      } else if (variant.layout === "stacked") {
+        // Cut again with both speakers stacked since the pass started (a new
+        // layout): a punch-in would crop one of them away. Left as proposals.
+        accept = [];
       } else {
         const hook = hookWindow(
           document.projection.passes.flatMap((entry) => entry.items),

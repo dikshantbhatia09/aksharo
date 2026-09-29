@@ -3,13 +3,14 @@ import { describe, expect, it, vi } from "vitest";
 
 import { CLIP_RATE_LIMITS } from "./repurpose-clips.dto.js";
 import { RepurposeSteeringController } from "./repurpose-steering.controller.js";
-import { adjustCandidateSchema } from "./repurpose-steering.dto.js";
+import { adjustCandidateSchema, clipLayoutSchema } from "./repurpose-steering.dto.js";
 import { RATE_LIMIT_KEY, ROLES_KEY } from "../common/guards/index.js";
 
 const WS = "01JCWS0000000000000000000A";
 const USER = "01JCUSER000000000000000000";
 const RUN = "01JCRN0000000000000000000A";
 const CAND = "01JCCANDA00000000000000000";
+const CLIP = "01JCC11PA00000000000000000";
 
 // Nest's own metadata keys (`@nestjs/common/constants`), read the way the router does.
 function route(name: keyof RepurposeSteeringController) {
@@ -64,6 +65,35 @@ describe("RepurposeSteeringController", () => {
     });
     for (const name of ["adjust", "remove", "restore"] as const) {
       expect(route(name).rateLimits, name).toEqual([CLIP_RATE_LIMITS.mutate]);
+    }
+  });
+
+  it("sets a clip's layout on the clip, for editors, rate-limited like a cut (2026-10-01)", async () => {
+    const steering = {
+      setClipLayout: vi.fn(async () => ({
+        clipId: CLIP,
+        layout: "stacked",
+        applied: "stacked",
+        recut: true,
+        clip: null,
+      })),
+    };
+    const controller = new RepurposeSteeringController(steering as never);
+    await controller.setLayout(WS, USER, RUN, CLIP, { layout: "stacked" });
+    expect(steering.setClipLayout).toHaveBeenCalledWith(WS, USER, RUN, CLIP, {
+      layout: "stacked",
+    });
+    expect(route("setLayout")).toMatchObject({
+      path: ":runId/clips/:clipId/layout",
+      method: RequestMethod.PUT,
+      roles: ["editor"],
+      rateLimits: [CLIP_RATE_LIMITS.mutate],
+    });
+    for (const layout of ["auto", "single", "stacked"]) {
+      expect(clipLayoutSchema.safeParse({ layout }).success).toBe(true);
+    }
+    for (const body of [{ layout: "both" }, { layout: "" }, {}]) {
+      expect(clipLayoutSchema.safeParse(body).success).toBe(false);
     }
   });
 

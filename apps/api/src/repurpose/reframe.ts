@@ -1,4 +1,7 @@
 import { parseFaceTrack, type FaceTrackDocument } from "@montaj/render-core";
+import { STACKED_ASPECTS, type ClipLayout, type StackedPerson } from "@montaj/repurpose-contracts";
+
+import { detectLayout, type ClipLayoutChoice } from "./layout.js";
 
 import type { ObjectStore } from "../common/storage/index.js";
 import type { FacesTrigger } from "../media/faces.js";
@@ -36,6 +39,13 @@ export interface ClipReframe {
   readonly centerY?: number;
   /** `faces`: taken from the face track; `centre`: no usable face, so the frame centre. */
   readonly basis: "faces" | "centre";
+  /**
+   * `stacked` (2026-10-01, `layout.ts`): two people side by side, each given
+   * half of the picture. Absent: one window, as every clip was before.
+   */
+  readonly layout?: ClipLayout;
+  /** A stacked cut's two people, top half (the left person) first. */
+  readonly people?: readonly [StackedPerson, StackedPerson];
 }
 
 export const CENTRE_REFRAME: ClipReframe = Object.freeze({ centerX: 0.5, basis: "centre" });
@@ -315,6 +325,31 @@ export function awaitingFaceDetection(
   }
 }
 
+/**
+ * {@link awaitingFaceDetection} for a picture uploaded at `pictureSince`: a
+ * clip shape's own media, whose captioned video must not be made before its
+ * face track (2026-10-01). A detection queued before that upload was of an
+ * earlier picture - the clip was cut again, in a new layout say - and says
+ * nothing of this one, whose own detection is queued only once its proxy's
+ * completion lands, a moment after the media reads ready. Until it is queued,
+ * the wait is for it, as long as any detection is ever waited for.
+ * `pictureSince` null or absent: the rule for a source, unchanged.
+ */
+export function awaitingPictureFaces(
+  job: FaceDetectionJob | null | undefined,
+  pictureSince: Date | null | undefined,
+  sourceDurationMs: number | null | undefined,
+  now: number = Date.now(),
+): boolean {
+  if (
+    pictureSince instanceof Date &&
+    (job === null || job === undefined || job.queuedAt.getTime() < pictureSince.getTime())
+  ) {
+    return now - pictureSince.getTime() < FACE_TRACK_MAX_WAIT_MS;
+  }
+  return awaitingFaceDetection(job, sourceDurationMs, now);
+}
+
 export interface FaceTrackDeps {
   readonly derived: ObjectStore;
   readonly faces: Pick<FacesTrigger, "maybeEnqueue">;
@@ -390,6 +425,39 @@ export function reframeFromTrack(
   } catch {
     return CENTRE_REFRAME;
   }
+}
+
+/**
+ * {@link reframeFromTrack}, and the layout `choice` makes of the same track
+ * over the same interval (`detectLayout`, 2026-10-01): with two people to
+ * stack, `layout: "stacked"` and where they are; otherwise the one window it
+ * always was, with no `layout` at all - so a single cut's payload, and its job
+ * key, is exactly what it was before layouts existed. Only a shape that can be
+ * stacked (9:16, 4:5) ever is. Never throws: a clip must never fail over its
+ * layout any more than over its framing.
+ */
+export function framingFromTrack(
+  track: FaceTrackDocument | undefined,
+  interval: { readonly fromMs: number; readonly toMs: number },
+  choice: ClipLayoutChoice,
+  shape: string = "9:16",
+): ClipReframe {
+  const reframe = reframeFromTrack(track, interval);
+  if (track === undefined || choice === "single") return reframe;
+  if (!(STACKED_ASPECTS as readonly string[]).includes(shape)) return reframe;
+  try {
+    const decision = detectLayout(track, interval.fromMs, interval.toMs, choice);
+    return decision.layout === "stacked" && decision.people !== undefined
+      ? { ...reframe, layout: "stacked", people: decision.people }
+      : reframe;
+  } catch {
+    return reframe;
+  }
+}
+
+/** The layout a {@link ClipReframe} cuts: `single` unless it says `stacked`. */
+export function layoutOfReframe(reframe: ClipReframe): ClipLayout {
+  return reframe.layout === "stacked" ? "stacked" : "single";
 }
 
 /** The reframe for one clip of a source media: {@link loadFaceTrack}, then {@link reframeFromTrack}. */

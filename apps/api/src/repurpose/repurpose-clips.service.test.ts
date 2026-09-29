@@ -1347,6 +1347,41 @@ describe("Autopilot's captioned videos", () => {
     const [item] = (await h.service.listClips(WS, RUN)).clips;
     expect(item?.captioned).toBeNull();
   });
+
+  // Two-speaker layouts (2026-10-01): a clip cut again in a new layout has a
+  // new picture, ready a moment before its own face detection is queued.
+  it("waits for a clip cut again to have its new picture's faces, then makes its video", async () => {
+    h = harness({ run: ready });
+    readyClip(
+      h,
+      { latestExportId: "01JCEXP0000000000000000001", editFingerprint: "", status: "stale" },
+      undefined,
+      { facesKey: null, width: 1080, uploadedAt: new Date(Date.now() - 30_000) },
+    );
+    h.tables.exports.push({
+      id: "01JCEXP0000000000000000001",
+      projectId: CHILD,
+      status: "succeeded",
+      storageKey: "exports/old-picture.mp4",
+    });
+    // The first picture's detection, done an hour ago.
+    h.tables.jobs.push({
+      id: "01JCFACES00000000000000000",
+      type: "ai.faces",
+      jobKey: "ai.faces:01JCCH1LDMED1A000000000000",
+      status: "succeeded",
+      queuedAt: new Date(Date.now() - 3_600_000),
+      startedAt: new Date(Date.now() - 3_600_000),
+      finishedAt: new Date(Date.now() - 3_590_000),
+    });
+    await h.service.reconcileClips(RUN);
+    expect(h.requestExport).not.toHaveBeenCalled();
+
+    // The new picture's own detection lands: the video is made again.
+    Object.assign(h.tables.media.at(-1) ?? {}, { facesKey: "faces.json" });
+    await h.service.reconcileClips(RUN);
+    expect(h.requestExport).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("Autopilot's finishing pass (clip-finishing.ts)", () => {
@@ -2213,5 +2248,177 @@ describe("Steering (2026-09-29): Autopilot's reserve, removed clips, re-timed mo
     expect(formats).toContain(
       `media.clip.format:${CAND_A}:4x5:60000-90000:${CLIP_PROFILE_VERSION}`,
     );
+  });
+});
+
+describe("Two-speaker layouts (2026-10-01)", () => {
+  const auto = { config: { automation: "auto" }, status: "review_ready", currentStage: "review" };
+  /** Two people at a table across candidate A (60-90 s), one wide camera. */
+  function twoPeople(h: Harness): void {
+    const w = (0.14 * 9) / 16 / 0.9;
+    h.derivedGet.mockResolvedValue(
+      Buffer.from(
+        JSON.stringify({
+          version: 1,
+          intervalMs: 250,
+          source: { width: 1920, height: 1080 },
+          samples: Array.from({ length: 140 }, (_, i) => [
+            59_000 + i * 250,
+            [
+              [0.3 - w / 2, 0.33, w, 0.14],
+              [0.72 - w / 2, 0.35, w, 0.13],
+            ],
+          ]),
+        }),
+      ),
+    );
+  }
+  const enqueued = (h: Harness) =>
+    h.enqueue.mock.calls.map((call) => {
+      const input = call[0] as { jobKey: string; params: unknown };
+      return { jobKey: input.jobKey, payload: MediaClipPayloadSchema.parse(input.params) };
+    });
+  const formatCut = (h: Harness, shape: string) =>
+    enqueued(h).find((cut) => cut.jobKey.startsWith(`media.clip.format:${CAND_A}:${shape}:`));
+  /** A ready clip of moment A whose shapes are `shapes`, each `{ aspect, layout }`. */
+  function readyClip(h: Harness, shapes: readonly Row[]): Row {
+    h.tables.candidates.length = 1;
+    const clip = clipRow(CAND_A, { mezzanineKey: "ws/master.mp4" });
+    h.tables.clips.push(clip);
+    for (const [index, shape] of shapes.entries()) {
+      h.tables.variants.push({
+        id: `01JCVAR${String(index).padStart(19, "0")}`,
+        clipId: clip["id"],
+        projectId: `01JCPR0J${String(index).padStart(18, "0")}`,
+        profileVersion: CLIP_PROFILE_VERSION,
+        ...shape,
+      });
+    }
+    return clip;
+  }
+
+  it("stacks the 9:16 cut of two people side by side, and names it in the job key", async () => {
+    h = harness({ media: { facesKey: FACES_KEY } });
+    twoPeople(h);
+
+    await h.service.createClip(WS, USER, RUN, { candidateId: CAND_A });
+
+    const [cut] = enqueued(h);
+    expect(cut?.payload.reframe).toMatchObject({ centerX: 0.3, basis: "faces", layout: "stacked" });
+    expect(cut?.payload.reframe?.people?.map((person) => person.centerX)).toEqual([0.3, 0.72]);
+    expect(cut?.jobKey).toBe(`media.clip:${CAND_A}:60000-90000:${CLIP_PROFILE_VERSION}:stacked`);
+  });
+
+  it("cuts one window, with the key it always had, for a clip set to one speaker", async () => {
+    h = harness({ media: { facesKey: FACES_KEY } });
+    twoPeople(h);
+    h.tables.clips.push(clipRow(CAND_A, { layout: "single" }));
+
+    await h.service.retryClip(WS, USER, RUN, String(h.tables.clips[0]?.["id"]));
+
+    const [cut] = enqueued(h);
+    expect(cut?.payload.reframe).toEqual({ centerX: 0.3, centerY: 0.4, basis: "faces" });
+    expect(cut?.jobKey).toBe(`media.clip:${CAND_A}:60000-90000:${CLIP_PROFILE_VERSION}`);
+  });
+
+  it("stacks the 4:5 cut like its 9:16 picture, and never the 1:1 or 16:9", async () => {
+    h = harness({ run: auto, media: { facesKey: FACES_KEY } });
+    twoPeople(h);
+    readyClip(h, [{ aspect: "r9x16", layout: "stacked" }]);
+
+    await h.service.reconcileClips(RUN);
+
+    const portrait = formatCut(h, "4x5");
+    expect(portrait?.payload.reframe?.layout).toBe("stacked");
+    expect(portrait?.jobKey.endsWith(`:${CLIP_PROFILE_VERSION}:stacked`)).toBe(true);
+    for (const shape of ["1x1", "16x9"]) {
+      const cut = formatCut(h, shape);
+      expect(cut?.payload.reframe?.layout, shape).toBeUndefined();
+      expect(cut?.jobKey.endsWith(`:${CLIP_PROFILE_VERSION}`), shape).toBe(true);
+    }
+  });
+
+  it("cuts the 4:5 of a clip made in one window in one window, whoever the track finds", async () => {
+    // A clip cut before layouts existed: its 9:16 picture is one window, and
+    // its other shapes match it rather than change on their own.
+    h = harness({ run: auto, media: { facesKey: FACES_KEY } });
+    twoPeople(h);
+    readyClip(h, [{ aspect: "r9x16", layout: "single" }]);
+
+    await h.service.reconcileClips(RUN);
+
+    expect(formatCut(h, "4x5")?.payload.reframe?.layout).toBeUndefined();
+  });
+
+  it("cuts the 4:5 shape again once its clip's picture is stacked, a few tries at most", async () => {
+    h = harness({ run: auto, media: { facesKey: FACES_KEY } });
+    twoPeople(h);
+    readyClip(h, [
+      { aspect: "r9x16", layout: "stacked" },
+      { aspect: "r4x5", layout: "single" },
+      { aspect: "r1x1", layout: "single" },
+      { aspect: "r16x9", layout: "single" },
+    ]);
+    // The one-window 4:5 cut that made it: done, and not this layout's.
+    h.tables.jobs.push({
+      ...jobRow(CAND_A, "succeeded"),
+      jobKey: `media.clip.format:${CAND_A}:4x5:60000-90000:${CLIP_PROFILE_VERSION}`,
+    });
+
+    await h.service.reconcileClips(RUN);
+
+    const cuts = enqueued(h);
+    expect(cuts.map((cut) => cut.jobKey)).toEqual([
+      `media.clip.format:${CAND_A}:4x5:60000-90000:${CLIP_PROFILE_VERSION}:stacked`,
+    ]);
+    expect(cuts[0]?.payload.aspect).toBe("4:5");
+
+    // Three failed cuts in the new layout, and it is left as it is.
+    h.enqueue.mockClear();
+    const stackedKey = `media.clip.format:${CAND_A}:4x5:60000-90000:${CLIP_PROFILE_VERSION}:stacked`;
+    for (const job of h.tables.jobs) {
+      if (job["jobKey"] === stackedKey)
+        Object.assign(job, { status: "failed", finishedAt: new Date() });
+    }
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      h.tables.jobs.push({ ...jobRow(CAND_A, "failed"), jobKey: stackedKey });
+    }
+    await h.service.reconcileClips(RUN);
+    expect(enqueued(h)).toHaveLength(0);
+  });
+
+  it("does not cut a shape again in a layout the face track cannot make", async () => {
+    // The 9:16 picture is stacked, but the track (gone, say) finds nobody now:
+    // a 4:5 re-cut would come out as it is, on every pass.
+    h = harness({ run: auto });
+    readyClip(h, [
+      { aspect: "r9x16", layout: "stacked" },
+      { aspect: "r4x5", layout: "single" },
+      { aspect: "r1x1", layout: "single" },
+      { aspect: "r16x9", layout: "single" },
+    ]);
+    await h.service.reconcileClips(RUN);
+    expect(enqueued(h)).toHaveLength(0);
+  });
+
+  it("says what a cut of a moment would be under each choice", async () => {
+    h = harness({ media: { facesKey: FACES_KEY } });
+    twoPeople(h);
+    const run = h.tables.runs[0] as never;
+    const candidate = h.tables.candidates[0] as never;
+    expect(await h.service.layoutFor(run, candidate, "auto")).toBe("stacked");
+    expect(await h.service.layoutFor(run, candidate, "stacked")).toBe("stacked");
+    expect(await h.service.layoutFor(run, candidate, "single")).toBe("single");
+
+    // One person: one window, even for "both speakers".
+    h = harness({ media: { facesKey: FACES_KEY } });
+    trackLands(h);
+    expect(
+      await h.service.layoutFor(
+        h.tables.runs[0] as never,
+        h.tables.candidates[0] as never,
+        "stacked",
+      ),
+    ).toBe("single");
   });
 });

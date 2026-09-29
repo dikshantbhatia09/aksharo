@@ -8,7 +8,14 @@ import { join } from "node:path";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { MAX_CLIP_HEIGHT, clipFilter, clipFrame } from "./clip-frame.js";
+import {
+  MAX_CLIP_HEIGHT,
+  STACK_FACE_ROW,
+  clipFilter,
+  clipFrame,
+  stackedFilter,
+  stackedFrame,
+} from "./clip-frame.js";
 import { classifyReadFailure, cutCameOutShort, processClip } from "./clip.js";
 import { MediaJobError } from "../errors.js";
 
@@ -151,6 +158,22 @@ function countAbove(luma: Buffer, threshold: number): number {
   return count;
 }
 
+/** How many pixels of rows `[fromRow, toRow)` of a `width`-wide luma frame are in `[low, high]`. */
+function countInRows(
+  luma: Buffer,
+  width: number,
+  fromRow: number,
+  toRow: number,
+  low: number,
+  high: number,
+): number {
+  let count = 0;
+  for (const value of luma.subarray(fromRow * width, toRow * width)) {
+    if (value >= low && value <= high) count += 1;
+  }
+  return count;
+}
+
 async function failureOf(context: JobContext): Promise<MediaJobError> {
   const error = await processClip(context).catch((caught: unknown) => caught);
   expect(error).toBeInstanceOf(MediaJobError);
@@ -240,6 +263,7 @@ let boxed = "";
 let truncated = "";
 let audioOnly = "";
 let resized = "";
+let twoBoxed = "";
 
 /**
  * A stand-in for the object store's signed URLs, serving `video` with range
@@ -469,6 +493,33 @@ beforeAll(async () => {
   // eslint-disable-next-line security/detect-non-literal-fs-filename -- test fixture write in temporary directory
   await writeFile(resized, Buffer.concat(segments));
 
+  // Two "people" at a table, as one wide camera sees a podcast: a white box on
+  // the left (x 112-176, y 100-180 of 640 x 360) and a mid-grey one on the right
+  // (x 464-528, y 110-190). Different brightness, so each half of a stacked cut
+  // can be told apart.
+  twoBoxed = join(dir, "two-boxed.mp4");
+  generate([
+    "-y",
+    "-f",
+    "lavfi",
+    "-i",
+    "color=c=0x202020:size=640x360:rate=30:duration=3,drawbox=x=112:y=100:w=64:h=80:color=white@1:t=fill,drawbox=x=464:y=110:w=64:h=80:color=0x808080@1:t=fill",
+    "-f",
+    "lavfi",
+    "-i",
+    "sine=frequency=440:sample_rate=48000:duration=3",
+    "-c:v",
+    "libx264",
+    "-preset",
+    "ultrafast",
+    "-pix_fmt",
+    "yuv420p",
+    "-c:a",
+    "aac",
+    "-shortest",
+    twoBoxed,
+  ]);
+
   await startSourceServer(video);
 }, 180_000);
 
@@ -622,6 +673,168 @@ describe("clipFrame", () => {
     if (frame === null) throw new Error("expected a frame");
     expect(clipFilter(frame).split(",")[0]).toBe("scale=1279:719");
     expect(clipFilter(frame).split(",")[1]).toMatch(/^crop=/);
+  });
+});
+
+describe("stackedFrame — two people, one above the other (2026-10-01)", () => {
+  const uhd = { width: 3840, height: 2160 };
+  const fullHd = { width: 1920, height: 1080 };
+  const podcast = [
+    { centerX: 0.3, centerY: 0.4, size: 0.12 },
+    { centerX: 0.72, centerY: 0.42, size: 0.11 },
+  ];
+
+  /** Where a person's face centre lands inside their window, as fractions of it. */
+  function faceIn(
+    crop: { width: number; height: number; x: number; y: number },
+    person: { centerX: number; centerY: number },
+    source: { width: number; height: number },
+  ): { x: number; y: number } {
+    return {
+      x: (person.centerX * source.width - crop.x) / crop.width,
+      y: (person.centerY * source.height - crop.y) / crop.height,
+    };
+  }
+
+  it("cuts a 4K podcast into two 1080 x 960 halves, each person on the upper third", () => {
+    const frame = stackedFrame(uhd, { people: podcast, maxHeight: 1920 });
+    if (frame === null) throw new Error("expected a stack");
+    expect(frame.half).toEqual({ width: 1080, height: 960 });
+    expect(frame.output).toEqual({ width: 1080, height: 1920 });
+    for (const [index, crop] of frame.crops.entries()) {
+      const person = podcast.at(index);
+      if (person === undefined) throw new Error("two people");
+      const at = faceIn(crop, person, uhd);
+      expect(at.x).toBeCloseTo(0.5, 2);
+      expect(at.y).toBeCloseTo(STACK_FACE_ROW, 2);
+      // Wide enough for a head and shoulders, never scaled up to the half.
+      expect(crop.height).toBeGreaterThanOrEqual(frame.half.height);
+      expect(crop.width).toBeGreaterThanOrEqual(frame.half.width);
+    }
+  });
+
+  it("keeps each window on its person's side, so no half shows the other face", () => {
+    const frame = stackedFrame(fullHd, {
+      people: [
+        { centerX: 0.4, centerY: 0.4, size: 0.15 },
+        { centerX: 0.6, centerY: 0.4, size: 0.15 },
+      ],
+    });
+    if (frame === null) throw new Error("expected a stack");
+    const [upper, lower] = frame.crops;
+    expect(upper.x + upper.width).toBeLessThanOrEqual(960);
+    expect(lower.x).toBeGreaterThanOrEqual(960);
+  });
+
+  it("never scales a 1080p source up, and never zooms past half its height", () => {
+    const frame = stackedFrame(fullHd, {
+      people: [
+        { centerX: 0.28, centerY: 0.45, size: 0.12 },
+        { centerX: 0.74, centerY: 0.45, size: 0.05 },
+      ],
+      maxHeight: 1920,
+    });
+    if (frame === null) throw new Error("expected a stack");
+    // The small face is not zoomed to fill its half: half the source's height.
+    expect(frame.crops[1].height).toBe(540);
+    // Both halves are the smaller window's size; the other is scaled down to it.
+    expect(frame.half.height).toBe(Math.min(frame.crops[0].height, frame.crops[1].height));
+    expect(frame.output.height).toBe(frame.half.height * 2);
+    expect(frame.output.width / frame.output.height).toBeCloseTo(9 / 16, 2);
+  });
+
+  it("cuts 4:5 halves of 8:5, capped at half of 1350", () => {
+    const frame = stackedFrame(uhd, { people: podcast, aspect: "4:5", maxHeight: 1350 });
+    if (frame === null) throw new Error("expected a stack");
+    expect(frame.half).toEqual({ width: 1078, height: 674 });
+    expect(frame.output).toEqual({ width: 1078, height: 1348 });
+    for (const crop of frame.crops) expect(crop.width / crop.height).toBeCloseTo(8 / 5, 2);
+  });
+
+  it("clamps a window at the frame's edges rather than leave the picture", () => {
+    const frame = stackedFrame(fullHd, {
+      people: [
+        { centerX: 0.03, centerY: 0.04, size: 0.1 },
+        { centerX: 0.6, centerY: 0.97, size: 0.1 },
+      ],
+    });
+    if (frame === null) throw new Error("expected a stack");
+    expect(frame.crops[0].x).toBe(0);
+    expect(frame.crops[0].y).toBe(0);
+    const lower = frame.crops[1];
+    expect(lower.y + lower.height).toBeLessThanOrEqual(1080);
+    expect(lower.x + lower.width).toBeLessThanOrEqual(1920);
+  });
+
+  it("puts the first person on top, wherever they sit", () => {
+    const frame = stackedFrame(fullHd, { people: [...podcast].reverse() });
+    if (frame === null) throw new Error("expected a stack");
+    expect(frame.crops[0].x).toBeGreaterThan(frame.crops[1].x);
+  });
+
+  it("keeps every number even", () => {
+    const frame = stackedFrame(
+      { width: 1279, height: 719 },
+      {
+        people: [
+          { centerX: 0.31, centerY: 0.37, size: 0.13 },
+          { centerX: 0.77, centerY: 0.41, size: 0.17 },
+        ],
+      },
+    );
+    if (frame === null) throw new Error("expected a stack");
+    for (const value of [
+      ...frame.crops.flatMap((crop) => [crop.width, crop.height, crop.x, crop.y]),
+      frame.half.width,
+      frame.half.height,
+      frame.output.width,
+      frame.output.height,
+    ]) {
+      expect(value % 2).toBe(0);
+    }
+  });
+
+  it("does not stack what it cannot: a tall or square source, a square or wide shape, one person, one place", () => {
+    const two = { people: podcast };
+    expect(stackedFrame({ width: 1080, height: 1920 }, two)).toBeNull();
+    expect(stackedFrame({ width: 1080, height: 1080 }, two)).toBeNull();
+    expect(stackedFrame(uhd, { ...two, aspect: "1:1" })).toBeNull();
+    expect(stackedFrame(uhd, { ...two, aspect: "16:9" })).toBeNull();
+    expect(stackedFrame(uhd, { people: podcast.slice(0, 1) })).toBeNull();
+    expect(stackedFrame(uhd, { people: [...podcast, ...podcast] })).toBeNull();
+    expect(
+      stackedFrame(uhd, {
+        people: [
+          { centerX: 0.5, centerY: 0.4, size: 0.1 },
+          { centerX: 0.52, centerY: 0.4, size: 0.1 },
+        ],
+      }),
+    ).toBeNull();
+    expect(
+      stackedFrame(uhd, {
+        people: [{ centerX: Number.NaN, centerY: 0.4, size: 0.1 }, ...podcast.slice(1)],
+      }),
+    ).toBeNull();
+    expect(stackedFrame({ width: 0, height: 0 }, two)).toBeNull();
+  });
+
+  it("builds a graph that scales to the probed size first, then splits, cuts and stacks", () => {
+    const frame = stackedFrame(fullHd, {
+      people: [
+        { centerX: 0.28, centerY: 0.45, size: 0.12 },
+        { centerX: 0.74, centerY: 0.45, size: 0.05 },
+      ],
+    });
+    if (frame === null) throw new Error("expected a stack");
+    const [upper, lower] = frame.crops;
+    expect(stackedFilter(frame)).toBe(
+      [
+        "scale=1920:1080,split=2[top][bottom]",
+        `[top]crop=${String(upper.width)}:${String(upper.height)}:${String(upper.x)}:${String(upper.y)},scale=${String(frame.half.width)}:${String(frame.half.height)}:flags=bicubic,setsar=1[upper]`,
+        `[bottom]crop=${String(lower.width)}:${String(lower.height)}:${String(lower.x)}:${String(lower.y)},setsar=1[lower]`,
+        "[upper][lower]vstack=inputs=2,setsar=1,format=yuv420p",
+      ].join(";"),
+    );
   });
 });
 
@@ -797,6 +1010,106 @@ describe.skipIf(!CAN_RUN)("processClip", () => {
     expect(dimensions(kept)).toEqual({ width: 202, height: 360 });
     expect(result["durationMs"]).toBeGreaterThan(2_000);
   }, 120_000);
+
+  describe("stacked (2026-10-01)", () => {
+    /** The two boxes of `twoBoxed`, as the API would name them from a face track. */
+    const left = { centerX: 144 / 640, centerY: 140 / 360, size: 80 / 360 };
+    const right = { centerX: 496 / 640, centerY: 150 / 360, size: 80 / 360 };
+    const stacked = {
+      reframe: { centerX: left.centerX, basis: "faces", layout: "stacked", people: [left, right] },
+    } as Partial<ClipPayload>;
+    // After the encode: white is ~235, the mid-grey box ~126, the field ~44.
+    const white = (luma: Buffer, width: number, from: number, to: number) =>
+      countInRows(luma, width, from, to, 200, 255);
+    const grey = (luma: Buffer, width: number, from: number, to: number) =>
+      countInRows(luma, width, from, to, 100, 150);
+
+    it("puts each person in their own half, the left one on top", async () => {
+      const kept = join(dir, "kept-stacked.mp4");
+      const { context: ctx } = buildContext(twoBoxed, stacked, keepingStore(twoBoxed, kept));
+
+      await processClip(ctx);
+
+      // 9:8 halves of the 640 x 360 source, never scaled up: 320 x 284 each.
+      expect(dimensions(kept)).toEqual({ width: 320, height: 568 });
+      const luma = lumaAt1s(kept);
+      // The whole 64 x 80 white box is in the top half, and none of the grey one...
+      expect(white(luma, 320, 0, 284)).toBeGreaterThan(4_000);
+      expect(grey(luma, 320, 0, 284)).toBeLessThan(200);
+      // ...and the grey box is in the bottom half, with none of the white one.
+      expect(grey(luma, 320, 284, 568)).toBeGreaterThan(4_000);
+      expect(white(luma, 320, 284, 568)).toBeLessThan(200);
+    }, 120_000);
+
+    it("stacks a 4:5 cut the same way, in 8:5 halves", async () => {
+      const kept = join(dir, "kept-stacked-4x5.mp4");
+      const { context: ctx } = buildContext(
+        twoBoxed,
+        {
+          ...stacked,
+          aspect: "4:5",
+          profile: { container: "mp4", videoCodec: "h264", audioCodec: "aac", maxHeight: 1_350 },
+        },
+        keepingStore(twoBoxed, kept),
+      );
+
+      await processClip(ctx);
+
+      expect(dimensions(kept)).toEqual({ width: 320, height: 400 });
+      const luma = lumaAt1s(kept);
+      expect(white(luma, 320, 0, 200)).toBeGreaterThan(4_000);
+      expect(grey(luma, 320, 0, 200)).toBeLessThan(200);
+      expect(grey(luma, 320, 200, 400)).toBeGreaterThan(4_000);
+      expect(white(luma, 320, 200, 400)).toBeLessThan(200);
+    }, 120_000);
+
+    // The single-window cut's failure (2026-09-26), for two windows: each half's
+    // crop must still fit once the picture shrinks to 320 x 180.
+    it("cuts a stacked source whose picture size changes mid-stream", async () => {
+      const kept = join(dir, "kept-stacked-resized.mp4");
+      const { context: ctx } = buildContext(
+        resized,
+        {
+          reframe: {
+            centerX: 0.25,
+            basis: "faces",
+            layout: "stacked",
+            people: [
+              { centerX: 0.25, centerY: 0.4, size: 0.2 },
+              { centerX: 0.75, centerY: 0.4, size: 0.2 },
+            ],
+          },
+        },
+        keepingStore(resized, kept),
+      );
+
+      const result = (await processClip(ctx)).result;
+
+      expect(dimensions(kept)).toEqual({ width: 320, height: 568 });
+      expect(result["durationMs"]).toBeGreaterThan(2_000);
+    }, 120_000);
+
+    it("cuts one window when the stack cannot be made, rather than fail the clip", async () => {
+      const kept = join(dir, "kept-stacked-square.mp4");
+      // Never sent by the API (the contract refuses it), but a worker checks.
+      const { context: ctx } = buildContext(
+        twoBoxed,
+        {
+          ...stacked,
+          aspect: "1:1",
+          profile: { container: "mp4", videoCodec: "h264", audioCodec: "aac", maxHeight: 1_080 },
+        },
+        keepingStore(twoBoxed, kept),
+      );
+
+      await processClip(ctx);
+
+      // A square window centred on the dominant speaker (`reframe.centerX`).
+      expect(dimensions(kept)).toEqual({ width: 360, height: 360 });
+      const luma = lumaAt1s(kept);
+      expect(white(luma, 360, 0, 360)).toBeGreaterThan(4_000);
+    }, 120_000);
+  });
 
   it("cuts an audio-only source to an audio-only mezzanine", async () => {
     const kept = join(dir, "kept-audio.mp4");

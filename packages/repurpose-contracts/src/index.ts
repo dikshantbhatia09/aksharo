@@ -57,6 +57,13 @@ export {
 } from "./schema.js";
 
 export {
+  CLIP_LAYOUTS,
+  ClipLayoutSchema,
+  STACKED_ASPECTS,
+  StackedPersonSchema,
+  layoutKeySuffix,
+  type ClipLayout,
+  type StackedPerson,
   HighlightProposalSchema,
   HighlightsPayloadSchema,
   HighlightsResultSchema,

@@ -553,6 +553,56 @@ describe("ClipFinishing on the other shapes", () => {
   });
 });
 
+describe("ClipFinishing, two-speaker layouts (2026-10-01)", () => {
+  const ZOOM_1 = "01JFZ00M1000000000000000AA";
+  const ZOOM_2 = "01JFZ00M2000000000000000AA";
+
+  it("never zooms a shape with both speakers stacked", async () => {
+    plan.autocut = false;
+    const stacked: FinishingVariant = { ...vertical(), layout: "stacked" };
+    expect(await finishing.advance(RUN, stacked)).toBe("just-finished");
+    expect(passes.startZoom).not.toHaveBeenCalled();
+    expect(recordOf(VERTICAL)?.steps.zoom).toMatchObject({ state: "skipped", reason: "layout" });
+    // Everything else is finished as on any clip.
+    expect(projection(PROJECT_9X16).overlays).toHaveLength(1);
+  });
+
+  it("accepts no zoom from a pass that lands after the clip was cut again stacked", async () => {
+    plan.autocut = false;
+    // Emphasised, and its zoom pass asked for, on the one-window picture.
+    expect(await finishing.advance(RUN, vertical())).toBe("waiting");
+    expect(passes.startZoom).toHaveBeenCalledTimes(1);
+    land(PROJECT_9X16, zoomPass([zoomItem(ZOOM_1, 3_000, 4_000)]));
+    jobs.set(ZOOM_JOB, { status: "succeeded", finishedAt: new Date() });
+
+    const stacked: FinishingVariant = { ...vertical(), layout: "stacked" };
+    expect(await finishing.advance(RUN, stacked)).toBe("just-finished");
+    const items = projection(PROJECT_9X16).passes.flatMap((pass) => pass.items);
+    expect(items.find((item) => item.itemId === ZOOM_1)?.state).toBe("proposed");
+    expect(recordOf(VERTICAL)?.steps.zoom).toMatchObject({ state: "done", applied: 0 });
+  });
+
+  it("turns down the zooms accepted for a one-window picture, and leaves proposals", async () => {
+    land(PROJECT_9X16, zoomPass([zoomItem(ZOOM_1, 3_000, 4_000), zoomItem(ZOOM_2, 6_000, 7_000)]));
+    const doc = docFor(PROJECT_9X16);
+    const accepted = applyOps(
+      doc.state,
+      [{ opId: newId(), type: "DecideItems", itemIds: [ZOOM_1], state: "accepted" }],
+      { source: "worker", revision: doc.revision + 1 },
+    );
+    doc.state = accepted.state;
+    doc.revision += 1;
+
+    expect(await finishing.dropZooms(PROJECT_9X16)).toBe(1);
+    const items = projection(PROJECT_9X16).passes.flatMap((pass) => pass.items);
+    expect(items.find((item) => item.itemId === ZOOM_1)?.state).toBe("rejected");
+    expect(items.find((item) => item.itemId === ZOOM_2)?.state).toBe("proposed");
+    // Nothing more to turn down, and a project with no document has none.
+    expect(await finishing.dropZooms(PROJECT_9X16)).toBe(0);
+    expect(await finishing.dropZooms("01JFN0D0C000000000000000AA")).toBe(0);
+  });
+});
+
 describe("hookTextOf", () => {
   it("prefers the clip's own hook, and falls back to its title cut to seven words", () => {
     expect(hookTextOf({ hook: "  Ye galti mat karna  " }, "Title")).toBe("Ye galti mat karna");

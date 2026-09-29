@@ -602,6 +602,19 @@ export const REFUSAL_COPY = Object.freeze({
     network: "We could not reach the server. Check your connection and try again.",
     fallback: "That did not work. Try again in a moment.",
   },
+  /** A clip's layout: auto, one speaker or both speakers (two-speaker layouts, 2026-10-01). */
+  layout: {
+    "repurpose/clip_busy": "This clip is being cut right now. Change its layout once it is ready.",
+    "repurpose/candidate_removed": "Bring this moment back before changing its layout.",
+    "repurpose/run_not_ready": "This run was stopped, so its clips cannot change.",
+    "repurpose/source_expired":
+      "The original video is no longer kept, so this clip cannot be cut again. Start again from the same link.",
+    "repurpose/source_failed": "This video could not be prepared, so no clips can be cut from it.",
+    "repurpose/not_found": "This clip is no longer available. Refresh the page.",
+    "common/rate_limited": "That was a lot of requests at once. Wait a moment, then try again.",
+    network: "We could not reach the server. Check your connection and try again.",
+    fallback: "The layout could not be changed. Try again in a moment.",
+  },
   /** "Upload the file instead", on a link run whose video never arrived. */
   useUpload: {
     "repurpose/source_not_replaceable":
@@ -833,4 +846,22 @@ export const STEERING_COPY = Object.freeze({
   recutNote:
     "The clip is made again from these times, snapped to the nearest words. Changes made to its captions are not kept.",
   saveNote: "The times are snapped to the nearest words.",
+});
+
+/**
+ * Two-speaker layouts (2026-10-01): a clip shows one speaker, or two people
+ * side by side in the video one above the other. "Auto" lets the video decide.
+ */
+export const LAYOUT_COPY = Object.freeze({
+  legend: "Layout",
+  groupLabel: (title: string): string => `Layout: ${title}`,
+  choice: Object.freeze({
+    auto: "Auto",
+    single: "One speaker",
+    stacked: "Both speakers",
+  }),
+  /** Auto found two people talking, and stacked them. */
+  autoStacked: "Two people are talking, so each gets half the picture.",
+  /** "Both speakers" asked for, and only one person was found. */
+  onlyOne: "We found one person in this moment, so it shows one speaker.",
 });

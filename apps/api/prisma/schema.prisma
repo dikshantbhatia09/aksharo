@@ -3496,6 +3496,21 @@ enum VariantStatus {
   failed
 }
 
+/// Two-speaker layouts (2026-10-01): what a person picks for a clip on the run
+/// page. `auto` lets the source's face track decide (`repurpose/layout.ts`).
+enum ClipLayoutChoice {
+  auto
+  single
+  stacked
+}
+
+/// How one clip shape's picture is laid out: one window on the speaker, or two
+/// people side by side in the source, one above the other.
+enum ClipLayout {
+  single
+  stacked
+}
+
 /// §6.6. Run-level aggregate over the existing per-project `ProjectReviewStatus`.
 enum ReviewBundleStatus {
   open
@@ -3739,6 +3754,9 @@ model RepurposeClip {
   mezzanineJobId      String?  @map("mezzanine_job_id") @db.Char(26)
   /// The clip's image formats (2026-09-29, `media.stills`): `{ fingerprint, images }`.
   images              Json     @default("{}") @db.JsonB
+  /// Two-speaker layouts (2026-10-01): the layout the person picked. What each
+  /// shape's picture actually is, is its variant's `layout`.
+  layout              ClipLayoutChoice @default(auto)
   createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt           DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
@@ -3772,6 +3790,9 @@ model ClipVariant {
   /// Autopilot's finishing pass (2026-09-29, `repurpose/clip-finishing.ts`): the
   /// steps run on this shape's project before its captioned video. Null: never.
   finishing       Json?         @db.JsonB
+  /// Two-speaker layouts (2026-10-01): how this shape's picture was cut, as
+  /// its `media.clip` payload asked (`reframe.layout`); written by each cut.
+  layout          ClipLayout    @default(single)
   approvedAt      DateTime?     @map("approved_at") @db.Timestamptz(6)
   approvedBy      String?       @map("approved_by") @db.Char(26)
   createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)

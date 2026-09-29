@@ -57,8 +57,11 @@ export interface MomentRef {
   readonly candidateId: string;
 }
 
-/** Refetch what a steering call changes: the moments, the clips and the run itself. */
-function useSettle(): (runId: string) => void {
+/**
+ * Refetch what a steering call changes: the moments, the clips and the run
+ * itself. A clip's layout (`use-clip-layout.ts`) settles the same way.
+ */
+export function useSettle(): (runId: string) => void {
   const queryClient = useQueryClient();
   const workspaceId = useWorkspaceId();
   return (runId) => {

@@ -139,6 +139,32 @@ export const MediaAcquireResultSchema = z.strictObject({
 });
 
 /**
+ * How a clip's picture is laid out (2026-10-01, two-speaker layouts):
+ * `single` is one window on the speaker, as every clip was before; `stacked`
+ * gives each of two people side by side in the source half of the picture, one
+ * above the other. Only a shape tall enough to hold two halves is stacked
+ * ({@link STACKED_ASPECTS}).
+ */
+export const CLIP_LAYOUTS = ["single", "stacked"] as const;
+export const ClipLayoutSchema = z.enum(CLIP_LAYOUTS);
+export type ClipLayout = z.infer<typeof ClipLayoutSchema>;
+
+/** The shapes a stacked cut is made in: 1:1 would squash two halves, and 16:9 needs none. */
+export const STACKED_ASPECTS = ["9:16", "4:5"] as const;
+
+/**
+ * One of the two people a stacked cut shows: where their face is, as
+ * fractions of the source frame, and its height as a share of the source's
+ * height, which sets how far the worker zooms in on them.
+ */
+export const StackedPersonSchema = z.strictObject({
+  centerX: z.number().min(0).max(1),
+  centerY: z.number().min(0).max(1),
+  size: z.number().gt(0).max(1),
+});
+export type StackedPerson = z.infer<typeof StackedPersonSchema>;
+
+/**
  * `media.clip@1` — cut one selected interval into a short mezzanine.
  *
  * `handleMs` is the edit handle kept on each side so the boundary stays adjustable
@@ -187,6 +213,31 @@ export const MediaClipPayloadSchema = z
         centerY: z.number().min(0).max(1).optional(),
         /** `faces`: from the face track; `centre`: no usable faces. */
         basis: z.enum(["faces", "centre"]),
+        /**
+         * `stacked` (2026-10-01): the two people in {@link people}, each in
+         * half of the picture, the first on top. Absent is `single`, which is
+         * every payload from before. `centerX` still names the dominant
+         * speaker, so a worker that knows nothing of stacking frames them.
+         */
+        layout: ClipLayoutSchema.optional(),
+        /** A stacked cut's two people, top half first (the left person, by default). */
+        people: z.array(StackedPersonSchema).length(2).optional(),
+      })
+      .superRefine((value, context) => {
+        if (value.layout === "stacked" && value.people === undefined) {
+          context.addIssue({
+            code: "custom",
+            path: ["people"],
+            message: "A stacked cut names its two people.",
+          });
+        }
+        if (value.layout !== "stacked" && value.people !== undefined) {
+          context.addIssue({
+            code: "custom",
+            path: ["people"],
+            message: "Only a stacked cut names people.",
+          });
+        }
       })
       .optional(),
     /**
@@ -214,6 +265,16 @@ export const MediaClipPayloadSchema = z
         code: "custom",
         path: ["endMs"],
         message: "Clip ends after the source does.",
+      });
+    }
+    if (
+      value.reframe?.layout === "stacked" &&
+      !(STACKED_ASPECTS as readonly string[]).includes(value.aspect ?? "9:16")
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["reframe", "layout"],
+        message: "Only a 9:16 or a 4:5 cut is stacked.",
       });
     }
   });
@@ -405,13 +466,24 @@ export function mediaAcquireJobKey(runId: string, sourceFingerprint: string): st
   return `media.acquire:${runId}:${sourceFingerprint}`;
 }
 
-/** Bounds and profile are in the key: re-cutting after a trim is new work. */
+/**
+ * Bounds and profile are in the key: re-cutting after a trim is new work. So
+ * is a new layout (2026-10-01): a stacked cut's key ends `:stacked`, and a
+ * one-window cut's key is exactly what it always was, so every job already
+ * written still reads as the cut it was.
+ */
 export function mediaClipJobKey(
   candidateId: string,
   boundsFingerprint: string,
   profileVersion: string,
+  layout: ClipLayout = "single",
 ): string {
-  return `media.clip:${candidateId}:${boundsFingerprint}:${profileVersion}`;
+  return `media.clip:${candidateId}:${boundsFingerprint}:${profileVersion}${layoutKeySuffix(layout)}`;
+}
+
+/** The end of a cut's job key that names its layout: nothing for one window. */
+export function layoutKeySuffix(layout: ClipLayout): string {
+  return layout === "stacked" ? ":stacked" : "";
 }
 
 /** The revision is in the key: an edited transcript is a different analysis. */
