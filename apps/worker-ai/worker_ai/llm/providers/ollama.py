@@ -45,6 +45,10 @@ class OllamaLlmProvider(LlmProvider):
     name = "ollama"
     supported_regions = _ALL_REGIONS
     no_training = True
+    #: Ollama's OpenAI-compatible endpoint cannot raise the context window per
+    #: request, and a stock install runs a few thousand tokens: a longer prompt
+    #: is cut silently from the front, taking the instructions with it.
+    max_prompt_chars = 7_000
 
     def __init__(
         self,
@@ -57,6 +61,7 @@ class OllamaLlmProvider(LlmProvider):
         # default timeout is deliberate (brief: "record latencies").
         self._base_url = base_url.rstrip("/") or _DEFAULT_BASE_URL
         self._model = model or _DEFAULT_MODEL
+        self.model = self._model
         self._timeout_s = timeout_s
         # `client` is injectable so a test drives an `httpx2.MockTransport`
         # instead of a network (same convention as `VendorHttp` and every

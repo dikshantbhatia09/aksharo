@@ -13,6 +13,7 @@ framework; only ``python-dotenv`` is used, to find the repository's single
 from __future__ import annotations
 
 import json
+import math
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -25,6 +26,7 @@ __all__ = [
     "DEFAULT_CACHE_MAX_ENTRY_BYTES",
     "DEFAULT_CONCURRENCY",
     "DEFAULT_CONTROL_PORT",
+    "DEFAULT_LLM_DAILY_BUDGET_INR",
     "REQUIRED_ENV_VARS",
     "WORKER_ENV_VARS",
     "BucketSettings",
@@ -47,6 +49,15 @@ DEFAULT_CACHE_MAX_ENTRY_BYTES = 512 * 1024
 #: M20 free-stack mode: local, OpenAI-compatible Ollama defaults.
 _DEFAULT_LLM_BASE_URL = "http://127.0.0.1:11434/v1"
 _DEFAULT_LLM_MODEL = "qwen2.5:3b"
+#: `LLM_PROVIDER=sarvam` with `LLM_MODEL` unset: the non-reasoning chat model.
+#: Not `sarvam-105b`, which spends its whole budget reasoning and answers null.
+_DEFAULT_SARVAM_LLM_MODEL = "sarvam-105b-conversations"
+#: What the chain falls back to when the primary fails or the day's budget is
+#: spent (2026-09-29): the local model, which costs nothing.
+_DEFAULT_LLM_FALLBACK_PROVIDER = "ollama"
+_DEFAULT_LLM_FALLBACK_MODEL = "qwen2.5:3b"
+#: Rupees the paid model may cost per UTC day (`worker_ai.llm.budget`).
+DEFAULT_LLM_DAILY_BUDGET_INR = 300.0
 
 #: Deployment naming this worker reads straight from the process environment.
 #:
@@ -97,6 +108,13 @@ WORKER_ENV_VARS: tuple[str, ...] = (
     # an operator-provisioned local file. Unset makes `ai.faces` fail
     # non-retryably; captions then keep their style's own position.
     "YUNET_MODEL_PATH",
+    # 2026-09-29, the language model that picks moments and writes clip copy:
+    # the provider (and its model) the chain falls back to after
+    # `LLM_PROVIDER`, and the daily rupee cap on the paid one. Worker-only:
+    # nothing else calls a model with them.
+    "LLM_FALLBACK_PROVIDER",
+    "LLM_FALLBACK_MODEL",
+    "LLM_DAILY_BUDGET_INR",
 )
 
 
@@ -265,8 +283,16 @@ class Settings:
     gpu_provider_token: str = ""
     allow_mock: bool | None = None
     #: M20 free-stack mode: local, OpenAI-compatible Ollama server; no key.
+    #: Also where the `ollama` fallback is reached.
     llm_base_url: str = _DEFAULT_LLM_BASE_URL
     llm_model: str = _DEFAULT_LLM_MODEL
+    #: The provider after `llm_provider` in the chain (`ollama` or `none`), and
+    #: its model. Every language-model feature falls back to it, then to a
+    #: rule-based answer: a run never fails because of the model.
+    llm_fallback_provider: str = _DEFAULT_LLM_FALLBACK_PROVIDER
+    llm_fallback_model: str = _DEFAULT_LLM_FALLBACK_MODEL
+    #: Rupees the paid provider may cost per UTC day; 0 turns it off.
+    llm_daily_budget_inr: float = DEFAULT_LLM_DAILY_BUDGET_INR
     #: Vendor endpoints. The defaults are the global ones; Indian production
     #: media belongs on the residency endpoints once A00-06 signs the terms.
     elevenlabs_base_url: str = ""
@@ -359,7 +385,8 @@ def load_repo_dotenv(start: Path | None = None) -> Path | None:
     return None
 
 
-_VALID_LLM_PROVIDERS = frozenset({"anthropic", "openai", "ollama", "mock"})
+_VALID_LLM_PROVIDERS = frozenset({"anthropic", "openai", "ollama", "sarvam", "mock"})
+_VALID_LLM_FALLBACK_PROVIDERS = frozenset({"ollama", "none"})
 _VALID_GPU_PROVIDERS = frozenset({"runpod", "modal", "replicate", "none"})
 
 
@@ -395,6 +422,18 @@ def load_settings(source: dict[str, str] | None = None) -> Settings:
     llm_provider = env.get("LLM_PROVIDER", "mock").strip() or "mock"
     if llm_provider not in _VALID_LLM_PROVIDERS:
         problems.append(f"LLM_PROVIDER: must be one of {', '.join(sorted(_VALID_LLM_PROVIDERS))}")
+
+    llm_fallback_provider = (
+        env.get("LLM_FALLBACK_PROVIDER", "").strip().lower() or _DEFAULT_LLM_FALLBACK_PROVIDER
+    )
+    if llm_fallback_provider not in _VALID_LLM_FALLBACK_PROVIDERS:
+        problems.append(
+            "LLM_FALLBACK_PROVIDER: must be one of "
+            + ", ".join(sorted(_VALID_LLM_FALLBACK_PROVIDERS))
+        )
+    llm_daily_budget_inr = _non_negative_number(
+        env, "LLM_DAILY_BUDGET_INR", DEFAULT_LLM_DAILY_BUDGET_INR, problems
+    )
 
     gpu_provider = env.get("GPU_PROVIDER", "none").strip() or "none"
     if gpu_provider not in _VALID_GPU_PROVIDERS:
@@ -464,7 +503,11 @@ def load_settings(source: dict[str, str] | None = None) -> Settings:
         anthropic_api_key=env.get("ANTHROPIC_API_KEY", "").strip(),
         openai_api_key=env.get("OPENAI_API_KEY", "").strip(),
         llm_base_url=env.get("LLM_BASE_URL", "").strip().rstrip("/") or _DEFAULT_LLM_BASE_URL,
-        llm_model=env.get("LLM_MODEL", "").strip() or _DEFAULT_LLM_MODEL,
+        llm_model=env.get("LLM_MODEL", "").strip()
+        or (_DEFAULT_SARVAM_LLM_MODEL if llm_provider == "sarvam" else _DEFAULT_LLM_MODEL),
+        llm_fallback_provider=llm_fallback_provider,
+        llm_fallback_model=env.get("LLM_FALLBACK_MODEL", "").strip() or _DEFAULT_LLM_FALLBACK_MODEL,
+        llm_daily_budget_inr=llm_daily_budget_inr,
         sentry_dsn=env.get("SENTRY_DSN", "").strip(),
         raw_bucket=BucketSettings(
             endpoint=env.get("S3_ENDPOINT", "").strip(),
@@ -529,6 +572,24 @@ def _positive_int(env: dict[str, str], name: str, default: int, problems: list[s
         return default
     if value <= 0:
         problems.append(f"{name}: must be a positive integer")
+        return default
+    return value
+
+
+def _non_negative_number(
+    env: dict[str, str], name: str, default: float, problems: list[str]
+) -> float:
+    """Parse a finite, non-negative number, recording a problem rather than raising."""
+    raw = env.get(name, "").strip()
+    if not raw:
+        return default
+    try:
+        value = float(raw)
+    except ValueError:
+        problems.append(f"{name}: must be a number of rupees, 0 or more")
+        return default
+    if not math.isfinite(value) or value < 0:
+        problems.append(f"{name}: must be a number of rupees, 0 or more")
         return default
     return value
 

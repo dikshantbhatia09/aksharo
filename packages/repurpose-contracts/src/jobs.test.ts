@@ -223,6 +223,32 @@ describe("ai.highlights@1", () => {
     expect(HighlightsPayloadSchema.safeParse({ ...payload, options }).success).toBe(false);
   });
 
+  it("carries the workspace's region for the language model, and nothing but a region", () => {
+    const payload = fixture("ai-highlights-payload.v1.json");
+    for (const region of ["in", "eu", "us"]) {
+      const options = { ...(payload["options"] as object), region };
+      expect(HighlightsPayloadSchema.safeParse({ ...payload, options }).success, region).toBe(true);
+    }
+    const options = { ...(payload["options"] as object), region: "mars" };
+    expect(HighlightsPayloadSchema.safeParse({ ...payload, options }).success).toBe(false);
+  });
+
+  it("accepts hashtags in Devanagari, vowel signs and all, and nothing with a space", () => {
+    const result = fixture("ai-highlights-result.v1.json") as { proposals: object[] };
+    const withTags = (hashtags: string[]) => ({
+      ...result,
+      proposals: result.proposals.map((proposal) => ({
+        ...proposal,
+        copy: { summary: "", hook: "", cta: "", hashtags, locale: "hi" },
+      })),
+    });
+    expect(
+      HighlightsResultSchema.safeParse(withTags(["#हिंदी", "#पैसा", "#money_tips"])).success,
+    ).toBe(true);
+    expect(HighlightsResultSchema.safeParse(withTags(["#money tips"])).success).toBe(false);
+    expect(HighlightsResultSchema.safeParse(withTags(["money"])).success).toBe(false);
+  });
+
   it("puts the transcript revision in the key, so an edit re-analyses", () => {
     expect(highlightsJobKey(RUN, "T1", 3, "cfg")).toBe(`ai.highlights:${RUN}:T1:3:cfg`);
     expect(highlightsJobKey(RUN, "T1", 3, "cfg")).not.toBe(highlightsJobKey(RUN, "T1", 4, "cfg"));

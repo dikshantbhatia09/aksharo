@@ -18,25 +18,49 @@ empty list as a legitimate answer, and the run page offers "add a moment by
 time" for it. A transcript whose words have no timings is not that: it fails,
 ``worker/transcript_untimed``, because "no strong moment" would blame the video
 for what transcribing it again fixes.
+
+2026-09-29, a language model picks with the heuristic. When a real model is
+configured (``LLM_PROVIDER``; the mock does not count), the heuristic's best
+windows, a few times more than asked for and spread across the video, go to the
+model, which scores each one for standing alone, landing its point and humour
+(and, with a ``topic``, for being about it) - by window id, never by timecode
+(`worker_ai.highlights.rerank`). The two readings are blended into the potential
+score, off-topic moments are dropped, and only then does ``minPotential`` apply.
+With ``options.copy``, each pick also gets the words to post it with
+(`worker_ai.highlights.clip_copy`). The model can make a pick better, never make
+a run fail: anything it does not answer, in time or at all, is decided by rule,
+exactly as before it existed.
 """
 
 from __future__ import annotations
 
 import asyncio
 import math
+from collections import Counter
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Final
 
 from pydantic import ValidationError
 
-from worker_ai.callbacks import CallbackError
+from worker_ai.callbacks import CallbackError, JobUsage
+from worker_ai.highlights.clip_copy import ClipSource, resolve_style, write_copies
 from worker_ai.highlights.contracts import (
     HIGHLIGHTS_SCHEMA_VERSION,
     HighlightProposal,
     HighlightsOptions,
     HighlightsPayload,
     HighlightsResult,
+)
+from worker_ai.highlights.rerank import (
+    TOPIC_FIT_FLOOR,
+    Judged,
+    MomentText,
+    blend,
+    judge_moments,
+    model_reasons,
+    moment_text,
+    shortlist_size,
 )
 from worker_ai.highlights.scoring import (
     Score,
@@ -47,6 +71,7 @@ from worker_ai.highlights.scoring import (
 )
 from worker_ai.highlights.text import make_excerpt, make_title
 from worker_ai.highlights.windows import (
+    Unit,
     Window,
     Word,
     build_units,
@@ -56,6 +81,8 @@ from worker_ai.highlights.windows import (
     spoken_count,
     usable_words,
 )
+from worker_ai.llm.calls import CallLedger, Deadline, model_chain
+from worker_ai.llm.pricing import inr_to_paise
 from worker_ai.logging_setup import get_logger
 from worker_ai.processors.context import JobContext, JobFailureError, ProcessorOutcome
 
@@ -65,11 +92,19 @@ _log = get_logger(__name__)
 
 #: Stored on every candidate (``clip_candidates.model``), so a row says which
 #: ranking produced it. ``montaj-highlight-v1`` was the time-ordered placeholder.
+#: A ranking the language model took part in is this plus the model's id.
 HIGHLIGHT_MODEL: Final[str] = "montaj-highlight-v2"
 #: The contract's ceiling on ``windowsConsidered``.
 _MAX_WINDOWS_REPORTED: Final[int] = 10_000
 #: 4xx answers that are about load, not about this request, so worth asking again.
 _TRANSIENT_CLIENT_STATUSES: Final = frozenset({408, 429})
+#: How long one job may wait on the language model, judging and writing
+#: together. Past it, whatever is left is decided by rule: a slow local model on
+#: a busy GPU must not hold a run's moments back for long.
+MODEL_DEADLINE_S: Final[float] = 8 * 60
+#: Never fewer on-topic moments than this (or ``count``, if smaller): past it,
+#: the closest off-topic ones fill in rather than leaving the run nearly empty.
+_TOPIC_MINIMUM: Final[int] = 3
 
 
 class UntimedTranscriptError(ValueError):
@@ -90,6 +125,34 @@ class _Candidate:
     window: Window
     signals: WindowSignals
     score: Score
+
+
+@dataclass(frozen=True, slots=True)
+class _Scored:
+    """Every window of a transcript, scored by the heuristic."""
+
+    words: list[Word]
+    units: list[Unit]
+    features: WordFeatures
+    candidates: list[_Candidate]
+    windows_considered: int
+    timeline: tuple[int, int]
+
+
+@dataclass(frozen=True, slots=True)
+class _Ranked:
+    """A candidate with the potential it is ranked on, and the model's view of it."""
+
+    candidate: _Candidate
+    potential: float
+    judged: Judged | None = None
+
+
+@dataclass(slots=True)
+class _ModelUse:
+    ledger: CallLedger = field(default_factory=CallLedger)
+    judged: int = 0
+    copies_by_model: int = 0
 
 
 async def _fetch_words(context: JobContext, payload: HighlightsPayload) -> tuple[list[Any], int]:
@@ -169,17 +232,13 @@ def _moment_title(start_ms: int) -> str:
     return f"Moment at {stamp}"
 
 
-def discover(
-    raw_words: Sequence[Any], options: HighlightsOptions, duration_ms: int = 0
-) -> tuple[list[HighlightProposal], int]:
-    """The proposals for a transcript's words, best first, and how many windows were scored.
-
-    Synchronous and deterministic: no network, no clock, no randomness, so the
-    same words and options always give the same answer.
+def _score_all(
+    raw_words: Sequence[Any], options: HighlightsOptions, duration_ms: int
+) -> _Scored | None:
+    """Every window of the transcript with its heuristic score, or ``None`` for none.
 
     Raises :class:`UntimedTranscriptError` when most citable spoken words have
-    no usable timing; a transcript with nothing said in it (or nothing a
-    proposal could cite) is an empty answer instead.
+    no usable timing.
     """
     # Nothing said - no words, or only music notes and sound labels - is the
     # empty answer the contract documents, and the run offers "add a moment by
@@ -188,7 +247,7 @@ def discover(
     # it as one would send the user to transcribe again for nothing.
     spoken = spoken_count(raw_words)
     if spoken == 0:
-        return [], 0
+        return None
     # Sarvam transcripts written before 2026-09-17 have every word at 0-0 (§9).
     # Cutting windows from timings like that would cut the wrong video, and an
     # empty answer would tell the user the video has no strong moment when it is
@@ -209,58 +268,359 @@ def discover(
         units, min_ms=min_ms, max_ms=max_ms, timeline_end_ms=max(duration_ms, speech_end_ms)
     )
     if not windows:
-        return [], 0
+        return None
 
     features = WordFeatures(words, units)
     candidates: list[_Candidate] = []
     for window in windows:
         signals = features.signals(window.first, window.last, window.start_ms, window.end_ms)
         candidates.append(_Candidate(window, signals, score(signals, options.content_goal)))
+    return _Scored(
+        words=words,
+        units=units,
+        features=features,
+        candidates=candidates,
+        windows_considered=min(len(windows), _MAX_WINDOWS_REPORTED),
+        timeline=(words[0].start_ms, speech_end_ms),
+    )
 
+
+def _heuristic_pick(scored: _Scored, options: HighlightsOptions) -> list[_Candidate]:
+    candidates = scored.candidates
     # Autopilot keeps only what clears the bar (`minPotential`): a moment that
     # scores under it is not worth a clip, however many slots are left.
     if options.min_potential is not None:
         floor = options.min_potential
         candidates = [candidate for candidate in candidates if candidate.score.potential >= floor]
         if not candidates:
-            return [], min(len(windows), _MAX_WINDOWS_REPORTED)
-    picked = select(
+            return []
+    return select(
         candidates,
         count=options.count,
         window_of=lambda candidate: candidate.window,
         score_of=lambda candidate: candidate.score.potential,
-        timeline=(words[0].start_ms, speech_end_ms),
+        timeline=scored.timeline,
     )
-    proposals = [_proposal(candidate, words, features) for candidate in picked]
-    return proposals, min(len(windows), _MAX_WINDOWS_REPORTED)
+
+
+def discover(
+    raw_words: Sequence[Any], options: HighlightsOptions, duration_ms: int = 0
+) -> tuple[list[HighlightProposal], int]:
+    """The proposals for a transcript's words, best first, and how many windows were scored.
+
+    Synchronous and deterministic: no network, no clock, no randomness, so the
+    same words and options always give the same answer. This is the heuristic
+    alone: the language model's part is :func:`process_highlights`'s.
+
+    Raises :class:`UntimedTranscriptError` when most citable spoken words have
+    no usable timing; a transcript with nothing said in it (or nothing a
+    proposal could cite) is an empty answer instead.
+    """
+    scored = _score_all(raw_words, options, duration_ms)
+    if scored is None:
+        return [], 0
+    picked = _heuristic_pick(scored, options)
+    proposals = [
+        _proposal(_Ranked(candidate, candidate.score.potential), scored) for candidate in picked
+    ]
+    return proposals, scored.windows_considered
 
 
 def _proposal(
-    candidate: _Candidate, words: Sequence[Word], features: WordFeatures
+    ranked: _Ranked,
+    scored: _Scored,
+    *,
+    topic: str | None = None,
+    copy: dict[str, Any] | None = None,
 ) -> HighlightProposal:
+    candidate = ranked.candidate
     window = candidate.window
+    words = scored.words
     inside = words[window.first : window.last + 1]
     texts = [word.text for word in inside]
-    reasons = reasons_for(
-        candidate.signals,
-        candidate.score,
-        features.emphatic_words(window.first, window.last),
-    )
-    return HighlightProposal.model_validate(
-        {
-            "windowId": window.window_id,
-            "startMs": window.start_ms,
-            "endMs": window.end_ms,
-            "startWordId": inside[0].wid,
-            "endWordId": inside[-1].wid,
-            "title": make_title(texts, fallback=_moment_title(window.start_ms)),
-            "transcriptExcerpt": make_excerpt(texts),
-            "potentialScore": candidate.score.percent(),
-            "scoreBreakdown": candidate.score.breakdown(),
-            "reasons": [
-                {"label": reason.label, "explanation": reason.explanation} for reason in reasons
-            ],
+    reasons = [
+        {"label": reason.label, "explanation": reason.explanation}
+        for reason in reasons_for(
+            candidate.signals,
+            candidate.score,
+            scored.features.emphatic_words(window.first, window.last),
+        )
+    ]
+    judged = ranked.judged
+    if judged is not None:
+        # The model's view first: it is the one a person reads to decide.
+        reasons = [
+            {"label": label, "explanation": explanation}
+            for label, explanation in model_reasons(judged, topic)
+        ] + reasons
+    fields: dict[str, Any] = {
+        "windowId": window.window_id,
+        "startMs": window.start_ms,
+        "endMs": window.end_ms,
+        "startWordId": inside[0].wid,
+        "endWordId": inside[-1].wid,
+        "title": make_title(texts, fallback=_moment_title(window.start_ms)),
+        "transcriptExcerpt": make_excerpt(texts),
+        "potentialScore": _percent(ranked.potential),
+        "scoreBreakdown": candidate.score.breakdown(),
+        "reasons": reasons[:12],
+    }
+    if judged is not None:
+        fields["judgement"] = {
+            "standalone": judged.standalone,
+            "payoff": judged.payoff,
+            "humour": judged.humour,
+            **({} if judged.topic_fit is None else {"topicFit": judged.topic_fit}),
+            "model": judged.model[:100] or "unknown",
         }
+    if copy is not None:
+        fields["copy"] = copy
+    return HighlightProposal.model_validate(fields)
+
+
+def _percent(value: float) -> int:
+    # Half-up, as `Score.percent` does, so an unjudged moment keeps its figure.
+    return math.floor(max(0.0, min(1.0, value)) * 100 + 0.5)
+
+
+# ---------------------------------------------------------------------------
+# With the language model
+# ---------------------------------------------------------------------------
+
+
+def _moment_texts(scored: _Scored, shortlist: Sequence[_Candidate]) -> list[MomentText]:
+    """Each shortlisted window's words, with the sentence either side of it."""
+    words, units = scored.words, scored.units
+    unit_of_word: list[int] = [0] * len(words)
+    for index, unit in enumerate(units):
+        for position in range(unit.first, unit.last + 1):
+            unit_of_word[position] = index
+
+    def unit_text(index: int) -> str:
+        if index < 0 or index >= len(units):
+            return ""
+        unit = units[index]
+        return moment_text([word.text for word in words[unit.first : unit.last + 1]])
+
+    items = []
+    for candidate in shortlist:
+        window = candidate.window
+        items.append(
+            MomentText(
+                window_id=window.window_id,
+                text=moment_text([word.text for word in words[window.first : window.last + 1]]),
+                before=unit_text(unit_of_word[window.first] - 1) if window.first > 0 else "",
+                after=(
+                    unit_text(unit_of_word[window.last] + 1) if window.last + 1 < len(words) else ""
+                ),
+            )
+        )
+    return items
+
+
+def _rank_with_model(
+    shortlist: Sequence[_Candidate],
+    judged: dict[str, Judged],
+    answered: frozenset[str],
+    options: HighlightsOptions,
+) -> list[_Ranked]:
+    """The shortlist re-scored with the model's judgement, filtered for topic and bar.
+
+    A moment the model was asked about and left out is dropped: it saw it and
+    passed. A moment whose batch no provider answered keeps its heuristic
+    score, so an outage costs the model's opinion, not the moment.
+    """
+    topic = options.topic
+    with_topic = bool(topic)
+    entries: list[_Ranked] = []
+    for candidate in shortlist:
+        window_id = candidate.window.window_id
+        verdict = judged.get(window_id)
+        if verdict is None and window_id in answered:
+            continue
+        entries.append(
+            _Ranked(
+                candidate,
+                blend(
+                    candidate.score.potential, verdict, options.content_goal, with_topic=with_topic
+                ),
+                verdict,
+            )
+        )
+
+    if with_topic:
+        on_topic = [
+            entry
+            for entry in entries
+            if entry.judged is not None
+            and entry.judged.topic_fit is not None
+            and entry.judged.topic_fit >= TOPIC_FIT_FLOOR
+        ]
+        minimum = min(options.count, _TOPIC_MINIMUM)
+        if len(on_topic) < minimum:
+            # Too few on topic to be useful: the closest of the rest fill in,
+            # best fit first, rather than a run with one clip.
+            chosen = {id(entry) for entry in on_topic}
+            rest = sorted(
+                (entry for entry in entries if id(entry) not in chosen),
+                key=lambda entry: (
+                    -(
+                        entry.judged.topic_fit
+                        if entry.judged is not None and entry.judged.topic_fit is not None
+                        else -1
+                    ),
+                    -entry.potential,
+                ),
+            )
+            on_topic += rest[: minimum - len(on_topic)]
+        entries = on_topic
+
+    # `minPotential` is the bar for what the RANKING says a moment is worth,
+    # so it applies to the blended score, after the model has had its say.
+    if options.min_potential is not None:
+        floor = options.min_potential
+        entries = [entry for entry in entries if entry.potential >= floor]
+    return entries
+
+
+async def _discover_with_model(
+    context: JobContext,
+    payload: HighlightsPayload,
+    raw_words: Sequence[Any],
+    duration_ms: int,
+) -> tuple[list[HighlightProposal], int, _ModelUse]:
+    options = payload.options
+    use = _ModelUse()
+    scored = await asyncio.to_thread(_score_all, raw_words, options, duration_ms)
+    if scored is None:
+        return [], 0, use
+
+    region = options.region or "in"
+    chain = model_chain(context.services.llm_providers, region)
+    deadline = Deadline(MODEL_DEADLINE_S)
+    ranked: list[_Ranked] | None = None
+
+    if chain:
+        shortlist = await asyncio.to_thread(
+            select,
+            scored.candidates,
+            count=shortlist_size(options.count),
+            window_of=lambda candidate: candidate.window,
+            score_of=lambda candidate: candidate.score.potential,
+            timeline=scored.timeline,
+        )
+        items = _moment_texts(scored, shortlist)
+        await context.progress(40, message=f"Reviewing {len(items)} moments with the AI editor")
+
+        async def judged_batch(done: int, total: int) -> None:
+            await context.progress(
+                40 + 30 * done / max(1, total), message="Reviewing moments with the AI editor"
+            )
+
+        judgements = await judge_moments(
+            items,
+            chain=chain,
+            goal=options.content_goal,
+            topic=options.topic,
+            deadline=deadline,
+            ledger=use.ledger,
+            on_batch=judged_batch,
+        )
+        use.judged = len(judgements.judged)
+        if judgements.judged:
+            ranked = _rank_with_model(shortlist, judgements.judged, judgements.answered, options)
+            ranked = select(
+                ranked,
+                count=options.count,
+                window_of=lambda entry: entry.candidate.window,
+                score_of=lambda entry: entry.potential,
+                timeline=scored.timeline,
+            )
+
+    if ranked is None:
+        # No model, or no answer from it: the heuristic's own pick, as before.
+        picked = await asyncio.to_thread(_heuristic_pick, scored, options)
+        ranked = [_Ranked(candidate, candidate.score.potential) for candidate in picked]
+
+    copies: dict[str, dict[str, Any]] = {}
+    if options.copy_options is not None and ranked:
+        sources = [
+            ClipSource(
+                key=entry.candidate.window.window_id,
+                text=moment_text(
+                    [
+                        word.text
+                        for word in scored.words[
+                            entry.candidate.window.first : entry.candidate.window.last + 1
+                        ]
+                    ]
+                ),
+                title=make_title(
+                    [
+                        word.text
+                        for word in scored.words[
+                            entry.candidate.window.first : entry.candidate.window.last + 1
+                        ]
+                    ],
+                    fallback=_moment_title(entry.candidate.window.start_ms),
+                ),
+            )
+            for entry in ranked
+        ]
+        style = resolve_style(
+            options.copy_options.language,
+            options.copy_options.script_mode,
+            " ".join(source.text for source in sources[:5]),
+        )
+        await context.progress(75, message="Writing titles and captions")
+
+        async def wrote_batch(done: int, total: int) -> None:
+            await context.progress(
+                75 + 15 * done / max(1, total), message="Writing titles and captions"
+            )
+
+        copies = await write_copies(
+            sources,
+            style=style,
+            topic=options.topic,
+            chain=chain,
+            deadline=deadline,
+            ledger=use.ledger,
+            on_batch=wrote_batch,
+        )
+        use.copies_by_model = sum(1 for copy in copies.values() if copy.get("source") == "model")
+
+    proposals = [
+        _proposal(
+            entry,
+            scored,
+            topic=options.topic,
+            copy=copies.get(entry.candidate.window.window_id),
+        )
+        for entry in ranked
+    ]
+    return proposals, scored.windows_considered, use
+
+
+def _ranking_model(proposals: Sequence[HighlightProposal]) -> str:
+    """``montaj-highlight-v2``, plus the model that judged most of the picks."""
+    models = Counter(
+        proposal.judgement.model for proposal in proposals if proposal.judgement is not None
+    )
+    if not models:
+        return HIGHLIGHT_MODEL
+    return f"{HIGHLIGHT_MODEL}+{models.most_common(1)[0][0]}"[:100]
+
+
+def _usage(use: _ModelUse) -> JobUsage | None:
+    provider = use.ledger.paid_provider
+    if provider is None:
+        return None
+    name, model = provider
+    return JobUsage(
+        provider=name,
+        model=model or None,
+        cost_minor=inr_to_paise(use.ledger.cost_inr),
     )
 
 
@@ -279,13 +639,25 @@ async def process_highlights(context: JobContext) -> ProcessorOutcome:
     raw_words, duration_ms = await _fetch_words(context, payload)
 
     await context.progress(30, message="Evaluating highlight candidate windows")
-    # Up to a few seconds of CPU for a long source. On the event loop it would
-    # stall every other AI queue this process serves - their progress calls,
-    # heartbeats and BullMQ lock renewals - for as long as it ran.
+    options = payload.options
+    uses_model = (
+        bool(model_chain(context.services.llm_providers, options.region or "in"))
+        or options.copy_options is not None
+    )
+    use = _ModelUse()
     try:
-        proposals, windows_considered = await asyncio.to_thread(
-            discover, raw_words, payload.options, duration_ms
-        )
+        if uses_model:
+            proposals, windows_considered, use = await _discover_with_model(
+                context, payload, raw_words, duration_ms
+            )
+        else:
+            # Up to a few seconds of CPU for a long source. On the event loop it
+            # would stall every other AI queue this process serves - their
+            # progress calls, heartbeats and BullMQ lock renewals - for as long
+            # as it ran.
+            proposals, windows_considered = await asyncio.to_thread(
+                discover, raw_words, options, duration_ms
+            )
     except UntimedTranscriptError as error:
         # Not retryable: the same words give the same answer. The API fails the
         # run with `repurpose/transcript_untimed`, whose page names the remedy -
@@ -312,6 +684,12 @@ async def process_highlights(context: JobContext) -> ProcessorOutcome:
             "words": len(raw_words),
             "windowsConsidered": windows_considered,
             "proposals": len(proposals),
+            "judged": use.judged,
+            "copiesByModel": use.copies_by_model,
+            "llmCalls": use.ledger.calls,
+            "llmInputTokens": use.ledger.input_tokens,
+            "llmOutputTokens": use.ledger.output_tokens,
+            "llmCostInr": round(use.ledger.cost_inr, 4),
         },
     )
 
@@ -326,7 +704,7 @@ async def process_highlights(context: JobContext) -> ProcessorOutcome:
             "proposals": proposals,
             "featureVersion": payload.feature_version,
             "promptVersion": payload.prompt_version,
-            "model": HIGHLIGHT_MODEL,
+            "model": _ranking_model(proposals),
             "windowsConsidered": windows_considered,
         }
     )
@@ -336,4 +714,7 @@ async def process_highlights(context: JobContext) -> ProcessorOutcome:
     # `exclude_none`: an optional field the worker did not fill (a proposal's
     # `copy` or `judgement`) is left out, never sent as null - the TypeScript
     # contract's optional fields accept a missing key, not a null one.
-    return ProcessorOutcome(result=result.model_dump(by_alias=True, mode="json", exclude_none=True))
+    return ProcessorOutcome(
+        result=result.model_dump(by_alias=True, mode="json", exclude_none=True),
+        usage=_usage(use),
+    )

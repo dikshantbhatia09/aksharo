@@ -291,6 +291,12 @@ export const HighlightsPayloadSchema = z
           scriptMode: z.enum(["auto", "roman", "native", "bilingual"]),
         })
         .optional(),
+      /**
+       * The workspace's jurisdiction (2026-09-29): which language-model
+       * providers may read these words. Absent is `in`, the platform default,
+       * as for `ai.llm`.
+       */
+      region: z.enum(["in", "eu", "us"]).optional(),
     }),
     promptVersion: z.string().trim().min(1).max(100),
     featureVersion: z.string().trim().min(1).max(100),

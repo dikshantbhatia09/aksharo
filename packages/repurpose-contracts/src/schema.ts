@@ -253,7 +253,9 @@ export const CandidateListResponseSchema = z.strictObject({
  */
 const HashtagSchema = z
   .string()
-  .regex(/^#[\p{L}\p{N}_]+$/u)
+  // Marks too (`\p{M}`): a Devanagari vowel sign or anusvara is a combining
+  // mark, so without them `#हिंदी` would be refused.
+  .regex(/^#[\p{L}\p{M}\p{N}_]+$/u)
   .max(100);
 
 export const PlatformCopySchema = z.strictObject({
