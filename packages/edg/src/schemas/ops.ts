@@ -213,9 +213,10 @@ export const SetRenderOpSchema = op("SetRender", {
 
 /**
  * Adds an overlay, or replaces the one with the same id (added 2026-09-29):
- * editing a hook title's words is the same op as placing it. The engine clamps
- * the window to the media and refuses an empty one. Rebase field
- * `overlay:<id>`, last-write-wins.
+ * editing a hook title's words is the same op as placing it, and so is putting
+ * a brand kit's logo or end card on (2026-10-02). The engine clamps the window
+ * to the media and refuses an empty one. Rebase field `overlay:<id>`,
+ * last-write-wins.
  */
 export const SetOverlayOpSchema = op("SetOverlay", { overlay: OverlaySchema });
 

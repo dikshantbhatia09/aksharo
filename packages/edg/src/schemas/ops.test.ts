@@ -152,6 +152,55 @@ describe("EdgOp union", () => {
     ).toBe(false);
   });
 
+  it("takes a brand kit's logo and end card, and refuses one out of bounds", () => {
+    const image = { assetId: id(), format: "webp", width: 512, height: 512 };
+    const logo = {
+      id: id(),
+      kind: "logo",
+      startMs: 0,
+      endMs: 30_000,
+      image,
+      corner: "bottom-left",
+      sizePct: 16,
+      opacity: 0.9,
+      marginPct: 4,
+    };
+    const card = {
+      id: id(),
+      kind: "end-card",
+      startMs: 27_000,
+      endMs: 30_000,
+      cta: "Follow for more",
+      handle: "@aksharo",
+      background: "#141217",
+      text: "#f1ece6",
+      accent: "#f0508a",
+      fontFamily: "Poppins",
+      image,
+    };
+    const set = (overlay: unknown) =>
+      EdgOpSchema.safeParse({ opId: id(), type: "SetOverlay", overlay }).success;
+    expect(set(logo)).toBe(true);
+    expect(set(card)).toBe(true);
+    expect(set({ ...logo, sizePct: 60 })).toBe(false);
+    expect(set({ ...logo, corner: "middle" })).toBe(false);
+    expect(set({ ...logo, image: { ...image, format: "gif" } })).toBe(false);
+    expect(set({ ...card, cta: "x".repeat(61) })).toBe(false);
+    expect(set({ ...card, handle: "x".repeat(41) })).toBe(false);
+    expect(set({ ...card, background: "black" })).toBe(false);
+    // A hook title styled by a brand kit.
+    expect(
+      set({
+        id: id(),
+        kind: "hook-title",
+        text: "Hook",
+        startMs: 0,
+        endMs: 2_500,
+        appearance: { fontFamily: "Poppins", background: "#f0508a", text: "#0b0a0c" },
+      }),
+    ).toBe(true);
+  });
+
   // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
   it.each(EDG_OP_TYPES.map((type) => [type, samples[type]] as const))(
     "round-trips %s through Zod and JSON",

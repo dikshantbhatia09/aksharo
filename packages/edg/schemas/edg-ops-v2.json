@@ -1455,13 +1455,28 @@
       "title": "SetOverlay"
     },
     "Overlay": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/HookTitleOverlay"
+        },
+        {
+          "$ref": "#/$defs/LogoOverlay"
+        },
+        {
+          "$ref": "#/$defs/EndCardOverlay"
+        }
+      ],
+      "title": "Overlay"
+    },
+    "HookTitleOverlay": {
       "type": "object",
       "properties": {
         "id": {
           "$ref": "#/$defs/Ulid"
         },
         "kind": {
-          "$ref": "#/$defs/OverlayKind"
+          "type": "string",
+          "const": "hook-title"
         },
         "text": {
           "type": "string",
@@ -1479,16 +1494,167 @@
           "minimum": 0,
           "maximum": 9007199254740991,
           "title": "Milliseconds"
+        },
+        "appearance": {
+          "$ref": "#/$defs/HookTitleAppearance"
         }
       },
       "required": ["id", "kind", "text", "startMs", "endMs"],
       "additionalProperties": false,
-      "title": "Overlay"
+      "title": "HookTitleOverlay"
     },
-    "OverlayKind": {
+    "HookTitleAppearance": {
+      "type": "object",
+      "properties": {
+        "fontFamily": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "background": {
+          "$ref": "#/$defs/HexColour"
+        },
+        "text": {
+          "$ref": "#/$defs/HexColour"
+        }
+      },
+      "additionalProperties": false,
+      "title": "HookTitleAppearance"
+    },
+    "HexColour": {
       "type": "string",
-      "enum": ["hook-title"],
-      "title": "OverlayKind"
+      "pattern": "^#[0-9a-fA-F]{6}$",
+      "title": "HexColour"
+    },
+    "LogoOverlay": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/Ulid"
+        },
+        "kind": {
+          "type": "string",
+          "const": "logo"
+        },
+        "startMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "title": "Milliseconds"
+        },
+        "endMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "title": "Milliseconds"
+        },
+        "image": {
+          "$ref": "#/$defs/OverlayImage"
+        },
+        "corner": {
+          "$ref": "#/$defs/OverlayCorner"
+        },
+        "sizePct": {
+          "type": "number",
+          "minimum": 5,
+          "maximum": 40
+        },
+        "opacity": {
+          "type": "number",
+          "minimum": 0.1,
+          "maximum": 1
+        },
+        "marginPct": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 15
+        }
+      },
+      "required": ["id", "kind", "startMs", "endMs", "image", "corner", "sizePct", "opacity", "marginPct"],
+      "additionalProperties": false,
+      "title": "LogoOverlay"
+    },
+    "OverlayImage": {
+      "type": "object",
+      "properties": {
+        "assetId": {
+          "$ref": "#/$defs/Ulid"
+        },
+        "format": {
+          "type": "string",
+          "enum": ["png", "jpeg", "webp"]
+        },
+        "width": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8192
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8192
+        }
+      },
+      "required": ["assetId", "format", "width", "height"],
+      "additionalProperties": false,
+      "title": "OverlayImage"
+    },
+    "OverlayCorner": {
+      "type": "string",
+      "enum": ["top-left", "top-right", "bottom-left", "bottom-right"],
+      "title": "OverlayCorner"
+    },
+    "EndCardOverlay": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/Ulid"
+        },
+        "kind": {
+          "type": "string",
+          "const": "end-card"
+        },
+        "startMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "title": "Milliseconds"
+        },
+        "endMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "title": "Milliseconds"
+        },
+        "cta": {
+          "type": "string",
+          "maxLength": 60
+        },
+        "handle": {
+          "type": "string",
+          "maxLength": 40
+        },
+        "background": {
+          "$ref": "#/$defs/HexColour"
+        },
+        "text": {
+          "$ref": "#/$defs/HexColour"
+        },
+        "accent": {
+          "$ref": "#/$defs/HexColour"
+        },
+        "fontFamily": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "image": {
+          "$ref": "#/$defs/OverlayImage"
+        }
+      },
+      "required": ["id", "kind", "startMs", "endMs", "background"],
+      "additionalProperties": false,
+      "title": "EndCardOverlay"
     },
     "RemoveOverlay": {
       "type": "object",

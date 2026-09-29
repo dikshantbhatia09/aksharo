@@ -1378,6 +1378,75 @@ describe("SetOverlay and RemoveOverlay", () => {
       op("SetOverlay", { overlay: { ...hook({ text: "edited" }), id: ids[0] ?? "" } }),
     ]);
     expect(reasons(result)).toEqual(["invariant"]);
-    expect(result.state.hot.overlays?.[0]?.text).toBe("edited");
+    expect(result.state.hot.overlays?.[0]).toMatchObject({ text: "edited" });
+  });
+
+  // The brand kit's overlays (2026-10-02).
+  const [LOGO, CARD] = [overlayId(), overlayId()];
+  const image = { assetId: overlayId(), format: "png" as const, width: 400, height: 200 };
+  const logo = {
+    id: LOGO,
+    kind: "logo" as const,
+    startMs: 0,
+    endMs: 90_000,
+    image,
+    corner: "top-right" as const,
+    sizePct: 16,
+    opacity: 0.9,
+    marginPct: 4,
+  };
+  const card = (fields: Partial<{ cta: string; handle: string; image: typeof image }> = {}) => ({
+    id: CARD,
+    kind: "end-card" as const,
+    startMs: 87_000,
+    endMs: 90_000,
+    background: "#141217",
+    cta: "Follow for more",
+    handle: "@aksharo",
+    ...fields,
+  });
+
+  it("stores a logo and an end card beside a hook title, in start order", () => {
+    const { state } = setup();
+    const result = apply(state, [
+      op("SetOverlay", { overlay: card() }),
+      op("SetOverlay", { overlay: logo }),
+      op("SetOverlay", { overlay: hook() }),
+    ]);
+    expect(result.state.hot.overlays?.map((overlay) => overlay.kind)).toEqual([
+      // Two at 0 ms fall back to id order; the end card starts last.
+      ...[HOOK, LOGO].sort().map((id) => (id === HOOK ? "hook-title" : "logo")),
+      "end-card",
+    ]);
+    expect(result.state.hot.overlays?.find((overlay) => overlay.id === LOGO)).toEqual(logo);
+  });
+
+  it("trims an end card's lines, leaves an empty one out, and refuses a card with nothing on it", () => {
+    const { state } = setup();
+    const trimmed = apply(state, [
+      op("SetOverlay", { overlay: card({ cta: "  Follow for more  ", handle: "   " }) }),
+    ]);
+    const stored = trimmed.state.hot.overlays?.[0];
+    expect(stored).toMatchObject({ cta: "Follow for more" });
+    expect(stored).not.toHaveProperty("handle");
+
+    const refused = applyOps(state, [
+      op("SetOverlay", { overlay: card({ cta: " ", handle: "" }) }),
+    ]);
+    expect(reasons(refused)).toEqual(["invalid"]);
+
+    // A card with only the logo on it is still a card.
+    const logoOnly = apply(state, [
+      op("SetOverlay", { overlay: { ...card({ image }), cta: "", handle: "" } }),
+    ]);
+    expect(logoOnly.state.hot.overlays?.[0]).toMatchObject({ kind: "end-card", image });
+  });
+
+  it("clamps a logo's window to the media like any other overlay", () => {
+    const { state } = setup();
+    const result = apply(state, [
+      op("SetOverlay", { overlay: { ...logo, startMs: 0, endMs: 200_000 } }),
+    ]);
+    expect(result.state.hot.overlays?.[0]).toMatchObject({ startMs: 0, endMs: 90_000 });
   });
 });

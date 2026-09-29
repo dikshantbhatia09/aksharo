@@ -904,15 +904,43 @@ function withOverlays(draft: EdgDraft, overlays: readonly Overlay[]): void {
 }
 
 /**
+ * An overlay's words trimmed (2026-10-02 for the brand kit's kinds): a hook
+ * title needs some, and an end card needs something to show — words, a handle
+ * or its logo. An end card's empty line is left out rather than stored blank.
+ */
+function cleanOverlay(overlay: Overlay): Overlay {
+  switch (overlay.kind) {
+    case "hook-title": {
+      const text = overlay.text.trim();
+      if (text === "") fail("invalid", `overlay ${overlay.id} has no text`);
+      return { ...overlay, text };
+    }
+    case "logo":
+      return overlay;
+    case "end-card": {
+      const { cta: rawCta, handle: rawHandle, ...rest } = overlay;
+      const cta = rawCta?.trim() ?? "";
+      const handle = rawHandle?.trim() ?? "";
+      if (cta === "" && handle === "" && overlay.image === undefined) {
+        fail("invalid", `end card ${overlay.id} has nothing to show`);
+      }
+      return {
+        ...rest,
+        ...(cta === "" ? {} : { cta }),
+        ...(handle === "" ? {} : { handle }),
+      };
+    }
+  }
+}
+
+/**
  * Adds or replaces one overlay by id (2026-09-29). The window is clamped to the
  * media, like every other range the engine takes; one that is empty after that,
  * or text that is only spaces, is refused rather than stored as something that
  * would never draw.
  */
 function applySetOverlay(draft: EdgDraft, op: SetOverlayOp): void {
-  const { overlay } = op;
-  const text = overlay.text.trim();
-  if (text === "") fail("invalid", `overlay ${overlay.id} has no text`);
+  const overlay = cleanOverlay(op.overlay);
   const durationMs = mediaDurationMs(draft);
   const startMs = Math.max(0, overlay.startMs);
   const endMs = durationMs === undefined ? overlay.endMs : Math.min(overlay.endMs, durationMs);
@@ -923,7 +951,7 @@ function applySetOverlay(draft: EdgDraft, op: SetOverlayOp): void {
   if (rest.length >= MAX_OVERLAYS) {
     fail("invariant", `a document carries at most ${String(MAX_OVERLAYS)} overlays`);
   }
-  withOverlays(draft, [...rest, { ...overlay, text, startMs, endMs }]);
+  withOverlays(draft, [...rest, { ...overlay, startMs, endMs }]);
 }
 
 function applyRemoveOverlay(draft: EdgDraft, op: RemoveOverlayOp): void {
