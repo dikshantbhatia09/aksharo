@@ -4,7 +4,8 @@ The cloud render service. `@montaj/render-core` produces `DrawCommand[]`,
 `@montaj/render-skia-node` (`@napi-rs/canvas`, Skia) rasterises them into RGBA overlay
 frames, and ffmpeg overlays and encodes straight to R2.
 
-**Status:** implemented (A20). Consumes `render.video` and `render.subtitle`.
+**Status:** implemented (A20). Consumes `render.video`, `render.subtitle` and, since 2026-10-03,
+`render.compilation`.
 
 There is no headless Chromium and no Remotion in this path (decision D33): the browser,
 the desktop app and this service all execute the _same_ draw commands through a Skia
@@ -202,6 +203,33 @@ refused too, for now, with a different message — the actual libass burn-in (en
 selection, watermark honesty under THREAT-MODEL T10, audio-replace, alpha output) is
 A20/A21 follow-up work, outside `@montaj/ass-exporter`'s own file boundary.
 
+## Compilations (2026-10-03)
+
+`render.compilation` joins a run's captioned clips of one shape into one video, a 0.5 s
+fade between clips and, with a title, a 2 s card first (`src/compilation/`, payload
+`RenderCompilationPayloadSchema`, restated in `queues.ts` and held to the shared fixtures).
+There is no manifest: the job reads only exports of its own workspace
+(`ws/{workspaceId}/p/{project}/exports/{export}.mp4`), writes one export key, and adds no
+mark and removes none - the clips already carry what their plan gives them.
+
+It is made in **pieces**, never one filter graph over every clip. ffmpeg opens every input
+of a graph at once, and each 1080 x 1920 decoder held about 55 MB while it waited its turn
+(1.17 GB for sixteen inputs with ffmpeg 9, measured 2026-10-03). So each piece reads at
+most two parts: a **body** is one part with its fades' frames taken off, a **fade** is the
+last 15 frames of one part crossfaded (`xfade`, `acrossfade`) into the first 15 of the
+next. Every part is normalised - fitted inside the canvas and letterboxed, square pixels,
+30 fps, 48 kHz stereo - and held to an exact frame and sample count (`tpad` + `trim`,
+`apad` + `atrim`), and every piece is encoded with identical settings into MOV with PCM
+sound. The concat demuxer then joins them with the picture copied and the sound encoded to
+AAC once, so no join repeats or drops a frame, and AAC's priming never drifts the sound.
+The title card is render-core's end-card layout (`layoutEndCard`/`drawEndCardContent`)
+drawn by Skia: the brand kit's colour, typeface, handle and logo, the title as its call to
+action; a logo that cannot be read is left off, with a warning.
+
+A compilation and a video render never encode side by side: both take a slot of
+`HeavySlots` (`src/heavy-slot.ts`, as many as `RENDER_CONCURRENCY`), in the order they
+asked. A job waiting for a slot stays `queued` to the API and keeps its BullMQ lock.
+
 ## Parity
 
 D33's browser/cloud parity gate has two tolerance sections:
@@ -295,7 +323,8 @@ is now the whole render, and what is left to move.
 ## Layout
 
 ```
-src/index.ts            boot: env, tool check, stores, two BullMQ workers
+src/index.ts            boot: env, tool check, stores, three BullMQ workers
+src/heavy-slot.ts       one encode at a time per slot, video and compilation alike
 src/config.ts           the deployment knobs above
 src/policies.ts         A08b's retry/stall table, mirrored
 src/queues.ts           queue names, envelope, payload schemas
@@ -311,6 +340,7 @@ src/render/frames.ts    the frame loop and its cache
 src/render/fonts.ts     the font pack, and the fallback that warns
 src/render/projection.ts payload → the shapes render-core and timemap want
 src/render/watermark.ts  the manifest's mark, in any of four corners
+src/compilation/        a run's clips joined: the pieces, the title card, the join
 src/testing.ts          the synthetic clip, the sample projection, a fake store
 scripts/benchmark.ts    the numbers in BENCHMARK.md
 ```

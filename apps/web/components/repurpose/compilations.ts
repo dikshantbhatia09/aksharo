@@ -206,6 +206,8 @@ export const COMPILATION_COPY = Object.freeze({
   cancel: "Done picking",
   none: "Nothing picked yet.",
   onlyCaptioned: "Only clips whose captioned video in this shape is made can be joined.",
+  noneReady:
+    "Fewer than two clips have a captioned video in this shape yet. Autopilot makes one for every clip by itself.",
   tooMany: `Up to ${String(COMPILATION_LIMITS.maxClips)} clips, and 15 minutes.`,
   tooLong: "That is longer than 15 minutes. Take a clip out.",
   needTwo: "Pick at least two clips.",

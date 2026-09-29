@@ -174,6 +174,11 @@ export function CompilationBuilder({
           <p className="m-0 text-sm text-fg-2">
             {COMPILATION_COPY.pickHint} {COMPILATION_COPY.onlyCaptioned}
           </p>
+          {pickable.length >= COMPILATION_LIMITS.minClips ? null : (
+            <p className="m-0 text-sm text-fg-1" role="status" data-testid="compilation-none-ready">
+              {COMPILATION_COPY.noneReady}
+            </p>
+          )}
 
           <div className="flex flex-wrap items-end gap-3">
             <label className="flex flex-col gap-1.5 text-sm font-medium text-fg-1">

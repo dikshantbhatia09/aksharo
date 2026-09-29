@@ -8,6 +8,7 @@ import {
   cacheCompilation,
   compilationsPollDelay,
   compilationsQueryKey,
+  isRepurposeCompilation,
   seriesQueryKey,
   type RepurposeCompilation,
 } from "./repurpose-compilations.js";
@@ -70,5 +71,12 @@ describe("compilations (2026-10-03)", () => {
       [made.id, "ready"],
       [older.id, "ready"],
     ]);
+  });
+
+  it("trusts the list with a compilation only", () => {
+    expect(isRepurposeCompilation(compilation())).toBe(true);
+    expect(isRepurposeCompilation({ runId: RUN, compilations: [] })).toBe(false);
+    expect(isRepurposeCompilation(null)).toBe(false);
+    expect(isRepurposeCompilation({ ...compilation(), clipIds: "x" })).toBe(false);
   });
 });

@@ -147,6 +147,18 @@ export function useRepurposeCompilations(
   });
 }
 
+/** Whether an answer is a compilation, before the page's list is trusted with it. */
+export function isRepurposeCompilation(value: unknown): value is RepurposeCompilation {
+  if (typeof value !== "object" || value === null) return false;
+  const candidate = value as Partial<RepurposeCompilation>;
+  return (
+    typeof candidate.id === "string" &&
+    typeof candidate.runId === "string" &&
+    typeof candidate.status === "string" &&
+    Array.isArray(candidate.clipIds)
+  );
+}
+
 /** Puts one compilation into the cached list, newest first, replacing its older copy. */
 export function cacheCompilation(
   queryClient: Pick<QueryClient, "setQueryData">,
@@ -182,8 +194,15 @@ export function useCreateCompilation(): UseMutationResult<
   return useMutation({
     mutationFn: (input) =>
       client.call(createCompilationEndpoint, { params: { runId: input.runId }, body: input.body }),
-    onSuccess: (compilation) => {
-      if (workspaceId !== null) cacheCompilation(queryClient, workspaceId, compilation);
+    onSuccess: (compilation, input) => {
+      if (workspaceId === null) return;
+      // Shown at once, then read back: the list is the server's word for it.
+      if (isRepurposeCompilation(compilation)) {
+        cacheCompilation(queryClient, workspaceId, compilation);
+      }
+      void queryClient.invalidateQueries({
+        queryKey: compilationsQueryKey(workspaceId, input.runId),
+      });
     },
   });
 }
@@ -202,8 +221,15 @@ export function useRetryCompilation(): UseMutationResult<
       client.call(retryCompilationEndpoint, {
         params: { runId: input.runId, compilationId: input.compilationId },
       }),
-    onSuccess: (compilation) => {
-      if (workspaceId !== null) cacheCompilation(queryClient, workspaceId, compilation);
+    onSuccess: (compilation, input) => {
+      if (workspaceId === null) return;
+      // Shown at once, then read back: the list is the server's word for it.
+      if (isRepurposeCompilation(compilation)) {
+        cacheCompilation(queryClient, workspaceId, compilation);
+      }
+      void queryClient.invalidateQueries({
+        queryKey: compilationsQueryKey(workspaceId, input.runId),
+      });
     },
   });
 }
