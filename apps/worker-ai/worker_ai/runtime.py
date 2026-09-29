@@ -80,6 +80,7 @@ from worker_ai.processors import (
     process_transliterate,
     process_vad,
 )
+from worker_ai.processors.context import JobSettledError
 from worker_ai.processors.faces import process_faces
 from worker_ai.providers.registry import build_registry
 from worker_ai.queues import AI_QUEUES, parse_envelope
@@ -354,6 +355,15 @@ def make_handler(queue: str, services: Services) -> Handler:
             )
             _log.info("job succeeded", extra=log_fields)
             return result
+        except JobSettledError as settled:
+            # Settled under the processor (a person cancelled the dub, a newer
+            # attempt owns the row): the API would refuse any report, and a
+            # retry would be turned away at pickup, exactly as above.
+            _log.warning(
+                "job was settled by the API while it ran; stopped",
+                extra={**log_fields, "reason": settled.reason},
+            )
+            raise UnrecoverableError(str(settled)) from settled
         except JobFailureError as failure:
             reported = await _report_failure(
                 context, failure.code, failure.message, failure.retryable

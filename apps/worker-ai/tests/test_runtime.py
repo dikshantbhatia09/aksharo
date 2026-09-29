@@ -11,6 +11,7 @@ from bullmq import UnrecoverableError
 
 from worker_ai.callbacks import CallbackAck, JobCompletion
 from worker_ai.processors import OWNERS, JobFailureError
+from worker_ai.processors.context import JobSettledError
 from worker_ai.queues import AI_QUEUES, IMPLEMENTED_AI_QUEUES
 from worker_ai.runtime import (
     PROCESSORS,
@@ -522,3 +523,58 @@ def _missing_object_store() -> Any:
             raise RuntimeError("NoSuchKey")
 
     return ObjectStore(bucket="derived", client=_Missing())
+
+
+# ---------------------------------------------------------------------------
+# Settled under the processor, and the resume point (2026-10-04)
+# ---------------------------------------------------------------------------
+
+
+async def test_a_job_settled_while_it_runs_stops_without_a_report(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A person cancelled the work mid-run: nothing to report, nothing to retry."""
+
+    async def cancelled_under_it(context: Any) -> None:
+        raise JobSettledError("already_completed")
+
+    services = build_test_services()
+    monkeypatch.setitem(PROCESSORS, "ai.vad", cancelled_under_it)
+    handler = make_handler("ai.vad", services)
+
+    with pytest.raises(UnrecoverableError, match="already_completed") as raised:
+        await handler(FakeJob(envelope(), attempts_made=0, attempts=2), None)
+
+    assert isinstance(raised.value.__cause__, JobSettledError)
+    assert recorder(services).completions == []
+
+
+async def test_the_first_beat_keeps_the_answer_a_resumable_processor_reads(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    held = {"vendorJobId": "5f0c2d6e-8a1b", "vendorPhase": "started"}
+    seen: list[CallbackAck | None] = []
+
+    class _Resuming(RecordingCallbacks):
+        async def progress(
+            self,
+            job_id: str,
+            attempt_id: str,
+            progress: float,
+            *,
+            eta_ms: int | None = None,
+            message: str | None = None,
+        ) -> CallbackAck:
+            await super().progress(job_id, attempt_id, progress, eta_ms=eta_ms, message=message)
+            return CallbackAck(applied=True, job_id=job_id, status="running", checkpoint=held)
+
+    async def read_it(context: Any) -> None:
+        seen.append(context.start_ack)
+
+    services = build_test_services()
+    object.__setattr__(services, "callbacks", _Resuming())
+    monkeypatch.setitem(PROCESSORS, "ai.vad", read_it)
+    await make_handler("ai.vad", services)(FakeJob(envelope()), None)
+
+    assert seen[0] is not None
+    assert seen[0].checkpoint == held

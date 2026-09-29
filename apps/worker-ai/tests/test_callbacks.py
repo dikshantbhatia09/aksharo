@@ -19,6 +19,7 @@ from worker_ai.callbacks import (
     JobCompletion,
     JobError,
     JobUsage,
+    _ack,
     encode_body,
     sign_request,
     signature_headers,
@@ -196,3 +197,43 @@ def test_a_completion_body_round_trips_as_json() -> None:
         "status": "succeeded",
         "result": {"chunks": []},
     }
+
+
+# ---------------------------------------------------------------------------
+# Checkpoints (2026-10-04): where a retried attempt resumes
+# ---------------------------------------------------------------------------
+
+
+async def test_a_checkpoint_travels_with_a_signed_beat(fake_api: FakeApi) -> None:
+    checkpoint: dict[str, str | int | float | bool | None] = {
+        "vendorJobId": "5f0c2d6e-8a1b",
+        "vendorPhase": "created",
+    }
+    async with CallbackClient(fake_api.origin, CALLBACK_SECRET) as client:
+        ack = await client.checkpoint(JOB_ID, ATTEMPT_ID, 3.0, checkpoint, message="dub created")
+
+    assert ack.applied is True
+    call = fake_api.progresses()[0]
+    assert call.path == f"/internal/jobs/{JOB_ID}/progress"
+    assert call.signature_matches(CALLBACK_SECRET)
+    assert call.json == {"progress": 3.0, "checkpoint": checkpoint, "message": "dub created"}
+
+
+async def test_a_checkpoint_the_api_refused_raises(fake_api: FakeApi) -> None:
+    """Unlike a beat, a checkpoint that did not land must not look as if it did."""
+    fake_api.responses.extend([400])
+    async with CallbackClient(fake_api.origin, CALLBACK_SECRET, backoff_s=0.0) as client:
+        with pytest.raises(CallbackError, match="400"):
+            await client.checkpoint(JOB_ID, ATTEMPT_ID, 3.0, {"vendorJobId": "x"})
+
+
+def test_the_answer_carries_the_checkpoint_the_row_holds() -> None:
+    held = {"vendorJobId": "5f0c2d6e-8a1b", "vendorPhase": "started"}
+    with_one = httpx2.Response(
+        200, json={"applied": True, "jobId": JOB_ID, "status": "running", "checkpoint": held}
+    )
+    assert _ack(with_one).checkpoint == held
+    without = httpx2.Response(200, json={"applied": True, "jobId": JOB_ID, "status": "running"})
+    assert _ack(without).checkpoint is None
+    odd = httpx2.Response(200, json={"applied": True, "checkpoint": "not an object"})
+    assert _ack(odd).checkpoint is None
