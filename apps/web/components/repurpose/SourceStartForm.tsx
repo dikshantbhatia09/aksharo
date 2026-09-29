@@ -34,146 +34,80 @@
  * on "Detect automatically": the form used to pre-fill it from whatever this
  * browser last picked on Home, and that hint overrides detection — an English
  * video went down the paid Hinglish lane because of an unrelated earlier pick.
+ *
+ * Several at once (2026-10-02, `allowSeveral`, while `repurpose_automations` is
+ * on): a third tab takes up to twenty links, one per line, and the upload tab
+ * takes several files. Each becomes its own run with the one setup below. The
+ * setup panel itself is `RunSetupFields`, shared with the Automations page.
  */
-import { ChevronRight } from "lucide-react";
 import NextLink from "next/link";
 import * as React from "react";
 
-import { Button, Field, Input, cn } from "@montaj/ui";
+import { Button, Field, Input, Textarea, cn } from "@montaj/ui";
 
-import { PICKABLE_STYLES } from "@/components/editor/panels/system-styles";
-import { LanguagePicker } from "@/components/projects/language-picker";
-import { WritingScriptPicker } from "@/components/projects/writing-script-picker";
-import { AUTOPILOT_COPY, DETAIL_COPY, STEERING_COPY } from "@/components/repurpose/copy";
+import { DETAIL_COPY } from "@/components/repurpose/copy";
 import { SOURCE_CEILING_MS, formatBytes, spanPhrase } from "@/components/repurpose/failure-detail";
 import { formatClock, parseClock } from "@/components/repurpose/moment-time";
-import { isPlausibleLink, normaliseSourceLink } from "@/components/repurpose/source-link";
 import {
-  CLIP_LENGTHS,
-  DEFAULT_CLIP_LENGTH,
-  TOPIC_MAX_LENGTH,
-  lengthRange,
-  skipMsOf,
-  topicProblem,
-  type ClipLength,
-} from "@/components/repurpose/steering";
+  EMPTY_RUN_SETUP,
+  RunSetupFields,
+  validateRunSetup,
+  type RunSetupProblems,
+  type RunSetupValue,
+} from "@/components/repurpose/RunSetupFields";
+import {
+  MAX_LINKS,
+  linkLinesOf,
+  linksToSend,
+  severalLinksProblem,
+} from "@/components/repurpose/several-links";
+import { isPlausibleLink, normaliseSourceLink } from "@/components/repurpose/source-link";
 
-/**
- * The spoken language when the person leaves it to us: the API detects it
- * from the video (the transcript's own language decides what follows).
- */
-export const DETECT_LANGUAGE = "auto";
+export {
+  DEFAULT_STYLE_ID,
+  DETECT_LANGUAGE,
+  RECOMMENDED_STYLES,
+} from "@/components/repurpose/RunSetupFields";
 
-export interface StartFormValue {
-  readonly tab: "link" | "upload";
+/** Files one start may take at once: the same twenty as links. */
+export const MAX_FILES = MAX_LINKS;
+
+export interface StartFormValue extends RunSetupValue {
+  /** One link, several links (one per line), or files from the device. */
+  readonly tab: "link" | "links" | "upload";
   readonly url: string;
+  /** The "Several links" box, as typed: one link per line. */
+  readonly links: string;
   /**
    * Where a long video's window starts, as typed (`m:ss` or `h:mm:ss`); empty
    * leaves it to the server (the most-replayed part, else the start). Links
    * only: an upload is processed whole, within the plan's upload limit.
    */
   readonly startAt: string;
+  /** The file picked, or the first of several. */
   readonly file: File | null;
-  /** A language tag, {@link DETECT_LANGUAGE}, or `undefined` while one is still to be picked. */
-  readonly sourceLanguage: string | undefined;
-  readonly outputLanguage: string;
-  readonly scriptMode: string;
-  readonly styleId: string;
-  readonly method: "ai" | "manual";
-  readonly requestedCandidates: number;
+  /** Every file picked, when several may be (`allowSeveral`); empty otherwise. */
+  readonly files: readonly File[];
   readonly rightsAttested: boolean;
-  /**
-   * Autopilot: every moment becomes a clip and passing failures are retried,
-   * with nobody at the page (`setup.automation: "auto"`). Off, the person
-   * picks which moments become clips.
-   */
-  readonly autopilot: boolean;
-  /**
-   * Steering (2026-09-29), for "Suggest the strongest moments for me" only:
-   * what the clips should be about (empty is anything strong), how long they
-   * should be, and the minutes of the start and end to take no clip from, as
-   * typed (empty skips nothing).
-   */
-  readonly topic: string;
-  readonly clipLength: ClipLength;
-  readonly skipIntro: string;
-  readonly skipOutro: string;
 }
-
-/** The presets offered up front: every pickable style (`PICKABLE_STYLE_IDS`). */
-export const RECOMMENDED_STYLES: readonly (typeof PICKABLE_STYLES)[number][] = PICKABLE_STYLES;
-
-/**
- * The style a run starts with.
- *
- * Resolved from the catalogue at module load rather than hard-coded, because a
- * literal id here rots silently the day the style is renamed. It is committed to
- * form STATE, not computed at render: a chip that looks selected while the form
- * holds `""` is how every default submit ends up rejected by the API.
- */
-export const DEFAULT_STYLE_ID: string = RECOMMENDED_STYLES[0]?.id ?? "";
 
 export const EMPTY_START_FORM: StartFormValue = Object.freeze({
+  ...EMPTY_RUN_SETUP,
   tab: "link",
   url: "",
+  links: "",
   startAt: "",
   file: null,
-  sourceLanguage: DETECT_LANGUAGE,
-  outputLanguage: "same",
-  scriptMode: "auto",
-  styleId: DEFAULT_STYLE_ID,
-  method: "ai",
-  requestedCandidates: 5,
+  files: [],
   rightsAttested: false,
-  autopilot: true,
-  topic: "",
-  clipLength: DEFAULT_CLIP_LENGTH,
-  skipIntro: "",
-  skipOutro: "",
 });
 
-/**
- * Caption output choices (§3.3).
- *
- * `hi-Latn` is its own entry, never folded into English: Roman-script Hinglish is
- * a different output from a translation, and conflating them is the single
- * mistake that would cost this product its differentiation (§10.4).
- */
-const OUTPUT_LANGUAGES = [
-  { key: "same", label: "Same as spoken" },
-  { key: "en", label: "English" },
-  { key: "hi", label: "Hindi (Devanagari)" },
-  { key: "hi-Latn", label: "Hinglish (Roman)" },
-] as const;
-
-/** Scripts only matter when the output language has more than one in use. */
-const SCRIPT_CHOICE_LANGUAGES = new Set(["same", "hi", "hi-Latn"]);
-
-/** The two "skip" fields: the video's start and its end. */
-const SKIP_FIELDS = [
-  { key: "skipIntro", label: STEERING_COPY.skipFirst, testId: "steering-skip-intro" },
-  { key: "skipOutro", label: STEERING_COPY.skipLast, testId: "steering-skip-outro" },
-] as const;
-
-/** "Short", "Medium", "Long". */
-function lengthLabel(length: ClipLength): string {
-  return length === "short"
-    ? STEERING_COPY.length.short
-    : length === "long"
-      ? STEERING_COPY.length.long
-      : STEERING_COPY.length.medium;
-}
-
-export interface StartFormProblems {
+export interface StartFormProblems extends RunSetupProblems {
   readonly url?: string;
+  readonly links?: string;
   readonly startAt?: string;
   readonly file?: string;
-  readonly sourceLanguage?: string;
   readonly rights?: string;
-  readonly style?: string;
-  readonly topic?: string;
-  readonly skipIntro?: string;
-  readonly skipOutro?: string;
 }
 
 /**
@@ -184,6 +118,12 @@ export interface StartFormProblems {
 export function startAtMs(value: Pick<StartFormValue, "tab" | "startAt">): number | undefined {
   if (value.tab !== "link" || value.startAt.trim() === "") return undefined;
   return parseClock(value.startAt) ?? undefined;
+}
+
+/** The files the upload tab holds: every one picked, or the one. */
+export function filesOf(value: Pick<StartFormValue, "file" | "files">): readonly File[] {
+  if (value.files.length > 0) return value.files;
+  return value.file === null ? [] : [value.file];
 }
 
 /**
@@ -243,34 +183,30 @@ export function validateStartForm(
     if (!value.rightsAttested) {
       problems.rights = "Please confirm you own this video or have permission to use it.";
     }
-  } else if (value.file === null) {
-    problems.file = "Choose a video from your device.";
-  } else if (cap !== undefined && Number.isFinite(cap) && cap > 0 && value.file.size > cap) {
-    problems.file = `This file is larger than your plan allows (up to ${formatBytes(cap)}). Choose a smaller copy.`;
+  } else if (value.tab === "links") {
+    const links = severalLinksProblem(linkLinesOf(value.links));
+    if (links !== undefined) problems.links = links;
+    if (!value.rightsAttested) {
+      problems.rights = "Please confirm you own these videos or have permission to use them.";
+    }
+  } else {
+    const files = filesOf(value);
+    if (files.length === 0) {
+      problems.file = "Choose a video from your device.";
+    } else if (files.length > MAX_FILES) {
+      problems.file = `Up to ${String(MAX_FILES)} videos at a time.`;
+    } else if (cap !== undefined && Number.isFinite(cap) && cap > 0) {
+      const over = files.find((file) => file.size > cap);
+      if (over !== undefined) {
+        problems.file =
+          files.length === 1
+            ? `This file is larger than your plan allows (up to ${formatBytes(cap)}). Choose a smaller copy.`
+            : `${over.name} is larger than your plan allows (up to ${formatBytes(cap)}). Choose a smaller copy.`;
+      }
+    }
   }
 
-  if (value.sourceLanguage === undefined) {
-    // Never silently transcribe in a language nobody chose: it is the one
-    // choice that changes what everything downstream costs and says (§3.3).
-    // "Detect automatically" is a choice; "I'll choose it" with nothing picked
-    // is not.
-    problems.sourceLanguage = "Choose the language spoken in the video.";
-  }
-
-  // The API requires a non-empty style id. Checking it here means a refactor that
-  // breaks the default can never again produce a silent 400 on the happy path.
-  if (value.styleId.trim() === "") problems.style = "Choose a caption look.";
-
-  // Steering is only offered, and only sent, when we pick the moments: a
-  // hidden field's error would block the form with nothing to correct.
-  if (value.method === "ai") {
-    const topic = topicProblem(value.topic);
-    if (topic !== undefined) problems.topic = topic;
-    if (skipMsOf(value.skipIntro) === null) problems.skipIntro = STEERING_COPY.skipInvalid;
-    if (skipMsOf(value.skipOutro) === null) problems.skipOutro = STEERING_COPY.skipInvalid;
-  }
-
-  return problems;
+  return { ...problems, ...validateRunSetup(value) };
 }
 
 export interface SourceStartFormProps {
@@ -301,8 +237,21 @@ export interface SourceStartFormProps {
   readonly knownLength?: KnownLength;
   /** Put the cursor in "Start at": the person came here to pick a start. */
   readonly focusStartAt?: boolean;
+  /**
+   * Offer several at once: the "Several links" tab and several files. Off, the
+   * form is exactly the one-video form it always was.
+   */
+  readonly allowSeveral?: boolean;
+  /** Replaces the submit button's label (the page says how many runs it starts). */
+  readonly submitLabel?: string;
   readonly className?: string;
 }
+
+const TAB_LABELS: Readonly<Record<StartFormValue["tab"], string>> = Object.freeze({
+  link: "Paste a link",
+  links: "Several links",
+  upload: "Upload a video",
+});
 
 export function SourceStartForm({
   value,
@@ -317,15 +266,11 @@ export function SourceStartForm({
   processesWholeVideos = false,
   knownLength,
   focusStartAt = false,
+  allowSeveral = false,
+  submitLabel,
   className,
 }: SourceStartFormProps): React.JSX.Element {
   const [showProblems, setShowProblems] = React.useState(false);
-  const [advancedOpen, setAdvancedOpen] = React.useState(false);
-  // The last language picked by hand, so "I'll choose it" after a detour to
-  // "Detect automatically" comes back to it rather than to nothing.
-  const lastPicked = React.useRef<string | undefined>(
-    value.sourceLanguage === DETECT_LANGUAGE ? undefined : value.sourceLanguage,
-  );
   const startAtRef = React.useRef<HTMLInputElement>(null);
   // A start is not checked where it is not offered: a hidden field's error
   // would block the form with nothing to correct.
@@ -333,8 +278,9 @@ export function SourceStartForm({
     ...(maxFileBytes === undefined ? {} : { maxFileBytes }),
     ...(knownLength === undefined ? {} : { knownLength }),
   });
-  const visible = showProblems ? problems : {};
-  const detecting = value.sourceLanguage === DETECT_LANGUAGE;
+  const visible: StartFormProblems = showProblems ? problems : {};
+  const lines = value.tab === "links" ? linkLinesOf(value.links) : [];
+  const files = filesOf(value);
 
   React.useEffect(() => {
     // On arrival from "Pick where to start": the prop comes from the URL and
@@ -353,26 +299,63 @@ export function SourceStartForm({
     onSubmit();
   };
 
-  const TABS = ["link", "upload"] as const;
+  const tabs: readonly StartFormValue["tab"][] = allowSeveral
+    ? ["link", "links", "upload"]
+    : ["link", "upload"];
   const tabRefs = React.useRef<Record<string, HTMLButtonElement | null>>({});
 
-  // Arrow keys move between the two tabs, as a tablist promises (roving focus).
+  // Arrow keys move between the tabs, as a tablist promises (roving focus).
   const onTabKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>): void => {
     if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
     event.preventDefault();
-    const current = TABS.indexOf(value.tab);
+    const current = Math.max(0, tabs.indexOf(value.tab));
     const next =
       event.key === "Home"
         ? 0
         : event.key === "End"
-          ? TABS.length - 1
-          : (current + (event.key === "ArrowRight" ? 1 : -1) + TABS.length) % TABS.length;
+          ? tabs.length - 1
+          : (current + (event.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length;
     // eslint-disable-next-line security/detect-object-injection -- bounded index into a literal tuple
-    const tab = TABS[next] ?? "link";
+    const tab = tabs[next] ?? "link";
     set("tab", tab);
-    // eslint-disable-next-line security/detect-object-injection -- key is one of two literals
+    // eslint-disable-next-line security/detect-object-injection -- key is one of the tab literals
     tabRefs.current[tab]?.focus();
   };
+
+  const several = value.tab === "links";
+  const rights = (
+    <div>
+      {/* The whole row is the hit target, not just the 16 px box. */}
+      <label className="flex min-h-8 cursor-pointer items-center gap-2.5 text-sm text-fg-1">
+        <input
+          type="checkbox"
+          className="size-4 shrink-0 accent-accent"
+          checked={value.rightsAttested}
+          data-testid="rights-attested"
+          aria-invalid={visible.rights !== undefined}
+          aria-describedby={visible.rights === undefined ? undefined : "repurpose-rights-error"}
+          onChange={(event) => {
+            set("rightsAttested", event.target.checked);
+          }}
+        />
+        <span>
+          {several
+            ? "I own these videos or have permission to use them."
+            : "I own this video or have permission to use it."}
+        </span>
+      </label>
+      {visible.rights !== undefined && (
+        <p
+          id="repurpose-rights-error"
+          role="alert"
+          className="mt-1 text-xs text-rejected"
+          data-testid="error-rights"
+        >
+          {visible.rights}
+        </p>
+      )}
+    </div>
+  );
 
   return (
     // `noValidate`: the browser's own `type="url"` check blocks a scheme-less
@@ -386,22 +369,22 @@ export function SourceStartForm({
     >
       <section className="space-y-4" aria-labelledby="repurpose-source-heading">
         <h2 id="repurpose-source-heading" className="text-base text-fg-0">
-          Your video
+          {several || files.length > 1 ? "Your videos" : "Your video"}
         </h2>
-        {/* Two equal tabs — neither is the "real" one (§3.3). Underline
-            indicator per the Shirorekha tab recipe. */}
+        {/* Equal tabs — none is the "real" one (§3.3). Underline indicator
+            per the Shirorekha tab recipe. */}
         <div
           role="tablist"
           aria-label="Where your video comes from"
           className="flex border-b border-border"
         >
-          {TABS.map((tab) => {
+          {tabs.map((tab) => {
             const selected = value.tab === tab;
             return (
               <button
                 key={tab}
                 ref={(node) => {
-                  // eslint-disable-next-line security/detect-object-injection -- key is one of two literals
+                  // eslint-disable-next-line security/detect-object-injection -- key is one of the tab literals
                   tabRefs.current[tab] = node;
                 }}
                 type="button"
@@ -416,13 +399,14 @@ export function SourceStartForm({
                 }}
                 onKeyDown={onTabKeyDown}
                 className={cn(
-                  "-mb-px h-10 flex-1 border-b-2 px-4 text-sm font-medium transition-colors duration-[160ms]",
+                  "-mb-px h-10 min-w-0 flex-1 border-b-2 px-2 text-sm font-medium transition-colors duration-[160ms] sm:px-4",
                   selected
                     ? "border-accent text-fg-0"
                     : "border-transparent text-fg-2 hover:text-fg-0",
                 )}
               >
-                {tab === "link" ? "Paste a link" : "Upload a video"}
+                {/* eslint-disable-next-line security/detect-object-injection -- one of the tab literals */}
+                {TAB_LABELS[tab]}
               </button>
             );
           })}
@@ -494,35 +478,62 @@ export function SourceStartForm({
               </Field>
             )}
 
-            <div>
-              {/* The whole row is the hit target, not just the 16 px box. */}
-              <label className="flex min-h-8 cursor-pointer items-center gap-2.5 text-sm text-fg-1">
-                <input
-                  type="checkbox"
-                  className="size-4 shrink-0 accent-accent"
-                  checked={value.rightsAttested}
-                  data-testid="rights-attested"
-                  aria-invalid={visible.rights !== undefined}
-                  aria-describedby={
-                    visible.rights === undefined ? undefined : "repurpose-rights-error"
-                  }
-                  onChange={(event) => {
-                    set("rightsAttested", event.target.checked);
-                  }}
-                />
-                <span>I own this video or have permission to use it.</span>
-              </label>
-              {visible.rights !== undefined && (
-                <p
-                  id="repurpose-rights-error"
-                  role="alert"
-                  className="mt-1 text-xs text-rejected"
-                  data-testid="error-rights"
-                >
-                  {visible.rights}
+            {rights}
+          </div>
+        ) : value.tab === "links" ? (
+          <div
+            role="tabpanel"
+            id="repurpose-panel-links"
+            aria-labelledby="repurpose-tab-links"
+            className="space-y-3"
+          >
+            <Field
+              label="Video links"
+              htmlFor="repurpose-links"
+              hint={`One YouTube link per line, up to ${String(MAX_LINKS)}. Each becomes its own run with the settings below.`}
+              {...(visible.links === undefined ? {} : { error: visible.links })}
+            >
+              <Textarea
+                id="repurpose-links"
+                rows={6}
+                // Links, not prose: no autocorrect, no capitalised first letter.
+                autoCapitalize="off"
+                autoCorrect="off"
+                spellCheck={false}
+                className="bg-sunken font-mono text-xs"
+                placeholder={"https://www.youtube.com/watch?v=…\nhttps://youtu.be/…"}
+                value={value.links}
+                data-testid="source-links"
+                aria-invalid={visible.links !== undefined}
+                aria-describedby={
+                  visible.links === undefined ? "repurpose-links-hint" : "repurpose-links-error"
+                }
+                onChange={(event) => {
+                  set("links", event.target.value);
+                }}
+              />
+            </Field>
+            {lines.length === 0 ? null : (
+              <div className="space-y-1" data-testid="links-summary">
+                <p className="text-xs text-fg-1">
+                  {linksToSend(lines).length === 1
+                    ? "1 video"
+                    : `${String(linksToSend(lines).length)} videos`}
                 </p>
-              )}
-            </div>
+                {/* Every line that will not be sent, and why: fixed here, not after a round trip. */}
+                <ul className="space-y-0.5 text-xs text-fg-2">
+                  {lines
+                    .filter((line) => line.problem !== null || line.duplicateOf !== null)
+                    .map((line) => (
+                      <li key={line.line} data-testid={`links-line-${String(line.line)}`}>
+                        <span className="font-mono">Line {String(line.line)}:</span>{" "}
+                        {line.problem ?? `the same video as line ${String(line.duplicateOf)}.`}
+                      </li>
+                    ))}
+                </ul>
+              </div>
+            )}
+            {rights}
           </div>
         ) : (
           <div
@@ -532,415 +543,56 @@ export function SourceStartForm({
             className="space-y-3"
           >
             <Field
-              label="Video file"
+              label={allowSeveral ? "Video files" : "Video file"}
               htmlFor="repurpose-file"
+              {...(allowSeveral
+                ? { hint: `Choose one, or up to ${String(MAX_FILES)}: each becomes its own run.` }
+                : {})}
               {...(visible.file === undefined ? {} : { error: visible.file })}
             >
               <input
                 id="repurpose-file"
                 type="file"
                 accept="video/*"
+                multiple={allowSeveral}
                 data-testid="source-file"
                 aria-describedby={visible.file === undefined ? undefined : "repurpose-file-error"}
                 className={cn(
-                  "text-sm text-fg-1",
+                  "max-w-full text-sm text-fg-1",
                   "file:mr-3 file:h-9 file:cursor-pointer file:rounded-sm file:border file:border-border",
                   "file:bg-transparent file:px-4 file:text-sm file:font-medium file:text-fg-0",
                   "hover:file:bg-neutral-100/7",
                 )}
                 onChange={(event) => {
-                  set("file", event.target.files?.[0] ?? null);
+                  const picked = Array.from(event.target.files ?? []);
+                  onChange({
+                    ...value,
+                    file: picked[0] ?? null,
+                    files: allowSeveral ? picked : [],
+                  });
                 }}
               />
             </Field>
-            {value.file !== null && (
+            {files.length === 1 && (
               <p className="text-xs text-fg-1" data-testid="selected-file">
-                {value.file.name}
+                {files[0]?.name}
               </p>
+            )}
+            {files.length > 1 && (
+              <ul className="space-y-0.5 text-xs text-fg-1" data-testid="selected-files">
+                {files.map((file, index) => (
+                  <li key={`${file.name}-${String(index)}`} className="truncate">
+                    {file.name}
+                  </li>
+                ))}
+              </ul>
             )}
           </div>
         )}
       </section>
 
       {/* One setup panel, whichever tab is open (§3.3). */}
-      <section
-        className="space-y-5 rounded-md border border-border bg-surface p-5"
-        aria-labelledby="repurpose-setup-heading"
-      >
-        <h2 id="repurpose-setup-heading" className="text-base text-fg-0">
-          Captions and clips
-        </h2>
-        {/* A real radio group: detecting is a choice with its own name, not an
-            empty picker. The picker (which owns its own button and its own
-            `aria-label`, "Spoken language" — the group's visible name) appears
-            only once the person says they will choose. */}
-        <fieldset
-          className="border-0 p-0"
-          aria-describedby={
-            visible.sourceLanguage === undefined ? undefined : "repurpose-language-error"
-          }
-        >
-          <legend className="text-sm font-medium text-fg-1">Spoken language</legend>
-          <div className="mt-1.5 flex flex-col">
-            {(
-              [
-                { key: "detect", label: "Detect automatically" },
-                { key: "choose", label: "I'll choose it" },
-              ] as const
-            ).map((option) => (
-              <label
-                key={option.key}
-                className="flex min-h-8 cursor-pointer items-center gap-2.5 text-sm text-fg-1"
-              >
-                <input
-                  type="radio"
-                  name="spoken-language"
-                  className="size-4 shrink-0 accent-accent"
-                  value={option.key}
-                  checked={option.key === "detect" ? detecting : !detecting}
-                  data-testid={`language-${option.key}`}
-                  onChange={() => {
-                    set(
-                      "sourceLanguage",
-                      option.key === "detect" ? DETECT_LANGUAGE : lastPicked.current,
-                    );
-                  }}
-                />
-                {option.label}
-              </label>
-            ))}
-          </div>
-          {detecting ? (
-            // Honest about the one case detection gets wrong most.
-            <p className="mt-1 text-xs text-fg-2" data-testid="language-detect-hint">
-              We work it out from the video. If it mixes languages, like Hindi and English, choosing
-              it yourself is more reliable.
-            </p>
-          ) : (
-            <div className="mt-1.5">
-              <LanguagePicker
-                value={value.sourceLanguage}
-                fullWidth
-                onChange={(tag) => {
-                  lastPicked.current = tag;
-                  set("sourceLanguage", tag);
-                }}
-              />
-            </div>
-          )}
-          {visible.sourceLanguage !== undefined && (
-            <p
-              id="repurpose-language-error"
-              role="alert"
-              className="mt-1 text-xs text-rejected"
-              data-testid="error-language"
-            >
-              {visible.sourceLanguage}
-            </p>
-          )}
-        </fieldset>
-
-        <Field label="Caption language" htmlFor="repurpose-output-language">
-          <select
-            id="repurpose-output-language"
-            className="h-9 w-full rounded-sm border border-border bg-sunken px-3 text-sm text-fg-0 hover:border-neutral-600"
-            value={value.outputLanguage}
-            data-testid="output-language"
-            onChange={(event) => {
-              set("outputLanguage", event.target.value);
-            }}
-          >
-            {OUTPUT_LANGUAGES.map((option) => (
-              <option key={option.key} value={option.key}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </Field>
-
-        {/* Shown only when the choice means something (§3.3). The visible text is
-            "Writing script" because that is what the picker announces itself as. */}
-        {SCRIPT_CHOICE_LANGUAGES.has(value.outputLanguage) && (
-          <div role="group" aria-labelledby="repurpose-script-label">
-            <span id="repurpose-script-label" className="text-sm font-medium text-fg-1">
-              Writing script
-            </span>
-            <div className="mt-1.5">
-              <WritingScriptPicker
-                value={value.scriptMode}
-                fullWidth
-                onChange={(key) => {
-                  set("scriptMode", key);
-                }}
-              />
-            </div>
-          </div>
-        )}
-
-        <fieldset
-          className="border-0 p-0"
-          aria-describedby={visible.style === undefined ? undefined : "repurpose-style-error"}
-        >
-          <legend className="text-sm font-medium text-fg-1">Caption look</legend>
-          <div className="mt-2 flex flex-wrap gap-2" data-testid="style-picker">
-            {RECOMMENDED_STYLES.map((style, index) => {
-              const selected = value.styleId === style.id;
-              return (
-                <button
-                  key={style.id}
-                  type="button"
-                  data-testid={`style-${style.id}`}
-                  aria-pressed={selected}
-                  onClick={() => {
-                    set("styleId", style.id);
-                  }}
-                  className={cn(
-                    "inline-flex h-9 items-center gap-1.5 rounded-sm border px-3 text-sm",
-                    "transition-colors duration-[160ms]",
-                    // Selected = the system's selection ring, not a tinted fill.
-                    selected
-                      ? "border-transparent bg-bg-2 text-fg-0 ring-1 ring-accent"
-                      : "border-border text-fg-1 hover:bg-neutral-100/7 hover:text-fg-0",
-                  )}
-                >
-                  {style.name}
-                  {index === 0 && <span className="text-2xs text-fg-2">Recommended</span>}
-                </button>
-              );
-            })}
-          </div>
-          {visible.style !== undefined && (
-            <p
-              id="repurpose-style-error"
-              role="alert"
-              className="mt-1 text-xs text-rejected"
-              data-testid="error-style"
-            >
-              {visible.style}
-            </p>
-          )}
-        </fieldset>
-
-        <fieldset className="border-0 p-0">
-          <legend className="text-sm font-medium text-fg-1">How should the clips be chosen?</legend>
-          <div className="mt-1.5 flex flex-col">
-            {/* Equally visible, because manual is a first-class path, not a
-                fallback for when the AI disappoints (§3.5). */}
-            {(
-              [
-                { key: "ai", label: "Suggest the strongest moments for me" },
-                { key: "manual", label: "I know the timestamps" },
-              ] as const
-            ).map((option) => (
-              <label
-                key={option.key}
-                className="flex min-h-8 cursor-pointer items-center gap-2.5 text-sm text-fg-1"
-              >
-                <input
-                  type="radio"
-                  name="clip-method"
-                  className="size-4 shrink-0 accent-accent"
-                  value={option.key}
-                  checked={value.method === option.key}
-                  data-testid={`method-${option.key}`}
-                  onChange={() => {
-                    onChange({
-                      ...value,
-                      method: option.key,
-                      requestedCandidates: option.key === "manual" ? 0 : 5,
-                    });
-                  }}
-                />
-                {option.label}
-              </label>
-            ))}
-          </div>
-          {value.method === "manual" && (
-            // Says where the timestamps go, since this form has no field for them.
-            <p className="mt-1 text-xs text-fg-2" data-testid="method-manual-hint">
-              Once the transcript is ready, you add each moment by its start and end time on the
-              next page.
-            </p>
-          )}
-        </fieldset>
-
-        {/* Steering (2026-09-29): only when we pick the moments - with the
-            timestamps known, there is nothing for these to steer. */}
-        {value.method === "ai" && (
-          <div className="space-y-5" data-testid="steering-fields">
-            <Field
-              label={STEERING_COPY.topicLabel}
-              htmlFor="repurpose-topic"
-              hint={STEERING_COPY.topicHint}
-              {...(visible.topic === undefined ? {} : { error: visible.topic })}
-            >
-              <Input
-                id="repurpose-topic"
-                className="bg-sunken"
-                placeholder={STEERING_COPY.topicPlaceholder}
-                maxLength={TOPIC_MAX_LENGTH}
-                value={value.topic}
-                data-testid="steering-topic"
-                aria-invalid={visible.topic !== undefined}
-                aria-describedby={
-                  visible.topic === undefined ? "repurpose-topic-hint" : "repurpose-topic-error"
-                }
-                onChange={(event) => {
-                  set("topic", event.target.value);
-                }}
-              />
-            </Field>
-
-            <fieldset className="border-0 p-0">
-              <legend className="text-sm font-medium text-fg-1">
-                {STEERING_COPY.lengthLegend}
-              </legend>
-              <div className="mt-1.5 flex flex-wrap gap-x-5">
-                {CLIP_LENGTHS.map((length) => (
-                  <label
-                    key={length}
-                    className="flex min-h-8 cursor-pointer items-center gap-2.5 text-sm text-fg-1"
-                  >
-                    <input
-                      type="radio"
-                      name="clip-length"
-                      className="size-4 shrink-0 accent-accent"
-                      value={length}
-                      checked={value.clipLength === length}
-                      data-testid={`clip-length-${length}`}
-                      onChange={() => {
-                        set("clipLength", length);
-                      }}
-                    />
-                    {lengthLabel(length)}
-                    <span className="text-fg-2">({lengthRange(length)})</span>
-                  </label>
-                ))}
-              </div>
-            </fieldset>
-
-            <fieldset
-              className="border-0 p-0"
-              aria-describedby={
-                visible.skipIntro === undefined && visible.skipOutro === undefined
-                  ? "repurpose-skip-hint"
-                  : "repurpose-skip-error"
-              }
-            >
-              <legend className="text-sm font-medium text-fg-1">{STEERING_COPY.skipLegend}</legend>
-              <div className="mt-1.5 flex flex-wrap items-center gap-x-5 gap-y-2">
-                {SKIP_FIELDS.map((field) => (
-                  // The whole phrase is the label: "Skip the first 2 min".
-                  <label key={field.key} className="flex items-center gap-2 text-sm text-fg-1">
-                    {field.label}
-                    <Input
-                      // A number pad with a decimal point: minutes may be "1.5".
-                      inputMode="decimal"
-                      autoComplete="off"
-                      className="w-16 bg-sunken"
-                      placeholder="0"
-                      value={field.key === "skipIntro" ? value.skipIntro : value.skipOutro}
-                      data-testid={field.testId}
-                      aria-invalid={
-                        (field.key === "skipIntro" ? visible.skipIntro : visible.skipOutro) !==
-                        undefined
-                      }
-                      onChange={(event) => {
-                        set(field.key, event.target.value);
-                      }}
-                    />
-                    {STEERING_COPY.minutes}
-                  </label>
-                ))}
-              </div>
-              <p id="repurpose-skip-hint" className="mt-1 text-xs text-fg-2">
-                {STEERING_COPY.skipHint}
-              </p>
-              {visible.skipIntro === undefined && visible.skipOutro === undefined ? null : (
-                <p
-                  id="repurpose-skip-error"
-                  role="alert"
-                  className="mt-1 text-xs text-rejected"
-                  data-testid="error-skip"
-                >
-                  {visible.skipIntro ?? visible.skipOutro}
-                </p>
-              )}
-            </fieldset>
-          </div>
-        )}
-
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <label htmlFor="repurpose-autopilot" className="text-sm font-medium text-fg-1">
-              {AUTOPILOT_COPY.label}
-            </label>
-            <p className="mt-1 text-xs text-fg-2" data-testid="autopilot-hint">
-              {value.autopilot ? AUTOPILOT_COPY.on : AUTOPILOT_COPY.off}
-            </p>
-          </div>
-          <input
-            id="repurpose-autopilot"
-            type="checkbox"
-            role="switch"
-            className="panel-switch mt-0.5 shrink-0"
-            checked={value.autopilot}
-            data-testid="autopilot-switch"
-            onChange={(event) => {
-              set("autopilot", event.target.checked);
-            }}
-          />
-        </div>
-
-        <div className="border-t border-border pt-4">
-          <Button
-            variant="ghost"
-            size="sm"
-            data-testid="advanced-toggle"
-            aria-expanded={advancedOpen}
-            aria-controls="repurpose-advanced"
-            className="-ml-2"
-            onClick={() => {
-              setAdvancedOpen(!advancedOpen);
-            }}
-          >
-            <ChevronRight
-              aria-hidden="true"
-              strokeWidth={1.75}
-              className={cn("transition-transform duration-[160ms]", advancedOpen && "rotate-90")}
-            />
-            Advanced settings
-          </Button>
-          {advancedOpen && (
-            <div className="mt-3" id="repurpose-advanced" data-testid="advanced-panel">
-              <Field
-                label="Number of suggested moments"
-                htmlFor="repurpose-count"
-                hint={
-                  value.method === "manual"
-                    ? "Not used when you pick the timestamps yourself."
-                    : "Between 1 and 20."
-                }
-              >
-                <Input
-                  id="repurpose-count"
-                  type="number"
-                  min={1}
-                  max={20}
-                  className="w-32 bg-sunken"
-                  disabled={value.method === "manual"}
-                  value={value.requestedCandidates}
-                  data-testid="requested-candidates"
-                  aria-describedby="repurpose-count-hint"
-                  onChange={(event) => {
-                    set("requestedCandidates", Number(event.target.value));
-                  }}
-                />
-              </Field>
-            </div>
-          )}
-        </div>
-      </section>
+      <RunSetupFields value={value} onChange={onChange} problems={visible} />
 
       {serverError !== null && (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
@@ -971,7 +623,7 @@ export function SourceStartForm({
       )}
 
       <Button type="submit" variant="primary" disabled={submitting} data-testid="start-run">
-        {submitting ? "Starting…" : "Start finding clips"}
+        {submitting ? "Starting…" : (submitLabel ?? "Start finding clips")}
       </Button>
     </form>
   );
