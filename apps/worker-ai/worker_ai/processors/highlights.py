@@ -44,20 +44,23 @@ from typing import Any, Final
 from pydantic import ValidationError
 
 from worker_ai.callbacks import CallbackError, JobUsage
-from worker_ai.highlights.clip_copy import ClipSource, resolve_style, write_copies
+from worker_ai.highlights.clip_copy import ClipSource, heuristic_copy, resolve_style, write_copies
 from worker_ai.highlights.contracts import (
     HIGHLIGHTS_SCHEMA_VERSION,
+    ClipCopy,
     HighlightProposal,
     HighlightsOptions,
     HighlightsPayload,
     HighlightsResult,
 )
 from worker_ai.highlights.rerank import (
+    MODEL_WEIGHT,
     TOPIC_FIT_FLOOR,
     Judged,
     MomentText,
     blend,
     judge_moments,
+    model_quality,
     model_reasons,
     moment_text,
     shortlist_size,
@@ -427,26 +430,28 @@ def _rank_with_model(
     """The shortlist re-scored with the model's judgement, filtered for topic and bar.
 
     A moment the model was asked about and left out is dropped: it saw it and
-    passed. A moment whose batch no provider answered keeps its heuristic
-    score, so an outage costs the model's opinion, not the moment.
+    passed. A moment whose batch no provider answered is kept, so an outage
+    costs the model's opinion, not the moment; it is blended with the typical
+    reading of the moments that were judged, so it ranks on the same scale as
+    them rather than on the heuristic's alone.
     """
     topic = options.topic
     with_topic = bool(topic)
+    goal = options.content_goal
+    qualities = [model_quality(verdict, goal, with_topic=with_topic) for verdict in judged.values()]
+    typical = sum(qualities) / len(qualities) if qualities else None
     entries: list[_Ranked] = []
     for candidate in shortlist:
         window_id = candidate.window.window_id
         verdict = judged.get(window_id)
         if verdict is None and window_id in answered:
             continue
-        entries.append(
-            _Ranked(
-                candidate,
-                blend(
-                    candidate.score.potential, verdict, options.content_goal, with_topic=with_topic
-                ),
-                verdict,
-            )
-        )
+        heuristic = candidate.score.potential
+        if verdict is not None or typical is None:
+            potential = blend(heuristic, verdict, goal, with_topic=with_topic)
+        else:
+            potential = (1 - MODEL_WEIGHT) * heuristic + MODEL_WEIGHT * typical
+        entries.append(_Ranked(candidate, potential, verdict))
 
     if with_topic:
         on_topic = [
@@ -602,6 +607,38 @@ async def _discover_with_model(
     return proposals, scored.windows_considered, use
 
 
+def _discover_by_rule(
+    raw_words: Sequence[Any], options: HighlightsOptions, duration_ms: int
+) -> tuple[list[HighlightProposal], int]:
+    """:func:`discover`, with the rule-based copy when copy was asked for."""
+    proposals, windows_considered = discover(raw_words, options, duration_ms)
+    if options.copy_options is None or not proposals:
+        return proposals, windows_considered
+    style = resolve_style(
+        options.copy_options.language,
+        options.copy_options.script_mode,
+        " ".join(proposal.transcript_excerpt for proposal in proposals[:5]),
+    )
+    written = [
+        proposal.model_copy(
+            update={
+                "copy_text": ClipCopy.model_validate(
+                    heuristic_copy(
+                        ClipSource(
+                            key=proposal.window_id,
+                            text=proposal.transcript_excerpt,
+                            title=proposal.title,
+                        ),
+                        style,
+                    )
+                )
+            }
+        )
+        for proposal in proposals
+    ]
+    return written, windows_considered
+
+
 def _ranking_model(proposals: Sequence[HighlightProposal]) -> str:
     """``montaj-highlight-v2``, plus the model that judged most of the picks."""
     models = Counter(
@@ -647,9 +684,22 @@ async def process_highlights(context: JobContext) -> ProcessorOutcome:
     use = _ModelUse()
     try:
         if uses_model:
-            proposals, windows_considered, use = await _discover_with_model(
-                context, payload, raw_words, duration_ms
-            )
+            try:
+                proposals, windows_considered, use = await _discover_with_model(
+                    context, payload, raw_words, duration_ms
+                )
+            except UntimedTranscriptError:
+                raise
+            except Exception:
+                # The model's part must never fail the run, whatever went wrong
+                # in it: the heuristic's pick, with copy by rule, as before it.
+                _log.exception(
+                    "highlight discovery with the language model failed; answering by rule",
+                    extra={"runId": payload.run_id, "transcriptId": payload.transcript_id},
+                )
+                proposals, windows_considered = await asyncio.to_thread(
+                    _discover_by_rule, raw_words, options, duration_ms
+                )
         else:
             # Up to a few seconds of CPU for a long source. On the event loop it
             # would stall every other AI queue this process serves - their

@@ -177,8 +177,9 @@ export class RepurposeHighlightsCompletionHandler implements JobCompletionHandle
     if (updated !== null) {
       await this.runs.publishStage(updated, { candidateCount: candidatesData.length });
       // Autopilot also writes the episode text, now its transcript is final
-      // (`episode-pack.service.ts`); `ensure` never throws, so it cannot fail this.
-      if (automationOf(updated) === "auto") await this.episodePack?.ensure(updated);
+      // (`episode-pack.service.ts`). Not awaited: reading a long transcript for
+      // it must not hold up this completion, and `ensure` never throws.
+      if (automationOf(updated) === "auto") void this.episodePack?.ensure(updated);
     }
 
     this.logger.log(

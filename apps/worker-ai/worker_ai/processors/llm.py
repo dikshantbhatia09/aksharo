@@ -24,10 +24,13 @@ from worker_ai.llm.pricing import inr_to_paise
 from worker_ai.llm.region import RegionBlockedError
 from worker_ai.llm.service import AllProvidersFailedError, InvalidOutputError, generate_insight
 from worker_ai.llm.templates import TranscriptInput, transcript_from_payload
+from worker_ai.logging_setup import get_logger
 from worker_ai.processors.context import JobContext, JobFailureError, ProcessorOutcome
 from worker_ai.providers.base import ProviderSubmission
 
 __all__ = ["process_llm"]
+
+_log = get_logger(__name__)
 
 _EPISODE_PACK: Final[str] = "episode-pack"
 _VALID_KINDS = {"chapters", "summary", "hooks", _EPISODE_PACK}
@@ -113,15 +116,24 @@ async def _process_episode_pack(
 
     await context.progress(10, message="Writing the episode text")
     ledger = CallLedger()
-    pack = await write_episode_pack(
-        transcript,
-        language=language
-        if isinstance(language, str) and language.strip()
-        else transcript.language,
-        script_mode=script_mode if script_mode in _SCRIPT_MODES else "auto",
-        chain=model_chain(context.services.llm_providers, region),
-        ledger=ledger,
+    pack_language = (
+        language if isinstance(language, str) and language.strip() else transcript.language
     )
+    pack_script = script_mode if script_mode in _SCRIPT_MODES else "auto"
+    try:
+        pack = await write_episode_pack(
+            transcript,
+            language=pack_language,
+            script_mode=pack_script,
+            chain=model_chain(context.services.llm_providers, region),
+            ledger=ledger,
+        )
+    except Exception:
+        # Whatever went wrong on the model's side, the pack is written by rule.
+        _log.exception("the episode text failed with the language model; writing it by rule")
+        pack = await write_episode_pack(
+            transcript, language=pack_language, script_mode=pack_script, chain=()
+        )
 
     context.record(
         tuple(

@@ -135,7 +135,10 @@ def _block(value: object, limit: int) -> str:
     for raw in value.replace("\r\n", "\n").split("\n"):
         paragraphs.append(" ".join(raw.split()))
     text = re.sub(r"\n{3,}", "\n\n", "\n".join(paragraphs)).strip()
-    text = "".join(char for char in text if char == "\n" or char.isprintable())
+    # Zero-width joiners choose a Devanagari half form: part of the word.
+    text = "".join(
+        char for char in text if char == "\n" or char in "\u200c\u200d" or char.isprintable()
+    )
     if len(text) <= limit:
         return text
     cut = text[: limit - 1]
@@ -292,19 +295,19 @@ _PACK_EXAMPLES: Final[dict[str, dict[str, Any]]] = {
     },
     "hindi": {
         "youtubeDescription": "इस वीडियो में सुबह की रूटीन की पूरी बात है: कब उठना है और "
-        "कौन सी गलती सब करते हैं।\n\nअगर आपको दिन में ज़्यादा समय चाहिए, तो यह वीडियो आपके "
-        "लिए है।",
-        "showNotes": "सुबह जल्दी उठने का आसान तरीका।\n- जल्दी उठने के फ़ायदे\n"
+        "कौन सी गलती सब करते हैं\u0964\n\nअगर आपको दिन में ज़्यादा समय चाहिए, तो यह वीडियो आपके "
+        "लिए है\u0964",
+        "showNotes": "सुबह जल्दी उठने का आसान तरीका\u0964\n- जल्दी उठने के फ़ायदे\n"
         "- पहले घंटे की रूटीन\n- सबसे बड़ी गलती",
-        "linkedinPost": "सुबह के पहले दो घंटे सबसे ज़्यादा काम के होते हैं।\nछोटी आदत, बड़ा "
-        "फ़र्क।\nआपकी सुबह कैसे शुरू होती है?",
+        "linkedinPost": "सुबह के पहले दो घंटे सबसे ज़्यादा काम के होते हैं\u0964\nछोटी आदत, बड़ा "
+        "फ़र्क\u0964\nआपकी सुबह कैसे शुरू होती है?",
         "xThread": [
-            "सुबह जल्दी उठने से दिन में दो घंटे ज़्यादा मिलते हैं। कैसे?",
-            "पहला घंटा फ़ोन के बिना: बस योजना और पानी।",
-            "सबसे बड़ी गलती: अलार्म को टालना।",
+            "सुबह जल्दी उठने से दिन में दो घंटे ज़्यादा मिलते हैं\u0964 कैसे?",
+            "पहला घंटा फ़ोन के बिना: बस योजना और पानी\u0964",
+            "सबसे बड़ी गलती: अलार्म को टालना\u0964",
         ],
-        "newsletter": "सुबह के दो ज़्यादा घंटे\n\nइस हफ़्ते बात हुई सुबह की रूटीन की। सबसे "
-        "ज़रूरी बात: पहला घंटा सिर्फ़ अपने लिए।",
+        "newsletter": "सुबह के दो ज़्यादा घंटे\n\nइस हफ़्ते बात हुई सुबह की रूटीन की\u0964 सबसे "
+        "ज़रूरी बात: पहला घंटा सिर्फ़ अपने लिए\u0964",
     },
     "english": {
         "youtubeDescription": "This video covers a whole morning routine: when to get up "

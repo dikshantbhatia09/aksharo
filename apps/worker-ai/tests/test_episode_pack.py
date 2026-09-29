@@ -153,6 +153,28 @@ async def test_a_model_that_cannot_write_it_never_fails_the_job(provider: FakeLl
     assert outcome.result["output"]["chapters"]
 
 
+async def test_an_unexpected_error_writes_the_pack_by_rule(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from worker_ai.llm import episode_pack
+
+    real = episode_pack.write_episode_pack
+    calls: list[int] = []
+
+    async def flaky(*args: Any, **kwargs: Any) -> Any:
+        calls.append(len(kwargs["chain"]))
+        if kwargs["chain"]:
+            raise RuntimeError("a bug in the model's part")
+        return await real(*args, **kwargs)
+
+    monkeypatch.setattr("worker_ai.processors.llm.write_episode_pack", flaky)
+
+    outcome = await process_llm(pack_context((writer(),)))
+
+    assert calls == [1, 0]
+    assert outcome.result["output"]["source"] == "heuristic"
+
+
 async def test_english_prose_for_a_hinglish_video_is_refused() -> None:
     english = {
         **PACK_TEXT,

@@ -43,11 +43,14 @@ __all__ = [
     "ClipSource",
     "CopyStyle",
     "heuristic_copy",
+    "hindi_marker_count",
     "normalise_hashtags",
     "parse_copies",
     "resolve_style",
     "script_share",
     "system_prompt",
+    "user_prompt",
+    "utf16_length",
     "write_copies",
 ]
 
@@ -637,14 +640,33 @@ def _block(value: object) -> str:
     return re.sub(r"\n{3,}", "\n\n", text)
 
 
+def utf16_length(text: str) -> int:
+    """The length the API's schema measures: JavaScript counts UTF-16 units, so
+    an emoji outside the Basic Multilingual Plane is two, not one."""
+    return sum(2 if ord(char) > 0xFFFF else 1 for char in text)
+
+
 def _cut(text: str, limit: int, *, ellipsis: bool = True) -> str:
-    """``text`` within ``limit`` characters, cut at a word."""
-    if len(text) <= limit:
+    """``text`` within ``limit`` characters as the API counts them, cut at a word.
+
+    Measured in UTF-16 units (:func:`utf16_length`), not Python's code points:
+    a caption full of emoji that fits here but not there would make the API
+    refuse the whole highlights result, every clip with it.
+    """
+    if utf16_length(text) <= limit:
         return text
     room = limit - (1 if ellipsis else 0)
-    cut = text[:room]
+    kept = 0
+    end = 0
+    for index, char in enumerate(text):
+        width = 2 if ord(char) > 0xFFFF else 1
+        if kept + width > room:
+            break
+        kept += width
+        end = index + 1
+    cut = text[:end]
     space = cut.rfind(" ")
-    if space > room // 2:
+    if space > end // 2:
         cut = cut[:space]
     cut = cut.rstrip(" ,;:-\u2014\u2013")
     return cut + ("\u2026" if ellipsis else "")
@@ -701,7 +723,7 @@ def _hook(value: str) -> str:
 def _x_text(text: str, tags: Sequence[str]) -> str:
     base = _cut(text, X_MAX)
     kept = list(tags[:2])
-    while kept and len(base) + 1 + len(" ".join(kept)) > X_MAX:
+    while kept and utf16_length(base) + 1 + utf16_length(" ".join(kept)) > X_MAX:
         kept.pop()
     return f"{base} {' '.join(kept)}" if kept else base
 

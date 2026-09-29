@@ -21,10 +21,18 @@ from worker_ai.highlights.rerank import (
     parse_judgements,
     shortlist_size,
 )
+from worker_ai.highlights.scoring import Score
+from worker_ai.highlights.windows import Window
 from worker_ai.llm.budget import BudgetedLlmProvider, MemorySpendLedger
 from worker_ai.llm.providers.base import LlmError, LlmProvider, LlmRequest
 from worker_ai.processors.context import ProcessorOutcome
-from worker_ai.processors.highlights import HIGHLIGHT_MODEL, discover, process_highlights
+from worker_ai.processors.highlights import (
+    HIGHLIGHT_MODEL,
+    _Candidate,
+    _rank_with_model,
+    discover,
+    process_highlights,
+)
 
 from .fake_llm import FakeLlm, failing, is_judging, moment_blocks
 from .test_highlights import (
@@ -296,6 +304,28 @@ async def test_a_moment_the_model_saw_and_left_out_is_dropped() -> None:
     assert all("judgement" in p for p in result["proposals"])
 
 
+def test_an_unanswered_batch_keeps_its_moments_on_the_same_scale() -> None:
+    """Passed over (asked, left out) is dropped; never asked about is kept, blended
+    with the typical reading of the moments that were judged."""
+
+    def candidate(window_id: str, potential: float) -> Any:
+        window = Window(window_id=window_id, first=0, last=0, start_ms=0, end_ms=15_000)
+        return _Candidate(window, None, Score(potential, 0, 0, 0, 0, 0, 0, 0, 0))  # type: ignore[arg-type]
+
+    shortlist = [candidate("w-1", 0.5), candidate("w-2", 0.7), candidate("w-3", 0.9)]
+    judged = {"w-1": Judged(standalone=8, payoff=8, humour=0, topic_fit=None, why="", model="m")}
+
+    ranked = _rank_with_model(
+        shortlist, judged, frozenset({"w-1", "w-3"}), options(count=5, contentGoal="education")
+    )
+
+    by_id = {entry.candidate.window.window_id: entry for entry in ranked}
+    assert set(by_id) == {"w-1", "w-2"}
+    assert by_id["w-1"].potential == pytest.approx((1 - MODEL_WEIGHT) * 0.5 + MODEL_WEIGHT * 0.8)
+    assert by_id["w-2"].judged is None
+    assert by_id["w-2"].potential == pytest.approx((1 - MODEL_WEIGHT) * 0.7 + MODEL_WEIGHT * 0.8)
+
+
 async def test_a_spent_budget_judges_with_the_free_fallback() -> None:
     words = transcript(STRONG_AT_12, PUNCHLINE)
     ledger = MemorySpendLedger()
@@ -379,6 +409,23 @@ def test_judgements_are_read_strictly() -> None:
 def test_a_placeholder_or_empty_why_is_left_out(why: object) -> None:
     value = {"moments": [{"id": "w-1", "standalone": 5, "payoff": 5, "humour": 0, "why": why}]}
     assert parse_judgements(value, ["w-1"], with_topic=False, model="m")["w-1"].why == ""
+
+
+def test_a_reason_keeps_no_emoji_the_api_would_count_twice() -> None:
+    fire = chr(0x1F525)
+    value = {
+        "moments": [
+            {
+                "id": "w-1",
+                "standalone": 5,
+                "payoff": 5,
+                "humour": 0,
+                "why": f"{fire} Lands a clear point {fire * 200}",
+            }
+        ]
+    }
+    why = parse_judgements(value, ["w-1"], with_topic=False, model="m")["w-1"].why
+    assert why == "Lands a clear point."
 
 
 def test_a_topic_run_needs_topic_fit() -> None:

@@ -25,7 +25,6 @@ from __future__ import annotations
 
 import asyncio
 import re
-import unicodedata
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
 from typing import Any, Final, Literal
@@ -273,9 +272,13 @@ def _score(value: object) -> int | None:
 def _why(value: object) -> str:
     if not isinstance(value, str):
         return ""
-    cleaned = "".join(
-        char if unicodedata.category(char)[0] != "C" else " " for char in value
-    ).strip()
+    # No controls and no emoji: it is shown as a reason, and the API measures
+    # its 240-character limit in UTF-16 units, where an emoji counts twice.
+    cleaned = " ".join(
+        cleaned_word
+        for word in value.replace("\n", " ").split()
+        if (cleaned_word := clean_word(word))
+    )
     # A small model echoes the example's placeholder ("...") or pads with it.
     cleaned = " ".join(cleaned.split()).strip("\"' .\u2026")
     if len(cleaned.split()) < 3:

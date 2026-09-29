@@ -75,6 +75,15 @@ def build_llm_providers(settings: Settings) -> tuple[LlmProvider, ...]:
         # No key configured for the requested provider: fail closed to the mock
         # rather than silently making real calls with no credential.
         return (MockLlmProvider(),)
+    # One line at boot that says what will be called, in order, and the cap:
+    # the check after a deploy that the environment took.
+    _log.info(
+        "llm chain",
+        extra={
+            "chain": [f"{provider.name}:{provider.model}" for provider in providers],
+            "dailyBudgetInr": settings.llm_daily_budget_inr,
+        },
+    )
     return tuple(providers)
 
 

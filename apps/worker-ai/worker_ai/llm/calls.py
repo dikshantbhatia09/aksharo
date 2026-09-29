@@ -147,19 +147,24 @@ async def complete_json(
         if deadline.passed:
             _log.warning("llm deadline passed; answering by rule", extra={"what": what})
             return None
-        request = request_for(provider)
         try:
-            response = await _call(provider, request, deadline)
-        except LlmError as error:
+            response = await _call(provider, request_for(provider), deadline)
+        except Exception as error:
+            # An `LlmError` is the adapters' own failure; anything else (a body
+            # that is not JSON, an adapter's bug) must not fail the job either.
             _log.warning(
                 "llm call failed; trying the next provider",
-                extra={"what": what, "provider": provider.name, "reason": str(error)[:200]},
+                extra={
+                    "what": what,
+                    "provider": provider.name,
+                    "reason": f"{type(error).__name__}: {str(error)[:200]}",
+                },
             )
             continue
         if ledger is not None:
             ledger.record(provider, response.usage, response.endpoint)
         value = extract_json_object(response.text)
-        if value is None or (accept is not None and not accept(value)):
+        if value is None or (accept is not None and not _accepts(accept, value)):
             _log.warning(
                 "llm reply unusable; trying the next provider",
                 extra={
@@ -173,6 +178,15 @@ async def complete_json(
             value=value, provider=provider.name, model=provider.model, usage=response.usage
         )
     return None
+
+
+def _accepts(accept: Callable[[dict[str, Any]], bool], value: dict[str, Any]) -> bool:
+    """The caller's check, where a check that raises is a refusal, not a crash."""
+    try:
+        return accept(value)
+    except Exception as error:
+        _log.warning("llm reply check raised", extra={"reason": f"{type(error).__name__}"})
+        return False
 
 
 async def _call(provider: LlmProvider, request: LlmRequest, deadline: Deadline) -> Any:

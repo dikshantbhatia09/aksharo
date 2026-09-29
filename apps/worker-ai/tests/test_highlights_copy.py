@@ -16,6 +16,7 @@ from worker_ai.highlights.clip_copy import (
     heuristic_copy,
     normalise_hashtags,
     resolve_style,
+    utf16_length,
 )
 from worker_ai.highlights.contracts import ClipCopy
 from worker_ai.llm.providers.base import LlmError, LlmRequest
@@ -248,6 +249,20 @@ async def test_a_bilingual_run_asks_for_a_roman_title_and_mixed_text() -> None:
     assert "may mix Hinglish and English" in system
 
 
+async def test_lengths_are_cut_as_the_api_counts_them() -> None:
+    """JavaScript counts an emoji as two: a caption that fits here but not there
+    would make the API refuse the whole result, every clip with it."""
+    fire = chr(0x1F525)
+    loud = {**HINGLISH_COPY, "instagram": "Yeh galti sab karte hain " + fire * 3_000}
+
+    copy = only_copy(await with_copy(FakeLlm(copywriter(loud)), "hi-Latn", "roman"))
+
+    caption = copy["platforms"]["instagram"]["caption"]
+    assert fire in caption
+    assert utf16_length(caption) <= 2_200
+    assert utf16_length(copy["platforms"]["x"]["text"]) <= 280
+
+
 @pytest.mark.parametrize(
     "reply",
     [
@@ -268,6 +283,33 @@ async def test_copy_the_model_cannot_write_is_written_by_rule(reply: Any) -> Non
 
     assert copy["source"] == "heuristic"
     assert copy["locale"] == "hi-Latn"
+
+
+async def test_an_unexpected_error_in_the_models_part_never_fails_the_run(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Whatever breaks on the model's side (a bug, a body that is not JSON), the
+    job answers with the heuristic's pick and copy by rule, as before the model."""
+
+    async def broken(*_args: Any, **_kwargs: Any) -> Any:
+        raise RuntimeError("a bug in the model's part")
+
+    monkeypatch.setattr("worker_ai.processors.highlights.judge_moments", broken)
+
+    copy = only_copy(await with_copy(FakeLlm(copywriter(HINGLISH_COPY)), "hi-Latn", "roman"))
+
+    assert copy["source"] == "heuristic"
+
+
+async def test_an_adapter_that_raises_something_else_is_passed_over() -> None:
+    def answer(request: LlmRequest) -> Any:
+        if is_judging(request):
+            return copywriter(HINGLISH_COPY)(request)
+        raise ValueError("Expecting value: line 1 column 1 (char 0)")
+
+    copy = only_copy(await with_copy(FakeLlm(answer), "hi-Latn", "roman"))
+
+    assert copy["source"] == "heuristic"
 
 
 # ---------------------------------------------------------------------------
