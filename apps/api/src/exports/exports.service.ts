@@ -23,8 +23,9 @@ import {
 import { EXPORT_ERROR_CODES } from "./exports.errors.js";
 import { buildRenderManifest, RENDER_CORE_VERSION } from "./manifest-builder.js";
 import { NINE_PASS_LEDGER, type NinePassLedger } from "./nine-pass-ledger.js";
-import { buildRenderProjection, resolveStyleSnapshot } from "./projection.js";
+import { buildRenderProjection, overlayImageIds, resolveStyleSnapshot } from "./projection.js";
 import { AudioAssetsRepository } from "../audio-assets/index.js";
+import { BrandKitService } from "../brand-kit/brand-kit.service.js";
 import { ManifestSignerService } from "../common/crypto/manifest-signer.js";
 import { AppException, ERROR_CODES } from "../common/errors/error-codes.js";
 import { PrismaService } from "../common/prisma/prisma.service.js";
@@ -157,6 +158,7 @@ export class ExportsService {
     @Inject(NINE_PASS_LEDGER) private readonly ninePass: NinePassLedger,
     private readonly events: EventEmitter2,
     private readonly audioAssets: AudioAssetsRepository,
+    private readonly brandKits: BrandKitService,
   ) {}
 
   // -------------------------------------------------------------------------
@@ -218,9 +220,17 @@ export class ExportsService {
     if (decision.watermark) await this.defaultWatermark.ensure(input.workspaceId);
 
     const exportId = ulid();
+    // A brand kit's logo (2026-10-02) goes in only while the workspace still
+    // keeps it: a render never asks the store for an object that is gone.
+    const imageIds = overlayImageIds(edg);
+    const images =
+      imageIds.length === 0
+        ? undefined
+        : await this.brandKits.availableImages(input.workspaceId, imageIds);
     const projection = buildRenderProjection(
       edg,
       await this.edgRepository.loadChunks(edg.transcript.transcriptId),
+      images === undefined ? {} : { images },
     );
 
     const brandWatermark =

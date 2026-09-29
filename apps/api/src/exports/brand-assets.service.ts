@@ -27,6 +27,9 @@ import type { BrandAsset } from "@prisma/client";
  * enforces on the PUT; nothing this small needs a second server round trip to
  * confirm the upload landed before the row is usable.
  */
+/** `brand_assets.kind` of the rows this service owns (`logo` rows are the brand kit's). */
+const WATERMARK_KIND = "watermark";
+
 @Injectable()
 export class BrandAssetsService {
   constructor(
@@ -66,15 +69,23 @@ export class BrandAssetsService {
     };
   }
 
+  /**
+   * The workspace's watermarks. A brand kit's logos (2026-10-02) share the
+   * table but not this surface: they are the kit's to list and to delete
+   * (`brand-kit/`), and a watermark route must never take one away from the
+   * clips that draw it.
+   */
   async list(workspaceId: string): Promise<BrandAsset[]> {
     return this.prisma.brandAsset.findMany({
-      where: { workspaceId },
+      where: { workspaceId, kind: WATERMARK_KIND },
       orderBy: { createdAt: "desc" },
     });
   }
 
   async delete(workspaceId: string, assetId: string): Promise<void> {
-    const asset = await this.prisma.brandAsset.findFirst({ where: { id: assetId, workspaceId } });
+    const asset = await this.prisma.brandAsset.findFirst({
+      where: { id: assetId, workspaceId, kind: WATERMARK_KIND },
+    });
     if (asset === null) {
       throw new AppException(
         EXPORT_ERROR_CODES.brandAssetNotFound,
@@ -96,7 +107,9 @@ export class BrandAssetsService {
     position: WatermarkPosition,
     opacity: number,
   ): Promise<{ assetId: string; position: WatermarkPosition; opacity: number }> {
-    const asset = await this.prisma.brandAsset.findFirst({ where: { id: assetId, workspaceId } });
+    const asset = await this.prisma.brandAsset.findFirst({
+      where: { id: assetId, workspaceId, kind: WATERMARK_KIND },
+    });
     if (asset === null) {
       throw new AppException(
         EXPORT_ERROR_CODES.brandAssetNotFound,

@@ -169,6 +169,8 @@ export class PublicViewerController {
     durationMs: number | null;
     aspect: string;
     projection: unknown;
+    /** Signed URLs for the brand logos the projection draws, by asset id (2026-10-02). */
+    images?: Readonly<Record<string, string>>;
   }> {
     this.assertSurfaceEnabled();
     return this.shareLinks.preview(token, session);

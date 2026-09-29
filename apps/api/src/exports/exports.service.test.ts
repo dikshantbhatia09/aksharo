@@ -9,6 +9,7 @@ import type { BrowserManifestDailyCap } from "./daily-cap.js";
 import type { DefaultWatermarkService } from "./default-watermark.service.js";
 import type { RequestExportInput } from "./exports.service.js";
 import type { AudioAssetsRepository } from "../audio-assets/index.js";
+import type { BrandKitService } from "../brand-kit/brand-kit.service.js";
 import type { ManifestSignerService } from "../common/crypto/manifest-signer.js";
 import type { PrismaService } from "../common/prisma/prisma.service.js";
 import type { ObjectStore } from "../common/storage/index.js";
@@ -121,6 +122,7 @@ function harness() {
     { isAvailable: vi.fn(async () => false), consume: vi.fn(async () => undefined) },
     { emit: vi.fn() } as unknown as EventEmitter2,
     { findStorageKeysByIds: vi.fn(async () => new Map()) } as unknown as AudioAssetsRepository,
+    { availableImages: vi.fn(async () => new Set<string>()) } as unknown as BrandKitService,
   );
 
   return { service, create, enqueue };

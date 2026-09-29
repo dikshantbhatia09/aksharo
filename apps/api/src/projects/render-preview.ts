@@ -3,10 +3,11 @@ import { HttpStatus, Inject, Injectable } from "@nestjs/common";
 import type { EdgProjection } from "@montaj/render-core";
 
 import { MEDIA_ERRORS, PROJECT_ERRORS } from "./projects.constants.js";
+import { BrandKitService } from "../brand-kit/brand-kit.service.js";
 import { AppException, PrismaService } from "../common/index.js";
 import { DERIVED_STORE, DOWNLOAD_URL_TTL_SECONDS } from "../common/storage/index.js";
 import { EdgRepository } from "../edg/index.js";
-import { buildRenderProjection } from "../exports/projection.js";
+import { buildRenderProjection, overlayImageIds } from "../exports/projection.js";
 import { FacesTrigger } from "../media/faces.js";
 
 import type { ObjectStore } from "../common/index.js";
@@ -23,6 +24,12 @@ export interface RenderPreview {
   readonly aspect: string;
   /** Null until the project has an editing document. */
   readonly projection: EdgProjection | null;
+  /**
+   * Signed URLs for the brand logos the projection's overlays draw, by asset id
+   * (2026-10-02): `CaptionStage` fetches and registers them. Absent when it
+   * draws none.
+   */
+  readonly images?: Readonly<Record<string, string>>;
 }
 
 /**
@@ -58,8 +65,10 @@ export async function buildRenderPreview(
     readonly prisma: PrismaService;
     readonly edg: EdgRepository;
     readonly derived: ObjectStore;
+    /** Signs the brand logos a document draws; without it they are not signed. */
+    readonly brandKits?: Pick<BrandKitService, "imageUrls">;
   },
-  project: { readonly id: string; readonly aspect: string },
+  project: { readonly id: string; readonly aspect: string; readonly workspaceId?: string },
   options: {
     readonly ttlSeconds?: number;
     readonly onMissingFaces?: (mediaId: string) => void;
@@ -79,10 +88,22 @@ export async function buildRenderPreview(
 
   const proxyUrl = await deps.derived.presignGet(media.proxyKey, ttlSeconds);
   let projection: EdgProjection | null = null;
+  let images: Record<string, string> = {};
   if (edgDocument !== null) {
     const edg = await deps.edg.projectionOf(edgDocument.id);
     const chunks = await deps.edg.loadChunks(edg.transcript.transcriptId);
-    const built = buildRenderProjection(edg, chunks);
+    // A brand kit's logo (2026-10-02): signed when the workspace still keeps
+    // it, and left out of the projection when it does not, as in a render.
+    const imageIds = overlayImageIds(edg);
+    const signer = deps.brandKits;
+    const canSign =
+      imageIds.length > 0 && signer !== undefined && project.workspaceId !== undefined;
+    if (canSign) images = await signer.imageUrls(project.workspaceId, imageIds, ttlSeconds);
+    const built = buildRenderProjection(
+      edg,
+      chunks,
+      canSign ? { images: new Set(Object.keys(images)) } : {},
+    );
     projection = {
       canvas: built.canvas,
       styles: edg.styles as EdgProjection["styles"],
@@ -104,6 +125,7 @@ export async function buildRenderPreview(
     durationMs: media.durationMs,
     aspect: project.aspect,
     projection,
+    ...(Object.keys(images).length === 0 ? {} : { images }),
   };
 }
 
@@ -125,6 +147,7 @@ export class RenderPreviewService {
     private readonly edg: EdgRepository,
     @Inject(DERIVED_STORE) private readonly derived: ObjectStore,
     private readonly faces: FacesTrigger,
+    private readonly brandKits: BrandKitService,
   ) {}
 
   /**
@@ -134,7 +157,7 @@ export class RenderPreviewService {
   async forProject(workspaceId: string, projectId: string): Promise<RenderPreview> {
     const project = await this.prisma.project.findFirst({
       where: { id: projectId, workspaceId, deletedAt: null },
-      select: { id: true, aspect: true },
+      select: { id: true, aspect: true, workspaceId: true },
     });
     if (project === null) {
       throw new AppException(PROJECT_ERRORS.notFound, "No such project.", HttpStatus.NOT_FOUND, {
@@ -143,7 +166,7 @@ export class RenderPreviewService {
     }
 
     const preview = await buildRenderPreview(
-      { prisma: this.prisma, edg: this.edg, derived: this.derived },
+      { prisma: this.prisma, edg: this.edg, derived: this.derived, brandKits: this.brandKits },
       project,
       {
         ttlSeconds: WORKSPACE_PREVIEW_URL_TTL_SECONDS,

@@ -12,7 +12,7 @@
 
 import { createHash } from "node:crypto";
 
-import type { EdgProjection, Speaker, TranscriptChunk } from "@montaj/edg/schemas";
+import type { EdgProjection, Overlay, Speaker, TranscriptChunk } from "@montaj/edg/schemas";
 
 import { systemStyle } from "../edg/init/caption-budgets.js";
 
@@ -24,17 +24,70 @@ export interface RenderProjectionPayload {
   readonly segments: readonly ProjectedSegment[];
   readonly words: readonly ProjectedWord[];
   readonly speakerColours?: Record<string, string>;
-  /** `EdgHot.overlays` (2026-09-29): the hook title; absent when there is none. */
+  /**
+   * `EdgHot.overlays` (2026-09-29): the hook title, and a brand kit's logo and
+   * end card (2026-10-02); absent when there is none.
+   */
   readonly overlays?: readonly ProjectedOverlay[];
 }
 
-/** An overlay as the render draws it (`@montaj/render-core` `OverlayTrack`). */
-export interface ProjectedOverlay {
-  readonly id: string;
-  readonly kind: "hook-title";
-  readonly text: string;
-  readonly startMs: number;
-  readonly endMs: number;
+/**
+ * An overlay as the render draws it (`@montaj/render-core` `OverlayTrack`):
+ * the document's own shape, field for field.
+ */
+export type ProjectedOverlay = Overlay;
+
+export interface BuildRenderProjectionOptions {
+  /**
+   * The logos (brand asset ids) the workspace still keeps. With it, a logo
+   * overlay naming one that is gone is left out and an end card is drawn
+   * without its logo, so a render never asks the store for an object that is
+   * not there. Without it every overlay passes as stored.
+   */
+  readonly images?: ReadonlySet<string>;
+}
+
+/** Every logo a document's overlays name, for the caller to ask which the workspace still keeps. */
+export function overlayImageIds(edg: Pick<EdgProjection, "overlays">): string[] {
+  const ids = new Set<string>();
+  for (const overlay of edg.overlays ?? []) {
+    if (overlay.kind === "logo") ids.add(overlay.image.assetId);
+    if (overlay.kind === "end-card" && overlay.image !== undefined) ids.add(overlay.image.assetId);
+  }
+  return [...ids];
+}
+
+/** One overlay for the payload, or none when it would draw nothing (see the options). */
+function projectOverlay(overlay: Overlay, images: ReadonlySet<string> | undefined): Overlay[] {
+  switch (overlay.kind) {
+    case "hook-title":
+      // Exactly the fields a title carried before the brand kit, plus its look
+      // when a kit gave it one: an unbranded title is the payload it always was.
+      return [
+        {
+          id: overlay.id,
+          kind: overlay.kind,
+          text: overlay.text,
+          startMs: overlay.startMs,
+          endMs: overlay.endMs,
+          ...(overlay.appearance === undefined ? {} : { appearance: overlay.appearance }),
+        },
+      ];
+    case "logo":
+      return images !== undefined && !images.has(overlay.image.assetId) ? [] : [overlay];
+    case "end-card": {
+      if (
+        overlay.image === undefined ||
+        images === undefined ||
+        images.has(overlay.image.assetId)
+      ) {
+        return [overlay];
+      }
+      const { image: _gone, ...withoutLogo } = overlay;
+      const words = (overlay.cta ?? "").trim() !== "" || (overlay.handle ?? "").trim() !== "";
+      return words ? [withoutLogo] : [];
+    }
+  }
 }
 
 export interface ProjectedSegment {
@@ -67,6 +120,7 @@ export interface ProjectedWord {
 export function buildRenderProjection(
   edg: EdgProjection,
   chunks: readonly TranscriptChunk[],
+  options: BuildRenderProjectionOptions = {},
 ): RenderProjectionPayload {
   const segments: ProjectedSegment[] = edg.segments.map((segment) => ({
     id: segment.id,
@@ -101,13 +155,9 @@ export function buildRenderProjection(
   const speakerColours = speakerColoursOf(edg.transcript.speakers);
   // Only when there are some: a projection without overlays is byte-for-byte
   // the payload every render before them was given.
-  const overlays = (edg.overlays ?? []).map((overlay) => ({
-    id: overlay.id,
-    kind: overlay.kind,
-    text: overlay.text,
-    startMs: overlay.startMs,
-    endMs: overlay.endMs,
-  }));
+  const overlays = (edg.overlays ?? []).flatMap((overlay) =>
+    projectOverlay(overlay, options.images),
+  );
 
   return {
     canvas: { width: edg.canvas.width, height: edg.canvas.height },

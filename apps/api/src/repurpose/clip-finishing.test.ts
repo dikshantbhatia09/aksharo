@@ -502,7 +502,11 @@ describe("ClipFinishing on a 9:16 shape", () => {
     doc.revision = 2;
     expect(await finishing.advance(RUN, vertical())).toBe("just-finished");
     const after = projection(PROJECT_9X16);
-    expect(after.overlays?.map((overlay) => overlay.text)).toEqual(["Mine"]);
+    expect(
+      after.overlays?.map((overlay) =>
+        overlay.kind === "hook-title" ? overlay.text : overlay.kind,
+      ),
+    ).toEqual(["Mine"]);
     expect(after.segments[0]?.emphasis).toEqual([{ wordId: "0:1", presetId: "shout" }]);
     expect(after.segments[1]?.emphasis).toEqual([{ wordId: "0:8", presetId: "pop" }]);
   });

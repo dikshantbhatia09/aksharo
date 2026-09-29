@@ -1,4 +1,4 @@
-import { HttpStatus, Inject, Injectable } from "@nestjs/common";
+import { HttpStatus, Inject, Injectable, Optional } from "@nestjs/common";
 import { ulid } from "ulid";
 
 import {
@@ -9,6 +9,7 @@ import {
 } from "./share.constants.js";
 import { generateShareToken, ShareSessionSigner } from "./token.js";
 import { PasswordService } from "../auth/password.service.js";
+import { BrandKitService } from "../brand-kit/brand-kit.service.js";
 import { CommonAuditService } from "../common/audit/audit.service.js";
 import { AppException, PrismaService } from "../common/index.js";
 import { DERIVED_STORE } from "../common/storage/index.js";
@@ -89,6 +90,8 @@ export class ShareLinksService {
     private readonly audit: CommonAuditService,
     private readonly edg: EdgRepository,
     @Inject(DERIVED_STORE) private readonly derivedStore: ObjectStore,
+    /** Signs a shared clip's brand logo (2026-10-02); optional so a test need not. */
+    @Optional() private readonly brandKits?: BrandKitService,
   ) {}
 
   async create(
@@ -417,7 +420,12 @@ export class ShareLinksService {
     }
 
     const preview = await buildRenderPreview(
-      { prisma: this.prisma, edg: this.edg, derived: this.derivedStore },
+      {
+        prisma: this.prisma,
+        edg: this.edg,
+        derived: this.derivedStore,
+        ...(this.brandKits === undefined ? {} : { brandKits: this.brandKits }),
+      },
       project,
     );
     if (preview === null) {
