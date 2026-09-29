@@ -2,6 +2,8 @@ import { Module } from "@nestjs/common";
 
 import { RepurposeAcquireCompletionHandler } from "./acquire-completion.handler.js";
 import { RepurposeClipCompletionHandler } from "./clip-completion.handler.js";
+import { RepurposeEpisodePackController } from "./episode-pack.controller.js";
+import { RepurposeEpisodePackService } from "./episode-pack.service.js";
 import { RepurposeHighlightsCompletionHandler } from "./highlights-completion.handler.js";
 import { RepurposeTranscriptCompletedListener } from "./listeners/transcript-completed.listener.js";
 import { RepurposeReconciler } from "./reconciler.js";
@@ -12,6 +14,7 @@ import { RepurposeService } from "./repurpose.service.js";
 import { SourceGate } from "./source-gate.js";
 import { RepurposeStillsCompletionHandler } from "./stills-completion.handler.js";
 import { ExportsModule } from "../exports/exports.module.js";
+import { InsightsModule } from "../insights/insights.module.js";
 import { JobsModule } from "../jobs/jobs.module.js";
 import { MediaModule } from "../media/media.module.js";
 import { ProjectsModule } from "../projects/projects.module.js";
@@ -38,8 +41,10 @@ import { WorkspacesModule } from "../workspaces/workspaces.module.js";
     // For `AutoTranscribeTrigger`'s own dependencies (the reconciler starts a
     // run's transcription through it).
     TranscriptsModule,
+    // The episode text pack is an `ai.llm` job through the insights producer.
+    InsightsModule,
   ],
-  controllers: [RepurposeController],
+  controllers: [RepurposeController, RepurposeEpisodePackController],
   providers: [
     RepurposeService,
     RepurposeAcquireCompletionHandler,
@@ -51,6 +56,7 @@ import { WorkspacesModule } from "../workspaces/workspaces.module.js";
     IdempotencyService,
     RepurposeClipsService,
     RepurposeReconciler,
+    RepurposeEpisodePackService,
     SourceGate,
     // A second binding of a stateless class (`MediaModule` provides the first
     // and does not export it), as `TranscriptsModule` does with its guard.

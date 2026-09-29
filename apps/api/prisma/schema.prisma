@@ -3650,6 +3650,13 @@ model ClipCandidate {
   promptVersion     String?         @map("prompt_version")
   model             String?
   featureVersion    String?         @map("feature_version")
+  /// Zod: `ClipCopySchema` — the words to post the moment with, as the language
+  /// model (or the rule-based fallback) wrote them; `{}` when none was asked for.
+  /// A clip made from this candidate starts from it (2026-09-29).
+  copy              Json            @default("{}") @db.JsonB
+  /// The language model's reading of the moment: `{standalone, payoff, humour,
+  /// topicFit?, model}`, 0-10 each. Null when no model judged it.
+  judgement         Json?           @db.JsonB
   createdAt         DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt         DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 

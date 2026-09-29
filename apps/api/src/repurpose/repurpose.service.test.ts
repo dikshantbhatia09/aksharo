@@ -2,6 +2,8 @@ import { HttpStatus } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { describe, expect, it, vi } from "vitest";
 
+import { HighlightsPayloadSchema } from "@montaj/repurpose-contracts";
+
 import {
   LIST_RECONCILE_CONCURRENCY,
   REPURPOSE_FLAGS,
@@ -75,6 +77,8 @@ interface Options {
   entitlements?: Record<string, unknown>;
   /** What `transcript.findUnique` answers for discovery. */
   transcriptLanguage?: string;
+  /** The workspace's region (discovery's language model is pinned to it). */
+  region?: string;
 }
 
 /** A RepurposeService over fakes, with the run held in memory like the table. */
@@ -156,6 +160,7 @@ function harness(options: Options = {}) {
     repurposeClip: { count: vi.fn(async () => 0) },
     clipVariant: { count: vi.fn(async () => 0) },
     job: { findMany: vi.fn(async (): Promise<Array<{ id: string; type: string }>> => []) },
+    workspace: { findUnique: vi.fn(async () => ({ region: options.region ?? "in" })) },
   };
 
   const jobs = {
@@ -1726,6 +1731,33 @@ describe("discovery reasons in the language the transcript turned out to be", ()
       [{ params: { options: { language: string } } }]
     >;
     expect(calls[0]?.[0].params.options.language).toBe("en");
+  });
+
+  it("asks the language model for the run's topic, its copy and nothing outside its region", async () => {
+    const h = harness({
+      run: runRow({
+        status: "transcribing",
+        config: {
+          sourceLanguage: "auto",
+          caption: { outputLanguage: "same", scriptMode: "roman", styleId: "punch-pop" },
+          discovery: { topic: "  salary and savings  " },
+        },
+      }),
+      transcriptLanguage: "hi-Latn",
+      region: "eu",
+    });
+    await h.service.startHighlightDiscovery(h.current(), TRANSCRIPT);
+    const calls = h.jobs.enqueue.mock.calls as unknown as Array<
+      [{ params: { options: Record<string, unknown> } }]
+    >;
+    const options = calls[0]?.[0].params.options;
+    expect(options).toMatchObject({
+      language: "hi-Latn",
+      topic: "salary and savings",
+      copy: { language: "hi-Latn", scriptMode: "roman" },
+      region: "eu",
+    });
+    expect(HighlightsPayloadSchema.safeParse(calls[0]?.[0].params).success).toBe(true);
   });
 
   it("never hands 'auto' to discovery", () => {

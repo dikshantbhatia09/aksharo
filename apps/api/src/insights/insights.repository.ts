@@ -7,11 +7,17 @@ import { PrismaService } from "../common/prisma/prisma.service.js";
 
 import type { LlmOutput, Prisma } from "@prisma/client";
 
+/**
+ * What an `llm_outputs` row holds: an insight kind, or `episode-pack`, the text
+ * a clips run writes for its source video (2026-09-29).
+ */
+export type LlmOutputKind = InsightKind | "episode-pack";
+
 export interface CreateLlmOutputInput {
   readonly projectId: string;
   readonly workspaceId: string;
   readonly jobId: string | null;
-  readonly kind: InsightKind;
+  readonly kind: LlmOutputKind;
   readonly templateVersion: string;
   readonly provider: string;
   readonly region: string;
@@ -38,6 +44,14 @@ export class InsightsRepository {
         output: input.output,
         usage: input.usage,
       },
+    });
+  }
+
+  /** The project's newest row of one kind, or null. */
+  async latestOfKind(projectId: string, kind: LlmOutputKind): Promise<LlmOutput | null> {
+    return this.prisma.llmOutput.findFirst({
+      where: { projectId, kind },
+      orderBy: { createdAt: "desc" },
     });
   }
 

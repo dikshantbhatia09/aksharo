@@ -113,6 +113,51 @@ export class InsightsService {
     return { jobs, totalTenths };
   }
 
+  /**
+   * Write the episode text pack for a project (2026-09-29): chapters, a YouTube
+   * description, show notes, a LinkedIn post, an X thread and a newsletter
+   * draft, in `copy.language` and `copy.scriptMode`.
+   *
+   * For a clips run's source video, as part of the run: free (a zero hold and
+   * a zero settlement) and, like the run's other internal jobs, outside the
+   * plan's admission lane, so it never holds up the run's clips. `jobKey`
+   * names the unit of work; the same key while one is in flight is that job.
+   */
+  async requestEpisodePack(input: {
+    readonly projectId: string;
+    readonly workspaceId: string;
+    readonly jobKey: string;
+    readonly copy: { readonly language: string; readonly scriptMode: string };
+  }): Promise<{ readonly jobId: string; readonly deduplicated: boolean }> {
+    const project = await this.project(input.projectId, input.workspaceId);
+    const region = await this.regionOf(input.workspaceId);
+    const transcript = await this.buildTranscriptInput(
+      input.projectId,
+      input.workspaceId,
+      project.title,
+    );
+    const { job, deduplicated } = await this.jobs.enqueue({
+      type: "ai.llm",
+      workspaceId: input.workspaceId,
+      projectId: project.id,
+      jobKey: input.jobKey,
+      worstCaseTenths: 0,
+      reason: "ai.llm · episode-pack",
+      skipAdmission: true,
+      params: {
+        kind: "episode-pack",
+        region,
+        transcript,
+        copy: { language: input.copy.language, scriptMode: input.copy.scriptMode },
+      },
+    });
+    this.logger.log(
+      { projectId: project.id, jobId: job.id, deduplicated },
+      "episode pack requested",
+    );
+    return { jobId: job.id, deduplicated };
+  }
+
   async list(projectId: string, workspaceId: string): Promise<LlmOutput[]> {
     await this.project(projectId, workspaceId);
     return this.repository.latestPerKind(projectId);

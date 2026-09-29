@@ -17,6 +17,7 @@ import {
   mediaClipJobKey,
 } from "@montaj/repurpose-contracts";
 
+import { clipCopyOf } from "./clip-copy.js";
 import {
   IMAGE_ATTEMPTS,
   IMAGE_URL_TTL_SECONDS,
@@ -1602,6 +1603,8 @@ export class RepurposeClipsService {
     run: RepurposeRun,
     candidate: ClipCandidate,
   ): Promise<{ readonly clip: RepurposeClip; readonly created: boolean }> {
+    // The words to post it with start as the moment's own (`clip-copy.ts`).
+    const copy = clipCopyOf(candidate);
     try {
       const clip = await this.prisma.repurposeClip.create({
         data: {
@@ -1611,6 +1614,7 @@ export class RepurposeClipsService {
           title: candidate.title,
           sourceStartMs: candidate.startMs,
           sourceEndMs: candidate.endMs,
+          ...(copy === undefined ? {} : { copy }),
         },
       });
       return { clip, created: true };
