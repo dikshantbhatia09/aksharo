@@ -15,7 +15,7 @@ import {
   normaliseChannelLink,
 } from "@/components/repurpose/automations/channel-link";
 import { beginnerSafetyViolations } from "@/components/repurpose/copy";
-import { renderWithProviders } from "@/test/harness";
+import { renderWithProviders, testAccessToken } from "@/test/harness";
 
 /**
  * `/repurpose/automations` (2026-10-02): connect a channel, see what each
@@ -137,9 +137,10 @@ function serve(
   return { calls };
 }
 
-function render(flags: Record<string, boolean> = ALL_ON) {
+function render(flags: Record<string, boolean> = ALL_ON, role = "editor") {
   return renderWithProviders(<AutomationsView />, {
     routes: { [ENTITLEMENT_PATH]: entitlement(flags) },
+    accessToken: testAccessToken({ role }),
   });
 }
 
@@ -183,6 +184,16 @@ describe("<AutomationsView />", () => {
       "A Short, skipped",
     );
     expect(screen.queryByTestId("automations-checks-off")).toBeNull();
+  });
+
+  it("shows a viewer what each automation is doing, without buttons the server would refuse", async () => {
+    const { fetchMock } = render(ALL_ON, "viewer");
+    serve(fetchMock, { [`GET ${WATCHES}`]: () => json(200, current) });
+    expect(await screen.findByTestId(`watch-${WATCH_ID}`)).toBeInTheDocument();
+    expect(screen.getByTestId("automations-read-only")).toBeInTheDocument();
+    expect(screen.queryByTestId("watch-add-form")).toBeNull();
+    expect(screen.queryByTestId(`watch-pause-${WATCH_ID}`)).toBeNull();
+    expect(screen.queryByTestId(`watch-remove-${WATCH_ID}`)).toBeNull();
   });
 
   it("says so when this server is not picking up new videos, and why a watch is paused", async () => {

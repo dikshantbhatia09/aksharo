@@ -35,9 +35,10 @@
  * browser last picked on Home, and that hint overrides detection — an English
  * video went down the paid Hinglish lane because of an unrelated earlier pick.
  *
- * Several at once (2026-10-02, `allowSeveral`, while `repurpose_automations` is
- * on): a third tab takes up to twenty links, one per line, and the upload tab
- * takes several files. Each becomes its own run with the one setup below. The
+ * Several at once (2026-10-02, while `repurpose_automations` is on): a third tab
+ * takes up to twenty links, one per line (`allowSeveralLinks`, which needs
+ * YouTube links on too), and the upload tab takes several files
+ * (`allowSeveralFiles`). Each becomes its own run with the one setup below. The
  * setup panel itself is `RunSetupFields`, shared with the Automations page.
  */
 import NextLink from "next/link";
@@ -86,7 +87,7 @@ export interface StartFormValue extends RunSetupValue {
   readonly startAt: string;
   /** The file picked, or the first of several. */
   readonly file: File | null;
-  /** Every file picked, when several may be (`allowSeveral`); empty otherwise. */
+  /** Every file picked, when several may be (`allowSeveralFiles`); empty otherwise. */
   readonly files: readonly File[];
   readonly rightsAttested: boolean;
 }
@@ -238,10 +239,12 @@ export interface SourceStartFormProps {
   /** Put the cursor in "Start at": the person came here to pick a start. */
   readonly focusStartAt?: boolean;
   /**
-   * Offer several at once: the "Several links" tab and several files. Off, the
+   * Offer the "Several links" tab. Off (with {@link allowSeveralFiles}), the
    * form is exactly the one-video form it always was.
    */
-  readonly allowSeveral?: boolean;
+  readonly allowSeveralLinks?: boolean;
+  /** Let the upload tab take several files, one run each. */
+  readonly allowSeveralFiles?: boolean;
   /** Replaces the submit button's label (the page says how many runs it starts). */
   readonly submitLabel?: string;
   readonly className?: string;
@@ -266,7 +269,8 @@ export function SourceStartForm({
   processesWholeVideos = false,
   knownLength,
   focusStartAt = false,
-  allowSeveral = false,
+  allowSeveralLinks = false,
+  allowSeveralFiles = false,
   submitLabel,
   className,
 }: SourceStartFormProps): React.JSX.Element {
@@ -299,7 +303,7 @@ export function SourceStartForm({
     onSubmit();
   };
 
-  const tabs: readonly StartFormValue["tab"][] = allowSeveral
+  const tabs: readonly StartFormValue["tab"][] = allowSeveralLinks
     ? ["link", "links", "upload"]
     : ["link", "upload"];
   const tabRefs = React.useRef<Record<string, HTMLButtonElement | null>>({});
@@ -399,7 +403,9 @@ export function SourceStartForm({
                 }}
                 onKeyDown={onTabKeyDown}
                 className={cn(
-                  "-mb-px h-10 min-w-0 flex-1 border-b-2 px-2 text-sm font-medium transition-colors duration-[160ms] sm:px-4",
+                  "-mb-px h-10 min-w-0 flex-1 truncate border-b-2 px-2 font-medium transition-colors duration-[160ms] sm:px-4",
+                  // Three tabs share a phone's width: a size smaller there, not a wrapped label.
+                  tabs.length > 2 ? "text-xs sm:text-sm" : "text-sm",
                   selected
                     ? "border-accent text-fg-0"
                     : "border-transparent text-fg-2 hover:text-fg-0",
@@ -543,9 +549,9 @@ export function SourceStartForm({
             className="space-y-3"
           >
             <Field
-              label={allowSeveral ? "Video files" : "Video file"}
+              label={allowSeveralFiles ? "Video files" : "Video file"}
               htmlFor="repurpose-file"
-              {...(allowSeveral
+              {...(allowSeveralFiles
                 ? { hint: `Choose one, or up to ${String(MAX_FILES)}: each becomes its own run.` }
                 : {})}
               {...(visible.file === undefined ? {} : { error: visible.file })}
@@ -554,7 +560,7 @@ export function SourceStartForm({
                 id="repurpose-file"
                 type="file"
                 accept="video/*"
-                multiple={allowSeveral}
+                multiple={allowSeveralFiles}
                 data-testid="source-file"
                 aria-describedby={visible.file === undefined ? undefined : "repurpose-file-error"}
                 className={cn(
@@ -568,7 +574,7 @@ export function SourceStartForm({
                   onChange({
                     ...value,
                     file: picked[0] ?? null,
-                    files: allowSeveral ? picked : [],
+                    files: allowSeveralFiles ? picked : [],
                   });
                 }}
               />

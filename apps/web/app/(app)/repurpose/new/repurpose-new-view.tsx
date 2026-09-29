@@ -66,6 +66,9 @@ import {
 } from "@/components/repurpose/SourceStartForm";
 import { useUploadQueue } from "@/lib/upload/use-upload-queue";
 
+/** YouTube links: without them there is nothing for "Several links" to start. */
+const YOUTUBE_FLAG = "source_youtube_acquire";
+
 /** A positive entitlement number, or `undefined` while unknown or unset. */
 function positiveEntitlement(value: unknown): number | undefined {
   const number = Number(value);
@@ -116,8 +119,10 @@ export function RepurposeNewView(): React.JSX.Element {
   const searchParams = useSearchParams();
   const create = useCreateRepurposeRun();
   const bulk = useBulkRuns();
-  // Several links and several files, while the feature is on for this workspace.
-  const allowSeveral = useFeatureFlag(AUTOMATIONS_FLAG);
+  // Several files while the feature is on for this workspace; several links
+  // when YouTube links are on too (the bulk route answers 404 otherwise).
+  const allowSeveralFiles = useFeatureFlag(AUTOMATIONS_FLAG);
+  const allowSeveralLinks = useFeatureFlag(YOUTUBE_FLAG) && allowSeveralFiles;
   // The plan's upload cap, so an over-cap file is refused before a run exists.
   // Unknown until the entitlement loads, and never blocking on that.
   const entitlement = useEntitlement();
@@ -346,7 +351,8 @@ export function RepurposeNewView(): React.JSX.Element {
           existingRunId={existingRunId}
           seeCredits={seeCredits}
           focusStartAt={startContext.focusStartAt}
-          allowSeveral={allowSeveral}
+          allowSeveralLinks={allowSeveralLinks}
+          allowSeveralFiles={allowSeveralFiles}
           {...(submitLabel === undefined ? {} : { submitLabel })}
           {...(maxFileBytes === undefined ? {} : { maxFileBytes })}
           {...(planWindowMs === undefined ? {} : { planWindowMs })}

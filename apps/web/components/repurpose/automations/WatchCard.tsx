@@ -138,11 +138,14 @@ function SettingsEditor({
 
 export function WatchCard({
   watch,
+  canChange = true,
   editing,
   onEdit,
   onDoneEditing,
 }: {
   readonly watch: Watch;
+  /** False for a viewer: the card is read-only. */
+  readonly canChange?: boolean;
   readonly editing: boolean;
   readonly onEdit: () => void;
   readonly onDoneEditing: () => void;
@@ -239,61 +242,63 @@ export function WatchCard({
         </p>
       )}
 
-      <div className="flex flex-wrap gap-2">
-        {watch.state === "active" ? (
-          <Button
-            variant="secondary"
-            size="sm"
-            disabled={pause.isPending}
-            data-testid={`watch-pause-${watch.id}`}
-            onClick={() => {
-              setError(null);
-              pause.mutate(watch.id, { onError });
-            }}
-          >
-            {COPY.pause}
-          </Button>
-        ) : (
-          <Button
-            variant="secondary"
-            size="sm"
-            disabled={resume.isPending}
-            data-testid={`watch-resume-${watch.id}`}
-            onClick={() => {
-              setError(null);
-              resume.mutate(watch.id, { onError });
-            }}
-          >
-            {COPY.resume}
-          </Button>
-        )}
-        <Button
-          variant="ghost"
-          size="sm"
-          aria-expanded={editing}
-          data-testid={`watch-edit-${watch.id}`}
-          onClick={editing ? onDoneEditing : onEdit}
-        >
-          {COPY.edit}
-        </Button>
-        <ConfirmAction
-          trigger={
-            <Button variant="ghost" size="sm" data-testid={`watch-remove-${watch.id}`}>
-              {COPY.remove}
+      {canChange ? (
+        <div className="flex flex-wrap gap-2">
+          {watch.state === "active" ? (
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={pause.isPending}
+              data-testid={`watch-pause-${watch.id}`}
+              onClick={() => {
+                setError(null);
+                pause.mutate(watch.id, { onError });
+              }}
+            >
+              {COPY.pause}
             </Button>
-          }
-          title={COPY.removeTitle(watch.title)}
-          description={COPY.removeDescription}
-          confirmLabel={COPY.removeConfirm}
-          confirmTestId={`watch-remove-confirm-${watch.id}`}
-          onConfirm={() => {
-            setError(null);
-            remove.mutate(watch.id, { onError });
-          }}
-        />
-      </div>
+          ) : (
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={resume.isPending}
+              data-testid={`watch-resume-${watch.id}`}
+              onClick={() => {
+                setError(null);
+                resume.mutate(watch.id, { onError });
+              }}
+            >
+              {COPY.resume}
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            aria-expanded={editing}
+            data-testid={`watch-edit-${watch.id}`}
+            onClick={editing ? onDoneEditing : onEdit}
+          >
+            {COPY.edit}
+          </Button>
+          <ConfirmAction
+            trigger={
+              <Button variant="ghost" size="sm" data-testid={`watch-remove-${watch.id}`}>
+                {COPY.remove}
+              </Button>
+            }
+            title={COPY.removeTitle(watch.title)}
+            description={COPY.removeDescription}
+            confirmLabel={COPY.removeConfirm}
+            confirmTestId={`watch-remove-confirm-${watch.id}`}
+            onConfirm={() => {
+              setError(null);
+              remove.mutate(watch.id, { onError });
+            }}
+          />
+        </div>
+      ) : null}
 
-      {editing ? <SettingsEditor watch={watch} onDone={onDoneEditing} /> : null}
+      {editing && canChange ? <SettingsEditor watch={watch} onDone={onDoneEditing} /> : null}
     </li>
   );
 }

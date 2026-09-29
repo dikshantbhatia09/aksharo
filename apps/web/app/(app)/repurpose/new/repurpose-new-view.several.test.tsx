@@ -39,7 +39,7 @@ function entitlement(flags: Record<string, boolean>): Record<string, unknown> {
     seatsIncluded: 1,
     seatsUsed: 1,
     computedAt: "2026-10-02T10:00:00.000Z",
-    entitlements: { flags: { repurpose_flow: true, ...flags } },
+    entitlements: { flags: { repurpose_flow: true, source_youtube_acquire: true, ...flags } },
   };
 }
 
@@ -83,6 +83,22 @@ describe("<RepurposeNewView /> several at once", () => {
     });
     await userEvent.setup().click(screen.getByTestId("source-tab-upload"));
     expect(screen.getByTestId("source-file")).not.toHaveAttribute("multiple");
+  });
+
+  it("offers several files but not several links while YouTube links are off", async () => {
+    renderWithProviders(<RepurposeNewView />, {
+      routes: {
+        [ENTITLEMENT_PATH]: entitlement({
+          repurpose_automations: true,
+          source_youtube_acquire: false,
+        }),
+      },
+    });
+    await userEvent.setup().click(await screen.findByTestId("source-tab-upload"));
+    await waitFor(() => {
+      expect(screen.getByTestId("source-file")).toHaveAttribute("multiple");
+    });
+    expect(screen.queryByTestId("source-tab-links")).toBeNull();
   });
 
   it("starts one run per link, each video once, and shows each line's outcome", async () => {

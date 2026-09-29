@@ -22,6 +22,8 @@ export const AUTOMATIONS_COPY = Object.freeze({
   checksOff:
     "New videos are not being picked up on this server right now. Your automations are kept and start again as soon as checks are back on.",
   loadError: "Your automations could not be loaded. Refresh the page to try again.",
+  readOnly:
+    "Editors of this workspace connect channels and change automations. You can see what each one is doing.",
   add: {
     heading: "Connect a channel",
     linkLabel: "Channel link",

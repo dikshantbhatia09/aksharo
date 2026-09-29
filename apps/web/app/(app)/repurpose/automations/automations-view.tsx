@@ -18,7 +18,7 @@ import { Radar } from "lucide-react";
 import NextLink from "next/link";
 import * as React from "react";
 
-import { isApiError, useFeatureFlag } from "@montaj/api-client";
+import { isApiError, useFeatureFlag, useSession } from "@montaj/api-client";
 import { Button, EmptyState, PageHeader, Skeleton } from "@montaj/ui";
 
 import { REPURPOSE_FLOW_FLAG } from "@/components/home/pipeline-banner";
@@ -37,6 +37,9 @@ export function AutomationsView(): React.JSX.Element {
   const enabled = flow && youtube && automations;
   const watches = useWatches(enabled);
   const [editing, setEditing] = React.useState<string | null>(null);
+  // Editors change automations, viewers read them - the API's own rule, so a
+  // viewer is not offered buttons it would refuse.
+  const canChange = (useSession()?.role ?? "viewer") !== "viewer";
 
   const header = (
     <PageHeader
@@ -85,7 +88,13 @@ export function AutomationsView(): React.JSX.Element {
         </p>
       ) : null}
 
-      <AddChannelForm atLimit={atLimit} maxWatches={list?.maxWatches ?? 20} />
+      {canChange ? (
+        <AddChannelForm atLimit={atLimit} maxWatches={list?.maxWatches ?? 20} />
+      ) : (
+        <p className="m-0 text-sm text-fg-1" data-testid="automations-read-only">
+          {AUTOMATIONS_COPY.readOnly}
+        </p>
+      )}
 
       <section aria-labelledby="watch-list-heading" className="flex flex-col gap-3">
         <h2 id="watch-list-heading" className="text-base text-fg-0">
@@ -109,6 +118,7 @@ export function AutomationsView(): React.JSX.Element {
               <WatchCard
                 key={watch.id}
                 watch={watch}
+                canChange={canChange}
                 editing={editing === watch.id}
                 onEdit={() => {
                   setEditing(watch.id);
