@@ -586,6 +586,13 @@ export const API_OPERATIONS = [
     summary: "Make an uploaded logo the kit's",
   },
   {
+    operationId: "completeBrandKitMusic",
+    method: "POST",
+    path: "/brand-kit/music/{assetId}/complete",
+    tags: ["brand-kit"],
+    summary: "Make an uploaded track the kit's music",
+  },
+  {
     operationId: "completeExportManifest",
     method: "POST",
     path: "/exports/manifests/{manifestId}/complete",
@@ -621,6 +628,13 @@ export const API_OPERATIONS = [
     summary: "Finish an upload (project-scoped form)",
   },
   {
+    operationId: "completeRepurposeCover",
+    method: "POST",
+    path: "/repurpose/covers/{assetId}/complete",
+    tags: ["repurpose"],
+    summary: "Keep an uploaded cover",
+  },
+  {
     operationId: "confirmDiagnosticsBundle",
     method: "POST",
     path: "/telemetry/diagnostics-bundle/confirm",
@@ -654,6 +668,13 @@ export const API_OPERATIONS = [
     path: "/brand-kit/logo",
     tags: ["brand-kit"],
     summary: "Start uploading a logo (PNG, JPEG or WebP, up to 2 MB)",
+  },
+  {
+    operationId: "createBrandKitMusicUpload",
+    method: "POST",
+    path: "/brand-kit/music",
+    tags: ["brand-kit"],
+    summary: "Start uploading the kit's music (MP3, WAV or M4A, up to 25 MB)",
   },
   {
     operationId: "createBreachIncident",
@@ -738,6 +759,13 @@ export const API_OPERATIONS = [
     path: "/repurpose/runs/{runId}/compilations",
     tags: ["repurpose"],
     summary: "Join clips into one video: a best of, in one shape, with an optional title card",
+  },
+  {
+    operationId: "createRepurposeCoverUpload",
+    method: "POST",
+    path: "/repurpose/covers",
+    tags: ["repurpose"],
+    summary: "Start uploading a run's cover (PNG, JPEG or WebP, up to 10 MB)",
   },
   {
     operationId: "createRepurposeDub",
@@ -871,6 +899,13 @@ export const API_OPERATIONS = [
     path: "/brand-kit/logo",
     tags: ["brand-kit"],
     summary: "Take the logo off the brand kit",
+  },
+  {
+    operationId: "deleteBrandKitMusic",
+    method: "DELETE",
+    path: "/brand-kit/music",
+    tags: ["brand-kit"],
+    summary: "Take the music off the brand kit",
   },
   {
     operationId: "deleteFolder",

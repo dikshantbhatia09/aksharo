@@ -9,6 +9,12 @@ import { logger } from "../logger.js";
 import { DERIVED_OBJECT_TAGS } from "../storage.js";
 import { withWorkspace } from "../workspace.js";
 import {
+  audiogramArgs,
+  audiogramLayout,
+  audiogramSize,
+  type AudiogramLayout,
+} from "./audiogram.js";
+import {
   MAX_CLIP_HEIGHT,
   clipFilter,
   clipFrame,
@@ -17,6 +23,7 @@ import {
   type ClipAspect,
   type StackedPersonInput,
 } from "./clip-frame.js";
+import { assertKnownClipFields, readAudiogram } from "./clip-payload.js";
 
 import type { ProbeContainer } from "../ffmpeg/ffprobe.js";
 import type { JobContext, ProcessorOutcome } from "../runtime.js";
@@ -51,7 +58,15 @@ export interface ClipPayload {
   };
   /** The shape to cut (2026-09-29); 9:16 when absent. */
   readonly aspect?: ClipAspect;
+  /**
+   * The picture to draw for a source with none (2026-10-04, `audiogram.ts`).
+   * Unchecked here: {@link readAudiogram} checks it before it is used.
+   */
+  readonly audiogram?: unknown;
   readonly profileVersion?: string;
+  readonly schemaVersion?: number;
+  /** Ignored since 2026-09-25 (see {@link processClip}); still a known field. */
+  readonly subtitles?: unknown;
 }
 
 const RESULT_SCHEMA_VERSION = 1;
@@ -95,6 +110,15 @@ const SHORTFALL_TOLERANCE_RATIO = 0.05;
  * answer before any encoding starts. A `stacked` payload (2026-10-01) is cut as
  * two windows, one per person, one above the other (`stackedFrame`).
  *
+ * **A source with no picture gets one (2026-10-04)** when the payload asks for
+ * an `audiogram`: the ground, the artwork and a live waveform of the clip's own
+ * audio, drawn at the shape's size (`audiogram.ts`), so the captioned video,
+ * the images and a compilation can be made of it like any clip. The result
+ * says which picture it is (`picture`), and only when the payload asked, so an
+ * API from before never sees the field. A payload naming a field this worker
+ * does not know is refused before anything is read (`clip-payload.ts`): the
+ * alternative is a clip cut without what it was asked for.
+ *
  * **Failures say whether a retry can help.** The source is read through a
  * signed URL, so a refused connection, a 5xx or an expired signature is the
  * network's fault, not the file's, and is retried; a 404 (the object is gone)
@@ -107,6 +131,10 @@ export async function processClip(context: JobContext): Promise<ProcessorOutcome
   if (!payload || !payload.clipId || !payload.destination?.key || !payload.source?.key) {
     throw unreadableMedia("Invalid media.clip payload", "media/unsupported");
   }
+  // Before anything is read: a field this worker does not know is something it
+  // was asked for and cannot do (`clip-payload.ts`).
+  assertKnownClipFields(payload);
+  const audiogram = readAudiogram(payload.audiogram, context.envelope.workspaceId);
 
   if (
     typeof payload.startMs !== "number" ||
@@ -174,6 +202,21 @@ export async function processClip(context: JobContext): Promise<ProcessorOutcome
   const videoFilter =
     stacked !== null ? stackedFilter(stacked) : frame !== null ? clipFilter(frame) : null;
 
+  // An audiogram (2026-10-04): a source with no picture gets one drawn, when
+  // the API asked for it (`audiogram.ts`). A source that turns out to have a
+  // picture of its own is cut as any video is, and the result says which.
+  const drawn = source.video === null ? audiogram : undefined;
+  if (audiogram !== undefined && drawn === undefined) {
+    logger.warn("an audiogram was asked for a source with a picture; the picture is cut", {
+      clipId: payload.clipId,
+      source: source.video,
+    });
+  }
+  if (drawn !== undefined && source.audio === null) {
+    // `readProbe` refuses a file with neither, so this is only a guard.
+    throw unreadableMedia("The source has no sound to draw a waveform of.", "media/no_streams");
+  }
+
   // The worker checks what it is given: a source the probe measured shorter
   // than the payload says caps the tail handle, so `effectiveEndMs` is what the
   // cut really achieved, and a clip that starts after the source ends is
@@ -211,6 +254,17 @@ export async function processClip(context: JobContext): Promise<ProcessorOutcome
 
     const outPath = workspace.path("mezzanine.mp4");
 
+    // The artwork is best effort: an image that is gone or will not decode is
+    // left out, and the clip gets the waveform alone - never no clip.
+    const artworkUrl =
+      drawn?.artwork === undefined ? undefined : await readableArtwork(context, drawn.artwork.key);
+    const picture: AudiogramLayout | null =
+      drawn === undefined
+        ? null
+        : audiogramLayout(audiogramSize(payload.aspect ?? "9:16", maxHeight), {
+            artwork: artworkUrl !== undefined,
+          });
+
     context.report(25, `cutting clip interval [${startSec}s, ${durationSec}s]`);
     logger.info("cutting mezzanine clip with ffmpeg", {
       clipId: payload.clipId,
@@ -222,9 +276,18 @@ export async function processClip(context: JobContext): Promise<ProcessorOutcome
       layout: stacked === null ? "single" : "stacked",
       crop: stacked?.crops ?? frame?.crop,
       output: stacked?.output ?? frame?.output,
+      ...(picture === null
+        ? {}
+        : {
+            audiogram: {
+              size: `${String(picture.width)}x${String(picture.height)}`,
+              artwork: artworkUrl !== undefined,
+            },
+          }),
     });
 
-    const args = [
+    // A cut of the source's own picture (or of its sound alone).
+    const cutArgs = (): string[] => [
       ...FFMPEG_BASE_ARGS,
       // Errors only, and no status line: the stderr tail is what decides whether
       // a failure is retried (`readFailure`), and ffmpeg's `\r`-separated stats
@@ -267,6 +330,19 @@ export async function processClip(context: JobContext): Promise<ProcessorOutcome
       outPath,
     ];
 
+    const args =
+      picture !== null && drawn !== undefined
+        ? audiogramArgs({
+            sourceUrl,
+            ...(artworkUrl === undefined ? {} : { artworkUrl }),
+            startSec,
+            durationSec,
+            layout: picture,
+            request: drawn,
+            outPath,
+          })
+        : cutArgs();
+
     // `run` kills its child when the signal fires, but an abort that fired
     // before it started (a shutdown landing while the workspace was being
     // made) is never seen, and the cut would run its whole budget for a worker
@@ -295,10 +371,12 @@ export async function processClip(context: JobContext): Promise<ProcessorOutcome
     // The expected length stops where the source does, since a handle cannot
     // run past the end.
     const expectedMs = Math.min(effectiveEndMs, sourceDurationMs) - effectiveStartMs;
-    if (
-      cutCameOutShort(probed.durationMs, expectedMs) ||
-      (videoFilter !== null && probed.video === null)
-    ) {
+    const pictureMissing = (videoFilter !== null || picture !== null) && probed.video === null;
+    const pictureWrong =
+      picture !== null &&
+      probed.video !== null &&
+      (probed.video.width !== picture.width || probed.video.height !== picture.height);
+    if (cutCameOutShort(probed.durationMs, expectedMs) || pictureMissing || pictureWrong) {
       throw transientFailure(
         "media/encode_incomplete",
         `The cut came out ${String(probed.durationMs)} ms long, expected about ${String(expectedMs)} ms.`,
@@ -338,9 +416,47 @@ export async function processClip(context: JobContext): Promise<ProcessorOutcome
         tailHandleMs,
         hasAudio: probed.audio !== null,
         deduplicated: false,
+        // Only when an audiogram was asked for: an API from before them would
+        // refuse the field (`MediaClipResultSchema` is strict).
+        ...(audiogram === undefined
+          ? {}
+          : { picture: drawn === undefined ? "source" : "audiogram" }),
       },
     };
   });
+}
+
+/** How long reading the artwork's header may take: one small image. */
+const ARTWORK_PROBE_TIMEOUT_MS = 30_000;
+
+/**
+ * A signed URL for the audiogram's artwork, once ffprobe has read it as an
+ * image; `undefined` when it is gone, unreadable or not a picture, which only
+ * costs the clip its artwork. A cancellation is not swallowed.
+ */
+async function readableArtwork(context: JobContext, key: string): Promise<string | undefined> {
+  const { settings } = context;
+  let url: string;
+  try {
+    url = await context.derived.presignGet(key, settings.sourceUrlTtlSeconds);
+    const probed = readProbe(
+      await ffprobe({
+        binary: settings.ffprobePath,
+        source: url,
+        timeoutMs: Math.min(settings.ffmpegTimeoutMs, ARTWORK_PROBE_TIMEOUT_MS),
+        signal: context.signal,
+      }),
+    );
+    if (probed.video === null) throw new Error("the artwork has no picture in it");
+    return url;
+  } catch (error) {
+    if (error instanceof MediaJobError && error.code === "media/cancelled") throw error;
+    logger.warn("the audiogram's artwork could not be read; the clip is drawn without it", {
+      clipId: (context.envelope.payload as unknown as ClipPayload).clipId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return undefined;
+  }
 }
 
 /**

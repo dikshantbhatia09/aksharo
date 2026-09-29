@@ -1492,6 +1492,13 @@ export interface CreateRepurposeRunRequest {
      * clips are made exactly as without one.
      */
     brand?: boolean;
+    /**
+     * Audiograms (2026-10-04): the cover a source with no picture (an audio
+     * file) has its clips drawn with, uploaded first through
+     * `POST /repurpose/covers`. Left out, the brand kit's logo (with `brand`)
+     * or nothing is the artwork.
+     */
+    audiogram?: { coverAssetId: string };
   };
   title?: string;
 }

@@ -25,6 +25,11 @@
  * each line's outcome here rather than navigating; several files start one
  * upload run each, one after another, then hand every file to the upload queue
  * together - and go to the run list when all of them started.
+ *
+ * A cover for an audio file's clips (2026-10-04, audiograms) is uploaded first,
+ * before any run is created, so every run it is for can name it
+ * (`setup.audiogram.coverAssetId`); a cover the API refuses stops the start
+ * with its reason, and nothing is created.
  */
 import { useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
@@ -61,10 +66,12 @@ import { normaliseSourceLink } from "@/components/repurpose/source-link";
 import {
   DETECT_LANGUAGE,
   SourceStartForm,
+  coverToSend,
   filesOf,
   startAtMs,
   type StartFormValue,
 } from "@/components/repurpose/SourceStartForm";
+import { useUploadCover } from "@/components/repurpose/use-cover";
 import { useUploadQueue } from "@/lib/upload/use-upload-queue";
 
 /** YouTube links: without them there is nothing for "Several links" to start. */
@@ -87,6 +94,14 @@ export function idempotencyKeyFor(
   body: string,
 ): { readonly key: string; readonly body: string } {
   return last !== null && last.body === body ? last : { key: newIdempotencyKey(), body };
+}
+
+/** A run's setup with the cover its audio file's clips are drawn with, when there is one. */
+function withCover(
+  setup: CreateRepurposeRunRequest["setup"],
+  coverAssetId: string | undefined,
+): CreateRepurposeRunRequest["setup"] {
+  return coverAssetId === undefined ? setup : { ...setup, audiogram: { coverAssetId } };
 }
 
 /** An upload run's source, for one file, as the upload queue will send it. */
@@ -166,6 +181,7 @@ export function RepurposeNewView(): React.JSX.Element {
   const [seeCredits, setSeeCredits] = React.useState(false);
   const [severalLines, setSeveralLines] = React.useState<readonly SeveralLine[] | null>(null);
   const [startingFiles, setStartingFiles] = React.useState(false);
+  const uploadCover = useUploadCover();
 
   const files = filesOf(value);
   const linkCount = value.tab === "links" ? linksToSend(linkLinesOf(value.links)).length : 0;
@@ -201,6 +217,22 @@ export function RepurposeNewView(): React.JSX.Element {
     };
   };
 
+  /**
+   * The cover picked for an audio file, uploaded before anything else
+   * (2026-10-04): its asset id, `undefined` when none was picked, or `null`
+   * when it was refused - the refusal is then on the form, and nothing starts.
+   */
+  const coverFirst = async (): Promise<string | undefined | null> => {
+    const cover = coverToSend(value);
+    if (cover === null) return undefined;
+    try {
+      return (await uploadCover.mutateAsync(cover)).assetId;
+    } catch (error) {
+      refuse(error);
+      return null;
+    }
+  };
+
   /** Several links: one bulk request, its outcome line by line, no navigation. */
   const submitLinks = (): void => {
     const body = {
@@ -228,7 +260,12 @@ export function RepurposeNewView(): React.JSX.Element {
    */
   const submitFiles = async (): Promise<void> => {
     setStartingFiles(true);
-    const setup = runSetupRequest(value, { brandKit: hasBrandKit });
+    const cover = await coverFirst();
+    if (cover === null) {
+      setStartingFiles(false);
+      return;
+    }
+    const setup = withCover(runSetupRequest(value, { brandKit: hasBrandKit }), cover);
     const lines: SeveralLine[] = [];
     const pairs: { file: File; projectId: string }[] = [];
     const failed: File[] = [];
@@ -304,6 +341,25 @@ export function RepurposeNewView(): React.JSX.Element {
       // Only with a start: no window leaves the choice to the server.
       ...(startMs === undefined ? {} : { window: { startMs, policy: "range" as const } }),
     };
+    // An audio file's cover goes up first (2026-10-04); none, and this is the
+    // same start as ever.
+    if (value.tab === "upload" && coverToSend(value) !== null) {
+      setStartingFiles(true);
+      void coverFirst().then((cover) => {
+        setStartingFiles(false);
+        if (cover !== null) startOne(source, withCover(setup, cover), sent);
+      });
+      return;
+    }
+    startOne(source, setup, sent);
+  };
+
+  /** Creates the one run the form describes, and goes to it. */
+  const startOne = (
+    source: CreateRepurposeRunRequest["source"],
+    setup: CreateRepurposeRunRequest["setup"],
+    sent: StartFormValue,
+  ): void => {
     const body: CreateRepurposeRunRequest = { source, setup };
     lastRequest.current = idempotencyKeyFor(lastRequest.current, JSON.stringify(body));
 

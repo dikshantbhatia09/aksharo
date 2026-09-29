@@ -6384,6 +6384,29 @@
                             "showLogo",
                             "durationMs"
                           ]
+                        },
+                        "music": {
+                          "default": {
+                            "enabled": true,
+                            "level": "quiet"
+                          },
+                          "type": "object",
+                          "properties": {
+                            "enabled": {
+                              "type": "boolean"
+                            },
+                            "level": {
+                              "type": "string",
+                              "enum": [
+                                "quiet",
+                                "medium"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "enabled",
+                            "level"
+                          ]
                         }
                       },
                       "required": [
@@ -6448,6 +6471,68 @@
                         "url"
                       ]
                     },
+                    "music": {
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "assetId": {
+                          "type": "string"
+                        },
+                        "format": {
+                          "type": "string",
+                          "enum": [
+                            "mp3",
+                            "wav",
+                            "m4a"
+                          ]
+                        },
+                        "contentType": {
+                          "type": "string",
+                          "enum": [
+                            "audio/mpeg",
+                            "audio/wav",
+                            "audio/mp4"
+                          ]
+                        },
+                        "durationMs": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "sizeBytes": {
+                          "nullable": true,
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "title": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "url": {
+                          "type": "string"
+                        },
+                        "rightsAttestedAt": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "rightsAttestedBy": {
+                          "nullable": true,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "assetId",
+                        "format",
+                        "contentType",
+                        "durationMs",
+                        "sizeBytes",
+                        "title",
+                        "url",
+                        "rightsAttestedAt",
+                        "rightsAttestedBy"
+                      ]
+                    },
                     "images": {
                       "type": "object",
                       "additionalProperties": {
@@ -6495,6 +6580,27 @@
                           "enum": [
                             40
                           ]
+                        },
+                        "musicMaxBytes": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "musicContentTypes": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "musicMinDurationMs": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "musicMaxDurationMs": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
                         }
                       },
                       "required": [
@@ -6503,7 +6609,11 @@
                         "logoMinSide",
                         "logoMaxSide",
                         "ctaMax",
-                        "handleMax"
+                        "handleMax",
+                        "musicMaxBytes",
+                        "musicContentTypes",
+                        "musicMinDurationMs",
+                        "musicMaxDurationMs"
                       ]
                     },
                     "updatedAt": {
@@ -6515,6 +6625,7 @@
                     "exists",
                     "settings",
                     "logo",
+                    "music",
                     "images",
                     "fontFamilies",
                     "limits",
@@ -6695,6 +6806,29 @@
                       "showLogo",
                       "durationMs"
                     ]
+                  },
+                  "music": {
+                    "default": {
+                      "enabled": true,
+                      "level": "quiet"
+                    },
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean"
+                      },
+                      "level": {
+                        "type": "string",
+                        "enum": [
+                          "quiet",
+                          "medium"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "enabled",
+                      "level"
+                    ]
                   }
                 },
                 "required": [
@@ -6869,6 +7003,29 @@
                             "showLogo",
                             "durationMs"
                           ]
+                        },
+                        "music": {
+                          "default": {
+                            "enabled": true,
+                            "level": "quiet"
+                          },
+                          "type": "object",
+                          "properties": {
+                            "enabled": {
+                              "type": "boolean"
+                            },
+                            "level": {
+                              "type": "string",
+                              "enum": [
+                                "quiet",
+                                "medium"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "enabled",
+                            "level"
+                          ]
                         }
                       },
                       "required": [
@@ -6933,6 +7090,68 @@
                         "url"
                       ]
                     },
+                    "music": {
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "assetId": {
+                          "type": "string"
+                        },
+                        "format": {
+                          "type": "string",
+                          "enum": [
+                            "mp3",
+                            "wav",
+                            "m4a"
+                          ]
+                        },
+                        "contentType": {
+                          "type": "string",
+                          "enum": [
+                            "audio/mpeg",
+                            "audio/wav",
+                            "audio/mp4"
+                          ]
+                        },
+                        "durationMs": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "sizeBytes": {
+                          "nullable": true,
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "title": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "url": {
+                          "type": "string"
+                        },
+                        "rightsAttestedAt": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "rightsAttestedBy": {
+                          "nullable": true,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "assetId",
+                        "format",
+                        "contentType",
+                        "durationMs",
+                        "sizeBytes",
+                        "title",
+                        "url",
+                        "rightsAttestedAt",
+                        "rightsAttestedBy"
+                      ]
+                    },
                     "images": {
                       "type": "object",
                       "additionalProperties": {
@@ -6980,6 +7199,27 @@
                           "enum": [
                             40
                           ]
+                        },
+                        "musicMaxBytes": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "musicContentTypes": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "musicMinDurationMs": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "musicMaxDurationMs": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
                         }
                       },
                       "required": [
@@ -6988,7 +7228,11 @@
                         "logoMinSide",
                         "logoMaxSide",
                         "ctaMax",
-                        "handleMax"
+                        "handleMax",
+                        "musicMaxBytes",
+                        "musicContentTypes",
+                        "musicMinDurationMs",
+                        "musicMaxDurationMs"
                       ]
                     },
                     "updatedAt": {
@@ -7000,6 +7244,7 @@
                     "exists",
                     "settings",
                     "logo",
+                    "music",
                     "images",
                     "fontFamilies",
                     "limits",
@@ -7279,6 +7524,29 @@
                             "showLogo",
                             "durationMs"
                           ]
+                        },
+                        "music": {
+                          "default": {
+                            "enabled": true,
+                            "level": "quiet"
+                          },
+                          "type": "object",
+                          "properties": {
+                            "enabled": {
+                              "type": "boolean"
+                            },
+                            "level": {
+                              "type": "string",
+                              "enum": [
+                                "quiet",
+                                "medium"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "enabled",
+                            "level"
+                          ]
                         }
                       },
                       "required": [
@@ -7343,6 +7611,68 @@
                         "url"
                       ]
                     },
+                    "music": {
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "assetId": {
+                          "type": "string"
+                        },
+                        "format": {
+                          "type": "string",
+                          "enum": [
+                            "mp3",
+                            "wav",
+                            "m4a"
+                          ]
+                        },
+                        "contentType": {
+                          "type": "string",
+                          "enum": [
+                            "audio/mpeg",
+                            "audio/wav",
+                            "audio/mp4"
+                          ]
+                        },
+                        "durationMs": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "sizeBytes": {
+                          "nullable": true,
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "title": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "url": {
+                          "type": "string"
+                        },
+                        "rightsAttestedAt": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "rightsAttestedBy": {
+                          "nullable": true,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "assetId",
+                        "format",
+                        "contentType",
+                        "durationMs",
+                        "sizeBytes",
+                        "title",
+                        "url",
+                        "rightsAttestedAt",
+                        "rightsAttestedBy"
+                      ]
+                    },
                     "images": {
                       "type": "object",
                       "additionalProperties": {
@@ -7390,6 +7720,27 @@
                           "enum": [
                             40
                           ]
+                        },
+                        "musicMaxBytes": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "musicContentTypes": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "musicMinDurationMs": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "musicMaxDurationMs": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
                         }
                       },
                       "required": [
@@ -7398,7 +7749,11 @@
                         "logoMinSide",
                         "logoMaxSide",
                         "ctaMax",
-                        "handleMax"
+                        "handleMax",
+                        "musicMaxBytes",
+                        "musicContentTypes",
+                        "musicMinDurationMs",
+                        "musicMaxDurationMs"
                       ]
                     },
                     "updatedAt": {
@@ -7410,6 +7765,7 @@
                     "exists",
                     "settings",
                     "logo",
+                    "music",
                     "images",
                     "fontFamilies",
                     "limits",
@@ -7632,6 +7988,29 @@
                             "showLogo",
                             "durationMs"
                           ]
+                        },
+                        "music": {
+                          "default": {
+                            "enabled": true,
+                            "level": "quiet"
+                          },
+                          "type": "object",
+                          "properties": {
+                            "enabled": {
+                              "type": "boolean"
+                            },
+                            "level": {
+                              "type": "string",
+                              "enum": [
+                                "quiet",
+                                "medium"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "enabled",
+                            "level"
+                          ]
                         }
                       },
                       "required": [
@@ -7696,6 +8075,68 @@
                         "url"
                       ]
                     },
+                    "music": {
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "assetId": {
+                          "type": "string"
+                        },
+                        "format": {
+                          "type": "string",
+                          "enum": [
+                            "mp3",
+                            "wav",
+                            "m4a"
+                          ]
+                        },
+                        "contentType": {
+                          "type": "string",
+                          "enum": [
+                            "audio/mpeg",
+                            "audio/wav",
+                            "audio/mp4"
+                          ]
+                        },
+                        "durationMs": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "sizeBytes": {
+                          "nullable": true,
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "title": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "url": {
+                          "type": "string"
+                        },
+                        "rightsAttestedAt": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "rightsAttestedBy": {
+                          "nullable": true,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "assetId",
+                        "format",
+                        "contentType",
+                        "durationMs",
+                        "sizeBytes",
+                        "title",
+                        "url",
+                        "rightsAttestedAt",
+                        "rightsAttestedBy"
+                      ]
+                    },
                     "images": {
                       "type": "object",
                       "additionalProperties": {
@@ -7743,6 +8184,27 @@
                           "enum": [
                             40
                           ]
+                        },
+                        "musicMaxBytes": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "musicContentTypes": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "musicMinDurationMs": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "musicMaxDurationMs": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
                         }
                       },
                       "required": [
@@ -7751,7 +8213,11 @@
                         "logoMinSide",
                         "logoMaxSide",
                         "ctaMax",
-                        "handleMax"
+                        "handleMax",
+                        "musicMaxBytes",
+                        "musicContentTypes",
+                        "musicMinDurationMs",
+                        "musicMaxDurationMs"
                       ]
                     },
                     "updatedAt": {
@@ -7763,6 +8229,7 @@
                     "exists",
                     "settings",
                     "logo",
+                    "music",
                     "images",
                     "fontFamilies",
                     "limits",
@@ -7782,6 +8249,1003 @@
           }
         ],
         "summary": "Make an uploaded logo the kit's",
+        "tags": [
+          "brand-kit"
+        ]
+      }
+    },
+    "/brand-kit/music": {
+      "post": {
+        "description": "`rightsAttested` must be true: the person confirms they have the rights to use this music (400 `brand_kit/music_rights_required` otherwise). A presigned PUT; upload the bytes with the same `Content-Type`, then call `complete`. 413 `brand_kit/music_too_large`.",
+        "operationId": "createBrandKitMusicUpload",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "contentType": {
+                    "type": "string",
+                    "enum": [
+                      "audio/mpeg",
+                      "audio/wav",
+                      "audio/mp4"
+                    ]
+                  },
+                  "sizeBytes": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  },
+                  "rightsAttested": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "contentType",
+                  "sizeBytes",
+                  "rightsAttested"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Where to PUT the music.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "assetId": {
+                      "type": "string"
+                    },
+                    "uploadUrl": {
+                      "type": "string"
+                    },
+                    "contentType": {
+                      "type": "string",
+                      "enum": [
+                        "audio/mpeg",
+                        "audio/wav",
+                        "audio/mp4"
+                      ]
+                    },
+                    "expiresAt": {
+                      "type": "string"
+                    },
+                    "maxBytes": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "assetId",
+                    "uploadUrl",
+                    "contentType",
+                    "expiresAt",
+                    "maxBytes"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Start uploading the kit's music (MP3, WAV or M4A, up to 25 MB)",
+        "tags": [
+          "brand-kit"
+        ]
+      },
+      "delete": {
+        "description": "New clips get no music; clips that already have it keep it until it is taken off them in the editor. Idempotent.",
+        "operationId": "deleteBrandKitMusic",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The kit without music.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "exists": {
+                      "type": "boolean"
+                    },
+                    "settings": {
+                      "type": "object",
+                      "properties": {
+                        "colors": {
+                          "type": "object",
+                          "properties": {
+                            "primary": {
+                              "type": "string",
+                              "pattern": "^#[0-9a-fA-F]{6}$",
+                              "title": "HexColour"
+                            },
+                            "secondary": {
+                              "type": "string",
+                              "pattern": "^#[0-9a-fA-F]{6}$",
+                              "title": "HexColour"
+                            },
+                            "text": {
+                              "type": "string",
+                              "pattern": "^#[0-9a-fA-F]{6}$",
+                              "title": "HexColour"
+                            }
+                          },
+                          "required": [
+                            "primary",
+                            "secondary",
+                            "text"
+                          ]
+                        },
+                        "captions": {
+                          "type": "object",
+                          "properties": {
+                            "fontFamily": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 120
+                            },
+                            "fill": {
+                              "type": "string",
+                              "pattern": "^#[0-9a-fA-F]{6}$",
+                              "title": "HexColour"
+                            },
+                            "highlight": {
+                              "type": "string",
+                              "pattern": "^#[0-9a-fA-F]{6}$",
+                              "title": "HexColour"
+                            },
+                            "stroke": {
+                              "type": "string",
+                              "pattern": "^#[0-9a-fA-F]{6}$",
+                              "title": "HexColour"
+                            }
+                          }
+                        },
+                        "hookTitle": {
+                          "type": "object",
+                          "properties": {
+                            "fontFamily": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 120
+                            },
+                            "background": {
+                              "type": "string",
+                              "pattern": "^#[0-9a-fA-F]{6}$",
+                              "title": "HexColour"
+                            },
+                            "text": {
+                              "type": "string",
+                              "pattern": "^#[0-9a-fA-F]{6}$",
+                              "title": "HexColour"
+                            }
+                          }
+                        },
+                        "logo": {
+                          "type": "object",
+                          "properties": {
+                            "show": {
+                              "type": "boolean"
+                            },
+                            "corner": {
+                              "type": "string",
+                              "enum": [
+                                "top-left",
+                                "top-right",
+                                "bottom-left",
+                                "bottom-right"
+                              ],
+                              "title": "OverlayCorner"
+                            },
+                            "sizePct": {
+                              "type": "number",
+                              "minimum": 5,
+                              "maximum": 40
+                            },
+                            "opacity": {
+                              "type": "number",
+                              "minimum": 0.1,
+                              "maximum": 1
+                            },
+                            "marginPct": {
+                              "type": "number",
+                              "minimum": 0,
+                              "maximum": 15
+                            }
+                          },
+                          "required": [
+                            "show",
+                            "corner",
+                            "sizePct",
+                            "opacity",
+                            "marginPct"
+                          ]
+                        },
+                        "endCard": {
+                          "type": "object",
+                          "properties": {
+                            "enabled": {
+                              "type": "boolean"
+                            },
+                            "cta": {
+                              "type": "string",
+                              "maxLength": 60
+                            },
+                            "handle": {
+                              "type": "string",
+                              "maxLength": 40
+                            },
+                            "background": {
+                              "type": "string",
+                              "pattern": "^#[0-9a-fA-F]{6}$",
+                              "title": "HexColour"
+                            },
+                            "showLogo": {
+                              "type": "boolean"
+                            },
+                            "durationMs": {
+                              "type": "integer",
+                              "minimum": 2000,
+                              "maximum": 4000
+                            }
+                          },
+                          "required": [
+                            "enabled",
+                            "cta",
+                            "handle",
+                            "background",
+                            "showLogo",
+                            "durationMs"
+                          ]
+                        },
+                        "music": {
+                          "default": {
+                            "enabled": true,
+                            "level": "quiet"
+                          },
+                          "type": "object",
+                          "properties": {
+                            "enabled": {
+                              "type": "boolean"
+                            },
+                            "level": {
+                              "type": "string",
+                              "enum": [
+                                "quiet",
+                                "medium"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "enabled",
+                            "level"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "colors",
+                        "captions",
+                        "hookTitle",
+                        "logo",
+                        "endCard"
+                      ],
+                      "title": "BrandKitSettings"
+                    },
+                    "logo": {
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "assetId": {
+                          "type": "string"
+                        },
+                        "format": {
+                          "type": "string",
+                          "enum": [
+                            "png",
+                            "jpeg",
+                            "webp"
+                          ]
+                        },
+                        "contentType": {
+                          "type": "string",
+                          "enum": [
+                            "image/png",
+                            "image/jpeg",
+                            "image/webp"
+                          ]
+                        },
+                        "width": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "height": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "sizeBytes": {
+                          "nullable": true,
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "url": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "assetId",
+                        "format",
+                        "contentType",
+                        "width",
+                        "height",
+                        "sizeBytes",
+                        "url"
+                      ]
+                    },
+                    "music": {
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "assetId": {
+                          "type": "string"
+                        },
+                        "format": {
+                          "type": "string",
+                          "enum": [
+                            "mp3",
+                            "wav",
+                            "m4a"
+                          ]
+                        },
+                        "contentType": {
+                          "type": "string",
+                          "enum": [
+                            "audio/mpeg",
+                            "audio/wav",
+                            "audio/mp4"
+                          ]
+                        },
+                        "durationMs": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "sizeBytes": {
+                          "nullable": true,
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "title": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "url": {
+                          "type": "string"
+                        },
+                        "rightsAttestedAt": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "rightsAttestedBy": {
+                          "nullable": true,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "assetId",
+                        "format",
+                        "contentType",
+                        "durationMs",
+                        "sizeBytes",
+                        "title",
+                        "url",
+                        "rightsAttestedAt",
+                        "rightsAttestedBy"
+                      ]
+                    },
+                    "images": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    },
+                    "fontFamilies": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "limits": {
+                      "type": "object",
+                      "properties": {
+                        "logoMaxBytes": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "logoContentTypes": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "logoMinSide": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "logoMaxSide": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "ctaMax": {
+                          "type": "number",
+                          "enum": [
+                            60
+                          ]
+                        },
+                        "handleMax": {
+                          "type": "number",
+                          "enum": [
+                            40
+                          ]
+                        },
+                        "musicMaxBytes": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "musicContentTypes": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "musicMinDurationMs": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "musicMaxDurationMs": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "logoMaxBytes",
+                        "logoContentTypes",
+                        "logoMinSide",
+                        "logoMaxSide",
+                        "ctaMax",
+                        "handleMax",
+                        "musicMaxBytes",
+                        "musicContentTypes",
+                        "musicMinDurationMs",
+                        "musicMaxDurationMs"
+                      ]
+                    },
+                    "updatedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "exists",
+                    "settings",
+                    "logo",
+                    "music",
+                    "images",
+                    "fontFamilies",
+                    "limits",
+                    "updatedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Take the music off the brand kit",
+        "tags": [
+          "brand-kit"
+        ]
+      }
+    },
+    "/brand-kit/music/{assetId}/complete": {
+      "post": {
+        "description": "The bytes must open as the audio type they were uploaded as, 5 seconds to 10 minutes long; otherwise they are deleted and refused (422 `brand_kit/music_invalid` or `brand_kit/music_bad_length`). The rights confirmation is recorded with who gave it and when. 409 `brand_kit/music_not_uploaded` before the bytes arrive. Clips already made keep the music they were made with.",
+        "operationId": "completeBrandKitMusic",
+        "parameters": [
+          {
+            "name": "assetId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "contentType": {
+                    "type": "string",
+                    "enum": [
+                      "audio/mpeg",
+                      "audio/wav",
+                      "audio/mp4"
+                    ]
+                  },
+                  "rightsAttested": {
+                    "type": "boolean"
+                  },
+                  "title": {
+                    "type": "string",
+                    "maxLength": 120
+                  }
+                },
+                "required": [
+                  "contentType",
+                  "rightsAttested"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The kit with its new music.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "exists": {
+                      "type": "boolean"
+                    },
+                    "settings": {
+                      "type": "object",
+                      "properties": {
+                        "colors": {
+                          "type": "object",
+                          "properties": {
+                            "primary": {
+                              "type": "string",
+                              "pattern": "^#[0-9a-fA-F]{6}$",
+                              "title": "HexColour"
+                            },
+                            "secondary": {
+                              "type": "string",
+                              "pattern": "^#[0-9a-fA-F]{6}$",
+                              "title": "HexColour"
+                            },
+                            "text": {
+                              "type": "string",
+                              "pattern": "^#[0-9a-fA-F]{6}$",
+                              "title": "HexColour"
+                            }
+                          },
+                          "required": [
+                            "primary",
+                            "secondary",
+                            "text"
+                          ]
+                        },
+                        "captions": {
+                          "type": "object",
+                          "properties": {
+                            "fontFamily": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 120
+                            },
+                            "fill": {
+                              "type": "string",
+                              "pattern": "^#[0-9a-fA-F]{6}$",
+                              "title": "HexColour"
+                            },
+                            "highlight": {
+                              "type": "string",
+                              "pattern": "^#[0-9a-fA-F]{6}$",
+                              "title": "HexColour"
+                            },
+                            "stroke": {
+                              "type": "string",
+                              "pattern": "^#[0-9a-fA-F]{6}$",
+                              "title": "HexColour"
+                            }
+                          }
+                        },
+                        "hookTitle": {
+                          "type": "object",
+                          "properties": {
+                            "fontFamily": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 120
+                            },
+                            "background": {
+                              "type": "string",
+                              "pattern": "^#[0-9a-fA-F]{6}$",
+                              "title": "HexColour"
+                            },
+                            "text": {
+                              "type": "string",
+                              "pattern": "^#[0-9a-fA-F]{6}$",
+                              "title": "HexColour"
+                            }
+                          }
+                        },
+                        "logo": {
+                          "type": "object",
+                          "properties": {
+                            "show": {
+                              "type": "boolean"
+                            },
+                            "corner": {
+                              "type": "string",
+                              "enum": [
+                                "top-left",
+                                "top-right",
+                                "bottom-left",
+                                "bottom-right"
+                              ],
+                              "title": "OverlayCorner"
+                            },
+                            "sizePct": {
+                              "type": "number",
+                              "minimum": 5,
+                              "maximum": 40
+                            },
+                            "opacity": {
+                              "type": "number",
+                              "minimum": 0.1,
+                              "maximum": 1
+                            },
+                            "marginPct": {
+                              "type": "number",
+                              "minimum": 0,
+                              "maximum": 15
+                            }
+                          },
+                          "required": [
+                            "show",
+                            "corner",
+                            "sizePct",
+                            "opacity",
+                            "marginPct"
+                          ]
+                        },
+                        "endCard": {
+                          "type": "object",
+                          "properties": {
+                            "enabled": {
+                              "type": "boolean"
+                            },
+                            "cta": {
+                              "type": "string",
+                              "maxLength": 60
+                            },
+                            "handle": {
+                              "type": "string",
+                              "maxLength": 40
+                            },
+                            "background": {
+                              "type": "string",
+                              "pattern": "^#[0-9a-fA-F]{6}$",
+                              "title": "HexColour"
+                            },
+                            "showLogo": {
+                              "type": "boolean"
+                            },
+                            "durationMs": {
+                              "type": "integer",
+                              "minimum": 2000,
+                              "maximum": 4000
+                            }
+                          },
+                          "required": [
+                            "enabled",
+                            "cta",
+                            "handle",
+                            "background",
+                            "showLogo",
+                            "durationMs"
+                          ]
+                        },
+                        "music": {
+                          "default": {
+                            "enabled": true,
+                            "level": "quiet"
+                          },
+                          "type": "object",
+                          "properties": {
+                            "enabled": {
+                              "type": "boolean"
+                            },
+                            "level": {
+                              "type": "string",
+                              "enum": [
+                                "quiet",
+                                "medium"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "enabled",
+                            "level"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "colors",
+                        "captions",
+                        "hookTitle",
+                        "logo",
+                        "endCard"
+                      ],
+                      "title": "BrandKitSettings"
+                    },
+                    "logo": {
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "assetId": {
+                          "type": "string"
+                        },
+                        "format": {
+                          "type": "string",
+                          "enum": [
+                            "png",
+                            "jpeg",
+                            "webp"
+                          ]
+                        },
+                        "contentType": {
+                          "type": "string",
+                          "enum": [
+                            "image/png",
+                            "image/jpeg",
+                            "image/webp"
+                          ]
+                        },
+                        "width": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "height": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "sizeBytes": {
+                          "nullable": true,
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "url": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "assetId",
+                        "format",
+                        "contentType",
+                        "width",
+                        "height",
+                        "sizeBytes",
+                        "url"
+                      ]
+                    },
+                    "music": {
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "assetId": {
+                          "type": "string"
+                        },
+                        "format": {
+                          "type": "string",
+                          "enum": [
+                            "mp3",
+                            "wav",
+                            "m4a"
+                          ]
+                        },
+                        "contentType": {
+                          "type": "string",
+                          "enum": [
+                            "audio/mpeg",
+                            "audio/wav",
+                            "audio/mp4"
+                          ]
+                        },
+                        "durationMs": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "sizeBytes": {
+                          "nullable": true,
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "title": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "url": {
+                          "type": "string"
+                        },
+                        "rightsAttestedAt": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "rightsAttestedBy": {
+                          "nullable": true,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "assetId",
+                        "format",
+                        "contentType",
+                        "durationMs",
+                        "sizeBytes",
+                        "title",
+                        "url",
+                        "rightsAttestedAt",
+                        "rightsAttestedBy"
+                      ]
+                    },
+                    "images": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    },
+                    "fontFamilies": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "limits": {
+                      "type": "object",
+                      "properties": {
+                        "logoMaxBytes": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "logoContentTypes": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "logoMinSide": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "logoMaxSide": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "ctaMax": {
+                          "type": "number",
+                          "enum": [
+                            60
+                          ]
+                        },
+                        "handleMax": {
+                          "type": "number",
+                          "enum": [
+                            40
+                          ]
+                        },
+                        "musicMaxBytes": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "musicContentTypes": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "musicMinDurationMs": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "musicMaxDurationMs": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "logoMaxBytes",
+                        "logoContentTypes",
+                        "logoMinSide",
+                        "logoMaxSide",
+                        "ctaMax",
+                        "handleMax",
+                        "musicMaxBytes",
+                        "musicContentTypes",
+                        "musicMinDurationMs",
+                        "musicMaxDurationMs"
+                      ]
+                    },
+                    "updatedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "exists",
+                    "settings",
+                    "logo",
+                    "music",
+                    "images",
+                    "fontFamilies",
+                    "limits",
+                    "updatedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Make an uploaded track the kit's music",
         "tags": [
           "brand-kit"
         ]
@@ -26161,6 +27625,19 @@
                       },
                       "brand": {
                         "type": "boolean"
+                      },
+                      "audiogram": {
+                        "type": "object",
+                        "properties": {
+                          "coverAssetId": {
+                            "type": "string",
+                            "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                          }
+                        },
+                        "required": [
+                          "coverAssetId"
+                        ],
+                        "additionalProperties": false
                       }
                     },
                     "required": [
@@ -29801,6 +31278,196 @@
         ]
       }
     },
+    "/repurpose/covers": {
+      "post": {
+        "description": "For a run started from an audio file: its clips are drawn with this as their artwork. A presigned PUT; upload the bytes with the same `Content-Type`, then call `complete`. 413 `repurpose/cover_too_large`.",
+        "operationId": "createRepurposeCoverUpload",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "contentType": {
+                    "type": "string",
+                    "enum": [
+                      "image/png",
+                      "image/jpeg",
+                      "image/webp"
+                    ]
+                  },
+                  "sizeBytes": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "contentType",
+                  "sizeBytes"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Where to PUT the cover.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "assetId": {
+                      "type": "string"
+                    },
+                    "uploadUrl": {
+                      "type": "string"
+                    },
+                    "contentType": {
+                      "type": "string",
+                      "enum": [
+                        "image/png",
+                        "image/jpeg",
+                        "image/webp"
+                      ]
+                    },
+                    "expiresAt": {
+                      "type": "string"
+                    },
+                    "maxBytes": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "assetId",
+                    "uploadUrl",
+                    "contentType",
+                    "expiresAt",
+                    "maxBytes"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Start uploading a run's cover (PNG, JPEG or WebP, up to 10 MB)",
+        "tags": [
+          "repurpose"
+        ]
+      }
+    },
+    "/repurpose/covers/{assetId}/complete": {
+      "post": {
+        "description": "The bytes must open as the image type they were uploaded as, at 64 to 4096 pixels a side; otherwise they are deleted and refused (422 `repurpose/cover_invalid` or `repurpose/cover_bad_size`). 409 `repurpose/cover_not_uploaded` before they arrive. Idempotent.",
+        "operationId": "completeRepurposeCover",
+        "parameters": [
+          {
+            "name": "assetId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "contentType": {
+                    "type": "string",
+                    "enum": [
+                      "image/png",
+                      "image/jpeg",
+                      "image/webp"
+                    ]
+                  }
+                },
+                "required": [
+                  "contentType"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The cover, to start the run with.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "assetId": {
+                      "type": "string"
+                    },
+                    "format": {
+                      "type": "string",
+                      "enum": [
+                        "png",
+                        "jpeg",
+                        "webp"
+                      ]
+                    },
+                    "width": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "height": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "sizeBytes": {
+                      "nullable": true,
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "url": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "assetId",
+                    "format",
+                    "width",
+                    "height",
+                    "sizeBytes",
+                    "url"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Keep an uploaded cover",
+        "tags": [
+          "repurpose"
+        ]
+      }
+    },
     "/publishing/status": {
       "get": {
         "description": "Never an error: `enabled` false while the feature is off (the page shows no Post button), `available` false with a `reason` and one sentence when something is missing.",
@@ -30637,6 +32304,19 @@
                               },
                               "brand": {
                                 "type": "boolean"
+                              },
+                              "audiogram": {
+                                "type": "object",
+                                "properties": {
+                                  "coverAssetId": {
+                                    "type": "string",
+                                    "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                                  }
+                                },
+                                "required": [
+                                  "coverAssetId"
+                                ],
+                                "additionalProperties": false
                               }
                             },
                             "required": [
@@ -30949,6 +32629,19 @@
                       },
                       "brand": {
                         "type": "boolean"
+                      },
+                      "audiogram": {
+                        "type": "object",
+                        "properties": {
+                          "coverAssetId": {
+                            "type": "string",
+                            "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                          }
+                        },
+                        "required": [
+                          "coverAssetId"
+                        ],
+                        "additionalProperties": false
                       }
                     },
                     "required": [
@@ -31184,6 +32877,19 @@
                         },
                         "brand": {
                           "type": "boolean"
+                        },
+                        "audiogram": {
+                          "type": "object",
+                          "properties": {
+                            "coverAssetId": {
+                              "type": "string",
+                              "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                            }
+                          },
+                          "required": [
+                            "coverAssetId"
+                          ],
+                          "additionalProperties": false
                         }
                       },
                       "required": [
@@ -31533,6 +33239,19 @@
                         },
                         "brand": {
                           "type": "boolean"
+                        },
+                        "audiogram": {
+                          "type": "object",
+                          "properties": {
+                            "coverAssetId": {
+                              "type": "string",
+                              "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                            }
+                          },
+                          "required": [
+                            "coverAssetId"
+                          ],
+                          "additionalProperties": false
                         }
                       },
                       "required": [
@@ -31833,6 +33552,19 @@
                       },
                       "brand": {
                         "type": "boolean"
+                      },
+                      "audiogram": {
+                        "type": "object",
+                        "properties": {
+                          "coverAssetId": {
+                            "type": "string",
+                            "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                          }
+                        },
+                        "required": [
+                          "coverAssetId"
+                        ],
+                        "additionalProperties": false
                       }
                     },
                     "required": [
@@ -32054,6 +33786,19 @@
                         },
                         "brand": {
                           "type": "boolean"
+                        },
+                        "audiogram": {
+                          "type": "object",
+                          "properties": {
+                            "coverAssetId": {
+                              "type": "string",
+                              "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                            }
+                          },
+                          "required": [
+                            "coverAssetId"
+                          ],
+                          "additionalProperties": false
                         }
                       },
                       "required": [
@@ -32431,6 +34176,19 @@
                         },
                         "brand": {
                           "type": "boolean"
+                        },
+                        "audiogram": {
+                          "type": "object",
+                          "properties": {
+                            "coverAssetId": {
+                              "type": "string",
+                              "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                            }
+                          },
+                          "required": [
+                            "coverAssetId"
+                          ],
+                          "additionalProperties": false
                         }
                       },
                       "required": [
@@ -32781,6 +34539,19 @@
                         },
                         "brand": {
                           "type": "boolean"
+                        },
+                        "audiogram": {
+                          "type": "object",
+                          "properties": {
+                            "coverAssetId": {
+                              "type": "string",
+                              "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                            }
+                          },
+                          "required": [
+                            "coverAssetId"
+                          ],
+                          "additionalProperties": false
                         }
                       },
                       "required": [
@@ -33083,6 +34854,19 @@
                       },
                       "brand": {
                         "type": "boolean"
+                      },
+                      "audiogram": {
+                        "type": "object",
+                        "properties": {
+                          "coverAssetId": {
+                            "type": "string",
+                            "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                          }
+                        },
+                        "required": [
+                          "coverAssetId"
+                        ],
+                        "additionalProperties": false
                       }
                     },
                     "required": [
@@ -36507,6 +38291,17 @@
           "watermarkUrl": {
             "type": "string",
             "description": "15-minute signed GET for the watermark PNG (R2), when the manifest carries one."
+          },
+          "cleanedAudioUrl": {
+            "type": "string",
+            "description": "15-minute signed GET for the cleaned audio track (R2), when the manifest asks for it."
+          },
+          "cueUrls": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "15-minute signed GETs for every sound the manifest mixes in (its sfx cues and music beds, a workspace's own track among them), by the asset id its track names."
           }
         },
         "required": [

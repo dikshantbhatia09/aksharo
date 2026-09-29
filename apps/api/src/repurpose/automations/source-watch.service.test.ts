@@ -244,6 +244,8 @@ describe("the setup a watch accepts", () => {
       { ...SETUP, automation: "manual" },
       { ...SETUP, sourceLanguage: "" },
       { ...SETUP, caption: { styleId: "" } },
+      // 2026-10-04: a cover is for an audio file; a channel's videos have pictures.
+      { ...SETUP, audiogram: { coverAssetId: "01JC0VER000000000000000000" } },
     ]) {
       expect(watchSetupSchema.safeParse(bad).success, JSON.stringify(bad)).toBe(false);
     }
@@ -256,6 +258,12 @@ describe("the setup a watch accepts", () => {
       createRunSchema.shape.setup.safeParse({
         ...SETUP,
         discovery: { ...SETUP.discovery, mode: "manual", requestedCandidates: 0 },
+      }).success,
+    ).toBe(true);
+    expect(
+      createRunSchema.shape.setup.safeParse({
+        ...SETUP,
+        audiogram: { coverAssetId: "01JC0VER000000000000000000" },
       }).success,
     ).toBe(true);
   });

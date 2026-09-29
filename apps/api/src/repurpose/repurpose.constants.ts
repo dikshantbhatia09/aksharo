@@ -47,6 +47,8 @@ export const REPURPOSE_ERRORS = {
    * link run, or its download is running right now.
    */
   sourceNotReplaceable: "repurpose/source_not_replaceable",
+  /** 400 at create: `setup.audiogram.coverAssetId` is not a cover this workspace keeps. */
+  coverUnknown: "repurpose/cover_not_found",
 } as const;
 
 /**
@@ -506,7 +508,11 @@ export const RUN_PAGE_MAX = 50;
 // "3" (2026-09-26): framed on the speaking face (`reframe.centerX`) and cut at
 // up to 1080 x 1920 instead of a centre crop at 720 x 1280. A new version is
 // what makes an existing clip re-cut on its next request.
-export const CLIP_PROFILE_VERSION = "3";
+// "4" (2026-10-04): a source with no picture is cut with one drawn for it (an
+// audiogram, `audiogram.ts`) instead of none. A cut of a video is as it was;
+// the bump keeps a new cut from being deduplicated onto a picture-less one
+// still in flight, and lets an old audio-only clip be cut again on request.
+export const CLIP_PROFILE_VERSION = "4";
 
 /**
  * Below this much free disk, Autopilot holds a clip's other shapes and its

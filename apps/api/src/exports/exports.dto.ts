@@ -153,6 +153,21 @@ export class ExportSourcesDto {
     description: "15-minute signed GET for the watermark PNG (R2), when the manifest carries one.",
   })
   watermarkUrl?: string;
+
+  @ApiPropertyOptional({
+    description:
+      "15-minute signed GET for the cleaned audio track (R2), when the manifest asks for it.",
+  })
+  cleanedAudioUrl?: string;
+
+  @ApiPropertyOptional({
+    type: "object",
+    additionalProperties: { type: "string" },
+    description:
+      "15-minute signed GETs for every sound the manifest mixes in (its sfx cues and music " +
+      "beds, a workspace's own track among them), by the asset id its track names.",
+  })
+  cueUrls?: Record<string, string>;
 }
 
 export class ExportDecisionResponseDto {

@@ -5,6 +5,7 @@ import {
   brandEndCardOverlay,
   brandHookAppearance,
   brandLogoOverlay,
+  brandMusicPass,
   newId,
   stableOverlayId,
 } from "@montaj/edg";
@@ -20,6 +21,7 @@ import type {
 import { mergeOverrides } from "@montaj/render-core";
 import { fromAcceptedItems } from "@montaj/timemap";
 
+import { coverAssetIdOf, hasNoPicture } from "./audiogram.js";
 import { chooseEmphasis, normaliseWord } from "./keyword-emphasis.js";
 import { brandOf } from "./repurpose.constants.js";
 import { BrandKitService } from "../brand-kit/brand-kit.service.js";
@@ -67,6 +69,15 @@ import type { Prisma, RepurposeRun } from "@prisma/client";
  *    dresses the edit the steps above made. A run without it, or a workspace
  *    without a kit, gets exactly the clip it got before (`skipped`, `off` or
  *    `no-kit`).
+ * 6. **music** (2026-10-04) - the kit's own track under the clip, for the same
+ *    runs, when the kit has one and its music is on: one bed over the whole
+ *    clip (`brandMusicPass`), looped, faded, and ducked under speech by the
+ *    render. A clip that already has a bed - or one a person took off it - gets
+ *    none, so their choice stands.
+ *
+ * A clip of a source with no picture (an audiogram, 2026-10-04) is never
+ * zoomed: its picture is drawn, not filmed, and a punch-in only crops its
+ * artwork and its waveform.
  *
  * **Never a failure.** A step the plan does not include, the credits cannot
  * pay for, or that fails or runs too long is recorded as skipped and the next
@@ -100,7 +111,7 @@ const SAME_TIMELINE_MS = 100;
 const MIN_CUT_CONFIDENCE = 0.5;
 const MIN_RETAKE_CONFIDENCE = 0.75;
 
-export const FINISHING_STEPS = ["autocut", "emphasis", "zoom", "hook", "brand"] as const;
+export const FINISHING_STEPS = ["autocut", "emphasis", "zoom", "hook", "brand", "music"] as const;
 export type FinishingStep = (typeof FINISHING_STEPS)[number];
 
 export interface FinishingStepRecord {
@@ -371,6 +382,8 @@ export class ClipFinishing {
         return this.hook(context);
       case "brand":
         return this.brand(context);
+      case "music":
+        return this.music(context);
     }
   }
 
@@ -433,6 +446,8 @@ export class ClipFinishing {
     // Two people stacked (2026-10-01): a punch-in on one of them is a zoom into
     // the middle of the picture, and crops the other half away.
     if (variant.layout === "stacked") return skipped(context.now, "layout");
+    // An audiogram (2026-10-04): a drawn picture, and a punch-in only crops it.
+    if (await this.isAudiogram(context.run)) return skipped(context.now, "audiogram");
     if (!(await this.planIncludes(context.run.workspaceId, "reframeZoom"))) {
       return skipped(context.now, "plan");
     }
@@ -558,7 +573,11 @@ export class ClipFinishing {
     }
 
     const durationMs = primaryDurationOf(projection);
-    if (!overlays.some((overlay) => overlay.kind === "logo")) {
+    // An audiogram without a cover is drawn with the logo as its artwork
+    // (2026-10-04): the logo again in a corner would be the same mark twice.
+    const logoIsArtwork =
+      kit.logo !== undefined && coverAssetIdOf(run) === undefined && (await this.isAudiogram(run));
+    if (!logoIsArtwork && !overlays.some((overlay) => overlay.kind === "logo")) {
       const logo = brandLogoOverlay(kit.settings, kit.logo, stableOverlayId(`${variant.id}:logo`), {
         startMs: 0,
         endMs: durationMs,
@@ -586,6 +605,53 @@ export class ClipFinishing {
     if (ops.length === 0) return { state: "done", at: now.toISOString(), applied: 0 };
     const applied = await this.apply(variant.projectId, document.revision, ops);
     return { state: "done", at: now.toISOString(), applied };
+  }
+
+  /**
+   * The kit's own music (2026-10-04), for a run that asked for the kit and a
+   * kit whose music is on and has a track: one bed over the whole clip
+   * (`brandMusicPass`, merged as the worker merges any pass). Free: it only
+   * writes to the document. A document with a bed already - this one, or one a
+   * person took off the clip (a rejected item) - gets nothing more.
+   */
+  private async music(context: ShapeContext): Promise<StepResult> {
+    const { run, variant, now } = context;
+    if (!brandOf(run)) return skipped(now, "off");
+    const kits = this.brandKits;
+    if (kits === undefined) return skipped(now, "unavailable");
+    const kit = await kits.forClips(run.workspaceId);
+    if (kit === null) return skipped(now, "no-kit");
+    if (kit.music === undefined) return skipped(now, "no-music");
+    if (!kit.settings.music.enabled) return skipped(now, "music-off");
+    const document = await this.documentOf(variant.projectId);
+    if (document === undefined) return skipped(now, "no-document");
+    const items = document.projection.passes.flatMap((pass) => pass.items);
+    if (items.some((item) => item.kind === "music")) {
+      return { state: "done", at: now.toISOString(), applied: 0 };
+    }
+    const bed = brandMusicPass({
+      settings: kit.settings,
+      music: kit.music,
+      durationMs: primaryDurationOf(document.projection),
+      // The same on every ask, so a repeated one could only land the same bed.
+      passId: stableOverlayId(`${variant.id}:music-pass`),
+      itemId: stableOverlayId(`${variant.id}:music`),
+    });
+    if (bed === undefined) return skipped(now, "too-short");
+    const applied = await this.apply(variant.projectId, document.revision, [
+      { opId: newId(), type: "MergePass", pass: bed },
+    ]);
+    return { state: "done", at: now.toISOString(), applied };
+  }
+
+  /** Whether the run's source has no picture, so its clips are audiograms (2026-10-04). */
+  private async isAudiogram(run: RepurposeRun): Promise<boolean> {
+    const source = await this.prisma.mediaAsset.findFirst({
+      where: { projectId: run.sourceProjectId, role: "primary" },
+      orderBy: { createdAt: "desc" },
+      select: { width: true, height: true },
+    });
+    return source !== null && hasNoPicture(source);
   }
 
   // -------------------------------------------------------------------------

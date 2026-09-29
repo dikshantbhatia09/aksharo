@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "runId": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+  "candidateId": "01ARZ3NDEKTSV4RRFFQ69G5FAW",
+  "clipId": "01ARZ3NDEKTSV4RRFFQ69G5FAY",
+  "source": {
+    "bucket": "s3",
+    "key": "ws/01ARZ3NDEKTSV4RRFFQ69G5FB0/p/01ARZ3NDEKTSV4RRFFQ69G5FAX/media/01ARZ3NDEKTSV4RRFFQ69G5FB6/raw.mp3"
+  },
+  "sourceDurationMs": 1140000,
+  "startMs": 330000,
+  "endMs": 360000,
+  "handleMs": 500,
+  "destination": {
+    "bucket": "s3",
+    "key": "ws/01ARZ3NDEKTSV4RRFFQ69G5FB0/p/01ARZ3NDEKTSV4RRFFQ69G5FAX/repurpose/01ARZ3NDEKTSV4RRFFQ69G5FAV/clips/01ARZ3NDEKTSV4RRFFQ69G5FAW/master-4x5.mp4"
+  },
+  "profile": {
+    "container": "mp4",
+    "videoCodec": "h264",
+    "audioCodec": "aac",
+    "maxHeight": 1350
+  },
+  "reframe": {
+    "centerX": 0.5,
+    "basis": "centre"
+  },
+  "aspect": "4:5",
+  "audiogram": {
+    "background": "#141217",
+    "accent": "#f0508a",
+    "artwork": {
+      "key": "ws/01ARZ3NDEKTSV4RRFFQ69G5FB0/brand/01ARZ3NDEKTSV4RRFFQ69G5FC1.jpg",
+      "format": "jpeg"
+    }
+  },
+  "profileVersion": "4"
+}

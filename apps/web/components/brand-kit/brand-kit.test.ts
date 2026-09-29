@@ -4,7 +4,12 @@ import { DEFAULT_BRAND_KIT_SETTINGS, type BrandKitSettings, type PassItem } from
 
 import { editorEndCardOverlay, editorLogoOverlay, endCardTail } from "./brand-overlays";
 import { brandPreviewProjection, PREVIEW_DURATION_MS, previewMomentMs } from "./brand-preview";
-import { logoFileProblem } from "./use-brand-kit";
+import {
+  logoFileProblem,
+  musicContentTypeOf,
+  musicFileProblem,
+  musicTitleOf,
+} from "./use-brand-kit";
 
 import { SYSTEM_STYLE_MAP } from "@/components/editor/panels/system-styles";
 
@@ -114,5 +119,33 @@ describe("logoFileProblem", () => {
     expect(logoFileProblem({ type: "image/svg+xml", size: 100 })).toMatch(/PNG, JPEG or WebP/);
     expect(logoFileProblem({ type: "image/png", size: 2 * 1024 * 1024 + 1 })).toMatch(/2 MB/);
     expect(logoFileProblem({ type: "image/png", size: 0 })).toMatch(/empty/);
+  });
+});
+
+describe("the kit's music file (2026-10-04)", () => {
+  it("is uploaded as the one of three types its name says, whatever the browser called it", () => {
+    expect(musicContentTypeOf({ name: "a.MP3", type: "" })).toBe("audio/mpeg");
+    expect(musicContentTypeOf({ name: "a.wav", type: "audio/x-wav" })).toBe("audio/wav");
+    expect(musicContentTypeOf({ name: "a.m4a", type: "audio/x-m4a" })).toBe("audio/mp4");
+    expect(musicContentTypeOf({ name: "track", type: "audio/vnd.wave" })).toBe("audio/wav");
+    expect(musicContentTypeOf({ name: "a.flac", type: "audio/flac" })).toBeUndefined();
+    expect(musicContentTypeOf({ name: "a.mp4", type: "video/mp4" })).toBeUndefined();
+  });
+
+  it("is refused before anything is sent when it cannot be music", () => {
+    expect(musicFileProblem({ name: "a.mp3", type: "audio/mpeg", size: 1_000 })).toBeNull();
+    expect(musicFileProblem({ name: "a.ogg", type: "audio/ogg", size: 1_000 })).toMatch(
+      /MP3, WAV or M4A/,
+    );
+    expect(
+      musicFileProblem({ name: "a.wav", type: "audio/wav", size: 25 * 1024 * 1024 + 1 }),
+    ).toMatch(/at most 25 MB/);
+    expect(musicFileProblem({ name: "a.wav", type: "audio/wav", size: 0 })).toMatch(/empty/);
+  });
+
+  it("is named for the editor by its file name, without the extension", () => {
+    expect(musicTitleOf("Morning theme.mp3")).toBe("Morning theme");
+    expect(musicTitleOf(" loop ")).toBe("loop");
+    expect(musicTitleOf(`${"x".repeat(200)}.wav`)).toHaveLength(120);
   });
 });

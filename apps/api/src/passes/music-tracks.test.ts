@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   acceptedMusicAssetIds,
+  acceptedWorkspaceMusicAssetIds,
   resolveMusicTracks,
   type MusicCarryingItem,
 } from "./music-tracks.js";
@@ -109,5 +110,41 @@ describe("acceptedMusicAssetIds", () => {
       musicItem({ itemId: "e", kind: "sfx" }),
     ]);
     expect(ids.sort()).toEqual(["asset-1", "asset-2"]);
+  });
+});
+
+describe("a workspace's own music (2026-10-04)", () => {
+  const own = musicItem({
+    itemId: "item-own",
+    payload: { ...musicItem().payload, assetId: "track-1", packId: "workspace" },
+  });
+  const catalogue = musicItem();
+
+  it("asks the catalogue for catalogue beds only, and the workspace for its own", () => {
+    expect(acceptedMusicAssetIds([own, catalogue])).toEqual(["asset-1"]);
+    expect(acceptedWorkspaceMusicAssetIds([own, catalogue])).toEqual(["track-1"]);
+    expect(acceptedWorkspaceMusicAssetIds([{ ...own, state: "rejected" }])).toEqual([]);
+  });
+
+  it("resolves each bed only where it belongs, so neither stands in for the other", () => {
+    const tracks = resolveMusicTracks(
+      [own, catalogue],
+      // A catalogue row with the workspace track's id must not serve it...
+      new Map([
+        ["asset-1", "packs/fixture-pack-01/asset-1.wav"],
+        ["track-1", "packs/elsewhere/track-1.wav"],
+      ]),
+      // ...nor a workspace row the catalogue bed's.
+      new Map([
+        ["track-1", "ws/W/brand/track-1.mp3"],
+        ["asset-1", "ws/W/brand/asset-1.mp3"],
+      ]),
+    );
+    expect(tracks.map((track) => [track.assetId, track.storageKey])).toEqual([
+      ["track-1", "ws/W/brand/track-1.mp3"],
+      ["asset-1", "packs/fixture-pack-01/asset-1.wav"],
+    ]);
+    // Without its track, a workspace bed is left out.
+    expect(resolveMusicTracks([own], new Map([["track-1", "packs/x.wav"]]))).toEqual([]);
   });
 });

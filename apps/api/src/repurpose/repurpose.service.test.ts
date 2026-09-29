@@ -6,6 +6,7 @@ import { HighlightsPayloadSchema } from "@montaj/repurpose-contracts";
 
 import {
   LIST_RECONCILE_CONCURRENCY,
+  REPURPOSE_ERRORS,
   REPURPOSE_FLAGS,
   acquireTimeoutMs,
 } from "./repurpose.constants.js";
@@ -81,6 +82,8 @@ interface Options {
   activity?: { forRun: (...args: never[]) => Promise<unknown> };
   /** The workspace's region (discovery's language model is pinned to it). */
   region?: string;
+  /** Ids of the covers this workspace keeps (`brand_assets` of kind `cover`, 2026-10-04). */
+  covers?: readonly string[];
 }
 
 /** A RepurposeService over fakes, with the run held in memory like the table. */
@@ -163,6 +166,16 @@ function harness(options: Options = {}) {
     clipVariant: { count: vi.fn(async () => 0) },
     job: { findMany: vi.fn(async (): Promise<Array<{ id: string; type: string }>> => []) },
     workspace: { findUnique: vi.fn(async () => ({ region: options.region ?? "in" })) },
+    brandAsset: {
+      findFirst: vi.fn(
+        async (args: { where: { id: string; workspaceId: string; kind: string } }) =>
+          args.where.workspaceId === WS &&
+          args.where.kind === "cover" &&
+          (options.covers ?? []).includes(args.where.id)
+            ? { id: args.where.id }
+            : null,
+      ),
+    },
   };
 
   const jobs = {
@@ -1798,6 +1811,48 @@ describe("discovery reasons in the language the transcript turned out to be", ()
     expect(discoveryLanguage("auto", "hi")).toBe("hi");
     expect(discoveryLanguage(" ", undefined)).toBe("en");
     expect(discoveryLanguage(null, "en-IN")).toBe("en-IN");
+  });
+});
+
+describe("create — a cover for the audiograms (2026-10-04)", () => {
+  const COVER = "01JCC0VER00000000000000000";
+  const upload = (setup: Record<string, unknown> = {}): never =>
+    ({
+      source: {
+        kind: "upload",
+        filename: "episode-12.mp3",
+        mime: "audio/mpeg",
+        sizeBytes: 1_000,
+        issueUploadTicket: false,
+      },
+      setup: {
+        sourceLanguage: "auto",
+        caption: { styleId: "punch-pop" },
+        discovery: { mode: "ai", requestedCandidates: 5 },
+        ...setup,
+      },
+    }) as never;
+
+  it("freezes a cover this workspace uploaded with the run", async () => {
+    const h = harness({ covers: [COVER] });
+    await h.service.create(WS, USER, upload({ audiogram: { coverAssetId: COVER } }));
+    expect(createdRunData(h)["config"]).toMatchObject({ audiogram: { coverAssetId: COVER } });
+  });
+
+  it("starts a run without one exactly as before", async () => {
+    const h = harness();
+    await h.service.create(WS, USER, upload());
+    expect(createdRunData(h)["config"]).not.toHaveProperty("audiogram");
+    expect(h.prisma.brandAsset.findFirst).not.toHaveBeenCalled();
+  });
+
+  it("refuses a cover that is not this workspace's, before anything is made", async () => {
+    const h = harness({ covers: [] });
+    await expect(
+      h.service.create(WS, USER, upload({ audiogram: { coverAssetId: COVER } })),
+    ).rejects.toMatchObject({ code: REPURPOSE_ERRORS.coverUnknown, httpStatus: 400 });
+    expect(h.projects.create).not.toHaveBeenCalled();
+    expect(h.prisma.repurposeRun.create).not.toHaveBeenCalled();
   });
 });
 

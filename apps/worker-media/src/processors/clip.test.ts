@@ -8,6 +8,7 @@ import { join } from "node:path";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { audiogramLayout } from "./audiogram.js";
 import {
   MAX_CLIP_HEIGHT,
   STACK_FACE_ROW,
@@ -1119,7 +1120,140 @@ describe.skipIf(!CAN_RUN)("processClip", () => {
 
     expect(outcome.result["hasAudio"]).toBe(true);
     expect(hasVideoStream(kept)).toBe(false);
+    // No audiogram was asked for, so the result says nothing about a picture:
+    // an API from before audiograms would refuse the field.
+    expect(outcome.result).not.toHaveProperty("picture");
   }, 120_000);
+
+  describe("audiograms (2026-10-04)", () => {
+    const ARTWORK_KEY = `ws/${WS}/brand/01JCC0VER00000000000000000.png`;
+    let artwork = "";
+
+    beforeAll(() => {
+      artwork = join(dir, "cover.png");
+      generate([
+        "-y",
+        "-f",
+        "lavfi",
+        "-i",
+        "color=c=white:size=240x240",
+        "-frames:v",
+        "1",
+        artwork,
+      ]);
+    });
+
+    /** A store whose signed URLs are the source for its key and the artwork for its own. */
+    function storeWith(source: string, art: string, kept: string): FakeStore {
+      const store = fakeStore((key) => (key === ARTWORK_KEY ? art : source));
+      return {
+        ...store,
+        putFile: async (input) => {
+          await copyFile(input.file, kept);
+          return store.putFile(input);
+        },
+      };
+    }
+
+    const audiogram = {
+      background: "#141217",
+      accent: "#f1ece6",
+      artwork: { key: ARTWORK_KEY, format: "png" },
+    };
+
+    it("draws a picture at the shape's size for a source with none, and says so", async () => {
+      const kept = join(dir, "kept-audiogram.mp4");
+      const { context: ctx } = buildContext(
+        audioOnly,
+        { audiogram },
+        storeWith(audioOnly, artwork, kept),
+      );
+
+      const outcome = await processClip(ctx);
+
+      expect(outcome.result["picture"]).toBe("audiogram");
+      expect(outcome.result["hasAudio"]).toBe(true);
+      expect(dimensions(kept)).toEqual({ width: 1_080, height: 1_920 });
+      // The white artwork is in its square, above the waveform.
+      const layout = audiogramLayout({ width: 1_080, height: 1_920 }, { artwork: true });
+      const art = layout.artwork ?? { y: 0, height: 0 };
+      expect(
+        countInRows(lumaAt1s(kept), 1_080, art.y, art.y + art.height, 201, 255),
+      ).toBeGreaterThan(20_000);
+    }, 120_000);
+
+    it("draws each format at its own size", async () => {
+      const kept = join(dir, "kept-audiogram-wide.mp4");
+      const { context: ctx } = buildContext(
+        audioOnly,
+        {
+          audiogram,
+          aspect: "16:9",
+          profile: { container: "mp4", videoCodec: "h264", audioCodec: "aac", maxHeight: 1_080 },
+        },
+        storeWith(audioOnly, artwork, kept),
+      );
+
+      await processClip(ctx);
+
+      expect(dimensions(kept)).toEqual({ width: 1_920, height: 1_080 });
+    }, 120_000);
+
+    it("draws the waveform alone when the artwork cannot be read", async () => {
+      const kept = join(dir, "kept-audiogram-noart.mp4");
+      const { context: ctx } = buildContext(
+        audioOnly,
+        { audiogram },
+        storeWith(audioOnly, join(dir, "no-such-cover.png"), kept),
+      );
+
+      const outcome = await processClip(ctx);
+
+      expect(outcome.result["picture"]).toBe("audiogram");
+      expect(dimensions(kept)).toEqual({ width: 1_080, height: 1_920 });
+      // No white square: nothing light above the waveform, which is drawn on
+      // its own (larger, lower) where the artwork and its waveform would be.
+      const alone = audiogramLayout({ width: 1_080, height: 1_920 }, { artwork: false });
+      expect(countInRows(lumaAt1s(kept), 1_080, 0, alone.waveform.y, 201, 255)).toBe(0);
+    }, 120_000);
+
+    it("cuts a source's own picture when it turns out to have one, and says so", async () => {
+      const kept = join(dir, "kept-audiogram-video.mp4");
+      const { context: ctx } = buildContext(video, { audiogram }, storeWith(video, artwork, kept));
+
+      const outcome = await processClip(ctx);
+
+      expect(outcome.result["picture"]).toBe("source");
+      // The 720p source's own 9:16 window, not a drawn 1080 x 1920 picture.
+      expect(dimensions(kept)).toEqual({ width: 406, height: 720 });
+    }, 120_000);
+
+    it("refuses artwork from another workspace before reading anything", async () => {
+      const { context: ctx } = buildContext(audioOnly, {
+        audiogram: {
+          ...audiogram,
+          artwork: { key: "ws/01JCOTHERWS00000000000000/brand/x.png", format: "png" },
+        },
+      });
+
+      const error = await failureOf(ctx);
+
+      expect(error.code).toBe("media/unreadable");
+      expect(error.retryable).toBe(false);
+    });
+
+    it("refuses a payload naming a field this worker does not know, and is not retried", async () => {
+      const { context: ctx } = buildContext(audioOnly, {
+        ...({ sparkle: { on: true } } as Partial<ClipPayload>),
+      });
+
+      const error = await failureOf(ctx);
+
+      expect(error.code).toBe("worker/outdated");
+      expect(error.retryable).toBe(false);
+      expect(error.message).toContain("sparkle");
+    });
+  });
 
   it("caps the tail handle at the source's measured end, not the payload's claim", async () => {
     const { context: ctx } = buildContext(video, {

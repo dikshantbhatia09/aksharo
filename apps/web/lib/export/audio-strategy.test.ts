@@ -3,7 +3,12 @@ import { describe, expect, it } from "vitest";
 import type { RenderManifest, UnsignedRenderManifest } from "@montaj/render-manifest";
 import { signedFixtureManifest } from "@montaj/render-manifest/testing";
 
-import { decideAudioStrategy, isAudioUnmodified, timemapModifiesAudio } from "./audio-strategy";
+import {
+  decideAudioStrategy,
+  isAudioUnmodified,
+  mixesInCues,
+  timemapModifiesAudio,
+} from "./audio-strategy";
 
 type DeepPartial<T> = { [K in keyof T]?: T[K] extends object ? Partial<T[K]> : T[K] };
 
@@ -39,6 +44,50 @@ describe("timemapModifiesAudio / isAudioUnmodified", () => {
       audio: { strategy: "replace", cleanKey: "ws/x/clean.wav", codec: "aac", bitrateKbps: 192 },
     });
     expect(isAudioUnmodified(manifest)).toBe(false);
+  });
+});
+
+describe("a manifest that mixes sound in (2026-10-04)", () => {
+  const bed = {
+    itemId: "01JBED0000000000000000000A",
+    startMs: 0,
+    endMs: 10_000,
+    assetId: "01JTRACK000000000000000000",
+    packId: "workspace",
+    storageKey: "ws/x/brand/01JTRACK000000000000000000.mp3",
+    gainDb: -20,
+    loopPolicy: "loop" as const,
+    bedDuck: { depthDb: -10, attackMs: 250, releaseMs: 400 },
+    mood: [],
+  };
+
+  it("is modified even with no edits, so its music is encoded in rather than dropped", () => {
+    const manifest = manifestWith({
+      timemap: {
+        sourceDurationMs: 10_000,
+        edits: [],
+        snapCutsToFrames: false,
+        audio: { sfx: [], music: [bed] },
+      },
+    });
+    expect(mixesInCues(manifest)).toBe(true);
+    expect(isAudioUnmodified(manifest)).toBe(false);
+    expect(
+      decideAudioStrategy({ manifest, aacEncodable: true, aacPolyfillAvailable: true }),
+    ).toEqual({ kind: "encode", codec: "aac" });
+  });
+
+  it("is unmodified again with the arrays present but empty", () => {
+    const manifest = manifestWith({
+      timemap: {
+        sourceDurationMs: 10_000,
+        edits: [],
+        snapCutsToFrames: false,
+        audio: { sfx: [], music: [] },
+      },
+    });
+    expect(mixesInCues(manifest)).toBe(false);
+    expect(isAudioUnmodified(manifest)).toBe(true);
   });
 });
 

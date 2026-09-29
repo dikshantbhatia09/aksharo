@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import {
   HighlightsPayloadSchema,
   HighlightsResultSchema,
+  MEDIA_CLIP_PAYLOAD_FIELDS,
   MediaAcquirePayloadSchema,
   MediaAcquireResultSchema,
   MediaClipPayloadSchema,
@@ -214,6 +215,97 @@ describe("media.clip@1, two-speaker layouts (2026-10-01)", () => {
     expect(mediaClipJobKey(CANDIDATE, "0-1", "3")).toBe(mediaClipJobKey(CANDIDATE, "0-1", "3"));
     expect(layoutKeySuffix("stacked")).toBe(":stacked");
     expect(layoutKeySuffix("single")).toBe("");
+  });
+});
+
+describe("media.clip@1, audiograms (2026-10-04)", () => {
+  const payload = fixture("media-clip-payload-audiogram.v1.json");
+  const audiogram = payload["audiogram"] as Record<string, unknown>;
+
+  it("accepts a cut that draws a picture for a source with none, and its result", () => {
+    const parsed = MediaClipPayloadSchema.parse(payload);
+    expect(parsed.audiogram).toEqual({
+      background: "#141217",
+      accent: "#f0508a",
+      artwork: {
+        key: "ws/01ARZ3NDEKTSV4RRFFQ69G5FB0/brand/01ARZ3NDEKTSV4RRFFQ69G5FC1.jpg",
+        format: "jpeg",
+      },
+    });
+    // Without artwork: a waveform on the ground alone.
+    const { artwork: _artwork, ...bare } = audiogram;
+    expect(MediaClipPayloadSchema.safeParse({ ...payload, audiogram: bare }).success).toBe(true);
+
+    const result = MediaClipResultSchema.parse(fixture("media-clip-result-audiogram.v1.json"));
+    expect(result.picture).toBe("audiogram");
+    expect(MediaClipResultSchema.safeParse({ ...result, picture: "source" }).success).toBe(true);
+  });
+
+  it("still accepts every payload and result from before: no audiogram, no picture", () => {
+    const { audiogram: _dropped, ...before } = payload;
+    expect(MediaClipPayloadSchema.safeParse(before).success).toBe(true);
+    expect(
+      MediaClipResultSchema.parse(fixture("media-clip-result.v1.json")).picture,
+    ).toBeUndefined();
+  });
+
+  it("refuses a colour that is not #RRGGBB, since it reaches a filtergraph", () => {
+    for (const colour of ["red", "#fff", "#12345G", "#123456;drawbox", "0x141217", ""]) {
+      expect(
+        MediaClipPayloadSchema.safeParse({
+          ...payload,
+          audiogram: { ...audiogram, background: colour },
+        }).success,
+        colour,
+      ).toBe(false);
+      expect(
+        MediaClipPayloadSchema.safeParse({
+          ...payload,
+          audiogram: { ...audiogram, accent: colour },
+        }).success,
+        colour,
+      ).toBe(false);
+    }
+  });
+
+  it("refuses artwork from another workspace, a traversal, or a type it cannot draw", () => {
+    const artwork = audiogram["artwork"] as Record<string, unknown>;
+    for (const broken of [
+      { ...artwork, key: "ws/01ARZ3NDEKTSV4RRFFQ69G5FZZ/brand/01ARZ3NDEKTSV4RRFFQ69G5FC1.jpg" },
+      { ...artwork, key: "ws/01ARZ3NDEKTSV4RRFFQ69G5FB0/../../x.jpg" },
+      { ...artwork, key: "https://example.test/cover.jpg" },
+      { ...artwork, format: "gif" },
+      { ...artwork, extra: true },
+    ]) {
+      expect(
+        MediaClipPayloadSchema.safeParse({
+          ...payload,
+          audiogram: { ...audiogram, artwork: broken },
+        }).success,
+        JSON.stringify(broken),
+      ).toBe(false);
+    }
+  });
+
+  it("refuses a stacked audiogram and an unknown audiogram field", () => {
+    const stacked = fixture("media-clip-payload-stacked.v1.json");
+    expect(
+      MediaClipPayloadSchema.safeParse({
+        ...stacked,
+        audiogram: { ...audiogram, artwork: undefined },
+      }).success,
+    ).toBe(false);
+    expect(
+      MediaClipPayloadSchema.safeParse({ ...payload, audiogram: { ...audiogram, style: "bars" } })
+        .success,
+    ).toBe(false);
+  });
+
+  it("lists exactly the payload's fields, for the worker's restatement to be held to", () => {
+    expect([...MEDIA_CLIP_PAYLOAD_FIELDS].sort()).toEqual([...MEDIA_CLIP_PAYLOAD_FIELDS]);
+    expect(Object.keys(MediaClipPayloadSchema.shape).sort()).toEqual([
+      ...MEDIA_CLIP_PAYLOAD_FIELDS,
+    ]);
   });
 });
 

@@ -520,3 +520,47 @@ describe("run view DTO — the step a run is on (2026-09-29)", () => {
     ).toBe(false);
   });
 });
+
+describe("create-run DTO — a cover for the audiograms (2026-10-04)", () => {
+  const body = (setup: Record<string, unknown>) => ({
+    source: {
+      kind: "upload",
+      filename: "episode-12.mp3",
+      mime: "audio/mpeg",
+      sizeBytes: 1_000,
+      issueUploadTicket: false,
+    },
+    setup: {
+      sourceLanguage: "auto",
+      caption: { outputLanguage: "same", scriptMode: "auto", styleId: "punch-pop" },
+      discovery: { mode: "ai", requestedCandidates: 5 },
+      ...setup,
+    },
+  });
+
+  it("takes a cover's asset id, and runs without one as before", () => {
+    const withCover = createRunSchema.safeParse(
+      body({ audiogram: { coverAssetId: "01JCC0VER00000000000000000" } }),
+    );
+    expect(withCover.success).toBe(true);
+    expect(withCover.data?.setup.audiogram).toEqual({ coverAssetId: "01JCC0VER00000000000000000" });
+    const without = createRunSchema.safeParse(body({}));
+    expect(without.success).toBe(true);
+    expect(without.data?.setup).not.toHaveProperty("audiogram");
+  });
+
+  it("refuses anything but an asset id there", () => {
+    for (const audiogram of [
+      { coverAssetId: "../../cover.png" },
+      { coverAssetId: "https://example.test/cover.png" },
+      { coverAssetId: "01JCC0VER00000000000000000", background: "#000000" },
+      {},
+      "cover",
+    ]) {
+      expect(
+        createRunSchema.safeParse(body({ audiogram })).success,
+        JSON.stringify(audiogram),
+      ).toBe(false);
+    }
+  });
+});

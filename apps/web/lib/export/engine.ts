@@ -95,6 +95,7 @@ import type { TimeMap } from "@montaj/timemap";
 import {
   mixMusicCuesIntoChunk,
   mixSfxCuesIntoChunk,
+  outputSpeechRanges,
   speechRangesFromWords,
   type MusicMixCue,
   type SfxMixCue,
@@ -494,9 +495,11 @@ export async function runExport(options: RunExportOptions): Promise<EngineResult
   // Where speech actually is, on the source clock — the one duck curves (D04a) need.
   // `timemap` remaps the *cues*; the words the ranges are computed from are already on the
   // source clock.
-  const speechRanges = speechRangesFromWords(
-    options.projection.words,
-    manifest.timemap.sourceDurationMs,
+  // Moved onto the output clock the ducks run on (2026-10-04): the words were
+  // timed on the source's, and a cut moves everything after it.
+  const speechRanges = outputSpeechRanges(
+    speechRangesFromWords(options.projection.words, manifest.timemap.sourceDurationMs),
+    timemap,
   );
 
   const projection = applyManifestWatermark(options.projection, manifest);

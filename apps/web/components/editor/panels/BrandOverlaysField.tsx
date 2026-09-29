@@ -6,6 +6,10 @@
  * clip (one undo away, like any edit); on puts the workspace's kit's back, as
  * the kit has it now. Where they sit is render-core's call — off the captions,
  * the logo in the kit's corner — so there is nothing here to place.
+ *
+ * The kit's music (2026-10-04), when Autopilot laid it under this clip: a
+ * switch too. Off takes the bed off the clip (the bed stays in the document,
+ * turned down, so on puts the same one back); the exports then have no music.
  */
 
 import NextLink from "next/link";
@@ -21,6 +25,15 @@ export interface BrandOverlaysFieldProps {
   readonly endCardAvailable: boolean;
   readonly onLogo: (on: boolean) => void;
   readonly onEndCard: (on: boolean) => void;
+  /**
+   * The kit's music under this clip (2026-10-04), when it has a bed: whether
+   * it plays, and the track's name. Absent for a clip that never had one.
+   */
+  readonly music?: {
+    readonly on: boolean;
+    readonly title: string | null;
+    readonly onMusic: (on: boolean) => void;
+  };
 }
 
 function Toggle({
@@ -69,6 +82,7 @@ export function BrandOverlaysField({
   endCardAvailable,
   onLogo,
   onEndCard,
+  music,
 }: BrandOverlaysFieldProps): React.JSX.Element {
   return (
     <div className="flex flex-col pb-3" data-testid="brand-overlays-field">
@@ -96,6 +110,20 @@ export function BrandOverlaysField({
         disabled={!endCardOn && !endCardAvailable}
         onChange={onEndCard}
       />
+      {music === undefined ? null : (
+        <Toggle
+          id="brand-overlay-music"
+          label="Music"
+          hint={
+            music.on
+              ? `${music.title === null ? "Your music" : `“${music.title}”`} under the speech, quieter while anyone talks.`
+              : "Taken off this clip. Turn it on to put it back."
+          }
+          checked={music.on}
+          disabled={false}
+          onChange={music.onMusic}
+        />
+      )}
       {logoAvailable && endCardAvailable ? null : (
         <NextLink
           href="/settings/brand-kit"

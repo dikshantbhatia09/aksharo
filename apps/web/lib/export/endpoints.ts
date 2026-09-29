@@ -82,6 +82,12 @@ export interface ExportSources {
   readonly watermarkUrl?: string;
   /** B10: signed GET for the ai.clean output, present when `audio.strategy === "replace"`. */
   readonly cleanedAudioUrl?: string;
+  /**
+   * Signed GETs for every sound the manifest mixes in - its sfx cues and music
+   * beds, a brand kit's own track among them (2026-10-04) - by the asset id its
+   * track names: what `fetchCueAsset` reads.
+   */
+  readonly cueUrls?: Readonly<Record<string, string>>;
 }
 
 export interface CreateExportResponse {

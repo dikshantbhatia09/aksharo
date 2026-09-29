@@ -18,6 +18,13 @@
  *
  * A caption colour or typeface the kit leaves empty is the caption style's own,
  * so an empty kit changes nothing about the captions.
+ *
+ * **Music** (2026-10-04): a kit may carry the workspace's own track (uploaded
+ * with a "I have the rights to use this music" confirmation), which Autopilot
+ * lays under a clip as an accepted `music` pass item - D05's structure, so the
+ * cloud render and the browser export mix it as they would any bed: faded in
+ * and out, and ducked under speech ({@link brandMusicPass}). `music` here is
+ * only whether to use it and how loud.
  */
 
 import { z } from "zod";
@@ -35,6 +42,8 @@ import {
   type OverlayImage,
 } from "./schemas/document.js";
 
+import type { MusicPassItem, Pass, PassItem } from "./schemas/pass.js";
+
 /** The kit's stored shape generation (`brand_kits.doc.v`). */
 export const BRAND_KIT_VERSION = 1;
 
@@ -43,6 +52,42 @@ export const END_CARD_DURATION_MS = { min: 2_000, max: 4_000, default: 3_000 } a
 
 /** A typeface name; the API checks it against the bundled catalogue. */
 const FontFamilySchema = z.string().trim().min(1).max(120);
+
+/**
+ * How loud the workspace's music sits under a clip (2026-10-04): the bed's own
+ * gain where nobody speaks. Under speech it is pulled down a further
+ * {@link BRAND_MUSIC_DUCK} on top. `quiet` is a bed you notice in the pauses;
+ * `medium` one you hear throughout.
+ */
+export const BRAND_MUSIC_LEVELS = { quiet: -20, medium: -14 } as const;
+export type BrandMusicLevel = keyof typeof BRAND_MUSIC_LEVELS;
+
+/**
+ * The bed's duck under speech: 10 dB down, ramped over a quarter of a second
+ * either side (the render and the browser export both read `attackMs` as the
+ * ramp), so a word never has music fighting it.
+ */
+export const BRAND_MUSIC_DUCK = { depthDb: -10, attackMs: 250, releaseMs: 400 } as const;
+
+/**
+ * The `packId` of a workspace's own track (2026-10-04): its `assetId` is a
+ * `brand_assets` row of that workspace, not a row of the licensed catalogue
+ * (`audio_assets`), and it resolves only there.
+ */
+export const WORKSPACE_MUSIC_PACK_ID = "workspace";
+
+/** Whether to put the workspace's music under Autopilot's clips, and how loud. */
+export const BrandMusicSettingsSchema = z.object({
+  enabled: z.boolean(),
+  level: z.enum(["quiet", "medium"]),
+});
+export type BrandMusicSettings = z.infer<typeof BrandMusicSettingsSchema>;
+
+/** A kit that has never said: on, quiet - it does nothing until a track is uploaded. */
+export const DEFAULT_BRAND_MUSIC: BrandMusicSettings = Object.freeze({
+  enabled: true,
+  level: "quiet",
+}) as BrandMusicSettings;
 
 export const BrandKitSettingsSchema = z
   .object({
@@ -81,6 +126,12 @@ export const BrandKitSettingsSchema = z
       showLogo: z.boolean(),
       durationMs: z.number().int().min(END_CARD_DURATION_MS.min).max(END_CARD_DURATION_MS.max),
     }),
+    /**
+     * The workspace's own music under the clips (2026-10-04). Optional on the
+     * way in, so a kit saved by a page from before it still saves; read, it
+     * always has a value.
+     */
+    music: BrandMusicSettingsSchema.default(DEFAULT_BRAND_MUSIC),
   })
   // A title, no registry `id`: see `HexColourSchema`.
   .meta({ title: "BrandKitSettings" });
@@ -101,6 +152,7 @@ export const DEFAULT_BRAND_KIT_SETTINGS: BrandKitSettings = Object.freeze({
     showLogo: true,
     durationMs: END_CARD_DURATION_MS.default,
   },
+  music: DEFAULT_BRAND_MUSIC,
 }) as BrandKitSettings;
 
 /**
@@ -119,6 +171,7 @@ export function brandKitSettingsOf(doc: unknown): BrandKitSettings {
     hookTitle: objectOf(record["hookTitle"]),
     logo: { ...DEFAULT_BRAND_KIT_SETTINGS.logo, ...objectOf(record["logo"]) },
     endCard: { ...DEFAULT_BRAND_KIT_SETTINGS.endCard, ...objectOf(record["endCard"]) },
+    music: { ...DEFAULT_BRAND_KIT_SETTINGS.music, ...objectOf(record["music"]) },
   };
   const parsed = BrandKitSettingsSchema.safeParse(merged);
   return parsed.success ? parsed.data : DEFAULT_BRAND_KIT_SETTINGS;
@@ -276,6 +329,86 @@ export function brandEndCardOverlay(
     ...(fontFamily === undefined ? {} : { fontFamily }),
     ...(logo === undefined ? {} : { image: logo }),
   };
+}
+
+/** The workspace's track, as a bed names it (`brand_assets` of kind `music`). */
+export interface BrandMusicTrack {
+  readonly assetId: string;
+  /** Who confirmed they have the rights to use it, and when (ISO-8601). */
+  readonly rightsAttestedBy: string | null;
+  readonly rightsAttestedAt: string;
+  /** The file's name, for the editor's row; display only. */
+  readonly title?: string;
+}
+
+/**
+ * The music bed a kit puts under a clip (2026-10-04): one `music` pass with
+ * one accepted item over the whole clip, `durationMs` long on the clip's own
+ * clock, or `undefined` when the kit's music is off or the clip has no length.
+ *
+ * - **Looped** (`loopPolicy: "loop"`): a track shorter than the clip repeats,
+ *   and the bed plays straight through the finished video rather than being
+ *   cut with it (the renderers read a looped bed on the output clock).
+ * - **Faded** in over 300 ms and out over 800 ms at its ends (D05's constants,
+ *   applied at mix time), and **ducked** by {@link BRAND_MUSIC_DUCK} under
+ *   speech.
+ * - **Accepted**, so it plays; the editor's switch rejects it to take it off
+ *   the clip, and accepts it again to put it back.
+ *
+ * The licence snapshot records whose music it is and who confirmed the right
+ * to use it, as a catalogue bed records its licence.
+ */
+export function brandMusicPass(input: {
+  readonly settings: BrandKitSettings;
+  readonly music: BrandMusicTrack;
+  readonly durationMs: number;
+  /** ULID-shaped and the same on every ask ({@link stableOverlayId}). */
+  readonly passId: string;
+  readonly itemId: string;
+}): Pass | undefined {
+  const { settings, music, durationMs } = input;
+  if (!settings.music.enabled || durationMs <= 0) return undefined;
+  const durationWhole = Math.round(durationMs);
+  const licenceSnapshot = {
+    source: "workspace",
+    rightsAttestedAt: music.rightsAttestedAt,
+    rightsAttestedBy: music.rightsAttestedBy,
+    ...(music.title === undefined ? {} : { title: music.title }),
+  };
+  const item: MusicPassItem = {
+    itemId: input.itemId,
+    passId: input.passId,
+    kind: "music",
+    startMs: 0,
+    endMs: durationWhole,
+    state: "accepted",
+    reason: "Your brand kit's music",
+    licenceSnapshot,
+    payload: {
+      assetId: music.assetId,
+      packId: WORKSPACE_MUSIC_PACK_ID,
+      startMs: 0,
+      durationMs: durationWhole,
+      gainDb: BRAND_MUSIC_LEVELS[settings.music.level],
+      loopPolicy: "loop",
+      bedDuck: { ...BRAND_MUSIC_DUCK },
+      licenceSnapshot,
+      mood: [],
+    },
+  };
+  return {
+    passId: input.passId,
+    type: "music",
+    engine: "brand-music@1",
+    params: { level: settings.music.level },
+    status: "ready",
+    items: [item],
+  };
+}
+
+/** Whether `item` is a workspace's own music bed (not a catalogue one). */
+export function isWorkspaceMusicItem(item: PassItem): item is MusicPassItem {
+  return item.kind === "music" && item.payload.packId === WORKSPACE_MUSIC_PACK_ID;
 }
 
 const CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";

@@ -67,6 +67,48 @@ export interface TranscriptWordLike {
   readonly deleted?: boolean;
 }
 
+/**
+ * Speech ranges on the **source** clock (words are timed there) moved onto the
+ * **output** clock, which is the clock every duck curve is evaluated on: a
+ * cue's and a bed's `volume` expression reads ffmpeg's `t` after the `adelay`
+ * that places them on the finished timeline (2026-10-04).
+ *
+ * Until this, the source-clock ranges were handed to the duck as they were,
+ * which is right only for an unedited render: after a cut every duck landed as
+ * late as the cuts before it were long - on an Autopilot clip, whose silences
+ * are cut out, a bed was ducked in the pauses and loud under the words. A
+ * range a cut runs through becomes the pieces that remain; pieces that touch
+ * on the output clock are one range again.
+ */
+export function outputSpeechRanges(
+  ranges: readonly SpeechRange[],
+  timemap: TimeQuery | null,
+): SpeechRange[] {
+  if (timemap === null) return ranges.map((range) => ({ ...range }));
+  const pieces: SpeechRange[] = [];
+  for (const range of ranges) {
+    for (const piece of timemap.mapRange(range.startMs, range.endMs)) {
+      if (piece.outputEnd > piece.outputStart) {
+        pieces.push({ startMs: piece.outputStart, endMs: piece.outputEnd });
+      }
+    }
+  }
+  pieces.sort((a, b) => a.startMs - b.startMs);
+  const merged: SpeechRange[] = [];
+  for (const piece of pieces) {
+    const last = merged.at(-1);
+    if (last !== undefined && piece.startMs <= last.endMs + 0.5) {
+      merged[merged.length - 1] = {
+        startMs: last.startMs,
+        endMs: Math.max(last.endMs, piece.endMs),
+      };
+    } else {
+      merged.push(piece);
+    }
+  }
+  return merged;
+}
+
 /** Where speech actually is, approximated from live (non-deleted) word timing. */
 export function speechRangesFromWords(
   words: readonly TranscriptWordLike[],
@@ -218,6 +260,15 @@ export const MUSIC_FADE_OUT_MS = 800;
  * accounts for the bed running under edited material), so this builds one
  * piece per `mapRange` result but only the piece touching the bed's own real
  * edge gets that edge's fade — the same rule `buildCueFilters` uses.
+ *
+ * **A looped bed plays straight through (2026-10-04).** It has no natural
+ * offset into its asset, and it used to restart from the top of the asset at
+ * every retained piece: under an Autopilot clip, whose silences are cut out,
+ * a brand kit's track began again every few seconds. A `loop` bed is now one
+ * chain on the output clock, from where its first retained piece starts to
+ * where its last ends, looping its asset as often as that takes and faded at
+ * those two edges. `none`/`trim` beds are cut with the video as before.
+ * `speechRanges` are on the output clock ({@link outputSpeechRanges}).
  */
 export function buildMusicFilters(
   music: MusicMixCue,
@@ -225,6 +276,9 @@ export function buildMusicFilters(
   timemap: TimeQuery | null,
   speechRanges: readonly SpeechRange[],
 ): { readonly filters: string[]; readonly labels: string[] } {
+  if (music.loopPolicy === "loop") {
+    return buildLoopedBedFilters(music, inputIndex, timemap, speechRanges);
+  }
   const pieces = piecesFor(music.startMs, music.endMs, timemap);
   const filters: string[] = [];
   const labels: string[] = [];
@@ -293,6 +347,49 @@ export function buildMusicFilters(
   return { filters, labels };
 }
 
+/**
+ * A `loop` bed ({@link buildMusicFilters}): one chain on the output clock over
+ * the span its retained pieces cover, the asset looped when it is shorter.
+ */
+function buildLoopedBedFilters(
+  music: MusicMixCue,
+  inputIndex: number,
+  timemap: TimeQuery | null,
+  speechRanges: readonly SpeechRange[],
+): { readonly filters: string[]; readonly labels: string[] } {
+  const pieces = piecesFor(music.startMs, music.endMs, timemap).filter(
+    (piece) => piece.outputEnd > piece.outputStart,
+  );
+  const first = pieces[0];
+  if (first === undefined) return { filters: [], labels: [] };
+  const outputStartMs = Math.min(...pieces.map((piece) => piece.outputStart));
+  const outputEndMs = Math.max(...pieces.map((piece) => piece.outputEnd));
+  const lengthMs = outputEndMs - outputStartMs;
+  const label = `music${String(inputIndex)}_0`;
+
+  const steps: string[] = [];
+  if (music.assetDurationMs < lengthMs) steps.push("aloop=loop=-1:size=2147483647");
+  steps.push(`atrim=start=0:end=${seconds(lengthMs)}`, "asetpts=PTS-STARTPTS");
+  const gainLinear = dbToLinear(music.gainDb);
+  if (gainLinear !== 1) steps.push(`volume=${gainLinear.toFixed(6)}`);
+  steps.push(`afade=type=in:start_time=0:duration=${seconds(MUSIC_FADE_IN_MS)}`);
+  steps.push(
+    `afade=type=out:start_time=${seconds(Math.max(0, lengthMs - MUSIC_FADE_OUT_MS))}:duration=${seconds(MUSIC_FADE_OUT_MS)}`,
+  );
+  const delayMs = Math.max(0, Math.round(outputStartMs));
+  steps.push(`adelay=${String(delayMs)}|${String(delayMs)}`);
+  if (music.bedDuck !== null && speechRanges.length > 0) {
+    steps.push(`asetnsamples=n=${String(DUCK_FRAME_SAMPLES)}:p=0`);
+    steps.push(
+      buildSfxDuckAudioFilter(speechRanges, {
+        duckDb: music.bedDuck.depthDb,
+        rampMs: music.bedDuck.attackMs,
+      }),
+    );
+  }
+  return { filters: [`[${String(inputIndex)}:a]${steps.join(",")}[${label}]`], labels: [label] };
+}
+
 export interface AudioMixPlan {
   /** Extra `-i` args, in the order their input indices were assigned. */
   readonly extraInputArgs: readonly string[];
@@ -328,10 +425,12 @@ export function buildAudioMixPlan(input: {
   const filters: string[] = [];
   const mixLabels: string[] = [];
   let inputIndex = input.nextInputIndex;
+  // The ducks are evaluated on the output clock; the words were timed on the source's.
+  const speech = outputSpeechRanges(input.speechRanges, input.timemap);
 
   for (const cue of input.sfxCues) {
     extraInputArgs.push("-i", cue.localPath);
-    const built = buildCueFilters(cue, inputIndex, input.timemap, input.speechRanges);
+    const built = buildCueFilters(cue, inputIndex, input.timemap, speech);
     filters.push(...built.filters);
     mixLabels.push(...built.labels);
     inputIndex += 1;
@@ -339,7 +438,7 @@ export function buildAudioMixPlan(input: {
 
   for (const music of input.musicCues) {
     extraInputArgs.push("-i", music.localPath);
-    const built = buildMusicFilters(music, inputIndex, input.timemap, input.speechRanges);
+    const built = buildMusicFilters(music, inputIndex, input.timemap, speech);
     filters.push(...built.filters);
     mixLabels.push(...built.labels);
     inputIndex += 1;

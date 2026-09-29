@@ -44,4 +44,29 @@ describe("<BrandOverlaysField />", () => {
       "/settings/brand-kit",
     );
   });
+
+  it("takes the kit's music off the clip and puts it back (2026-10-04)", async () => {
+    const user = userEvent.setup();
+    const onMusic = vi.fn();
+    const view = render(
+      <BrandOverlaysField {...props({ music: { on: true, title: "Morning theme", onMusic } })} />,
+    );
+    expect(
+      view.getByText("“Morning theme” under the speech, quieter while anyone talks."),
+    ).toBeInTheDocument();
+    await user.click(view.getByTestId("brand-overlay-music"));
+    expect(onMusic).toHaveBeenCalledWith(false);
+
+    view.rerender(
+      <BrandOverlaysField {...props({ music: { on: false, title: null, onMusic } })} />,
+    );
+    expect(view.getByTestId("brand-overlay-music")).not.toBeChecked();
+    await user.click(view.getByTestId("brand-overlay-music"));
+    expect(onMusic).toHaveBeenLastCalledWith(true);
+  });
+
+  it("has no music switch for a clip that never had music", () => {
+    render(<BrandOverlaysField {...props()} />);
+    expect(screen.queryByTestId("brand-overlay-music")).toBeNull();
+  });
 });
