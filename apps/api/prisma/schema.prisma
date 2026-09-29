@@ -912,6 +912,7 @@ model Workspace {
   channelConnections  ChannelConnection[]
   publishBatches      PublishBatch[]
   publishTargets      PublishTarget[]
+  sourceWatches       SourceWatch[]
 
   @@index([ownerId])
   @@index([billingCountry])
@@ -3647,6 +3648,8 @@ model RepurposeRun {
   reviewBundles  ReviewBundle[]
   publishBatches PublishBatch[]
   notices        RepurposeRunNotice[]
+  /// The channel upload that started this run, when an automation did (2026-10-02).
+  watchVideos    SourceWatchVideo[]
 
   @@index([workspaceId])
   @@index([workspaceId, createdAt])
@@ -3671,6 +3674,114 @@ model RepurposeRunNotice {
 
   @@id([runId, kind])
   @@map("repurpose_run_notices")
+}
+
+/// What an automation watches (2026-10-02, `repurpose/watches`). One kind today.
+enum SourceWatchKind {
+  youtube_channel
+}
+
+/// `active` is checked on its schedule; `paused` is not, until a person resumes
+/// it (they paused it, or it paused itself for something they can fix, such as
+/// credits); `error` is a channel that has gone, also resumed by a person.
+enum SourceWatchState {
+  active
+  paused
+  error
+}
+
+/// Where one upload a watch has seen stands. `starting` is a claim: the poll
+/// that holds it is creating the run right now.
+enum SourceWatchVideoState {
+  pending
+  starting
+  started
+  skipped
+  failed
+}
+
+/// Set-and-forget clips (2026-10-02, `repurpose/watches`): a YouTube channel whose
+/// new uploads each start an Autopilot run with the saved setup, as the person who
+/// connected it, through the same path as the start form (credits, plan limits,
+/// windows and lanes all apply). Read by the `repurpose.source-watch` scheduled
+/// task, each watch at most once an hour, and only while `repurpose_automations`,
+/// `repurpose_flow` and `source_youtube_acquire` are all on for the workspace.
+model SourceWatch {
+  id               String           @id @db.Char(26)
+  workspaceId      String           @map("workspace_id") @db.Char(26)
+  kind             SourceWatchKind  @default(youtube_channel)
+  /// The channel's `UC…` id: what its feed is read by, and one watch per workspace.
+  channelId        String           @map("channel_id")
+  /// The channel's name, from its page or its feed.
+  title            String
+  /// The `@handle` it was connected by, when it was one. Display only.
+  handle           String?
+  /// Zod: `watchSetupSchema` (`source-watch.dto.ts`) — the start form's `setup`,
+  /// as every run this watch starts gets it.
+  setup            Json             @db.JsonB
+  /// How many of the channel's latest videos (0-3) the first check also makes clips of.
+  backfillCount    Int              @default(0) @map("backfill_count")
+  state            SourceWatchState @default(active)
+  /// Why it is paused or in error (`WATCH_STATE_REASONS`); null while active.
+  stateReason      String?          @map("state_reason")
+  stateChangedAt   DateTime         @default(now()) @map("state_changed_at") @db.Timestamptz(6)
+  lastCheckedAt    DateTime?        @map("last_checked_at") @db.Timestamptz(6)
+  /// When the poller may read the feed next: an hour or more after the last read.
+  nextCheckAt      DateTime         @default(now()) @map("next_check_at") @db.Timestamptz(6)
+  /// Reads in a row that failed; one that works resets it.
+  checkFailures    Int              @default(0) @map("check_failures")
+  lastErrorCode    String?          @map("last_error_code")
+  /// Zod: `watchCursorSchema` — `{ seen: string[] }`, the feed's video ids already
+  /// classified, newest first. Null until the first check.
+  cursor           Json?            @db.JsonB
+  /// "I own this channel or have permission to use its videos", ticked when it was
+  /// connected; every run it starts carries this attestation.
+  rightsAttestedAt DateTime         @map("rights_attested_at") @db.Timestamptz(6)
+  rightsAttestedBy String           @map("rights_attested_by") @db.Char(26)
+  /// Whom its runs are started as. Checked on every poll: still an editor here.
+  createdBy        String           @map("created_by") @db.Char(26)
+  createdAt        DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  workspace Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  videos    SourceWatchVideo[]
+
+  @@unique([workspaceId, channelId])
+  @@index([state, nextCheckAt])
+  @@map("source_watches")
+}
+
+/// One upload a watch has acted on (2026-10-02): the durable record that makes
+/// starting its run idempotent. A poll inserts it (`pending`) before anything
+/// else, claims it (`starting`) before creating the run, and files the run on it
+/// (`started`), so a crash between the run and the cursor cannot start a second
+/// run: a claim left behind is resolved against the runs that exist.
+model SourceWatchVideo {
+  id          String                @id @db.Char(26)
+  watchId     String                @map("watch_id") @db.Char(26)
+  /// YouTube's 11-character video id.
+  videoId     String                @map("video_id")
+  title       String
+  publishedAt DateTime              @map("published_at") @db.Timestamptz(6)
+  state       SourceWatchVideoState @default(pending)
+  /// Why it was skipped or failed: `short`, `too_old`, `upcoming`, or an error code.
+  reason      String?
+  /// One of the latest videos asked for when the watch was made, not a new upload.
+  backfill    Boolean               @default(false)
+  runId       String?               @map("run_id") @db.Char(26)
+  /// Starts tried that ended in an error worth trying again.
+  attempts    Int                   @default(0)
+  claimedAt   DateTime?             @map("claimed_at") @db.Timestamptz(6)
+  createdAt   DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime              @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  watch SourceWatch   @relation(fields: [watchId], references: [id], onDelete: Cascade)
+  run   RepurposeRun? @relation(fields: [runId], references: [id], onDelete: SetNull)
+
+  @@unique([watchId, videoId])
+  @@index([watchId, state])
+  @@index([runId])
+  @@map("source_watch_videos")
 }
 
 /// A proposed moment in the source timeline (§6.3). AI candidates carry rank and
