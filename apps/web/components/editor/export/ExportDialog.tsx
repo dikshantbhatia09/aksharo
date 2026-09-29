@@ -50,6 +50,8 @@ export interface ExportDialogProps {
   readonly catalogue: ReadonlyMap<string, StyleDoc>;
   readonly registry: FontRegistry | undefined;
   readonly shaper: Shaper | undefined;
+  /** The brand logos the projection may draw, asset id to a signed URL (2026-10-02). */
+  readonly images?: Readonly<Record<string, string>>;
   /**
    * Brief C04b §3: a local project cannot fall back to the cloud renderer
    * (C04 "no uploads of any kind") — when this export needs the cloud path
@@ -106,6 +108,7 @@ export function ExportDialog(props: ExportDialogProps): React.JSX.Element {
     catalogue: props.catalogue,
     registry: props.registry,
     shaper: props.shaper,
+    ...(props.images === undefined ? {} : { images: props.images }),
   });
 
   // S-02 (addendum 3): a render this dialog is NOT following can still be

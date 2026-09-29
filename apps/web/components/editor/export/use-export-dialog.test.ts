@@ -183,3 +183,25 @@ describe("useExportDialog — caption options forwarding", () => {
     });
   });
 });
+
+describe("useExportDialog — a brand kit's logos (2026-10-02)", () => {
+  it("fetches a logo the editor has a URL for, and has nothing for one it does not", async () => {
+    const fetchMock = vi.fn(async () => new Response(new Uint8Array([7, 7])));
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      await runStartExport(
+        deps({ images: { "01JL0G0000000000000000000A": "https://cdn/logo.png" } }),
+      );
+      const options = runExport.mock.calls[0]?.[0] as {
+        fetchOverlayImage: (assetId: string) => Promise<Uint8Array | undefined>;
+      };
+      expect(await options.fetchOverlayImage("01JL0G0000000000000000000A")).toEqual(
+        new Uint8Array([7, 7]),
+      );
+      expect(fetchMock).toHaveBeenCalledWith("https://cdn/logo.png");
+      expect(await options.fetchOverlayImage("01JG0NE000000000000000000A")).toBeUndefined();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});

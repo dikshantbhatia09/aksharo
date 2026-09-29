@@ -176,6 +176,8 @@ export function ClipPreview({
           src={proxyUrl}
           projection={projection}
           {...(faces === undefined ? {} : { faces })}
+          // A brand kit's logo (2026-10-02), signed by the render preview.
+          {...(preview.data?.images === undefined ? {} : { images: preview.data.images })}
           catalogue={SYSTEM_STYLE_MAP}
           showSafeZones={false}
           // Pressing play on the poster is what mounted this stage.

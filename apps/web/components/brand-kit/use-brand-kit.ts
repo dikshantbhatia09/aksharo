@@ -1,0 +1,214 @@
+"use client";
+
+/**
+ * The workspace's brand kit (2026-10-02): its calls and hooks.
+ *
+ * Described here rather than in `@montaj/api-client`'s `endpoints.ts`, which
+ * its contract test holds to the regenerated OpenAPI index — the same way the
+ * publishing and steering calls are (`use-publishing.ts`). The settings' shape
+ * is `@montaj/edg`'s `BrandKitSettings`, which the API validates with the same
+ * schema, so the page and the server agree about what a kit is.
+ *
+ * A kit is inert until it is saved: `exists: false` reads as "no kit", the
+ * start form offers no brand switch, and Autopilot adds nothing.
+ */
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type UseMutationResult,
+  type UseQueryResult,
+} from "@tanstack/react-query";
+
+import { defineEndpoint, isApiError, useApiClient, useWorkspaceId } from "@montaj/api-client";
+import type { BrandKitSettings } from "@montaj/edg";
+
+export type LogoContentType = "image/png" | "image/jpeg" | "image/webp";
+
+export interface BrandKitLogo {
+  readonly assetId: string;
+  readonly format: "png" | "jpeg" | "webp";
+  readonly contentType: LogoContentType;
+  readonly width: number;
+  readonly height: number;
+  readonly sizeBytes: number | null;
+  /** Signed for an hour. */
+  readonly url: string;
+}
+
+/** `GET /brand-kit` (`apps/api/src/brand-kit/brand-kit.dto.ts`). */
+export interface BrandKitView {
+  readonly exists: boolean;
+  readonly settings: BrandKitSettings;
+  readonly logo: BrandKitLogo | null;
+  /** Every logo a clip in this workspace may draw, by asset id, each signed for an hour. */
+  readonly images: Readonly<Record<string, string>>;
+  readonly fontFamilies: readonly string[];
+  readonly limits: {
+    readonly logoMaxBytes: number;
+    readonly logoContentTypes: readonly string[];
+    readonly logoMinSide: number;
+    readonly logoMaxSide: number;
+    readonly ctaMax: number;
+    readonly handleMax: number;
+  };
+  readonly updatedAt: string | null;
+}
+
+export interface LogoUploadTicket {
+  readonly assetId: string;
+  readonly uploadUrl: string;
+  readonly contentType: LogoContentType;
+  readonly expiresAt: string;
+  readonly maxBytes: number;
+}
+
+export const brandKitEndpoints = {
+  get: defineEndpoint<void, BrandKitView>({
+    method: "GET",
+    path: "/brand-kit",
+    auth: "bearer",
+    operationId: "getBrandKit",
+  }),
+  update: defineEndpoint<BrandKitSettings, BrandKitView>({
+    method: "PUT",
+    path: "/brand-kit",
+    auth: "bearer",
+    operationId: "updateBrandKit",
+  }),
+  createLogoUpload: defineEndpoint<
+    { readonly contentType: LogoContentType; readonly sizeBytes: number },
+    LogoUploadTicket
+  >({
+    method: "POST",
+    path: "/brand-kit/logo",
+    auth: "bearer",
+    operationId: "createBrandKitLogoUpload",
+  }),
+  completeLogo: defineEndpoint<{ readonly contentType: LogoContentType }, BrandKitView>({
+    method: "POST",
+    path: "/brand-kit/logo/{assetId}/complete",
+    auth: "bearer",
+    operationId: "completeBrandKitLogo",
+  }),
+  removeLogo: defineEndpoint<void, BrandKitView>({
+    method: "DELETE",
+    path: "/brand-kit/logo",
+    auth: "bearer",
+    operationId: "deleteBrandKitLogo",
+  }),
+} as const;
+
+export const brandKitKeys = {
+  kit: (workspaceId: string) => ["brand-kit", workspaceId] as const,
+};
+
+/** The largest logo the API takes (`LOGO_MAX_BYTES`), for a friendly check before any upload. */
+export const LOGO_MAX_BYTES = 2 * 1024 * 1024;
+
+export const LOGO_CONTENT_TYPES: readonly LogoContentType[] = [
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+];
+
+/** Why a chosen file cannot be a logo, before anything is sent; `null` when it can. */
+export function logoFileProblem(file: {
+  readonly type: string;
+  readonly size: number;
+}): string | null {
+  if (!(LOGO_CONTENT_TYPES as readonly string[]).includes(file.type)) {
+    return "A logo must be a PNG, JPEG or WebP image.";
+  }
+  if (file.size > LOGO_MAX_BYTES) {
+    return `A logo can be at most ${String(LOGO_MAX_BYTES / (1024 * 1024))} MB.`;
+  }
+  if (file.size <= 0) return "That file is empty.";
+  return null;
+}
+
+/** A route this API does not have yet (an older deployment) reads as "no kit", not as an error. */
+function missingRoute(error: unknown): boolean {
+  return isApiError(error) && (error.status === 404 || error.status === 501);
+}
+
+/**
+ * The workspace's kit. Refetched well inside the hour its logo URLs are signed
+ * for, so an editor left open keeps drawing the logo.
+ */
+export function useBrandKit(enabled = true): UseQueryResult<BrandKitView | null> {
+  const client = useApiClient();
+  const workspaceId = useWorkspaceId();
+  return useQuery({
+    queryKey: brandKitKeys.kit(workspaceId ?? "none"),
+    enabled: enabled && workspaceId !== null,
+    staleTime: 20 * 60_000,
+    refetchInterval: 40 * 60_000,
+    retry: (count, error) => !missingRoute(error) && count < 1,
+    queryFn: async () => {
+      try {
+        return await client.call(brandKitEndpoints.get);
+      } catch (error) {
+        if (missingRoute(error)) return null;
+        throw error;
+      }
+    },
+  });
+}
+
+/** Every mutation answers the whole kit; it replaces the cached one. */
+function useStoreKit(): (view: BrandKitView) => void {
+  const queryClient = useQueryClient();
+  const workspaceId = useWorkspaceId();
+  return (view) => {
+    if (workspaceId !== null) queryClient.setQueryData(brandKitKeys.kit(workspaceId), view);
+  };
+}
+
+export function useSaveBrandKit(): UseMutationResult<BrandKitView, Error, BrandKitSettings> {
+  const client = useApiClient();
+  const store = useStoreKit();
+  return useMutation({
+    mutationFn: (settings) => client.call(brandKitEndpoints.update, { body: settings }),
+    onSuccess: store,
+  });
+}
+
+/**
+ * Uploads a logo: a signed PUT straight to storage, then `complete`, which
+ * checks the file and makes it the kit's.
+ */
+export function useUploadLogo(): UseMutationResult<BrandKitView, Error, File> {
+  const client = useApiClient();
+  const store = useStoreKit();
+  return useMutation({
+    mutationFn: async (file) => {
+      const problem = logoFileProblem(file);
+      if (problem !== null) throw new Error(problem);
+      const contentType = file.type as LogoContentType;
+      const ticket = await client.call(brandKitEndpoints.createLogoUpload, {
+        body: { contentType, sizeBytes: file.size },
+      });
+      const put = await fetch(ticket.uploadUrl, {
+        method: "PUT",
+        body: file,
+        headers: { "Content-Type": contentType },
+      });
+      if (!put.ok) throw new Error(`The upload failed (HTTP ${String(put.status)}).`);
+      return client.call(brandKitEndpoints.completeLogo, {
+        params: { assetId: ticket.assetId },
+        body: { contentType },
+      });
+    },
+    onSuccess: store,
+  });
+}
+
+export function useRemoveLogo(): UseMutationResult<BrandKitView, Error, void> {
+  const client = useApiClient();
+  const store = useStoreKit();
+  return useMutation({
+    mutationFn: () => client.call(brandKitEndpoints.removeLogo),
+    onSuccess: store,
+  });
+}

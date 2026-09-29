@@ -56,6 +56,8 @@ export interface SharePreviewResponse {
   readonly aspect: string;
   /** `EdgProjection` (`@montaj/render-core`) — opaque here, passed straight to `CaptionStage`. */
   readonly projection: unknown;
+  /** Signed URLs for the brand logos the projection draws, by asset id (2026-10-02). */
+  readonly images?: Readonly<Record<string, string>>;
 }
 
 export interface ReportAbuseRequest {

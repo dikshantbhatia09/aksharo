@@ -532,6 +532,8 @@ export function ShareViewer({ token }: { token: string }): React.JSX.Element {
             src={preview.data.proxyUrl}
             projection={projection}
             {...(faces === undefined ? {} : { faces })}
+            // A brand kit's logo (2026-10-02), signed by the preview.
+            {...(preview.data.images === undefined ? {} : { images: preview.data.images })}
             catalogue={SYSTEM_STYLE_MAP}
             showSafeZones={false}
           />

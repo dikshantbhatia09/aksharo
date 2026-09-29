@@ -77,6 +77,7 @@ import {
   createFontRegistry,
   createHarfBuzzShaper,
   layoutFrame,
+  overlayImageIds,
   PlacementCache,
   renderFrame,
   renderTitleFrame,
@@ -147,6 +148,14 @@ export interface RunExportOptions {
    * whole export.
    */
   readonly fetchCueAsset?: (assetId: string) => Promise<Uint8Array>;
+  /**
+   * Fetches a brand logo's bytes for an overlay that draws one (2026-10-02),
+   * by asset id; `undefined` when the workspace no longer keeps it. Like a
+   * cue, a logo that cannot be had is left out rather than failing the
+   * export — the cloud render leaves out a logo the workspace no longer
+   * keeps the same way.
+   */
+  readonly fetchOverlayImage?: (assetId: string) => Promise<Uint8Array | undefined>;
   /**
    * Decodes one cue asset's bytes to an `AudioBuffer`. Defaults to a scratch
    * `AudioContext`'s `decodeAudioData`; injectable for tests (jsdom has no
@@ -503,6 +512,11 @@ export async function runExport(options: RunExportOptions): Promise<EngineResult
   if (manifest.watermark !== null && fetchWatermarkAsset !== undefined) {
     const bytes = await fetchWatermarkAsset(manifest.watermark.assetId);
     backend.registerImage(manifest.watermark.assetId, bytes);
+  }
+  // A brand kit's logo (2026-10-02), in a corner and on an end card.
+  for (const assetId of overlayImageIds(projection.overlays)) {
+    const bytes = await options.fetchOverlayImage?.(assetId).catch(() => undefined);
+    if (bytes !== undefined) backend.registerImage(assetId, bytes);
   }
 
   // One placement per caption for the whole export, not one per frame.
