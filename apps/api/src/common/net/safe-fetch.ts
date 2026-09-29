@@ -43,6 +43,8 @@ export type SafeFetchErrorCode =
   | "blocked_address"
   | "dns_failed"
   | "too_many_redirects"
+  /** A redirect the caller's `allowRedirect` refused (2026-10-02). */
+  | "redirect_refused"
   | "too_large"
   | "timeout"
   | "request_failed";
@@ -98,6 +100,15 @@ export interface SafeFetchOptions {
   readonly maxRedirects?: number;
   readonly allowedPorts?: readonly number[];
   readonly headers?: Readonly<Record<string, string>>;
+  /**
+   * Whether a redirect may be followed, asked before each one with the URL it
+   * points at (resolved against the one it came from). Refused, the request
+   * fails with `redirect_refused` without contacting the new address. For a
+   * caller that talks to one host and must not be walked off it (the YouTube
+   * reader of channel automations, 2026-10-02). Default: any redirect the
+   * rules above allow.
+   */
+  readonly allowRedirect?: (next: URL, from: URL) => boolean;
   /** Test seam: substitute the resolver. */
   readonly resolver?: AddressResolver;
   /** Test seam: substitute the transport. */
@@ -225,6 +236,15 @@ export async function safeFetch(
       if (location === undefined || location === "") {
         throw new SafeFetchError("request_failed", `${String(response.status)} with no Location`);
       }
+      let next: URL;
+      try {
+        next = new URL(location, target.url);
+      } catch {
+        throw new SafeFetchError("request_failed", "a redirect with an unreadable Location");
+      }
+      if (options.allowRedirect !== undefined && !options.allowRedirect(next, target.url)) {
+        throw new SafeFetchError("redirect_refused", `a redirect to ${next.host} is not allowed`);
+      }
       if (hop === maxRedirects) {
         throw new SafeFetchError(
           "too_many_redirects",
@@ -232,7 +252,7 @@ export async function safeFetch(
         );
       }
       redirects.push(current);
-      current = new URL(location, target.url).toString();
+      current = next.toString();
       continue;
     }
 

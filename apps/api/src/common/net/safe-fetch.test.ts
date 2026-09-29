@@ -179,6 +179,51 @@ describe("safeFetch", () => {
     ).rejects.toMatchObject({ code: "request_failed" });
   });
 
+  // 2026-10-02: a caller that talks to one host (channel automations' YouTube
+  // reader) is never walked off it, and the refused address is never contacted.
+  it("refuses a redirect the caller does not allow, before contacting it", async () => {
+    const transport = vi
+      .fn<SafeTransport>()
+      .mockResolvedValueOnce(response(302, "", { location: "https://redirector.test/elsewhere" }))
+      .mockResolvedValueOnce(response(200, "never read"));
+    const seen: string[] = [];
+    await expect(
+      safeFetch("https://example.com/start", {
+        resolver: PUBLIC,
+        transport,
+        allowRedirect: (next, from) => {
+          seen.push(`${from.host} -> ${next.toString()}`);
+          return next.host === "example.com";
+        },
+      }),
+    ).rejects.toMatchObject({ code: "redirect_refused" });
+    expect(seen).toEqual(["example.com -> https://redirector.test/elsewhere"]);
+    expect(transport).toHaveBeenCalledTimes(1);
+  });
+
+  it("follows a redirect the caller allows, resolved against the page it came from", async () => {
+    const transport = vi
+      .fn<SafeTransport>()
+      .mockResolvedValueOnce(response(301, "", { location: "/moved" }))
+      .mockResolvedValueOnce(response(200, "ok"));
+    const result = await safeFetch("https://example.com/start", {
+      resolver: PUBLIC,
+      transport,
+      allowRedirect: (next) => next.host === "example.com",
+    });
+    expect(result.url).toBe("https://example.com/moved");
+    expect(result.body.toString("utf8")).toBe("ok");
+  });
+
+  it("fails a redirect whose Location cannot be read as a request failure, not a crash", async () => {
+    const transport = vi.fn<SafeTransport>(async () =>
+      response(302, "", { location: "https://[not-an-address/x" }),
+    );
+    await expect(
+      safeFetch("https://example.com/x", { resolver: PUBLIC, transport }),
+    ).rejects.toMatchObject({ code: "request_failed" });
+  });
+
   it("stops reading once the body passes the cap", async () => {
     const destroy = vi.fn();
     const transport: SafeTransport = async () => ({
