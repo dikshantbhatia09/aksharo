@@ -101,6 +101,28 @@ export function notificationText(
         tone: "yours",
       };
     }
+    case "watch-new-video":
+      return {
+        title: t("notifications.watchNewVideo.title"),
+        body: t("notifications.watchNewVideo.body", {
+          channel: text(data, "channel") ?? t("notifications.channel"),
+          video,
+        }),
+        href,
+        tone: "done",
+      };
+    case "watch-paused": {
+      const reason = text(data, "reason") ?? "other";
+      return {
+        title: t("notifications.watchPaused.title", { reason }),
+        body: t("notifications.watchPaused.body", {
+          reason,
+          channel: text(data, "channel") ?? t("notifications.channel"),
+        }),
+        href,
+        tone: "yours",
+      };
+    }
     case "export-ready":
       return {
         title: t("notifications.exportReady.title"),

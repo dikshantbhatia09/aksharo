@@ -26,6 +26,7 @@ import { Button, EmptyState, PageHeader, Skeleton, cn } from "@montaj/ui";
 
 import { REPURPOSE_FLOW_FLAG } from "@/components/home/pipeline-banner";
 import { formatRelative } from "@/components/projects/project-table";
+import { AUTOMATIONS_FLAG } from "@/components/repurpose/automations/use-automations";
 import { safeErrorCopy } from "@/components/repurpose/copy";
 import { runActivity, serverIsWorking } from "@/components/repurpose/run-activity";
 import { runPartLabel, runTitle } from "@/components/repurpose/run-window";
@@ -58,6 +59,8 @@ const PAGE_TITLE = "One long video, nine posts";
 
 export function RepurposeIndexView(): React.JSX.Element {
   const enabled = useFeatureFlag(REPURPOSE_FLOW_FLAG);
+  // Channel automations (2026-10-02): a way in from here while they are on.
+  const automations = useFeatureFlag(AUTOMATIONS_FLAG);
   const runs = useRepurposeRuns(enabled);
   const router = useRouter();
   const [url, setUrl] = React.useState("");
@@ -92,6 +95,21 @@ export function RepurposeIndexView(): React.JSX.Element {
         eyebrow="Clips pipeline"
         title={PAGE_TITLE}
         description="Paste a link and the pipeline runs end to end: it reads the transcript, finds the moments worth cutting, reframes and captions them, and builds a version per platform. Every stage can be resumed, and nothing is posted until you say so."
+        {...(automations
+          ? {
+              actions: (
+                <Button variant="ghost" size="sm" asChild>
+                  <NextLink
+                    href="/repurpose/automations"
+                    className="no-underline"
+                    data-testid="repurpose-automations-link"
+                  >
+                    Automations
+                  </NextLink>
+                </Button>
+              ),
+            }
+          : {})}
       />
 
       <section aria-labelledby="repurpose-start-heading" className="flex flex-col gap-3">

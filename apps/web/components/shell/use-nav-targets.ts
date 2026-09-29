@@ -9,6 +9,7 @@ import type { NavItem } from "@/lib/nav";
 
 import { REPURPOSE_FLOW_FLAG } from "@/components/home/pipeline-banner";
 import { useRuntimeConfig } from "@/components/providers";
+import { AUTOMATIONS_FLAG } from "@/components/repurpose/automations/use-automations";
 import { PRIMARY_NAV, SECONDARY_NAV } from "@/lib/nav";
 
 /**
@@ -48,6 +49,8 @@ export function useNavItems(): {
   const projects = useProjects({ limit: 8 });
   const newest = projects.data?.pages[0]?.items[0];
   const repurposeEnabled = useFeatureFlag(REPURPOSE_FLOW_FLAG);
+  // Channel automations (2026-10-02): offered only where they would work.
+  const automationsEnabled = useFeatureFlag(AUTOMATIONS_FLAG) && repurposeEnabled;
 
   const primary = React.useMemo(
     () =>
@@ -86,9 +89,10 @@ export function useNavItems(): {
       SECONDARY_NAV.filter((item) => {
         if (item.key === "plugins" && !pluginsEnabled) return false;
         if (item.key === "affiliate" && !affiliatesEnabled) return false;
+        if (item.key === "automations" && !automationsEnabled) return false;
         return true;
       }),
-    [pluginsEnabled, affiliatesEnabled],
+    [pluginsEnabled, affiliatesEnabled, automationsEnabled],
   );
 
   return { primary, secondary };
