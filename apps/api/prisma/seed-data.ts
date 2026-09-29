@@ -113,9 +113,13 @@ export interface PlanSeed {
  */
 export const MAX_SOURCE_DURATION_MS = 12 * HOUR_MS;
 
-/** Credits per month as printed in 04 §Plans, converted to tenths. */
+/**
+ * Credits per month as printed in 04 §Plans, converted to tenths. Free is 200
+ * during the beta (owner decision 2026-09-29; 04 says 20), so a re-seed keeps
+ * what production now grants.
+ */
 const CREDITS_PER_MONTH: Record<PlanKeyName, number> = {
-  free: 20,
+  free: 200,
   starter: 150,
   creator: 500,
   studio: 1_800,

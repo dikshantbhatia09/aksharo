@@ -108,7 +108,8 @@ describe("PLAN_SEEDS", () => {
   it("grants credits in tenths", () => {
     const credits = (key: string) =>
       PLAN_SEEDS.find((plan) => plan.key === key)?.creditsPerMonthTenths;
-    expect(credits("free")).toBe(20 * TENTHS_PER_CREDIT);
+    // 200 during the beta (2026-09-29); 04 §Plans says 20.
+    expect(credits("free")).toBe(200 * TENTHS_PER_CREDIT);
     expect(credits("starter")).toBe(150 * TENTHS_PER_CREDIT);
     expect(credits("creator")).toBe(500 * TENTHS_PER_CREDIT);
     expect(credits("studio")).toBe(1_800 * TENTHS_PER_CREDIT);

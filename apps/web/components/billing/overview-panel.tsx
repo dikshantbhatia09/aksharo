@@ -120,7 +120,7 @@ export function OverviewPanel(): React.JSX.Element {
               </span>
               <h2 className="text-fg-0 m-0 text-xl font-semibold">Free</h2>
               <p className="text-fg-1 m-0 text-sm">
-                20 credits a month and one watermark-free export.
+                200 credits a month during the beta, and one watermark-free export.
               </p>
               {config.razorpayEnabled ? (
                 <Button variant="primary" asChild className="mt-auto self-start">

@@ -52,9 +52,9 @@ export const FALLBACK_PLAN_CATALOGUE: readonly PlanCatalogueEntry[] = [
       USD: { month: 0, year: 0 },
     },
     seatPrice: null,
-    creditsPerMonth: 20,
+    creditsPerMonth: 200,
     highlights: [
-      "20 credits a month",
+      "200 credits a month during the beta",
       "One watermark-free 1080p browser export on signup",
       "The Punch Pop caption style, Google Fonts",
       "Browser-native export with zero upload",
