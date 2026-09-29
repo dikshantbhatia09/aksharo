@@ -1,17 +1,34 @@
 /**
  * Which system styles a person can pick.
  *
- * The owner cut the catalogue to one template on 2026-09-25. The other system
- * styles still ship in `styles/` and still resolve by id, because existing
- * documents reference them (`vertical-clean` alone backed 119 live projects)
- * and removing a document would leave those projects with a caption style that
- * no longer exists. They are simply never offered: not in the editor's
- * Templates panel, the Studio styles page, the repurpose form, the public
- * gallery, or `GET /styles`.
+ * The owner cut the catalogue to one template on 2026-09-25, and approved four
+ * more on 2026-09-29, each a different look from Punch Pop that renders
+ * Hinglish and Devanagari cleanly with the bundled font pack at 1080 x 1920:
  *
- * To offer a style again, add its id here. Browser-safe: no filesystem access.
+ * - `karaoke-fill` — the line fills as it is spoken, on a soft dark card;
+ * - `hype-bold` — tall condensed capitals, three words at a time;
+ * - `word-pop` — one big word at a time, in the middle of the frame;
+ * - `vertical-clean` — plain, quiet type at the foot of the frame.
+ *
+ * The other system styles still ship in `styles/` and still resolve by id,
+ * because existing documents reference them and removing a document would
+ * leave those projects with a caption style that no longer exists. They are
+ * simply never offered: not in the editor's Templates panel, the Studio styles
+ * page, the repurpose form, the public gallery, or `GET /styles`. Two were
+ * looked at for this list and left out for now: `box-block` (a line's box
+ * covers the descenders of the line above) and `caption-card` (its one
+ * emphasis preset paints the word in its own marker colour, so it vanishes).
+ *
+ * To offer a style again, add its id here; the first is listed first.
+ * Browser-safe: no filesystem access.
  */
-export const PICKABLE_STYLE_IDS: readonly string[] = ["punch-pop"];
+export const PICKABLE_STYLE_IDS: readonly string[] = [
+  "punch-pop",
+  "karaoke-fill",
+  "hype-bold",
+  "word-pop",
+  "vertical-clean",
+];
 
 /** The style a new project's captions start on; always one of the above. */
 export const DEFAULT_PICKABLE_STYLE_ID = "punch-pop";

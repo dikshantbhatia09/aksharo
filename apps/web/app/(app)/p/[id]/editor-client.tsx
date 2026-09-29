@@ -635,6 +635,29 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
     );
   }
 
+  // --- Hook title (2026-09-29) ---------------------------------------------
+  // An Autopilot clip opens with one; the panel rewords or removes it, one op
+  // per committed edit, each undoable like any other.
+  const hookOverlay = state.hot.overlays?.find((overlay) => overlay.kind === "hook-title");
+  const hookTitle =
+    hookOverlay === undefined
+      ? undefined
+      : {
+          overlay: hookOverlay,
+          onChangeText: (text: string): void => {
+            store.submitOp(
+              { type: "SetOverlay", opId: newId(), overlay: { ...hookOverlay, text } },
+              { label: "Edit hook title" },
+            );
+          },
+          onRemove: (): void => {
+            store.submitOp(
+              { type: "RemoveOverlay", opId: newId(), overlayId: hookOverlay.id },
+              { label: "Remove hook title" },
+            );
+          },
+        };
+
   const audioClean = (state.hot.audio as { clean?: { cleanId?: string | null } } | undefined)
     ?.clean;
   const appliedCleanId = typeof audioClean?.cleanId === "string" ? audioClean.cleanId : undefined;
@@ -1448,6 +1471,7 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
               onSaveTemplate={onSaveTemplate}
               myPresets={myPresets}
               onDeletePreset={onDeletePreset}
+              {...(hookTitle === undefined ? {} : { hookTitle })}
               footer={
                 <span data-coach-mark="export" className="inline-flex">
                   <ExportButton

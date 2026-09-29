@@ -63,6 +63,12 @@
         },
         {
           "$ref": "#/$defs/SetRender"
+        },
+        {
+          "$ref": "#/$defs/SetOverlay"
+        },
+        {
+          "$ref": "#/$defs/RemoveOverlay"
         }
       ],
       "title": "EdgOp",
@@ -1429,6 +1435,78 @@
       "required": ["opId", "type"],
       "additionalProperties": false,
       "title": "SetRender"
+    },
+    "SetOverlay": {
+      "type": "object",
+      "properties": {
+        "opId": {
+          "$ref": "#/$defs/Ulid"
+        },
+        "type": {
+          "type": "string",
+          "const": "SetOverlay"
+        },
+        "overlay": {
+          "$ref": "#/$defs/Overlay"
+        }
+      },
+      "required": ["opId", "type", "overlay"],
+      "additionalProperties": false,
+      "title": "SetOverlay"
+    },
+    "Overlay": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/Ulid"
+        },
+        "kind": {
+          "$ref": "#/$defs/OverlayKind"
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "startMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "title": "Milliseconds"
+        },
+        "endMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "title": "Milliseconds"
+        }
+      },
+      "required": ["id", "kind", "text", "startMs", "endMs"],
+      "additionalProperties": false,
+      "title": "Overlay"
+    },
+    "OverlayKind": {
+      "type": "string",
+      "enum": ["hook-title"],
+      "title": "OverlayKind"
+    },
+    "RemoveOverlay": {
+      "type": "object",
+      "properties": {
+        "opId": {
+          "$ref": "#/$defs/Ulid"
+        },
+        "type": {
+          "type": "string",
+          "const": "RemoveOverlay"
+        },
+        "overlayId": {
+          "$ref": "#/$defs/Ulid"
+        }
+      },
+      "required": ["opId", "type", "overlayId"],
+      "additionalProperties": false,
+      "title": "RemoveOverlay"
     },
     "OpBatchRequest": {
       "type": "object",

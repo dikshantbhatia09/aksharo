@@ -20,7 +20,7 @@ import {
   wordAfter,
 } from "./state.js";
 import { decodeKeyframes, encodeKeyframes } from "../passes/keyframes.js";
-import { type ProtectedRange } from "../schemas/document.js";
+import { MAX_OVERLAYS, type Overlay, type ProtectedRange } from "../schemas/document.js";
 import {
   type DecideItemsOp,
   type EdgOp,
@@ -34,9 +34,11 @@ import {
   type MergeSegmentsOp,
   type OpRejection,
   type OpRejectionReason,
+  type RemoveOverlayOp,
   type ResegmentOp,
   type SetAudioOp,
   type SetEmphasisOp,
+  type SetOverlayOp,
   type SetRenderOp,
   type SetSegmentBoundsOp,
   type SetSegmentPositionOp,
@@ -886,6 +888,55 @@ function applySetRender(draft: EdgDraft, op: SetRenderOp): void {
   draft.hot = { ...draft.hot, render: { ...draft.hot.render, presets: op.presets } };
 }
 
+/** Overlays in drawing order: by start, then id, so every surface stacks them alike. */
+function sortOverlays(overlays: readonly Overlay[]): Overlay[] {
+  return [...overlays].sort(
+    (a, b) => a.startMs - b.startMs || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
+  );
+}
+
+/** `hot` with `overlays` set, or without the key at all once the last one goes. */
+function withOverlays(draft: EdgDraft, overlays: readonly Overlay[]): void {
+  const { overlays: _previous, ...rest } = draft.hot;
+  // A document whose last overlay was removed is the same document as one that
+  // never had any, down to its stored JSON.
+  draft.hot = overlays.length === 0 ? rest : { ...rest, overlays: sortOverlays(overlays) };
+}
+
+/**
+ * Adds or replaces one overlay by id (2026-09-29). The window is clamped to the
+ * media, like every other range the engine takes; one that is empty after that,
+ * or text that is only spaces, is refused rather than stored as something that
+ * would never draw.
+ */
+function applySetOverlay(draft: EdgDraft, op: SetOverlayOp): void {
+  const { overlay } = op;
+  const text = overlay.text.trim();
+  if (text === "") fail("invalid", `overlay ${overlay.id} has no text`);
+  const durationMs = mediaDurationMs(draft);
+  const startMs = Math.max(0, overlay.startMs);
+  const endMs = durationMs === undefined ? overlay.endMs : Math.min(overlay.endMs, durationMs);
+  if (startMs >= endMs) {
+    fail("invalid-range", `overlay ${overlay.id} would span ${String(startMs)}-${String(endMs)}`);
+  }
+  const rest = (draft.hot.overlays ?? []).filter((entry) => entry.id !== overlay.id);
+  if (rest.length >= MAX_OVERLAYS) {
+    fail("invariant", `a document carries at most ${String(MAX_OVERLAYS)} overlays`);
+  }
+  withOverlays(draft, [...rest, { ...overlay, text, startMs, endMs }]);
+}
+
+function applyRemoveOverlay(draft: EdgDraft, op: RemoveOverlayOp): void {
+  const overlays = draft.hot.overlays ?? [];
+  if (!overlays.some((entry) => entry.id === op.overlayId)) {
+    fail("unknown-id", `overlay ${op.overlayId} is not in the document`);
+  }
+  withOverlays(
+    draft,
+    overlays.filter((entry) => entry.id !== op.overlayId),
+  );
+}
+
 function dispatch(draft: EdgDraft, op: EdgOp, ctx: ApplyContext): void {
   switch (op.type) {
     case "SetSegmentText":
@@ -926,6 +977,10 @@ function dispatch(draft: EdgDraft, op: EdgOp, ctx: ApplyContext): void {
       return applySetAudio(draft, op);
     case "SetRender":
       return applySetRender(draft, op);
+    case "SetOverlay":
+      return applySetOverlay(draft, op);
+    case "RemoveOverlay":
+      return applyRemoveOverlay(draft, op);
     default: {
       const exhaustive: never = op;
       throw new Error(`unhandled op ${JSON.stringify(exhaustive)}`);

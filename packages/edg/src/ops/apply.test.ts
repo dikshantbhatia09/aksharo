@@ -1299,3 +1299,85 @@ describe("normaliseProtectedRanges", () => {
     }
   });
 });
+
+describe("SetOverlay and RemoveOverlay", () => {
+  const overlayId = idFactory(980_000);
+  const [HOOK, OTHER] = [overlayId(), overlayId()];
+  const hook = (fields: Partial<{ text: string; startMs: number; endMs: number }> = {}) => ({
+    id: HOOK,
+    kind: "hook-title" as const,
+    text: "Paisa bachana itna easy hai",
+    startMs: 0,
+    endMs: 2_500,
+    ...fields,
+  });
+
+  it("adds an overlay to the hot document, and a second set replaces it by id", () => {
+    const { state } = setup();
+    const first = apply(state, [op("SetOverlay", { overlay: hook() })]);
+    expect(first.state.hot.overlays).toEqual([hook()]);
+
+    const edited = apply(first.state, [
+      op("SetOverlay", { overlay: hook({ text: "  Ye galti mat karna  " }) }),
+    ]);
+    // Trimmed, and still one overlay: an edit is the same op as placing it.
+    expect(edited.state.hot.overlays).toEqual([hook({ text: "Ye galti mat karna" })]);
+  });
+
+  it("keeps overlays in start order whatever order they were set in", () => {
+    const { state } = setup();
+    const result = apply(state, [
+      op("SetOverlay", { overlay: { ...hook(), id: OTHER, startMs: 4_000, endMs: 6_000 } }),
+      op("SetOverlay", { overlay: hook() }),
+    ]);
+    expect(result.state.hot.overlays?.map((overlay) => overlay.id)).toEqual([HOOK, OTHER]);
+  });
+
+  it("clamps the window to the media and refuses one that is empty, or words that are only spaces", () => {
+    const { state } = setup();
+    const clamped = apply(state, [
+      op("SetOverlay", { overlay: hook({ startMs: 88_000, endMs: 95_000 }) }),
+    ]);
+    expect(clamped.state.hot.overlays?.[0]).toMatchObject({ startMs: 88_000, endMs: 90_000 });
+
+    const refused = applyOps(state, [
+      op("SetOverlay", { overlay: hook({ startMs: 91_000, endMs: 95_000 }) }),
+      op("SetOverlay", { overlay: hook({ startMs: 2_000, endMs: 2_000 }) }),
+      op("SetOverlay", { overlay: hook({ text: "   " }) }),
+    ]);
+    expect(reasons(refused)).toEqual(["invalid-range", "invalid-range", "invalid"]);
+    expect(refused.state.hot.overlays).toBeUndefined();
+  });
+
+  it("removes an overlay, and the key with the last one", () => {
+    const { state } = setup();
+    const placed = apply(state, [op("SetOverlay", { overlay: hook() })]);
+    const removed = apply(placed.state, [op("RemoveOverlay", { overlayId: HOOK })]);
+    // The same document as one that never had an overlay, down to its keys.
+    expect(removed.state.hot).not.toHaveProperty("overlays");
+    expect(Object.keys(removed.state.hot).sort()).toEqual(Object.keys(state.hot).sort());
+
+    const again = applyOps(removed.state, [op("RemoveOverlay", { overlayId: HOOK })]);
+    expect(reasons(again)).toEqual(["unknown-id"]);
+  });
+
+  it("refuses a ninth overlay but lets an existing one be edited at the cap", () => {
+    const { state } = setup();
+    const ids = Array.from({ length: 8 }, () => overlayId());
+    const full = apply(
+      state,
+      ids.map((id, index) =>
+        op("SetOverlay", {
+          overlay: { ...hook(), id, startMs: index * 1_000, endMs: index * 1_000 + 2_500 },
+        }),
+      ),
+    );
+    expect(full.state.hot.overlays).toHaveLength(8);
+    const result = applyOps(full.state, [
+      op("SetOverlay", { overlay: { ...hook(), id: overlayId() } }),
+      op("SetOverlay", { overlay: { ...hook({ text: "edited" }), id: ids[0] ?? "" } }),
+    ]);
+    expect(reasons(result)).toEqual(["invariant"]);
+    expect(result.state.hot.overlays?.[0]?.text).toBe("edited");
+  });
+});

@@ -1512,7 +1512,7 @@ export interface RepurposeClipItem {
 export interface RepurposeClipFormat {
   shape: "9:16" | "4:5" | "1:1" | "16:9";
   /** `preparing` while it is cut and prepared; then the captioned video's own states. */
-  status: "preparing" | "rendering" | "ready" | "stale" | "failed";
+  status: "preparing" | "finishing" | "rendering" | "ready" | "stale" | "failed";
   /** Its own editable project, once cut. */
   projectId: string | null;
   captioned: RepurposeCaptionedClip | null;
@@ -1535,10 +1535,12 @@ export interface RepurposeClipImages {
 /** See {@link RepurposeClipItem.captioned}. */
 export interface RepurposeCaptionedClip {
   /**
-   * `rendering` while it is being made, `stale` when the captions were edited
-   * and it will be made again within a minute or two, `ready`, or `failed`.
+   * `finishing` while Autopilot finishes the clip's edit (cuts, emphasis,
+   * zooms, the hook title) before it is made; `rendering` while it is being
+   * made, `stale` when the captions were edited and it will be made again
+   * within a minute or two, `ready`, or `failed`.
    */
-  status: "rendering" | "ready" | "stale" | "failed";
+  status: "finishing" | "rendering" | "ready" | "stale" | "failed";
   /** The newest finished file, to play inline; kept while a newer one is made. */
   playUrl: string | null;
   /** The same file, signed to download as an attachment. */

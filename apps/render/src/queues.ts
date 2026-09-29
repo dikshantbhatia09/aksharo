@@ -86,6 +86,19 @@ export const ProjectedWordSchema = z.object({
   scripts: z.record(z.string(), z.string()).optional(),
 });
 
+/**
+ * An overlay drawn over the captions (`EdgHot.overlays`, 2026-09-29): the hook
+ * title, on the source clock like a segment. Only the kind this renderer knows
+ * is accepted; the document refuses any other.
+ */
+export const ProjectedOverlaySchema = z.object({
+  id: z.string().min(1),
+  kind: z.literal("hook-title"),
+  text: z.string().min(1).max(120),
+  startMs: z.number().int().min(0),
+  endMs: z.number().int().min(0),
+});
+
 /** The read model a render needs, pinned at the manifest's revision. */
 export const RenderProjectionSchema = z.object({
   canvas: z.object({
@@ -95,6 +108,8 @@ export const RenderProjectionSchema = z.object({
   segments: z.array(ProjectedSegmentSchema),
   words: z.array(ProjectedWordSchema),
   speakerColours: z.record(z.string(), z.string()).optional(),
+  /** Absent on every payload built before overlays existed, which renders as before. */
+  overlays: z.array(ProjectedOverlaySchema).max(8).optional(),
 });
 
 export type RenderProjection = z.infer<typeof RenderProjectionSchema>;

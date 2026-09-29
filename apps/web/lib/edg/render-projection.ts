@@ -47,5 +47,10 @@ export function toRenderProjection(state: EdgState): EdgProjection {
     ...(state.hot.render === undefined ? {} : { render: state.hot.render }),
     segments,
     words,
+    // The hook title (2026-09-29): drawn by `renderFrame` on the stage and in
+    // the browser export alike, from this one projection.
+    ...(state.hot.overlays === undefined || state.hot.overlays.length === 0
+      ? {}
+      : { overlays: state.hot.overlays }),
   };
 }

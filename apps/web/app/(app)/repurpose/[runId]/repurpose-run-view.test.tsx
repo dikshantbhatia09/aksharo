@@ -273,6 +273,22 @@ describe("<RepurposeRunView /> Autopilot's captioned videos", () => {
     // Until then, the clip plays as before, and downloads without captions.
     expect(screen.getByTestId("download-clip-01CAND1")).toHaveTextContent("Download video");
   });
+
+  it("says the edit is being finished before the captions go on", async () => {
+    renderWithProviders(<RepurposeRunView runId={RUN_ID} />, {
+      routes: {
+        [RUN_PATH]: readyRun(),
+        ...momentsRoutes(
+          [candidate("01CAND1")],
+          [readyClip({ status: "finishing", playUrl: null, downloadUrl: null })],
+        ),
+      },
+    });
+    const note = await screen.findByTestId("captioned-state-01CAND1");
+    expect(note).toHaveTextContent("Finishing the edit");
+    expect(note).toHaveAttribute("data-state", "finishing");
+    expect(screen.queryByTestId("download-captioned-01CAND1")).toBeNull();
+  });
 });
 
 /** Answer POSTs to `path` with `answer()`; everything else as the routes say. */

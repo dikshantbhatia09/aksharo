@@ -165,11 +165,13 @@ export function CandidateCard({
       ? null
       : captioned.status === "failed"
         ? CAPTIONED_COPY.failed
-        : captioned.status === "rendering" || captioned.status === "stale"
-          ? captionedUrl === undefined
-            ? CAPTIONED_COPY.adding
-            : CAPTIONED_COPY.updating
-          : null;
+        : captioned.status === "finishing"
+          ? CAPTIONED_COPY.finishing
+          : captioned.status === "rendering" || captioned.status === "stale"
+            ? captionedUrl === undefined
+              ? CAPTIONED_COPY.adding
+              : CAPTIONED_COPY.updating
+            : null;
 
   // Never invent a score: a candidate without one shows none.
   const score = candidate.potentialScore ?? candidate.score;

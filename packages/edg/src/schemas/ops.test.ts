@@ -116,12 +116,40 @@ const samples: Record<EdgOpType, EdgOp> = {
     clean: { enabled: true, preset: "podcast", targetLufs: -14 },
   },
   SetRender: { opId: id(), type: "SetRender", presets: ["social-1080x1920"] },
+  SetOverlay: {
+    opId: id(),
+    type: "SetOverlay",
+    overlay: {
+      id: id(),
+      kind: "hook-title",
+      text: "Paisa bachana itna easy hai",
+      startMs: 0,
+      endMs: 2_500,
+    },
+  },
+  RemoveOverlay: { opId: id(), type: "RemoveOverlay", overlayId: id() },
 };
 
 describe("EdgOp union", () => {
   it("covers exactly the op types CONTRACTS §2 lists", () => {
     expect(Object.keys(samples).sort()).toEqual([...EDG_OP_TYPES].sort());
-    expect(EDG_OP_TYPES).toHaveLength(19);
+    // 19 frozen in CONTRACTS §2, plus SetOverlay/RemoveOverlay (2026-09-29).
+    expect(EDG_OP_TYPES).toHaveLength(21);
+  });
+
+  it("refuses an overlay with no words or an unknown kind", () => {
+    const overlay = { id: id(), kind: "hook-title", text: "Hook", startMs: 0, endMs: 2_500 };
+    expect(
+      EdgOpSchema.safeParse({ opId: id(), type: "SetOverlay", overlay: { ...overlay, text: "" } })
+        .success,
+    ).toBe(false);
+    expect(
+      EdgOpSchema.safeParse({
+        opId: id(),
+        type: "SetOverlay",
+        overlay: { ...overlay, kind: "sticker" },
+      }).success,
+    ).toBe(false);
   });
 
   // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion

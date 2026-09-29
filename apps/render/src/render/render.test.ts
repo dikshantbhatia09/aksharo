@@ -178,6 +178,23 @@ describe("the projection adapter", () => {
       ProjectionError,
     );
   });
+
+  it("carries the hook title for renderFrame, and adds nothing when there is none", () => {
+    const hook = {
+      id: "01JHOOK0000000000000000000",
+      kind: "hook-title" as const,
+      text: "Paisa bachana easy hai",
+      startMs: 0,
+      endMs: 2_500,
+    };
+    expect(toEdgProjection({ ...projection, overlays: [hook] }, manifest()).overlays).toEqual([
+      hook,
+    ]);
+    expect(toEdgProjection(projection, manifest())).not.toHaveProperty("overlays");
+    expect(toEdgProjection({ ...projection, overlays: [] }, manifest())).not.toHaveProperty(
+      "overlays",
+    );
+  });
 });
 
 describe("the timemap", () => {

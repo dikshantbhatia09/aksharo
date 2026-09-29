@@ -113,6 +113,10 @@ export function toEdgProjection(
     ...(projection.speakerColours === undefined
       ? {}
       : { speakerColours: projection.speakerColours }),
+    // The hook title (2026-09-29): `renderFrame` draws it over the captions.
+    ...(projection.overlays === undefined || projection.overlays.length === 0
+      ? {}
+      : { overlays: projection.overlays }),
   };
 }
 

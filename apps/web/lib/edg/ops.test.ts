@@ -556,4 +556,44 @@ describe("computeInverseOps", () => {
       { type: "HideSegment", segmentId: "missing", hidden: false },
     ]);
   });
+
+  describe("the hook title (2026-09-29)", () => {
+    const hook = {
+      id: "01JHOOK0000000000000000000",
+      kind: "hook-title" as const,
+      text: "Paisa bachana easy hai",
+      startMs: 0,
+      endMs: 2_500,
+    };
+    const withHook = (): InverseState => {
+      const base = state();
+      return { ...base, hot: { ...base.hot, overlays: [hook] } };
+    };
+
+    it("puts the old words back after an edit", () => {
+      const op: EdgOp = {
+        type: "SetOverlay",
+        opId: id(),
+        overlay: { ...hook, text: "Naya hook" },
+      };
+      expect(computeInverseOps(op, withHook(), id, id)).toMatchObject([
+        { type: "SetOverlay", overlay: hook },
+      ]);
+    });
+
+    it("takes a new one off again", () => {
+      const op: EdgOp = { type: "SetOverlay", opId: id(), overlay: hook };
+      expect(computeInverseOps(op, state(), id, id)).toMatchObject([
+        { type: "RemoveOverlay", overlayId: hook.id },
+      ]);
+    });
+
+    it("sets a removed one back as it was, and has nothing to undo for one it never had", () => {
+      const op: EdgOp = { type: "RemoveOverlay", opId: id(), overlayId: hook.id };
+      expect(computeInverseOps(op, withHook(), id, id)).toMatchObject([
+        { type: "SetOverlay", overlay: hook },
+      ]);
+      expect(computeInverseOps(op, state(), id, id)).toEqual([]);
+    });
+  });
 });

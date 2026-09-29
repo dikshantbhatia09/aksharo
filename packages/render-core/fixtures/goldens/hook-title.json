@@ -1,0 +1,89 @@
+{
+ "style": "punch-pop",
+ "entries": [
+  {
+   "fixture": "hinglish",
+   "shape": "portrait",
+   "tMs": 100,
+   "commands": 7,
+   "hash": "7e65b6e91e453e4418fbc2802344e47186fad995cedf61e63c2afc19841f8896"
+  },
+  {
+   "fixture": "hinglish",
+   "shape": "portrait",
+   "tMs": 1250,
+   "commands": 7,
+   "hash": "28f6bbda75cc1698e3e5b5d1489b5b862fe5ec42ef0c25411cceb1fbc7f91bbd"
+  },
+  {
+   "fixture": "hinglish",
+   "shape": "portrait",
+   "tMs": 2400,
+   "commands": 7,
+   "hash": "f34b8f9cc8c8504d13fb5dadf647900a0e13f4393fc88a69e379bae402208a45"
+  },
+  {
+   "fixture": "hinglish",
+   "shape": "landscape",
+   "tMs": 100,
+   "commands": 6,
+   "hash": "f149165eb4ba13b6f4aaebbcecc4cfd64887eb2470c147be2c41b15f07fda9a7"
+  },
+  {
+   "fixture": "hinglish",
+   "shape": "landscape",
+   "tMs": 1250,
+   "commands": 6,
+   "hash": "9957cc55e4b95f4fa5f2bb486f8f04f41757c143cb4d89577205e0022813d2b7"
+  },
+  {
+   "fixture": "hinglish",
+   "shape": "landscape",
+   "tMs": 2400,
+   "commands": 6,
+   "hash": "93322d6a500b94afdcdb5e9d99f325fd68b3a01df2c4b17b506babcec7cdcb62"
+  },
+  {
+   "fixture": "hindi",
+   "shape": "portrait",
+   "tMs": 100,
+   "commands": 10,
+   "hash": "d9ed386c2f772c9294f245d34f54fc1064d55d2dcab62de89e5e9fe748d5294a"
+  },
+  {
+   "fixture": "hindi",
+   "shape": "portrait",
+   "tMs": 1250,
+   "commands": 10,
+   "hash": "9005cbeb43ba8be14a1cb805288f3603cea2980e13bdb67c55422fe0c7aa9c4b"
+  },
+  {
+   "fixture": "hindi",
+   "shape": "portrait",
+   "tMs": 2400,
+   "commands": 10,
+   "hash": "d976ff51a2f4fec9064b017bda8b7eacf4096a9ec1c5af8af55e54ac5c5beba6"
+  },
+  {
+   "fixture": "hindi",
+   "shape": "landscape",
+   "tMs": 100,
+   "commands": 10,
+   "hash": "15c1e4de832a59b3ef0d94f33a38df15b54bb0eecaa8481e8b69e0cd4114ba02"
+  },
+  {
+   "fixture": "hindi",
+   "shape": "landscape",
+   "tMs": 1250,
+   "commands": 10,
+   "hash": "d53894ca01ad48e6207899f3bc0e8d924e7a9559f7c744350f59a6c3182facfc"
+  },
+  {
+   "fixture": "hindi",
+   "shape": "landscape",
+   "tMs": 2400,
+   "commands": 10,
+   "hash": "b4e1e243d2e3614dbc9902f29134554f71949d10bd113389ceb45e36f44b7da7"
+  }
+ ]
+}

@@ -36,6 +36,18 @@ describe("buildRenderProjection", () => {
     expect(projection.canvas).toEqual({ width: 1080, height: 1920 });
   });
 
+  it("carries the hook title, and adds no overlays key to a document without one", () => {
+    const hook = {
+      id: "01JHOOK0000000000000000000",
+      kind: "hook-title" as const,
+      text: "Paisa bachana easy hai",
+      startMs: 0,
+      endMs: 2_500,
+    };
+    expect(buildRenderProjection(baseEdg({ overlays: [hook] }), []).overlays).toEqual([hook]);
+    expect(buildRenderProjection(baseEdg(), [])).not.toHaveProperty("overlays");
+  });
+
   it("maps every documented segment field, and omits absent optionals", () => {
     const edg = baseEdg({
       segments: [

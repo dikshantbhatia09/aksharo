@@ -123,15 +123,27 @@ export function faceTrackOnCanvas(doc: FaceTrackDocument, canvas: CanvasSize): C
   return { intervalMs: doc.intervalMs, times, boxes };
 }
 
+/** How far a face box is grown before it is avoided, as shares of the face's own size. */
+export interface FacePadding {
+  readonly above: number;
+  readonly below: number;
+  readonly sides: number;
+}
+
+/** A caption's padding: all the hair above, a gap under the chin. */
+const CAPTION_FACE_PADDING: FacePadding = { above: PAD_ABOVE, below: PAD_BELOW, sides: PAD_SIDES };
+
 /**
  * Every face on screen during `[startMs, endMs)`, padded, in canvas pixels.
  * Samples just either side count too: a sample stands for its whole interval.
+ * `padding` defaults to a caption's; the hook title keeps a smaller margin.
  */
 export function facesDuring(
   track: CanvasFaceTrack,
   startMs: number,
   endMs: number,
   canvas: CanvasSize,
+  padding: FacePadding = CAPTION_FACE_PADDING,
 ): Rect[] {
   const from = startMs - track.intervalMs;
   const to = endMs + track.intervalMs;
@@ -145,10 +157,10 @@ export function facesDuring(
       const w = right - left;
       const h = bottom - top;
       found.push([
-        Math.max(0, left - w * PAD_SIDES) * canvas.width,
-        Math.max(0, top - h * PAD_ABOVE) * canvas.height,
-        Math.min(1, right + w * PAD_SIDES) * canvas.width,
-        Math.min(1, bottom + h * PAD_BELOW) * canvas.height,
+        Math.max(0, left - w * padding.sides) * canvas.width,
+        Math.max(0, top - h * padding.above) * canvas.height,
+        Math.min(1, right + w * padding.sides) * canvas.width,
+        Math.min(1, bottom + h * padding.below) * canvas.height,
       ]);
     }
   }
@@ -176,8 +188,11 @@ function union(a: Rect | undefined, b: Rect): Rect {
   return [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[2], b[2]), Math.max(a[3], b[3])];
 }
 
-/** The ink a layout draws: its padded box and every word's box (motion styles move words). */
-function extentOf(layout: Layout): Rect {
+/**
+ * The ink a layout draws: its padded box and every word's box (motion styles
+ * move words). Exported for the hook title, which keeps off the captions too.
+ */
+export function captionExtent(layout: Layout): Rect {
   let box: Rect = layout.paddedBox;
   for (const word of layout.words) box = union(box, word.box);
   return box;
@@ -206,9 +221,7 @@ export function placeCaption(input: PlacementInput): Placement | undefined {
 
   // The caption's full extent over its life: every word chunk it shows in turn,
   // and the smallest shrink any chunk needed to fit its width.
-  const layoutAt = (
-    shrink: number | undefined,
-  ): { extent: Rect; shrink: number } | undefined => {
+  const layoutAt = (shrink: number | undefined): { extent: Rect; shrink: number } | undefined => {
     let extent: Rect | undefined;
     let smallest = 1;
     const seen = new Set<number>();
@@ -226,7 +239,7 @@ export function placeCaption(input: PlacementInput): Placement | undefined {
         tMs: at,
         shrinkOverride: (script) => combineShrink(input.shrinkOverride?.(script), shrink),
       });
-      extent = union(extent, extentOf(layout));
+      extent = union(extent, captionExtent(layout));
       smallest = Math.min(smallest, layout.shrink);
     }
     return extent === undefined ? undefined : { extent, shrink: smallest };
@@ -285,11 +298,7 @@ export function combineShrink(
 export class PlacementCache {
   readonly #byStyle = new WeakMap<StyleDoc, Map<string, Placement | null>>();
 
-  get(
-    style: StyleDoc,
-    key: string,
-    compute: () => Placement | undefined,
-  ): Placement | undefined {
+  get(style: StyleDoc, key: string, compute: () => Placement | undefined): Placement | undefined {
     let entries = this.#byStyle.get(style);
     if (entries === undefined) {
       entries = new Map();

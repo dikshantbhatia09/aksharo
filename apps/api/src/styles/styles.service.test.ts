@@ -118,7 +118,7 @@ describe("StylesService.list", () => {
   });
 
   it("offers only the pickable system styles, and every workspace preset", async () => {
-    const retired = presetRow({ id: "01SYSTEMRETIRED00000000000", key: "vertical-clean" });
+    const retired = presetRow({ id: "01SYSTEMRETIRED00000000000", key: "box-block" });
     const custom = presetRow({
       id: CUSTOM_PRESET_ID,
       workspaceId: WORKSPACE,

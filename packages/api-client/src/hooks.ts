@@ -2098,7 +2098,12 @@ export const CLIP_URL_REFRESH_MS = 10 * 60_000;
 
 /** How often a clip list is re-read while an Autopilot clip's formats are made. */
 export const FORMATS_POLL_MS = 10_000;
-const MOVING_FORMAT: ReadonlySet<string> = new Set(["preparing", "rendering", "stale"]);
+const MOVING_FORMAT: ReadonlySet<string> = new Set([
+  "preparing",
+  "finishing",
+  "rendering",
+  "stale",
+]);
 
 /** `useRepurposeClips`' poll: `pollMs` while a clip moves, a slow refresh while any has a URL. */
 export function clipsPollDelay(
@@ -2107,10 +2112,14 @@ export function clipsPollDelay(
   pollMs: number,
 ): number | false {
   if (clipsStillMoving(clips, options)) return pollMs;
-  // An Autopilot clip's captioned video is still being made (or re-made).
+  // An Autopilot clip's captioned video is still being made (or re-made), or
+  // its edit is still being finished before it is.
   if (
     clips.some(
-      (clip) => clip.captioned?.status === "rendering" || clip.captioned?.status === "stale",
+      (clip) =>
+        clip.captioned?.status === "finishing" ||
+        clip.captioned?.status === "rendering" ||
+        clip.captioned?.status === "stale",
     )
   ) {
     return pollMs;

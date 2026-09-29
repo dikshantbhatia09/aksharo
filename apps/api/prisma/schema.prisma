@@ -3719,6 +3719,9 @@ model ClipVariant {
   editFingerprint String        @default("") @map("edit_fingerprint")
   status          VariantStatus @default(preparing)
   latestExportId  String?       @map("latest_export_id") @db.Char(26)
+  /// Autopilot's finishing pass (2026-09-29, `repurpose/clip-finishing.ts`): the
+  /// steps run on this shape's project before its captioned video. Null: never.
+  finishing       Json?         @db.JsonB
   approvedAt      DateTime?     @map("approved_at") @db.Timestamptz(6)
   approvedBy      String?       @map("approved_by") @db.Char(26)
   createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)

@@ -61,6 +61,7 @@ import {
   SliderField,
   ToggleField,
 } from "./controls";
+import { HookTitleField, type HookTitleFieldProps } from "./HookTitleField";
 import {
   type PanelScope,
   setStyleField,
@@ -177,6 +178,11 @@ export interface RightPanelProps {
   readonly onUploadFont?: () => void;
   /** Props for the Audio tab (B10b); omitted while no project/media context is available. */
   readonly audio?: AudioPanelProps;
+  /**
+   * The document's hook title (2026-09-29), shown at the top of the Text tab so
+   * it can be reworded or removed; omitted when the document has none.
+   */
+  readonly hookTitle?: HookTitleFieldProps;
   /** The document's canvas, so every preview in the panel uses the project's aspect. */
   readonly canvas?: CanvasSize;
   /**
@@ -202,6 +208,7 @@ export function RightPanel({
   onDeletePreset,
   onUploadFont,
   audio,
+  hookTitle,
   canvas = DEFAULT_PREVIEW_CANVAS,
   footer,
   className,
@@ -345,6 +352,11 @@ export function RightPanel({
             // rather than rebuilt. `right-panel-tab-look`'s testid is what
             // `e2e/style-preview.spec.ts` still clicks for this tab.
             <>
+              {hookTitle === undefined ? null : (
+                <Section title="Hook title">
+                  <HookTitleField {...hookTitle} />
+                </Section>
+              )}
               <LookPanel
                 style={style}
                 scope={scope}

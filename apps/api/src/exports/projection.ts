@@ -24,6 +24,17 @@ export interface RenderProjectionPayload {
   readonly segments: readonly ProjectedSegment[];
   readonly words: readonly ProjectedWord[];
   readonly speakerColours?: Record<string, string>;
+  /** `EdgHot.overlays` (2026-09-29): the hook title; absent when there is none. */
+  readonly overlays?: readonly ProjectedOverlay[];
+}
+
+/** An overlay as the render draws it (`@montaj/render-core` `OverlayTrack`). */
+export interface ProjectedOverlay {
+  readonly id: string;
+  readonly kind: "hook-title";
+  readonly text: string;
+  readonly startMs: number;
+  readonly endMs: number;
 }
 
 export interface ProjectedSegment {
@@ -88,12 +99,22 @@ export function buildRenderProjection(
   );
 
   const speakerColours = speakerColoursOf(edg.transcript.speakers);
+  // Only when there are some: a projection without overlays is byte-for-byte
+  // the payload every render before them was given.
+  const overlays = (edg.overlays ?? []).map((overlay) => ({
+    id: overlay.id,
+    kind: overlay.kind,
+    text: overlay.text,
+    startMs: overlay.startMs,
+    endMs: overlay.endMs,
+  }));
 
   return {
     canvas: { width: edg.canvas.width, height: edg.canvas.height },
     segments,
     words,
     ...(speakerColours === undefined ? {} : { speakerColours }),
+    ...(overlays.length === 0 ? {} : { overlays }),
   };
 }
 

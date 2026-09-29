@@ -73,3 +73,19 @@ describe("toRenderProjection", () => {
     expect(projection.words[1]).not.toHaveProperty("filler");
   });
 });
+
+describe("toRenderProjection overlays (2026-09-29)", () => {
+  it("carries the hook title to renderFrame, and nothing for a document without one", () => {
+    const state = fixtureState();
+    expect(toRenderProjection(state)).not.toHaveProperty("overlays");
+    const hook = {
+      id: "01JHOOK0000000000000000000",
+      kind: "hook-title" as const,
+      text: "Paisa bachana easy hai",
+      startMs: 0,
+      endMs: 2_500,
+    };
+    const withHook = { ...state, hot: { ...state.hot, overlays: [hook] } };
+    expect(toRenderProjection(withHook).overlays).toEqual([hook]);
+  });
+});

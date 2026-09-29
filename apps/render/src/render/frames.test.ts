@@ -115,3 +115,28 @@ describe("createFrameSource with D06b title items", () => {
     expect(bytes.length).toBe(320 * 480 * 4);
   });
 });
+
+describe("createFrameSource with a hook title (2026-09-29)", () => {
+  it("draws the projection's hook title inside its window, and nothing after it", () => {
+    const source = createFrameSource({
+      ...baseOptions(),
+      projection: {
+        ...EMPTY_PROJECTION,
+        overlays: [
+          {
+            id: "01JHOOK0000000000000000000",
+            kind: "hook-title",
+            text: "Paisa bachana easy hai",
+            startMs: 0,
+            endMs: 2_500,
+          },
+        ],
+      },
+      backend,
+      batch: backend.createBatch({ width: 320, height: 480 }),
+    });
+    const during = JSON.stringify(source.commandsAt(1_200));
+    expect(during).toContain("hook-title:01JHOOK0000000000000000000");
+    expect(source.commandsAt(2_600)).toEqual([]);
+  });
+});

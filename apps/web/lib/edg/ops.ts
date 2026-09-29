@@ -539,6 +539,20 @@ export function computeInverseOps(
       return [editPassItem(op.itemId, item.startMs, item.endMs, newOpId)];
     }
 
+    // The hook title (2026-09-29): an edit puts the old words back, a new one
+    // comes off again, and a removal is undone by setting it as it was.
+    case "SetOverlay": {
+      const prior = state.hot.overlays?.find((entry) => entry.id === op.overlay.id);
+      return prior === undefined
+        ? [{ type: "RemoveOverlay", opId: newOpId(), overlayId: op.overlay.id }]
+        : [{ type: "SetOverlay", opId: newOpId(), overlay: prior }];
+    }
+
+    case "RemoveOverlay": {
+      const prior = state.hot.overlays?.find((entry) => entry.id === op.overlayId);
+      return prior === undefined ? [] : [{ type: "SetOverlay", opId: newOpId(), overlay: prior }];
+    }
+
     // Not offered by the editor's undo stack: `Resegment` replaces every
     // segment id (no inverse ops can restore the pre-resegment document, only
     // a full reload or a snapshot restore can), and `SetSegmentBounds`,

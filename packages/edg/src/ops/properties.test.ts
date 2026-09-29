@@ -68,6 +68,9 @@ function world(): World {
 
 const base = world();
 
+/** A small pool of overlay ids, so generated sets and removals land on each other. */
+const OVERLAY_IDS = [mint(), mint()];
+
 /**
  * An op **without** its `opId` and without the ids it mints. An arbitrary has to
  * be pure — fast-check may read a generated value more than once — so the ids are
@@ -191,6 +194,20 @@ function anyOp({ segmentIds, wordIds, itemIds }: World): fc.Arbitrary<OpSpec> {
         type: fc.constant("SetProtectedRanges" as const),
         ranges: fc.array(fc.record({ s: ms, e: ms }), { maxLength: 4 }),
       }),
+      fc.record({
+        type: fc.constant("SetOverlay" as const),
+        overlay: fc.record({
+          id: fc.constantFrom(...OVERLAY_IDS),
+          kind: fc.constant("hook-title" as const),
+          text: fc.string({ maxLength: 12 }),
+          startMs: ms,
+          endMs: ms,
+        }),
+      }),
+      fc.record({
+        type: fc.constant("RemoveOverlay" as const),
+        overlayId: fc.constantFrom(...OVERLAY_IDS),
+      }),
     )
     .map((generated) => generated as OpSpec);
 }
@@ -264,6 +281,16 @@ function validOp({ segmentIds, wordIds, itemIds }: World): fc.Arbitrary<OpSpec> 
       fc.record({
         type: fc.constant("SetRender" as const),
         presets: fc.array(fc.constantFrom("social", "broadcast"), { maxLength: 2 }),
+      }),
+      fc.record({
+        type: fc.constant("SetOverlay" as const),
+        overlay: fc.record({
+          id: fc.constantFrom(...OVERLAY_IDS),
+          kind: fc.constant("hook-title" as const),
+          text: fc.constantFrom("Hook", "Bhai ye dekho"),
+          startMs: fc.constant(0),
+          endMs: fc.integer({ min: 500, max: 2_500 }),
+        }),
       }),
     )
     .map((generated) => generated as OpSpec);
@@ -348,6 +375,16 @@ describe("commuting ops converge", () => {
       { opId: mint(), type: "SetAudio", clean: { enabled: true } },
       { opId: mint(), type: "SetRender", presets: ["social"] },
       { opId: mint(), type: "SetStyle", scope: "doc", styleRef: "clean-caption" },
+      {
+        opId: mint(),
+        type: "SetOverlay",
+        overlay: { id: mint(), kind: "hook-title", text: "Hook", startMs: 0, endMs: 2_000 },
+      },
+      {
+        opId: mint(),
+        type: "SetOverlay",
+        overlay: { id: mint(), kind: "hook-title", text: "Later", startMs: 0, endMs: 1_500 },
+      },
     ];
     const expected = toProjection(applyOps(state, independent).state);
 
