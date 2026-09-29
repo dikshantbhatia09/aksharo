@@ -73,6 +73,10 @@
   "notifications.exportReady.body": "{project} is ready to download.",
   "notifications.lowCredits.title": "You are running low",
   "notifications.lowCredits.body": "{minutes, plural, one {# minute} other {# minutes}} of processing left.",
+  "notifications.someone": "Someone",
+  "notifications.clip": "a clip",
+  "notifications.clipReview.title": "{verdict, select, approved {Clip approved} changes {Changes requested} reopened {Needs review again} other {New comment}}",
+  "notifications.clipReview.body": "{verdict, select, approved {{by, select, client {{who} (client)} guest {Your client} other {{who}}} approved “{clip}”.} changes {{by, select, client {{who} (client)} guest {Your client} other {{who}}} asked for changes to “{clip}”.} reopened {“{clip}” changed and needs review again.} other {{by, select, client {{who} (client)} guest {Your client} other {{who}}} commented on “{clip}”.}}",
   "notifications.other.title": "An update",
   "notifications.other.body": "Open it to see more."
 }

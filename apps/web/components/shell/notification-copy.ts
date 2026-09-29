@@ -123,6 +123,29 @@ export function notificationText(
         tone: "yours",
       };
     }
+    case "clip-review": {
+      // 2026-10-03: a clip approved, sent back for changes, commented on, or
+      // back in review because its video changed.
+      const verdict = text(data, "verdict") ?? "comment";
+      const by = text(data, "by") ?? "member";
+      const values = {
+        verdict,
+        by,
+        who: text(data, "who") ?? t("notifications.someone"),
+        clip: text(data, "clip") ?? t("notifications.clip"),
+      };
+      return {
+        title: t("notifications.clipReview.title", values),
+        body: t("notifications.clipReview.body", values),
+        href,
+        tone:
+          verdict === "approved"
+            ? "done"
+            : verdict === "changes" || verdict === "reopened"
+              ? "yours"
+              : "neutral",
+      };
+    }
     case "export-ready":
       return {
         title: t("notifications.exportReady.title"),
