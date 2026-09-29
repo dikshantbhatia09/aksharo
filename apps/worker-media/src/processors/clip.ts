@@ -8,7 +8,15 @@ import { FFMPEG_BASE_ARGS, inputArgs, run } from "../ffmpeg/run.js";
 import { logger } from "../logger.js";
 import { DERIVED_OBJECT_TAGS } from "../storage.js";
 import { withWorkspace } from "../workspace.js";
-import { MAX_CLIP_HEIGHT, clipFilter, clipFrame, type ClipAspect } from "./clip-frame.js";
+import {
+  MAX_CLIP_HEIGHT,
+  clipFilter,
+  clipFrame,
+  stackedFilter,
+  stackedFrame,
+  type ClipAspect,
+  type StackedPersonInput,
+} from "./clip-frame.js";
 
 import type { ProbeContainer } from "../ffmpeg/ffprobe.js";
 import type { JobContext, ProcessorOutcome } from "../runtime.js";
@@ -34,6 +42,12 @@ export interface ClipPayload {
     readonly centerX: number;
     readonly centerY?: number;
     readonly basis: "faces" | "centre";
+    /**
+     * `stacked` (2026-10-01): each of `people` in half of the picture, the
+     * first on top (`stackedFrame`). Absent or `single`: one window.
+     */
+    readonly layout?: "single" | "stacked";
+    readonly people?: readonly StackedPersonInput[];
   };
   /** The shape to cut (2026-09-29); 9:16 when absent. */
   readonly aspect?: ClipAspect;
@@ -78,7 +92,8 @@ const SHORTFALL_TOLERANCE_RATIO = 0.05;
  * and the picture is `profile.maxHeight` tall at most, never upscaled. That
  * needs the source's picture size first, so the source is probed before the
  * cut — a few range requests, which also turns a missing object into a clear
- * answer before any encoding starts.
+ * answer before any encoding starts. A `stacked` payload (2026-10-01) is cut as
+ * two windows, one per person, one above the other (`stackedFrame`).
  *
  * **Failures say whether a retry can help.** The source is read through a
  * signed URL, so a refused connection, a 5xx or an expired signature is the
@@ -124,8 +139,28 @@ export async function processClip(context: JobContext): Promise<ProcessorOutcome
   context.report(5, "measuring the source");
   const source = await probeSource(context, sourceUrl);
 
+  // Two people, one above the other, when the API asks for it and the source
+  // can be stacked (landscape, a 9:16 or 4:5 cut); one window otherwise. A
+  // stack the source cannot make is cut on the dominant speaker
+  // (`reframe.centerX`), never failed: the clip matters more than its layout.
+  const wantsStack = payload.reframe?.layout === "stacked";
+  const stacked =
+    source.video === null || !wantsStack
+      ? null
+      : stackedFrame(source.video, {
+          maxHeight,
+          people: payload.reframe?.people ?? [],
+          ...(payload.aspect === undefined ? {} : { aspect: payload.aspect }),
+        });
+  if (wantsStack && source.video !== null && stacked === null) {
+    logger.warn("a stacked cut could not be stacked; cut as one window", {
+      clipId: payload.clipId,
+      aspect: payload.aspect ?? "9:16",
+      source: source.video,
+    });
+  }
   const frame =
-    source.video === null
+    source.video === null || stacked !== null
       ? null
       : clipFrame(source.video, {
           maxHeight,
@@ -133,9 +168,11 @@ export async function processClip(context: JobContext): Promise<ProcessorOutcome
           ...(payload.reframe === undefined ? {} : { centerX: payload.reframe.centerX }),
           ...(payload.reframe?.centerY === undefined ? {} : { centerY: payload.reframe.centerY }),
         });
-  if (source.video !== null && frame === null) {
+  if (source.video !== null && stacked === null && frame === null) {
     throw unreadableMedia("The source's picture size could not be read.", "media/probe_failed");
   }
+  const videoFilter =
+    stacked !== null ? stackedFilter(stacked) : frame !== null ? clipFilter(frame) : null;
 
   // The worker checks what it is given: a source the probe measured shorter
   // than the payload says caps the tail handle, so `effectiveEndMs` is what the
@@ -182,8 +219,9 @@ export async function processClip(context: JobContext): Promise<ProcessorOutcome
       effectiveStartMs,
       effectiveEndMs,
       framing: payload.reframe?.basis ?? "centre",
-      crop: frame?.crop,
-      output: frame?.output,
+      layout: stacked === null ? "single" : "stacked",
+      crop: stacked?.crops ?? frame?.crop,
+      output: stacked?.output ?? frame?.output,
     });
 
     const args = [
@@ -207,13 +245,13 @@ export async function processClip(context: JobContext): Promise<ProcessorOutcome
       // transcript was made from, and that transcript is what the clip project
       // is given; `V` skips an attached cover picture. Anything else the
       // container carries (subtitles, data) stays behind.
-      ...(frame === null
+      ...(videoFilter === null
         ? ["-vn"]
         : [
             "-map",
             "0:V:0",
             "-vf",
-            clipFilter(frame),
+            videoFilter,
             "-c:v",
             "libx264",
             "-preset",
@@ -259,7 +297,7 @@ export async function processClip(context: JobContext): Promise<ProcessorOutcome
     const expectedMs = Math.min(effectiveEndMs, sourceDurationMs) - effectiveStartMs;
     if (
       cutCameOutShort(probed.durationMs, expectedMs) ||
-      (frame !== null && probed.video === null)
+      (videoFilter !== null && probed.video === null)
     ) {
       throw transientFailure(
         "media/encode_incomplete",
