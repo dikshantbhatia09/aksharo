@@ -70,6 +70,14 @@ export const JobProgressSchema = z.object({
   progress: z.number().min(0).max(100),
   etaMs: z.number().int().min(0).optional(),
   message: z.string().max(1_000).optional(),
+  /**
+   * A download's bytes so far, and the size its source promised (2026-09-29,
+   * `media.acquire`): what the run page's "3.1 of 5.0 GB" and its time left are
+   * worked out from (`repurpose/run-activity.ts`). A worker older than these
+   * sends neither; a worker newer than this schema has them stripped.
+   */
+  bytesDone: z.number().int().min(0).optional(),
+  bytesTotal: z.number().int().positive().optional(),
 });
 
 export type JobProgress = z.infer<typeof JobProgressSchema>;

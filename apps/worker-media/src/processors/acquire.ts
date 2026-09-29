@@ -201,19 +201,38 @@ export async function processAcquire(context: JobContext): Promise<ProcessorOutc
 
     context.report(5, "getting your video");
     let downloaded = 0;
+    let downloadedBytes = 0;
+    // What the source said the chosen formats weigh: the run page's "3.1 of
+    // 5.0 GB", and what the API times the rest of the download against.
+    const expectedBytes =
+      metadata.approximateBytes !== null && metadata.approximateBytes > 0
+        ? metadata.approximateBytes
+        : null;
     const fetched = await fetchSource({
       context,
       workspace,
       payload,
       metadata,
       deadline,
-      onProgress: (percent) => {
+      onProgress: (percent, bytes) => {
         // A split download counts 0-100% for the picture and again for the
         // sound, and a fallback starts again from 0; the rail only ever moves
         // forward.
         downloaded = Math.max(downloaded, percent);
+        // Bytes on disk when the download counts them (a section), else the
+        // share of the expected size the percentage stands for.
+        downloadedBytes = Math.max(
+          downloadedBytes,
+          bytes ?? (expectedBytes === null ? 0 : (downloaded / 100) * expectedBytes),
+        );
         // 5-70% of the job is the download; the rest is probing and uploading.
-        context.report(5 + Math.round(downloaded * 0.65), "getting your video");
+        context.report(
+          5 + Math.round(downloaded * 0.65),
+          "getting your video",
+          expectedBytes === null
+            ? undefined
+            : { bytesDone: Math.min(downloadedBytes, expectedBytes), bytesTotal: expectedBytes },
+        );
       },
     });
     let outputPath = fetched.path;
@@ -481,7 +500,8 @@ async function fetchSource(input: {
   readonly payload: AcquirePayload;
   readonly metadata: SourceMetadata;
   readonly deadline: number;
-  readonly onProgress: (percent: number) => void;
+  /** `bytes` when the download counts them itself (a section's bytes on disk). */
+  readonly onProgress: (percent: number, bytes?: number) => void;
 }): Promise<{
   readonly path: string;
   readonly whole: boolean;
@@ -545,7 +565,7 @@ async function fetchSource(input: {
       // ffmpeg's reader prints no percentage; the bytes on disk are the progress.
       onBytes: (bytes) => {
         if (expected !== null && expected > 0) {
-          input.onProgress(Math.min(99, (bytes / expected) * 100));
+          input.onProgress(Math.min(99, (bytes / expected) * 100), bytes);
         }
       },
     });

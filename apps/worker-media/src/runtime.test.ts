@@ -1148,4 +1148,35 @@ describe("Heartbeat", () => {
     await settle();
     expect(h.calls.map((call) => call.body["progress"])).toEqual([40, 40]);
   });
+
+  it("sends a download's bytes with its percentage, and again on the timer", async () => {
+    // The timer re-post is the heartbeat of a download that has gone quiet;
+    // it still says how far it got, so the API sees it stall.
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+    try {
+      const beat = new Heartbeat(h.services.callbacks, JOB, ATTEMPT, 200_000);
+      await beat.postNow(5);
+      now += MIN_PROGRESS_POST_MS;
+      beat.report(40, "getting your video", {
+        bytesDone: 1_500_000_000,
+        bytesTotal: 3_000_000_000,
+      });
+      await settle();
+      beat.start();
+      now += 200_000;
+      vi.advanceTimersByTime(200_000);
+      await settle();
+      beat.stop();
+    } finally {
+      vi.useRealTimers();
+    }
+    const [, moved, timed] = h.calls;
+    expect(moved?.body).toMatchObject({
+      progress: 40,
+      message: "getting your video",
+      bytesDone: 1_500_000_000,
+      bytesTotal: 3_000_000_000,
+    });
+    expect(timed?.body).toMatchObject({ progress: 40, bytesDone: 1_500_000_000 });
+  });
 });

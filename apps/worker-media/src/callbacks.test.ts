@@ -101,6 +101,26 @@ describe("CallbackClient", () => {
     expect(bodies.map((body) => body.progress)).toEqual([100, 0]);
   });
 
+  it("sends a download's bytes as whole numbers, and leaves out any that make no sense", async () => {
+    const fetchImpl = vi.fn<typeof globalThis.fetch>(async () => ok());
+    const client = new CallbackClient("http://api.test", SECRET, {
+      fetch: fetchImpl as unknown as typeof globalThis.fetch,
+    });
+    await client.progress(JOB, ATTEMPT, 40, {
+      detail: { bytesDone: 1_234_567.8, bytesTotal: 5_000_000_000 },
+    });
+    await client.progress(JOB, ATTEMPT, 41, { detail: { bytesDone: -1, bytesTotal: 0 } });
+    await client.progress(JOB, ATTEMPT, 42, { detail: { bytesDone: Number.NaN } });
+    const bodies = fetchImpl.mock.calls.map(
+      ([, init]) => JSON.parse((init as RequestInit).body as string) as Record<string, unknown>,
+    );
+    expect(bodies).toEqual([
+      { progress: 40, bytesDone: 1_234_568, bytesTotal: 5_000_000_000 },
+      { progress: 41 },
+      { progress: 42 },
+    ]);
+  });
+
   it("reports a replay as applied: false rather than as a failure", async () => {
     const fetchImpl = vi.fn(async () =>
       ok({ applied: false, jobId: JOB, status: "succeeded", reason: "already_completed" }),

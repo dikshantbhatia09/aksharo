@@ -350,6 +350,26 @@ describe("recordProgress", () => {
     expect(h.db.eventNames(job.id).filter((name) => name === "job.started")).toHaveLength(1);
   });
 
+  it("keeps a download's bytes on its progress event, where the run page reads them", async () => {
+    const { job } = await h.jobs.enqueue(ENQUEUE);
+    await h.jobs.recordProgress(job.id, job.attemptId ?? "", {
+      progress: 48,
+      bytesDone: 3_100_000_000,
+      bytesTotal: 5_000_000_000,
+    });
+    await h.jobs.recordProgress(job.id, job.attemptId ?? "", { progress: 50 });
+    const samples = h.db.events
+      .filter((event) => event.jobId === job.id)
+      .map((event) => event.data as Record<string, unknown>)
+      .filter((data) => data["event"] === "job.progress");
+    expect(samples[0]).toMatchObject({
+      progress: 48,
+      bytesDone: 3_100_000_000,
+      bytesTotal: 5_000_000_000,
+    });
+    expect(samples[1]).not.toHaveProperty("bytesDone");
+  });
+
   it("ignores a superseded attempt", async () => {
     const { job } = await h.jobs.enqueue(ENQUEUE);
     const ack = await h.jobs.recordProgress(job.id, "01JCOLDATTEMPT000000000000", { progress: 5 });

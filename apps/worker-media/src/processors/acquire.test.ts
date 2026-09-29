@@ -14,6 +14,7 @@ import { logger } from "../logger.js";
 import { download } from "../yt-dlp.js";
 import { placeLanded, processAcquire, sha256 } from "./acquire.js";
 
+import type { ProgressDetail } from "../callbacks.js";
 import type { JobContext } from "../runtime.js";
 import type { Settings } from "../settings.js";
 import type * as YtDlp from "../yt-dlp.js";
@@ -302,6 +303,37 @@ describe("processAcquire", () => {
     await failure(processAcquire(ctx));
     // 2 (checking) and 5 (starting), then the download mapped onto 5-70.
     expect(ctx.reported).toEqual([2, 5, 31, 70, 70, 70]);
+  });
+
+  it("says how many bytes it has of the size the source promised, only ever forward", async () => {
+    fakeYtDlp(DUMP, async (child) => {
+      for (const line of [
+        "[download]  40.0% of  162.33MiB",
+        "[download] 100.0% of  162.33MiB",
+        "[download]  10.0% of   16.64MiB",
+      ]) {
+        child.stdout.write(`${line}\n`);
+      }
+      await child.exit(0);
+    });
+    const details: (ProgressDetail | undefined)[] = [];
+    await failure(
+      processAcquire({
+        ...context(),
+        report: (_progress, _message, detail) => {
+          details.push(detail);
+        },
+      }),
+    );
+    // Nothing before the download starts; then 40 %, 100 %, and the sound's
+    // 10 % leaves it where the picture got it.
+    const during = details.filter((detail) => detail !== undefined);
+    expect(during).toHaveLength(3);
+    const total = during[0]?.bytesTotal ?? 0;
+    expect(total).toBeGreaterThan(170_000_000);
+    expect(during.map((detail) => detail?.bytesTotal)).toEqual([total, total, total]);
+    expect(during[0]?.bytesDone).toBeCloseTo(0.4 * total, 0);
+    expect(during.slice(1).map((detail) => detail?.bytesDone)).toEqual([total, total]);
   });
 
   it("stores what landed when nothing stopped it", async () => {

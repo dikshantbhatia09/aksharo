@@ -9,6 +9,7 @@ import { RepurposeClipsService } from "./repurpose-clips.service.js";
 import { RepurposeStuckRunsSweepTask } from "./repurpose-stuck-runs-sweep.task.js";
 import { RepurposeController } from "./repurpose.controller.js";
 import { RepurposeService } from "./repurpose.service.js";
+import { RunActivityReader } from "./run-activity.reader.js";
 import { SourceGate } from "./source-gate.js";
 import { RepurposeStillsCompletionHandler } from "./stills-completion.handler.js";
 import { ExportsModule } from "../exports/exports.module.js";
@@ -52,6 +53,8 @@ import { WorkspacesModule } from "../workspaces/workspaces.module.js";
     RepurposeClipsService,
     RepurposeReconciler,
     SourceGate,
+    // Progress and alerts (2026-09-29): the step a run is on, and its notifications.
+    RunActivityReader,
     // A second binding of a stateless class (`MediaModule` provides the first
     // and does not export it), as `TranscriptsModule` does with its guard.
     AutoTranscribeTrigger,

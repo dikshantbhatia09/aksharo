@@ -11,6 +11,7 @@ import {
   WINDOW_START_MAX_MS,
 } from "./repurpose.constants.js";
 import { STAGES } from "./repurpose.projection.js";
+import { ACTIVITY_STEPS } from "./run-activity.js";
 import { zodDto } from "../common/index.js";
 
 /**
@@ -180,6 +181,16 @@ const stageViewSchema = z.object({
   label: z.string(),
 });
 
+/** `RunActivity` (`run-activity.ts`): the step under way and how far it is. */
+export const runActivitySchema = z.object({
+  step: z.enum(ACTIVITY_STEPS),
+  label: z.string(),
+  percent: z.number().int().min(0).max(100).optional(),
+  detail: z.string().optional(),
+  etaSeconds: z.number().int().min(0).optional(),
+  queuePosition: z.number().int().min(0).optional(),
+});
+
 /** What every run-shaped response returns. No job id, no queue name (§13.4). */
 export const runViewSchema = z.object({
   id: ulid,
@@ -241,6 +252,13 @@ export const runViewSchema = z.object({
       until: z.string(),
     })
     .nullable(),
+  /**
+   * What the run is doing this moment, as one step with its own progress
+   * (2026-09-29, `run-activity.ts`): "Downloading your video · 3.1 of 5.0 GB ·
+   * about 2 min left". Null for a run that has stopped or is past its clips.
+   * Optional only so a view built before it existed still parses.
+   */
+  activity: runActivitySchema.nullable().optional(),
 });
 
 /** `POST /repurpose/runs/{id}/next-window`: the new run over the next part of the source. */

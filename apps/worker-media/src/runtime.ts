@@ -10,7 +10,13 @@ import { MEDIA_ACQUIRE_QUEUE, isJobEnvelope, isMediaPayload } from "./queues.js"
 import { mediaPrefix } from "./storage-keys.js";
 import { storesFrom } from "./storage.js";
 
-import type { CallbackAck, JobCompletion, JobError, JobUsage } from "./callbacks.js";
+import type {
+  CallbackAck,
+  JobCompletion,
+  JobError,
+  JobUsage,
+  ProgressDetail,
+} from "./callbacks.js";
 import type { DiskVerdict } from "./disk.js";
 import type { MediaFailureReason } from "./errors.js";
 import type { JobEnvelope, MediaProbePayload } from "./queues.js";
@@ -113,8 +119,12 @@ export interface JobContext {
   readonly raw: ObjectStore;
   readonly derived: ObjectStore;
   readonly callbacks: CallbackClient;
-  /** Report progress; throttled by {@link Heartbeat}, safe to call often. */
-  report(progress: number, message?: string): void;
+  /**
+   * Report progress; throttled by {@link Heartbeat}, safe to call often. A
+   * download also says how many bytes it has and expects (`detail`), which is
+   * what lets the run page say "3.1 of 5.0 GB" and work out how long is left.
+   */
+  report(progress: number, message?: string, detail?: ProgressDetail): void;
   /**
    * Aborted when the worker is shutting down, or when the API says this job's
    * row is settled (a stopped run), so ffmpeg or the downloader is killed with it.
@@ -207,6 +217,13 @@ export const MIN_PROGRESS_POST_MS = 2_000;
  */
 export class Heartbeat {
   private last = -1;
+  /**
+   * What the last report said, re-sent with every timer post: a download that
+   * has gone quiet still says how far it got, so the API's estimate of the
+   * time left sees it stall rather than losing the numbers.
+   */
+  private lastMessage: string | undefined;
+  private lastDetail: ProgressDetail | undefined;
   private lastPosted = -1;
   private lastPostedAt = 0;
   private timer: NodeJS.Timeout | undefined;
@@ -228,12 +245,14 @@ export class Heartbeat {
   ) {}
 
   /** Note a new percentage, and post it if enough time has passed or it moved enough. */
-  report(progress: number, message?: string): void {
+  report(progress: number, message?: string, detail?: ProgressDetail): void {
     this.last = progress;
+    this.lastMessage = message;
+    this.lastDetail = detail;
     const elapsed = Date.now() - this.lastPostedAt;
     const moved = progress - this.lastPosted >= PROGRESS_STEP && elapsed >= MIN_PROGRESS_POST_MS;
     if (elapsed < this.intervalMs && !moved) return;
-    this.post(progress, message);
+    this.post(progress, message, detail);
   }
 
   /** Post immediately, whatever the throttle says. For 0 and 100. */
@@ -246,10 +265,10 @@ export class Heartbeat {
     });
   }
 
-  /** Begin re-posting the last percentage on a timer. */
+  /** Begin re-posting the last percentage (and what came with it) on a timer. */
   start(): void {
     this.timer ??= setInterval(() => {
-      if (this.last >= 0) this.post(this.last);
+      if (this.last >= 0) this.post(this.last, this.lastMessage, this.lastDetail);
     }, this.intervalMs);
     this.timer.unref();
   }
@@ -272,13 +291,14 @@ export class Heartbeat {
     await this.inflight;
   }
 
-  private post(progress: number, message?: string): void {
+  private post(progress: number, message?: string, detail?: ProgressDetail): void {
     if (this.inflight !== undefined || this.settled) return;
     this.lastPosted = progress;
     this.lastPostedAt = Date.now();
     this.inflight = this.callbacks
       .progress(this.jobId, this.attemptId, progress, {
         ...(message === undefined ? {} : { message }),
+        ...(detail === undefined ? {} : { detail }),
       })
       .then((ack) => {
         const reason = settledReason(ack);
@@ -449,8 +469,8 @@ export function makeHandler(
         raw: services.raw,
         derived: services.derived,
         callbacks: services.callbacks,
-        report: (progress, message) => {
-          heartbeat.report(progress, message);
+        report: (progress, message, detail) => {
+          heartbeat.report(progress, message, detail);
         },
         // Either stop kills a child process that is running. One not yet spawned
         // needs its own check of the signal: the downloader and acquire make
