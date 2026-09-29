@@ -55,21 +55,15 @@ import { applyTextTransform, layoutSegment } from "../layout/layout.js";
 import { type Layout, type PlacedRun, type RenderWord } from "../layout/types.js";
 import { charCount } from "../script.js";
 import { assertCanvas, type CanvasSize, clamp01, q } from "../units.js";
+import {
+  HOOK_TITLE_KIND,
+  type HookTitleAppearance,
+  type HookTitleTrack,
+  type OverlayTrack,
+} from "./types.js";
 
-/** The one overlay kind so far (`@montaj/edg` `OverlayKind`). */
-export const HOOK_TITLE_KIND = "hook-title";
-
-/**
- * An overlay as the projection hands it over (`EdgHot.overlays`), on the
- * source clock like a segment.
- */
-export interface OverlayTrack {
-  readonly id: string;
-  readonly kind: typeof HOOK_TITLE_KIND;
-  readonly text: string;
-  readonly startMs: number;
-  readonly endMs: number;
-}
+// Where these lived before the brand kit's overlays joined them (2026-10-02).
+export { HOOK_TITLE_KIND, type OverlayTrack } from "./types.js";
 
 /** Type size as a share of the canvas's short side, so every shape reads alike. */
 export const HOOK_TITLE_SIZE = 0.085;
@@ -119,7 +113,7 @@ export interface HookTitleLayout {
 }
 
 export interface HookTitleInput {
-  readonly overlay: OverlayTrack;
+  readonly overlay: HookTitleTrack;
   /** The document's own style (its default, with document overrides applied). */
   readonly style: StyleDoc;
   readonly canvas: CanvasSize;
@@ -132,7 +126,7 @@ export interface HookTitleInput {
 }
 
 /** The overlay's words, all on screen for its whole window. */
-function wordsOf(overlay: OverlayTrack): RenderWord[] {
+function wordsOf(overlay: HookTitleTrack): RenderWord[] {
   return overlay.text
     .split(/\s+/u)
     .filter((word) => word.length > 0)
@@ -149,18 +143,24 @@ function isPortrait(canvas: CanvasSize): boolean {
 }
 
 /**
- * The style the words are laid out with: the document's typeface, heavier, at
- * the title's size, centred, with none of a caption's behaviour (word chunks,
- * one word at a time, editorial compositions, its own box) — the card is drawn
- * here, not by the caption's box.
+ * The style the words are laid out with: the document's typeface (or a brand
+ * kit's, 2026-10-02), heavier, at the title's size, centred, with none of a
+ * caption's behaviour (word chunks, one word at a time, editorial compositions,
+ * its own box) — the card is drawn here, not by the caption's box.
  */
-function titleStyleOf(style: StyleDoc, canvas: CanvasSize, scale: number): StyleDoc {
+function titleStyleOf(
+  style: StyleDoc,
+  canvas: CanvasSize,
+  scale: number,
+  appearance: HookTitleAppearance | undefined,
+): StyleDoc {
   const fontPx = Math.min(canvas.width, canvas.height) * HOOK_TITLE_SIZE * scale;
   const { typographyMotion: _motion, ...animation } = style.animation;
   return {
     ...style,
     typography: {
       ...style.typography,
+      ...(appearance?.fontFamily === undefined ? {} : { fontFamily: appearance.fontFamily }),
       weight: Math.min(900, Math.max(800, style.typography.weight)),
       sizePct: (fontPx / canvas.height) * 100,
       lineHeight: LINE_HEIGHT,
@@ -207,7 +207,7 @@ function layOut(
 ): Layout {
   const { overlay, canvas } = input;
   return layoutSegment({
-    style: titleStyleOf(input.style, canvas, scale),
+    style: titleStyleOf(input.style, canvas, scale, overlay.appearance),
     segment: {
       id: overlay.id,
       startMs: overlay.startMs,
@@ -318,9 +318,15 @@ function overlaps(a: Rect, b: Rect): boolean {
   return a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3];
 }
 
-/** The card's highlight colour, opaque: a card you can see through is not a card. */
-function cardColourOf(style: StyleDoc): string {
-  return setAlpha(style.colors.activeText ?? style.colors.accent ?? "#ffffff", 1);
+/**
+ * The card's colour, opaque: a card you can see through is not a card. A brand
+ * kit's own (2026-10-02), else the style's highlight colour.
+ */
+function cardColourOf(style: StyleDoc, appearance: HookTitleAppearance | undefined): string {
+  return setAlpha(
+    appearance?.background ?? style.colors.activeText ?? style.colors.accent ?? "#ffffff",
+    1,
+  );
 }
 
 /**
@@ -403,13 +409,16 @@ export function layoutHookTitle(input: HookTitleInput): HookTitleLayout | undefi
     q(layout.box[2] + size.padX),
     q(layout.box[3] + size.padY),
   ];
-  const cardColour = cardColourOf(input.style);
+  const cardColour = cardColourOf(input.style, input.overlay.appearance);
   return {
     overlayId: input.overlay.id,
     layout,
     card,
     cardColour,
-    inkColour: contrastingInk(cardColour),
+    inkColour:
+      input.overlay.appearance?.text === undefined
+        ? contrastingInk(cardColour)
+        : setAlpha(input.overlay.appearance.text, 1),
     scale: chosen.scale,
   };
 }
@@ -440,7 +449,8 @@ export function hookTitlePhase(tMs: number, startMs: number, endMs: number): Hoo
   };
 }
 
-function glyphRunOf(run: PlacedRun): GlyphRun {
+/** A placed run as the glyph run a `text` command carries; the end card draws its words the same way. */
+export function glyphRunOf(run: PlacedRun): GlyphRun {
   const glyphs: number[] = [];
   const positions: number[] = [];
   const clusters: number[] = [];
@@ -547,6 +557,8 @@ export function renderHookTitles(options: RenderHookTitlesOptions): DrawCommand[
       options.canvas.height,
       style.id,
       options.faces === undefined ? "-" : String(options.faces.times.length),
+      // Only a brand kit's title carries one; every other key is as it was.
+      ...(overlay.appearance === undefined ? [] : [JSON.stringify(overlay.appearance)]),
     ].join("|");
     const title = options.cache.get(options.cacheOwner, key, () => {
       try {

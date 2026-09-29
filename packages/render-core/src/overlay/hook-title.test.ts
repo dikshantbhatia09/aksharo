@@ -87,6 +87,36 @@ describe("layoutHookTitle", () => {
     expect(title.inkColour).toBe("#000000ff");
   });
 
+  it("wears a brand kit's card, ink and typeface when the title carries them (2026-10-02)", () => {
+    const branded = layoutHookTitle({
+      overlay: {
+        ...HOOK,
+        kind: "hook-title",
+        appearance: { background: "#f0508a", text: "#0b0a0c", fontFamily: "Poppins" },
+      },
+      style: styleOf("punch-pop"),
+      canvas: PORTRAIT,
+      registry,
+      shaper,
+    });
+    expect(branded?.cardColour).toBe("#f0508aff");
+    expect(branded?.inkColour).toBe("#0b0a0cff");
+    const fontIds = new Set(
+      (branded?.layout.lines ?? []).flatMap((line) => line.runs.map((run) => run.fontId)),
+    );
+    expect([...fontIds].some((id) => id.startsWith("poppins-"))).toBe(true);
+
+    // A card colour alone picks its own ink, as the style's does.
+    const light = layoutHookTitle({
+      overlay: { ...HOOK, kind: "hook-title", appearance: { background: "#ffffff" } },
+      style: styleOf("punch-pop"),
+      canvas: PORTRAIT,
+      registry,
+      shaper,
+    });
+    expect(light?.inkColour).toBe("#000000ff");
+  });
+
   it("balances the lines instead of leaving a straggler", () => {
     const title = layoutHookTitle({
       overlay: { ...HOOK, text: "Ye ek galti aapka poora paisa kha jaati hai" },
