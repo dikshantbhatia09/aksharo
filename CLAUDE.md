@@ -37,13 +37,15 @@ Read this before touching anything. The most important section is
 > - Production still runs `NODE_ENV=development` and `MAIL_PROVIDER=dev` (no
 >   email is sent). Switching NODE_ENV to production needs a real mail provider
 >   and a SENTRY_DSN or its opt-out flag first.
-> - **Scheduler: three tasks only (since 2026-09-27, §17).**
->   `MONTAJ_SCHEDULER_DISABLED=0` with
->   `MONTAJ_SCHEDULER_TASKS=ops.watch,jobs.dlq-depth,jobs.lease-reaper`. Every
->   other task (retention purges, stuck-run sweep, payouts, dunning, status
->   snapshots) stays off. `DISABLED=1` still wins; `TASKS` set but empty runs
->   none. An API older than 64984aca does not know `TASKS` and would run all
->   32 — the rollback script sets `DISABLED=1` first for that reason.
+> - **Scheduler: seven tasks (since 2026-09-29, §20).**
+>   `MONTAJ_SCHEDULER_DISABLED=0` with `MONTAJ_SCHEDULER_TASKS=ops.watch,`
+>   `jobs.dlq-depth,jobs.lease-reaper,credits.grant-reset,credits.lot-expiry,`
+>   `scheduler.export-retention,scheduler.media-retention`. Every other task
+>   (project retention — it would soft-delete 151 projects — stuck-run sweep,
+>   payouts, dunning, status snapshots) stays off. `DISABLED=1` still wins;
+>   `TASKS` set but empty runs none. An API older than 64984aca does not know
+>   `TASKS` and would run all 32 — the rollback script sets `DISABLED=1` first
+>   for that reason.
 > - The paragraphs below that name `montaj` paths, `.next-live-20260917c`, or
 >   "no git remote" describe the setup before this change.
 
@@ -1022,8 +1024,10 @@ skipped instead of fatal, and `use-canvaskit.test.ts` fails if any
 `DEFAULT_FONTS` file is not in the copy script. **After a fresh checkout, run
 `pnpm --filter @montaj/web assets:render`**, or `/fonts/*` 404s.
 
-**The caption style catalogue offers one style, Punch Pop** (owner decision).
-`PICKABLE_STYLE_IDS` in `packages/caption-styles/src/catalogue.ts` is the only
+**The caption style catalogue offers five styles** (2026-09-29, §20; it was
+Punch Pop alone): `punch-pop` (the default), `karaoke-fill`, `hype-bold`,
+`word-pop`, `vertical-clean`. `karaoke-fill`'s `minPlan: starter` is not
+enforced anywhere. `PICKABLE_STYLE_IDS` in `packages/caption-styles/src/catalogue.ts` is the only
 list: the editor Templates panel, Studio > Styles, the repurpose form, the
 public gallery, the home-page demo and `GET /styles` (system rows; workspace
 presets are unaffected) all read it, and new projects default to it
@@ -1273,3 +1277,91 @@ target list are in `docs/repurpose/FORMATS-2026-09-29.md`; the single source is
   anchor), on every surface. Golden hashes moved for the four scale-highlight
   styles only. Captioned videos made before `acc4da1d` still have the old
   spacing until they are rendered again.
+
+---
+
+## 20. 2026-09-29 — the clips programme: AI picks, steering, finishing, alerts, layouts, posting
+
+Owner request: find what people who repurpose long videos want and we lack
+(`docs` research artifact "What Repurposers Want"), then build all of it;
+clips open to everyone who signs up. Built by parallel agents in isolated
+worktrees (`wt/<name>`, branch `feat/<name>`), each merged and verified in
+`montaj-verify` before deploy. Deployed as **17a8e599**
+(`deploy-20260929d.ps1`, undo `rollback-20260929d.ps1`) and **c709dc72**
+(`deploy-20260929f.ps1`, undo `rollback-20260929f.ps1`); DB backups
+`_orchestration/backups/montaj_main-pre-20260929{d,f}.dump`.
+
+- **A language model picks the moments and writes the words** (worker-ai).
+  `LLM_PROVIDER=sarvam`, `LLM_MODEL=sarvam-105b-conversations` — never
+  `sarvam-105b`, a reasoning model that answers `content: null` — then
+  `LLM_FALLBACK_PROVIDER=ollama` (`qwen2.5:3b`), then rules. Spend is capped by
+  `LLM_DAILY_BUDGET_INR=300`, tallied per UTC day in Redis
+  (`montaj:llm:spend:v1:<date>`); Sarvam serves `in` workspaces only. The
+  heuristic still scores every window; the model judges a shortlist
+  (standalone, payoff, humour, topic fit) and the potential is 45 % heuristic,
+  55 % model (`MODEL_WEIGHT`). Each candidate carries `copy` (title, hook,
+  description, hashtags, text per platform, in the run's language and script)
+  and `judgement` (migration `20261001100000_clip_candidate_copy`); a clip
+  starts from its candidate's copy. `GET/POST /repurpose/runs/:id/episode-pack`
+  writes chapters, descriptions, show notes and posts for the whole video
+  (free to the person; Autopilot asks by itself). worker-ai logs `llm chain` at
+  boot. The API's prompted-edits planner has no Sarvam client and stays on the
+  local model (`plannerClientFor`).
+- **Steering**: `setup.discovery.topic`, `clipLength` (`short` 15-35 s,
+  `medium` 30-60 s, `long` 55-95 s), `skipIntroMs`/`skipOutroMs` (sent to
+  worker-ai as `excludeRanges` on the file's clock); remove, restore and
+  re-time a moment (`repurpose-steering.*`).
+- **Autopilot clips come out edited** (`clip-finishing.ts`,
+  `clip_variants.finishing`): cuts, keyword emphasis, zooms and a hook title —
+  the first overlay kind (`EdgHot.overlays`, ops `SetOverlay`/`RemoveOverlay`;
+  render projections carry `overlays`, and an old render drops them).
+- **Progress and alerts**: the run view has `activity` (the step, its own
+  percent, "3.1 of 5.0 GB", time left, place in line). Notifications once per
+  run and kind (`repurpose_run_notices`; the migration marked every existing
+  run as told, so a deploy sends no backlog): clips ready, run complete, run
+  failed, needs you. Device notifications are Web Push with this server's
+  VAPID pair in `.env.local-run` (`WEB_PUSH_VAPID_*`) — **generated once;
+  a new pair silently breaks every subscribed browser**.
+- **Two speakers, one above the other** (9:16 and 4:5 only):
+  `repurpose_clips.layout` (`auto`/`single`/`stacked`, the person's choice),
+  `clip_variants.layout` (how it was cut), `PUT .../clips/:clipId/layout`.
+  Auto stacks only when both people are side by side in at least half the
+  samples; thresholds were tuned on synthetic tracks, not a real podcast.
+- **Posting through Postiz** (`apps/api/src/publishing`): idle until
+  `POSTIZ_API_KEY`, `POSTIZ_WORKSPACE_IDS` and flag `publishing_postiz` are
+  all set. Owner setup, platform apps and redirect URIs:
+  `docs/publishing/POSTIZ-SETUP.md`. On 2026-09-29 the local Postiz answered
+  502 (its container set had no Temporal service): it needs fixing before
+  anything can post.
+- **Workers call the API back on 127.0.0.1.** `API_ORIGIN` in
+  `.env.local-run` is the public tunnel hostname, and the workers used it for
+  every progress and completion callback; the tunnel dropped all day (DNS
+  timeouts, 530/502 bursts), each drop failed or stranded jobs with their work
+  done. `start-production-stack.ps1` and the deploy scripts now start the
+  four workers with `API_ORIGIN=http://127.0.0.1:3913` (an inherited variable
+  wins over `--env-file`); api and web keep the public one.
+- **Stranded jobs are settled**: the lease reaper also settles a `queued` row
+  whose BullMQ attempt already finished (its first progress post never
+  landed); a blip while asking for a captioned video is asked again
+  (`CAPTIONED_REQUEST_ATTEMPTS` = 5) instead of failing until the captions
+  change.
+- **Owner decisions applied the same day** (`_orchestration/tools/ops-20260929e.cjs`,
+  audited rows in `audit_log`): flags `repurpose_flow` and
+  `source_youtube_acquire` target everyone; Free is **200 credits a month**
+  during the beta (plans row, seeds, web copy); the monthly grant and lot
+  expiry run for the first time (`credits.grant-reset` had never run, so no
+  account had ever been refilled); renders expire 7 days after they are made
+  and originals at `raw_purge_at`, **except the owner's workspace**
+  (`RETENTION_EXEMPT_WORKSPACE_IDS`), and derived files are kept
+  (`RETENTION_PURGE_DERIVED=0`).
+- **Logs survive restarts**: `start-production-stack.ps1` used to truncate
+  every `*.log` at boot, which erased the API log of the hour its callbacks
+  answered 500; it now keeps `<name>.<kind>.log.<stamp>`.
+- **Trap: timestamps written by hand.** `now()` in SQL has microseconds;
+  Prisma reads milliseconds. Code that claims a row by equality on a value it
+  read (the grant reset's `updateMany where grant_reset_at = ...`) never
+  matches such a row. Use `date_trunc('milliseconds', now())`.
+- **Known, not fixed**: a `media.clip` completion takes ~8 s (p50) because the
+  run's whole reconcile runs inside the callback; worker timeouts (15 s)
+  retry it. API unit tests write BullMQ keys (`montaj-test-*`) into the
+  production Redis because `test/setup-env.ts` assigns `localhost:6379`.
