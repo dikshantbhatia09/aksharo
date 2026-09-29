@@ -29269,6 +29269,330 @@
         ]
       }
     },
+    "/repurpose/runs/{runId}/compilations": {
+      "get": {
+        "operationId": "listRepurposeCompilations",
+        "parameters": [
+          {
+            "name": "runId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "`{runId, compilations}`, newest first."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "The run's compilations: each with its state, and its file to play and download",
+        "tags": [
+          "repurpose"
+        ]
+      },
+      "post": {
+        "description": "Joins each clip's captioned video in `shape`, in the order given, with a half-second fade between them and, with a `title`, a two-second card first in the brand kit's colours. 201 with the new compilation, 200 with the one these clips, shape and title already made. 409 `repurpose/compilation_clips_not_ready` (`details.clipIds`) when a clip has no captioned video in that shape; 400 `repurpose/compilation_too_long` past 15 minutes. Costs the cloud render rate on the joined video's minutes.",
+        "operationId": "createRepurposeCompilation",
+        "parameters": [
+          {
+            "name": "runId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "clipIds": {
+                    "minItems": 2,
+                    "maxItems": 20,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                    }
+                  },
+                  "shape": {
+                    "type": "string",
+                    "enum": [
+                      "9:16",
+                      "4:5",
+                      "1:1",
+                      "16:9"
+                    ]
+                  },
+                  "title": {
+                    "type": "string",
+                    "maxLength": 80
+                  }
+                },
+                "required": [
+                  "clipIds",
+                  "shape"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Join clips into one video: a best of, in one shape, with an optional title card",
+        "tags": [
+          "repurpose"
+        ]
+      }
+    },
+    "/repurpose/runs/{runId}/compilations/{compilationId}": {
+      "get": {
+        "operationId": "getRepurposeCompilation",
+        "parameters": [
+          {
+            "name": "runId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "compilationId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "One compilation",
+        "tags": [
+          "repurpose"
+        ]
+      },
+      "delete": {
+        "description": "A compilation being made stops.",
+        "operationId": "deleteRepurposeCompilation",
+        "parameters": [
+          {
+            "name": "runId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "compilationId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Delete a compilation and its file",
+        "tags": [
+          "repurpose"
+        ]
+      }
+    },
+    "/repurpose/runs/{runId}/compilations/{compilationId}/retry": {
+      "post": {
+        "description": "Joins the clips' current captioned videos; the earlier file is replaced. 409 `repurpose/compilation_not_retryable` while it is being made, or when it is made and current.",
+        "operationId": "retryRepurposeCompilation",
+        "parameters": [
+          {
+            "name": "runId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "compilationId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Make a compilation again: failed, expired, or its clips changed since",
+        "tags": [
+          "repurpose"
+        ]
+      }
+    },
+    "/repurpose/runs/{runId}/series": {
+      "get": {
+        "operationId": "listRepurposeSeries",
+        "parameters": [
+          {
+            "name": "runId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "The run's series: clips labelled Part 1, Part 2, ...",
+        "tags": [
+          "repurpose"
+        ]
+      },
+      "post": {
+        "description": "Numbered in the order the clips play in the video. The labels go on every shape of each clip as hook titles (Autopilot's own hook title gives way and is kept for undoing; a person's own is never touched), and the captioned videos are made again. 409 `repurpose/series_clips_not_ready` or `repurpose/series_clip_taken` (a clip is in another series).",
+        "operationId": "createRepurposeSeries",
+        "parameters": [
+          {
+            "name": "runId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "clipIds": {
+                    "minItems": 2,
+                    "maxItems": 10,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                    }
+                  }
+                },
+                "required": [
+                  "clipIds"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Make a series: each clip says Part N of M, and but the last, Part N+1 next",
+        "tags": [
+          "repurpose"
+        ]
+      }
+    },
+    "/repurpose/runs/{runId}/series/{seriesId}": {
+      "delete": {
+        "operationId": "deleteRepurposeSeries",
+        "parameters": [
+          {
+            "name": "runId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "seriesId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Remove series labels: every label comes off, and what it replaced goes back",
+        "tags": [
+          "repurpose"
+        ]
+      }
+    },
     "/publishing/status": {
       "get": {
         "description": "Never an error: `enabled` false while the feature is off (the page shows no Post button), `available` false with a `reason` and one sentence when something is missing.",
@@ -30102,6 +30426,9 @@
                                   "auto",
                                   "manual"
                                 ]
+                              },
+                              "brand": {
+                                "type": "boolean"
                               }
                             },
                             "required": [
@@ -30411,6 +30738,9 @@
                           "auto",
                           "manual"
                         ]
+                      },
+                      "brand": {
+                        "type": "boolean"
                       }
                     },
                     "required": [
@@ -30643,6 +30973,9 @@
                             "auto",
                             "manual"
                           ]
+                        },
+                        "brand": {
+                          "type": "boolean"
                         }
                       },
                       "required": [
@@ -30989,6 +31322,9 @@
                             "auto",
                             "manual"
                           ]
+                        },
+                        "brand": {
+                          "type": "boolean"
                         }
                       },
                       "required": [
@@ -31286,6 +31622,9 @@
                           "auto",
                           "manual"
                         ]
+                      },
+                      "brand": {
+                        "type": "boolean"
                       }
                     },
                     "required": [
@@ -31504,6 +31843,9 @@
                             "auto",
                             "manual"
                           ]
+                        },
+                        "brand": {
+                          "type": "boolean"
                         }
                       },
                       "required": [
@@ -31878,6 +32220,9 @@
                             "auto",
                             "manual"
                           ]
+                        },
+                        "brand": {
+                          "type": "boolean"
                         }
                       },
                       "required": [
@@ -32225,6 +32570,9 @@
                             "auto",
                             "manual"
                           ]
+                        },
+                        "brand": {
+                          "type": "boolean"
                         }
                       },
                       "required": [
@@ -32524,6 +32872,9 @@
                           "auto",
                           "manual"
                         ]
+                      },
+                      "brand": {
+                        "type": "boolean"
                       }
                     },
                     "required": [
@@ -32830,6 +33181,7 @@
               "ai.faces",
               "render.video",
               "render.subtitle",
+              "render.compilation",
               "publish.dispatch",
               "publish.reconcile",
               "notify"
@@ -33890,6 +34242,7 @@
               "ai.faces",
               "render.video",
               "render.subtitle",
+              "render.compilation",
               "publish.dispatch",
               "publish.reconcile",
               "notify"
@@ -34007,6 +34360,7 @@
               "ai.faces",
               "render.video",
               "render.subtitle",
+              "render.compilation",
               "publish.dispatch",
               "publish.reconcile",
               "notify"
@@ -34178,6 +34532,7 @@
               "ai.faces",
               "render.video",
               "render.subtitle",
+              "render.compilation",
               "publish.dispatch",
               "publish.reconcile",
               "notify"
@@ -34226,6 +34581,7 @@
               "ai.faces",
               "render.video",
               "render.subtitle",
+              "render.compilation",
               "publish.dispatch",
               "publish.reconcile",
               "notify"
