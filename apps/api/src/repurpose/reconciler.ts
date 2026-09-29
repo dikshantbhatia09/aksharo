@@ -10,6 +10,7 @@ import {
 
 import { MediaAcquirePayloadSchema } from "@montaj/repurpose-contracts";
 
+import { RepurposeCompilationsService } from "./compilations.service.js";
 import {
   LEGACY_RUN_FAILURE_CODES,
   STAGE_OF_FAILURE,
@@ -878,6 +879,11 @@ export class RepurposeReconciler
     private readonly gate?: SourceGate,
     /** A run's notifications, sent once each; absent in unit harnesses. */
     @Optional() private readonly notices?: RunNotifier,
+    /**
+     * Compilations waiting for the lane, on any run (2026-10-03): a run long
+     * settled is not swept above, and its clips can still be joined.
+     */
+    @Optional() private readonly compilations?: RepurposeCompilationsService,
   ) {}
 
   /**
@@ -962,6 +968,7 @@ export class RepurposeReconciler
       await this.retryAutopilotRuns(now ?? Date.now(), enabled);
       // Once the runs have moved: who needs telling (`run-notifications.ts`).
       await this.notices?.sweep(now ?? Date.now());
+      await this.compilations?.sweep();
     } catch (error) {
       this.logger.warn({ err: error }, "run reconcile watchdog pass failed; the next one retries");
     }

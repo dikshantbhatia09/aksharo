@@ -39,7 +39,7 @@ import {
   type RepurposeClipItem,
   type RepurposeClipState,
 } from "@montaj/api-client";
-import { Badge, Button } from "@montaj/ui";
+import { Badge, Button, Checkbox } from "@montaj/ui";
 
 import type {
   ClipReviewSummary,
@@ -161,6 +161,19 @@ export interface CandidateCardProps {
   readonly needsApproval?: boolean;
   /** The run makes its own captioned videos (Autopilot). */
   readonly autopilot?: boolean;
+  /**
+   * Picking clips for a compilation or a series (2026-10-03): the card shows a
+   * tick box. `disabled` when this clip cannot be picked for what is being
+   * made (no captioned video in the shape yet); `note` says why.
+   */
+  readonly select?: {
+    readonly checked: boolean;
+    readonly disabled: boolean;
+    readonly note?: string;
+    readonly onToggle: () => void;
+  };
+  /** "Part 2 of 4" when the clip is in a series (2026-10-03). */
+  readonly seriesPart?: string;
 }
 
 export function CandidateCard({
@@ -176,6 +189,8 @@ export function CandidateCard({
   reviewPermissions,
   needsApproval = false,
   autopilot = false,
+  select,
+  seriesPart,
 }: CandidateCardProps): React.JSX.Element {
   const createClip = useCreateRepurposeClip();
   const retryClip = useRetryRepurposeClip();
@@ -249,12 +264,30 @@ export function CandidateCard({
       {...(clip === undefined ? {} : { id: `clip-${clip.id}` })}
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
+        {select === undefined ? null : (
+          <div className="flex shrink-0 items-center pt-0.5">
+            <Checkbox
+              checked={select.checked}
+              disabled={select.disabled}
+              aria-label={`Pick this clip: ${title}`}
+              onCheckedChange={() => {
+                select.onToggle();
+              }}
+              data-testid={`pick-clip-${candidate.id}`}
+            />
+          </div>
+        )}
         <div className="min-w-0 flex-[1_1_240px]">
           <div className="flex flex-wrap items-center gap-2">
             {score === undefined || score === null ? null : (
               <Badge tone="neutral">Potential {String(score)}%</Badge>
             )}
             {picked ? <Badge tone="neutral">Your pick</Badge> : null}
+            {seriesPart === undefined ? null : (
+              <Badge tone="neutral" data-testid={`series-part-${candidate.id}`}>
+                {seriesPart}
+              </Badge>
+            )}
             <span className="font-mono text-2xs text-fg-2">
               {formatClock(candidate.startMs)} – {formatClock(candidate.endMs)} (
               {String(Math.round((candidate.endMs - candidate.startMs) / 1000))}s)
@@ -264,6 +297,11 @@ export function CandidateCard({
           {(candidate.transcriptExcerpt || candidate.reason) && (
             <p className="mt-1 line-clamp-2 text-sm text-fg-2">
               {candidate.transcriptExcerpt ?? candidate.reason}
+            </p>
+          )}
+          {select?.note === undefined ? null : (
+            <p className="m-0 mt-1 text-xs text-fg-2" data-testid={`pick-note-${candidate.id}`}>
+              {select.note}
             </p>
           )}
         </div>

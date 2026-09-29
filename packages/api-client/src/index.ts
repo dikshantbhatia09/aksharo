@@ -71,6 +71,8 @@ export type { ApiContextValue } from "./context.js";
 
 export * from "./hooks.js";
 export * from "./repurpose-copy.js";
+// A run's clips joined into one video, and numbered series (2026-10-03).
+export * from "./repurpose-compilations.js";
 
 export {
   backoffDelayMs,

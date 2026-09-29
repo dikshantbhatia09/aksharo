@@ -1860,3 +1860,135 @@ describe("<RepurposeRunView /> clip review (2026-10-03)", () => {
     expect(screen.queryByTestId("share-for-review-open")).toBeNull();
   });
 });
+
+describe("<RepurposeRunView /> compilations and series (2026-10-03)", () => {
+  const readyRun = () =>
+    run({
+      status: "review_ready",
+      currentStage: "review",
+      automation: "auto",
+      candidateCount: 3,
+      message: "Your videos are ready to review.",
+    });
+  const shapeReady = (shape: string, durationMs: number) => ({
+    shape,
+    status: "ready",
+    projectId: `P${shape}`,
+    captioned: {
+      status: "ready",
+      playUrl: `https://media.test/${shape}.mp4?X-Amz-Signature=p`,
+      downloadUrl: `https://media.test/${shape}.mp4?X-Amz-Signature=d`,
+      durationMs,
+    },
+    cleanUrl: null,
+  });
+  const madeClip = (id: string, candidateId: string, startMs: number, formats: unknown[]) =>
+    clip(id, candidateId, {
+      state: "ready",
+      sourceStartMs: startMs,
+      sourceEndMs: startMs + 30_000,
+      mezzanineKey: "ws/x/master.mp4",
+      mezzanineUrl: "https://media.test/master.mp4?X-Amz-Signature=a",
+      captioned: {
+        status: "ready",
+        playUrl: "https://media.test/c.mp4?X-Amz-Signature=p",
+        downloadUrl: "https://media.test/c.mp4?X-Amz-Signature=d",
+      },
+      formats,
+    });
+  const routes = (extra: Record<string, unknown> = {}): Record<string, unknown> => ({
+    [RUN_PATH]: readyRun(),
+    ...momentsRoutes(
+      [
+        candidate("01CAND1", { startMs: 10_000, endMs: 40_000, title: "The opening" }),
+        candidate("01CAND2", { startMs: 60_000, endMs: 90_000, title: "The money bit" }),
+        candidate("01CAND3", { startMs: 120_000, endMs: 150_000, title: "The end" }),
+      ],
+      [
+        madeClip("01CLIP1", "01CAND1", 10_000, [
+          shapeReady("9:16", 30_000),
+          shapeReady("1:1", 30_000),
+        ]),
+        madeClip("01CLIP2", "01CAND2", 60_000, [shapeReady("9:16", 28_000)]),
+        madeClip("01CLIP3", "01CAND3", 120_000, [
+          shapeReady("9:16", 25_000),
+          shapeReady("1:1", 25_000),
+        ]),
+      ],
+    ),
+    [`${RUN_PATH}/compilations`]: { runId: RUN_ID, compilations: [] },
+    [`${RUN_PATH}/series`]: { runId: RUN_ID, series: [] },
+    ...extra,
+  });
+
+  it("picks clips on their cards and makes a compilation of them, in the order they were picked", async () => {
+    const user = userEvent.setup();
+    const { fetchMock } = renderWithProviders(<RepurposeRunView runId={RUN_ID} />, {
+      routes: routes(),
+    });
+    await user.click(await screen.findByTestId("compilation-start"));
+    expect(screen.getByTestId("compilation-builder")).toBeInTheDocument();
+
+    await user.click(screen.getByTestId("pick-clip-01CAND2"));
+    await user.click(screen.getByTestId("pick-clip-01CAND1"));
+    expect(screen.getByTestId("compilation-summary")).toHaveTextContent("2 clips · 0:58");
+    await user.click(screen.getByTestId("compilation-create"));
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("compilation-builder")).toBeNull();
+    });
+    const post = fetchMock.mock.calls.find(
+      ([url, init]) =>
+        String(url).endsWith(`${RUN_PATH}/compilations`) &&
+        (init as RequestInit | undefined)?.method === "POST",
+    );
+    expect(JSON.parse(String((post?.[1] as RequestInit).body))).toEqual({
+      clipIds: ["01CLIP2", "01CLIP1"],
+      shape: "9:16",
+    });
+    // The tick boxes go with the builder.
+    expect(screen.queryByTestId("pick-clip-01CAND1")).toBeNull();
+  });
+
+  it("only lets a clip be picked in a shape its captioned video is made in", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<RepurposeRunView runId={RUN_ID} />, { routes: routes() });
+    await user.click(await screen.findByTestId("compilation-start"));
+    await user.click(screen.getByTestId("pick-clip-01CAND2"));
+    await user.click(screen.getByTestId("pick-clip-01CAND3"));
+
+    await user.selectOptions(screen.getByTestId("compilation-shape"), "1:1");
+    // Clip 2 has no square video: it is taken out, and cannot be picked again.
+    expect(screen.getByTestId("pick-clip-01CAND2")).not.toBeChecked();
+    expect(screen.getByTestId("pick-clip-01CAND2")).toBeDisabled();
+    expect(screen.getByTestId("pick-note-01CAND2")).toHaveTextContent(
+      "No captioned 1:1 video of this clip yet.",
+    );
+    expect(screen.getByTestId("pick-clip-01CAND3")).toBeChecked();
+  });
+
+  it("marks each clip of a series with its part", async () => {
+    renderWithProviders(<RepurposeRunView runId={RUN_ID} />, {
+      routes: routes({
+        [`${RUN_PATH}/series`]: {
+          runId: RUN_ID,
+          series: [
+            {
+              id: "01JCSER1ES0000000000000000",
+              runId: RUN_ID,
+              clipIds: ["01CLIP1", "01CLIP2"],
+              parts: [
+                { clipId: "01CLIP1", part: 1, labelled: 4, pending: 0 },
+                { clipId: "01CLIP2", part: 2, labelled: 4, pending: 0 },
+              ],
+              createdAt: "2026-10-03T00:00:00.000Z",
+            },
+          ],
+        },
+      }),
+    });
+    expect(await screen.findByTestId("series-part-01CAND1")).toHaveTextContent("Part 1 of 2");
+    expect(screen.getByTestId("series-part-01CAND2")).toHaveTextContent("Part 2 of 2");
+    expect(screen.queryByTestId("series-part-01CAND3")).toBeNull();
+  });
+});

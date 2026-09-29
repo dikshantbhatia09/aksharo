@@ -620,25 +620,25 @@ model User {
   createdAt          DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
   deletedAt          DateTime?    @map("deleted_at") @db.Timestamptz(6)
 
-  identities      Identity[]
-  sessions        Session[]
-  memberships     Membership[]
-  ownedWorkspaces Workspace[]           @relation("WorkspaceOwner")
-  consentRecords  ConsentRecord[]
-  dsrRequests     DsrRequest[]
-  devices         Device[]
-  affiliate       Affiliate?
-  memoryEntries   MemoryEntry[]
-  lessonProgress  LessonProgress[]
-  comments        Comment[]
-  clearanceGrants AssetClearanceGrant[]
-  notifications   Notification[]
-  pushSubscriptions PushSubscription[]
-  academyProgress AcademyProgress[]
-  supportTickets  SupportTicket[]
+  identities         Identity[]
+  sessions           Session[]
+  memberships        Membership[]
+  ownedWorkspaces    Workspace[]           @relation("WorkspaceOwner")
+  consentRecords     ConsentRecord[]
+  dsrRequests        DsrRequest[]
+  devices            Device[]
+  affiliate          Affiliate?
+  memoryEntries      MemoryEntry[]
+  lessonProgress     LessonProgress[]
+  comments           Comment[]
+  clearanceGrants    AssetClearanceGrant[]
+  notifications      Notification[]
+  pushSubscriptions  PushSubscription[]
+  academyProgress    AcademyProgress[]
+  supportTickets     SupportTicket[]
   changelogDismissal ChangelogDismissal?
-  adminRoles      AdminRole[]
-  adminTotp       AdminTotp?
+  adminRoles         AdminRole[]
+  adminTotp          AdminTotp?
 
   @@index([deletedAt])
   @@map("users")
@@ -649,14 +649,14 @@ model User {
 /// trusted from the JWT's `adminRoles` claim alone, so revocation takes effect
 /// immediately rather than waiting out the 30-minute admin token).
 model AdminRole {
-  id         String         @id @db.Char(26)
-  userId     String         @map("user_id") @db.Char(26)
-  role       AdminRoleName
+  id        String        @id @db.Char(26)
+  userId    String        @map("user_id") @db.Char(26)
+  role      AdminRoleName
   /// Who granted it — another admin's `users.id`, or null for the seed/bootstrap grant.
-  grantedBy  String?        @map("granted_by") @db.Char(26)
-  grantedAt  DateTime       @default(now()) @map("granted_at") @db.Timestamptz(6)
-  revokedAt  DateTime?      @map("revoked_at") @db.Timestamptz(6)
-  revokedBy  String?        @map("revoked_by") @db.Char(26)
+  grantedBy String?       @map("granted_by") @db.Char(26)
+  grantedAt DateTime      @default(now()) @map("granted_at") @db.Timestamptz(6)
+  revokedAt DateTime?     @map("revoked_at") @db.Timestamptz(6)
+  revokedBy String?       @map("revoked_by") @db.Char(26)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -669,13 +669,13 @@ model AdminRole {
 /// else in the platform uses TOTP — `users.mfa_secret` is a separate, unused
 /// A04 placeholder for a future consumer-facing MFA and is left untouched.
 model AdminTotp {
-  userId       String    @id @map("user_id") @db.Char(26)
+  userId     String    @id @map("user_id") @db.Char(26)
   /// Base32 TOTP secret. Admin-only, platform-staff-scoped credential — not a
   /// user password or a workspace secret; stored as issued by `otplib`.
-  secret       String
-  enrolledAt   DateTime  @default(now()) @map("enrolled_at") @db.Timestamptz(6)
-  verifiedAt   DateTime? @map("verified_at") @db.Timestamptz(6)
-  lastUsedAt   DateTime? @map("last_used_at") @db.Timestamptz(6)
+  secret     String
+  enrolledAt DateTime  @default(now()) @map("enrolled_at") @db.Timestamptz(6)
+  verifiedAt DateTime? @map("verified_at") @db.Timestamptz(6)
+  lastUsedAt DateTime? @map("last_used_at") @db.Timestamptz(6)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -853,66 +853,66 @@ model Workspace {
   /// Personal give-get referral code (D53, B07b), format `AK-XXXXXX`. Lazily
   /// generated on first read of `GET /referrals/me`; distinct from
   /// `affiliates.code` (B07's affiliate codes carry no fixed prefix).
-  referralCode               String?       @unique @map("referral_code")
+  referralCode              String?       @unique @map("referral_code")
   /// Set once, the first time this workspace's referrals cross the tiered
   /// bonus threshold (3 granted referrals → +100 credits, 13-launch-plan).
   /// Guards the bonus grant against a double-fire the same way
   /// `signupGiftConsumedAt` guards the signup gift.
-  referralBonusGrantedAt     DateTime?     @map("referral_bonus_granted_at") @db.Timestamptz(6)
+  referralBonusGrantedAt    DateTime?     @map("referral_bonus_granted_at") @db.Timestamptz(6)
   /// Set the first time the give-get in-app sheet is shown to this workspace
   /// (brief §3: "shown once per workspace, dismissible").
-  referralPromptShownAt      DateTime?     @map("referral_prompt_shown_at") @db.Timestamptz(6)
+  referralPromptShownAt     DateTime?     @map("referral_prompt_shown_at") @db.Timestamptz(6)
   createdAt                 DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
   deletedAt                 DateTime?     @map("deleted_at") @db.Timestamptz(6)
 
-  owner               User                  @relation("WorkspaceOwner", fields: [ownerId], references: [id])
-  memberships         Membership[]
-  projects            Project[]
-  devices             Device[]
-  licenseKeys         LicenseKey[]
-  apiKeys             ApiKey[]
-  sessions            Session[]
-  bridgePairings      BridgePairing[]
-  bridgeSessions      BridgeSession[]
-  consentRecords      ConsentRecord[]
-  creditAccount       CreditAccount?
-  subscriptions       Subscription[]
-  mandates            Mandate[]
-  passesPurchased     PassPurchase[]
-  invoices            Invoice[]
-  jobs                Job[]
-  providerSubmissions ProviderSubmission[]
-  llmOutputs          LlmOutput[]
-  promptedEditPlans   PromptedEditPlan[]
-  exportManifests     ExportManifest[]
-  exports             Export[]
-  brandAssets         BrandAsset[]
-  stylePresets        StylePreset[]
-  brandKits           BrandKit[]
-  fonts               Font[]
-  memoryEntries       MemoryEntry[]
-  streakExperiment    StreakExperiment?
-  publishEvents       PublishEvent[]
-  referral            Referral?
-  academyProgress     AcademyProgress[]
-  academyRewards      AcademyReward[]
-  supportTickets      SupportTicket[]
-  referralRewardsGiven    ReferralReward[] @relation("ReferralRewardReferrer")
-  referralRewardReceived  ReferralReward?  @relation("ReferralRewardReferred")
-  assetUsages         AssetUsage[]
-  clearanceGrants     AssetClearanceGrant[]
-  webhookEndpoints    WebhookEndpoint[]
-  auditEntries        AuditLog[]
-  dlqEntries          DlqEntry[]
-  folders             Folder[]
-  notifications       Notification[]
-  batches             Batch[]
-  repurposeRuns       RepurposeRun[]
-  reviewBundles       ReviewBundle[]
-  channelConnections  ChannelConnection[]
-  publishBatches      PublishBatch[]
-  publishTargets      PublishTarget[]
-  sourceWatches       SourceWatch[]
+  owner                  User                  @relation("WorkspaceOwner", fields: [ownerId], references: [id])
+  memberships            Membership[]
+  projects               Project[]
+  devices                Device[]
+  licenseKeys            LicenseKey[]
+  apiKeys                ApiKey[]
+  sessions               Session[]
+  bridgePairings         BridgePairing[]
+  bridgeSessions         BridgeSession[]
+  consentRecords         ConsentRecord[]
+  creditAccount          CreditAccount?
+  subscriptions          Subscription[]
+  mandates               Mandate[]
+  passesPurchased        PassPurchase[]
+  invoices               Invoice[]
+  jobs                   Job[]
+  providerSubmissions    ProviderSubmission[]
+  llmOutputs             LlmOutput[]
+  promptedEditPlans      PromptedEditPlan[]
+  exportManifests        ExportManifest[]
+  exports                Export[]
+  brandAssets            BrandAsset[]
+  stylePresets           StylePreset[]
+  brandKits              BrandKit[]
+  fonts                  Font[]
+  memoryEntries          MemoryEntry[]
+  streakExperiment       StreakExperiment?
+  publishEvents          PublishEvent[]
+  referral               Referral?
+  academyProgress        AcademyProgress[]
+  academyRewards         AcademyReward[]
+  supportTickets         SupportTicket[]
+  referralRewardsGiven   ReferralReward[]      @relation("ReferralRewardReferrer")
+  referralRewardReceived ReferralReward?       @relation("ReferralRewardReferred")
+  assetUsages            AssetUsage[]
+  clearanceGrants        AssetClearanceGrant[]
+  webhookEndpoints       WebhookEndpoint[]
+  auditEntries           AuditLog[]
+  dlqEntries             DlqEntry[]
+  folders                Folder[]
+  notifications          Notification[]
+  batches                Batch[]
+  repurposeRuns          RepurposeRun[]
+  reviewBundles          ReviewBundle[]
+  channelConnections     ChannelConnection[]
+  publishBatches         PublishBatch[]
+  publishTargets         PublishTarget[]
+  sourceWatches          SourceWatch[]
 
   @@index([ownerId])
   @@index([billingCountry])
@@ -1128,52 +1128,52 @@ model Folder {
 }
 
 model Project {
-  id             String        @id @db.Char(26)
-  workspaceId    String        @map("workspace_id") @db.Char(26)
+  id             String              @id @db.Char(26)
+  workspaceId    String              @map("workspace_id") @db.Char(26)
   title          String
   /// FK into `folders` since A06; 06 lists the column but has no table for it.
-  folderId       String?       @map("folder_id") @db.Char(26)
+  folderId       String?             @map("folder_id") @db.Char(26)
   /// Set when this project was created as part of a batch (B15 brief §4).
-  batchId        String?       @map("batch_id") @db.Char(26)
+  batchId        String?             @map("batch_id") @db.Char(26)
   /// Agency client separation (04 §Plans).
-  clientTag      String?       @map("client_tag")
-  sourceLanguage String?       @map("source_language")
+  clientTag      String?             @map("client_tag")
+  sourceLanguage String?             @map("source_language")
   /// Scripts present in the transcript: roman | native | en | translated.
-  scripts        String[]      @default([])
-  aspect         Aspect        @default(r9x16)
-  status         ProjectStatus @default(draft)
+  scripts        String[]            @default([])
+  aspect         Aspect              @default(r9x16)
+  status         ProjectStatus       @default(draft)
   /// Approve/request-changes state set from a share-link review (B15 brief §2).
   reviewStatus   ProjectReviewStatus @default(none) @map("review_status")
-  thumbnailKey   String?       @map("thumbnail_key")
-  durationMs     Int?          @map("duration_ms")
-  lastActivityAt DateTime      @default(now()) @map("last_activity_at") @db.Timestamptz(6)
+  thumbnailKey   String?             @map("thumbnail_key")
+  durationMs     Int?                @map("duration_ms")
+  lastActivityAt DateTime            @default(now()) @map("last_activity_at") @db.Timestamptz(6)
   /// Plan retention (04 §Plans). Purged by the daily retention job (D47).
-  retentionUntil DateTime?     @map("retention_until") @db.Timestamptz(6)
-  createdBy      String?       @map("created_by") @db.Char(26)
-  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
-  deletedAt      DateTime?     @map("deleted_at") @db.Timestamptz(6)
+  retentionUntil DateTime?           @map("retention_until") @db.Timestamptz(6)
+  createdBy      String?             @map("created_by") @db.Char(26)
+  createdAt      DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  deletedAt      DateTime?           @map("deleted_at") @db.Timestamptz(6)
 
-  workspace           Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  folder              Folder?              @relation(fields: [folderId], references: [id], onDelete: SetNull)
-  batch               Batch?               @relation(fields: [batchId], references: [id], onDelete: SetNull)
-  mediaAssets         MediaAsset[]
-  transcripts         Transcript[]
-  edgDocument         EdgDocument?
-  jobs                Job[]
-  exports             Export[]
-  audioCleans         AudioClean[]
-  exportManifests     ExportManifest[]
-  providerSubmissions ProviderSubmission[]
-  shareLinks          ShareLink[]
-  comments            Comment[]
-  assetUsages         AssetUsage[]
-  publishEvents       PublishEvent[]
-  llmOutputs          LlmOutput[]
-  promptedEditPlans   PromptedEditPlan[]
+  workspace             Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  folder                Folder?              @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  batch                 Batch?               @relation(fields: [batchId], references: [id], onDelete: SetNull)
+  mediaAssets           MediaAsset[]
+  transcripts           Transcript[]
+  edgDocument           EdgDocument?
+  jobs                  Job[]
+  exports               Export[]
+  audioCleans           AudioClean[]
+  exportManifests       ExportManifest[]
+  providerSubmissions   ProviderSubmission[]
+  shareLinks            ShareLink[]
+  comments              Comment[]
+  assetUsages           AssetUsage[]
+  publishEvents         PublishEvent[]
+  llmOutputs            LlmOutput[]
+  promptedEditPlans     PromptedEditPlan[]
   /// Runs that use this project as their full-length source (REP-003).
-  repurposeRunsAsSource RepurposeRun[] @relation("RepurposeRunSource")
+  repurposeRunsAsSource RepurposeRun[]       @relation("RepurposeRunSource")
   /// Set when this project IS one aspect variant of a repurposed clip (REP-003).
-  clipVariant         ClipVariant?
+  clipVariant           ClipVariant?
 
   @@index([workspaceId])
   @@index([lastActivityAt])
@@ -1579,31 +1579,31 @@ model MemoryEntry {
 }
 
 model ShareLink {
-  id                 String        @id @db.Char(26)
-  projectId          String        @map("project_id") @db.Char(26)
-  token              String        @unique
+  id                 String         @id @db.Char(26)
+  projectId          String         @map("project_id") @db.Char(26)
+  token              String         @unique
   /// Review links are never indexable (D70).
-  indexable          Boolean       @default(false)
+  indexable          Boolean        @default(false)
   /// What a viewer with only the link may do (B15 brief §1).
   scope              ShareLinkScope @default(view)
-  passwordHash       String?       @map("password_hash")
-  expiresAt          DateTime?     @map("expires_at") @db.Timestamptz(6)
+  passwordHash       String?        @map("password_hash")
+  expiresAt          DateTime?      @map("expires_at") @db.Timestamptz(6)
   /// Hard cap on total page loads; the link stops resolving once reached.
-  maxViews           Int?          @map("max_views")
-  viewCount          Int           @default(0) @map("view_count")
+  maxViews           Int?           @map("max_views")
+  viewCount          Int            @default(0) @map("view_count")
   /// Agency filter label for the link, independent of the project's own tag.
-  clientTag          String?       @map("client_tag")
-  acceptedAupVersion String?       @map("accepted_aup_version")
-  reportCount        Int           @default(0) @map("report_count")
+  clientTag          String?        @map("client_tag")
+  acceptedAupVersion String?        @map("accepted_aup_version")
+  reportCount        Int            @default(0) @map("report_count")
   /// Set by the auto-disable rule (F-504) or a manual revoke — both read the same field.
-  autoDisabled       Boolean       @default(false) @map("auto_disabled")
-  createdBy          String?       @map("created_by") @db.Char(26)
-  createdAt          DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
-  revokedAt          DateTime?     @map("revoked_at") @db.Timestamptz(6)
+  autoDisabled       Boolean        @default(false) @map("auto_disabled")
+  createdBy          String?        @map("created_by") @db.Char(26)
+  createdAt          DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  revokedAt          DateTime?      @map("revoked_at") @db.Timestamptz(6)
 
-  project  Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  reports  ShareReport[]
-  comments Comment[]
+  project       Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  reports       ShareReport[]
+  comments      Comment[]
   reviewBundles ReviewBundle[]
 
   @@index([projectId])
@@ -1639,21 +1639,21 @@ model ShareReport {
 
 /// Review comments on a project or a share link (CONTRACTS §7 `comment.added`).
 model Comment {
-  id          String    @id @db.Char(26)
-  projectId   String    @map("project_id") @db.Char(26)
-  shareLinkId String?   @map("share_link_id") @db.Char(26)
-  authorId    String?   @map("author_id") @db.Char(26)
+  id              String    @id @db.Char(26)
+  projectId       String    @map("project_id") @db.Char(26)
+  shareLinkId     String?   @map("share_link_id") @db.Char(26)
+  authorId        String?   @map("author_id") @db.Char(26)
   /// Set when an anonymous reviewer comments through a share link.
-  authorName  String?   @map("author_name")
+  authorName      String?   @map("author_name")
   /// sha256 of the guest's email, lowercased+trimmed first (never the address itself).
-  authorEmailHash String? @map("author_email_hash")
-  body        String
-  atMs        Int?      @map("at_ms")
-  segmentId   String?   @map("segment_id") @db.Char(26)
-  parentId    String?   @map("parent_id") @db.Char(26)
-  resolvedAt  DateTime? @map("resolved_at") @db.Timestamptz(6)
-  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(6)
+  authorEmailHash String?   @map("author_email_hash")
+  body            String
+  atMs            Int?      @map("at_ms")
+  segmentId       String?   @map("segment_id") @db.Char(26)
+  parentId        String?   @map("parent_id") @db.Char(26)
+  resolvedAt      DateTime? @map("resolved_at") @db.Timestamptz(6)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  deletedAt       DateTime? @map("deleted_at") @db.Timestamptz(6)
 
   project   Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
   shareLink ShareLink? @relation(fields: [shareLinkId], references: [id], onDelete: SetNull)
@@ -1855,7 +1855,7 @@ model LlmOutput {
   usage           Json     @default("{}") @db.JsonB
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   job       Job?      @relation(fields: [jobId], references: [id], onDelete: SetNull)
 
@@ -1892,7 +1892,7 @@ model PromptedEditPlan {
   /// completed job up by this column to know which plan (if any) to advance.
   currentJobId     String?  @map("current_job_id") @db.Char(26)
   /// Pass kinds still to run after `currentJobId`, in chain order.
-  remainingKinds   String[] @map("remaining_kinds") @default([])
+  remainingKinds   String[] @default([]) @map("remaining_kinds")
   createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
@@ -1908,24 +1908,24 @@ model PromptedEditPlan {
 /// is consumed either by `POST /exports/manifests/{id}/complete` (browser) or by
 /// the `render.video`/`render.subtitle` completion handler (cloud).
 model ExportManifest {
-  id          String     @id @db.Char(26)
-  workspaceId String     @map("workspace_id") @db.Char(26)
-  projectId   String     @map("project_id") @db.Char(26)
-  nonce       String     @unique
-  mode        RenderMode @default(browser)
+  id                 String     @id @db.Char(26)
+  workspaceId        String     @map("workspace_id") @db.Char(26)
+  projectId          String     @map("project_id") @db.Char(26)
+  nonce              String     @unique
+  mode               RenderMode @default(browser)
   /// The full signed `RenderManifest` v1 document (`@montaj/render-manifest`),
   /// including its own `signature` — this column is the audit trail, never the
   /// verification path (the worker and the browser verify the document they were
   /// handed, not this row).
-  manifest    Json       @default("{}") @db.JsonB
-  issuedAt    DateTime   @default(now()) @map("issued_at") @db.Timestamptz(6)
-  expiresAt   DateTime   @map("expires_at") @db.Timestamptz(6)
-  consumedAt  DateTime?  @map("consumed_at") @db.Timestamptz(6)
+  manifest           Json       @default("{}") @db.JsonB
+  issuedAt           DateTime   @default(now()) @map("issued_at") @db.Timestamptz(6)
+  expiresAt          DateTime   @map("expires_at") @db.Timestamptz(6)
+  consumedAt         DateTime?  @map("consumed_at") @db.Timestamptz(6)
   /// Whether completing this manifest spends the Free workspace's one-time
   /// signup gift (D04) or an unconsumed ₹9 pass — decided at issuance, spent at
   /// completion, never re-derived from the signed document itself.
-  consumesSignupGift Boolean @default(false) @map("consumes_signup_gift")
-  consumesNinePass   Boolean @default(false) @map("consumes_nine_pass")
+  consumesSignupGift Boolean    @default(false) @map("consumes_signup_gift")
+  consumesNinePass   Boolean    @default(false) @map("consumes_nine_pass")
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -1973,13 +1973,15 @@ model Export {
   downloads   Int           @default(0)
   createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  workspace   Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  project     Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  job         Job?            @relation(fields: [jobId], references: [id], onDelete: SetNull)
-  manifest    ExportManifest? @relation(fields: [manifestId], references: [id], onDelete: SetNull)
-  assetUsages AssetUsage[]
+  workspace      Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  project        Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  job            Job?                  @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  manifest       ExportManifest?       @relation(fields: [manifestId], references: [id], onDelete: SetNull)
+  assetUsages    AssetUsage[]
   clipVariants   ClipVariant[]
   publishTargets PublishTarget[]
+  /// A run's clips joined into this file (2026-10-03), when it is one.
+  compilation    RepurposeCompilation?
 
   @@index([projectId])
   @@index([workspaceId])
@@ -1994,28 +1996,28 @@ model Export {
 /// once, so a clean run never overwrites the last one (`worker_ai.storage`'s
 /// `clean48k-{cleanId}.wav` key is per-run, not per-media).
 model AudioClean {
-  id          String           @id @db.Char(26)
-  projectId   String           @map("project_id") @db.Char(26)
-  mediaId     String           @map("media_id") @db.Char(26)
-  strength    AudioCleanStrength @default(medium)
-  target      AudioCleanTarget @default(social)
-  dereverb    Boolean          @default(false)
-  deesser     Boolean          @default(false)
-  status      AudioCleanStatus @default(queued)
-  jobId       String?          @map("job_id") @db.Char(26)
+  id            String             @id @db.Char(26)
+  projectId     String             @map("project_id") @db.Char(26)
+  mediaId       String             @map("media_id") @db.Char(26)
+  strength      AudioCleanStrength @default(medium)
+  target        AudioCleanTarget   @default(social)
+  dereverb      Boolean            @default(false)
+  deesser       Boolean            @default(false)
+  status        AudioCleanStatus   @default(queued)
+  jobId         String?            @map("job_id") @db.Char(26)
   /// `worker_ai.clean.dsp.CleanMetrics.to_wire()`: inputLufs, outputLufs,
   /// snrGainDb, clippingCount, truePeakDbtp.
-  metrics     Json?            @db.JsonB
+  metrics       Json?              @db.JsonB
   /// R2 derived-bucket keys the worker uploaded (CONTRACTS section 6):
   /// `cleanedAudioUrl`, `previewOriginalUrl`, `previewCleanedUrl`. Despite the
   /// name these are storage **keys**, not signed URLs — the API mints a signed
   /// URL from a key on read, the same convention every other derived artefact
   /// follows, so a key never goes stale even though a signature does.
-  storageKeys Json             @default("{}") @map("storage_keys") @db.JsonB
-  failureReason String?        @map("failure_reason")
-  createdBy   String?          @map("created_by") @db.Char(26)
-  createdAt   DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
-  completedAt DateTime?        @map("completed_at") @db.Timestamptz(6)
+  storageKeys   Json               @default("{}") @map("storage_keys") @db.JsonB
+  failureReason String?            @map("failure_reason")
+  createdBy     String?            @map("created_by") @db.Char(26)
+  createdAt     DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  completedAt   DateTime?          @map("completed_at") @db.Timestamptz(6)
 
   project Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
   media   MediaAsset @relation(fields: [mediaId], references: [id], onDelete: Cascade)
@@ -2496,31 +2498,31 @@ model CreditLedger {
 
 /// Feature-flagged experiment with a holdout (04 §Streak rewards, RR-10 pending).
 model StreakExperiment {
-  id               String   @id @db.Char(26)
-  workspaceId      String   @unique @map("workspace_id") @db.Char(26)
+  id               String    @id @db.Char(26)
+  workspaceId      String    @unique @map("workspace_id") @db.Char(26)
   /// When this workspace was assigned (holdout or experiment) — the anchor for
   /// week-4 retention cohort metrics (`/admin/metrics/streak`).
-  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  level            Int      @default(1)
-  weekWindowStart  DateTime @map("week_window_start") @db.Date
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  level            Int       @default(1)
+  weekWindowStart  DateTime  @map("week_window_start") @db.Date
   /// Zod: `PublishDaysSchema` — the ISO dates counted in the current window.
-  publishDays      Json     @default("[]") @map("publish_days") @db.JsonB
-  consecutiveWeeks Int      @default(0) @map("consecutive_weeks")
-  frozen           Int      @default(0)
+  publishDays      Json      @default("[]") @map("publish_days") @db.JsonB
+  consecutiveWeeks Int       @default(0) @map("consecutive_weeks")
+  frozen           Int       @default(0)
   /// Auto-freezes left this calendar month (D52: 2/month, consumed automatically).
-  freezesRemaining Int      @default(2) @map("freezes_remaining")
+  freezesRemaining Int       @default(2) @map("freezes_remaining")
   /// Calendar month (`YYYY-MM`) `freezesRemaining` was last reset for.
-  freezesMonth     String   @map("freezes_month")
+  freezesMonth     String    @map("freezes_month")
   /// `true` once a missed week with no freeze paused progression (no reset, no level change).
-  paused           Boolean  @default(false)
+  paused           Boolean   @default(false)
   /// Holdout arm, so the experiment can be measured against a control.
-  holdout          Boolean  @default(false)
+  holdout          Boolean   @default(false)
   /// Free-plan workspaces run the credits-only variant (D52/D60): no discounts,
   /// no yearly L4 start, just +5 credits after a two-week publish streak.
-  creditsOnly      Boolean  @default(false) @map("credits_only")
+  creditsOnly      Boolean   @default(false) @map("credits_only")
   /// Stamped by the Tuesday-evening nudge task so a re-run this week is a no-op.
   lastNudgeAt      DateTime? @map("last_nudge_at") @db.Timestamptz(6)
-  updatedAt        DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedAt        DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
@@ -2605,29 +2607,29 @@ model Affiliate {
 }
 
 model Referral {
-  id                  String         @id @db.Char(26)
-  affiliateId         String         @map("affiliate_id") @db.Char(26)
-  referredWorkspaceId String         @unique @map("referred_workspace_id") @db.Char(26)
+  id                   String         @id @db.Char(26)
+  affiliateId          String         @map("affiliate_id") @db.Char(26)
+  referredWorkspaceId  String         @unique @map("referred_workspace_id") @db.Char(26)
   /// `cookie` (60-day last click) or `code` (04 §Attribution).
-  source              String         @default("code")
-  firstPaidAt         DateTime?      @map("first_paid_at") @db.Timestamptz(6)
-  status              ReferralStatus @default(pending)
+  source               String         @default("code")
+  firstPaidAt          DateTime?      @map("first_paid_at") @db.Timestamptz(6)
+  status               ReferralStatus @default(pending)
   /// Count of monthly-interval paid invoices commissioned so far (drives the
   /// months 1-3 / 4-12 schedule, brief §3). Yearly invoices do not increment this.
-  monthlyPaidCount    Int            @default(0) @map("monthly_paid_count")
+  monthlyPaidCount     Int            @default(0) @map("monthly_paid_count")
   /// The once-only 20% yearly commission has already been paid for this referral.
-  yearlyCommissionPaid Boolean       @default(false) @map("yearly_commission_paid")
+  yearlyCommissionPaid Boolean        @default(false) @map("yearly_commission_paid")
   /// True once this referral has an active paid subscription counted toward the
   /// affiliate's 10-active-referral tier threshold (brief §3).
-  countsTowardTier    Boolean        @default(false) @map("counts_toward_tier")
-  createdAt           DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  countsTowardTier     Boolean        @default(false) @map("counts_toward_tier")
+  createdAt            DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
 
   /// SHA-256 hash of the signing-up user's IP at attribution time (fraud checks, B07 brief §7).
-  ipHash              String?        @map("ip_hash")
+  ipHash             String? @map("ip_hash")
   /// SHA-256 hash of a device fingerprint at attribution time.
-  deviceHash          String?        @map("device_hash")
+  deviceHash         String? @map("device_hash")
   /// Hash of the payment instrument fingerprint once the referral first pays (self-referral detection).
-  paymentFingerprint  String?        @map("payment_fingerprint")
+  paymentFingerprint String? @map("payment_fingerprint")
 
   affiliate         Affiliate    @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
   referredWorkspace Workspace    @relation(fields: [referredWorkspaceId], references: [id], onDelete: Cascade)
@@ -2640,13 +2642,13 @@ model Referral {
 /// One `/r/<code>` visit (B07 brief §2): sets the 60-day last-click cookie and
 /// is the audit trail for attribution precedence (code beats cookie).
 model AffiliateClick {
-  id                  String    @id @db.Char(26)
-  affiliateId         String    @map("affiliate_id") @db.Char(26)
-  code                String
-  clickedAt           DateTime  @default(now()) @map("clicked_at") @db.Timestamptz(6)
+  id                   String   @id @db.Char(26)
+  affiliateId          String   @map("affiliate_id") @db.Char(26)
+  code                 String
+  clickedAt            DateTime @default(now()) @map("clicked_at") @db.Timestamptz(6)
   attributionExpiresAt DateTime @map("attribution_expires_at") @db.Timestamptz(6)
-  ipHash              String?   @map("ip_hash")
-  deviceHash          String?   @map("device_hash")
+  ipHash               String?  @map("ip_hash")
+  deviceHash           String?  @map("device_hash")
 
   affiliate Affiliate @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
 
@@ -2744,7 +2746,7 @@ model ReferralReward {
   referredLotId       String?              @map("referred_lot_id") @db.Char(26)
   /// Abuse fingerprints captured from the claiming request (THREAT-MODEL T17).
   deviceHash          String?              @map("device_hash")
-  ipHash               String?             @map("ip_hash")
+  ipHash              String?              @map("ip_hash")
   /// B13 orchestrator addendum (after B07b): set (status stays `pending`) when
   /// the referred workspace's owner previously claimed as referred for a
   /// DIFFERENT referrer within 90 days, or its device/IP fingerprint matches
@@ -2752,7 +2754,7 @@ model ReferralReward {
   /// `grantForExport`'s auto-grant until an admin clears it
   /// (`POST /admin/referrals/:id/approve`) or rejects it. Distinct from
   /// `reason`, which is only ever set once `status = rejected`.
-  holdReason           String?              @map("hold_reason")
+  holdReason          String?              @map("hold_reason")
   createdAt           DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
 
   referrerWorkspace Workspace @relation("ReferralRewardReferrer", fields: [referrerWorkspaceId], references: [id], onDelete: Cascade)
@@ -2844,12 +2846,12 @@ model HelpArticle {
 /// consistent would be exactly the mistake `CommonAuditService`'s own doc
 /// comment describes.
 model RoutingWeightOverride {
-  id         String   @id @db.Char(26)
-  laneId     String   @map("lane_id")
-  provider   String
-  weight     Int
-  updatedBy  String   @map("updated_by") @db.Char(26)
-  updatedAt  DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id        String   @id @db.Char(26)
+  laneId    String   @map("lane_id")
+  provider  String
+  weight    Int
+  updatedBy String   @map("updated_by") @db.Char(26)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@unique([laneId, provider])
   @@map("routing_weight_overrides")
@@ -3075,7 +3077,7 @@ model AudioAsset {
   createdAt             DateTime                    @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt             DateTime                    @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  usages         AssetUsage[]
+  usages          AssetUsage[]
   clearanceGrants AssetClearanceGrant[]
 
   @@unique([provider, providerAssetId])
@@ -3190,20 +3192,20 @@ model ProductEvent {
 /// explicitly deleted for both `userId` and `workspaceId` matches by the erasure cascade
 /// (`ErasureCascadeService`) since 30 days can outlast an erasure request's own window.
 model CrashReport {
-  id           String   @id @db.Char(26)
-  workspaceId  String?  @map("workspace_id") @db.Char(26)
-  userId       String?  @map("user_id") @db.Char(26)
-  deviceId     String?  @map("device_id") @db.Char(26)
+  id          String    @id @db.Char(26)
+  workspaceId String?   @map("workspace_id") @db.Char(26)
+  userId      String?   @map("user_id") @db.Char(26)
+  deviceId    String?   @map("device_id") @db.Char(26)
   /// `desktop` | `bridge` | `premiere` | `ae` | `resolve` — the reporting client kind.
-  clientKind   String   @map("client_kind")
-  appVersion   String   @map("app_version")
-  osVersion    String   @map("os_version")
+  clientKind  String    @map("client_kind")
+  appVersion  String    @map("app_version")
+  osVersion   String    @map("os_version")
   /// Redacted stack trace (`packages/bridge-core/src/redact.ts`).
-  stack        String
+  stack       String
   /// Redacted last-50 log lines, newest last.
-  logTail      String[] @map("log_tail")
-  forwardedAt  DateTime? @map("forwarded_at") @db.Timestamptz(6)
-  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  logTail     String[]  @map("log_tail")
+  forwardedAt DateTime? @map("forwarded_at") @db.Timestamptz(6)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
 
   @@index([createdAt])
   @@index([workspaceId])
@@ -3274,11 +3276,11 @@ model AcademyReward {
 /// about what a *person* has seen, and a person can belong to several
 /// workspaces.
 model ChangelogDismissal {
-  id            String   @id @db.Char(26)
-  userId        String   @unique @map("user_id") @db.Char(26)
+  id          String   @id @db.Char(26)
+  userId      String   @unique @map("user_id") @db.Char(26)
   /// Latest changelog version this user has dismissed (or opened) the modal for.
-  version       String
-  dismissedAt   DateTime @default(now()) @map("dismissed_at") @db.Timestamptz(6)
+  version     String
+  dismissedAt DateTime @default(now()) @map("dismissed_at") @db.Timestamptz(6)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -3331,16 +3333,16 @@ enum OpsIncidentStatus {
 }
 
 model OpsIncident {
-  id          String              @id @db.Char(26)
-  title       String
-  body        String
-  component   String
-  severity    OpsIncidentSeverity @default(minor)
-  status      OpsIncidentStatus   @default(investigating)
-  startedAt   DateTime            @default(now()) @map("started_at") @db.Timestamptz(6)
-  resolvedAt  DateTime?           @map("resolved_at") @db.Timestamptz(6)
-  createdAt   DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt   DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id         String              @id @db.Char(26)
+  title      String
+  body       String
+  component  String
+  severity   OpsIncidentSeverity @default(minor)
+  status     OpsIncidentStatus   @default(investigating)
+  startedAt  DateTime            @default(now()) @map("started_at") @db.Timestamptz(6)
+  resolvedAt DateTime?           @map("resolved_at") @db.Timestamptz(6)
+  createdAt  DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@index([status, startedAt])
   @@map("ops_incidents")
@@ -3655,21 +3657,24 @@ model RepurposeRun {
   /// The source's real title (YouTube's), once the download reported it.
   sourceTitle         String?             @map("source_title")
 
-  workspace      Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  sourceProject  Project         @relation("RepurposeRunSource", fields: [sourceProjectId], references: [id], onDelete: Cascade)
-  candidates     ClipCandidate[]
-  clips          RepurposeClip[]
-  reviewBundles  ReviewBundle[]
-  publishBatches PublishBatch[]
-  notices        RepurposeRunNotice[]
+  workspace        Workspace              @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  sourceProject    Project                @relation("RepurposeRunSource", fields: [sourceProjectId], references: [id], onDelete: Cascade)
+  candidates       ClipCandidate[]
+  clips            RepurposeClip[]
+  reviewBundles    ReviewBundle[]
+  publishBatches   PublishBatch[]
+  notices          RepurposeRunNotice[]
   /// The channel upload that started this run, when an automation did (2026-10-02).
-  watchVideos    SourceWatchVideo[]
+  watchVideos      SourceWatchVideo[]
   /// Clip review (2026-10-03, `repurpose/review`): its clips' review state, their
   /// decisions and comments, and the links a client reviews them through.
   clipReviews      ClipReview[]
   clipReviewEvents ClipReviewEvent[]
   clipComments     ClipComment[]
   reviewLinks      ClipReviewLink[]
+  /// Its clips joined into one video, and its numbered series (2026-10-03).
+  compilations     RepurposeCompilation[]
+  series           RepurposeSeries[]
 
   @@index([workspaceId])
   @@index([workspaceId, createdAt])
@@ -3867,33 +3872,33 @@ model ClipCandidate {
 /// and its checksum here is what makes a replayed cut return the existing cut
 /// instead of producing a second one.
 model RepurposeClip {
-  id                  String   @id @db.Char(26)
-  runId               String   @map("run_id") @db.Char(26)
-  candidateId         String   @unique @map("candidate_id") @db.Char(26)
+  id                  String           @id @db.Char(26)
+  runId               String           @map("run_id") @db.Char(26)
+  candidateId         String           @unique @map("candidate_id") @db.Char(26)
   title               String
   /// Frozen at materialisation; the candidate may keep moving afterwards.
-  sourceStartMs       Int      @map("source_start_ms")
-  sourceEndMs         Int      @map("source_end_ms")
+  sourceStartMs       Int              @map("source_start_ms")
+  sourceEndMs         Int              @map("source_end_ms")
   /// Zod: `ClipCopySchema` — the base copy every platform variant starts from.
-  copy                Json     @default("{}") @db.JsonB
-  copyVersion         Int      @default(1) @map("copy_version")
+  copy                Json             @default("{}") @db.JsonB
+  copyVersion         Int              @default(1) @map("copy_version")
   /// Storage key of the canonical short mezzanine with edit handles (§11.2).
-  mezzanineKey        String?  @map("mezzanine_key")
-  mezzanineChecksum   String?  @map("mezzanine_checksum")
-  mezzanineDurationMs Int?     @map("mezzanine_duration_ms")
+  mezzanineKey        String?          @map("mezzanine_key")
+  mezzanineChecksum   String?          @map("mezzanine_checksum")
+  mezzanineDurationMs Int?             @map("mezzanine_duration_ms")
   /// The `media.clip` job that produced it, for support and replay.
-  mezzanineJobId      String?  @map("mezzanine_job_id") @db.Char(26)
+  mezzanineJobId      String?          @map("mezzanine_job_id") @db.Char(26)
   /// The clip's image formats (2026-09-29, `media.stills`): `{ fingerprint, images }`.
-  images              Json     @default("{}") @db.JsonB
+  images              Json             @default("{}") @db.JsonB
   /// Two-speaker layouts (2026-10-01): the layout the person picked. What each
   /// shape's picture actually is, is its variant's `layout`.
   layout              ClipLayoutChoice @default(auto)
-  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt           DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdAt           DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  run            RepurposeRun    @relation(fields: [runId], references: [id], onDelete: Cascade)
-  candidate      ClipCandidate   @relation(fields: [candidateId], references: [id], onDelete: Cascade)
-  mezzanineJob   Job?            @relation(fields: [mezzanineJobId], references: [id], onDelete: SetNull)
+  run            RepurposeRun      @relation(fields: [runId], references: [id], onDelete: Cascade)
+  candidate      ClipCandidate     @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  mezzanineJob   Job?              @relation(fields: [mezzanineJobId], references: [id], onDelete: SetNull)
   variants       ClipVariant[]
   publishTargets PublishTarget[]
   /// Clip review (2026-10-03): where the clip stands, how it got there, what was said.
@@ -3948,6 +3953,88 @@ model ClipVariant {
   @@index([clipId])
   @@index([status])
   @@map("clip_variants")
+}
+
+/// Where a compilation stands (2026-10-03). `waiting`: asked for while the plan's
+/// lane was full, and enqueued by the reconcile once it frees; `rendering`: its
+/// `render.compilation` job is queued or running; `ready`: its file is made;
+/// `failed`: it could not be (`failure_code` says why).
+enum CompilationStatus {
+  waiting
+  rendering
+  ready
+  failed
+}
+
+/// A run's clips joined into one video in one shape (2026-10-03,
+/// `repurpose/compilations.service.ts`): each clip's captioned video of that
+/// shape, in the order the person chose, a short fade between them and an
+/// optional title card first. The file is an ordinary `exports` row of the run's
+/// source project, so export retention, downloads and the erasure cascade treat
+/// it like any render.
+///
+/// One per (run, clip list, shape, title): `fingerprint` is their hash, so asking
+/// twice for the same compilation answers with the one already made or making.
+model RepurposeCompilation {
+  id          String            @id @db.Char(26)
+  runId       String            @map("run_id") @db.Char(26)
+  workspaceId String            @map("workspace_id") @db.Char(26)
+  /// The one shape every clip is joined in.
+  aspect      Aspect
+  /// The title card's words; null: no card.
+  title       String?
+  /// The clips in playing order: `[clipId, ...]`.
+  clipIds     Json              @map("clip_ids") @db.JsonB
+  /// What the newest attempt joined: `[{clipId, exportId, durationMs}]`, so the
+  /// page can say a clip's captions changed since.
+  sources     Json              @default("[]") @db.JsonB
+  /// sha256 of the clip list, the shape and the title.
+  fingerprint String
+  status      CompilationStatus @default(waiting)
+  failureCode String?           @map("failure_code")
+  /// The planned length until it is made, then the measured one.
+  durationMs  Int?              @map("duration_ms")
+  /// The newest attempt's `render.compilation` job.
+  jobId       String?           @map("job_id") @db.Char(26)
+  /// The newest attempt's export (the file), in the run's source project.
+  exportId    String?           @unique @map("export_id") @db.Char(26)
+  /// Renders asked for, the first included.
+  attempts    Int               @default(0)
+  createdBy   String?           @map("created_by") @db.Char(26)
+  createdAt   DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  run    RepurposeRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  export Export?      @relation(fields: [exportId], references: [id], onDelete: SetNull)
+
+  /// Also the run's index: `run_id` leads it.
+  @@unique([runId, fingerprint])
+  @@index([status])
+  @@map("repurpose_compilations")
+}
+
+/// Consecutive clips posted as a numbered series (2026-10-03,
+/// `repurpose/series.service.ts`): each clip's shapes carry "Part N of M" over
+/// their first seconds and, but the last, "Part N+1 next" before their end, as
+/// hook-title overlays in each shape's editing document. `labels` records, per
+/// shape, what the labels replaced (Autopilot's own hook title), so removing the
+/// series puts it back. A clip belongs to one series at a time.
+model RepurposeSeries {
+  id          String   @id @db.Char(26)
+  runId       String   @map("run_id") @db.Char(26)
+  workspaceId String   @map("workspace_id") @db.Char(26)
+  /// The clips, part 1 first: `[clipId, ...]`.
+  clipIds     Json     @map("clip_ids") @db.JsonB
+  /// `[{variantId, projectId, clipId, part, replaced, added}]`, one per labelled shape.
+  labels      Json     @default("[]") @db.JsonB
+  createdBy   String?  @map("created_by") @db.Char(26)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  run RepurposeRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([runId])
+  @@map("repurpose_series")
 }
 
 /// Run-level review aggregate (§6.6). Per-project review keeps working through the

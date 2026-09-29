@@ -726,6 +726,13 @@ export const API_OPERATIONS = [
     summary: "Cut a 9:16 clip from one moment",
   },
   {
+    operationId: "createRepurposeCompilation",
+    method: "POST",
+    path: "/repurpose/runs/{runId}/compilations",
+    tags: ["repurpose"],
+    summary: "Join clips into one video: a best of, in one shape, with an optional title card",
+  },
+  {
     operationId: "createRepurposeReviewLink",
     method: "POST",
     path: "/repurpose/runs/{runId}/review-links",
@@ -745,6 +752,13 @@ export const API_OPERATIONS = [
     path: "/repurpose/runs/bulk",
     tags: ["repurpose"],
     summary: "Start one run per YouTube link, with one setup",
+  },
+  {
+    operationId: "createRepurposeSeries",
+    method: "POST",
+    path: "/repurpose/runs/{runId}/series",
+    tags: ["repurpose"],
+    summary: "Make a series: each clip says Part N of M, and but the last, Part N+1 next",
   },
   {
     operationId: "createRepurposeWatch",
@@ -878,6 +892,20 @@ export const API_OPERATIONS = [
     path: "/me/push-subscriptions",
     tags: ["notifications"],
     summary: "Turn off device notifications in this browser",
+  },
+  {
+    operationId: "deleteRepurposeCompilation",
+    method: "DELETE",
+    path: "/repurpose/runs/{runId}/compilations/{compilationId}",
+    tags: ["repurpose"],
+    summary: "Delete a compilation and its file",
+  },
+  {
+    operationId: "deleteRepurposeSeries",
+    method: "DELETE",
+    path: "/repurpose/runs/{runId}/series/{seriesId}",
+    tags: ["repurpose"],
+    summary: "Remove series labels: every label comes off, and what it replaced goes back",
   },
   {
     operationId: "deleteRepurposeWatch",
@@ -1242,6 +1270,13 @@ export const API_OPERATIONS = [
     path: "/repurpose/runs/{runId}/clips/{clipId}/review",
     tags: ["repurpose"],
     summary: "One clip's review: its state, history and comments",
+  },
+  {
+    operationId: "getRepurposeCompilation",
+    method: "GET",
+    path: "/repurpose/runs/{runId}/compilations/{compilationId}",
+    tags: ["repurpose"],
+    summary: "One compilation",
   },
   {
     operationId: "getRepurposeEpisodePack",
@@ -1699,6 +1734,13 @@ export const API_OPERATIONS = [
     summary: "List clips and variants for a run",
   },
   {
+    operationId: "listRepurposeCompilations",
+    method: "GET",
+    path: "/repurpose/runs/{runId}/compilations",
+    tags: ["repurpose"],
+    summary: "The run's compilations: each with its state, and its file to play and download",
+  },
+  {
     operationId: "listRepurposePosts",
     method: "GET",
     path: "/repurpose/runs/{runId}/posts",
@@ -1718,6 +1760,13 @@ export const API_OPERATIONS = [
     path: "/repurpose/runs",
     tags: ["repurpose"],
     summary: "List repurposing runs",
+  },
+  {
+    operationId: "listRepurposeSeries",
+    method: "GET",
+    path: "/repurpose/runs/{runId}/series",
+    tags: ["repurpose"],
+    summary: "The run's series: clips labelled Part 1, Part 2, ...",
   },
   {
     operationId: "listRepurposeWatches",
@@ -2180,6 +2229,13 @@ export const API_OPERATIONS = [
     path: "/repurpose/runs/{runId}/clips/{clipId}/retry",
     tags: ["repurpose"],
     summary: "Cut a clip again whose cut failed, or that is still waiting",
+  },
+  {
+    operationId: "retryRepurposeCompilation",
+    method: "POST",
+    path: "/repurpose/runs/{runId}/compilations/{compilationId}/retry",
+    tags: ["repurpose"],
+    summary: "Make a compilation again: failed, expired, or its clips changed since",
   },
   {
     operationId: "retryRepurposeRun",

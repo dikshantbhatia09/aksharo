@@ -136,6 +136,7 @@ QUEUE_POLICY_OVERRIDES: Final[dict[str, dict[str, int]]] = {
     "ai.diarise": {"lockDurationMs": 600_000, "stalledIntervalMs": 60_000},
     "ai.align": {"lockDurationMs": 300_000, "stalledIntervalMs": 60_000},
     "render.video": {"lockDurationMs": 600_000, "stalledIntervalMs": 60_000},
+    "render.compilation": {"lockDurationMs": 600_000, "stalledIntervalMs": 60_000},
 }
 
 #: Override keys, in the camelCase the TypeScript table uses, to Python fields.

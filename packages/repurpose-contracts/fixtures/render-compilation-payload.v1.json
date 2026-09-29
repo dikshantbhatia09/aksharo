@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "runId": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+  "compilationId": "01JCC0MP11AT10N00000000000",
+  "exportId": "01JCEXP0RT0000000000000000",
+  "projectId": "01ARZ3NDEKTSV4RRFFQ69G5FAX",
+  "shape": "9:16",
+  "width": 1080,
+  "height": 1920,
+  "fps": 30,
+  "fadeMs": 500,
+  "clips": [
+    {
+      "clipId": "01JCC11PA00000000000000000",
+      "key": "ws/01ARZ3NDEKTSV4RRFFQ69G5FB0/p/01JCC11PPR0JECTA0000000000/exports/01JCEXP0RTA000000000000000.mp4",
+      "durationMs": 31500
+    },
+    {
+      "clipId": "01JCC11PB00000000000000000",
+      "key": "ws/01ARZ3NDEKTSV4RRFFQ69G5FB0/p/01JCC11PPR0JECTB0000000000/exports/01JCEXP0RTB000000000000000.mp4",
+      "durationMs": 28000
+    }
+  ],
+  "intro": {
+    "title": "Best of episode 12",
+    "durationMs": 2000,
+    "background": "#141217",
+    "text": "#f1ece6",
+    "accent": "#f0508a",
+    "handle": "@aksharo",
+    "fontFamily": "Poppins",
+    "logo": { "assetId": "01JCASSET00000000000000000", "format": "png", "width": 400, "height": 200 }
+  }
+}

@@ -3,6 +3,9 @@ import { Module } from "@nestjs/common";
 import { RepurposeAcquireCompletionHandler } from "./acquire-completion.handler.js";
 import { RepurposeClipCompletionHandler } from "./clip-completion.handler.js";
 import { ClipFinishing } from "./clip-finishing.js";
+import { RepurposeCompilationCompletionHandler } from "./compilation-completion.handler.js";
+import { RepurposeCompilationsController } from "./compilations.controller.js";
+import { RepurposeCompilationsService } from "./compilations.service.js";
 import { RepurposeEpisodePackController } from "./episode-pack.controller.js";
 import { RepurposeEpisodePackService } from "./episode-pack.service.js";
 import { RepurposeHighlightsCompletionHandler } from "./highlights-completion.handler.js";
@@ -16,6 +19,7 @@ import { RepurposeController } from "./repurpose.controller.js";
 import { RepurposeService } from "./repurpose.service.js";
 import { RunActivityReader } from "./run-activity.reader.js";
 import { RunNotifier } from "./run-notifications.js";
+import { RepurposeSeriesService } from "./series.service.js";
 import { SourceGate } from "./source-gate.js";
 import { RepurposeStillsCompletionHandler } from "./stills-completion.handler.js";
 import { BrandKitModule } from "../brand-kit/brand-kit.module.js";
@@ -59,7 +63,13 @@ import { WorkspacesModule } from "../workspaces/workspaces.module.js";
     // that asks for it (2026-10-02).
     BrandKitModule,
   ],
-  controllers: [RepurposeController, RepurposeSteeringController, RepurposeEpisodePackController],
+  controllers: [
+    RepurposeController,
+    RepurposeSteeringController,
+    RepurposeEpisodePackController,
+    // Compilations and series (2026-10-03).
+    RepurposeCompilationsController,
+  ],
   providers: [
     RepurposeService,
     RepurposeSteeringService,
@@ -78,6 +88,10 @@ import { WorkspacesModule } from "../workspaces/workspaces.module.js";
     // Progress and alerts (2026-09-29): the step a run is on, and its notifications.
     RunActivityReader,
     RunNotifier,
+    // A run's clips joined into one video, and numbered series (2026-10-03).
+    RepurposeCompilationsService,
+    RepurposeCompilationCompletionHandler,
+    RepurposeSeriesService,
     // A second binding of a stateless class (`MediaModule` provides the first
     // and does not export it), as `TranscriptsModule` does with its guard.
     AutoTranscribeTrigger,

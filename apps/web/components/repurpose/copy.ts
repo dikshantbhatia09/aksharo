@@ -615,6 +615,30 @@ export const REFUSAL_COPY = Object.freeze({
     network: "We could not reach the server. Check your connection and try again.",
     fallback: "The layout could not be changed. Try again in a moment.",
   },
+  /** "Make compilation" and a compilation's "Make again" (2026-10-03). */
+  compilation: {
+    "repurpose/compilation_clips_not_ready":
+      "Some of these clips have no captioned video in this shape yet. Take them out, or wait until they are made.",
+    "repurpose/compilation_too_long": "That is longer than 15 minutes. Take a clip out.",
+    "repurpose/compilation_not_retryable":
+      "This compilation is already being made, or is up to date. Refresh the page to see it.",
+    "repurpose/compilation_not_found": "This compilation is no longer here. Refresh the page.",
+    "credits/insufficient": "You are out of credits for this. Top up, then try again.",
+    "common/rate_limited": "That was a lot of requests at once. Wait a moment, then try again.",
+    network: "We could not reach the server. Check your connection and try again.",
+    fallback: "The compilation could not be started. Try again in a moment.",
+  },
+  /** "Make a series" and "Remove series labels" (2026-10-03). */
+  series: {
+    "repurpose/series_clips_not_ready":
+      "Every clip in a series has to be made first. Take out the ones still being made.",
+    "repurpose/series_clip_taken":
+      "One of these clips is already in a series. Remove that series' labels first.",
+    "repurpose/series_not_found": "This series is no longer here. Refresh the page.",
+    "common/rate_limited": "That was a lot of requests at once. Wait a moment, then try again.",
+    network: "We could not reach the server. Check your connection and try again.",
+    fallback: "The series could not be made. Try again in a moment.",
+  },
   /** "Upload the file instead", on a link run whose video never arrived. */
   useUpload: {
     "repurpose/source_not_replaceable":

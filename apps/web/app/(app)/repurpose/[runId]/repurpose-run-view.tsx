@@ -39,6 +39,7 @@ import {
   isApiError,
   type RepurposeCandidateItem,
   type RepurposeClipItem,
+  type RepurposeCompilationShape,
   useCancelRepurposeRun,
   useEntitlement,
   useNextWindow,
@@ -46,6 +47,7 @@ import {
   useRepurposeClips,
   useRepurposePreview,
   useRepurposeRun,
+  useRepurposeSeries,
   useRetryRepurposeRun,
 } from "@montaj/api-client";
 import { Button, PageHeader, Skeleton } from "@montaj/ui";
@@ -54,6 +56,14 @@ import type { StageKey } from "@/components/repurpose/copy";
 
 import { AddMomentForm } from "@/components/repurpose/AddMomentForm";
 import { CandidateCard } from "@/components/repurpose/CandidateCard";
+import { CompilationBuilder, type BuilderMode } from "@/components/repurpose/CompilationBuilder";
+import {
+  COMPILATION_LIMITS,
+  SERIES_LIMITS,
+  pickableClips,
+  seriesClips,
+} from "@/components/repurpose/compilations";
+import { CompilationsPanel } from "@/components/repurpose/CompilationsPanel";
 import { AUTOPILOT_COPY, CLIP_STATE_COPY } from "@/components/repurpose/copy";
 import { EpisodePackPanel } from "@/components/repurpose/EpisodePackPanel";
 import { RunPublishing } from "@/components/repurpose/publishing/RunPublishing";
@@ -158,6 +168,13 @@ export function RepurposeRunView({ runId }: { readonly runId: string }): React.J
   const [activePreview, setActivePreview] = React.useState<string | null>(null);
   const [momentFormOpened, setMomentFormOpened] = React.useState(false);
   const momentFormRef = React.useRef<HTMLDivElement>(null);
+  // Compilations and series (2026-10-03): picking clips on their cards.
+  const [building, setBuilding] = React.useState(false);
+  const [builderMode, setBuilderMode] = React.useState<BuilderMode>("compilation");
+  const [shape, setShape] = React.useState<RepurposeCompilationShape>("9:16");
+  const [picked, setPicked] = React.useState<string[]>([]);
+  const builderRef = React.useRef<HTMLDivElement>(null);
+  const seriesQuery = useRepurposeSeries(runId);
 
   if (query.isPending) {
     return (
@@ -219,6 +236,38 @@ export function RepurposeRunView({ runId }: { readonly runId: string }): React.J
   const steeringLine = steeringSummary(run.steering);
   const clips = clipsQuery.data?.clips ?? [];
   const momentsAllowed = canAddMoments(run);
+  // While picking: the clips that can be ticked for what is being made.
+  const pickableFor = (
+    mode: BuilderMode,
+    forShape: RepurposeCompilationShape,
+  ): ReadonlySet<string> =>
+    mode === "series"
+      ? seriesClips(clips, candidates)
+      : new Set(pickableClips(clips, candidates, forShape).map((clip) => clip.clipId));
+  const pickable = building ? pickableFor(builderMode, shape) : null;
+  const togglePick = (clipId: string): void => {
+    const most = builderMode === "series" ? SERIES_LIMITS.maxClips : COMPILATION_LIMITS.maxClips;
+    setPicked((current) =>
+      current.includes(clipId)
+        ? current.filter((entry) => entry !== clipId)
+        : current.length >= most
+          ? current
+          : [...current, clipId],
+    );
+  };
+  const openBuilder = (): void => {
+    setBuilding(true);
+    window.requestAnimationFrame(() => {
+      builderRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  };
+  // "Part 2 of 4" on each clip of a series.
+  const seriesPartOf = new Map<string, string>();
+  for (const entry of seriesQuery.data?.series ?? []) {
+    for (const part of entry.parts) {
+      seriesPartOf.set(part.clipId, `Part ${String(part.part)} of ${String(entry.parts.length)}`);
+    }
+  }
   // The run's own count says moments exist that the (separately polled) list
   // does not hold yet. For those few seconds the list is behind, not empty:
   // "we did not find a moment" under "your moments are ready" was wrong.
@@ -598,6 +647,33 @@ export function RepurposeRunView({ runId }: { readonly runId: string }): React.J
                     )}
                   </div>
 
+                  {building ? (
+                    <div ref={builderRef} className="scroll-mt-4">
+                      <CompilationBuilder
+                        runId={runId}
+                        clips={clips}
+                        candidates={candidates}
+                        mode={builderMode}
+                        onModeChange={(next) => {
+                          setBuilderMode(next);
+                          const allowed = pickableFor(next, shape);
+                          setPicked((current) => current.filter((entry) => allowed.has(entry)));
+                        }}
+                        shape={shape}
+                        onShapeChange={(next) => {
+                          setShape(next);
+                          const allowed = pickableFor(builderMode, next);
+                          setPicked((current) => current.filter((entry) => allowed.has(entry)));
+                        }}
+                        picked={picked}
+                        onPickedChange={setPicked}
+                        onClose={() => {
+                          setBuilding(false);
+                        }}
+                      />
+                    </div>
+                  ) : null}
+
                   <ul
                     className="m-0 flex list-none flex-col gap-3 p-0"
                     data-testid="candidates-list"
@@ -606,6 +682,9 @@ export function RepurposeRunView({ runId }: { readonly runId: string }): React.J
                       const clip = clips.find(
                         (entry: RepurposeClipItem) => entry.candidateId === cand.id,
                       );
+                      const canPick = clip !== undefined && pickable?.has(clip.id) === true;
+                      const isPicked = clip !== undefined && picked.includes(clip.id);
+                      const part = clip === undefined ? undefined : seriesPartOf.get(clip.id);
                       return (
                         <CandidateCard
                           key={cand.id}
@@ -635,6 +714,27 @@ export function RepurposeRunView({ runId }: { readonly runId: string }): React.J
                           {...(clipStartAgainNote === undefined
                             ? {}
                             : { startAgainNote: clipStartAgainNote })}
+                          {...(pickable === null || clip === undefined
+                            ? {}
+                            : {
+                                select: {
+                                  checked: isPicked,
+                                  disabled: !canPick && !isPicked,
+                                  // Only a made clip that cannot be picked needs saying why.
+                                  ...(canPick || clip.state !== "ready"
+                                    ? {}
+                                    : {
+                                        note:
+                                          builderMode === "series"
+                                            ? "This clip cannot be part of a series."
+                                            : `No captioned ${shape} video of this clip yet.`,
+                                      }),
+                                  onToggle: () => {
+                                    togglePick(clip.id);
+                                  },
+                                },
+                              })}
+                          {...(part === undefined ? {} : { seriesPart: part })}
                         />
                       );
                     })}
@@ -709,6 +809,15 @@ export function RepurposeRunView({ runId }: { readonly runId: string }): React.J
               />
             </StagePanel>
           )}
+
+          {/* A run's clips joined into one video, and its series (2026-10-03). */}
+          <CompilationsPanel
+            runId={runId}
+            clips={clips}
+            candidates={candidates}
+            building={building}
+            onBuild={openBuilder}
+          />
 
           {/* The text for the whole video, beside its clips (2026-09-29). */}
           <EpisodePackPanel run={run} />

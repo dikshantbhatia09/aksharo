@@ -30,6 +30,7 @@ export const QUEUE_NAMES = [
   "ai.faces",
   "render.video",
   "render.subtitle",
+  "render.compilation",
   "publish.dispatch",
   "publish.reconcile",
   "notify",
