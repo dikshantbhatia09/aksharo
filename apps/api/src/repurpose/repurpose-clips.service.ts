@@ -73,8 +73,10 @@ import {
   REPURPOSE_ERRORS,
   REPURPOSE_FLAGS,
   automationOf,
+  autopilotClipCount,
 } from "./repurpose.constants.js";
 import { progressForStatus, projectRun, stageForStatus } from "./repurpose.projection.js";
+import { autopilotPicks, cutBoundsOf, isRemoved } from "./steering.js";
 import { CommonAuditService } from "../common/audit/audit.service.js";
 import { AppException, ERROR_CODES, PrismaService, RateLimitService } from "../common/index.js";
 import { DERIVED_STORE, type ObjectStore } from "../common/storage/index.js";
@@ -298,11 +300,15 @@ export class RepurposeClipsService {
       });
     }
 
-    const clips = await this.prisma.repurposeClip.findMany({
-      where: { runId: run.id },
-      include: CLIP_INCLUDE,
-      orderBy: { createdAt: "asc" },
-    });
+    // A removed moment's clip is kept, so "Restore" brings it back as it was,
+    // but it is not listed (steering, 2026-09-29).
+    const clips = (
+      await this.prisma.repurposeClip.findMany({
+        where: { runId: run.id },
+        include: CLIP_INCLUDE,
+        orderBy: { createdAt: "asc" },
+      })
+    ).filter((clip) => !isRemoved(clip.candidate));
     const latest = await this.latestJobs(
       run.workspaceId,
       clips.map((clip) => clip.candidateId),
@@ -504,7 +510,10 @@ export class RepurposeClipsService {
       run.workspaceId,
       clips.map((clip) => clip.candidateId),
     );
-    const owed = clips.filter((clip) => cutDue(clip, latest.get(clip.candidateId)));
+    // Never a removed moment's clip: removing it cancelled its cut.
+    const owed = clips.filter(
+      (clip) => !isRemoved(clip.candidate) && cutDue(clip, latest.get(clip.candidateId)),
+    );
 
     const enqueued: string[] = [];
     const media = owed.length === 0 ? undefined : await this.cuttableSource(run);
@@ -534,8 +543,10 @@ export class RepurposeClipsService {
    * Autopilot (`automationOf`, 2026-09-28): the cuts a person would have asked
    * for, asked for by the run itself.
    *
-   * Every moment the run has (not one the person rejected) gets a clip row, and
-   * a clip whose last cut failed for a passing reason
+   * The best moments the run has get a clip row - as many as it asked
+   * discovery for before its reserve, and every one the person added; never
+   * one they removed (`autopilotPicks`) - and a clip whose last cut failed for
+   * a passing reason
    * ({@link AUTOPILOT_CLIP_RETRY_CODES}) is asked for again, up to
    * {@link AUTOPILOT_CLIP_ATTEMPTS} cuts per moment. Rows and touches only: a
    * new row, or a failed clip touched after its cut ended, reads `waiting`
@@ -549,7 +560,7 @@ export class RepurposeClipsService {
   private async autopilot(run: RepurposeRun): Promise<void> {
     if (!AUTOPILOT_STATUSES.has(run.status)) return;
     try {
-      const [candidates, clips] = await Promise.all([
+      const [candidates, clips, source] = await Promise.all([
         this.prisma.clipCandidate.findMany({
           where: { runId: run.id, state: { not: "rejected" } },
           orderBy: [{ rank: "asc" }, { startMs: "asc" }],
@@ -558,19 +569,27 @@ export class RepurposeClipsService {
           where: { runId: run.id },
           include: { candidate: true, variants: CLIP_CHILD_VARIANTS },
         }),
+        this.prisma.mediaAsset.findFirst({
+          where: { projectId: run.sourceProjectId, role: "primary" },
+          orderBy: { createdAt: "desc" },
+          select: { durationMs: true },
+        }),
       ]);
 
-      const hasClip = new Set(clips.map((clip) => clip.candidateId));
-      let room = MAX_CLIPS_PER_RUN - clips.length;
+      // Steering (2026-09-29): the best `autopilotClipCount` suggestions are
+      // cut, and every moment the person added; the rest of what discovery
+      // found waits in reserve, and the best of it takes the place of a clip
+      // the person removes (`autopilotPicks`).
+      const picks = autopilotPicks({
+        candidates,
+        withClip: new Set(clips.map((clip) => clip.candidateId)),
+        target: autopilotClipCount(source?.durationMs),
+        room: MAX_CLIPS_PER_RUN - clips.length,
+      });
       let cut = 0;
-      for (const candidate of candidates) {
-        if (room <= 0) break;
-        if (hasClip.has(candidate.id)) continue;
+      for (const candidate of picks) {
         const { created } = await this.createClipRow(run, candidate);
-        if (created) {
-          cut += 1;
-          room -= 1;
-        }
+        if (created) cut += 1;
       }
 
       let retried = 0;
@@ -579,6 +598,7 @@ export class RepurposeClipsService {
         clips.map((clip) => clip.candidateId),
       );
       for (const clip of clips) {
+        if (isRemoved(clip.candidate)) continue;
         const job = latest.get(clip.candidateId);
         const { state, failureCode } = clipStateOf(clipFactsOf(clip), job);
         if (state !== "failed" || failureCode === null) continue;
@@ -637,7 +657,14 @@ export class RepurposeClipsService {
     const exports = this.exports;
     if (exports === undefined) return;
     const variants = await this.prisma.clipVariant.findMany({
-      where: { clip: { runId: run.id, mezzanineKey: { not: null } } },
+      where: {
+        clip: {
+          runId: run.id,
+          mezzanineKey: { not: null },
+          // A removed moment's clip is not rendered (steering, 2026-09-29).
+          candidate: { state: { not: "rejected" } },
+        },
+      },
       include: {
         latestExport: { select: { id: true, status: true } },
         project: {
@@ -896,7 +923,7 @@ export class RepurposeClipsService {
     });
     let roomChecked = false;
     for (const clip of clips) {
-      if (clip.mezzanineKey === null) continue;
+      if (clip.mezzanineKey === null || isRemoved(clip.candidate)) continue;
       try {
         const plan = await this.imagePlanOf(run.workspaceId, clip);
         if (plan.kind !== "ready") continue;
@@ -1060,10 +1087,16 @@ export class RepurposeClipsService {
 
     let media: MediaAsset | "preparing" | "failed" | undefined;
     for (const clip of ready) {
+      if (isRemoved(clip.candidate)) continue;
       for (const shape of FORMAT_SHAPES) {
         // eslint-disable-next-line security/detect-object-injection -- key is a closed enum (image file id / video shape), not input
         if (had.has(`${clip.id}:${ASPECT_OF_SHAPE[shape]}`)) continue;
-        const prefix = formatCutKeyPrefix(clip.candidateId, shape);
+        media ??= await this.cuttableSource(run);
+        if (media === undefined || media === "preparing" || media === "failed") return;
+        // The cuts of these bounds only: a moment whose times were changed has
+        // its old shapes' cuts behind it, and a succeeded one of those must
+        // not read as "its completion is landing" (steering, `cutBoundsOf`).
+        const prefix = `${formatCutKeyPrefix(clip.candidateId, shape)}${cutBoundsOf(clip.candidate, media.durationMs)}:`;
         const jobs = await this.prisma.job.findMany({
           where: {
             workspaceId: run.workspaceId,
@@ -1080,8 +1113,6 @@ export class RepurposeClipsService {
         ) {
           continue;
         }
-        media ??= await this.cuttableSource(run);
-        if (media === undefined || media === "preparing" || media === "failed") return;
         try {
           await this.enqueueFormatCut(run, clip, clip.candidate, media, shape);
         } catch (error) {
@@ -1147,7 +1178,7 @@ export class RepurposeClipsService {
       workspaceId: run.workspaceId,
       projectId: run.sourceProjectId,
       params: payload,
-      jobKey: `${formatCutKeyPrefix(candidate.id, shape)}${String(candidate.startMs)}-${String(endMs)}:${CLIP_PROFILE_VERSION}`,
+      jobKey: `${formatCutKeyPrefix(candidate.id, shape)}${cutBoundsOf(candidate, media.durationMs)}:${CLIP_PROFILE_VERSION}`,
       worstCaseTenths: 0,
       reason: `media.clip ${shape} · ${clip.id}`,
     });

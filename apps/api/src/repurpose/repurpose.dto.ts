@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { ClipLengthPresetSchema } from "@montaj/repurpose-contracts";
+
 import {
   AUTOMATION_MODES,
   DEFAULT_MAX_CANDIDATE_MS,
@@ -11,6 +13,7 @@ import {
   WINDOW_START_MAX_MS,
 } from "./repurpose.constants.js";
 import { STAGES } from "./repurpose.projection.js";
+import { MAX_SKIP_MS } from "./steering.js";
 import { zodDto } from "../common/index.js";
 
 /**
@@ -43,6 +46,16 @@ export const discoverySetupSchema = z
     minDurationMs: z.number().int().min(3_000).max(180_000).default(DEFAULT_MIN_CANDIDATE_MS),
     maxDurationMs: z.number().int().min(3_000).max(180_000).default(DEFAULT_MAX_CANDIDATE_MS),
     contentGoal: z.enum(["reach", "education", "authority", "engagement"]).default("reach"),
+    /**
+     * Steering (2026-09-29), as `CreateRunRequestSchema.setup.discovery` has it:
+     * what the clips should be about, how long they should be (a preset, which
+     * wins over the two bounds above), and how much of the video's start and
+     * end to take no clip from. All optional; absent is the run as before.
+     */
+    topic: z.string().trim().min(2).max(200).optional(),
+    clipLength: ClipLengthPresetSchema.optional(),
+    skipIntroMs: z.number().int().min(0).max(MAX_SKIP_MS).optional(),
+    skipOutroMs: z.number().int().min(0).max(MAX_SKIP_MS).optional(),
   })
   .superRefine((value, context) => {
     if (value.minDurationMs > value.maxDurationMs) {
@@ -241,6 +254,20 @@ export const runViewSchema = z.object({
       until: z.string(),
     })
     .nullable(),
+  /**
+   * What the run was steered with at the start (2026-09-29), for "About: money
+   * habits · Short clips": null when it was not. Always sent; optional here
+   * only so a view described before it still reads as one.
+   */
+  steering: z
+    .object({
+      topic: z.string().nullable(),
+      clipLength: ClipLengthPresetSchema.nullable(),
+      skipIntroMs: z.number().int().min(0),
+      skipOutroMs: z.number().int().min(0),
+    })
+    .nullable()
+    .optional(),
 });
 
 /** `POST /repurpose/runs/{id}/next-window`: the new run over the next part of the source. */

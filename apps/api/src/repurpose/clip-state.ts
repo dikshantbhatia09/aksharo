@@ -1,4 +1,5 @@
 import { REPURPOSE_CLIP_ERRORS } from "./repurpose-clips.dto.js";
+import { isRemoved } from "./steering.js";
 import { JOB_ERROR_CODES } from "../jobs/jobs.errors.js";
 
 import type { PrismaService } from "../common/prisma/prisma.service.js";
@@ -322,15 +323,20 @@ export async function settleRunAfterClips(
     return undefined;
   }
 
-  const clips = await prisma.repurposeClip.findMany({
-    where: { runId: run.id },
-    select: {
-      candidateId: true,
-      mezzanineKey: true,
-      updatedAt: true,
-      variants: CLIP_CHILD_VARIANTS,
-    },
-  });
+  // A removed moment's clip (steering, 2026-09-29) had its cut cancelled: it
+  // is neither still to come nor a clip to review.
+  const clips = (
+    await prisma.repurposeClip.findMany({
+      where: { runId: run.id },
+      select: {
+        candidateId: true,
+        mezzanineKey: true,
+        updatedAt: true,
+        variants: CLIP_CHILD_VARIANTS,
+        candidate: { select: { state: true } },
+      },
+    })
+  ).filter((clip) => !isRemoved(clip.candidate));
   const latest = await latestClipJobs(
     prisma,
     run.workspaceId,

@@ -1776,3 +1776,79 @@ describe("Autopilot's images, disk guard and old renders", () => {
     expect(h.tables.variants[0]?.["status"]).toBe("ready");
   });
 });
+
+describe("Steering (2026-09-29): Autopilot's reserve, removed clips, re-timed moments", () => {
+  const auto = { config: { automation: "auto" } };
+
+  /** `count` suggestions, ranked best first, a minute apart. */
+  function suggestions(count: number): Row[] {
+    return Array.from({ length: count }, (_, index) => ({
+      id: `01JCCAND${String(index).padStart(2, "0")}0000000000000000`,
+      runId: RUN,
+      source: "ai",
+      state: "proposed",
+      rank: index + 1,
+      potentialScore: 90 - index,
+      startMs: 60_000 * (index + 1),
+      endMs: 60_000 * (index + 1) + 30_000,
+      title: `Moment ${String(index + 1)}`,
+    }));
+  }
+
+  it("cuts only the best moments it asked for, and keeps the rest in reserve", async () => {
+    // A 10-minute source: Autopilot's target is 5, and discovery was asked for 7.
+    h = harness({ run: auto });
+    h.tables.candidates.splice(0, h.tables.candidates.length, ...suggestions(7));
+    await h.service.reconcileClips(RUN);
+    expect(h.tables.clips.map((clip) => clip["candidateId"])).toEqual(
+      suggestions(5).map((candidate) => candidate["id"]),
+    );
+  });
+
+  it("gives a removed clip's place to the best moment in reserve", async () => {
+    h = harness({ run: auto });
+    const all = suggestions(7);
+    h.tables.candidates.splice(0, h.tables.candidates.length, ...all);
+    await h.service.reconcileClips(RUN);
+    const second = h.tables.candidates[1];
+    if (second !== undefined) second["state"] = "rejected";
+
+    await h.service.reconcileClips(RUN);
+    expect(h.tables.clips.map((clip) => clip["candidateId"])).toContain(all[5]?.["id"]);
+    expect(h.tables.clips.map((clip) => clip["candidateId"])).not.toContain(all[6]?.["id"]);
+  });
+
+  it("neither lists a removed moment's clip nor cuts, retries or re-shapes it", async () => {
+    h = harness({ run: { ...auto, status: "materializing", currentStage: "styles_formats" } });
+    h.tables.candidates[0] = { ...h.tables.candidates[0], state: "rejected" };
+    h.tables.clips.push(
+      // Waiting: would be cut by the reconcile.
+      clipRow(CAND_A, { updatedAt: new Date() }),
+      clipRow(CAND_B, { mezzanineKey: "ws/master.mp4" }),
+    );
+    h.tables.jobs.push(jobRow(CAND_A, "failed", { code: "media/tool_timeout" }));
+
+    const { clips } = await h.service.listClips(WS, RUN);
+    expect(clips.map((clip) => clip.candidateId)).toEqual([CAND_B]);
+    const cuts = h.enqueue.mock.calls.map((call) => (call[0] as { jobKey: string }).jobKey);
+    expect(cuts.some((key) => key.includes(CAND_A))).toBe(false);
+  });
+
+  it("cuts a re-timed moment's shapes afresh: its old times' cuts are not this cut's", async () => {
+    h = harness({ run: { ...auto, status: "review_ready", currentStage: "review" } });
+    h.tables.candidates.length = 1;
+    h.tables.clips.push(clipRow(CAND_A, { mezzanineKey: "ws/master.mp4" }));
+    // A 4:5 cut of the moment's old times succeeded; its variant went with them.
+    h.tables.jobs.push({
+      ...jobRow(CAND_A, "succeeded"),
+      jobKey: `media.clip.format:${CAND_A}:4x5:55000-90000:${CLIP_PROFILE_VERSION}`,
+    });
+    await h.service.reconcileClips(RUN);
+    const formats = h.enqueue.mock.calls
+      .map((call) => (call[0] as { jobKey: string }).jobKey)
+      .filter((key) => key.startsWith("media.clip.format:"));
+    expect(formats).toContain(
+      `media.clip.format:${CAND_A}:4x5:60000-90000:${CLIP_PROFILE_VERSION}`,
+    );
+  });
+});

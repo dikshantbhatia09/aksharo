@@ -1736,3 +1736,144 @@ describe("discovery reasons in the language the transcript turned out to be", ()
     expect(discoveryLanguage(null, "en-IN")).toBe("en-IN");
   });
 });
+
+describe("steering (2026-09-29): topic, clip length and skipped start and end", () => {
+  type Options = {
+    count: number;
+    minDurationMs: number;
+    maxDurationMs: number;
+    topic?: string;
+    excludeRanges?: Array<{ startMs: number; endMs: number }>;
+    minPotential?: number;
+  };
+  function discoveryOptions(h: ReturnType<typeof harness>): Options {
+    const calls = h.jobs.enqueue.mock.calls as unknown as Array<[{ params: { options: Options } }]>;
+    const options = calls[0]?.[0].params.options;
+    if (options === undefined) throw new Error("discovery was not enqueued");
+    return options;
+  }
+  const steered = {
+    mode: "ai",
+    requestedCandidates: 5,
+    topic: "money habits, startup failures",
+    clipLength: "short",
+    skipIntroMs: 2 * MINUTE,
+    skipOutroMs: MINUTE,
+  };
+
+  it("freezes the steering with the run, the length preset written into its bounds", async () => {
+    const h = harness();
+    const created = await h.service.create(
+      WS,
+      USER,
+      linkRun({
+        discovery: { ...steered, minDurationMs: 15_000, maxDurationMs: 60_000 },
+      }),
+    );
+    const config = createdRunData(h)["config"] as { discovery: Record<string, unknown> };
+    expect(config.discovery).toMatchObject({
+      topic: "money habits, startup failures",
+      clipLength: "short",
+      minDurationMs: 15_000,
+      maxDurationMs: 35_000,
+      skipIntroMs: 2 * MINUTE,
+      skipOutroMs: MINUTE,
+    });
+    // And the page reads it back: "About: money habits · Short clips".
+    expect(created.run.steering).toEqual({
+      topic: "money habits, startup failures",
+      clipLength: "short",
+      skipIntroMs: 2 * MINUTE,
+      skipOutroMs: MINUTE,
+    });
+  });
+
+  it("sends discovery the length band, the topic and the skips on the file's clock", async () => {
+    const h = harness({
+      run: runRow({ status: "transcribing", config: { sourceLanguage: "en", discovery: steered } }),
+      media: { id: MEDIA, status: "ready", durationMs: 20 * MINUTE, sourceOffsetMs: 0 },
+    });
+    await h.service.startHighlightDiscovery(h.current(), TRANSCRIPT);
+    expect(discoveryOptions(h)).toMatchObject({
+      minDurationMs: 15_000,
+      maxDurationMs: 35_000,
+      topic: "money habits, startup failures",
+      excludeRanges: [
+        { startMs: 0, endMs: 2 * MINUTE },
+        { startMs: 19 * MINUTE, endMs: 20 * MINUTE },
+      ],
+    });
+  });
+
+  it("places the skips in the video, not in a window of it", async () => {
+    // 20:00-40:00 of a 45-minute video: the intro is long over, the last ten
+    // minutes (from 35:00) are 15:00-20:00 of this file.
+    const h = harness({
+      run: runRow({
+        status: "transcribing",
+        windowStartMs: 20 * MINUTE,
+        windowEndMs: 40 * MINUTE,
+        sourceDurationMs: 45 * MINUTE,
+        config: {
+          sourceLanguage: "en",
+          discovery: { ...steered, skipOutroMs: 10 * MINUTE },
+        },
+      }),
+      media: { id: MEDIA, status: "ready", durationMs: 20 * MINUTE, sourceOffsetMs: 20 * MINUTE },
+    });
+    await h.service.startHighlightDiscovery(h.current(), TRANSCRIPT);
+    expect(discoveryOptions(h).excludeRanges).toEqual([
+      { startMs: 15 * MINUTE, endMs: 20 * MINUTE },
+    ]);
+  });
+
+  it("asks exactly what it asked before for a run that was not steered", async () => {
+    const h = harness({
+      run: runRow({ status: "transcribing" }),
+      media: { id: MEDIA, status: "ready", durationMs: 20 * MINUTE },
+    });
+    await h.service.startHighlightDiscovery(h.current(), TRANSCRIPT);
+    const options = discoveryOptions(h);
+    expect(options).toMatchObject({ count: 5, minDurationMs: 15_000, maxDurationMs: 60_000 });
+    expect(options).not.toHaveProperty("topic");
+    expect(options).not.toHaveProperty("excludeRanges");
+  });
+
+  it("asks Autopilot's discovery for a reserve on top of the clips it will cut", async () => {
+    const h = harness({
+      run: runRow({
+        status: "transcribing",
+        config: { sourceLanguage: "en", automation: "auto", discovery: { mode: "ai" } },
+      }),
+      media: { id: MEDIA, status: "ready", durationMs: 20 * MINUTE },
+    });
+    await h.service.startHighlightDiscovery(h.current(), TRANSCRIPT);
+    // Twenty minutes: ten clips, and three more in reserve.
+    expect(discoveryOptions(h)).toMatchObject({ count: 13, minPotential: 0.6 });
+  });
+
+  it("keeps the steering when the next part of a long video is started", async () => {
+    const h = harness({
+      run: runRow({
+        status: "review_ready",
+        windowStartMs: 0,
+        windowEndMs: 20 * MINUTE,
+        windowPolicy: "first",
+        sourceDurationMs: 45 * MINUTE,
+        config: {
+          sourceLanguage: "en",
+          caption: { styleId: "punch-pop", outputLanguage: "same", scriptMode: "auto" },
+          discovery: steered,
+        },
+      }),
+    });
+    await h.service.nextWindow(WS, USER, RUN);
+    const config = createdRunData(h)["config"] as { discovery: Record<string, unknown> };
+    expect(config.discovery).toMatchObject({
+      topic: "money habits, startup failures",
+      clipLength: "short",
+      skipIntroMs: 2 * MINUTE,
+      skipOutroMs: MINUTE,
+    });
+  });
+});

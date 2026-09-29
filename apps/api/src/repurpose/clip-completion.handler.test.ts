@@ -450,6 +450,17 @@ describe("RepurposeClipCompletionHandler — a finished cut", () => {
     expect(h.completeAcquisition).toHaveBeenCalledTimes(1);
   });
 
+  it("gives a fresh child this cut's picture, even over a copy an older cut left in raw", async () => {
+    // A moment whose times were changed is cut again into fresh projects under
+    // the same key; skipping the copy because one exists would have the probe
+    // read the old times' picture (steering, 2026-09-29).
+    const h = harness();
+    h.raw.head.mockResolvedValue({ sizeBytes: 9_999 } as never);
+    await h.handler.handle(context(clipResult()));
+    expect(h.raw.put).toHaveBeenCalledTimes(1);
+    expect(h.completeAcquisition).toHaveBeenCalledTimes(1);
+  });
+
   it("turns a cut away only when its run no longer exists", async () => {
     const h = harness({ runGone: true });
     const outcome = await h.handler.handle(context(clipResult()));
