@@ -17,6 +17,7 @@ import {
   mediaClipJobKey,
 } from "@montaj/repurpose-contracts";
 
+import { ClipFinishing, finishingInProgress } from "./clip-finishing.js";
 import {
   IMAGE_ATTEMPTS,
   IMAGE_URL_TTL_SECONDS,
@@ -108,7 +109,8 @@ import type {
  * `downloadUrl` point at the newest finished file (null until there is one).
  */
 export interface CaptionedClipView {
-  readonly status: "rendering" | "ready" | "stale" | "failed";
+  /** `finishing` (2026-09-29): its edit is being finished before it is made (`clip-finishing.ts`). */
+  readonly status: "finishing" | "rendering" | "ready" | "stale" | "failed";
   readonly playUrl: string | null;
   readonly downloadUrl: string | null;
 }
@@ -274,6 +276,8 @@ export class RepurposeClipsService {
     @Inject(DERIVED_STORE) private readonly derived: ObjectStore,
     /** Makes the captioned videos of Autopilot clips; absent in hand-built harnesses. */
     @Optional() private readonly exports?: ExportsService,
+    /** Finishes each Autopilot clip's edit before its captioned video; absent in harnesses. */
+    @Optional() private readonly finishing?: ClipFinishing,
   ) {}
 
   // -------------------------------------------------------------------------
@@ -690,6 +694,16 @@ export class RepurposeClipsService {
         // Captions edited since the last file: wait for the edits to settle.
         if (latest !== null && !current && now - doc.updatedAt.getTime() < CAPTIONED_QUIET_MS) {
           if (variant.status !== "stale") await this.setVariant(variant.id, "stale");
+          continue;
+        }
+        // The first video waits for the edit to be finished: cuts, keyword
+        // emphasis, zooms and the hook title (`clip-finishing.ts`). Asked for on
+        // the pass after the one that finishes it, from the finished revision.
+        if (
+          latest === null &&
+          this.finishing !== undefined &&
+          (await this.finishing.advance(run, variant, new Date(now))) !== "finished"
+        ) {
           continue;
         }
         // Captions keep off faces in the render: wait for the face track.
@@ -1745,6 +1759,9 @@ export class RepurposeClipsService {
     clip: ClipWithRelations,
     variant: ClipWithRelations["variants"][number],
   ): Promise<CaptionedClipView | null> {
+    if (variant.latestExportId === null && finishingInProgress(variant.finishing)) {
+      return { status: "finishing", playUrl: null, downloadUrl: null };
+    }
     if (variant.latestExportId === null && variant.status !== "failed") return null;
     const shape = SHAPE_OF_ASPECT[variant.aspect];
     const exports = variant.project.exports;

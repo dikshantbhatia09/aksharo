@@ -232,7 +232,9 @@ function FormatRow({
       ? FORMATS_COPY.failed
       : format.status === "stale"
         ? FORMATS_COPY.updating
-        : format.status === "preparing" || (format.status === "rendering" && download === null)
+        : format.status === "preparing" ||
+            format.status === "finishing" ||
+            (format.status === "rendering" && download === null)
           ? FORMATS_COPY.preparing
           : null;
   return (

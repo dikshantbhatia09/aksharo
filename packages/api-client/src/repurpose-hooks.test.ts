@@ -72,8 +72,8 @@ describe("clipsPollDelay", () => {
     ).toBe(CLIP_URL_REFRESH_MS);
   });
 
-  it("keeps polling while a captioned video is being made or re-made", () => {
-    for (const status of ["rendering", "stale"] as const) {
+  it("keeps polling while a captioned video is being made or re-made, or its edit finished", () => {
+    for (const status of ["finishing", "rendering", "stale"] as const) {
       expect(
         clipsPollDelay(
           [{ ...readyClip, captioned: { status, playUrl: null, downloadUrl: null } }],

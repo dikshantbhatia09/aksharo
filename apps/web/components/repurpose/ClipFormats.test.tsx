@@ -79,6 +79,25 @@ describe("ClipFormats", () => {
     );
   });
 
+  it("says a shape whose edit is still being finished is being made", () => {
+    render(
+      <ClipFormats
+        candidateId={CAND}
+        title="A moment"
+        durationMs={30_000}
+        formats={[
+          format("9:16", {
+            status: "finishing",
+            captioned: { status: "finishing", playUrl: null, downloadUrl: null },
+          }),
+          format("4:5"),
+        ]}
+        images={{ status: "none", files: [] }}
+      />,
+    );
+    expect(screen.getByTestId(`clip-format-${CAND}-9x16`)).toHaveTextContent("Being made");
+  });
+
   it("shows nothing for a clip that only has its 9:16 video", () => {
     const { container } = render(
       <ClipFormats

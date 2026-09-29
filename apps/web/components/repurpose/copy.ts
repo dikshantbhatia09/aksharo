@@ -315,6 +315,9 @@ export function safeErrorCopy(code: string | null): SafeErrorCopy {
  * captions burned in, made by the server after each cut.
  */
 export const CAPTIONED_COPY = Object.freeze({
+  // Autopilot finishing the edit before the captions go on (2026-09-29): cuts,
+  // keyword emphasis, zooms and the hook title, as the plan allows.
+  finishing: "Finishing the edit…",
   adding: "Adding captions to this video…",
   updating: "Updating this video with your caption changes…",
   failed:

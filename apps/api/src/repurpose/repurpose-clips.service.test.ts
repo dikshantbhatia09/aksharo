@@ -266,7 +266,7 @@ interface Harness {
   enqueueMode: { next: "ok" | "lane" | Error };
 }
 
-function harness(overrides: { run?: Row; media?: Row } = {}): Harness {
+function harness(overrides: { run?: Row; media?: Row; finishing?: unknown } = {}): Harness {
   const tables: Tables = {
     runs: [
       {
@@ -390,6 +390,7 @@ function harness(overrides: { run?: Row; media?: Row } = {}): Harness {
       delete: derivedDelete,
     } as never,
     { requestExport } as never,
+    overrides.finishing as never,
   );
   // Plenty of disk unless a test says otherwise.
   service.freeBytes = async () => Number.POSITIVE_INFINITY;
@@ -1313,6 +1314,109 @@ describe("Autopilot's captioned videos", () => {
     h = harness({ run: { status: "review_ready", currentStage: "review" } });
     readyClip(h);
     await h.service.reconcileClips(RUN);
+    expect(h.requestExport).not.toHaveBeenCalled();
+    const [item] = (await h.service.listClips(WS, RUN)).clips;
+    expect(item?.captioned).toBeNull();
+  });
+});
+
+describe("Autopilot's finishing pass (clip-finishing.ts)", () => {
+  const ready = { config: { automation: "auto" }, status: "review_ready", currentStage: "review" };
+  const CHILD = "01JCCH1LD0000000000000000A";
+  const RUNNING = { v: 1, state: "running", startedAt: new Date().toISOString(), steps: {} };
+
+  function readyClip(h: Harness, variant: Row = {}): void {
+    h.tables.candidates.length = 1;
+    h.tables.clips.push(clipRow(CAND_A, { mezzanineKey: "ws/master.mp4", title: "A moment" }));
+    h.tables.variants.push({
+      id: "01JCVAR1ANT000000000000000",
+      clipId: h.tables.clips[0]?.["id"],
+      aspect: "r9x16",
+      profileVersion: CLIP_PROFILE_VERSION,
+      projectId: CHILD,
+      editFingerprint: "",
+      status: "ready",
+      latestExportId: null,
+      finishing: null,
+      ...variant,
+    });
+    h.tables.media.push({
+      id: "01JCCH1LDMED1A000000000000",
+      projectId: CHILD,
+      role: "primary",
+      status: "ready",
+      failureReason: null,
+      durationMs: 30_000,
+      facesKey: "faces.json",
+      createdAt: new Date(clock++),
+    });
+    h.tables.docs.push({
+      projectId: CHILD,
+      revision: 3,
+      updatedAt: new Date(Date.now() - 10 * 60_000),
+    });
+  }
+
+  /** A finishing pass that moves through `outcomes`, one per ask, marking the row as it goes. */
+  function finishingThat(h: () => Harness, outcomes: string[]) {
+    return {
+      advance: vi.fn(async (_run: unknown, variant: { id: string }) => {
+        const outcome = outcomes.shift() ?? "finished";
+        const row = h().tables.variants.find((v) => v["id"] === variant.id);
+        if (row !== undefined) {
+          row["finishing"] = outcome === "waiting" ? RUNNING : { ...RUNNING, state: "done" };
+        }
+        return outcome;
+      }),
+    };
+  }
+
+  it("makes the captioned video only once the edit is finished, from the finished revision", async () => {
+    const finishing = finishingThat(() => h, ["waiting", "just-finished"]);
+    h = harness({ run: ready, finishing });
+    readyClip(h);
+
+    await h.service.reconcileClips(RUN);
+    expect(finishing.advance).toHaveBeenCalledTimes(1);
+    expect(h.requestExport).not.toHaveBeenCalled();
+    const [finishingItem] = (await h.service.listClips(WS, RUN)).clips;
+    expect(finishingItem?.captioned).toEqual({
+      status: "finishing",
+      playUrl: null,
+      downloadUrl: null,
+    });
+    expect(finishingItem?.formats[0]).toMatchObject({ shape: "9:16", status: "finishing" });
+
+    // Finished on this pass: the video is asked for on the next, once the
+    // document's revision includes everything the pass wrote.
+    Object.assign(h.tables.docs[0] ?? {}, { revision: 9 });
+    await h.service.reconcileClips(RUN);
+    expect(h.requestExport).not.toHaveBeenCalled();
+    await h.service.reconcileClips(RUN);
+    expect(h.requestExport).toHaveBeenCalledTimes(1);
+    expect(h.tables.variants[0]).toMatchObject({ status: "rendering", editFingerprint: "edg:9" });
+  });
+
+  it("never finishes a clip whose captioned video was already asked for", async () => {
+    const finishing = finishingThat(() => h, []);
+    h = harness({ run: ready, finishing });
+    readyClip(h, { latestExportId: "01JCEXP0000000000000000001", editFingerprint: "edg:3" });
+    h.tables.exports.push({
+      id: "01JCEXP0000000000000000001",
+      projectId: CHILD,
+      status: "succeeded",
+      storageKey: "exports/clip.mp4",
+    });
+    await h.service.reconcileClips(RUN);
+    expect(finishing.advance).not.toHaveBeenCalled();
+  });
+
+  it("never touches the clips of a run whose person picks the moments", async () => {
+    const finishing = finishingThat(() => h, []);
+    h = harness({ run: { status: "review_ready", currentStage: "review" }, finishing });
+    readyClip(h);
+    await h.service.reconcileClips(RUN);
+    expect(finishing.advance).not.toHaveBeenCalled();
     expect(h.requestExport).not.toHaveBeenCalled();
     const [item] = (await h.service.listClips(WS, RUN)).clips;
     expect(item?.captioned).toBeNull();

@@ -1,0 +1,11 @@
+-- Autopilot's finishing pass (2026-09-29): what was done to one clip shape's
+-- project before its captioned video was asked for — pauses and fillers cut,
+-- punch-in zooms, keyword emphasis, the hook title. The column holds the
+-- step record `{ v, state, startedAt, finishedAt?, steps: { autocut, emphasis,
+-- zoom, hook } }` (`apps/api/src/repurpose/clip-finishing.ts`); while
+-- `state` is `running` the captioned video waits and the clip reads
+-- "Finishing the edit".
+--
+-- Purely additive and nullable. Null means never finished: a manual run's
+-- shape, or one made before this column existed. Older code never reads it.
+ALTER TABLE "clip_variants" ADD COLUMN "finishing" JSONB;
