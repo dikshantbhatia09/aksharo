@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { TranscriptDocumentService } from "./transcript-document.service.js";
+import { DEFAULT_STYLE_REF } from "../edg/init/index.js";
 
 import type { PrismaService } from "../common/prisma/prisma.service.js";
 import type { EdgInitInput, EdgService } from "../edg/edg.service.js";
@@ -29,6 +30,8 @@ interface Setup {
   } | null;
   transcript?: { id: string; language: string } | null;
   chunkRows?: unknown[];
+  /** A repurposed clip's shape: the caption setup its run froze. */
+  variant?: { captionConfig: unknown } | null;
 }
 
 function harness(setup: Setup = {}) {
@@ -63,6 +66,7 @@ function harness(setup: Setup = {}) {
     project: { findFirst: vi.fn(async () => project) },
     transcript: { findFirst: vi.fn(async () => transcript) },
     transcriptChunk: { findMany: vi.fn(async () => chunkRows) },
+    clipVariant: { findFirst: vi.fn(async () => setup.variant ?? null) },
   } as unknown as PrismaService;
 
   const initialise = vi.fn(async (_projectId: string, _input: EdgInitInput) => ({
@@ -98,6 +102,24 @@ describe("TranscriptDocumentService.ensure", () => {
     ]);
     // Built by the worker path, like every other document born of a transcript.
     expect(input.source).toBe("worker");
+  });
+
+  it("starts a repurposed clip on the caption style its run was given", async () => {
+    const { service, initialise } = harness({
+      variant: { captionConfig: { styleId: "hype-bold", scriptMode: "auto", styleVersion: 1 } },
+    });
+    await service.ensure("01PROJECT");
+    expect(initialise.mock.calls[0]![1].styleRef).toBe("hype-bold");
+  });
+
+  it("keeps the default for a style that can no longer be picked, and for any other project", async () => {
+    const retired = harness({ variant: { captionConfig: { styleId: "box-block" } } });
+    await retired.service.ensure("01PROJECT");
+    expect(retired.initialise.mock.calls[0]![1].styleRef).toBe(DEFAULT_STYLE_REF);
+
+    const plain = harness();
+    await plain.service.ensure("01PROJECT");
+    expect(plain.initialise.mock.calls[0]![1].styleRef).toBe(DEFAULT_STYLE_REF);
   });
 
   it("leaves an existing document alone", async () => {

@@ -8,6 +8,7 @@ import { newestChunkRows } from "../edg/chunk-rows.js";
 import { toChunk } from "../edg/edg.rows.js";
 import { EdgService } from "../edg/index.js";
 import { CAPTION_RENDER_CONTEXT, edgInitInputFor, resolveBudgets } from "../edg/init/index.js";
+import { clipDocumentStyle } from "../repurpose/clip-style.js";
 
 import type { CaptionRenderContext } from "../edg/init/index.js";
 
@@ -78,10 +79,22 @@ export class TranscriptDocumentService {
     });
     if (transcript === null) return { status: "no_transcript" };
 
+    // A repurposed clip starts on the caption style its run was given
+    // (2026-09-29): its shape's frozen `clip_variants.caption_config`, when that
+    // style can still be picked (`clipDocumentStyle`). Every clip used to start
+    // on the default, whatever the run chose. Anything else keeps the default.
+    const variant = await this.prisma.clipVariant.findFirst({
+      where: { projectId },
+      select: { captionConfig: true },
+    });
+    const styleRef = variant === null ? undefined : clipDocumentStyle(variant.captionConfig);
+
     const chunks = (await newestChunkRows(this.prisma, transcript.id)).map(toChunk);
     const words = chunks.flatMap((chunk) => chunk.words);
     const budgets = resolveBudgets({
       script: segmentScript(words as unknown as Parameters<typeof segmentScript>[0]),
+      // The document takes its style from the budgets (`edgInitInputFor`).
+      ...(styleRef === undefined ? {} : { styleRef }),
       ...(this.render === undefined ? {} : { render: this.render }),
       aspect: project.aspect,
       ...(project.mediaAssets[0] === undefined ? {} : { media: project.mediaAssets[0] }),
