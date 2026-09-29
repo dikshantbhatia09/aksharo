@@ -1,4 +1,6 @@
+import { execFileSync } from "node:child_process";
 import { createDecipheriv, createECDH, hkdfSync } from "node:crypto";
+import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
@@ -195,6 +197,23 @@ describe("WEB_PUSH_* settings", () => {
         WEB_PUSH_SUBJECT: "http://insecure.example.test",
       }),
     ).toEqual({ kind: "invalid", problem: "bad_subject" });
+  });
+
+  it("takes the pair `scripts/generate-vapid-keys.mjs` prints, as the deploy step runs it", () => {
+    const printed = execFileSync(process.execPath, [
+      fileURLToPath(new URL("../../../scripts/generate-vapid-keys.mjs", import.meta.url)),
+    ]).toString();
+    const env = Object.fromEntries(
+      printed
+        .trim()
+        .split("\n")
+        .map((line) => [line.slice(0, line.indexOf("=")), line.slice(line.indexOf("=") + 1)]),
+    );
+    expect(Object.keys(env).sort()).toEqual([
+      "WEB_PUSH_VAPID_PRIVATE_KEY",
+      "WEB_PUSH_VAPID_PUBLIC_KEY",
+    ]);
+    expect(webPushSetting(env).kind).toBe("on");
   });
 
   it("is on with a pair, and falls back to the support address as the subject", () => {
