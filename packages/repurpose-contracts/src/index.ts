@@ -57,6 +57,10 @@ export {
 } from "./schema.js";
 
 export {
+  AUDIOGRAM_ARTWORK_FORMATS,
+  AudiogramSchema,
+  MEDIA_CLIP_PAYLOAD_FIELDS,
+  type Audiogram,
   CLIP_LAYOUTS,
   ClipLayoutSchema,
   STACKED_ASPECTS,

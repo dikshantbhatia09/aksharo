@@ -39,6 +39,8 @@ const StorageKeySchema = z
 
 const BucketSchema = z.enum(["s3", "r2"]);
 const Sha256Schema = z.string().regex(/^[a-f0-9]{64}$/);
+/** `#RRGGBB`: nothing else reaches an ffmpeg filtergraph as a colour. */
+const HexColourSchema = z.string().regex(/^#[0-9a-fA-F]{6}$/, "A colour is #RRGGBB.");
 
 export const StorageObjectSchema = z.strictObject({
   bucket: BucketSchema,
@@ -164,6 +166,65 @@ export const StackedPersonSchema = z.strictObject({
 });
 export type StackedPerson = z.infer<typeof StackedPersonSchema>;
 
+/** The image types an audiogram's artwork may be (the brand kit's logo types). */
+export const AUDIOGRAM_ARTWORK_FORMATS = ["png", "jpeg", "webp"] as const;
+
+/**
+ * A picture for a source that has none (2026-10-04, audiograms).
+ *
+ * An audio-only source - a podcast, a voice note, the bundled sample - used to
+ * be cut into audio-only clips, and nothing after the cut could use them: the
+ * cloud render draws over a video stream (`render/no-video-stream`), the image
+ * formats are frames of a video, a compilation joins pictures, and the editor
+ * could only say "audio only". With this, the cut draws a picture at the
+ * shape's size instead: `background`, the `artwork` above where the captions
+ * go (a cover the person gave with the run, else the brand kit's logo, else
+ * none), and a live waveform of the clip's own audio in `accent`. Captions are
+ * drawn later, by the render, as on any clip.
+ *
+ * Sent only when the API has probed the source and found no picture. The
+ * artwork is an object in the derived store, in the clip's own workspace.
+ */
+export const AudiogramSchema = z.strictObject({
+  background: HexColourSchema,
+  accent: HexColourSchema,
+  artwork: z
+    .strictObject({
+      key: StorageKeySchema,
+      format: z.enum(AUDIOGRAM_ARTWORK_FORMATS),
+    })
+    .optional(),
+});
+export type Audiogram = z.infer<typeof AudiogramSchema>;
+
+/**
+ * Every field a `media.clip@1` payload may carry, in order (2026-10-04).
+ *
+ * `apps/worker-media` restates the payload rather than importing this package,
+ * and refuses a payload with any field it does not know
+ * (`processors/clip-payload.ts`), so an older worker says so loudly instead of
+ * cutting a clip without what it was asked for. Its test reads this list out of
+ * this file: a field added here and not there fails that test.
+ */
+export const MEDIA_CLIP_PAYLOAD_FIELDS = [
+  "aspect",
+  "audiogram",
+  "candidateId",
+  "clipId",
+  "destination",
+  "endMs",
+  "handleMs",
+  "profile",
+  "profileVersion",
+  "reframe",
+  "runId",
+  "schemaVersion",
+  "source",
+  "sourceDurationMs",
+  "startMs",
+  "subtitles",
+] as const;
+
 /**
  * `media.clip@1` — cut one selected interval into a short mezzanine.
  *
@@ -245,6 +306,12 @@ export const MediaClipPayloadSchema = z
      * 1:1 and 16:9 for the other platforms. Absent means 9:16.
      */
     aspect: AspectSchema.optional(),
+    /**
+     * The picture to draw, for a source with none (2026-10-04,
+     * {@link AudiogramSchema}). Absent on every cut of a source with a
+     * picture, which is cut exactly as before.
+     */
+    audiogram: AudiogramSchema.optional(),
     profileVersion: z.string().trim().min(1).max(100),
     subtitles: z
       .array(
@@ -277,7 +344,31 @@ export const MediaClipPayloadSchema = z
         message: "Only a 9:16 or a 4:5 cut is stacked.",
       });
     }
+    if (value.audiogram !== undefined && value.reframe?.layout === "stacked") {
+      context.addIssue({
+        code: "custom",
+        path: ["reframe", "layout"],
+        message: "An audiogram is one picture; it is never stacked.",
+      });
+    }
+    const artwork = value.audiogram?.artwork;
+    if (
+      artwork !== undefined &&
+      workspacePrefixOf(artwork.key) !== workspacePrefixOf(value.destination.key)
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["audiogram", "artwork", "key"],
+        message: "The artwork is not in this clip's workspace.",
+      });
+    }
   });
+
+/** `ws/{workspaceId}/` of a key, or `null` for a key outside every workspace. */
+function workspacePrefixOf(key: string): string | null {
+  const match = /^ws\/[^/]+\//.exec(key);
+  return match === null ? null : match[0];
+}
 
 export const MediaClipResultSchema = z
   .strictObject({
@@ -296,6 +387,17 @@ export const MediaClipResultSchema = z
     tailHandleMs: z.int().nonnegative().max(10_000),
     hasAudio: z.boolean(),
     deduplicated: z.boolean(),
+    /**
+     * What the cut's picture is (2026-10-04), said only for a payload that
+     * asked for an `audiogram`: `audiogram` when the worker drew one, `source`
+     * when the source turned out to have a picture of its own and was cut as
+     * any video is. Absent for every other cut, so an API from before
+     * audiograms, whose strict schema would refuse it, never sees it; and
+     * absent from a worker from before them, which is how the API tells a cut
+     * that ignored the `audiogram` it asked for (a clip with no picture) from
+     * one that made it.
+     */
+    picture: z.enum(["source", "audiogram"]).optional(),
   })
   .superRefine((value, context) => {
     if (value.effectiveEndMs <= value.effectiveStartMs) {

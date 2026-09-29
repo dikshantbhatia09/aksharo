@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "clipId": "01ARZ3NDEKTSV4RRFFQ69G5FAY",
+  "bucket": "s3",
+  "key": "ws/01ARZ3NDEKTSV4RRFFQ69G5FB0/p/01ARZ3NDEKTSV4RRFFQ69G5FAX/repurpose/01ARZ3NDEKTSV4RRFFQ69G5FAV/clips/01ARZ3NDEKTSV4RRFFQ69G5FAW/master-4x5.mp4",
+  "checksum": "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
+  "sizeBytes": 2123904,
+  "durationMs": 31000,
+  "effectiveStartMs": 329500,
+  "effectiveEndMs": 360500,
+  "leadHandleMs": 500,
+  "tailHandleMs": 500,
+  "hasAudio": true,
+  "deduplicated": false,
+  "picture": "audiogram"
+}
