@@ -14,6 +14,7 @@ export type {
   CreateMultipartInput,
   MultipartUpload,
   ObjectHead,
+  ObjectReadStream,
   ObjectStore,
   PresignedPart,
   PutObjectInput,

@@ -26,6 +26,7 @@ import type {
   CreateMultipartInput,
   MultipartUpload,
   ObjectHead,
+  ObjectReadStream,
   ObjectStore,
   PresignedPart,
   PutObjectInput,
@@ -289,6 +290,22 @@ export class S3ObjectStore implements ObjectStore {
     } catch (error) {
       throw new ObjectStoreError(`could not read ${this.bucket}/${key}`, error);
     }
+  }
+
+  async openRead(key: string): Promise<ObjectReadStream> {
+    // `this.client`, never the presign client: this is the API reading for
+    // itself over the private endpoint, not a URL handed to a browser.
+    const result = await this.client.send(new GetObjectCommand({ Bucket: this.bucket, Key: key }));
+    const body = result.Body as
+      { transformToWebStream?: () => ReadableStream<Uint8Array> } | undefined;
+    if (body?.transformToWebStream === undefined) {
+      throw new ObjectStoreError(`${this.bucket}/${key} has no readable body`);
+    }
+    return {
+      body: body.transformToWebStream(),
+      sizeBytes: result.ContentLength === undefined ? null : Number(result.ContentLength),
+      ...(result.ContentType === undefined ? {} : { contentType: result.ContentType }),
+    };
   }
 
   async delete(key: string): Promise<void> {

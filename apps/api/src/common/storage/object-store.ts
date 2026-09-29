@@ -59,6 +59,14 @@ export interface PutObjectInput {
   readonly tags?: Readonly<Record<string, string>>;
 }
 
+/** One object being read ({@link ObjectStore.openRead}). */
+export interface ObjectReadStream {
+  readonly body: ReadableStream<Uint8Array>;
+  /** From the store's `Content-Length`, when it sent one. */
+  readonly sizeBytes: number | null;
+  readonly contentType?: string;
+}
+
 /**
  * One configured bucket.
  *
@@ -102,6 +110,18 @@ export interface ObjectStore {
 
   /** Read a small object back into memory. Tests and the import path only. */
   get(key: string): Promise<Buffer>;
+
+  /**
+   * Stream one object, through the API's own (private) endpoint.
+   *
+   * The one exception to "bytes never pass through the API" (2026-09-29): a
+   * finished clip handed to the publishing service (`publishing/`), which runs
+   * beside the API and takes a multipart upload - it cannot fetch a private
+   * store URL, and a public presigned one would send the file out through the
+   * tunnel and back. Streamed, so the API never holds the whole file.
+   * Optional so a test fake need not implement it.
+   */
+  openRead?(key: string): Promise<ObjectReadStream>;
 
   /** Delete one object. Deleting something absent is a success. */
   delete(key: string): Promise<void>;

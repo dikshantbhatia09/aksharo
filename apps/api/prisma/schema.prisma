@@ -3913,6 +3913,16 @@ model PublishTarget {
   retryAfter           DateTime?           @map("retry_after") @db.Timestamptz(6)
   submittedAt          DateTime?           @map("submitted_at") @db.Timestamptz(6)
   publishedAt          DateTime?           @map("published_at") @db.Timestamptz(6)
+  /// The video as the publishing service stored it (2026-09-29, Postiz): kept the
+  /// moment the upload answers and BEFORE the post is created, so a retry reuses
+  /// the upload instead of sending the file again (§12.4 step 4). Safe ids and a
+  /// path on that service - never a signed Aksharo URL.
+  externalMediaId      String?             @map("external_media_id")
+  externalMediaPath    String?             @map("external_media_path")
+  /// When the reconciler next asks the service what happened, and how many times
+  /// it has asked. The watchdog enqueues `publish.reconcile` for rows past it.
+  nextCheckAt          DateTime?           @map("next_check_at") @db.Timestamptz(6)
+  checkNo              Int                 @default(0) @map("check_no")
   createdAt            DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt            DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
