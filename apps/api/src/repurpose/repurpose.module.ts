@@ -10,6 +10,7 @@ import { RepurposeStuckRunsSweepTask } from "./repurpose-stuck-runs-sweep.task.j
 import { RepurposeController } from "./repurpose.controller.js";
 import { RepurposeService } from "./repurpose.service.js";
 import { RunActivityReader } from "./run-activity.reader.js";
+import { RunNotifier } from "./run-notifications.js";
 import { SourceGate } from "./source-gate.js";
 import { RepurposeStillsCompletionHandler } from "./stills-completion.handler.js";
 import { ExportsModule } from "../exports/exports.module.js";
@@ -55,6 +56,7 @@ import { WorkspacesModule } from "../workspaces/workspaces.module.js";
     SourceGate,
     // Progress and alerts (2026-09-29): the step a run is on, and its notifications.
     RunActivityReader,
+    RunNotifier,
     // A second binding of a stateless class (`MediaModule` provides the first
     // and does not export it), as `TranscriptsModule` does with its guard.
     AutoTranscribeTrigger,

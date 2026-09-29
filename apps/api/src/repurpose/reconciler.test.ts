@@ -28,6 +28,7 @@ import { AppException, ERROR_CODES } from "../common/errors/error-codes.js";
 import type { JobFacts, RunSnapshot } from "./reconciler.js";
 import type { RepurposeClipsService } from "./repurpose-clips.service.js";
 import type { RepurposeService } from "./repurpose.service.js";
+import type { RunNotifier } from "./run-notifications.js";
 import type { SourceGate } from "./source-gate.js";
 import type { PrismaService } from "../common/prisma/prisma.service.js";
 import type { JobsService } from "../jobs/jobs.service.js";
@@ -2295,6 +2296,32 @@ describe("RepurposeReconciler — the watchdog", () => {
     const h = harness(w);
     await Promise.all([h.reconciler.sweepOnce(NOW), h.reconciler.sweepOnce(NOW)]);
     expect(watchdogListings(h)).toBe(1);
+  });
+
+  it("tells people what changed once the pass has moved the runs (run-notifications.ts)", async () => {
+    const h = harness(w);
+    const order: string[] = [];
+    h.autoTranscribe.maybeEnqueue.mockImplementation(async () => {
+      order.push("reconcile");
+      return { jobId: "j" };
+    });
+    const notices = {
+      sweep: vi.fn(async () => {
+        order.push("notices");
+      }),
+    };
+    const reconciler = new RepurposeReconciler(
+      h.prisma,
+      h.runs as unknown as RepurposeService,
+      h.autoTranscribe as unknown as AutoTranscribeTrigger,
+      h.clips as unknown as RepurposeClipsService,
+      h.jobs as unknown as JobsService,
+      h.gate as unknown as SourceGate,
+      notices as unknown as RunNotifier,
+    );
+    await reconciler.sweepOnce(NOW);
+    expect(notices.sweep).toHaveBeenCalledWith(NOW);
+    expect(order).toEqual(["reconcile", "notices"]);
   });
 
   it("runs on its own timer from boot, independent of the scheduler, and stops at shutdown", async () => {

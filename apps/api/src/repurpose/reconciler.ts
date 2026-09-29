@@ -2,6 +2,7 @@ import {
   HttpStatus,
   Injectable,
   Logger,
+  Optional,
   type OnApplicationBootstrap,
   type OnModuleDestroy,
   type OnModuleInit,
@@ -40,6 +41,7 @@ import {
 } from "./repurpose.constants.js";
 import { progressForStatus, stageForStatus } from "./repurpose.projection.js";
 import { RepurposeService, isRefusal, isUniqueViolation } from "./repurpose.service.js";
+import { RunNotifier } from "./run-notifications.js";
 import { MAX_BLOCKED_FETCHES, SOURCE_BLOCKED_REASON, SourceGate } from "./source-gate.js";
 import { AppException, ERROR_CODES } from "../common/errors/error-codes.js";
 import { PrismaService } from "../common/prisma/prisma.service.js";
@@ -874,6 +876,8 @@ export class RepurposeReconciler
     private readonly jobs?: JobsService,
     /** YouTube's circuit breaker; absent in unit harnesses (never open there). */
     private readonly gate?: SourceGate,
+    /** A run's notifications, sent once each; absent in unit harnesses. */
+    @Optional() private readonly notices?: RunNotifier,
   ) {}
 
   /**
@@ -956,6 +960,8 @@ export class RepurposeReconciler
         await this.reconcileIfDue(run, {}, now ?? Date.now());
       }
       await this.retryAutopilotRuns(now ?? Date.now(), enabled);
+      // Once the runs have moved: who needs telling (`run-notifications.ts`).
+      await this.notices?.sweep(now ?? Date.now());
     } catch (error) {
       this.logger.warn({ err: error }, "run reconcile watchdog pass failed; the next one retries");
     }
