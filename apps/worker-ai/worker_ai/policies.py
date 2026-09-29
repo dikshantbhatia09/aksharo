@@ -130,8 +130,11 @@ QUEUE_POLICY_OVERRIDES: Final[dict[str, dict[str, int]]] = {
     },
     "media.clip": {"lockDurationMs": 300_000, "stalledIntervalMs": 60_000},
     "media.stills": {"lockDurationMs": 300_000, "stalledIntervalMs": 60_000},
+    "media.dub": {"lockDurationMs": 300_000, "stalledIntervalMs": 60_000},
     "ai.highlights": {"lockDurationMs": 600_000, "stalledIntervalMs": 60_000},
     "ai.faces": {"lockDurationMs": 600_000, "stalledIntervalMs": 60_000},
+    # Dubbing (2026-10-04): the vendor works for minutes; every poll is a heartbeat.
+    "ai.dub": {"lockDurationMs": 600_000, "stalledIntervalMs": 60_000},
     "ai.transcribe": {"lockDurationMs": 600_000, "stalledIntervalMs": 60_000},
     "ai.diarise": {"lockDurationMs": 600_000, "stalledIntervalMs": 60_000},
     "ai.align": {"lockDurationMs": 300_000, "stalledIntervalMs": 60_000},

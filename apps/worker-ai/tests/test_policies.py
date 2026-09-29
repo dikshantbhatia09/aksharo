@@ -148,6 +148,8 @@ def test_the_heartbeat_is_a_third_of_the_lock_in_both_languages() -> None:
         ("ai.transcribe", 600_000, 60_000),
         ("ai.diarise", 600_000, 60_000),
         ("ai.align", 300_000, 60_000),
+        # Dubbing (2026-10-04): polls the vendor for minutes.
+        ("ai.dub", 600_000, 60_000),
         # No override: the `ai` family defaults.
         ("ai.vad", 120_000, 30_000),
         ("ai.translate", 120_000, 30_000),

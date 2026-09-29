@@ -24,9 +24,8 @@ from worker_ai.processors.context import JobContext, JobFailureError
 
 __all__ = ["OWNERS", "process_not_implemented"]
 
-#: Which work package owns each queue not yet implemented. Empty today — every
-#: ``ai.*`` queue CONTRACTS section 3 names has a processor.
-OWNERS: dict[str, str] = {}
+#: Which work package owns each queue not yet implemented.
+OWNERS: dict[str, str] = {"ai.dub": "the dubbing processor (2026-10-04)"}
 
 
 async def process_not_implemented(context: JobContext) -> None:

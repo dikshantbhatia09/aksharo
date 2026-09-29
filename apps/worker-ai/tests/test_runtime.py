@@ -10,7 +10,7 @@ import pytest
 from bullmq import UnrecoverableError
 
 from worker_ai.callbacks import CallbackAck, JobCompletion
-from worker_ai.processors import JobFailureError
+from worker_ai.processors import OWNERS, JobFailureError
 from worker_ai.queues import AI_QUEUES, IMPLEMENTED_AI_QUEUES
 from worker_ai.runtime import (
     PROCESSORS,
@@ -35,9 +35,9 @@ def test_the_worker_owns_every_ai_queue_and_nothing_else() -> None:
     settings = load_settings(VALID_ENV)
     assert queues_for(settings) == AI_QUEUES
     assert all(name.startswith("ai.") for name in AI_QUEUES)
-    # Ten since REP-005 added `ai.highlights`. The worker CONSUMES all ten and
-    # implements nine; the tenth answers `worker/not_implemented` until Wave 4.
-    assert len(AI_QUEUES) == 11
+    # Twelve since `ai.dub` (2026-10-04). The worker consumes every one; a queue
+    # without its processor yet answers `worker/not_implemented`.
+    assert len(AI_QUEUES) == 12
 
 
 def test_every_implemented_queue_has_a_processor() -> None:
@@ -53,7 +53,7 @@ def test_a_registered_queue_without_a_processor_is_declared_not_implemented() ->
     rather than an oversight.
     """
     unimplemented = set(AI_QUEUES) - set(IMPLEMENTED_AI_QUEUES)
-    assert unimplemented == set()
+    assert unimplemented == set(OWNERS)
     assert not any(name in PROCESSORS for name in unimplemented)
 
 
