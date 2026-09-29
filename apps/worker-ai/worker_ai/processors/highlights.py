@@ -205,8 +205,17 @@ def discover(
     min_ms, max_ms = options.min_duration_ms, options.max_duration_ms
     speech_end_ms = max(word.end_ms for word in words)
     units = build_units(words, min_ms=min_ms, max_ms=max_ms)
-    windows = enumerate_windows(units, min_ms=min_ms, max_ms=max_ms) or padded_windows(
-        units, min_ms=min_ms, max_ms=max_ms, timeline_end_ms=max(duration_ms, speech_end_ms)
+    # The parts of the video the person asked to skip (`excludeRanges`) are
+    # never a window, so never scored or proposed.
+    exclude = options.exclude_ranges
+    windows = enumerate_windows(
+        units, min_ms=min_ms, max_ms=max_ms, exclude=exclude
+    ) or padded_windows(
+        units,
+        min_ms=min_ms,
+        max_ms=max_ms,
+        timeline_end_ms=max(duration_ms, speech_end_ms),
+        exclude=exclude,
     )
     if not windows:
         return [], 0

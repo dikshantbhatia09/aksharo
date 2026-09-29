@@ -28,6 +28,11 @@ Here:
    most ``ceil(count / 2)`` from any third of the video while other thirds
    still have candidates. A near-tie goes to the less-used third.
 
+A window that overlaps any of the run's ``excludeRanges`` (2026-09-29: the
+intro, the outro, a sponsor read the person asked to skip) is dropped as it is
+enumerated, before anything is scored - so a padded window is still looked for
+when every sentence window falls inside what was skipped.
+
 Music notes and sound labels (``♪``, ``[Music]``) are not words here: Whisper
 times them like speech, and a window of them was proposed as a moment.
 """
@@ -40,7 +45,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Any, Final
 
-from worker_ai.highlights.contracts import MIN_DURATION_MS
+from worker_ai.highlights.contracts import MIN_DURATION_MS, ExcludeRange
 from worker_ai.highlights.text import carries_break, ends_clause, ends_sentence_before, is_speech
 
 __all__ = [
@@ -51,6 +56,7 @@ __all__ = [
     "Word",
     "build_units",
     "enumerate_windows",
+    "outside",
     "padded_windows",
     "select",
     "sentence_ends",
@@ -283,6 +289,24 @@ def _window_id(sequence: int) -> str:
     return f"w-{sequence:05d}"
 
 
+def outside(windows: Sequence[Window], exclude: Sequence[ExcludeRange] | None) -> list[Window]:
+    """The windows that overlap none of ``exclude``, in their order.
+
+    Half-open: a window that ends exactly where a skipped range starts (or
+    starts where one ends) touches it without taking any of it, and is kept.
+    Ids are left as enumerated, so a proposal still names the window it was
+    chosen from.
+    """
+    if not exclude:
+        return list(windows)
+    spans = [(span.start_ms, span.end_ms) for span in exclude]
+    return [
+        window
+        for window in windows
+        if not any(window.start_ms < end and start < window.end_ms for start, end in spans)
+    ]
+
+
 def _end_ranges(units: Sequence[Unit], *, min_ms: int, max_ms: int) -> list[tuple[int, int]]:
     """For each unit, the units a window starting on it can end on: ``lo..hi``.
 
@@ -322,14 +346,19 @@ def _cleanest_along(
 
 
 def enumerate_windows(
-    units: Sequence[Unit], *, min_ms: int, max_ms: int, budget: int = WINDOW_BUDGET
+    units: Sequence[Unit],
+    *,
+    min_ms: int,
+    max_ms: int,
+    budget: int = WINDOW_BUDGET,
+    exclude: Sequence[ExcludeRange] | None = None,
 ) -> list[Window]:
     """Every run of consecutive units whose span is within ``[min_ms, max_ms]``.
 
     Up to ``budget`` of them. Past it, starts are thinned first, down to one per
     stretch of ``budget / 8``, and then each start keeps an even share of its
     ends: every part of the video still has windows of every length, cut at its
-    cleanest breaks.
+    cleanest breaks. None that overlaps ``exclude`` (:func:`outside`).
 
     Ids are assigned in time order over ALL windows, before any ranking, so the
     id a proposal carries names the enumerated window it was chosen from.
@@ -370,11 +399,16 @@ def enumerate_windows(
                     end_ms=tail.end_ms,
                 )
             )
-    return windows
+    return outside(windows, exclude)
 
 
 def padded_windows(
-    units: Sequence[Unit], *, min_ms: int, max_ms: int, timeline_end_ms: int
+    units: Sequence[Unit],
+    *,
+    min_ms: int,
+    max_ms: int,
+    timeline_end_ms: int,
+    exclude: Sequence[ExcludeRange] | None = None,
 ) -> list[Window]:
     """For a transcript where no window fits: runs of units padded up to ``min_ms``.
 
@@ -382,7 +416,8 @@ def padded_windows(
     widen the cut into the silence on either side - half before, half after,
     never past a neighbouring word, the start of the media or the end of the
     transcript. A run whose speech spans less than a third of the minimum is
-    left out: fifteen seconds of silence around one word is not a moment.
+    left out: fifteen seconds of silence around one word is not a moment. So is
+    one whose padded cut overlaps ``exclude`` (:func:`outside`).
     """
     min_speech_ms = max(MIN_DURATION_MS, min_ms // 3)
     windows: list[Window] = []
@@ -413,7 +448,7 @@ def padded_windows(
                 end_ms=tail.end_ms + after,
             )
         )
-    return windows
+    return outside(windows, exclude)
 
 
 def select[T](
