@@ -4,9 +4,10 @@ import { describe, expect, it } from "vitest";
 
 import type { RepurposeCandidateItem, RepurposeClipItem } from "@montaj/api-client";
 
-import { RunPublishing, readyClipsOf } from "./RunPublishing";
+import { RunPublishing, readyClipsOf, unapprovedClips } from "./RunPublishing";
 
 import type { PublishingStatus } from "./use-publishing";
+import type { ClipReviewSummary, RunReview } from "@/components/repurpose/review/use-review";
 
 import { renderWithProviders } from "@/test/harness";
 
@@ -114,5 +115,65 @@ describe("<RunPublishing />", () => {
         timezone: "Asia/Kolkata",
       });
     });
+  });
+});
+
+function reviewOf(state: ClipReviewSummary["state"], clipId: string): ClipReviewSummary {
+  return {
+    clipId,
+    state,
+    decidedBy: null,
+    decidedAt: null,
+    reason: null,
+    covered: [],
+    uncovered: [],
+    videos: {},
+    video: null,
+    comments: { total: 0, open: 0 },
+  };
+}
+
+function review(needsApproval: boolean): RunReview {
+  return {
+    runId: RUN,
+    needsApproval,
+    permissions: {
+      approve: true,
+      requestChanges: true,
+      comment: true,
+      resolveAny: true,
+      shareLinks: true,
+      revokeLinks: true,
+    },
+    clips: [reviewOf("approved", "CLIP-A"), reviewOf("changes_requested", "CLIP-B")],
+  };
+}
+
+describe("'one a day' while the workspace needs approval", () => {
+  it("knows which clips cannot go yet, and none while approval is not asked for", () => {
+    expect([...unapprovedClips(review(true))]).toEqual(["CLIP-B"]);
+    expect([...unapprovedClips(review(false))]).toEqual([]);
+    expect([...unapprovedClips(undefined)]).toEqual([]);
+  });
+
+  it("lists an unapproved clip unticked, not tickable, with the reason", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(
+      <RunPublishing runId={RUN} clips={clips} candidates={candidates} review={review(true)} />,
+      {
+        routes: {
+          "/publishing/status": ON,
+          "/publishing/channels": { status: ON, channels: [] },
+        },
+      },
+    );
+    await user.click(await screen.findByTestId("post-one-a-day"));
+    expect(await screen.findByRole("checkbox", { name: /First moment/ })).toBeChecked();
+    const second = screen.getByRole("checkbox", { name: /Second moment/ });
+    expect(second).not.toBeChecked();
+    expect(second).toBeDisabled();
+    expect(screen.getByTestId("daily-clip-unapproved-CLIP-B")).toHaveTextContent(
+      "Needs approval before it can be posted.",
+    );
   });
 });

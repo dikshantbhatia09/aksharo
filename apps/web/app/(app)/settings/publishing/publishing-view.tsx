@@ -13,6 +13,7 @@ import {
   usePublishingStatus,
   type PublishChannel,
 } from "@/components/repurpose/publishing/use-publishing";
+import { ApprovalSetting } from "@/components/repurpose/review/ApprovalSetting";
 import { INLINE_LINK_CLASS, SettingsGroup, SettingsSection } from "@/components/settings/section";
 
 /**
@@ -24,6 +25,9 @@ import { INLINE_LINK_CLASS, SettingsGroup, SettingsSection } from "@/components/
  * no social account's password or token, only Postiz's key. This is the owner's
  * page, so unlike the run page it names Postiz: it is where the setup happens.
  * The long version is `docs/publishing/POSTIZ-SETUP.md`.
+ *
+ * "Clips need approval before posting" (2026-10-03) sits here too, whether or
+ * not posting is set up yet: a team can decide on sign-off before it posts.
  */
 
 function AccountRow({ channel }: { readonly channel: PublishChannel }): React.JSX.Element {
@@ -76,6 +80,7 @@ export function PublishingView(): React.JSX.Element {
       description="Post clips to Instagram, YouTube, LinkedIn, X, Facebook, Threads and TikTok from Aksharo."
       testId="settings-publishing"
     >
+      <ApprovalSetting />
       {loading ? (
         <Skeleton className="h-20 w-full" />
       ) : !status.enabled ? (

@@ -9,6 +9,10 @@
  *
  * Clips start ticked (choosing clips is not acting for anyone); accounts do
  * not (D60) - nothing is scheduled without the person picking where.
+ *
+ * While the workspace needs approval before posting (2026-10-03), a clip that
+ * is not approved is listed, unticked and not tickable, with the reason: the
+ * API would leave it out anyway (`skipped`).
  */
 import Link from "next/link";
 import * as React from "react";
@@ -36,6 +40,9 @@ import {
   usePublishingStatus,
 } from "./use-publishing";
 
+import type { RunReview } from "@/components/repurpose/review/use-review";
+
+import { REVIEW_COPY } from "@/components/repurpose/review/review-copy";
 import { isRemovedCandidate } from "@/components/repurpose/steering";
 import { INLINE_LINK_CLASS } from "@/components/settings/section";
 
@@ -45,6 +52,8 @@ export interface RunPublishingProps {
   readonly runId: string;
   readonly clips: readonly RepurposeClipItem[];
   readonly candidates: readonly RepurposeCandidateItem[];
+  /** The run's review (2026-10-03), when loaded: which clips may be posted. */
+  readonly review?: RunReview;
 }
 
 interface ReadyClip {
@@ -67,14 +76,24 @@ export function readyClipsOf(
   });
 }
 
+/** Clips that cannot be posted for want of approval, while the workspace asks for it. */
+export function unapprovedClips(review: RunReview | undefined): ReadonlySet<string> {
+  if (review === undefined || !review.needsApproval) return new Set();
+  return new Set(
+    review.clips.filter((clip) => clip.state !== "approved").map((clip) => clip.clipId),
+  );
+}
+
 function DailyForm({
   runId,
   clips,
+  unapproved,
   onDone,
   onCancel,
 }: {
   readonly runId: string;
   readonly clips: readonly ReadyClip[];
+  readonly unapproved: ReadonlySet<string>;
   readonly onDone: () => void;
   readonly onCancel: () => void;
 }): React.JSX.Element {
@@ -82,7 +101,7 @@ function DailyForm({
   const daily = useDailyPosts();
   const key = React.useRef(newIdempotencyKey());
   const [chosenClips, setChosenClips] = React.useState<ReadonlySet<string>>(
-    () => new Set(clips.map((clip) => clip.id)),
+    () => new Set(clips.filter((clip) => !unapproved.has(clip.id)).map((clip) => clip.id)),
   );
   const [chosenChannels, setChosenChannels] = React.useState<ReadonlySet<string>>(new Set());
   const [time, setTime] = React.useState("19:00");
@@ -187,18 +206,30 @@ function DailyForm({
           <ul className="m-0 list-none p-0">
             {clips.map((clip, index) => {
               const id = `daily-clip-${clip.id}`;
+              const blocked = unapproved.has(clip.id);
               return (
                 <li key={clip.id} className="flex items-center gap-3 py-1">
                   <Checkbox
                     id={id}
                     checked={chosenClips.has(clip.id)}
+                    disabled={blocked}
                     onCheckedChange={(value) => {
                       setChosenClips(toggle(chosenClips, clip.id, value === true));
                     }}
+                    {...(blocked ? { "aria-describedby": `${id}-note` } : {})}
                   />
                   <label htmlFor={id} className="min-w-0 truncate text-sm text-fg-0">
                     <span className="font-mono text-2xs text-fg-2">{String(index + 1)}.</span>{" "}
                     {clip.title}
+                    {blocked ? (
+                      <span
+                        id={`${id}-note`}
+                        className="block text-xs text-fg-2"
+                        data-testid={`daily-clip-unapproved-${clip.id}`}
+                      >
+                        {REVIEW_COPY.needsApproval}
+                      </span>
+                    ) : null}
                   </label>
                 </li>
               );
@@ -243,6 +274,7 @@ export function RunPublishing({
   runId,
   clips,
   candidates,
+  review,
 }: RunPublishingProps): React.JSX.Element | null {
   const { status } = usePublishingStatus();
   const [open, setOpen] = React.useState(false);
@@ -269,7 +301,15 @@ export function RunPublishing({
             <DialogTitle>{PUBLISH_COPY.dailyTitle}</DialogTitle>
             <DialogDescription>{PUBLISH_COPY.dailyDescription}</DialogDescription>
           </DialogHeader>
-          {open ? <DailyForm runId={runId} clips={ready} onDone={close} onCancel={close} /> : null}
+          {open ? (
+            <DailyForm
+              runId={runId}
+              clips={ready}
+              unapproved={unapprovedClips(review)}
+              onDone={close}
+              onCancel={close}
+            />
+          ) : null}
         </DialogContent>
       </Dialog>
     </div>

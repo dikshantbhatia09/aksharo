@@ -53,6 +53,8 @@ export const PUBLISH_COPY = Object.freeze({
   dailyConfirm: (count: number): string =>
     count === 1 ? "Schedule 1 clip" : `Schedule ${String(count)} clips`,
   dailyNoClips: "No clip is ready to post yet.",
+  needsApproval: "This clip needs approval before it is posted.",
+  approveHere: "An owner or admin approves it in the clip's review on this page.",
 });
 
 /** Why posting is not available, as one sentence, for the dialog. */
@@ -90,6 +92,7 @@ const REFUSAL: Readonly<Record<string, string>> = Object.freeze({
   "publishing/post_not_found": "That post is no longer here.",
   "publishing/clip_not_found": "That clip is no longer here.",
   "common/rate_limited": "That is a lot of posting at once. Wait a minute and try again.",
+  "publishing/not_approved": "This clip needs approval before it is posted.",
 });
 
 /**
@@ -110,6 +113,7 @@ export function describePublishError(error: unknown): string {
     "publishing/channel_unavailable",
     "publishing/not_cancellable",
     "publishing/not_retryable",
+    "publishing/not_approved",
   ]);
   if (specific.has(error.code) && error.message.trim() !== "") return error.message;
   return REFUSAL[error.code] ?? "That did not work. Try again.";
