@@ -62,6 +62,41 @@ describe("planClipImages", () => {
     expect(plan.images.some((row) => row.name === "pin-1")).toBe(true);
   });
 
+  it("times each image on its own video: a captioned video cut short ends early", () => {
+    // The owner's podcast (2026-09-29): a 42.6 s clip whose 4:5 captioned
+    // video Autopilot's finishing cut to 35.05 s; carousel-5 at 36.2 s failed.
+    const short = {
+      ...ALL[1]!,
+      captioned: { exportId: "exp-4x5", key: "exports/4x5.mp4", durationMs: 35_050 },
+    };
+    const plan = planClipImages({
+      ...base,
+      durationMs: 42_640,
+      videos: [ALL[0]!, short, ALL[2]!, ALL[3]!],
+    });
+    if (plan.kind !== "ready") throw new Error("not ready");
+    const carousel = plan.images.filter((row) => row.name.startsWith("carousel-"));
+    expect(carousel.map((row) => row.atMs)).toEqual(
+      CAROUSEL_FRAMES_AT.map((at) => Math.floor(35_050 * at)),
+    );
+    expect(Math.max(...carousel.map((row) => row.atMs))).toBeLessThan(35_050);
+    // A set the old timing could not take is a new set, not a fourth attempt.
+    expect(plan.fingerprint).toContain("4:5:exp-4x5@35050");
+  });
+
+  it("keeps the fingerprint of a set the old timing could take", () => {
+    const whole = planClipImages({ ...base, videos: ALL });
+    // Shorter than the clip, but every frame the old timing asked for was in it.
+    const slightly = { ...ALL[1]!, captioned: { ...ALL[1]!.captioned!, durationMs: 38_000 } };
+    const known = planClipImages({ ...base, videos: [ALL[0]!, slightly, ALL[2]!, ALL[3]!] });
+    if (whole.kind !== "ready" || known.kind !== "ready") throw new Error("not ready");
+    expect(known.fingerprint).toBe(whole.fingerprint);
+    const carousel = known.images.filter((row) => row.name.startsWith("carousel-"));
+    expect(carousel.map((row) => row.atMs)).toEqual(
+      CAROUSEL_FRAMES_AT.map((at) => Math.floor(38_000 * at)),
+    );
+  });
+
   it("changes its fingerprint when a captioned video is made again", () => {
     const first = planClipImages({ ...base, videos: ALL });
     const again = planClipImages({

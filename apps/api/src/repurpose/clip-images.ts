@@ -34,10 +34,18 @@ export interface ShapeVideos {
   readonly shape: VideoShape;
   /** The variant's captioned video is made, or failed for good. */
   readonly settled: boolean;
-  /** The captioned video, when made and current. */
-  readonly captioned: { readonly exportId: string; readonly key: string } | null;
+  /** The captioned video, when made and current, and its length when known. */
+  readonly captioned: {
+    readonly exportId: string;
+    readonly key: string;
+    readonly durationMs?: number | null;
+  } | null;
   /** The clean cut (the variant project's primary media, in the derived store too). */
-  readonly clean: { readonly mediaId: string; readonly key: string } | null;
+  readonly clean: {
+    readonly mediaId: string;
+    readonly key: string;
+    readonly durationMs?: number | null;
+  } | null;
 }
 
 export type ImagePlan =
@@ -74,7 +82,8 @@ export function planClipImages(input: {
   }
   if (!(input.durationMs > 0)) return { kind: "none" };
 
-  const used = new Set<string>();
+  // Each video's entry in the fingerprint, by the video.
+  const used = new Map<string, string>();
   const images: StillRequest[] = [];
   let cleanFrom: VideoShape | null = null;
   for (const id of IMAGE_FILE_IDS) {
@@ -83,19 +92,33 @@ export function planClipImages(input: {
     const video = byShape.get(file.from);
     const source = file.captioned ? video?.captioned : video?.clean;
     if (source === undefined || source === null) continue;
-    used.add(
+    const identity =
       "exportId" in source
         ? `${file.from}:${source.exportId}`
-        : `${file.from}:clean:${source.mediaId}`,
-    );
+        : `${file.from}:clean:${source.mediaId}`;
     if (!file.captioned) cleanFrom = file.from;
     const at = file.count === 1 ? [IMAGE_FRAME_AT] : CAROUSEL_FRAMES_AT.slice(0, file.count);
+    // Timed on the video the frames come from (2026-09-29), not on the clip:
+    // a captioned video Autopilot's finishing cut short ends before the clip
+    // does, and a frame asked for past its end is no frame at all (ffmpeg then
+    // fails opening the JPEG encoder, "Non full-range YUV is non-standard").
+    const length =
+      source.durationMs !== undefined && source.durationMs !== null && source.durationMs > 0
+        ? source.durationMs
+        : input.durationMs;
+    // A set the clip-length timing could not take (its last frame at or past
+    // the video's end) names the length, so it is asked for afresh instead of
+    // counting the attempts that timing spent; every other set keeps the
+    // fingerprint it had, and is not taken again.
+    const couldNotTake = length <= Math.floor(input.durationMs * Math.max(...at));
+    if (couldNotTake) used.set(identity, `${identity}@${String(length)}`);
+    else if (!used.has(identity)) used.set(identity, identity);
     at.forEach((fraction, index) => {
       const name = imageName(id, index);
       images.push({
         name,
         sourceKey: source.key,
-        atMs: Math.floor(input.durationMs * fraction),
+        atMs: Math.floor(length * fraction),
         width: file.width,
         height: file.height,
         destinationKey: `${input.folder}/images/${name}.jpg`,
@@ -103,7 +126,12 @@ export function planClipImages(input: {
     });
   }
   if (images.length === 0) return { kind: "none" };
-  return { kind: "ready", fingerprint: [...used].sort().join(","), images, cleanFrom };
+  return {
+    kind: "ready",
+    fingerprint: [...used.values()].sort().join(","),
+    images,
+    cleanFrom,
+  };
 }
 
 export function imageName(id: ImageFileId, index: number): string {

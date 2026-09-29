@@ -925,12 +925,12 @@ export class RepurposeClipsService {
           (variant.status === "ready" && made !== undefined && made.storageKey !== null),
         captioned:
           variant.status === "ready" && made !== undefined && made.storageKey !== null
-            ? { exportId: made.id, key: made.storageKey }
+            ? { exportId: made.id, key: made.storageKey, durationMs: made.durationMs }
             : null,
         clean:
           clean === undefined || clean.status !== "ready"
             ? null
-            : { mediaId: clean.id, key: clean.storageKey },
+            : { mediaId: clean.id, key: clean.storageKey, durationMs: clean.durationMs },
       };
     });
   }
