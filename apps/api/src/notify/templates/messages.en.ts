@@ -23,6 +23,7 @@ export const EN_MESSAGES: MessageCatalogue = {
     author: "Someone",
     plan: "your plan",
     video: "your video",
+    clip: "your clip",
   },
 
   kinds: {
@@ -281,6 +282,26 @@ export const EN_MESSAGES: MessageCatalogue = {
         title:
           "{reason, select, credits {Automation paused: out of credits} style {Automation paused} setup {Automation paused} other {Channel not found}}",
         body: "{reason, select, credits {Add credits, then resume {channel}.} style {Choose a caption look for {channel}, then resume it.} setup {Check the settings for {channel}, then resume it.} other {We could not find {channel} on YouTube.}}",
+      },
+    },
+
+    // 2026-10-03, clip review: `verdict` is approved, changes, comment or
+    // reopened; `by` is member, client (with `who`), guest (a client who gave no
+    // name) or system.
+    "clip-review": {
+      subject:
+        "{verdict, select, approved {{by, select, client {{who} (client)} guest {Your client} other {{who}}} approved a clip from {video}} changes {{by, select, client {{who} (client)} guest {Your client} other {{who}}} asked for changes to a clip from {video}} reopened {A clip from {video} needs review again} other {{by, select, client {{who} (client)} guest {Your client} other {{who}}} commented on a clip from {video}}}",
+      heading:
+        "{verdict, select, approved {Clip approved} changes {Changes requested} reopened {Back to review} other {New comment}}",
+      paragraphs: [
+        "Hi {name}, {verdict, select, approved {{by, select, client {{who} (client)} guest {Your client} other {{who}}} approved “{clip}”.} changes {{by, select, client {{who} (client)} guest {Your client} other {{who}}} asked for changes to “{clip}”.} reopened {“{clip}” changed after it was reviewed, so it is waiting for a review again.} other {{by, select, client {{who} (client)} guest {Your client} other {{who}}} commented on “{clip}”.}}",
+        "{verdict, select, approved {What was approved is what goes out: if the clip is edited, it comes back for review.} changes {Open the run to read what they asked for.} reopened {Watch the new version, then approve it or ask for changes.} other {Open the run to read it.}}",
+      ],
+      cta: "Open the run",
+      push: {
+        title:
+          "{verdict, select, approved {Clip approved} changes {Changes requested} reopened {Needs review again} other {New comment}}",
+        body: "{verdict, select, approved {{by, select, client {{who} (client)} guest {Your client} other {{who}}} approved “{clip}”.} changes {{by, select, client {{who} (client)} guest {Your client} other {{who}}} asked for changes to “{clip}”.} reopened {“{clip}” changed and needs review again.} other {{by, select, client {{who} (client)} guest {Your client} other {{who}}} commented on “{clip}”.}}",
       },
     },
   },

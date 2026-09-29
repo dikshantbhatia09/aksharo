@@ -48,6 +48,10 @@ export const NOTIFY_KINDS = [
   // disappeared), once per pause.
   "watch-new-video",
   "watch-paused",
+  // 2026-10-03, clip review (`repurpose/review/review-notifier.ts`): to the person
+  // who started a run - a clip approved, sent back for changes, commented on
+  // (grouped per clip), or back in review because its video changed.
+  "clip-review",
 ] as const;
 
 export type NotifyKind = (typeof NOTIFY_KINDS)[number];
@@ -104,6 +108,7 @@ export const IN_APP_KINDS: readonly NotifyKind[] = [
   "run-needs-you",
   "watch-new-video",
   "watch-paused",
+  "clip-review",
 ];
 
 const IN_APP_SET: ReadonlySet<string> = new Set<string>(IN_APP_KINDS);
@@ -130,6 +135,8 @@ export const DEVICE_KINDS: readonly NotifyKind[] = [
   // A watch that stopped itself waits on its person. A new episode found is not
   // a buzz: its run's own "clips ready" is the one worth having.
   "watch-paused",
+  // A client's verdict is what an agency waits on; so is a teammate's.
+  "clip-review",
 ];
 
 const DEVICE_SET: ReadonlySet<string> = new Set<string>(DEVICE_KINDS);

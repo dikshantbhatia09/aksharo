@@ -139,6 +139,17 @@ const DATA: Readonly<Record<NotifyKind, TemplateData>> = {
     reason: "credits",
     link: "https://app.example.test/repurpose/automations",
   },
+  "clip-review": {
+    name: "Asha",
+    verdict: "approved",
+    by: "client",
+    who: "Priya",
+    clip: "Why most people never save",
+    video: "Diwali vlog",
+    runId: "01JRUN0000000000000000000A",
+    clipId: "01JCL1P000000000000000000A",
+    link: "https://app.example.test/repurpose/01JRUN0000000000000000000A#clip-01JCL1P000000000000000000A",
+  },
 };
 
 const UNSUBSCRIBE = "https://app.example.test/settings/notifications";
@@ -367,8 +378,15 @@ describe("device text (the push strings)", () => {
       const text = renderDeviceText({ kind, locale, data: DATA[kind] });
       expect(text).not.toBeNull();
       expect(text?.title.length).toBeGreaterThan(0);
-      // The thing it is about: the video, or for an automation, its channel.
-      expect(text?.body).toContain(kind === "watch-paused" ? "Asha Cooks" : "Diwali vlog");
+      // The thing it is about: the video, for an automation its channel, and
+      // for a review the clip.
+      expect(text?.body).toContain(
+        kind === "watch-paused"
+          ? "Asha Cooks"
+          : kind === "clip-review"
+            ? "Why most people never save"
+            : "Diwali vlog",
+      );
       // Nothing a lock screen would print literally.
       expect(`${text?.title ?? ""} ${text?.body ?? ""}`).not.toMatch(/[{}<>]/);
     }
@@ -405,6 +423,23 @@ describe("device text (the push strings)", () => {
     expect(renderDeviceText({ kind: "run-failed", data: untitled })?.body).toContain("your video");
     expect(renderDeviceText({ kind: "run-failed", locale: "hi", data: untitled })?.body).toContain(
       "आपका वीडियो",
+    );
+  });
+
+  it("says who reviewed a clip, and marks a client as one, in both languages", () => {
+    const text = (data: Record<string, string>, locale = "en-IN") =>
+      renderDeviceText({ kind: "clip-review", locale, data: { ...DATA["clip-review"], ...data } });
+    expect(text({})?.body).toBe("Priya (client) approved “Why most people never save”.");
+    expect(text({ by: "guest", who: "" })?.body).toBe(
+      "Your client approved “Why most people never save”.",
+    );
+    expect(text({ verdict: "changes", by: "member", who: "Ravi" })).toMatchObject({
+      title: "Changes requested",
+      body: "Ravi asked for changes to “Why most people never save”.",
+    });
+    expect(text({ verdict: "reopened", by: "system", who: "" })?.title).toBe("Needs review again");
+    expect(text({ verdict: "comment" }, "hi-IN")?.body).toBe(
+      "Priya (क्लाइंट) ने “Why most people never save” पर कमेंट किया।",
     );
   });
 

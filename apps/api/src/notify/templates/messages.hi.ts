@@ -27,6 +27,7 @@ export const HI_MESSAGES: MessageCatalogue = {
     author: "किसी ने",
     plan: "आपका प्लान",
     video: "आपका वीडियो",
+    clip: "आपकी क्लिप",
   },
 
   kinds: {
@@ -291,6 +292,23 @@ export const HI_MESSAGES: MessageCatalogue = {
         title:
           "{reason, select, credits {ऑटोमेशन रुका: क्रेडिट ख़त्म} style {ऑटोमेशन रुका} setup {ऑटोमेशन रुका} other {चैनल नहीं मिला}}",
         body: "{reason, select, credits {क्रेडिट जोड़ें, फिर {channel} को दोबारा चालू करें।} style {{channel} के लिए कैप्शन लुक चुनें, फिर इसे दोबारा चालू करें।} setup {{channel} की सेटिंग देखें, फिर इसे दोबारा चालू करें।} other {हमें YouTube पर {channel} नहीं मिला।}}",
+      },
+    },
+
+    "clip-review": {
+      subject:
+        "{verdict, select, approved {{by, select, client {{who} (क्लाइंट)} guest {आपके क्लाइंट} other {{who}}} ने {video} की एक क्लिप अप्रूव की} changes {{by, select, client {{who} (क्लाइंट)} guest {आपके क्लाइंट} other {{who}}} ने {video} की एक क्लिप में बदलाव माँगे} reopened {{video} की एक क्लिप को फिर से रिव्यू चाहिए} other {{by, select, client {{who} (क्लाइंट)} guest {आपके क्लाइंट} other {{who}}} ने {video} की एक क्लिप पर कमेंट किया}}",
+      heading:
+        "{verdict, select, approved {क्लिप अप्रूव हो गई} changes {बदलाव माँगे गए} reopened {फिर से रिव्यू के लिए} other {नया कमेंट}}",
+      paragraphs: [
+        "नमस्ते {name}, {verdict, select, approved {{by, select, client {{who} (क्लाइंट)} guest {आपके क्लाइंट} other {{who}}} ने “{clip}” अप्रूव की।} changes {{by, select, client {{who} (क्लाइंट)} guest {आपके क्लाइंट} other {{who}}} ने “{clip}” में बदलाव माँगे।} reopened {रिव्यू के बाद “{clip}” बदल गई, इसलिए यह फिर से रिव्यू का इंतज़ार कर रही है।} other {{by, select, client {{who} (क्लाइंट)} guest {आपके क्लाइंट} other {{who}}} ने “{clip}” पर कमेंट किया।}}",
+        "{verdict, select, approved {जो अप्रूव हुआ, वही पोस्ट होगा: क्लिप एडिट होने पर वह फिर से रिव्यू में आ जाएगी।} changes {उन्होंने क्या माँगा है, यह पढ़ने के लिए रन खोलें।} reopened {नया वर्ज़न देखें, फिर उसे अप्रूव करें या बदलाव माँगें।} other {इसे पढ़ने के लिए रन खोलें।}}",
+      ],
+      cta: "रन खोलें",
+      push: {
+        title:
+          "{verdict, select, approved {क्लिप अप्रूव हो गई} changes {बदलाव माँगे गए} reopened {फिर से रिव्यू चाहिए} other {नया कमेंट}}",
+        body: "{verdict, select, approved {{by, select, client {{who} (क्लाइंट)} guest {आपके क्लाइंट} other {{who}}} ने “{clip}” अप्रूव की।} changes {{by, select, client {{who} (क्लाइंट)} guest {आपके क्लाइंट} other {{who}}} ने “{clip}” में बदलाव माँगे।} reopened {“{clip}” बदल गई, इसे फिर से रिव्यू चाहिए।} other {{by, select, client {{who} (क्लाइंट)} guest {आपके क्लाइंट} other {{who}}} ने “{clip}” पर कमेंट किया।}}",
       },
     },
   },

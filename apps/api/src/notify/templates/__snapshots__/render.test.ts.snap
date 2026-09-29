@@ -50,6 +50,44 @@ exports[`rendering > produces the same HTML shell for one kind, in both language
 "
 `;
 
+exports[`rendering > renders clip-review in English 1`] = `
+{
+  "subject": "Priya (client) approved a clip from Diwali vlog",
+  "text": "Aksharo
+
+Clip approved
+
+Hi Asha, Priya (client) approved “Why most people never save”.
+
+What was approved is what goes out: if the clip is edited, it comes back for review.
+
+Open the run:
+https://app.example.test/repurpose/01JRUN0000000000000000000A#clip-01JCL1P000000000000000000A
+
+Sent by Aksharo. Questions? Reply to this message or write to support@aksharo.ai.
+",
+}
+`;
+
+exports[`rendering > renders clip-review in Hindi 1`] = `
+{
+  "subject": "Priya (क्लाइंट) ने Diwali vlog की एक क्लिप अप्रूव की",
+  "text": "Aksharo
+
+क्लिप अप्रूव हो गई
+
+नमस्ते Asha, Priya (क्लाइंट) ने “Why most people never save” अप्रूव की।
+
+जो अप्रूव हुआ, वही पोस्ट होगा: क्लिप एडिट होने पर वह फिर से रिव्यू में आ जाएगी।
+
+रन खोलें:
+https://app.example.test/repurpose/01JRUN0000000000000000000A#clip-01JCL1P000000000000000000A
+
+Aksharo की ओर से भेजा गया। कोई सवाल? इसी मेल का जवाब दें या support@aksharo.ai पर लिखें।
+",
+}
+`;
+
 exports[`rendering > renders clips-ready in English 1`] = `
 {
   "subject": "Your first clips from Diwali vlog are ready",
