@@ -1603,6 +1603,11 @@ export interface RepurposeCaptionedClip {
   playUrl: string | null;
   /** The same file, signed to download as an attachment. */
   downloadUrl: string | null;
+  /**
+   * The newest finished file's length (2026-10-03), which the finishing pass's
+   * cuts make shorter than its moment. Absent from an API older than that.
+   */
+  durationMs?: number | null;
 }
 
 /**
