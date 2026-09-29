@@ -251,6 +251,13 @@ export class RunNotifier {
         OR: [
           { status: { in: [...LIVE_STATUSES] }, createdAt: { gte: new Date(now - LIVE_NEWS_MS) } },
           { status: "failed", completedAt: { gte: new Date(now - FAILED_NEWS_MS) } },
+          // A writer that fails a run without stamping `completed_at` (the
+          // scheduled stuck-runs sweep): the row's own last write is when.
+          {
+            status: "failed",
+            completedAt: null,
+            updatedAt: { gte: new Date(now - FAILED_NEWS_MS) },
+          },
         ],
       },
       orderBy: { id: "desc" },
