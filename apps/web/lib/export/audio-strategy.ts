@@ -28,9 +28,27 @@ export function timemapModifiesAudio(manifest: RenderManifest): boolean {
   return manifest.timemap.edits.length > 0;
 }
 
-/** `true` when this render is unmodified audio straight through: no edits, no clean-track swap. */
+/**
+ * `true` when the manifest mixes sound in (2026-10-04): an accepted `sfx` cue
+ * or `music` bed, a brand kit's track among them. Their samples are added to
+ * the dialogue's, so the dialogue cannot be copied through untouched.
+ */
+export function mixesInCues(manifest: RenderManifest): boolean {
+  const audio = manifest.timemap.audio;
+  return (audio?.sfx?.length ?? 0) > 0 || (audio?.music?.length ?? 0) > 0;
+}
+
+/**
+ * `true` when this render is unmodified audio straight through: no edits, no
+ * clean-track swap, nothing mixed in. A copy used to be chosen for a manifest
+ * with cues and no cuts, and the cues were silently left out of the export.
+ */
 export function isAudioUnmodified(manifest: RenderManifest): boolean {
-  return manifest.audio.strategy === "passthrough" && !timemapModifiesAudio(manifest);
+  return (
+    manifest.audio.strategy === "passthrough" &&
+    !timemapModifiesAudio(manifest) &&
+    !mixesInCues(manifest)
+  );
 }
 
 export function decideAudioStrategy(input: AudioDecisionInput): AudioStrategyDecision {

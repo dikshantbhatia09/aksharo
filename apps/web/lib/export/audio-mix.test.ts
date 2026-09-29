@@ -5,6 +5,7 @@ import { buildTimeMap, cutEdit } from "@montaj/timemap";
 import {
   mixMusicCueIntoChunk,
   mixSfxCueIntoChunk,
+  outputSpeechRanges,
   speechRangesFromWords,
   type MusicMixCue,
   type SfxMixCue,
@@ -247,5 +248,106 @@ describe("mixMusicCueIntoChunk", () => {
     const duckedGain = Math.pow(10, -18 / 20);
     // Deep inside the speech range, past both the duck ramp and the fade-in.
     expect(data.at(Math.round(0.5 * SAMPLE_RATE))).toBeCloseTo(duckedGain, 3);
+  });
+});
+
+describe("outputSpeechRanges (2026-10-04)", () => {
+  it("moves speech after a cut earlier by the cut, and rejoins a range a cut runs through", () => {
+    const map = buildTimeMap({ sourceDurationMs: 10_000, edits: [cutEdit(1_000, 2_000)] });
+    expect(
+      outputSpeechRanges(
+        [
+          { startMs: 3_000, endMs: 4_000 },
+          { startMs: 500, endMs: 2_500 },
+        ],
+        map,
+      ),
+    ).toEqual([
+      { startMs: 500, endMs: 1_500 },
+      { startMs: 2_000, endMs: 3_000 },
+    ]);
+    expect(outputSpeechRanges([{ startMs: 1_200, endMs: 1_800 }], map)).toEqual([]);
+    expect(outputSpeechRanges([{ startMs: 1, endMs: 2 }], null)).toEqual([
+      { startMs: 1, endMs: 2 },
+    ]);
+  });
+});
+
+describe("mixMusicCueIntoChunk — a looped bed across cuts (2026-10-04)", () => {
+  /** An asset whose every sample is its own index, so the position read is visible. */
+  function rampBuffer(seconds: number): AudioBuffer {
+    const samples = Math.round(seconds * SAMPLE_RATE);
+    const data = Float32Array.from({ length: samples }, (_, index) => index / samples);
+    return {
+      length: samples,
+      sampleRate: SAMPLE_RATE,
+      numberOfChannels: 1,
+      getChannelData: () => data,
+    } as unknown as AudioBuffer;
+  }
+
+  it("plays straight through a cut instead of restarting its asset", () => {
+    // Source 0-4 s, cut 1.0-1.5 s: 3.5 s out. The bed covers it all.
+    const map = buildTimeMap({ sourceDurationMs: 4_000, edits: [cutEdit(1_000, 1_500)] });
+    const chunk = fakeAudioBuffer(4 * SAMPLE_RATE, SAMPLE_RATE, 0);
+    const music: MusicMixCue = {
+      itemId: "bed",
+      startMs: 0,
+      endMs: 4_000,
+      gainDb: 0,
+      loopPolicy: "loop",
+      bedDuck: null,
+      buffer: rampBuffer(10),
+    };
+    mixMusicCueIntoChunk(chunk, 0, music, map, []);
+    const data = chunk.getChannelData(0);
+    // Just after the splice (output 1.0 s) the asset is 1.0 s in, not back at 0.
+    const justAfter = Math.round(1.1 * SAMPLE_RATE);
+    expect(data.at(justAfter)).toBeCloseTo(1.1 / 10, 3);
+    // And nothing past the bed's output end (3.5 s).
+    expect(data.at(Math.round(3.6 * SAMPLE_RATE))).toBe(0);
+  });
+
+  it("wraps a short asset as often as the span needs, and fades at the span's edges", () => {
+    const map = buildTimeMap({ sourceDurationMs: 4_000, edits: [cutEdit(1_000, 1_500)] });
+    const chunk = fakeAudioBuffer(4 * SAMPLE_RATE, SAMPLE_RATE, 0);
+    const music: MusicMixCue = {
+      itemId: "bed",
+      startMs: 0,
+      endMs: 4_000,
+      gainDb: 0,
+      loopPolicy: "loop",
+      bedDuck: null,
+      buffer: rampBuffer(1),
+    };
+    mixMusicCueIntoChunk(chunk, 0, music, map, []);
+    const data = chunk.getChannelData(0);
+    // 2.25 s into the span is 0.25 s into the third pass of a 1 s asset.
+    expect(data.at(Math.round(2.25 * SAMPLE_RATE))).toBeCloseTo(0.25, 3);
+    // Halfway through the 300 ms fade-in.
+    expect(data.at(Math.round(0.15 * SAMPLE_RATE))).toBeCloseTo(0.15 * 0.5, 2);
+    // Halfway through the 800 ms fade-out, which ends at 3.5 s.
+    expect(data.at(Math.round(3.1 * SAMPLE_RATE))).toBeCloseTo(0.1 * 0.5, 2);
+  });
+
+  it("ducks under speech on the output clock", () => {
+    const map = buildTimeMap({ sourceDurationMs: 6_000, edits: [cutEdit(1_000, 2_000)] });
+    const chunk = fakeAudioBuffer(6 * SAMPLE_RATE, SAMPLE_RATE, 0);
+    const music: MusicMixCue = {
+      itemId: "bed",
+      startMs: 0,
+      endMs: 6_000,
+      gainDb: 0,
+      loopPolicy: "loop",
+      bedDuck: { depthDb: -20, attackMs: 100, releaseMs: 100 },
+      buffer: fakeAudioBuffer(6 * SAMPLE_RATE, SAMPLE_RATE, 1),
+    };
+    // Words at 3-4 s in the source are 2-3 s out.
+    const speech = outputSpeechRanges([{ startMs: 3_000, endMs: 4_000 }], map);
+    mixMusicCueIntoChunk(chunk, 0, music, map, speech);
+    const data = chunk.getChannelData(0);
+    expect(data.at(Math.round(2.5 * SAMPLE_RATE))).toBeCloseTo(0.1, 3);
+    // 3.5 s out: after the words on the output clock, so not ducked.
+    expect(data.at(Math.round(3.5 * SAMPLE_RATE))).toBeCloseTo(1, 3);
   });
 });

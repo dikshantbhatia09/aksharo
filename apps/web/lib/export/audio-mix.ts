@@ -45,6 +45,43 @@ export interface SpeechRange {
   readonly endMs: number;
 }
 
+/**
+ * Speech ranges on the **source** clock (words are timed there) moved onto the
+ * **output** clock every duck is evaluated on (2026-10-04) - the twin of
+ * `apps/render/src/ffmpeg/audio-mix.ts`'s `outputSpeechRanges`. A range a cut
+ * runs through becomes the pieces that remain; pieces that touch on the
+ * output clock are one range again. Before this, both engines ducked
+ * source-clock ranges on the output clock, late by the cuts before them.
+ */
+export function outputSpeechRanges(
+  ranges: readonly SpeechRange[],
+  timemap: TimeQuery | null,
+): SpeechRange[] {
+  if (timemap === null) return ranges.map((range) => ({ ...range }));
+  const pieces: SpeechRange[] = [];
+  for (const range of ranges) {
+    for (const piece of timemap.mapRange(range.startMs, range.endMs)) {
+      if (piece.outputEnd > piece.outputStart) {
+        pieces.push({ startMs: piece.outputStart, endMs: piece.outputEnd });
+      }
+    }
+  }
+  pieces.sort((a, b) => a.startMs - b.startMs);
+  const merged: SpeechRange[] = [];
+  for (const piece of pieces) {
+    const last = merged.at(-1);
+    if (last !== undefined && piece.startMs <= last.endMs + 0.5) {
+      merged[merged.length - 1] = {
+        startMs: last.startMs,
+        endMs: Math.max(last.endMs, piece.endMs),
+      };
+    } else {
+      merged.push(piece);
+    }
+  }
+  return merged;
+}
+
 /** Where speech actually is, approximated from live (non-deleted) word timing. */
 export function speechRangesFromWords(
   words: readonly TranscriptWordLike[],
@@ -208,7 +245,13 @@ function musicAssetIndex(music: MusicMixCue, assetMs: number): number {
 /** Adds one music bed's samples into `chunk`, in place — the same mechanism
  * as `mixSfxCueIntoChunk`, with D05's fixed 300ms/800ms fade pair at the
  * bed's own window edges instead of a per-item fade pair, and with
- * `loopPolicy`'s wraparound instead of a hard trim. */
+ * `loopPolicy`'s wraparound instead of a hard trim.
+ *
+ * A `loop` bed plays straight through the cuts (2026-10-04), as the cloud
+ * render's does: one span on the output clock from its first retained piece
+ * to its last, its asset position the time since that span began, faded at
+ * the span's edges. `speechRanges` are on the output clock
+ * ({@link outputSpeechRanges}). */
 export function mixMusicCueIntoChunk(
   chunk: AudioBuffer,
   chunkOutputStartMs: number,
@@ -216,6 +259,10 @@ export function mixMusicCueIntoChunk(
   timemap: TimeQuery | null,
   speechRanges: readonly SpeechRange[],
 ): void {
+  if (music.loopPolicy === "loop") {
+    mixLoopedBedIntoChunk(chunk, chunkOutputStartMs, music, timemap, speechRanges);
+    return;
+  }
   const pieces = piecesFor(music.startMs, music.endMs, timemap);
   const gainLinear = dbToLinear(music.gainDb);
   const windowDurationMs = music.endMs - music.startMs;
@@ -258,6 +305,54 @@ export function mixMusicCueIntoChunk(
         // eslint-disable-next-line security/detect-object-injection -- bracket access on an internal, loop-bounded index, not attacker-controlled
         destination[i] = (destination[i] ?? 0) + sampleAt(music.buffer, channel, assetIndex) * gain;
       }
+    }
+  }
+}
+
+/** A `loop` bed ({@link mixMusicCueIntoChunk}): one span on the output clock. */
+function mixLoopedBedIntoChunk(
+  chunk: AudioBuffer,
+  chunkOutputStartMs: number,
+  music: MusicMixCue,
+  timemap: TimeQuery | null,
+  speechRanges: readonly SpeechRange[],
+): void {
+  const pieces = piecesFor(music.startMs, music.endMs, timemap).filter(
+    (piece) => piece.outputEnd > piece.outputStart,
+  );
+  if (pieces.length === 0 || music.buffer.length === 0) return;
+  const spanStartMs = Math.min(...pieces.map((piece) => piece.outputStart));
+  const spanEndMs = Math.max(...pieces.map((piece) => piece.outputEnd));
+  const spanMs = spanEndMs - spanStartMs;
+  const gainLinear = dbToLinear(music.gainDb);
+  const chunkMsPerSample = 1000 / chunk.sampleRate;
+  const chunkOutputEndMs = chunkOutputStartMs + chunk.length * chunkMsPerSample;
+  const overlapStartMs = Math.max(chunkOutputStartMs, spanStartMs);
+  const overlapEndMs = Math.min(chunkOutputEndMs, spanEndMs);
+  if (overlapEndMs <= overlapStartMs) return;
+
+  for (let channel = 0; channel < chunk.numberOfChannels; channel += 1) {
+    const destination = chunk.getChannelData(channel);
+    for (let i = 0; i < chunk.length; i += 1) {
+      const sampleOutputMs = chunkOutputStartMs + i * chunkMsPerSample;
+      if (sampleOutputMs < overlapStartMs || sampleOutputMs >= overlapEndMs) continue;
+      const bedMs = sampleOutputMs - spanStartMs;
+      let gain = gainLinear;
+      if (bedMs < MUSIC_FADE_IN_MS) gain *= Math.max(0, bedMs / MUSIC_FADE_IN_MS);
+      if (bedMs > spanMs - MUSIC_FADE_OUT_MS) {
+        gain *= Math.max(0, (spanMs - bedMs) / MUSIC_FADE_OUT_MS);
+      }
+      if (music.bedDuck !== null) {
+        gain *= duckGainAt(
+          sampleOutputMs,
+          speechRanges,
+          music.bedDuck.depthDb,
+          music.bedDuck.attackMs,
+        );
+      }
+      const sample = sampleAt(music.buffer, channel, musicAssetIndex(music, bedMs));
+      // eslint-disable-next-line security/detect-object-injection -- bracket access on an internal, loop-bounded index, not attacker-controlled
+      destination[i] = (destination[i] ?? 0) + sample * gain;
     }
   }
 }

@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type * as ApiClientModule from "@montaj/api-client";
 
-import { useExportDialog } from "./use-export-dialog";
+import { fetchCueBytes, useExportDialog } from "./use-export-dialog";
 
 import type { ExportDialogDeps } from "./use-export-dialog";
 
@@ -200,6 +200,53 @@ describe("useExportDialog — a brand kit's logos (2026-10-02)", () => {
       );
       expect(fetchMock).toHaveBeenCalledWith("https://cdn/logo.png");
       expect(await options.fetchOverlayImage("01JG0NE000000000000000000A")).toBeUndefined();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});
+
+describe("useExportDialog — the sounds a manifest mixes in (2026-10-04)", () => {
+  it("hands the engine a way to fetch each one from the URLs signed with the manifest", async () => {
+    const fetchMock = vi.fn(async () => new Response(new Uint8Array([1, 2, 3])));
+    vi.stubGlobal("fetch", fetchMock);
+    requestExportManifest.mockResolvedValueOnce({
+      response: {
+        sources: {
+          rawUrl: "blob:raw-source",
+          cueUrls: { "01JTRACK000000000000000000": "https://cdn/track.mp3" },
+        },
+      } as never,
+      manifest: { manifestId: "m1", exportId: "e1", output: { width: 1080, height: 1920 } },
+    });
+    try {
+      await runStartExport(deps());
+      const options = runExport.mock.calls[0]?.[0] as {
+        fetchCueAsset?: (assetId: string) => Promise<Uint8Array>;
+      };
+      expect(options.fetchCueAsset).toBeDefined();
+      expect(await options.fetchCueAsset?.("01JTRACK000000000000000000")).toEqual(
+        new Uint8Array([1, 2, 3]),
+      );
+      expect(fetchMock).toHaveBeenCalledWith("https://cdn/track.mp3");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("gives the engine nothing to fetch with when the manifest mixes nothing in", async () => {
+    await runStartExport(deps());
+    const options = runExport.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(options).not.toHaveProperty("fetchCueAsset");
+  });
+
+  it("refuses a sound it has no URL for, and a fetch that fails", async () => {
+    await expect(fetchCueBytes({}, "01JNONE0000000000000000000")).rejects.toThrow(/no signed URL/);
+    await expect(fetchCueBytes(undefined, "01JNONE0000000000000000000")).rejects.toThrow();
+    const fetchMock = vi.fn(async () => new Response("gone", { status: 404 }));
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      await expect(fetchCueBytes({ a: "https://cdn/a.mp3" }, "a")).rejects.toThrow(/404/);
     } finally {
       vi.unstubAllGlobals();
     }

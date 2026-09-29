@@ -214,6 +214,24 @@ async function resolveDownloadUrl(
 }
 
 /** Fetches the watermark PNG bytes from A21b's presigned `sources.watermarkUrl`. */
+/** One sound a browser export mixes in, by the asset id its track names (2026-10-04). */
+export async function fetchCueBytes(
+  urls: Readonly<Record<string, string>> | undefined,
+  assetId: string,
+): Promise<Uint8Array> {
+  const url =
+    urls !== undefined && Object.hasOwn(urls, assetId)
+      ? // eslint-disable-next-line security/detect-object-injection -- an own key of the signed map, checked just above
+        urls[assetId]
+      : undefined;
+  if (url === undefined) throw new Error(`no signed URL for the sound ${assetId}`);
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`could not fetch the sound ${assetId}: ${String(response.status)}`);
+  }
+  return new Uint8Array(await response.arrayBuffer());
+}
+
 async function fetchWatermarkBytes(url: string): Promise<Uint8Array> {
   const response = await fetch(url);
   if (!response.ok) {
@@ -505,6 +523,11 @@ export function useExportDialog(deps: ExportDialogDeps): {
               const url = deps.images?.[assetId];
               return url === undefined ? undefined : fetchWatermarkBytes(url);
             },
+            // Every sound the manifest mixes in (2026-10-04): a brand kit's
+            // music bed, a sound effect. Signed alongside the manifest.
+            ...(sources.cueUrls === undefined
+              ? {}
+              : { fetchCueAsset: (assetId: string) => fetchCueBytes(sources.cueUrls, assetId) }),
             onProgress: (progress) => setState((s) => ({ ...s, progress })),
             // K07: browser-render-time-only, see `BrowserRenderOptions`'s doc
             // comment above for why this never travels through `request`.
