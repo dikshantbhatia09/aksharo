@@ -1334,6 +1334,11 @@ export interface RepurposeRunView {
   /** Autopilot or not; absent from an API older than it (read as `manual`). */
   automation?: RepurposeAutomation;
   /**
+   * Whether the run asked for the workspace's brand kit (2026-10-02); absent
+   * from an API older than it (read as off).
+   */
+  brand?: boolean;
+  /**
    * What the run was steered with at the start (2026-09-29): null when it was
    * not, absent from an API older than steering.
    */
@@ -1481,6 +1486,12 @@ export interface CreateRepurposeRunRequest {
      * Left out, the person picks the moments (`manual`).
      */
     automation?: RepurposeAutomation;
+    /**
+     * The brand kit (2026-10-02): Autopilot gives the clips the workspace's
+     * logo, end card and caption colours. Left out, or with no kit saved, the
+     * clips are made exactly as without one.
+     */
+    brand?: boolean;
   };
   title?: string;
 }
@@ -1627,6 +1638,11 @@ export interface ProjectRenderPreview {
    * depend on the renderer; the caller passes it straight to `CaptionStage`.
    */
   projection: unknown;
+  /**
+   * Signed URLs for the brand logos the projection draws, by asset id
+   * (2026-10-02); absent when it draws none. Pass to `CaptionStage`'s `images`.
+   */
+  images?: Readonly<Record<string, string>>;
 }
 
 /** `details` on a 409 `repurpose/source_already_running`. */

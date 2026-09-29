@@ -82,7 +82,8 @@ export const BrandKitSettingsSchema = z
       durationMs: z.number().int().min(END_CARD_DURATION_MS.min).max(END_CARD_DURATION_MS.max),
     }),
   })
-  .meta({ id: "BrandKitSettings", title: "BrandKitSettings" });
+  // A title, no registry `id`: see `HexColourSchema`.
+  .meta({ title: "BrandKitSettings" });
 
 export type BrandKitSettings = z.infer<typeof BrandKitSettingsSchema>;
 

@@ -150,11 +150,15 @@ export const OverlayKindSchema = z
   .enum(["hook-title", "logo", "end-card"])
   .meta({ id: "OverlayKind", title: "OverlayKind" });
 
-/** `#RRGGBB`: a brand colour is opaque, so no alpha. */
+/**
+ * `#RRGGBB`: a brand colour is opaque, so no alpha. No registry `id`: the
+ * brand kit's settings (`brand.ts`) are documented in the API's OpenAPI
+ * document too, where a JSON Schema `$ref` to a definition would not resolve.
+ */
 export const HexColourSchema = z
   .string()
   .regex(/^#[0-9a-fA-F]{6}$/, "expected a #RRGGBB colour")
-  .meta({ id: "HexColour", title: "HexColour" });
+  .meta({ title: "HexColour" });
 
 /**
  * An image an overlay draws (2026-10-02): a workspace's brand logo, stored at
@@ -172,10 +176,10 @@ export const OverlayImageSchema = z
   })
   .meta({ id: "OverlayImage", title: "OverlayImage" });
 
-/** Which corner of the frame a logo sits in. */
+/** Which corner of the frame a logo sits in. No registry `id`, for the reason `HexColourSchema` gives. */
 export const OverlayCornerSchema = z
   .enum(["top-left", "top-right", "bottom-left", "bottom-right"])
-  .meta({ id: "OverlayCorner", title: "OverlayCorner" });
+  .meta({ title: "OverlayCorner" });
 
 /**
  * How a hook title looks when a brand kit styled it (2026-10-02). Every field

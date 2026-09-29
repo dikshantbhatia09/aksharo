@@ -6201,6 +6201,1574 @@
         ]
       }
     },
+    "/brand-kit": {
+      "get": {
+        "description": "Never 404: a workspace that has not saved one gets the defaults with `exists: false`, and Autopilot adds nothing to its clips.",
+        "operationId": "getBrandKit",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The kit, its logo, and the logos clips draw.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "exists": {
+                      "type": "boolean"
+                    },
+                    "settings": {
+                      "type": "object",
+                      "properties": {
+                        "colors": {
+                          "type": "object",
+                          "properties": {
+                            "primary": {
+                              "type": "string",
+                              "pattern": "^#[0-9a-fA-F]{6}$",
+                              "title": "HexColour"
+                            },
+                            "secondary": {
+                              "type": "string",
+                              "pattern": "^#[0-9a-fA-F]{6}$",
+                              "title": "HexColour"
+                            },
+                            "text": {
+                              "type": "string",
+                              "pattern": "^#[0-9a-fA-F]{6}$",
+                              "title": "HexColour"
+                            }
+                          },
+                          "required": [
+                            "primary",
+                            "secondary",
+                            "text"
+                          ]
+                        },
+                        "captions": {
+                          "type": "object",
+                          "properties": {
+                            "fontFamily": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 120
+                            },
+                            "fill": {
+                              "type": "string",
+                              "pattern": "^#[0-9a-fA-F]{6}$",
+                              "title": "HexColour"
+                            },
+                            "highlight": {
+                              "type": "string",
+                              "pattern": "^#[0-9a-fA-F]{6}$",
+                              "title": "HexColour"
+                            },
+                            "stroke": {
+                              "type": "string",
+                              "pattern": "^#[0-9a-fA-F]{6}$",
+                              "title": "HexColour"
+                            }
+                          }
+                        },
+                        "hookTitle": {
+                          "type": "object",
+                          "properties": {
+                            "fontFamily": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 120
+                            },
+                            "background": {
+                              "type": "string",
+                              "pattern": "^#[0-9a-fA-F]{6}$",
+                              "title": "HexColour"
+                            },
+                            "text": {
+                              "type": "string",
+                              "pattern": "^#[0-9a-fA-F]{6}$",
+                              "title": "HexColour"
+                            }
+                          }
+                        },
+                        "logo": {
+                          "type": "object",
+                          "properties": {
+                            "show": {
+                              "type": "boolean"
+                            },
+                            "corner": {
+                              "type": "string",
+                              "enum": [
+                                "top-left",
+                                "top-right",
+                                "bottom-left",
+                                "bottom-right"
+                              ],
+                              "title": "OverlayCorner"
+                            },
+                            "sizePct": {
+                              "type": "number",
+                              "minimum": 5,
+                              "maximum": 40
+                            },
+                            "opacity": {
+                              "type": "number",
+                              "minimum": 0.1,
+                              "maximum": 1
+                            },
+                            "marginPct": {
+                              "type": "number",
+                              "minimum": 0,
+                              "maximum": 15
+                            }
+                          },
+                          "required": [
+                            "show",
+                            "corner",
+                            "sizePct",
+                            "opacity",
+                            "marginPct"
+                          ]
+                        },
+                        "endCard": {
+                          "type": "object",
+                          "properties": {
+                            "enabled": {
+                              "type": "boolean"
+                            },
+                            "cta": {
+                              "type": "string",
+                              "maxLength": 60
+                            },
+                            "handle": {
+                              "type": "string",
+                              "maxLength": 40
+                            },
+                            "background": {
+                              "type": "string",
+                              "pattern": "^#[0-9a-fA-F]{6}$",
+                              "title": "HexColour"
+                            },
+                            "showLogo": {
+                              "type": "boolean"
+                            },
+                            "durationMs": {
+                              "type": "integer",
+                              "minimum": 2000,
+                              "maximum": 4000
+                            }
+                          },
+                          "required": [
+                            "enabled",
+                            "cta",
+                            "handle",
+                            "background",
+                            "showLogo",
+                            "durationMs"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "colors",
+                        "captions",
+                        "hookTitle",
+                        "logo",
+                        "endCard"
+                      ],
+                      "title": "BrandKitSettings"
+                    },
+                    "logo": {
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "assetId": {
+                          "type": "string"
+                        },
+                        "format": {
+                          "type": "string",
+                          "enum": [
+                            "png",
+                            "jpeg",
+                            "webp"
+                          ]
+                        },
+                        "contentType": {
+                          "type": "string",
+                          "enum": [
+                            "image/png",
+                            "image/jpeg",
+                            "image/webp"
+                          ]
+                        },
+                        "width": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "height": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "sizeBytes": {
+                          "nullable": true,
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "url": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "assetId",
+                        "format",
+                        "contentType",
+                        "width",
+                        "height",
+                        "sizeBytes",
+                        "url"
+                      ]
+                    },
+                    "images": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    },
+                    "fontFamilies": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "limits": {
+                      "type": "object",
+                      "properties": {
+                        "logoMaxBytes": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "logoContentTypes": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "logoMinSide": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "logoMaxSide": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "ctaMax": {
+                          "type": "number",
+                          "enum": [
+                            60
+                          ]
+                        },
+                        "handleMax": {
+                          "type": "number",
+                          "enum": [
+                            40
+                          ]
+                        }
+                      },
+                      "required": [
+                        "logoMaxBytes",
+                        "logoContentTypes",
+                        "logoMinSide",
+                        "logoMaxSide",
+                        "ctaMax",
+                        "handleMax"
+                      ]
+                    },
+                    "updatedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "exists",
+                    "settings",
+                    "logo",
+                    "images",
+                    "fontFamilies",
+                    "limits",
+                    "updatedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "The workspace's brand kit",
+        "tags": [
+          "brand-kit"
+        ]
+      },
+      "put": {
+        "description": "The whole kit. Clips already made keep their look; runs started with the kit on get it. 400 `brand_kit/font_unknown` for a typeface Aksharo does not bundle.",
+        "operationId": "updateBrandKit",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "colors": {
+                    "type": "object",
+                    "properties": {
+                      "primary": {
+                        "type": "string",
+                        "pattern": "^#[0-9a-fA-F]{6}$",
+                        "title": "HexColour"
+                      },
+                      "secondary": {
+                        "type": "string",
+                        "pattern": "^#[0-9a-fA-F]{6}$",
+                        "title": "HexColour"
+                      },
+                      "text": {
+                        "type": "string",
+                        "pattern": "^#[0-9a-fA-F]{6}$",
+                        "title": "HexColour"
+                      }
+                    },
+                    "required": [
+                      "primary",
+                      "secondary",
+                      "text"
+                    ]
+                  },
+                  "captions": {
+                    "type": "object",
+                    "properties": {
+                      "fontFamily": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 120
+                      },
+                      "fill": {
+                        "type": "string",
+                        "pattern": "^#[0-9a-fA-F]{6}$",
+                        "title": "HexColour"
+                      },
+                      "highlight": {
+                        "type": "string",
+                        "pattern": "^#[0-9a-fA-F]{6}$",
+                        "title": "HexColour"
+                      },
+                      "stroke": {
+                        "type": "string",
+                        "pattern": "^#[0-9a-fA-F]{6}$",
+                        "title": "HexColour"
+                      }
+                    }
+                  },
+                  "hookTitle": {
+                    "type": "object",
+                    "properties": {
+                      "fontFamily": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 120
+                      },
+                      "background": {
+                        "type": "string",
+                        "pattern": "^#[0-9a-fA-F]{6}$",
+                        "title": "HexColour"
+                      },
+                      "text": {
+                        "type": "string",
+                        "pattern": "^#[0-9a-fA-F]{6}$",
+                        "title": "HexColour"
+                      }
+                    }
+                  },
+                  "logo": {
+                    "type": "object",
+                    "properties": {
+                      "show": {
+                        "type": "boolean"
+                      },
+                      "corner": {
+                        "type": "string",
+                        "enum": [
+                          "top-left",
+                          "top-right",
+                          "bottom-left",
+                          "bottom-right"
+                        ],
+                        "title": "OverlayCorner"
+                      },
+                      "sizePct": {
+                        "type": "number",
+                        "minimum": 5,
+                        "maximum": 40
+                      },
+                      "opacity": {
+                        "type": "number",
+                        "minimum": 0.1,
+                        "maximum": 1
+                      },
+                      "marginPct": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 15
+                      }
+                    },
+                    "required": [
+                      "show",
+                      "corner",
+                      "sizePct",
+                      "opacity",
+                      "marginPct"
+                    ]
+                  },
+                  "endCard": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean"
+                      },
+                      "cta": {
+                        "type": "string",
+                        "maxLength": 60
+                      },
+                      "handle": {
+                        "type": "string",
+                        "maxLength": 40
+                      },
+                      "background": {
+                        "type": "string",
+                        "pattern": "^#[0-9a-fA-F]{6}$",
+                        "title": "HexColour"
+                      },
+                      "showLogo": {
+                        "type": "boolean"
+                      },
+                      "durationMs": {
+                        "type": "integer",
+                        "minimum": 2000,
+                        "maximum": 4000
+                      }
+                    },
+                    "required": [
+                      "enabled",
+                      "cta",
+                      "handle",
+                      "background",
+                      "showLogo",
+                      "durationMs"
+                    ]
+                  }
+                },
+                "required": [
+                  "colors",
+                  "captions",
+                  "hookTitle",
+                  "logo",
+                  "endCard"
+                ],
+                "title": "BrandKitSettings"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The saved kit.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "exists": {
+                      "type": "boolean"
+                    },
+                    "settings": {
+                      "type": "object",
+                      "properties": {
+                        "colors": {
+                          "type": "object",
+                          "properties": {
+                            "primary": {
+                              "type": "string",
+                              "pattern": "^#[0-9a-fA-F]{6}$",
+                              "title": "HexColour"
+                            },
+                            "secondary": {
+                              "type": "string",
+                              "pattern": "^#[0-9a-fA-F]{6}$",
+                              "title": "HexColour"
+                            },
+                            "text": {
+                              "type": "string",
+                              "pattern": "^#[0-9a-fA-F]{6}$",
+                              "title": "HexColour"
+                            }
+                          },
+                          "required": [
+                            "primary",
+                            "secondary",
+                            "text"
+                          ]
+                        },
+                        "captions": {
+                          "type": "object",
+                          "properties": {
+                            "fontFamily": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 120
+                            },
+                            "fill": {
+                              "type": "string",
+                              "pattern": "^#[0-9a-fA-F]{6}$",
+                              "title": "HexColour"
+                            },
+                            "highlight": {
+                              "type": "string",
+                              "pattern": "^#[0-9a-fA-F]{6}$",
+                              "title": "HexColour"
+                            },
+                            "stroke": {
+                              "type": "string",
+                              "pattern": "^#[0-9a-fA-F]{6}$",
+                              "title": "HexColour"
+                            }
+                          }
+                        },
+                        "hookTitle": {
+                          "type": "object",
+                          "properties": {
+                            "fontFamily": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 120
+                            },
+                            "background": {
+                              "type": "string",
+                              "pattern": "^#[0-9a-fA-F]{6}$",
+                              "title": "HexColour"
+                            },
+                            "text": {
+                              "type": "string",
+                              "pattern": "^#[0-9a-fA-F]{6}$",
+                              "title": "HexColour"
+                            }
+                          }
+                        },
+                        "logo": {
+                          "type": "object",
+                          "properties": {
+                            "show": {
+                              "type": "boolean"
+                            },
+                            "corner": {
+                              "type": "string",
+                              "enum": [
+                                "top-left",
+                                "top-right",
+                                "bottom-left",
+                                "bottom-right"
+                              ],
+                              "title": "OverlayCorner"
+                            },
+                            "sizePct": {
+                              "type": "number",
+                              "minimum": 5,
+                              "maximum": 40
+                            },
+                            "opacity": {
+                              "type": "number",
+                              "minimum": 0.1,
+                              "maximum": 1
+                            },
+                            "marginPct": {
+                              "type": "number",
+                              "minimum": 0,
+                              "maximum": 15
+                            }
+                          },
+                          "required": [
+                            "show",
+                            "corner",
+                            "sizePct",
+                            "opacity",
+                            "marginPct"
+                          ]
+                        },
+                        "endCard": {
+                          "type": "object",
+                          "properties": {
+                            "enabled": {
+                              "type": "boolean"
+                            },
+                            "cta": {
+                              "type": "string",
+                              "maxLength": 60
+                            },
+                            "handle": {
+                              "type": "string",
+                              "maxLength": 40
+                            },
+                            "background": {
+                              "type": "string",
+                              "pattern": "^#[0-9a-fA-F]{6}$",
+                              "title": "HexColour"
+                            },
+                            "showLogo": {
+                              "type": "boolean"
+                            },
+                            "durationMs": {
+                              "type": "integer",
+                              "minimum": 2000,
+                              "maximum": 4000
+                            }
+                          },
+                          "required": [
+                            "enabled",
+                            "cta",
+                            "handle",
+                            "background",
+                            "showLogo",
+                            "durationMs"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "colors",
+                        "captions",
+                        "hookTitle",
+                        "logo",
+                        "endCard"
+                      ],
+                      "title": "BrandKitSettings"
+                    },
+                    "logo": {
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "assetId": {
+                          "type": "string"
+                        },
+                        "format": {
+                          "type": "string",
+                          "enum": [
+                            "png",
+                            "jpeg",
+                            "webp"
+                          ]
+                        },
+                        "contentType": {
+                          "type": "string",
+                          "enum": [
+                            "image/png",
+                            "image/jpeg",
+                            "image/webp"
+                          ]
+                        },
+                        "width": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "height": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "sizeBytes": {
+                          "nullable": true,
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "url": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "assetId",
+                        "format",
+                        "contentType",
+                        "width",
+                        "height",
+                        "sizeBytes",
+                        "url"
+                      ]
+                    },
+                    "images": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    },
+                    "fontFamilies": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "limits": {
+                      "type": "object",
+                      "properties": {
+                        "logoMaxBytes": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "logoContentTypes": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "logoMinSide": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "logoMaxSide": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "ctaMax": {
+                          "type": "number",
+                          "enum": [
+                            60
+                          ]
+                        },
+                        "handleMax": {
+                          "type": "number",
+                          "enum": [
+                            40
+                          ]
+                        }
+                      },
+                      "required": [
+                        "logoMaxBytes",
+                        "logoContentTypes",
+                        "logoMinSide",
+                        "logoMaxSide",
+                        "ctaMax",
+                        "handleMax"
+                      ]
+                    },
+                    "updatedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "exists",
+                    "settings",
+                    "logo",
+                    "images",
+                    "fontFamilies",
+                    "limits",
+                    "updatedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Save the brand kit",
+        "tags": [
+          "brand-kit"
+        ]
+      }
+    },
+    "/brand-kit/logo": {
+      "post": {
+        "description": "A presigned PUT; the browser uploads the bytes straight to storage with the same `Content-Type`, then calls `complete`. 413 `brand_kit/logo_too_large`.",
+        "operationId": "createBrandKitLogoUpload",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "contentType": {
+                    "type": "string",
+                    "enum": [
+                      "image/png",
+                      "image/jpeg",
+                      "image/webp"
+                    ]
+                  },
+                  "sizeBytes": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "contentType",
+                  "sizeBytes"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Where to PUT the logo.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "assetId": {
+                      "type": "string"
+                    },
+                    "uploadUrl": {
+                      "type": "string"
+                    },
+                    "contentType": {
+                      "type": "string",
+                      "enum": [
+                        "image/png",
+                        "image/jpeg",
+                        "image/webp"
+                      ]
+                    },
+                    "expiresAt": {
+                      "type": "string"
+                    },
+                    "maxBytes": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "assetId",
+                    "uploadUrl",
+                    "contentType",
+                    "expiresAt",
+                    "maxBytes"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Start uploading a logo (PNG, JPEG or WebP, up to 2 MB)",
+        "tags": [
+          "brand-kit"
+        ]
+      },
+      "delete": {
+        "description": "New clips get no logo; clips that already carry it keep it until it is taken off them in the editor. Idempotent.",
+        "operationId": "deleteBrandKitLogo",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The kit without a logo.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "exists": {
+                      "type": "boolean"
+                    },
+                    "settings": {
+                      "type": "object",
+                      "properties": {
+                        "colors": {
+                          "type": "object",
+                          "properties": {
+                            "primary": {
+                              "type": "string",
+                              "pattern": "^#[0-9a-fA-F]{6}$",
+                              "title": "HexColour"
+                            },
+                            "secondary": {
+                              "type": "string",
+                              "pattern": "^#[0-9a-fA-F]{6}$",
+                              "title": "HexColour"
+                            },
+                            "text": {
+                              "type": "string",
+                              "pattern": "^#[0-9a-fA-F]{6}$",
+                              "title": "HexColour"
+                            }
+                          },
+                          "required": [
+                            "primary",
+                            "secondary",
+                            "text"
+                          ]
+                        },
+                        "captions": {
+                          "type": "object",
+                          "properties": {
+                            "fontFamily": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 120
+                            },
+                            "fill": {
+                              "type": "string",
+                              "pattern": "^#[0-9a-fA-F]{6}$",
+                              "title": "HexColour"
+                            },
+                            "highlight": {
+                              "type": "string",
+                              "pattern": "^#[0-9a-fA-F]{6}$",
+                              "title": "HexColour"
+                            },
+                            "stroke": {
+                              "type": "string",
+                              "pattern": "^#[0-9a-fA-F]{6}$",
+                              "title": "HexColour"
+                            }
+                          }
+                        },
+                        "hookTitle": {
+                          "type": "object",
+                          "properties": {
+                            "fontFamily": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 120
+                            },
+                            "background": {
+                              "type": "string",
+                              "pattern": "^#[0-9a-fA-F]{6}$",
+                              "title": "HexColour"
+                            },
+                            "text": {
+                              "type": "string",
+                              "pattern": "^#[0-9a-fA-F]{6}$",
+                              "title": "HexColour"
+                            }
+                          }
+                        },
+                        "logo": {
+                          "type": "object",
+                          "properties": {
+                            "show": {
+                              "type": "boolean"
+                            },
+                            "corner": {
+                              "type": "string",
+                              "enum": [
+                                "top-left",
+                                "top-right",
+                                "bottom-left",
+                                "bottom-right"
+                              ],
+                              "title": "OverlayCorner"
+                            },
+                            "sizePct": {
+                              "type": "number",
+                              "minimum": 5,
+                              "maximum": 40
+                            },
+                            "opacity": {
+                              "type": "number",
+                              "minimum": 0.1,
+                              "maximum": 1
+                            },
+                            "marginPct": {
+                              "type": "number",
+                              "minimum": 0,
+                              "maximum": 15
+                            }
+                          },
+                          "required": [
+                            "show",
+                            "corner",
+                            "sizePct",
+                            "opacity",
+                            "marginPct"
+                          ]
+                        },
+                        "endCard": {
+                          "type": "object",
+                          "properties": {
+                            "enabled": {
+                              "type": "boolean"
+                            },
+                            "cta": {
+                              "type": "string",
+                              "maxLength": 60
+                            },
+                            "handle": {
+                              "type": "string",
+                              "maxLength": 40
+                            },
+                            "background": {
+                              "type": "string",
+                              "pattern": "^#[0-9a-fA-F]{6}$",
+                              "title": "HexColour"
+                            },
+                            "showLogo": {
+                              "type": "boolean"
+                            },
+                            "durationMs": {
+                              "type": "integer",
+                              "minimum": 2000,
+                              "maximum": 4000
+                            }
+                          },
+                          "required": [
+                            "enabled",
+                            "cta",
+                            "handle",
+                            "background",
+                            "showLogo",
+                            "durationMs"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "colors",
+                        "captions",
+                        "hookTitle",
+                        "logo",
+                        "endCard"
+                      ],
+                      "title": "BrandKitSettings"
+                    },
+                    "logo": {
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "assetId": {
+                          "type": "string"
+                        },
+                        "format": {
+                          "type": "string",
+                          "enum": [
+                            "png",
+                            "jpeg",
+                            "webp"
+                          ]
+                        },
+                        "contentType": {
+                          "type": "string",
+                          "enum": [
+                            "image/png",
+                            "image/jpeg",
+                            "image/webp"
+                          ]
+                        },
+                        "width": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "height": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "sizeBytes": {
+                          "nullable": true,
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "url": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "assetId",
+                        "format",
+                        "contentType",
+                        "width",
+                        "height",
+                        "sizeBytes",
+                        "url"
+                      ]
+                    },
+                    "images": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    },
+                    "fontFamilies": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "limits": {
+                      "type": "object",
+                      "properties": {
+                        "logoMaxBytes": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "logoContentTypes": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "logoMinSide": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "logoMaxSide": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "ctaMax": {
+                          "type": "number",
+                          "enum": [
+                            60
+                          ]
+                        },
+                        "handleMax": {
+                          "type": "number",
+                          "enum": [
+                            40
+                          ]
+                        }
+                      },
+                      "required": [
+                        "logoMaxBytes",
+                        "logoContentTypes",
+                        "logoMinSide",
+                        "logoMaxSide",
+                        "ctaMax",
+                        "handleMax"
+                      ]
+                    },
+                    "updatedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "exists",
+                    "settings",
+                    "logo",
+                    "images",
+                    "fontFamilies",
+                    "limits",
+                    "updatedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Take the logo off the brand kit",
+        "tags": [
+          "brand-kit"
+        ]
+      }
+    },
+    "/brand-kit/logo/{assetId}/complete": {
+      "post": {
+        "description": "The bytes must open as the image type they were uploaded as, at 16 to 4096 pixels a side; otherwise they are deleted and refused (422 `brand_kit/logo_invalid` or `brand_kit/logo_bad_size`). 409 `brand_kit/logo_not_uploaded` before they arrive. Clips already made keep the logo they were made with.",
+        "operationId": "completeBrandKitLogo",
+        "parameters": [
+          {
+            "name": "assetId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "contentType": {
+                    "type": "string",
+                    "enum": [
+                      "image/png",
+                      "image/jpeg",
+                      "image/webp"
+                    ]
+                  }
+                },
+                "required": [
+                  "contentType"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The kit with its new logo.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "exists": {
+                      "type": "boolean"
+                    },
+                    "settings": {
+                      "type": "object",
+                      "properties": {
+                        "colors": {
+                          "type": "object",
+                          "properties": {
+                            "primary": {
+                              "type": "string",
+                              "pattern": "^#[0-9a-fA-F]{6}$",
+                              "title": "HexColour"
+                            },
+                            "secondary": {
+                              "type": "string",
+                              "pattern": "^#[0-9a-fA-F]{6}$",
+                              "title": "HexColour"
+                            },
+                            "text": {
+                              "type": "string",
+                              "pattern": "^#[0-9a-fA-F]{6}$",
+                              "title": "HexColour"
+                            }
+                          },
+                          "required": [
+                            "primary",
+                            "secondary",
+                            "text"
+                          ]
+                        },
+                        "captions": {
+                          "type": "object",
+                          "properties": {
+                            "fontFamily": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 120
+                            },
+                            "fill": {
+                              "type": "string",
+                              "pattern": "^#[0-9a-fA-F]{6}$",
+                              "title": "HexColour"
+                            },
+                            "highlight": {
+                              "type": "string",
+                              "pattern": "^#[0-9a-fA-F]{6}$",
+                              "title": "HexColour"
+                            },
+                            "stroke": {
+                              "type": "string",
+                              "pattern": "^#[0-9a-fA-F]{6}$",
+                              "title": "HexColour"
+                            }
+                          }
+                        },
+                        "hookTitle": {
+                          "type": "object",
+                          "properties": {
+                            "fontFamily": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 120
+                            },
+                            "background": {
+                              "type": "string",
+                              "pattern": "^#[0-9a-fA-F]{6}$",
+                              "title": "HexColour"
+                            },
+                            "text": {
+                              "type": "string",
+                              "pattern": "^#[0-9a-fA-F]{6}$",
+                              "title": "HexColour"
+                            }
+                          }
+                        },
+                        "logo": {
+                          "type": "object",
+                          "properties": {
+                            "show": {
+                              "type": "boolean"
+                            },
+                            "corner": {
+                              "type": "string",
+                              "enum": [
+                                "top-left",
+                                "top-right",
+                                "bottom-left",
+                                "bottom-right"
+                              ],
+                              "title": "OverlayCorner"
+                            },
+                            "sizePct": {
+                              "type": "number",
+                              "minimum": 5,
+                              "maximum": 40
+                            },
+                            "opacity": {
+                              "type": "number",
+                              "minimum": 0.1,
+                              "maximum": 1
+                            },
+                            "marginPct": {
+                              "type": "number",
+                              "minimum": 0,
+                              "maximum": 15
+                            }
+                          },
+                          "required": [
+                            "show",
+                            "corner",
+                            "sizePct",
+                            "opacity",
+                            "marginPct"
+                          ]
+                        },
+                        "endCard": {
+                          "type": "object",
+                          "properties": {
+                            "enabled": {
+                              "type": "boolean"
+                            },
+                            "cta": {
+                              "type": "string",
+                              "maxLength": 60
+                            },
+                            "handle": {
+                              "type": "string",
+                              "maxLength": 40
+                            },
+                            "background": {
+                              "type": "string",
+                              "pattern": "^#[0-9a-fA-F]{6}$",
+                              "title": "HexColour"
+                            },
+                            "showLogo": {
+                              "type": "boolean"
+                            },
+                            "durationMs": {
+                              "type": "integer",
+                              "minimum": 2000,
+                              "maximum": 4000
+                            }
+                          },
+                          "required": [
+                            "enabled",
+                            "cta",
+                            "handle",
+                            "background",
+                            "showLogo",
+                            "durationMs"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "colors",
+                        "captions",
+                        "hookTitle",
+                        "logo",
+                        "endCard"
+                      ],
+                      "title": "BrandKitSettings"
+                    },
+                    "logo": {
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "assetId": {
+                          "type": "string"
+                        },
+                        "format": {
+                          "type": "string",
+                          "enum": [
+                            "png",
+                            "jpeg",
+                            "webp"
+                          ]
+                        },
+                        "contentType": {
+                          "type": "string",
+                          "enum": [
+                            "image/png",
+                            "image/jpeg",
+                            "image/webp"
+                          ]
+                        },
+                        "width": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "height": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "sizeBytes": {
+                          "nullable": true,
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "url": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "assetId",
+                        "format",
+                        "contentType",
+                        "width",
+                        "height",
+                        "sizeBytes",
+                        "url"
+                      ]
+                    },
+                    "images": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    },
+                    "fontFamilies": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "limits": {
+                      "type": "object",
+                      "properties": {
+                        "logoMaxBytes": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "logoContentTypes": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "logoMinSide": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "logoMaxSide": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "ctaMax": {
+                          "type": "number",
+                          "enum": [
+                            60
+                          ]
+                        },
+                        "handleMax": {
+                          "type": "number",
+                          "enum": [
+                            40
+                          ]
+                        }
+                      },
+                      "required": [
+                        "logoMaxBytes",
+                        "logoContentTypes",
+                        "logoMinSide",
+                        "logoMaxSide",
+                        "ctaMax",
+                        "handleMax"
+                      ]
+                    },
+                    "updatedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "exists",
+                    "settings",
+                    "logo",
+                    "images",
+                    "fontFamilies",
+                    "limits",
+                    "updatedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Make an uploaded logo the kit's",
+        "tags": [
+          "brand-kit"
+        ]
+      }
+    },
     "/projects/{projectId}/media": {
       "get": {
         "description": "Includes imported subtitle sidecars, which carry the role `subtitle`.",
@@ -24567,6 +26135,9 @@
                           "auto",
                           "manual"
                         ]
+                      },
+                      "brand": {
+                        "type": "boolean"
                       }
                     },
                     "required": [
@@ -24791,6 +26362,9 @@
                             "auto",
                             "manual"
                           ]
+                        },
+                        "brand": {
+                          "type": "boolean"
                         },
                         "waitingFor": {
                           "nullable": true,
@@ -25240,6 +26814,9 @@
                               "manual"
                             ]
                           },
+                          "brand": {
+                            "type": "boolean"
+                          },
                           "waitingFor": {
                             "nullable": true,
                             "type": "object",
@@ -25609,6 +27186,9 @@
                         "manual"
                       ]
                     },
+                    "brand": {
+                      "type": "boolean"
+                    },
                     "waitingFor": {
                       "nullable": true,
                       "type": "object",
@@ -25968,6 +27548,9 @@
                         "manual"
                       ]
                     },
+                    "brand": {
+                      "type": "boolean"
+                    },
                     "waitingFor": {
                       "nullable": true,
                       "type": "object",
@@ -26325,6 +27908,9 @@
                         "auto",
                         "manual"
                       ]
+                    },
+                    "brand": {
+                      "type": "boolean"
                     },
                     "waitingFor": {
                       "nullable": true,
@@ -26687,6 +28273,9 @@
                             "auto",
                             "manual"
                           ]
+                        },
+                        "brand": {
+                          "type": "boolean"
                         },
                         "waitingFor": {
                           "nullable": true,
@@ -27051,6 +28640,9 @@
                         "auto",
                         "manual"
                       ]
+                    },
+                    "brand": {
+                      "type": "boolean"
                     },
                     "waitingFor": {
                       "nullable": true,
