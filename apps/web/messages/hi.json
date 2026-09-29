@@ -73,6 +73,10 @@
   "notifications.exportReady.body": "{project} डाउनलोड के लिए तैयार है।",
   "notifications.lowCredits.title": "आपके मिनट ख़त्म होने वाले हैं",
   "notifications.lowCredits.body": "{minutes, plural, one {# मिनट} other {# मिनट}} प्रोसेसिंग बची है।",
+  "notifications.someone": "किसी ने",
+  "notifications.clip": "एक क्लिप",
+  "notifications.clipReview.title": "{verdict, select, approved {क्लिप अप्रूव हो गई} changes {बदलाव माँगे गए} reopened {फिर से रिव्यू चाहिए} other {नया कमेंट}}",
+  "notifications.clipReview.body": "{verdict, select, approved {{by, select, client {{who} (क्लाइंट)} guest {आपके क्लाइंट} other {{who}}} ने “{clip}” अप्रूव की।} changes {{by, select, client {{who} (क्लाइंट)} guest {आपके क्लाइंट} other {{who}}} ने “{clip}” में बदलाव माँगे।} reopened {“{clip}” बदल गई, इसे फिर से रिव्यू चाहिए।} other {{by, select, client {{who} (क्लाइंट)} guest {आपके क्लाइंट} other {{who}}} ने “{clip}” पर कमेंट किया।}}",
   "notifications.other.title": "एक अपडेट",
   "notifications.other.body": "ज़्यादा जानने के लिए खोलें।"
 }

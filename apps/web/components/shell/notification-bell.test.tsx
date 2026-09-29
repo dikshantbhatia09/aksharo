@@ -63,6 +63,44 @@ describe("notification copy", () => {
     });
   });
 
+  it("says who reviewed which clip, in both languages, and opens its run", async () => {
+    const { IntlMessageFormat } = await import("intl-messageformat");
+    const en = (await import("@/messages/en.json")).default as Record<string, string>;
+    const hi = (await import("@/messages/hi.json")).default as Record<string, string>;
+    const translate =
+      (catalogue: Record<string, string>, locale: string) =>
+      (key: string, values?: Record<string, string | number>): string =>
+        // eslint-disable-next-line security/detect-object-injection -- a message key this test names
+        String(new IntlMessageFormat(catalogue[key] ?? key, locale).format(values));
+    const item = {
+      kind: "clip-review",
+      data: {
+        verdict: "changes",
+        by: "client",
+        who: "Priya",
+        clip: "Why most people never save",
+        runId: RUN,
+        clipId: "01JCL1P000000000000000000A",
+      },
+    };
+    expect(notificationText(item, translate(en, "en"), ORIGIN)).toEqual({
+      title: "Changes requested",
+      body: "Priya (client) asked for changes to “Why most people never save”.",
+      href: `/repurpose/${RUN}`,
+      tone: "yours",
+    });
+    expect(notificationText(item, translate(hi, "hi"), ORIGIN).body).toBe(
+      "Priya (क्लाइंट) ने “Why most people never save” में बदलाव माँगे।",
+    );
+    expect(
+      notificationText(
+        { kind: "clip-review", data: { verdict: "approved", by: "guest", who: "" } },
+        translate(en, "en"),
+        ORIGIN,
+      ),
+    ).toMatchObject({ body: "Your client approved “a clip”.", tone: "done" });
+  });
+
   it("says when, in the person's words", () => {
     const now = Date.parse("2026-09-29T12:00:00Z");
     expect(relativeTime("2026-09-29T11:55:00Z", "en", now)).toBe("5 minutes ago");

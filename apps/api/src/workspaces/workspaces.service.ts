@@ -213,7 +213,14 @@ export class WorkspacesService {
       actorId,
       workspaceId,
       ...(context.ip === undefined ? {} : { ip: context.ip }),
-      data: { fields: Object.keys(data).sort() },
+      data: {
+        fields: Object.keys(data).sort(),
+        // Which settings, and to what: every key is a flag or a short choice,
+        // and "who switched clip approval off, when" is a question to answer.
+        ...(body.settings === undefined
+          ? {}
+          : { settings: body.settings as Prisma.InputJsonObject }),
+      },
     });
 
     const [counts, locked] = await Promise.all([

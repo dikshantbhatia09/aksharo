@@ -160,6 +160,16 @@ export interface PublishPlanView {
   readonly defaults: { readonly timezone: string; readonly dailyTime: string };
   /** For "One a day": each channel's next free slot at the default time. */
   readonly nextDaily: Readonly<Record<string, string>>;
+  /**
+   * Clip review (2026-10-03): whether the workspace needs approval before
+   * posting, whether this clip has it, and why not in one sentence. While it
+   * does not, every channel reads not ready with that sentence as its note.
+   */
+  readonly approval: {
+    readonly required: boolean;
+    readonly approved: boolean;
+    readonly message: string | null;
+  };
 }
 
 /** A post as the page shows it. `status` is the plain version of `state`. */

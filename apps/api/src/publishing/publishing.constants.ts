@@ -40,6 +40,12 @@ export const PUBLISHING_ERRORS = {
   notCancellable: "publishing/not_cancellable",
   /** 409: a post that has not failed, or failed for a reason retrying cannot fix. */
   notRetryable: "publishing/not_retryable",
+  /**
+   * 409 (2026-10-03): the workspace needs approval before posting, and this clip
+   * is not approved - or its video changed after it was, so what would go out is
+   * not what was approved (`repurpose/review/clip-approval.gate.ts`).
+   */
+  notApproved: "publishing/not_approved",
 } as const;
 
 /** A scheduled time must leave Postiz a moment to take it. */

@@ -3664,6 +3664,12 @@ model RepurposeRun {
   notices        RepurposeRunNotice[]
   /// The channel upload that started this run, when an automation did (2026-10-02).
   watchVideos    SourceWatchVideo[]
+  /// Clip review (2026-10-03, `repurpose/review`): its clips' review state, their
+  /// decisions and comments, and the links a client reviews them through.
+  clipReviews      ClipReview[]
+  clipReviewEvents ClipReviewEvent[]
+  clipComments     ClipComment[]
+  reviewLinks      ClipReviewLink[]
 
   @@index([workspaceId])
   @@index([workspaceId, createdAt])
@@ -3890,6 +3896,10 @@ model RepurposeClip {
   mezzanineJob   Job?            @relation(fields: [mezzanineJobId], references: [id], onDelete: SetNull)
   variants       ClipVariant[]
   publishTargets PublishTarget[]
+  /// Clip review (2026-10-03): where the clip stands, how it got there, what was said.
+  review         ClipReview?
+  reviewEvents   ClipReviewEvent[]
+  comments       ClipComment[]
 
   @@index([runId])
   @@map("repurpose_clips")
@@ -3918,6 +3928,9 @@ model ClipVariant {
   /// Two-speaker layouts (2026-10-01): how this shape's picture was cut, as
   /// its `media.clip` payload asked (`reframe.layout`); written by each cut.
   layout          ClipLayout    @default(single)
+  /// Never written. Approval belongs to the clip (`clip_reviews`, 2026-10-03): a
+  /// reviewer decides on the moment, and the approval pins the exact captioned
+  /// video of each shape it covers, which a timestamp on the shape cannot say.
   approvedAt      DateTime?     @map("approved_at") @db.Timestamptz(6)
   approvedBy      String?       @map("approved_by") @db.Char(26)
   createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
@@ -3985,6 +3998,164 @@ model ReviewItem {
   @@unique([bundleId, variantId])
   @@index([variantId])
   @@map("review_items")
+}
+
+// ---------------------------------------------------------------------------
+// Clip review (2026-10-03, `apps/api/src/repurpose/review`): a team approves a
+// run's clips before they go out, comments on them, and a client reviews them
+// from a link without an account.
+//
+// Approval belongs to the CLIP, not to one of its shapes: a reviewer decides on
+// the moment (its cut, words, captions and title), the client link shows one
+// video per clip, and posting picks each platform's shape by itself. What makes
+// "what was approved is what goes out" hold is `clip_reviews.videos`: a decision
+// pins the captioned video of every shape the clip had at that moment, posting
+// under the approval rule only ever sends a pinned video, and a new video in a
+// pinned shape (the clip edited after the decision) returns the clip to
+// `pending`. `review_bundles`/`review_items` (a per-shape design that was never
+// built) and `clip_variants.approved_*` stay unused.
+// ---------------------------------------------------------------------------
+
+/// Where a clip stands with its reviewers. A clip with no `clip_reviews` row is
+/// `pending`.
+enum ClipReviewState {
+  pending
+  approved
+  changes_requested
+}
+
+/// Who made a review decision or wrote a comment: a workspace member, a client
+/// through a review link (never counted as a member), or Aksharo itself (a clip
+/// returned to review because its video changed).
+enum ReviewActorKind {
+  member
+  client
+  system
+}
+
+/// A clip's review state: the latest decision, who made it, and the videos it was
+/// made on. Written only by a compare-and-set on `version`, in the same
+/// transaction as the `clip_review_events` row that explains it.
+model ClipReview {
+  clipId       String          @id @map("clip_id") @db.Char(26)
+  runId        String          @map("run_id") @db.Char(26)
+  workspaceId  String          @map("workspace_id") @db.Char(26)
+  state        ClipReviewState @default(pending)
+  actorKind    ReviewActorKind @map("actor_kind")
+  /// The member who decided; null for a client or Aksharo.
+  actorUserId  String?         @map("actor_user_id") @db.Char(26)
+  /// The name a client gave (null when none was asked for or given).
+  actorName    String?         @map("actor_name")
+  /// The review link a client decided through.
+  reviewLinkId String?         @map("review_link_id") @db.Char(26)
+  /// Zod: `VideoPinsSchema` - shape (`9:16`, ...) to the export id of the captioned
+  /// video the decision was made on. `{}` once back to `pending`.
+  videos       Json            @default("{}") @db.JsonB
+  version      Int             @default(1)
+  decidedAt    DateTime        @default(now()) @map("decided_at") @db.Timestamptz(6)
+  createdAt    DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  clip       RepurposeClip   @relation(fields: [clipId], references: [id], onDelete: Cascade)
+  run        RepurposeRun    @relation(fields: [runId], references: [id], onDelete: Cascade)
+  reviewLink ClipReviewLink? @relation(fields: [reviewLinkId], references: [id], onDelete: SetNull)
+
+  @@index([runId])
+  @@index([workspaceId, state])
+  @@map("clip_reviews")
+}
+
+/// One review decision, append-only: approved, changes requested, or back to
+/// pending (Aksharo, `reason: video_changed`). The history behind `clip_reviews`.
+model ClipReviewEvent {
+  id           String          @id @db.Char(26)
+  clipId       String          @map("clip_id") @db.Char(26)
+  runId        String          @map("run_id") @db.Char(26)
+  workspaceId  String          @map("workspace_id") @db.Char(26)
+  /// The state the clip is in after this event.
+  state        ClipReviewState
+  actorKind    ReviewActorKind @map("actor_kind")
+  actorUserId  String?         @map("actor_user_id") @db.Char(26)
+  actorName    String?         @map("actor_name")
+  reviewLinkId String?         @map("review_link_id") @db.Char(26)
+  /// What the reviewer said with a request for changes (also a comment).
+  note         String?
+  /// `video_changed` for Aksharo's own return to pending.
+  reason       String?
+  /// Zod: `VideoPinsSchema` - the videos this decision was made on.
+  videos       Json            @default("{}") @db.JsonB
+  createdAt    DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  clip       RepurposeClip   @relation(fields: [clipId], references: [id], onDelete: Cascade)
+  run        RepurposeRun    @relation(fields: [runId], references: [id], onDelete: Cascade)
+  reviewLink ClipReviewLink? @relation(fields: [reviewLinkId], references: [id], onDelete: SetNull)
+
+  @@index([clipId, createdAt])
+  @@index([runId])
+  @@map("clip_review_events")
+}
+
+/// One comment on a clip: by a member, or by a client through a review link.
+/// `atMs` is a moment in the clip's own video (from its start), when given.
+model ClipComment {
+  id           String          @id @db.Char(26)
+  clipId       String          @map("clip_id") @db.Char(26)
+  runId        String          @map("run_id") @db.Char(26)
+  workspaceId  String          @map("workspace_id") @db.Char(26)
+  authorKind   ReviewActorKind @map("author_kind")
+  authorUserId String?         @map("author_user_id") @db.Char(26)
+  /// A client's own name, as given on the review page.
+  authorName   String?         @map("author_name")
+  reviewLinkId String?         @map("review_link_id") @db.Char(26)
+  body         String
+  atMs         Int?            @map("at_ms")
+  resolvedAt   DateTime?       @map("resolved_at") @db.Timestamptz(6)
+  resolvedBy   String?         @map("resolved_by") @db.Char(26)
+  createdAt    DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  clip       RepurposeClip   @relation(fields: [clipId], references: [id], onDelete: Cascade)
+  run        RepurposeRun    @relation(fields: [runId], references: [id], onDelete: Cascade)
+  reviewLink ClipReviewLink? @relation(fields: [reviewLinkId], references: [id], onDelete: SetNull)
+
+  @@index([clipId, createdAt])
+  @@index([runId])
+  @@index([reviewLinkId])
+  @@map("clip_comments")
+}
+
+/// A link a client reviews one run's clips through, without an account.
+///
+/// The token is never stored: `token_hash` is its SHA-256, so a read of this table
+/// hands out no working link, and the full link is shown once, when it is made.
+/// It expires (1-30 days), can be revoked, and reaches this one run's clips only.
+model ClipReviewLink {
+  id           String    @id @db.Char(26)
+  workspaceId  String    @map("workspace_id") @db.Char(26)
+  runId        String    @map("run_id") @db.Char(26)
+  tokenHash    String    @unique @map("token_hash")
+  /// The token's last four characters, so two links can be told apart.
+  tokenHint    String    @map("token_hint")
+  /// The team's own name for the link ("For Priya"); never shown on the page.
+  label        String?
+  /// The reviewer must give a name before they decide or comment.
+  requireName  Boolean   @default(false) @map("require_name")
+  expiresAt    DateTime  @map("expires_at") @db.Timestamptz(6)
+  revokedAt    DateTime? @map("revoked_at") @db.Timestamptz(6)
+  revokedBy    String?   @map("revoked_by") @db.Char(26)
+  createdBy    String?   @map("created_by") @db.Char(26)
+  viewCount    Int       @default(0) @map("view_count")
+  lastViewedAt DateTime? @map("last_viewed_at") @db.Timestamptz(6)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  run      RepurposeRun      @relation(fields: [runId], references: [id], onDelete: Cascade)
+  reviews  ClipReview[]
+  events   ClipReviewEvent[]
+  comments ClipComment[]
+
+  @@index([runId])
+  @@index([workspaceId])
+  @@map("clip_review_links")
 }
 
 /// A connected publishing account, as Aksharo is allowed to know it (§6.7).

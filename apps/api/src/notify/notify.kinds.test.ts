@@ -18,6 +18,7 @@ import { HI_MESSAGES } from "./templates/messages.hi.js";
 describe("the kind list", () => {
   it("is the templates the briefs name (B06 adds streak-nudge, B16 adds retention-warning)", () => {
     expect([...NOTIFY_KINDS].sort()).toEqual([
+      "clip-review",
       "clips-ready",
       "device-approval",
       "export-ready",

@@ -83,6 +83,15 @@ export interface PublishPlan {
   readonly visibility: { readonly youtube: "public"; readonly tiktok: "private" };
   readonly defaults: { readonly timezone: string; readonly dailyTime: string };
   readonly nextDaily: Readonly<Record<string, string>>;
+  /**
+   * Clip review (2026-10-03): whether the workspace needs approval before
+   * posting and whether this clip has it. Absent from an older API.
+   */
+  readonly approval?: {
+    readonly required: boolean;
+    readonly approved: boolean;
+    readonly message: string | null;
+  };
 }
 
 export type PostStatus = "posting" | "scheduled" | "posted" | "failed" | "cancelled";

@@ -47,6 +47,13 @@ export const API_OPERATIONS = [
     summary: "Add a moment by its start and end time",
   },
   {
+    operationId: "addRepurposeClipComment",
+    method: "POST",
+    path: "/repurpose/runs/{runId}/clips/{clipId}/comments",
+    tags: ["repurpose"],
+    summary: "Comment on a clip, optionally at a moment in it",
+  },
+  {
     operationId: "addShareComment",
     method: "POST",
     path: "/s/{token}/comments",
@@ -558,6 +565,13 @@ export const API_OPERATIONS = [
     summary: "Clear every memory entry for the workspace",
   },
   {
+    operationId: "commentReviewLinkClip",
+    method: "POST",
+    path: "/review/clips/{clipId}/comments",
+    tags: ["review-public"],
+    summary: "Comment on a clip through a review link",
+  },
+  {
     operationId: "completeBrandKitLogo",
     method: "POST",
     path: "/brand-kit/logo/{assetId}/complete",
@@ -712,6 +726,13 @@ export const API_OPERATIONS = [
     summary: "Cut a 9:16 clip from one moment",
   },
   {
+    operationId: "createRepurposeReviewLink",
+    method: "POST",
+    path: "/repurpose/runs/{runId}/review-links",
+    tags: ["repurpose"],
+    summary: "Share a run's clips for review with someone who has no account",
+  },
+  {
     operationId: "createRepurposeRun",
     method: "POST",
     path: "/repurpose/runs",
@@ -780,6 +801,20 @@ export const API_OPERATIONS = [
     path: "/workspaces",
     tags: ["workspaces"],
     summary: "Create a team or agency workspace",
+  },
+  {
+    operationId: "decideRepurposeClipReview",
+    method: "POST",
+    path: "/repurpose/runs/{runId}/clips/{clipId}/review",
+    tags: ["repurpose"],
+    summary: "Approve a clip, or ask for changes",
+  },
+  {
+    operationId: "decideReviewLinkClip",
+    method: "POST",
+    path: "/review/clips/{clipId}/decision",
+    tags: ["review-public"],
+    summary: "Approve a clip, or ask for changes, through a review link",
   },
   {
     operationId: "decideShareLink",
@@ -1202,6 +1237,13 @@ export const API_OPERATIONS = [
     summary: "This workspace's referral code and reward counts",
   },
   {
+    operationId: "getRepurposeClipReview",
+    method: "GET",
+    path: "/repurpose/runs/{runId}/clips/{clipId}/review",
+    tags: ["repurpose"],
+    summary: "One clip's review: its state, history and comments",
+  },
+  {
     operationId: "getRepurposeEpisodePack",
     method: "GET",
     path: "/repurpose/runs/{runId}/episode-pack",
@@ -1228,6 +1270,13 @@ export const API_OPERATIONS = [
     path: "/repurpose/runs/{runId}",
     tags: ["repurpose"],
     summary: "Read one repurposing run",
+  },
+  {
+    operationId: "getRepurposeRunReview",
+    method: "GET",
+    path: "/repurpose/runs/{runId}/review",
+    tags: ["repurpose"],
+    summary: "Where each of a run's clips stands in review",
   },
   {
     operationId: "getRepurposeWatch",
@@ -1657,6 +1706,13 @@ export const API_OPERATIONS = [
     summary: "A run's posts, newest first",
   },
   {
+    operationId: "listRepurposeReviewLinks",
+    method: "GET",
+    path: "/repurpose/runs/{runId}/review-links",
+    tags: ["repurpose"],
+    summary: "A run's client review links",
+  },
+  {
     operationId: "listRepurposeRuns",
     method: "GET",
     path: "/repurpose/runs",
@@ -1795,6 +1851,13 @@ export const API_OPERATIONS = [
     path: "/auth/oauth/google/start",
     tags: ["auth"],
     summary: "Begin Google sign-in",
+  },
+  {
+    operationId: "openReviewLink",
+    method: "GET",
+    path: "/review",
+    tags: ["review-public"],
+    summary: "Open a review link: the clips it shares",
   },
   {
     operationId: "pauseRepurposeWatch",
@@ -2049,6 +2112,13 @@ export const API_OPERATIONS = [
     summary: "Which YouTube channel a link is",
   },
   {
+    operationId: "resolveRepurposeClipComment",
+    method: "PATCH",
+    path: "/repurpose/runs/{runId}/clips/{clipId}/comments/{commentId}",
+    tags: ["repurpose"],
+    summary: "Resolve or reopen a comment",
+  },
+  {
     operationId: "resolveShareLink",
     method: "GET",
     path: "/s/{token}",
@@ -2152,6 +2222,13 @@ export const API_OPERATIONS = [
     path: "/partner-catalogue/grants/{grantId}",
     tags: ["partner-catalogue"],
     summary: "Revoke a partner catalogue grant",
+  },
+  {
+    operationId: "revokeRepurposeReviewLink",
+    method: "DELETE",
+    path: "/repurpose/runs/{runId}/review-links/{linkId}",
+    tags: ["repurpose"],
+    summary: "Revoke a client review link",
   },
   {
     operationId: "revokeShareLink",

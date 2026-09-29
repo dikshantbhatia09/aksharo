@@ -26,6 +26,10 @@
  * 34:37. Your plan processes 20:00 per video.") and a too-long link offers a
  * part of it rather than only another video. And the run is titled by the
  * video's real title, not "youtube.com · <id>".
+ *
+ * Clip review (2026-10-03) reads the run's review once for the page
+ * (`useRunReview`, polled so a client's decision shows up) and hands each
+ * card its clip's part; "Share for review" sits beside "Post one a day".
  */
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -54,6 +58,8 @@ import { AUTOPILOT_COPY, CLIP_STATE_COPY } from "@/components/repurpose/copy";
 import { EpisodePackPanel } from "@/components/repurpose/EpisodePackPanel";
 import { RunPublishing } from "@/components/repurpose/publishing/RunPublishing";
 import { describeRefusal, type Refusal } from "@/components/repurpose/refusal";
+import { ShareForReview } from "@/components/repurpose/review/ShareForReview";
+import { useRunReview } from "@/components/repurpose/review/use-review";
 import { canAddMoments, runActivity, serverIsWorking } from "@/components/repurpose/run-activity";
 import {
   linkFromSourceDisplay,
@@ -130,6 +136,21 @@ export function RepurposeRunView({ runId }: { readonly runId: string }): React.J
     ((query.data.mode === "manual" && query.data.status !== "failed") || canAddMoments(query.data));
   // Only for the source's length, which bounds "Add a moment by time".
   const sourcePreview = useRepurposePreview(momentsVisible ? runId : null);
+  // Each clip's review, once there are clips to review (2026-10-03).
+  const reviewQuery = useRunReview(runId, (clipsQuery.data?.clips.length ?? 0) > 0);
+  // A review notification links to its clip (`#clip-<id>`), which only exists
+  // once the clips have loaded - after the browser's own jump has come and gone.
+  const jumpedToClip = React.useRef(false);
+  const clipCount = clipsQuery.data?.clips.length ?? 0;
+  React.useEffect(() => {
+    if (jumpedToClip.current || clipCount === 0) return;
+    const hash = window.location.hash;
+    if (!hash.startsWith("#clip-")) return;
+    const card = document.getElementById(hash.slice(1));
+    if (card === null) return;
+    jumpedToClip.current = true;
+    card.scrollIntoView?.({ behavior: "smooth", block: "start" });
+  }, [clipCount]);
   const [openStage, setOpenStage] = React.useState<StageKey | null>(null);
   const [blockedNote, setBlockedNote] = React.useState<string | null>(null);
   const [retryError, setRetryError] = React.useState<Refusal | null>(null);
@@ -561,8 +582,21 @@ export function RepurposeRunView({ runId }: { readonly runId: string }): React.J
                         : " Create a vertical 9:16 clip from any of them."}
                   </p>
 
-                  {/* "Post one a day" (2026-09-29): nothing while posting is switched off. */}
-                  <RunPublishing runId={runId} clips={clips} candidates={candidates} />
+                  {/* "Post one a day" (2026-09-29): nothing while posting is switched off.
+                      "Share for review" (2026-10-03): nothing while public links are. */}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <RunPublishing
+                      runId={runId}
+                      clips={clips}
+                      candidates={candidates}
+                      {...(reviewQuery.data === undefined || reviewQuery.data === null
+                        ? {}
+                        : { review: reviewQuery.data })}
+                    />
+                    {clips.length === 0 ? null : (
+                      <ShareForReview runId={runId} permissions={reviewQuery.data?.permissions} />
+                    )}
+                  </div>
 
                   <ul
                     className="m-0 flex list-none flex-col gap-3 p-0"
@@ -583,6 +617,20 @@ export function RepurposeRunView({ runId }: { readonly runId: string }): React.J
                             if (clip !== undefined) setActivePreview(clip.id);
                           }}
                           runStopped={activity === "stopped"}
+                          autopilot={run.automation === "auto"}
+                          {...(reviewQuery.data === undefined || reviewQuery.data === null
+                            ? {}
+                            : {
+                                reviewPermissions: reviewQuery.data.permissions,
+                                needsApproval: reviewQuery.data.needsApproval,
+                                ...(clip === undefined
+                                  ? {}
+                                  : {
+                                      review: reviewQuery.data.clips.find(
+                                        (entry) => entry.clipId === clip.id,
+                                      ),
+                                    }),
+                              })}
                           {...(clipStartAgain === undefined ? {} : { startAgain: clipStartAgain })}
                           {...(clipStartAgainNote === undefined
                             ? {}

@@ -47,6 +47,13 @@ import { PUBLISHING_SCHEMA_VERSION } from "./publishing.contract.js";
 import { CommonAuditService } from "../common/audit/audit.service.js";
 import { AppException } from "../common/errors/error-codes.js";
 import { PrismaService } from "../common/prisma/prisma.service.js";
+import { ClipApprovalGate } from "../repurpose/review/clip-approval.gate.js";
+import {
+  APPROVAL_MESSAGES,
+  NOT_REQUIRED,
+  mayPost,
+  type ApprovalCheck,
+} from "../repurpose/review/review-state.js";
 
 import type { CanonicalSettings } from "./postiz/postiz-format.js";
 import type {
@@ -90,6 +97,13 @@ import type { $Enums, Prisma } from "@prisma/client";
  *   * **Tenancy**: everything is looked up by workspace and id together, and
  *     posting needs the flag, the workspace named in `POSTIZ_WORKSPACE_IDS`,
  *     and a key (`publishing-access.ts`).
+ *   * **Approval, when the workspace asks for it** (2026-10-03, "Clips need
+ *     approval before posting"): a clip is posted only once approved, and
+ *     only a video its approval pinned (`repurpose/review`). A shape made or
+ *     changed after the approval is not posted; a platform that takes another
+ *     shape gets that one, and one that takes none is refused with
+ *     `publishing/not_approved`. "One a day" leaves such clips out. A retry
+ *     sends only a video the clip is still approved with.
  */
 
 const STATUS_MESSAGES: Readonly<Record<UnavailableReason, string>> = Object.freeze({
@@ -215,6 +229,7 @@ export class PublishingService {
     private readonly queue: PublishQueue,
     private readonly dispatcher: PublishDispatcher,
     private readonly audit: CommonAuditService,
+    private readonly approvals: ClipApprovalGate,
   ) {}
 
   // -------------------------------------------------------------------------
@@ -239,7 +254,10 @@ export class PublishingService {
   async plan(workspaceId: string, runId: string, clipId: string): Promise<PublishPlanView> {
     await this.requireEnabled(workspaceId, true);
     const clip = await this.requireClip(workspaceId, runId, clipId, false);
-    const { status, channels } = await this.statusWithChannels(workspaceId);
+    const [{ status, channels }, check] = await Promise.all([
+      this.statusWithChannels(workspaceId),
+      this.approvals.forClip(workspaceId, clip.id),
+    ]);
     const durationMs = clip.mezzanineDurationMs ?? clip.sourceEndMs - clip.sourceStartMs;
     const view: PublishPlanView = {
       status,
@@ -249,6 +267,11 @@ export class PublishingService {
       visibility: DEFAULT_VISIBILITY,
       defaults: { timezone: DEFAULT_TIME_ZONE, dailyTime: DEFAULT_DAILY_TIME },
       nextDaily: {},
+      approval: {
+        required: check.required,
+        approved: check.message === null,
+        message: check.message,
+      },
     };
     if (!status.available) return view;
 
@@ -258,7 +281,12 @@ export class PublishingService {
     const texts: Partial<Record<SupportedProvider, PlanTextView>> = {};
     for (const channel of channels) {
       if (channel.provider === null) continue;
-      const { shape, blocker, info } = this.shapeFor(channel.provider, videos, durationMs);
+      const { shape, blocker, info } = this.approvedShapeFor(
+        channel.provider,
+        videos,
+        check,
+        durationMs,
+      );
       const ready = shape !== null && blocker === null && channel.view.note === null;
       planChannels.push({
         ...channel.view,
@@ -337,6 +365,9 @@ export class PublishingService {
     await this.requireEnabled(workspaceId, true);
     await this.requireReady(workspaceId);
     const clip = await this.requireClip(workspaceId, runId, clipId, true);
+    // Before anything asks Postiz: a clip that needs approval is refused as such.
+    const check = await this.approvals.forClip(workspaceId, clip.id);
+    if (check.required && check.message !== null) throw notApproved(check.message);
     const { picked: channels, directory } = await this.pickChannels(workspaceId, input.channelIds);
     const videos = await clipVideos(this.prisma, clip.id);
     const durationMs = clip.mezzanineDurationMs ?? clip.sourceEndMs - clip.sourceStartMs;
@@ -390,7 +421,13 @@ export class PublishingService {
     const posts: PlannedPost[] = [];
     for (const channel of channels) {
       const provider = channel.provider;
-      const { shape, blocker } = this.shapeFor(provider, videos, durationMs);
+      const { shape, blocker, approval } = this.approvedShapeFor(
+        provider,
+        videos,
+        check,
+        durationMs,
+      );
+      if (approval !== null) throw notApproved(approval, { channelId: channel.connection.id });
       if (shape === null || blocker !== null) {
         throw new AppException(
           PUBLISHING_ERRORS.notReady,
@@ -495,7 +532,9 @@ export class PublishingService {
       select: { clipId: true, channelConnectionId: true },
     });
     const posted = new Set(live.map((row) => `${row.clipId}|${row.channelConnectionId ?? ""}`));
+    const checks = await this.approvals.forClips(workspaceId, clipIds);
     const skipped: { clipId: string; channelId: string; reason: string }[] = [];
+    let unapproved = 0;
     const eligible = new Map<
       string,
       { clip: RunClip; video: PlannedPost["video"]; text: PostText }[]
@@ -504,6 +543,7 @@ export class PublishingService {
       const videos = await clipVideos(this.prisma, clip.id);
       const durationMs = clip.mezzanineDurationMs ?? clip.sourceEndMs - clip.sourceStartMs;
       const words = this.wordsOf(clip);
+      const check = checks.get(clip.id) ?? NOT_REQUIRED;
       for (const channel of channels) {
         const id = channel.connection.id;
         const skip = (reason: string): void => {
@@ -517,7 +557,17 @@ export class PublishingService {
           skip("It already has a post on this account.");
           continue;
         }
-        const { shape, blocker } = this.shapeFor(channel.provider, videos, durationMs);
+        const { shape, blocker, approval } = this.approvedShapeFor(
+          channel.provider,
+          videos,
+          check,
+          durationMs,
+        );
+        if (approval !== null) {
+          unapproved += 1;
+          skip(approval);
+          continue;
+        }
         if (shape === null || blocker !== null) {
           skip(blocker ?? "No finished video with captions yet.");
           continue;
@@ -573,6 +623,15 @@ export class PublishingService {
       }
     }
     if (posts.length === 0) {
+      // Every pair left out for want of approval: say that, with its own code.
+      if (unapproved > 0 && unapproved === skipped.length) {
+        throw notApproved(
+          clips.length === 1
+            ? (skipped[0]?.reason ?? APPROVAL_MESSAGES.pending)
+            : "None of these clips is approved yet. They need approval before they are posted.",
+          { skipped },
+        );
+      }
       throw new AppException(
         PUBLISHING_ERRORS.notReady,
         skipped[0]?.reason ?? "None of these clips can be posted to these accounts yet.",
@@ -685,6 +744,12 @@ export class PublishingService {
           : "Only a post that did not go out can be tried again.",
         HttpStatus.CONFLICT,
       );
+    }
+    // Its video was frozen when it was confirmed; it goes out again only while
+    // the clip is still approved with that video.
+    const check = await this.approvals.forClip(workspaceId, row.clipId);
+    if (check.required && (row.exportId === null || !mayPost(check, row.exportId))) {
+      throw notApproved(check.message ?? APPROVAL_MESSAGES.retry);
     }
     // The last attempt's post in Postiz (it errored, or never went out) goes
     // first, so the new attempt cannot end up beside it.
@@ -964,6 +1029,47 @@ export class PublishingService {
     return { shape: video, blocker: null, info: choice.note };
   }
 
+  /**
+   * {@link shapeFor} under the approval rule: only a video the approval pinned
+   * counts, so a platform whose preferred shape was made or changed after the
+   * approval gets a covered one instead. `approval` says why nothing can go when
+   * the rule is what stops it: the clip is not approved, or no video it takes is
+   * one the approval covers.
+   */
+  private approvedShapeFor(
+    provider: SupportedProvider,
+    videos: ReadonlyMap<VideoShape, ShapeVideo>,
+    check: ApprovalCheck,
+    clipDurationMs: number | null,
+  ): ReturnType<PublishingService["shapeFor"]> & { readonly approval: string | null } {
+    if (check.required && check.message !== null) {
+      return { shape: null, blocker: check.message, info: null, approval: check.message };
+    }
+    if (!check.required) {
+      return { ...this.shapeFor(provider, videos, clipDurationMs), approval: null };
+    }
+    const covered = new Map<VideoShape, ShapeVideo>();
+    for (const [shape, video] of videos) {
+      covered.set(
+        shape,
+        video.export !== null && !mayPost(check, video.export.id)
+          ? { ...video, state: "none", export: null }
+          : video,
+      );
+    }
+    const approved = this.shapeFor(provider, covered, clipDurationMs);
+    if (approved.shape !== null) return { ...approved, approval: null };
+    // Nothing covered fits: say so only when something uncovered would have.
+    return this.shapeFor(provider, videos, clipDurationMs).shape === null
+      ? { ...approved, approval: null }
+      : {
+          shape: null,
+          blocker: APPROVAL_MESSAGES.changed,
+          info: null,
+          approval: APPROVAL_MESSAGES.changed,
+        };
+  }
+
   private wordsOf(clip: RunClip): ClipWords {
     return {
       title: clip.title,
@@ -1211,4 +1317,9 @@ export class PublishingService {
     });
     return { batchId, posts: rows.map(toPostView) };
   }
+}
+
+/** 409 `publishing/not_approved`, with the sentence the Post dialog shows. */
+function notApproved(message: string, details?: Record<string, unknown>): AppException {
+  return new AppException(PUBLISHING_ERRORS.notApproved, message, HttpStatus.CONFLICT, details);
 }

@@ -21,6 +21,11 @@
  * create and retry, and never enqueues a waiting clip. So the card offers
  * neither, and a waiting clip says it was not made rather than promising a
  * slot that will never come. A cut already in flight is left to finish.
+ *
+ * A ready clip carries its review (2026-10-03, `review/ClipReview.tsx`):
+ * waiting, approved or changes requested, the decision the person may make,
+ * and its comments - pinned to where the video above was playing. The card is
+ * the anchor a review notification's link lands on (`#clip-<id>`).
  */
 import { AlertTriangle, CircleSlash, Clock, Download, Loader2 } from "lucide-react";
 import Link from "next/link";
@@ -36,6 +41,11 @@ import {
 } from "@montaj/api-client";
 import { Badge, Button } from "@montaj/ui";
 
+import type {
+  ClipReviewSummary,
+  ReviewPermissions,
+} from "@/components/repurpose/review/use-review";
+
 import { ClipControls, RemovedMoment } from "@/components/repurpose/ClipControls";
 import { ClipCopyPanel } from "@/components/repurpose/ClipCopyPanel";
 import { ClipFormats } from "@/components/repurpose/ClipFormats";
@@ -45,6 +55,7 @@ import { CAPTIONED_COPY, CLIP_STATE_COPY, clipFailureCopy } from "@/components/r
 import { formatClock } from "@/components/repurpose/moment-time";
 import { ClipPosts } from "@/components/repurpose/publishing/ClipPosts";
 import { describeRefusal } from "@/components/repurpose/refusal";
+import { ClipReview } from "@/components/repurpose/review/ClipReview";
 import { isRemovedCandidate } from "@/components/repurpose/steering";
 import { useStableUrl } from "@/components/repurpose/use-stable-url";
 
@@ -65,14 +76,21 @@ function CaptionedVideo({
   src,
   label,
   testId,
+  videoRef,
+  onTime,
 }: {
   readonly src: string;
   readonly label: string;
   readonly testId: string;
+  /** The element, so a review comment's moment can move it (2026-10-03). */
+  readonly videoRef?: React.Ref<HTMLVideoElement>;
+  /** Where it is playing, in ms, for a review comment "at 0:12". */
+  readonly onTime?: (ms: number) => void;
 }): React.JSX.Element {
   const played = React.useRef(false);
   return (
     <video
+      ref={videoRef}
       src={src}
       controls
       playsInline
@@ -91,6 +109,10 @@ function CaptionedVideo({
         if (played.current) return;
         played.current = true;
         event.currentTarget.currentTime = 0;
+      }}
+      onTimeUpdate={(event) => {
+        // Only once played: the resting frame is not a moment anyone chose.
+        if (played.current) onTime?.(Math.round(event.currentTarget.currentTime * 1000));
       }}
     />
   );
@@ -131,6 +153,14 @@ export interface CandidateCardProps {
    * what unblocks it rather than "start again" with no button to do it.
    */
   readonly startAgainNote?: string;
+  /** The clip's review (2026-10-03); undefined while it loads or before the clip is ready. */
+  readonly review?: ClipReviewSummary;
+  /** What this person may do in review; undefined hides the review panel. */
+  readonly reviewPermissions?: ReviewPermissions;
+  /** The workspace needs approval before a clip is posted. */
+  readonly needsApproval?: boolean;
+  /** The run makes its own captioned videos (Autopilot). */
+  readonly autopilot?: boolean;
 }
 
 export function CandidateCard({
@@ -142,9 +172,16 @@ export function CandidateCard({
   runStopped = false,
   startAgain,
   startAgainNote,
+  review,
+  reviewPermissions,
+  needsApproval = false,
+  autopilot = false,
 }: CandidateCardProps): React.JSX.Element {
   const createClip = useCreateRepurposeClip();
   const retryClip = useRetryRepurposeClip();
+  // Where the captioned video is playing, for a review comment "at 0:12".
+  const player = React.useRef<HTMLVideoElement>(null);
+  const [playheadMs, setPlayheadMs] = React.useState<number | null>(null);
   // Between the create answering and the list catching up, the clip the create
   // returned stands in for the row. The card used to hold "Starting…" until the
   // list showed it — for good, if the list's next fetch failed or lagged.
@@ -207,8 +244,9 @@ export function CandidateCard({
 
   return (
     <li
-      className="flex flex-col gap-3 rounded-md border border-border bg-bg-0 p-4"
+      className="flex scroll-mt-4 flex-col gap-3 rounded-md border border-border bg-bg-0 p-4"
       data-testid={`candidate-card-${candidate.id}`}
+      {...(clip === undefined ? {} : { id: `clip-${clip.id}` })}
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 flex-[1_1_240px]">
@@ -429,6 +467,8 @@ export function CandidateCard({
             src={captionedUrl}
             label={`${title}, 9:16 clip with captions`}
             testId={`clip-video-${candidate.id}`}
+            videoRef={player}
+            onTime={setPlayheadMs}
           />
         </div>
       ) : null}
@@ -458,6 +498,26 @@ export function CandidateCard({
         >
           {CAPTIONED_COPY.withoutCaptions}
         </a>
+      ) : null}
+
+      {state === "ready" && clip !== undefined && reviewPermissions !== undefined ? (
+        <ClipReview
+          runId={runId}
+          clipId={clip.id}
+          title={title}
+          review={review}
+          permissions={reviewPermissions}
+          needsApproval={needsApproval}
+          autopilot={autopilot}
+          showVideo={captionedUrl === undefined}
+          playheadMs={playheadMs}
+          onSeek={(ms) => {
+            const video = player.current;
+            if (video === null) return;
+            video.currentTime = ms / 1000;
+            void video.play().catch(() => undefined);
+          }}
+        />
       ) : null}
 
       {state === "ready" && clip !== undefined && (clip.formats?.length ?? 0) > 0 ? (

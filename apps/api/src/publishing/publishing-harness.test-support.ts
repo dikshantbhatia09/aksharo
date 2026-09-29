@@ -8,6 +8,7 @@ import { PostizClient } from "./postiz/postiz.client.js";
 import { PublishDispatcher } from "./publish-dispatcher.js";
 import { PublishingAccess } from "./publishing-access.js";
 import { PublishingService } from "./publishing.service.js";
+import { ClipApprovalGate } from "../repurpose/review/clip-approval.gate.js";
 
 import type { PublishQueue } from "./publish-queue.js";
 import type { CommonAuditEvent, CommonAuditService } from "../common/audit/audit.service.js";
@@ -131,6 +132,8 @@ export function publishingHarness(options: HarnessOptions = {}): Harness {
     queue,
     dispatcher,
     audit,
+    // The real gate, over the same memory database (`requireApproval`, `reviewClip`).
+    new ClipApprovalGate(prisma),
   );
   service.now = clock;
 

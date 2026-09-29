@@ -237,6 +237,35 @@ describe("<PublishDialog />", () => {
     expect(await screen.findByTestId("publish-error")).toHaveTextContent(/already has a post/);
   });
 
+  it("says the clip needs approval instead of offering accounts, while the workspace asks for it", async () => {
+    open({
+      [PLAN_PATH]: {
+        ...PLAN,
+        channels: PLAN.channels.map((entry) => ({ ...entry, ready: false })),
+        approval: {
+          required: true,
+          approved: false,
+          message:
+            "This clip needs approval before it is posted. An owner or admin approves it on its run.",
+        },
+      },
+    });
+    const notice = await screen.findByTestId("publish-needs-approval");
+    expect(notice).toHaveTextContent("This clip needs approval before it is posted.");
+    expect(notice).toHaveTextContent("An owner or admin approves it in the clip's review");
+    expect(screen.queryByTestId("publish-confirm")).not.toBeInTheDocument();
+  });
+
+  it("offers accounts as before once the clip is approved", async () => {
+    open({
+      [PLAN_PATH]: { ...PLAN, approval: { required: true, approved: true, message: null } },
+    });
+    expect(
+      await screen.findByTestId("publish-channel-01JS0000000000000000CHANIG"),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("publish-needs-approval")).not.toBeInTheDocument();
+  });
+
   it("says in one sentence how to set it up when posting is not available", async () => {
     open({
       [PLAN_PATH]: {

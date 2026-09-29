@@ -1780,3 +1780,83 @@ describe("<RepurposeRunView /> steering", () => {
     expect(screen.getByText(/^1 moment found\./)).toBeInTheDocument();
   });
 });
+
+describe("<RepurposeRunView /> clip review (2026-10-03)", () => {
+  const readyRun = () =>
+    run({
+      status: "review_ready",
+      currentStage: "review",
+      automation: "auto",
+      candidateCount: 1,
+      message: "Your videos are ready to review.",
+    });
+  const readyClip = () =>
+    clip("01CLIP1", "01CAND1", {
+      state: "ready",
+      mezzanineKey: "ws/x/master.mp4",
+      mezzanineUrl: "https://media.test/master.mp4?X-Amz-Signature=a",
+      captioned: {
+        status: "ready",
+        playUrl: "https://media.test/exports/clip.mp4?X-Amz-Signature=p",
+        downloadUrl: "https://media.test/exports/clip.mp4?X-Amz-Signature=d",
+      },
+    });
+  const review = {
+    runId: RUN_ID,
+    needsApproval: true,
+    permissions: {
+      approve: true,
+      requestChanges: true,
+      comment: true,
+      resolveAny: true,
+      shareLinks: true,
+      revokeLinks: true,
+    },
+    clips: [
+      {
+        clipId: "01CLIP1",
+        state: "changes_requested",
+        decidedBy: { kind: "client", name: "Priya", userId: null, link: null },
+        decidedAt: new Date(Date.now() - 60_000).toISOString(),
+        reason: null,
+        covered: ["9:16"],
+        uncovered: [],
+        videos: { "9:16": "EXP1" },
+        video: { shape: "9:16", exportId: "EXP1", url: null, durationMs: 30_000 },
+        comments: { total: 1, open: 1 },
+      },
+    ],
+  };
+
+  it("puts each ready clip's review on its card, the card being the link's anchor", async () => {
+    renderWithProviders(<RepurposeRunView runId={RUN_ID} />, {
+      config: { flags: { "shares.public": true } },
+      routes: {
+        [RUN_PATH]: readyRun(),
+        ...momentsRoutes([candidate("01CAND1")], [readyClip()]),
+        [`${RUN_PATH}/review`]: review,
+      },
+    });
+    const panel = await screen.findByTestId("clip-review-01CLIP1");
+    expect(panel).toHaveAttribute("data-state", "changes_requested");
+    expect(within(panel).getByTestId("review-by-01CLIP1")).toHaveTextContent("Client: Priya");
+    expect(within(panel).getByTestId("review-needs-approval-01CLIP1")).toBeInTheDocument();
+    // The card already plays the captioned video: the panel does not play it twice.
+    expect(within(panel).queryByTestId("review-video-01CLIP1")).toBeNull();
+    expect(screen.getByTestId("candidate-card-01CAND1")).toHaveAttribute("id", "clip-01CLIP1");
+    expect(screen.getByTestId("share-for-review-open")).toHaveTextContent("Share for review");
+  });
+
+  it("shows no review on an API from before it", async () => {
+    renderWithProviders(<RepurposeRunView runId={RUN_ID} />, {
+      config: { flags: { "shares.public": true } },
+      routes: {
+        [RUN_PATH]: readyRun(),
+        ...momentsRoutes([candidate("01CAND1")], [readyClip()]),
+      },
+    });
+    expect(await screen.findByTestId("clip-video-01CAND1")).toBeInTheDocument();
+    expect(screen.queryByTestId("clip-review-01CLIP1")).toBeNull();
+    expect(screen.queryByTestId("share-for-review-open")).toBeNull();
+  });
+});

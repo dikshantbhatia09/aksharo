@@ -1878,6 +1878,9 @@
                           },
                           "membersCanInvite": {
                             "type": "boolean"
+                          },
+                          "clipsNeedApproval": {
+                            "type": "boolean"
                           }
                         }
                       },
@@ -2075,6 +2078,9 @@
                         },
                         "membersCanInvite": {
                           "type": "boolean"
+                        },
+                        "clipsNeedApproval": {
+                          "type": "boolean"
                         }
                       }
                     },
@@ -2251,6 +2257,9 @@
                         },
                         "membersCanInvite": {
                           "type": "boolean"
+                        },
+                        "clipsNeedApproval": {
+                          "type": "boolean"
                         }
                       }
                     },
@@ -2378,6 +2387,9 @@
                       },
                       "membersCanInvite": {
                         "type": "boolean"
+                      },
+                      "clipsNeedApproval": {
+                        "type": "boolean"
                       }
                     }
                   }
@@ -2476,6 +2488,9 @@
                           "type": "boolean"
                         },
                         "membersCanInvite": {
+                          "type": "boolean"
+                        },
+                        "clipsNeedApproval": {
                           "type": "boolean"
                         }
                       }
@@ -2723,6 +2738,9 @@
                           "type": "boolean"
                         },
                         "membersCanInvite": {
+                          "type": "boolean"
+                        },
+                        "clipsNeedApproval": {
                           "type": "boolean"
                         }
                       }
@@ -30102,6 +30120,9 @@
                                   "auto",
                                   "manual"
                                 ]
+                              },
+                              "brand": {
+                                "type": "boolean"
                               }
                             },
                             "required": [
@@ -30411,6 +30432,9 @@
                           "auto",
                           "manual"
                         ]
+                      },
+                      "brand": {
+                        "type": "boolean"
                       }
                     },
                     "required": [
@@ -30643,6 +30667,9 @@
                             "auto",
                             "manual"
                           ]
+                        },
+                        "brand": {
+                          "type": "boolean"
                         }
                       },
                       "required": [
@@ -30989,6 +31016,9 @@
                             "auto",
                             "manual"
                           ]
+                        },
+                        "brand": {
+                          "type": "boolean"
                         }
                       },
                       "required": [
@@ -31286,6 +31316,9 @@
                           "auto",
                           "manual"
                         ]
+                      },
+                      "brand": {
+                        "type": "boolean"
                       }
                     },
                     "required": [
@@ -31504,6 +31537,9 @@
                             "auto",
                             "manual"
                           ]
+                        },
+                        "brand": {
+                          "type": "boolean"
                         }
                       },
                       "required": [
@@ -31878,6 +31914,9 @@
                             "auto",
                             "manual"
                           ]
+                        },
+                        "brand": {
+                          "type": "boolean"
                         }
                       },
                       "required": [
@@ -32225,6 +32264,9 @@
                             "auto",
                             "manual"
                           ]
+                        },
+                        "brand": {
+                          "type": "boolean"
                         }
                       },
                       "required": [
@@ -32524,6 +32566,9 @@
                           "auto",
                           "manual"
                         ]
+                      },
+                      "brand": {
+                        "type": "boolean"
                       }
                     },
                     "required": [
@@ -32625,6 +32670,546 @@
         "summary": "Start one run per YouTube link, with one setup",
         "tags": [
           "repurpose"
+        ]
+      }
+    },
+    "/repurpose/runs/{runId}/review": {
+      "get": {
+        "description": "Per clip: pending, approved or changes requested, who decided and when, the shapes the decision covers, the video it would be made on now, and the comment count. Also whether the workspace needs approval before posting, and what the caller may do. A clip whose video changed after its decision is returned to pending first.",
+        "operationId": "getRepurposeRunReview",
+        "parameters": [
+          {
+            "name": "runId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Where each of a run's clips stands in review",
+        "tags": [
+          "repurpose"
+        ]
+      }
+    },
+    "/repurpose/runs/{runId}/clips/{clipId}/review": {
+      "get": {
+        "operationId": "getRepurposeClipReview",
+        "parameters": [
+          {
+            "name": "runId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "clipId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "One clip's review: its state, history and comments",
+        "tags": [
+          "repurpose"
+        ]
+      },
+      "post": {
+        "description": "Approving takes an owner or admin (403 `review/forbidden` otherwise) and a finished captioned video (409 `review/no_video`); it covers the clip's videos as they are now. `note` becomes a comment too. `expect` is the videos the page showed (shape to export id): 409 `review/video_changed` when they have changed since. 409 `review/busy` when another decision landed at the same moment.",
+        "operationId": "decideRepurposeClipReview",
+        "parameters": [
+          {
+            "name": "runId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "clipId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "decision": {
+                    "type": "string",
+                    "enum": [
+                      "approved",
+                      "changes_requested"
+                    ]
+                  },
+                  "note": {
+                    "type": "string",
+                    "maxLength": 2000
+                  },
+                  "expect": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    }
+                  }
+                },
+                "required": [
+                  "decision"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Approve a clip, or ask for changes",
+        "tags": [
+          "repurpose"
+        ]
+      }
+    },
+    "/repurpose/runs/{runId}/clips/{clipId}/comments": {
+      "post": {
+        "operationId": "addRepurposeClipComment",
+        "parameters": [
+          {
+            "name": "runId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "clipId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "body": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2000
+                  },
+                  "atMs": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 86400000
+                  }
+                },
+                "required": [
+                  "body"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Comment on a clip, optionally at a moment in it",
+        "tags": [
+          "repurpose"
+        ]
+      }
+    },
+    "/repurpose/runs/{runId}/clips/{clipId}/comments/{commentId}": {
+      "patch": {
+        "description": "Editors and up resolve any comment; anyone their own (403 `review/forbidden`).",
+        "operationId": "resolveRepurposeClipComment",
+        "parameters": [
+          {
+            "name": "runId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "clipId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "commentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "resolved": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "resolved"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Resolve or reopen a comment",
+        "tags": [
+          "repurpose"
+        ]
+      }
+    },
+    "/repurpose/runs/{runId}/review-links": {
+      "get": {
+        "description": "Never the link itself: that is shown once, when it is made.",
+        "operationId": "listRepurposeReviewLinks",
+        "parameters": [
+          {
+            "name": "runId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "A run's client review links",
+        "tags": [
+          "repurpose"
+        ]
+      },
+      "post": {
+        "description": "Owners and admins: the client's approval counts. `expiresInDays` 1-30 (7). The answer carries `url`, the only time the link is shown. 409 `review/too_many_links` past 20 live links on one run; 404 while public links are off.",
+        "operationId": "createRepurposeReviewLink",
+        "parameters": [
+          {
+            "name": "runId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "expiresInDays": {
+                    "default": 7,
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 30
+                  },
+                  "requireName": {
+                    "default": false,
+                    "type": "boolean"
+                  },
+                  "label": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Share a run's clips for review with someone who has no account",
+        "tags": [
+          "repurpose"
+        ]
+      }
+    },
+    "/repurpose/runs/{runId}/review-links/{linkId}": {
+      "delete": {
+        "description": "It stops opening at once. What its client already said stays.",
+        "operationId": "revokeRepurposeReviewLink",
+        "parameters": [
+          {
+            "name": "runId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "linkId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Revoke a client review link",
+        "tags": [
+          "repurpose"
+        ]
+      }
+    },
+    "/review": {
+      "get": {
+        "description": "The video's title and each clip with a captioned 9:16 video (signed for 20 minutes), its words, and what was said through this link. 404 `review/link_not_found`; 410 `review/link_revoked` or `review/link_expired`.",
+        "operationId": "openReviewLink",
+        "parameters": [
+          {
+            "name": "x-review-token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Open a review link: the clips it shares",
+        "tags": [
+          "review-public"
+        ]
+      }
+    },
+    "/review/clips/{clipId}/decision": {
+      "post": {
+        "description": "Recorded as the client (`name`, required when the link says so: 400 `review/name_required`), never as a member. `note` becomes a comment too. `expect` is the video the page played: 409 `review/video_changed` when a newer one replaced it.",
+        "operationId": "decideReviewLinkClip",
+        "parameters": [
+          {
+            "name": "clipId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-review-token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "decision": {
+                    "type": "string",
+                    "enum": [
+                      "approved",
+                      "changes_requested"
+                    ]
+                  },
+                  "name": {
+                    "type": "string",
+                    "maxLength": 120
+                  },
+                  "note": {
+                    "type": "string",
+                    "maxLength": 2000
+                  },
+                  "expect": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  }
+                },
+                "required": [
+                  "decision"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Approve a clip, or ask for changes, through a review link",
+        "tags": [
+          "review-public"
+        ]
+      }
+    },
+    "/review/clips/{clipId}/comments": {
+      "post": {
+        "operationId": "commentReviewLinkClip",
+        "parameters": [
+          {
+            "name": "clipId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-review-token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "body": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2000
+                  },
+                  "atMs": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 86400000
+                  },
+                  "name": {
+                    "type": "string",
+                    "maxLength": 120
+                  }
+                },
+                "required": [
+                  "body"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Comment on a clip through a review link",
+        "tags": [
+          "review-public"
         ]
       }
     }
@@ -33027,7 +33612,8 @@
               "run-failed",
               "run-needs-you",
               "watch-new-video",
-              "watch-paused"
+              "watch-paused",
+              "clip-review"
             ],
             "description": "What happened. The client renders its own wording per locale, so the row carries no text of its own."
           },

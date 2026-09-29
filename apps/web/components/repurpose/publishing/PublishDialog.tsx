@@ -12,6 +12,10 @@
  *
  * The dialog is its own surface, so its confirm is the one primary button in
  * it; the page's own primary is untouched.
+ *
+ * While the workspace needs approval before posting (2026-10-03) and this clip
+ * is not approved, the dialog says so instead of offering accounts: the API
+ * would refuse the post (`publishing/not_approved`).
  */
 import { AlertTriangle, Loader2 } from "lucide-react";
 import Link from "next/link";
@@ -594,6 +598,16 @@ export function PublishDialog({
           <p role="alert" className="m-0 text-sm text-rejected" data-testid="publish-plan-error">
             {describePublishError(plan.error)}
           </p>
+        ) : plan.data.status.available &&
+          plan.data.approval !== undefined &&
+          plan.data.approval.required &&
+          !plan.data.approval.approved ? (
+          <div className="flex flex-col gap-2" data-testid="publish-needs-approval">
+            <p className="m-0 text-sm text-fg-0">
+              {plan.data.approval.message ?? PUBLISH_COPY.needsApproval}
+            </p>
+            <p className="m-0 text-sm text-fg-2">{PUBLISH_COPY.approveHere}</p>
+          </div>
         ) : !plan.data.status.available ? (
           <p className="m-0 text-sm text-fg-1" data-testid="publish-unavailable">
             {plan.data.status.reason === null

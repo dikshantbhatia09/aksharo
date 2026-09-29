@@ -48,6 +48,7 @@ import { RealtimeModule } from "./realtime/realtime.module.js";
 import { ReferralsModule } from "./referrals/referrals.module.js";
 import { RepurposeAutomationsModule } from "./repurpose/automations/automations.module.js";
 import { RepurposeModule } from "./repurpose/repurpose.module.js";
+import { ClipReviewModule } from "./repurpose/review/clip-review.module.js";
 import { SchedulerTasksModule } from "./scheduler/scheduler-tasks.module.js";
 import { ShareModule } from "./share/share.module.js";
 import { StreakModule } from "./streak/streak.module.js";
@@ -219,6 +220,11 @@ import { WorkspacesModule } from "./workspaces/workspaces.module.js";
     // a missing row is off) plus `repurpose_flow` and `source_youtube_acquire`;
     // the task runs only where MONTAJ_SCHEDULER_TASKS names it.
     RepurposeAutomationsModule,
+    // 2026-10-03: clip review (`/repurpose/runs/:id/review`, `/review`): approve
+    // clips before they go out, comment on them, and client review links. The
+    // team's routes answer 404 while `repurpose_flow` is off, the client's while
+    // `shares.public` is; "Clips need approval before posting" starts off.
+    ClipReviewModule,
   ],
 })
 export class AppModule {}
