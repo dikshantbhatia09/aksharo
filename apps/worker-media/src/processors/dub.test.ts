@@ -21,11 +21,9 @@ import type { ObjectStore } from "../storage.js";
 
 const FIXTURES = resolve(process.cwd(), "..", "..", "packages", "repurpose-contracts", "fixtures");
 const PAYLOAD = JSON.parse(
-   
   readFileSync(join(FIXTURES, "media-dub-payload.v1.json"), "utf8"),
 ) as DubPayload;
 const RESULT = JSON.parse(
-   
   readFileSync(join(FIXTURES, "media-dub-result.v1.json"), "utf8"),
 ) as Record<string, unknown>;
 const WS = "01ARZ3NDEKTSV4RRFFQ69G5FB0";
