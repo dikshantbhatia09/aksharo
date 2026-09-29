@@ -38,6 +38,7 @@ import {
   type RepurposeCandidateItem,
   type RepurposeClipItem,
   type RepurposeClipState,
+  type RepurposeDubList,
 } from "@montaj/api-client";
 import { Badge, Button, Checkbox } from "@montaj/ui";
 
@@ -52,6 +53,7 @@ import { ClipFormats } from "@/components/repurpose/ClipFormats";
 import { ClipLayoutControl } from "@/components/repurpose/ClipLayoutControl";
 import { ClipPreview } from "@/components/repurpose/ClipPreview";
 import { CAPTIONED_COPY, CLIP_STATE_COPY, clipFailureCopy } from "@/components/repurpose/copy";
+import { ClipDubs } from "@/components/repurpose/dubbing/ClipDubs";
 import { formatClock } from "@/components/repurpose/moment-time";
 import { ClipPosts } from "@/components/repurpose/publishing/ClipPosts";
 import { describeRefusal } from "@/components/repurpose/refusal";
@@ -127,6 +129,11 @@ export function clipStateOf(clip: RepurposeClipItem): RepurposeClipState {
   return (clip.mezzanineKey ?? clip.mezzanineUrl ?? null) === null ? "cutting" : "ready";
 }
 
+/** Whether a clip has any dub to show, whatever its own state now. */
+function hasDubs(list: RepurposeDubList, clipId: string): boolean {
+  return list.dubs.some((dub) => dub.clipId === clipId);
+}
+
 export interface CandidateCardProps {
   readonly runId: string;
   readonly candidate: RepurposeCandidateItem;
@@ -174,6 +181,11 @@ export interface CandidateCardProps {
   };
   /** "Part 2 of 4" when the clip is in a series (2026-10-03). */
   readonly seriesPart?: string;
+  /**
+   * The run's dubs (2026-10-04): this clip's languages and its "Dub" action.
+   * Undefined while they load, or where dubbing is not offered.
+   */
+  readonly dubs?: RepurposeDubList;
 }
 
 export function CandidateCard({
@@ -191,6 +203,7 @@ export function CandidateCard({
   autopilot = false,
   select,
   seriesPart,
+  dubs,
 }: CandidateCardProps): React.JSX.Element {
   const createClip = useCreateRepurposeClip();
   const retryClip = useRetryRepurposeClip();
@@ -567,6 +580,18 @@ export function CandidateCard({
           images={clip.images}
         />
       ) : null}
+
+      {clip === undefined ||
+      dubs === undefined ||
+      (state !== "ready" && !hasDubs(dubs, clip.id)) ? null : (
+        <ClipDubs
+          runId={runId}
+          clipId={clip.id}
+          title={title}
+          list={dubs}
+          offerDub={!runStopped && state === "ready"}
+        />
+      )}
 
       {copy === null ? null : (
         <ClipCopyPanel candidateId={candidate.id} title={title} copy={copy} />

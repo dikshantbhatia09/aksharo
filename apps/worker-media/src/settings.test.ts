@@ -46,6 +46,7 @@ describe("resolveSettings", () => {
       "media.proxy",
       "media.clip",
       "media.stills",
+      "media.dub",
     ]);
   });
 
@@ -125,9 +126,9 @@ describe("resolveSettings", () => {
   });
 
   it("resolves a configured ffmpeg path to itself, for yt-dlp's merge", () => {
-    expect(
-      resolveSettings({ ...ENV, FFMPEG_PATH: "/opt/ffmpeg/bin/ffmpeg" }).ffmpegLocation,
-    ).toBe("/opt/ffmpeg/bin/ffmpeg");
+    expect(resolveSettings({ ...ENV, FFMPEG_PATH: "/opt/ffmpeg/bin/ffmpeg" }).ffmpegLocation).toBe(
+      "/opt/ffmpeg/bin/ffmpeg",
+    );
   });
 
   it("takes the downloader's JavaScript runtime by absolute path only", () => {
@@ -217,9 +218,9 @@ describe("findExecutable", () => {
       expect(findExecutable("ffmpeg", { env: { PATH: dir }, platform: "linux" })).toBeUndefined();
       // eslint-disable-next-line security/detect-non-literal-fs-filename -- as above
       await chmod(path, 0o755);
-      expect(findExecutable("ffmpeg", { env: { PATH: `${empty}:${dir}` }, platform: "linux" })).toBe(
-        path,
-      );
+      expect(
+        findExecutable("ffmpeg", { env: { PATH: `${empty}:${dir}` }, platform: "linux" }),
+      ).toBe(path);
     },
   );
 });

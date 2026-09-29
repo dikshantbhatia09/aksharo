@@ -1992,3 +1992,100 @@ describe("<RepurposeRunView /> compilations and series (2026-10-03)", () => {
     expect(screen.queryByTestId("series-part-01CAND3")).toBeNull();
   });
 });
+
+describe("<RepurposeRunView /> dubbing (2026-10-04)", () => {
+  const readyRun = () =>
+    run({
+      status: "review_ready",
+      currentStage: "review",
+      candidateCount: 1,
+      message: "Your videos are ready to review.",
+    });
+  const readyClip = () =>
+    clip("01CLIP1", "01CAND1", {
+      state: "ready",
+      mezzanineKey: "ws/x/master.mp4",
+      mezzanineUrl: "https://media.test/master.mp4?X-Amz-Signature=a",
+    });
+  const dubs = (overrides: Record<string, unknown> = {}): Record<string, unknown> => ({
+    runId: RUN_ID,
+    enabled: true,
+    tenthsPerMinute: 250,
+    languages: [
+      { code: "en-IN", name: "English" },
+      { code: "hi-IN", name: "Hindi" },
+    ],
+    clips: [
+      {
+        clipId: "01CLIP1",
+        ready: true,
+        sourceLanguage: { code: "en-IN", name: "English" },
+        durationMs: 30_000,
+        taken: [],
+      },
+    ],
+    dubs: [],
+    ...overrides,
+  });
+
+  it("offers Dub on a ready clip when dubbing is on for the workspace", async () => {
+    renderWithProviders(<RepurposeRunView runId={RUN_ID} />, {
+      routes: {
+        [RUN_PATH]: readyRun(),
+        ...momentsRoutes([candidate("01CAND1")], [readyClip()]),
+        [`${RUN_PATH}/dubs`]: dubs(),
+      },
+    });
+    expect(await screen.findByTestId("dub-clip-01CLIP1")).toHaveTextContent("Dub");
+  });
+
+  it("shows a clip's languages with the clip, and nothing while dubbing is off", async () => {
+    const { unmount } = renderWithProviders(<RepurposeRunView runId={RUN_ID} />, {
+      routes: {
+        [RUN_PATH]: readyRun(),
+        ...momentsRoutes([candidate("01CAND1")], [readyClip()]),
+        [`${RUN_PATH}/dubs`]: dubs({
+          dubs: [
+            {
+              id: "01JCDVB0000000000000000000",
+              runId: RUN_ID,
+              clipId: "01CLIP1",
+              status: "waiting",
+              failureCode: null,
+              failureMessage: null,
+              sourceLanguage: { code: "en-IN", name: "English" },
+              languages: [
+                { code: "hi-IN", name: "Hindi", status: "queued", reason: null, formats: [] },
+              ],
+              durationMs: 30_000,
+              costTenths: 125,
+              progress: null,
+              step: null,
+              canRetry: false,
+              canCancel: true,
+              createdAt: "2026-10-04T00:00:00.000Z",
+              updatedAt: "2026-10-04T00:00:00.000Z",
+            },
+          ],
+        }),
+      },
+    });
+    const languages = await screen.findByTestId("clip-languages-01CLIP1");
+    expect(
+      within(languages).getByTestId("dub-language-status-01JCDVB0000000000000000000-hi-IN"),
+    ).toHaveTextContent("Waiting for a free slot");
+    unmount();
+
+    renderWithProviders(<RepurposeRunView runId={RUN_ID} />, {
+      routes: {
+        [RUN_PATH]: readyRun(),
+        ...momentsRoutes([candidate("01CAND1")], [readyClip()]),
+        [`${RUN_PATH}/dubs`]: dubs({ enabled: false }),
+      },
+    });
+    expect(await screen.findByTestId("candidate-card-01CAND1")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByTestId("clip-dubs-01CLIP1")).toBeNull();
+    });
+  });
+});

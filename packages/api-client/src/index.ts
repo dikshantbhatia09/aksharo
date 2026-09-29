@@ -73,6 +73,8 @@ export * from "./hooks.js";
 export * from "./repurpose-copy.js";
 // A run's clips joined into one video, and numbered series (2026-10-03).
 export * from "./repurpose-compilations.js";
+// A clip dubbed into other languages, in the speaker's own voice (2026-10-04).
+export * from "./repurpose-dubs.js";
 
 export {
   backoffDelayMs,

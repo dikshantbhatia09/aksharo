@@ -6,6 +6,7 @@ import { TENTHS_PER_CREDIT } from "@montaj/config";
 import { AdmissionService, IN_FLIGHT_STATUSES } from "./admission.service.js";
 import { JobCompletionRegistry } from "./completion-handlers.js";
 import { RealtimePublisher } from "../realtime/realtime.publisher.js";
+import { JobCheckpointSchema } from "./contracts/completion.js";
 import { buildJobEnvelope } from "./contracts/job-envelope.js";
 import { isQueueName, queueForJobType } from "./contracts/queue-names.js";
 import { DlqService } from "./dlq.service.js";
@@ -25,6 +26,7 @@ import type { JobCompletionOutcome } from "./completion-handlers.js";
 import type { CreditsFacade, SettleResult } from "../credits/credits.facade.js";
 import type {
   CallbackAck,
+  JobCheckpoint,
   JobCompletion,
   JobError,
   JobProgress,
@@ -401,15 +403,26 @@ export class JobsService {
       // only moment the API learns a worker has the job.
       this.metrics.queueWait(job.type, Date.now() - job.queuedAt.getTime());
     }
-    await this.prisma.job.updateMany({
+    const { count } = await this.prisma.job.updateMany({
       where: { id: jobId, status: { in: [...IN_FLIGHT_STATUSES] } },
       data: {
         status: "running",
         progress: Math.round(body.progress),
         etaMs: body.etaMs ?? null,
         ...(job.startedAt === null ? { startedAt: new Date() } : {}),
+        // Written with the beat, so an answer that says `applied` means the
+        // worker's resume point is durable (2026-10-04, `ai.dub`).
+        ...(body.checkpoint === undefined
+          ? {}
+          : { checkpoint: body.checkpoint as Prisma.InputJsonValue }),
       },
     });
+    if (count === 0) {
+      // Settled between the read above and this write (a cancel, a completion
+      // racing it): nothing was recorded, and the worker must hear so rather
+      // than trust a checkpoint that never landed.
+      return { applied: false, jobId, status: job.status, reason: "already_completed" };
+    }
 
     if (starting) {
       await this.events.append({ jobId, name: "job.started", message: "started" });
@@ -434,7 +447,13 @@ export class JobsService {
       ...(body.message === undefined ? {} : { message: body.message }),
     });
 
-    return { applied: true, jobId, status: "running" };
+    const checkpoint = body.checkpoint ?? checkpointOf(job.checkpoint);
+    return {
+      applied: true,
+      jobId,
+      status: "running",
+      ...(checkpoint === undefined ? {} : { checkpoint }),
+    };
   }
 
   /**
@@ -945,6 +964,13 @@ function settlementTenths(
   const reported = fromHandler ?? usage?.actualTenths;
   if (reported === undefined) return held;
   return Math.max(0, Math.round(reported));
+}
+
+/** The row's stored checkpoint, when it is one a worker could have sent. */
+function checkpointOf(value: Prisma.JsonValue | null | undefined): JobCheckpoint | undefined {
+  if (value === null || value === undefined) return undefined;
+  const parsed = JobCheckpointSchema.safeParse(value);
+  return parsed.success ? parsed.data : undefined;
 }
 
 function clampLimit(limit: number | undefined): number {

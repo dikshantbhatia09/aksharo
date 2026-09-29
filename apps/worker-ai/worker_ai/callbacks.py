@@ -1,7 +1,7 @@
 """Signed worker → API callbacks (``docs/CONTRACTS.md`` section 3).
 
 ```
-POST {API_ORIGIN}/internal/jobs/{jobId}/progress  {progress, etaMs?, message?}
+POST {API_ORIGIN}/internal/jobs/{jobId}/progress  {progress, etaMs?, message?, checkpoint?}
 POST {API_ORIGIN}/internal/jobs/{jobId}/complete  {status, result?, error?, usage?}
 
 X-Montaj-Attempt:   <attemptId>
@@ -117,6 +117,10 @@ class CallbackAck:
     job_id: str
     status: str
     reason: str | None = None
+    #: On an applied progress answer, the checkpoint the row holds (2026-10-04):
+    #: what the first beat of a retried attempt resumes from. ``None`` when the
+    #: row has none, or an API older than checkpoints answered.
+    checkpoint: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -266,6 +270,29 @@ class CallbackClient:
             body["message"] = message[:1000]
         return await self._post(f"/internal/jobs/{job_id}/progress", attempt_id, body)
 
+    async def checkpoint(
+        self,
+        job_id: str,
+        attempt_id: str,
+        progress: float,
+        checkpoint: dict[str, str | int | float | bool | None],
+        *,
+        message: str | None = None,
+    ) -> CallbackAck:
+        """A progress beat that also records where to resume from (2026-10-04).
+
+        The API writes ``checkpoint`` onto the job's row with the beat and answers
+        ``applied: true`` only once it has, so a caller that is about to start
+        something expensive (a vendor's job) can wait for that answer first.
+        """
+        body: dict[str, Any] = {
+            "progress": max(0.0, min(100.0, round(progress, 2))),
+            "checkpoint": dict(checkpoint),
+        }
+        if message is not None:
+            body["message"] = message[:1000]
+        return await self._post(f"/internal/jobs/{job_id}/progress", attempt_id, body)
+
     async def complete(
         self, job_id: str, attempt_id: str, completion: JobCompletion
     ) -> CallbackAck:
@@ -386,9 +413,11 @@ def _ack(response: httpx2.Response) -> CallbackAck:
     if not isinstance(parsed, dict):
         parsed = {}
     reason = parsed.get("reason")
+    checkpoint = parsed.get("checkpoint")
     return CallbackAck(
         applied=bool(parsed.get("applied", True)),
         job_id=str(parsed.get("jobId", "")),
         status=str(parsed.get("status", "")),
         reason=str(reason) if isinstance(reason, str) else None,
+        checkpoint=dict(checkpoint) if isinstance(checkpoint, dict) else None,
     )

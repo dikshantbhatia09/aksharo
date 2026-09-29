@@ -6,6 +6,11 @@ import { ClipFinishing } from "./clip-finishing.js";
 import { RepurposeCompilationCompletionHandler } from "./compilation-completion.handler.js";
 import { RepurposeCompilationsController } from "./compilations.controller.js";
 import { RepurposeCompilationsService } from "./compilations.service.js";
+import { DubBudget } from "./dubbing/dub-budget.js";
+import { RepurposeDubCompletionHandler } from "./dubbing/dub-completion.handler.js";
+import { RepurposeDubMuxCompletionHandler } from "./dubbing/dub-mux-completion.handler.js";
+import { RepurposeDubsController } from "./dubbing/dubs.controller.js";
+import { RepurposeDubsService } from "./dubbing/dubs.service.js";
 import { RepurposeEpisodePackController } from "./episode-pack.controller.js";
 import { RepurposeEpisodePackService } from "./episode-pack.service.js";
 import { RepurposeHighlightsCompletionHandler } from "./highlights-completion.handler.js";
@@ -69,6 +74,8 @@ import { WorkspacesModule } from "../workspaces/workspaces.module.js";
     RepurposeEpisodePackController,
     // Compilations and series (2026-10-03).
     RepurposeCompilationsController,
+    // A clip dubbed into other languages (2026-10-04).
+    RepurposeDubsController,
   ],
   providers: [
     RepurposeService,
@@ -92,6 +99,12 @@ import { WorkspacesModule } from "../workspaces/workspaces.module.js";
     RepurposeCompilationsService,
     RepurposeCompilationCompletionHandler,
     RepurposeSeriesService,
+    // A clip dubbed into other languages (2026-10-04): the vendor's job, then
+    // each shape laid in each language, and the day's rupee budget.
+    RepurposeDubsService,
+    RepurposeDubCompletionHandler,
+    RepurposeDubMuxCompletionHandler,
+    DubBudget,
     // A second binding of a stateless class (`MediaModule` provides the first
     // and does not export it), as `TranscriptsModule` does with its guard.
     AutoTranscribeTrigger,

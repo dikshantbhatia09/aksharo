@@ -32,6 +32,8 @@ interface Setup {
   chunkRows?: unknown[];
   /** A repurposed clip's shape: the caption setup its run froze. */
   variant?: { captionConfig: unknown } | null;
+  /** A dubbed shape of a clip (2026-10-04): its clip's caption setup. */
+  dubVariant?: { captionConfig: unknown } | null;
 }
 
 function harness(setup: Setup = {}) {
@@ -67,6 +69,7 @@ function harness(setup: Setup = {}) {
     transcript: { findFirst: vi.fn(async () => transcript) },
     transcriptChunk: { findMany: vi.fn(async () => chunkRows) },
     clipVariant: { findFirst: vi.fn(async () => setup.variant ?? null) },
+    clipDubVariant: { findFirst: vi.fn(async () => setup.dubVariant ?? null) },
   } as unknown as PrismaService;
 
   const initialise = vi.fn(async (_projectId: string, _input: EdgInitInput) => ({
@@ -110,6 +113,14 @@ describe("TranscriptDocumentService.ensure", () => {
     });
     await service.ensure("01PROJECT");
     expect(initialise.mock.calls[0]![1].styleRef).toBe("hype-bold");
+  });
+
+  it("starts a dubbed shape on its clip's caption style too (2026-10-04)", async () => {
+    const { service, initialise } = harness({
+      dubVariant: { captionConfig: { styleId: "karaoke-fill", styleVersion: 1 } },
+    });
+    await service.ensure("01PROJECT");
+    expect(initialise.mock.calls[0]![1].styleRef).toBe("karaoke-fill");
   });
 
   it("keeps the default for a style that can no longer be picked, and for any other project", async () => {

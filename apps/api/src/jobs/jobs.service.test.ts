@@ -391,6 +391,70 @@ describe("recordProgress", () => {
   });
 });
 
+describe("recordProgress checkpoints (2026-10-04)", () => {
+  const CHECKPOINT = { vendorJobId: "5f0c2d6e-8a1b-4c3d", vendorPhase: "created" };
+
+  it("stores a checkpoint with the beat and echoes it on every later beat", async () => {
+    const { job } = await h.jobs.enqueue(ENQUEUE);
+    const first = await h.jobs.recordProgress(job.id, job.attemptId ?? "", {
+      progress: 1,
+      checkpoint: CHECKPOINT,
+    });
+    expect(first).toMatchObject({ applied: true, checkpoint: CHECKPOINT });
+    expect(h.db.jobs.get(job.id)?.checkpoint).toEqual(CHECKPOINT);
+
+    // A beat without one leaves it, and says what it is: the resume point a
+    // retried attempt reads from its first progress answer.
+    const later = await h.jobs.recordProgress(job.id, job.attemptId ?? "", { progress: 40 });
+    expect(later).toMatchObject({ applied: true, checkpoint: CHECKPOINT });
+    expect(h.db.jobs.get(job.id)?.checkpoint).toEqual(CHECKPOINT);
+
+    const moved = { ...CHECKPOINT, vendorPhase: "started" };
+    const next = await h.jobs.recordProgress(job.id, job.attemptId ?? "", {
+      progress: 41,
+      checkpoint: moved,
+    });
+    expect(next.checkpoint).toEqual(moved);
+  });
+
+  it("answers without one for a job that never recorded any", async () => {
+    const { job } = await h.jobs.enqueue(ENQUEUE);
+    const ack = await h.jobs.recordProgress(job.id, job.attemptId ?? "", { progress: 3 });
+    expect(ack).not.toHaveProperty("checkpoint");
+  });
+
+  it("never stores one from a superseded attempt or on a settled job", async () => {
+    const { job } = await h.jobs.enqueue(ENQUEUE);
+    const stale = await h.jobs.recordProgress(job.id, "01JCOLDATTEMPT000000000000", {
+      progress: 5,
+      checkpoint: CHECKPOINT,
+    });
+    expect(stale).toMatchObject({ applied: false, reason: "stale_attempt" });
+    expect(stale).not.toHaveProperty("checkpoint");
+    expect(h.db.jobs.get(job.id)?.checkpoint ?? null).toBeNull();
+  });
+
+  it("says a beat that lost the race to a cancel was not recorded", async () => {
+    const { job } = await h.jobs.enqueue(ENQUEUE);
+    const read = h.db.jobs.get(job.id);
+    if (read === undefined) throw new Error("no job");
+    // The cancel lands between the read and the conditional write.
+    const prisma = (h.jobs as unknown as { prisma: { job: Record<string, unknown> } }).prisma;
+    const findUnique = prisma.job["findUnique"] as (args: unknown) => Promise<unknown>;
+    prisma.job["findUnique"] = async (args: unknown) => {
+      const row = await findUnique(args);
+      h.db.jobs.set(job.id, { ...read, status: "cancelled" });
+      return row;
+    };
+    const ack = await h.jobs.recordProgress(job.id, job.attemptId ?? "", {
+      progress: 2,
+      checkpoint: CHECKPOINT,
+    });
+    expect(ack).toMatchObject({ applied: false, reason: "already_completed" });
+    expect(h.db.jobs.get(job.id)?.checkpoint ?? null).toBeNull();
+  });
+});
+
 describe("complete (THREAT-MODEL T8/T9)", () => {
   it("settles once, records the result and publishes job.completed", async () => {
     const { job } = await h.jobs.enqueue(ENQUEUE);

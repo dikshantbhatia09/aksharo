@@ -45,6 +45,7 @@ import {
   useNextWindow,
   useRepurposeCandidates,
   useRepurposeClips,
+  useRepurposeDubs,
   useRepurposePreview,
   useRepurposeRun,
   useRepurposeSeries,
@@ -148,6 +149,11 @@ export function RepurposeRunView({ runId }: { readonly runId: string }): React.J
   const sourcePreview = useRepurposePreview(momentsVisible ? runId : null);
   // Each clip's review, once there are clips to review (2026-10-03).
   const reviewQuery = useRunReview(runId, (clipsQuery.data?.clips.length ?? 0) > 0);
+  // Dubbing (2026-10-04): the run's dubs and what each clip can be dubbed into,
+  // read once for the page and handed to each card, like its review.
+  const dubsQuery = useRepurposeDubs(runId, {
+    enabled: (clipsQuery.data?.clips.length ?? 0) > 0,
+  });
   // A review notification links to its clip (`#clip-<id>`), which only exists
   // once the clips have loaded - after the browser's own jump has come and gone.
   const jumpedToClip = React.useRef(false);
@@ -735,6 +741,7 @@ export function RepurposeRunView({ runId }: { readonly runId: string }): React.J
                                 },
                               })}
                           {...(part === undefined ? {} : { seriesPart: part })}
+                          {...(dubsQuery.data === undefined ? {} : { dubs: dubsQuery.data })}
                         />
                       );
                     })}

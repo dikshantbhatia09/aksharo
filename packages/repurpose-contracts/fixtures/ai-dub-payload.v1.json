@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "action": "dub",
+  "runId": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+  "clipId": "01ARZ3NDEKTSV4RRFFQ69G5FAY",
+  "dubId": "01JCDVB0000000000000000000",
+  "source": {
+    "key": "ws/01ARZ3NDEKTSV4RRFFQ69G5FB0/p/01ARZ3NDEKTSV4RRFFQ69G5FAX/repurpose/01ARZ3NDEKTSV4RRFFQ69G5FAV/clips/01ARZ3NDEKTSV4RRFFQ69G5FAW/master.mp4",
+    "contentType": "video/mp4"
+  },
+  "durationMs": 34000,
+  "sourceLanguage": "en-IN",
+  "targetLanguages": ["hi-IN", "ta-IN"],
+  "speakers": -1,
+  "destinationPrefix": "ws/01ARZ3NDEKTSV4RRFFQ69G5FB0/p/01ARZ3NDEKTSV4RRFFQ69G5FAX/repurpose/01ARZ3NDEKTSV4RRFFQ69G5FAV/dubs/01JCDVB0000000000000000000",
+  "resumeVendorJobId": "5f0c2d6e-8a1b-4c3d-9e7f-0a1b2c3d4e5f"
+}

@@ -373,6 +373,11 @@ export const FEATURE_FLAG_SEEDS: readonly FeatureFlagSeed[] = [
       "Channel automations and several links at once (2026-10-02). Off until the owner turns it on; needs repurpose_flow and source_youtube_acquire too, and the repurpose.source-watch scheduled task to read feeds.",
   },
   {
+    key: "repurpose_dubbing",
+    description:
+      "Dub a clip into other Indian languages in the speaker's own voice (Sarvam Dubbing, 2026-10-04). Off until the owner turns it on for a workspace; every dub costs real rupees per minute per language, capped by DUB_DAILY_BUDGET_INR.",
+  },
+  {
     key: "highlight_discovery",
     description:
       "Multimodal highlight candidate discovery. Off until schema parity and multilingual quality benchmarks pass.",

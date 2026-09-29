@@ -439,12 +439,25 @@ export function readFailure(
  * URL, a refused connection or a 5xx exits the same way. Its stderr says which.
  */
 async function probeSource(context: JobContext, url: string): Promise<ProbeContainer> {
+  return probeSourceAt(context, url, SOURCE_PROBE_TIMEOUT_MS);
+}
+
+/**
+ * {@link probeSource} with its own time limit, for the dub mux (2026-10-04),
+ * which reads a clip's picture and a dub's sound through signed URLs the same
+ * way and reads back what it wrote.
+ */
+export async function probeSourceAt(
+  context: Pick<JobContext, "settings" | "signal">,
+  url: string,
+  timeoutMs: number,
+): Promise<ProbeContainer> {
   let output;
   try {
     output = await ffprobe({
       binary: context.settings.ffprobePath,
       source: url,
-      timeoutMs: Math.min(context.settings.ffmpegTimeoutMs, SOURCE_PROBE_TIMEOUT_MS),
+      timeoutMs: Math.min(context.settings.ffmpegTimeoutMs, timeoutMs),
       signal: context.signal,
     });
   } catch (error) {

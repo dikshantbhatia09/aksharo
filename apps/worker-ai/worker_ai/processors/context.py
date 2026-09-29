@@ -31,6 +31,7 @@ from worker_ai.alignment import AlignerRegistry
 from worker_ai.cache import NullResultCache, ResultCache, content_hash
 from worker_ai.callbacks import CallbackAck, CallbackClient, JobUsage
 from worker_ai.diarisation import DiariserRegistry
+from worker_ai.dubbing.sarvam import SarvamDubbingClient
 from worker_ai.lid import LanguageIdentifier, TextClassifier
 from worker_ai.llm.providers.base import LlmProvider
 from worker_ai.llm.providers.mock import MockLlmProvider
@@ -46,7 +47,7 @@ from worker_ai.translate.providers.base import TranslationProvider
 from worker_ai.transliterate import RuleTableTransliterationProvider, TransliterationProvider
 from worker_ai.vad import VadBackend
 
-__all__ = ["JobContext", "JobFailureError", "ProcessorOutcome", "Services"]
+__all__ = ["JobContext", "JobFailureError", "JobSettledError", "ProcessorOutcome", "Services"]
 
 _log = get_logger(__name__)
 
@@ -81,6 +82,20 @@ class JobFailureError(Exception):
         self.code = code
         self.message = message
         self.retryable = retryable
+
+
+class JobSettledError(Exception):
+    """The API settled this job's row while it ran (2026-10-04).
+
+    A person cancelled it, or a newer attempt owns it: nothing this attempt does
+    can be recorded any more. The runtime stops the job without reporting a
+    failure the API would refuse, and without a retry, which would be turned away
+    at pickup (``runtime.make_handler``).
+    """
+
+    def __init__(self, reason: str) -> None:
+        super().__init__(f"the job was settled while it ran ({reason})")
+        self.reason = reason
 
 
 @dataclass(frozen=True, slots=True)
@@ -121,6 +136,9 @@ class Services:
     #: Defaults to the mock so a `Services` built directly in a unit test still
     #: runs the queue.
     llm_providers: tuple[LlmProvider, ...] = (MockLlmProvider(),)
+    #: `ai.dub` (2026-10-04): Sarvam's Dubbing API, when `SARVAM_API_KEY` is set.
+    #: ``None`` answers every dub with `dub/not_configured`.
+    dubbing: SarvamDubbingClient | None = None
 
 
 @dataclass(slots=True)
@@ -138,6 +156,9 @@ class JobContext:
     _last_progress: float = -1.0
     _last_progress_at: float = 0.0
     _content_digest: str = ""
+    #: The API's answer to the first progress call (2026-10-04): carries the
+    #: checkpoint an earlier attempt recorded, which a resumable processor reads.
+    start_ack: CallbackAck | None = None
 
     @property
     def settings(self) -> Settings:
@@ -215,7 +236,8 @@ class JobContext:
         that the row is already settled (``applied: false``). ``None`` when the
         call itself failed, which - like every progress call - is not fatal.
         """
-        return await self._post_progress(0, message=message)
+        self.start_ack = await self._post_progress(0, message=message)
+        return self.start_ack
 
     async def progress(
         self, percent: float, *, message: str | None = None, eta_ms: int | None = None
@@ -249,6 +271,41 @@ class JobContext:
             return
         percent = self._last_progress if self._last_progress >= 0 else 0.0
         await self._post_progress(percent, message=message or "still working")
+
+    async def beat(self, percent: float, *, message: str | None = None) -> CallbackAck | None:
+        """An unthrottled progress call whose answer the caller reads (2026-10-04).
+
+        For a loop that polls a vendor: every poll is a heartbeat, and its
+        answer is how the loop learns the row was settled under it (a person
+        cancelled the work). ``None`` when the call itself failed, which, like
+        every progress call, is not fatal.
+        """
+        return await self._post_progress(percent, message=message)
+
+    async def save_checkpoint(
+        self,
+        checkpoint: dict[str, str | int | float | bool | None],
+        *,
+        percent: float,
+        message: str | None = None,
+    ) -> CallbackAck:
+        """Record where to resume from, with a beat, and return the API's answer.
+
+        Unlike progress, a failure here RAISES: the caller is about to do
+        something that must never happen twice (start a vendor's job), and a
+        checkpoint that did not land is one the next attempt cannot find. An
+        answer with ``applied: false`` means it did not land either (the row is
+        settled, or a newer attempt owns it); the caller reads that itself.
+        """
+        self._last_progress = percent
+        self._last_progress_at = time.monotonic()
+        return await self.services.callbacks.checkpoint(
+            self.envelope.job_id,
+            self.envelope.attempt_id,
+            percent,
+            checkpoint,
+            message=message,
+        )
 
     async def _post_progress(
         self, percent: float, *, message: str | None = None, eta_ms: int | None = None

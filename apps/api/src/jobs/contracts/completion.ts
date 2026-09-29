@@ -65,6 +65,23 @@ export const JobCompletionSchema = z.object({
 
 export type JobCompletion = z.infer<typeof JobCompletionSchema>;
 
+/**
+ * What a worker records to resume from (2026-10-04, `jobs.checkpoint`): a flat
+ * object of short values, stored as sent and echoed on every progress answer,
+ * so an attempt that follows a crash, a stall or a retry picks the work up
+ * where the last one left it. `ai.dub` writes the vendor's job id here BEFORE
+ * it starts that job, which is what stops a retried attempt paying the vendor
+ * for a second one. Small on purpose: it travels back on every beat.
+ */
+export const JobCheckpointSchema = z
+  .record(
+    z.string().min(1).max(64),
+    z.union([z.string().max(500), z.number(), z.boolean(), z.null()]),
+  )
+  .refine((value) => Object.keys(value).length <= 16, "A checkpoint holds at most 16 values.");
+
+export type JobCheckpoint = z.infer<typeof JobCheckpointSchema>;
+
 export const JobProgressSchema = z.object({
   /** Percent complete, 0–100. */
   progress: z.number().min(0).max(100),
@@ -78,6 +95,8 @@ export const JobProgressSchema = z.object({
    */
   bytesDone: z.number().int().min(0).optional(),
   bytesTotal: z.number().int().positive().optional(),
+  /** Replaces the row's checkpoint ({@link JobCheckpointSchema}); absent leaves it as it is. */
+  checkpoint: JobCheckpointSchema.optional(),
 });
 
 export type JobProgress = z.infer<typeof JobProgressSchema>;
@@ -106,4 +125,9 @@ export interface CallbackAck {
   readonly status: string;
   /** Present when `applied` is false: `already_completed`, `stale_attempt`, ... */
   readonly reason?: string;
+  /**
+   * On an applied progress answer: the checkpoint the row now holds, when it
+   * holds one (2026-10-04). What the first beat of a retried attempt resumes from.
+   */
+  readonly checkpoint?: JobCheckpoint;
 }
