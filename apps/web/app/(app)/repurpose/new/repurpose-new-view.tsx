@@ -19,6 +19,12 @@
  * and as a hint it overrides detection — which is how an English video went
  * down the paid Hinglish lane (2026-09-27). A language picked HERE is still
  * remembered for Home, the way every other entry point remembers it.
+ *
+ * Several at once (2026-10-02, while `repurpose_automations` is on): "Several
+ * links" starts one run per link through `POST /repurpose/runs/bulk` and shows
+ * each line's outcome here rather than navigating; several files start one
+ * upload run each, one after another, then hand every file to the upload queue
+ * together - and go to the run list when all of them started.
  */
 import { useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
@@ -26,11 +32,13 @@ import * as React from "react";
 import {
   useCreateRepurposeRun,
   useEntitlement,
+  useFeatureFlag,
   type CreateRepurposeRunRequest,
 } from "@montaj/api-client";
 import { PageHeader } from "@montaj/ui";
 
 import { rememberLanguage } from "@/components/projects/language-picker";
+import { AUTOMATIONS_FLAG, useBulkRuns } from "@/components/repurpose/automations/use-automations";
 import { SOURCE_CEILING_MS } from "@/components/repurpose/failure-detail";
 import { describeRefusal } from "@/components/repurpose/refusal";
 import {
@@ -41,15 +49,25 @@ import {
   startContextFromParams,
   startFormFromParams,
 } from "@/components/repurpose/run-setup";
+import { runSetupRequest } from "@/components/repurpose/RunSetupFields";
+import { linkLinesOf, linksToSend } from "@/components/repurpose/several-links";
+import {
+  SeveralResults,
+  linesOfBulk,
+  type SeveralLine,
+} from "@/components/repurpose/SeveralResults";
 import { normaliseSourceLink } from "@/components/repurpose/source-link";
 import {
   DETECT_LANGUAGE,
   SourceStartForm,
+  filesOf,
   startAtMs,
   type StartFormValue,
 } from "@/components/repurpose/SourceStartForm";
-import { discoverySteeringOf } from "@/components/repurpose/steering";
 import { useUploadQueue } from "@/lib/upload/use-upload-queue";
+
+/** YouTube links: without them there is nothing for "Several links" to start. */
+const YOUTUBE_FLAG = "source_youtube_acquire";
 
 /** A positive entitlement number, or `undefined` while unknown or unset. */
 function positiveEntitlement(value: unknown): number | undefined {
@@ -70,6 +88,19 @@ export function idempotencyKeyFor(
   return last !== null && last.body === body ? last : { key: newIdempotencyKey(), body };
 }
 
+/** An upload run's source, for one file, as the upload queue will send it. */
+function uploadSource(file: File | null): CreateRepurposeRunRequest["source"] {
+  return {
+    kind: "upload",
+    filename: file?.name ?? "video.mp4",
+    mime: file?.type === "" ? "video/mp4" : (file?.type ?? "video/mp4"),
+    sizeBytes: file?.size ?? 0,
+    // The queue calls `media/init` itself. Asking for a ticket here too
+    // would leave a `pending` media row behind every upload.
+    issueUploadTicket: false,
+  } as CreateRepurposeRunRequest["source"];
+}
+
 export function RepurposeNewView(): React.JSX.Element {
   const router = useRouter();
   /*
@@ -87,6 +118,11 @@ export function RepurposeNewView(): React.JSX.Element {
    */
   const searchParams = useSearchParams();
   const create = useCreateRepurposeRun();
+  const bulk = useBulkRuns();
+  // Several files while the feature is on for this workspace; several links
+  // when YouTube links are on too (the bulk route answers 404 otherwise).
+  const allowSeveralFiles = useFeatureFlag(AUTOMATIONS_FLAG);
+  const allowSeveralLinks = useFeatureFlag(YOUTUBE_FLAG) && allowSeveralFiles;
   // The plan's upload cap, so an over-cap file is refused before a run exists.
   // Unknown until the entitlement loads, and never blocking on that.
   const entitlement = useEntitlement();
@@ -124,15 +160,131 @@ export function RepurposeNewView(): React.JSX.Element {
   const [serverError, setServerError] = React.useState<string | null>(null);
   const [existingRunId, setExistingRunId] = React.useState<string | null>(null);
   const [seeCredits, setSeeCredits] = React.useState(false);
+  const [severalLines, setSeveralLines] = React.useState<readonly SeveralLine[] | null>(null);
+  const [startingFiles, setStartingFiles] = React.useState(false);
+
+  const files = filesOf(value);
+  const linkCount = value.tab === "links" ? linksToSend(linkLinesOf(value.links)).length : 0;
+  const submitLabel =
+    value.tab === "links" && linkCount > 1
+      ? `Start ${String(linkCount)} runs`
+      : value.tab === "upload" && files.length > 1
+        ? `Start ${String(files.length)} runs`
+        : undefined;
+
+  const refuse = (error: unknown): void => {
+    // Never the API's own message: the same request can be refused by
+    // admission or the job ledger, whose wording was not written for a
+    // person. A code maps to one sentence (`copy.ts`).
+    const refusal = describeRefusal(error, "start");
+    setServerError(refusal.text);
+    setExistingRunId(refusal.existingRunId ?? null);
+    setSeeCredits(refusal.seeCredits === true);
+  };
+
+  /** The queue's quick pick for uploads started here. */
+  const quickPick = (): Parameters<typeof uploads.addFilesToProjects>[1] => {
+    const pickedLanguage =
+      value.sourceLanguage === DETECT_LANGUAGE ? undefined : value.sourceLanguage;
+    return {
+      aspect: "9:16",
+      // A picked language lets the queue ask for the transcript the moment
+      // the file lands. "Detect" is left to the server, which starts it once
+      // the video is prepared: the queue's eager request would send `auto`
+      // where a language tag is expected.
+      ...(pickedLanguage === undefined ? {} : { language: pickedLanguage }),
+      ...(value.styleId === "" ? {} : { styleId: value.styleId }),
+    };
+  };
+
+  /** Several links: one bulk request, its outcome line by line, no navigation. */
+  const submitLinks = (): void => {
+    const body = {
+      links: linksToSend(linkLinesOf(value.links)),
+      setup: runSetupRequest(value),
+      rightsAttested: true as const,
+    };
+    lastRequest.current = idempotencyKeyFor(lastRequest.current, JSON.stringify(body));
+    bulk.mutate(
+      { body, idempotencyKey: lastRequest.current.key },
+      {
+        onSuccess: (response) => {
+          setSeveralLines(linesOfBulk(response.results));
+        },
+        onError: refuse,
+      },
+    );
+  };
+
+  /**
+   * Several files: a run each, one after another (each is one request the plan
+   * already admits), then every started file to the queue together. All
+   * started: the run list, where they all are. Otherwise the outcome stays
+   * here, and the form keeps only the files that did not start, for another try.
+   */
+  const submitFiles = async (): Promise<void> => {
+    setStartingFiles(true);
+    const setup = runSetupRequest(value);
+    const lines: SeveralLine[] = [];
+    const pairs: { file: File; projectId: string }[] = [];
+    const failed: File[] = [];
+    for (const [index, file] of files.entries()) {
+      try {
+        const created = await create.mutateAsync({
+          idempotencyKey: newIdempotencyKey(),
+          body: { source: uploadSource(file), setup },
+        });
+        pairs.push({ file, projectId: created.projectId });
+        rememberRunSetup(created.run.id, setupOf({ ...value, url: "" }));
+        lines.push({
+          key: `file-${String(index)}`,
+          label: file.name,
+          outcome: "started",
+          runId: created.run.id,
+          text: "Started",
+        });
+      } catch (error) {
+        failed.push(file);
+        lines.push({
+          key: `file-${String(index)}`,
+          label: file.name,
+          outcome: "refused",
+          runId: null,
+          text: describeRefusal(error, "start").text,
+        });
+      }
+    }
+    // Start the bytes moving BEFORE navigating: the queue keeps running.
+    if (pairs.length > 0) uploads.addFilesToProjects(pairs, quickPick());
+    setStartingFiles(false);
+    if (failed.length === 0) {
+      router.push("/repurpose");
+      return;
+    }
+    setSeveralLines(lines);
+    setValue((current) => ({ ...current, file: failed[0] ?? null, files: failed }));
+  };
 
   const submit = (): void => {
     setServerError(null);
     setExistingRunId(null);
     setSeeCredits(false);
+    setSeveralLines(null);
     // "Detect" is not a language, and Home's picker has no such entry.
     const pickedLanguage =
       value.sourceLanguage === DETECT_LANGUAGE ? undefined : value.sourceLanguage;
     if (pickedLanguage !== undefined) rememberLanguage(pickedLanguage);
+    rememberAutopilot(value.autopilot);
+
+    if (value.tab === "links") {
+      submitLinks();
+      return;
+    }
+    if (value.tab === "upload" && files.length > 1) {
+      void submitFiles();
+      return;
+    }
+
     // No start where none is offered: a `start=` carried in the URL would
     // otherwise be sent, unseen, by a plan that processes videos whole.
     const sent: StartFormValue = processesWholeVideos ? { ...value, startAt: "" } : value;
@@ -141,37 +293,13 @@ export function RepurposeNewView(): React.JSX.Element {
     const source =
       value.tab === "link"
         ? ({ kind: "url", url: normaliseSourceLink(value.url), rightsAttested: true } as const)
-        : ({
-            kind: "upload",
-            filename: value.file?.name ?? "video.mp4",
-            mime: value.file?.type === "" ? "video/mp4" : (value.file?.type ?? "video/mp4"),
-            sizeBytes: value.file?.size ?? 0,
-            // The queue calls `media/init` itself. Asking for a ticket here too
-            // would leave a `pending` media row behind every upload.
-            issueUploadTicket: false,
-          } as const);
+        : uploadSource(value.file);
 
     const setup: CreateRepurposeRunRequest["setup"] = {
-      // The form never submits without a choice; `auto` is the safe reading
-      // of a missing one, where "en" was a guess that cost money.
-      sourceLanguage: value.sourceLanguage ?? DETECT_LANGUAGE,
-      caption: {
-        outputLanguage: value.outputLanguage,
-        scriptMode: value.scriptMode as "auto" | "roman" | "native" | "bilingual",
-        styleId: value.styleId,
-      },
-      discovery: {
-        mode: value.method,
-        requestedCandidates: value.method === "manual" ? 0 : value.requestedCandidates,
-        // What the clips are about, how long, and what of the video to skip:
-        // only when we pick the moments (steering, 2026-09-29).
-        ...(value.method === "manual" ? {} : discoverySteeringOf(value)),
-      },
+      ...runSetupRequest(value),
       // Only with a start: no window leaves the choice to the server.
       ...(startMs === undefined ? {} : { window: { startMs, policy: "range" as const } }),
-      automation: value.autopilot ? "auto" : "manual",
     };
-    rememberAutopilot(value.autopilot);
     const body: CreateRepurposeRunRequest = { source, setup };
     lastRequest.current = idempotencyKeyFor(lastRequest.current, JSON.stringify(body));
 
@@ -189,29 +317,16 @@ export function RepurposeNewView(): React.JSX.Element {
           // provider above this route, so it keeps running across the
           // navigation and the upload tray shows its progress the whole way.
           if (value.tab === "upload" && value.file !== null) {
-            uploads.addFilesToProjects([{ file: value.file, projectId: created.projectId }], {
-              aspect: "9:16",
-              // A picked language lets the queue ask for the transcript the
-              // moment the file lands. "Detect" is left to the server, which
-              // starts it once the video is prepared: the queue's eager
-              // request would send `auto` where a language tag is expected.
-              ...(pickedLanguage === undefined ? {} : { language: pickedLanguage }),
-              ...(value.styleId === "" ? {} : { styleId: value.styleId }),
-            });
+            uploads.addFilesToProjects(
+              [{ file: value.file, projectId: created.projectId }],
+              quickPick(),
+            );
           }
           // The run exists server-side before anything else happens, so this
           // navigation is a bookmark, not a handoff of in-memory state.
           router.push(`/repurpose/${created.run.id}`);
         },
-        onError: (error) => {
-          // Never the API's own message: the same request can be refused by
-          // admission or the job ledger, whose wording was not written for a
-          // person. A code maps to one sentence (`copy.ts`).
-          const refusal = describeRefusal(error, "start");
-          setServerError(refusal.text);
-          setExistingRunId(refusal.existingRunId ?? null);
-          setSeeCredits(refusal.seeCredits === true);
-        },
+        onError: refuse,
       },
     );
   };
@@ -226,16 +341,19 @@ export function RepurposeNewView(): React.JSX.Element {
         description="One long video becomes short, captioned videos you review before anything is posted."
       />
 
-      <div>
+      <div className="flex flex-col gap-6">
         <SourceStartForm
           value={value}
           onChange={setValue}
           onSubmit={submit}
-          submitting={create.isPending}
+          submitting={create.isPending || bulk.isPending || startingFiles}
           serverError={serverError}
           existingRunId={existingRunId}
           seeCredits={seeCredits}
           focusStartAt={startContext.focusStartAt}
+          allowSeveralLinks={allowSeveralLinks}
+          allowSeveralFiles={allowSeveralFiles}
+          {...(submitLabel === undefined ? {} : { submitLabel })}
           {...(maxFileBytes === undefined ? {} : { maxFileBytes })}
           {...(planWindowMs === undefined ? {} : { planWindowMs })}
           processesWholeVideos={processesWholeVideos}
@@ -245,6 +363,7 @@ export function RepurposeNewView(): React.JSX.Element {
             ? {}
             : { knownLength: startContext.knownLength })}
         />
+        {severalLines === null ? null : <SeveralResults lines={severalLines} />}
       </div>
     </div>
   );

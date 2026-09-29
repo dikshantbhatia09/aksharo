@@ -28222,6 +28222,2819 @@
           "repurpose"
         ]
       }
+    },
+    "/repurpose/watches/resolve": {
+      "post": {
+        "description": "For the form's preview: the channel's id and name, and this workspace's automation of it when there is one. 400 `repurpose/channel_url_invalid`; 422 `repurpose/channel_not_found`; 503 `repurpose/youtube_busy` while YouTube is refusing this server; 502 `repurpose/channel_unreadable`.",
+        "operationId": "resolveRepurposeChannel",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "url": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2048
+                  }
+                },
+                "required": [
+                  "url"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The channel.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "channelId": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "handle": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "channelUrl": {
+                      "type": "string"
+                    },
+                    "watchId": {
+                      "nullable": true,
+                      "type": "string",
+                      "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                    }
+                  },
+                  "required": [
+                    "channelId",
+                    "title",
+                    "handle",
+                    "channelUrl",
+                    "watchId"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Which YouTube channel a link is",
+        "tags": [
+          "repurpose"
+        ]
+      }
+    },
+    "/repurpose/watches": {
+      "get": {
+        "description": "`checksEnabled` false: this server reads no feeds right now, so nothing new starts.",
+        "operationId": "listRepurposeWatches",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Every automation, newest first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                          },
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "youtube_channel"
+                            ]
+                          },
+                          "channelId": {
+                            "type": "string"
+                          },
+                          "channelUrl": {
+                            "type": "string"
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "handle": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "state": {
+                            "type": "string",
+                            "enum": [
+                              "active",
+                              "paused",
+                              "error"
+                            ]
+                          },
+                          "stateReason": {
+                            "nullable": true,
+                            "type": "string",
+                            "enum": [
+                              "person",
+                              "no_credits",
+                              "creator_left",
+                              "style_unknown",
+                              "setup_invalid",
+                              "channel_not_found"
+                            ]
+                          },
+                          "message": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "setup": {
+                            "type": "object",
+                            "properties": {
+                              "sourceLanguage": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "auto"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "minLength": 2,
+                                    "maxLength": 64
+                                  }
+                                ]
+                              },
+                              "caption": {
+                                "type": "object",
+                                "properties": {
+                                  "outputLanguage": {
+                                    "default": "same",
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "same"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "minLength": 2,
+                                        "maxLength": 64
+                                      }
+                                    ]
+                                  },
+                                  "scriptMode": {
+                                    "default": "auto",
+                                    "type": "string",
+                                    "enum": [
+                                      "auto",
+                                      "roman",
+                                      "native",
+                                      "bilingual"
+                                    ]
+                                  },
+                                  "styleId": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 160
+                                  }
+                                },
+                                "required": [
+                                  "styleId"
+                                ]
+                              },
+                              "discovery": {
+                                "type": "object",
+                                "properties": {
+                                  "mode": {
+                                    "default": "ai",
+                                    "type": "string",
+                                    "enum": [
+                                      "ai",
+                                      "manual",
+                                      "mixed"
+                                    ]
+                                  },
+                                  "requestedCandidates": {
+                                    "default": 5,
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 20
+                                  },
+                                  "minDurationMs": {
+                                    "default": 15000,
+                                    "type": "integer",
+                                    "minimum": 3000,
+                                    "maximum": 180000
+                                  },
+                                  "maxDurationMs": {
+                                    "default": 60000,
+                                    "type": "integer",
+                                    "minimum": 3000,
+                                    "maximum": 180000
+                                  },
+                                  "contentGoal": {
+                                    "default": "reach",
+                                    "type": "string",
+                                    "enum": [
+                                      "reach",
+                                      "education",
+                                      "authority",
+                                      "engagement"
+                                    ]
+                                  },
+                                  "topic": {
+                                    "type": "string",
+                                    "minLength": 2,
+                                    "maxLength": 200
+                                  },
+                                  "clipLength": {
+                                    "type": "string",
+                                    "enum": [
+                                      "short",
+                                      "medium",
+                                      "long"
+                                    ]
+                                  },
+                                  "skipIntroMs": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 1800000
+                                  },
+                                  "skipOutroMs": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 1800000
+                                  }
+                                }
+                              },
+                              "window": {
+                                "type": "object",
+                                "properties": {
+                                  "startMs": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 86400000
+                                  },
+                                  "policy": {
+                                    "type": "string",
+                                    "enum": [
+                                      "first",
+                                      "most_replayed",
+                                      "range"
+                                    ]
+                                  }
+                                },
+                                "additionalProperties": false
+                              },
+                              "automation": {
+                                "type": "string",
+                                "enum": [
+                                  "auto",
+                                  "manual"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "sourceLanguage",
+                              "caption",
+                              "discovery"
+                            ]
+                          },
+                          "backfillCount": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 3
+                          },
+                          "lastCheckedAt": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "nextCheckAt": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "lastErrorCode": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "runsStarted": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "videos": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "videoId": {
+                                  "type": "string"
+                                },
+                                "title": {
+                                  "type": "string"
+                                },
+                                "publishedAt": {
+                                  "type": "string"
+                                },
+                                "state": {
+                                  "type": "string",
+                                  "enum": [
+                                    "pending",
+                                    "starting",
+                                    "started",
+                                    "skipped",
+                                    "failed"
+                                  ]
+                                },
+                                "reason": {
+                                  "nullable": true,
+                                  "type": "string"
+                                },
+                                "backfill": {
+                                  "type": "boolean"
+                                },
+                                "runId": {
+                                  "nullable": true,
+                                  "type": "string",
+                                  "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                                },
+                                "runStatus": {
+                                  "nullable": true,
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "videoId",
+                                "title",
+                                "publishedAt",
+                                "state",
+                                "reason",
+                                "backfill",
+                                "runId",
+                                "runStatus"
+                              ]
+                            }
+                          },
+                          "createdBy": {
+                            "type": "string",
+                            "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                          },
+                          "createdAt": {
+                            "type": "string"
+                          },
+                          "updatedAt": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "kind",
+                          "channelId",
+                          "channelUrl",
+                          "title",
+                          "handle",
+                          "state",
+                          "stateReason",
+                          "message",
+                          "setup",
+                          "backfillCount",
+                          "lastCheckedAt",
+                          "nextCheckAt",
+                          "lastErrorCode",
+                          "runsStarted",
+                          "videos",
+                          "createdBy",
+                          "createdAt",
+                          "updatedAt"
+                        ]
+                      }
+                    },
+                    "checksEnabled": {
+                      "type": "boolean"
+                    },
+                    "maxWatches": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "checksEnabled",
+                    "maxWatches"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "This workspace's channel automations",
+        "tags": [
+          "repurpose"
+        ]
+      },
+      "post": {
+        "description": "Every video the channel publishes from now on starts a run with `setup` (the start form's setup, always on Autopilot), as you; `backfill` (0-3) also makes clips of its latest videos. 409 `repurpose/watch_exists` (`details.watchId`) or `repurpose/watch_limit`; 400 `repurpose/watch_setup_invalid`-style validation or `repurpose/style_unknown`.",
+        "operationId": "createRepurposeWatch",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "url": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2048
+                  },
+                  "setup": {
+                    "type": "object",
+                    "properties": {
+                      "sourceLanguage": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "auto"
+                            ]
+                          },
+                          {
+                            "type": "string",
+                            "minLength": 2,
+                            "maxLength": 64
+                          }
+                        ]
+                      },
+                      "caption": {
+                        "type": "object",
+                        "properties": {
+                          "outputLanguage": {
+                            "default": "same",
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "same"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "minLength": 2,
+                                "maxLength": 64
+                              }
+                            ]
+                          },
+                          "scriptMode": {
+                            "default": "auto",
+                            "type": "string",
+                            "enum": [
+                              "auto",
+                              "roman",
+                              "native",
+                              "bilingual"
+                            ]
+                          },
+                          "styleId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 160
+                          }
+                        },
+                        "required": [
+                          "styleId"
+                        ]
+                      },
+                      "discovery": {
+                        "type": "object",
+                        "properties": {
+                          "mode": {
+                            "default": "ai",
+                            "type": "string",
+                            "enum": [
+                              "ai",
+                              "manual",
+                              "mixed"
+                            ]
+                          },
+                          "requestedCandidates": {
+                            "default": 5,
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 20
+                          },
+                          "minDurationMs": {
+                            "default": 15000,
+                            "type": "integer",
+                            "minimum": 3000,
+                            "maximum": 180000
+                          },
+                          "maxDurationMs": {
+                            "default": 60000,
+                            "type": "integer",
+                            "minimum": 3000,
+                            "maximum": 180000
+                          },
+                          "contentGoal": {
+                            "default": "reach",
+                            "type": "string",
+                            "enum": [
+                              "reach",
+                              "education",
+                              "authority",
+                              "engagement"
+                            ]
+                          },
+                          "topic": {
+                            "type": "string",
+                            "minLength": 2,
+                            "maxLength": 200
+                          },
+                          "clipLength": {
+                            "type": "string",
+                            "enum": [
+                              "short",
+                              "medium",
+                              "long"
+                            ]
+                          },
+                          "skipIntroMs": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 1800000
+                          },
+                          "skipOutroMs": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 1800000
+                          }
+                        }
+                      },
+                      "window": {
+                        "type": "object",
+                        "properties": {
+                          "startMs": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 86400000
+                          },
+                          "policy": {
+                            "type": "string",
+                            "enum": [
+                              "first",
+                              "most_replayed",
+                              "range"
+                            ]
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      "automation": {
+                        "type": "string",
+                        "enum": [
+                          "auto",
+                          "manual"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "sourceLanguage",
+                      "caption",
+                      "discovery"
+                    ]
+                  },
+                  "backfill": {
+                    "default": 0,
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 3
+                  },
+                  "rightsAttested": {
+                    "type": "boolean",
+                    "enum": [
+                      true
+                    ]
+                  }
+                },
+                "required": [
+                  "url",
+                  "setup",
+                  "rightsAttested"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The automation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "youtube_channel"
+                      ]
+                    },
+                    "channelId": {
+                      "type": "string"
+                    },
+                    "channelUrl": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "handle": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "active",
+                        "paused",
+                        "error"
+                      ]
+                    },
+                    "stateReason": {
+                      "nullable": true,
+                      "type": "string",
+                      "enum": [
+                        "person",
+                        "no_credits",
+                        "creator_left",
+                        "style_unknown",
+                        "setup_invalid",
+                        "channel_not_found"
+                      ]
+                    },
+                    "message": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "setup": {
+                      "type": "object",
+                      "properties": {
+                        "sourceLanguage": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "auto"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "minLength": 2,
+                              "maxLength": 64
+                            }
+                          ]
+                        },
+                        "caption": {
+                          "type": "object",
+                          "properties": {
+                            "outputLanguage": {
+                              "default": "same",
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "same"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "minLength": 2,
+                                  "maxLength": 64
+                                }
+                              ]
+                            },
+                            "scriptMode": {
+                              "default": "auto",
+                              "type": "string",
+                              "enum": [
+                                "auto",
+                                "roman",
+                                "native",
+                                "bilingual"
+                              ]
+                            },
+                            "styleId": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 160
+                            }
+                          },
+                          "required": [
+                            "styleId"
+                          ]
+                        },
+                        "discovery": {
+                          "type": "object",
+                          "properties": {
+                            "mode": {
+                              "default": "ai",
+                              "type": "string",
+                              "enum": [
+                                "ai",
+                                "manual",
+                                "mixed"
+                              ]
+                            },
+                            "requestedCandidates": {
+                              "default": 5,
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 20
+                            },
+                            "minDurationMs": {
+                              "default": 15000,
+                              "type": "integer",
+                              "minimum": 3000,
+                              "maximum": 180000
+                            },
+                            "maxDurationMs": {
+                              "default": 60000,
+                              "type": "integer",
+                              "minimum": 3000,
+                              "maximum": 180000
+                            },
+                            "contentGoal": {
+                              "default": "reach",
+                              "type": "string",
+                              "enum": [
+                                "reach",
+                                "education",
+                                "authority",
+                                "engagement"
+                              ]
+                            },
+                            "topic": {
+                              "type": "string",
+                              "minLength": 2,
+                              "maxLength": 200
+                            },
+                            "clipLength": {
+                              "type": "string",
+                              "enum": [
+                                "short",
+                                "medium",
+                                "long"
+                              ]
+                            },
+                            "skipIntroMs": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 1800000
+                            },
+                            "skipOutroMs": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 1800000
+                            }
+                          }
+                        },
+                        "window": {
+                          "type": "object",
+                          "properties": {
+                            "startMs": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 86400000
+                            },
+                            "policy": {
+                              "type": "string",
+                              "enum": [
+                                "first",
+                                "most_replayed",
+                                "range"
+                              ]
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        "automation": {
+                          "type": "string",
+                          "enum": [
+                            "auto",
+                            "manual"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "sourceLanguage",
+                        "caption",
+                        "discovery"
+                      ]
+                    },
+                    "backfillCount": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 3
+                    },
+                    "lastCheckedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "nextCheckAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "lastErrorCode": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "runsStarted": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "videos": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "videoId": {
+                            "type": "string"
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "publishedAt": {
+                            "type": "string"
+                          },
+                          "state": {
+                            "type": "string",
+                            "enum": [
+                              "pending",
+                              "starting",
+                              "started",
+                              "skipped",
+                              "failed"
+                            ]
+                          },
+                          "reason": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "backfill": {
+                            "type": "boolean"
+                          },
+                          "runId": {
+                            "nullable": true,
+                            "type": "string",
+                            "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                          },
+                          "runStatus": {
+                            "nullable": true,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "videoId",
+                          "title",
+                          "publishedAt",
+                          "state",
+                          "reason",
+                          "backfill",
+                          "runId",
+                          "runStatus"
+                        ]
+                      }
+                    },
+                    "createdBy": {
+                      "type": "string",
+                      "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "kind",
+                    "channelId",
+                    "channelUrl",
+                    "title",
+                    "handle",
+                    "state",
+                    "stateReason",
+                    "message",
+                    "setup",
+                    "backfillCount",
+                    "lastCheckedAt",
+                    "nextCheckAt",
+                    "lastErrorCode",
+                    "runsStarted",
+                    "videos",
+                    "createdBy",
+                    "createdAt",
+                    "updatedAt"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Connect a YouTube channel: its new videos become clips on Autopilot",
+        "tags": [
+          "repurpose"
+        ]
+      }
+    },
+    "/repurpose/watches/{watchId}": {
+      "get": {
+        "operationId": "getRepurposeWatch",
+        "parameters": [
+          {
+            "name": "watchId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The automation and its recent videos.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "youtube_channel"
+                      ]
+                    },
+                    "channelId": {
+                      "type": "string"
+                    },
+                    "channelUrl": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "handle": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "active",
+                        "paused",
+                        "error"
+                      ]
+                    },
+                    "stateReason": {
+                      "nullable": true,
+                      "type": "string",
+                      "enum": [
+                        "person",
+                        "no_credits",
+                        "creator_left",
+                        "style_unknown",
+                        "setup_invalid",
+                        "channel_not_found"
+                      ]
+                    },
+                    "message": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "setup": {
+                      "type": "object",
+                      "properties": {
+                        "sourceLanguage": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "auto"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "minLength": 2,
+                              "maxLength": 64
+                            }
+                          ]
+                        },
+                        "caption": {
+                          "type": "object",
+                          "properties": {
+                            "outputLanguage": {
+                              "default": "same",
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "same"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "minLength": 2,
+                                  "maxLength": 64
+                                }
+                              ]
+                            },
+                            "scriptMode": {
+                              "default": "auto",
+                              "type": "string",
+                              "enum": [
+                                "auto",
+                                "roman",
+                                "native",
+                                "bilingual"
+                              ]
+                            },
+                            "styleId": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 160
+                            }
+                          },
+                          "required": [
+                            "styleId"
+                          ]
+                        },
+                        "discovery": {
+                          "type": "object",
+                          "properties": {
+                            "mode": {
+                              "default": "ai",
+                              "type": "string",
+                              "enum": [
+                                "ai",
+                                "manual",
+                                "mixed"
+                              ]
+                            },
+                            "requestedCandidates": {
+                              "default": 5,
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 20
+                            },
+                            "minDurationMs": {
+                              "default": 15000,
+                              "type": "integer",
+                              "minimum": 3000,
+                              "maximum": 180000
+                            },
+                            "maxDurationMs": {
+                              "default": 60000,
+                              "type": "integer",
+                              "minimum": 3000,
+                              "maximum": 180000
+                            },
+                            "contentGoal": {
+                              "default": "reach",
+                              "type": "string",
+                              "enum": [
+                                "reach",
+                                "education",
+                                "authority",
+                                "engagement"
+                              ]
+                            },
+                            "topic": {
+                              "type": "string",
+                              "minLength": 2,
+                              "maxLength": 200
+                            },
+                            "clipLength": {
+                              "type": "string",
+                              "enum": [
+                                "short",
+                                "medium",
+                                "long"
+                              ]
+                            },
+                            "skipIntroMs": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 1800000
+                            },
+                            "skipOutroMs": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 1800000
+                            }
+                          }
+                        },
+                        "window": {
+                          "type": "object",
+                          "properties": {
+                            "startMs": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 86400000
+                            },
+                            "policy": {
+                              "type": "string",
+                              "enum": [
+                                "first",
+                                "most_replayed",
+                                "range"
+                              ]
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        "automation": {
+                          "type": "string",
+                          "enum": [
+                            "auto",
+                            "manual"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "sourceLanguage",
+                        "caption",
+                        "discovery"
+                      ]
+                    },
+                    "backfillCount": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 3
+                    },
+                    "lastCheckedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "nextCheckAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "lastErrorCode": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "runsStarted": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "videos": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "videoId": {
+                            "type": "string"
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "publishedAt": {
+                            "type": "string"
+                          },
+                          "state": {
+                            "type": "string",
+                            "enum": [
+                              "pending",
+                              "starting",
+                              "started",
+                              "skipped",
+                              "failed"
+                            ]
+                          },
+                          "reason": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "backfill": {
+                            "type": "boolean"
+                          },
+                          "runId": {
+                            "nullable": true,
+                            "type": "string",
+                            "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                          },
+                          "runStatus": {
+                            "nullable": true,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "videoId",
+                          "title",
+                          "publishedAt",
+                          "state",
+                          "reason",
+                          "backfill",
+                          "runId",
+                          "runStatus"
+                        ]
+                      }
+                    },
+                    "createdBy": {
+                      "type": "string",
+                      "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "kind",
+                    "channelId",
+                    "channelUrl",
+                    "title",
+                    "handle",
+                    "state",
+                    "stateReason",
+                    "message",
+                    "setup",
+                    "backfillCount",
+                    "lastCheckedAt",
+                    "nextCheckAt",
+                    "lastErrorCode",
+                    "runsStarted",
+                    "videos",
+                    "createdBy",
+                    "createdAt",
+                    "updatedAt"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "One channel automation",
+        "tags": [
+          "repurpose"
+        ]
+      },
+      "patch": {
+        "description": "Runs it has already started keep the settings they started with.",
+        "operationId": "updateRepurposeWatch",
+        "parameters": [
+          {
+            "name": "watchId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "setup": {
+                    "type": "object",
+                    "properties": {
+                      "sourceLanguage": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "auto"
+                            ]
+                          },
+                          {
+                            "type": "string",
+                            "minLength": 2,
+                            "maxLength": 64
+                          }
+                        ]
+                      },
+                      "caption": {
+                        "type": "object",
+                        "properties": {
+                          "outputLanguage": {
+                            "default": "same",
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "same"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "minLength": 2,
+                                "maxLength": 64
+                              }
+                            ]
+                          },
+                          "scriptMode": {
+                            "default": "auto",
+                            "type": "string",
+                            "enum": [
+                              "auto",
+                              "roman",
+                              "native",
+                              "bilingual"
+                            ]
+                          },
+                          "styleId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 160
+                          }
+                        },
+                        "required": [
+                          "styleId"
+                        ]
+                      },
+                      "discovery": {
+                        "type": "object",
+                        "properties": {
+                          "mode": {
+                            "default": "ai",
+                            "type": "string",
+                            "enum": [
+                              "ai",
+                              "manual",
+                              "mixed"
+                            ]
+                          },
+                          "requestedCandidates": {
+                            "default": 5,
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 20
+                          },
+                          "minDurationMs": {
+                            "default": 15000,
+                            "type": "integer",
+                            "minimum": 3000,
+                            "maximum": 180000
+                          },
+                          "maxDurationMs": {
+                            "default": 60000,
+                            "type": "integer",
+                            "minimum": 3000,
+                            "maximum": 180000
+                          },
+                          "contentGoal": {
+                            "default": "reach",
+                            "type": "string",
+                            "enum": [
+                              "reach",
+                              "education",
+                              "authority",
+                              "engagement"
+                            ]
+                          },
+                          "topic": {
+                            "type": "string",
+                            "minLength": 2,
+                            "maxLength": 200
+                          },
+                          "clipLength": {
+                            "type": "string",
+                            "enum": [
+                              "short",
+                              "medium",
+                              "long"
+                            ]
+                          },
+                          "skipIntroMs": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 1800000
+                          },
+                          "skipOutroMs": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 1800000
+                          }
+                        }
+                      },
+                      "window": {
+                        "type": "object",
+                        "properties": {
+                          "startMs": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 86400000
+                          },
+                          "policy": {
+                            "type": "string",
+                            "enum": [
+                              "first",
+                              "most_replayed",
+                              "range"
+                            ]
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      "automation": {
+                        "type": "string",
+                        "enum": [
+                          "auto",
+                          "manual"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "sourceLanguage",
+                      "caption",
+                      "discovery"
+                    ]
+                  }
+                },
+                "required": [
+                  "setup"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The automation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "youtube_channel"
+                      ]
+                    },
+                    "channelId": {
+                      "type": "string"
+                    },
+                    "channelUrl": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "handle": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "active",
+                        "paused",
+                        "error"
+                      ]
+                    },
+                    "stateReason": {
+                      "nullable": true,
+                      "type": "string",
+                      "enum": [
+                        "person",
+                        "no_credits",
+                        "creator_left",
+                        "style_unknown",
+                        "setup_invalid",
+                        "channel_not_found"
+                      ]
+                    },
+                    "message": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "setup": {
+                      "type": "object",
+                      "properties": {
+                        "sourceLanguage": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "auto"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "minLength": 2,
+                              "maxLength": 64
+                            }
+                          ]
+                        },
+                        "caption": {
+                          "type": "object",
+                          "properties": {
+                            "outputLanguage": {
+                              "default": "same",
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "same"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "minLength": 2,
+                                  "maxLength": 64
+                                }
+                              ]
+                            },
+                            "scriptMode": {
+                              "default": "auto",
+                              "type": "string",
+                              "enum": [
+                                "auto",
+                                "roman",
+                                "native",
+                                "bilingual"
+                              ]
+                            },
+                            "styleId": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 160
+                            }
+                          },
+                          "required": [
+                            "styleId"
+                          ]
+                        },
+                        "discovery": {
+                          "type": "object",
+                          "properties": {
+                            "mode": {
+                              "default": "ai",
+                              "type": "string",
+                              "enum": [
+                                "ai",
+                                "manual",
+                                "mixed"
+                              ]
+                            },
+                            "requestedCandidates": {
+                              "default": 5,
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 20
+                            },
+                            "minDurationMs": {
+                              "default": 15000,
+                              "type": "integer",
+                              "minimum": 3000,
+                              "maximum": 180000
+                            },
+                            "maxDurationMs": {
+                              "default": 60000,
+                              "type": "integer",
+                              "minimum": 3000,
+                              "maximum": 180000
+                            },
+                            "contentGoal": {
+                              "default": "reach",
+                              "type": "string",
+                              "enum": [
+                                "reach",
+                                "education",
+                                "authority",
+                                "engagement"
+                              ]
+                            },
+                            "topic": {
+                              "type": "string",
+                              "minLength": 2,
+                              "maxLength": 200
+                            },
+                            "clipLength": {
+                              "type": "string",
+                              "enum": [
+                                "short",
+                                "medium",
+                                "long"
+                              ]
+                            },
+                            "skipIntroMs": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 1800000
+                            },
+                            "skipOutroMs": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 1800000
+                            }
+                          }
+                        },
+                        "window": {
+                          "type": "object",
+                          "properties": {
+                            "startMs": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 86400000
+                            },
+                            "policy": {
+                              "type": "string",
+                              "enum": [
+                                "first",
+                                "most_replayed",
+                                "range"
+                              ]
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        "automation": {
+                          "type": "string",
+                          "enum": [
+                            "auto",
+                            "manual"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "sourceLanguage",
+                        "caption",
+                        "discovery"
+                      ]
+                    },
+                    "backfillCount": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 3
+                    },
+                    "lastCheckedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "nextCheckAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "lastErrorCode": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "runsStarted": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "videos": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "videoId": {
+                            "type": "string"
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "publishedAt": {
+                            "type": "string"
+                          },
+                          "state": {
+                            "type": "string",
+                            "enum": [
+                              "pending",
+                              "starting",
+                              "started",
+                              "skipped",
+                              "failed"
+                            ]
+                          },
+                          "reason": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "backfill": {
+                            "type": "boolean"
+                          },
+                          "runId": {
+                            "nullable": true,
+                            "type": "string",
+                            "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                          },
+                          "runStatus": {
+                            "nullable": true,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "videoId",
+                          "title",
+                          "publishedAt",
+                          "state",
+                          "reason",
+                          "backfill",
+                          "runId",
+                          "runStatus"
+                        ]
+                      }
+                    },
+                    "createdBy": {
+                      "type": "string",
+                      "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "kind",
+                    "channelId",
+                    "channelUrl",
+                    "title",
+                    "handle",
+                    "state",
+                    "stateReason",
+                    "message",
+                    "setup",
+                    "backfillCount",
+                    "lastCheckedAt",
+                    "nextCheckAt",
+                    "lastErrorCode",
+                    "runsStarted",
+                    "videos",
+                    "createdBy",
+                    "createdAt",
+                    "updatedAt"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Change the settings its next runs start with",
+        "tags": [
+          "repurpose"
+        ]
+      },
+      "delete": {
+        "description": "The runs it started stay.",
+        "operationId": "deleteRepurposeWatch",
+        "parameters": [
+          {
+            "name": "watchId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Stop following a channel",
+        "tags": [
+          "repurpose"
+        ]
+      }
+    },
+    "/repurpose/watches/{watchId}/pause": {
+      "post": {
+        "operationId": "pauseRepurposeWatch",
+        "parameters": [
+          {
+            "name": "watchId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The paused automation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "youtube_channel"
+                      ]
+                    },
+                    "channelId": {
+                      "type": "string"
+                    },
+                    "channelUrl": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "handle": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "active",
+                        "paused",
+                        "error"
+                      ]
+                    },
+                    "stateReason": {
+                      "nullable": true,
+                      "type": "string",
+                      "enum": [
+                        "person",
+                        "no_credits",
+                        "creator_left",
+                        "style_unknown",
+                        "setup_invalid",
+                        "channel_not_found"
+                      ]
+                    },
+                    "message": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "setup": {
+                      "type": "object",
+                      "properties": {
+                        "sourceLanguage": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "auto"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "minLength": 2,
+                              "maxLength": 64
+                            }
+                          ]
+                        },
+                        "caption": {
+                          "type": "object",
+                          "properties": {
+                            "outputLanguage": {
+                              "default": "same",
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "same"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "minLength": 2,
+                                  "maxLength": 64
+                                }
+                              ]
+                            },
+                            "scriptMode": {
+                              "default": "auto",
+                              "type": "string",
+                              "enum": [
+                                "auto",
+                                "roman",
+                                "native",
+                                "bilingual"
+                              ]
+                            },
+                            "styleId": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 160
+                            }
+                          },
+                          "required": [
+                            "styleId"
+                          ]
+                        },
+                        "discovery": {
+                          "type": "object",
+                          "properties": {
+                            "mode": {
+                              "default": "ai",
+                              "type": "string",
+                              "enum": [
+                                "ai",
+                                "manual",
+                                "mixed"
+                              ]
+                            },
+                            "requestedCandidates": {
+                              "default": 5,
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 20
+                            },
+                            "minDurationMs": {
+                              "default": 15000,
+                              "type": "integer",
+                              "minimum": 3000,
+                              "maximum": 180000
+                            },
+                            "maxDurationMs": {
+                              "default": 60000,
+                              "type": "integer",
+                              "minimum": 3000,
+                              "maximum": 180000
+                            },
+                            "contentGoal": {
+                              "default": "reach",
+                              "type": "string",
+                              "enum": [
+                                "reach",
+                                "education",
+                                "authority",
+                                "engagement"
+                              ]
+                            },
+                            "topic": {
+                              "type": "string",
+                              "minLength": 2,
+                              "maxLength": 200
+                            },
+                            "clipLength": {
+                              "type": "string",
+                              "enum": [
+                                "short",
+                                "medium",
+                                "long"
+                              ]
+                            },
+                            "skipIntroMs": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 1800000
+                            },
+                            "skipOutroMs": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 1800000
+                            }
+                          }
+                        },
+                        "window": {
+                          "type": "object",
+                          "properties": {
+                            "startMs": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 86400000
+                            },
+                            "policy": {
+                              "type": "string",
+                              "enum": [
+                                "first",
+                                "most_replayed",
+                                "range"
+                              ]
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        "automation": {
+                          "type": "string",
+                          "enum": [
+                            "auto",
+                            "manual"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "sourceLanguage",
+                        "caption",
+                        "discovery"
+                      ]
+                    },
+                    "backfillCount": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 3
+                    },
+                    "lastCheckedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "nextCheckAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "lastErrorCode": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "runsStarted": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "videos": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "videoId": {
+                            "type": "string"
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "publishedAt": {
+                            "type": "string"
+                          },
+                          "state": {
+                            "type": "string",
+                            "enum": [
+                              "pending",
+                              "starting",
+                              "started",
+                              "skipped",
+                              "failed"
+                            ]
+                          },
+                          "reason": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "backfill": {
+                            "type": "boolean"
+                          },
+                          "runId": {
+                            "nullable": true,
+                            "type": "string",
+                            "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                          },
+                          "runStatus": {
+                            "nullable": true,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "videoId",
+                          "title",
+                          "publishedAt",
+                          "state",
+                          "reason",
+                          "backfill",
+                          "runId",
+                          "runStatus"
+                        ]
+                      }
+                    },
+                    "createdBy": {
+                      "type": "string",
+                      "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "kind",
+                    "channelId",
+                    "channelUrl",
+                    "title",
+                    "handle",
+                    "state",
+                    "stateReason",
+                    "message",
+                    "setup",
+                    "backfillCount",
+                    "lastCheckedAt",
+                    "nextCheckAt",
+                    "lastErrorCode",
+                    "runsStarted",
+                    "videos",
+                    "createdBy",
+                    "createdAt",
+                    "updatedAt"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Stop picking up new videos",
+        "tags": [
+          "repurpose"
+        ]
+      }
+    },
+    "/repurpose/watches/{watchId}/resume": {
+      "post": {
+        "description": "Checked at the next tick; a video that could not start (credits) is started then. 409 `repurpose/watch_creator_gone` when the person it runs as is no longer an editor here.",
+        "operationId": "resumeRepurposeWatch",
+        "parameters": [
+          {
+            "name": "watchId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The automation, active again.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "youtube_channel"
+                      ]
+                    },
+                    "channelId": {
+                      "type": "string"
+                    },
+                    "channelUrl": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "handle": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "active",
+                        "paused",
+                        "error"
+                      ]
+                    },
+                    "stateReason": {
+                      "nullable": true,
+                      "type": "string",
+                      "enum": [
+                        "person",
+                        "no_credits",
+                        "creator_left",
+                        "style_unknown",
+                        "setup_invalid",
+                        "channel_not_found"
+                      ]
+                    },
+                    "message": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "setup": {
+                      "type": "object",
+                      "properties": {
+                        "sourceLanguage": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "auto"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "minLength": 2,
+                              "maxLength": 64
+                            }
+                          ]
+                        },
+                        "caption": {
+                          "type": "object",
+                          "properties": {
+                            "outputLanguage": {
+                              "default": "same",
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "same"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "minLength": 2,
+                                  "maxLength": 64
+                                }
+                              ]
+                            },
+                            "scriptMode": {
+                              "default": "auto",
+                              "type": "string",
+                              "enum": [
+                                "auto",
+                                "roman",
+                                "native",
+                                "bilingual"
+                              ]
+                            },
+                            "styleId": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 160
+                            }
+                          },
+                          "required": [
+                            "styleId"
+                          ]
+                        },
+                        "discovery": {
+                          "type": "object",
+                          "properties": {
+                            "mode": {
+                              "default": "ai",
+                              "type": "string",
+                              "enum": [
+                                "ai",
+                                "manual",
+                                "mixed"
+                              ]
+                            },
+                            "requestedCandidates": {
+                              "default": 5,
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 20
+                            },
+                            "minDurationMs": {
+                              "default": 15000,
+                              "type": "integer",
+                              "minimum": 3000,
+                              "maximum": 180000
+                            },
+                            "maxDurationMs": {
+                              "default": 60000,
+                              "type": "integer",
+                              "minimum": 3000,
+                              "maximum": 180000
+                            },
+                            "contentGoal": {
+                              "default": "reach",
+                              "type": "string",
+                              "enum": [
+                                "reach",
+                                "education",
+                                "authority",
+                                "engagement"
+                              ]
+                            },
+                            "topic": {
+                              "type": "string",
+                              "minLength": 2,
+                              "maxLength": 200
+                            },
+                            "clipLength": {
+                              "type": "string",
+                              "enum": [
+                                "short",
+                                "medium",
+                                "long"
+                              ]
+                            },
+                            "skipIntroMs": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 1800000
+                            },
+                            "skipOutroMs": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 1800000
+                            }
+                          }
+                        },
+                        "window": {
+                          "type": "object",
+                          "properties": {
+                            "startMs": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 86400000
+                            },
+                            "policy": {
+                              "type": "string",
+                              "enum": [
+                                "first",
+                                "most_replayed",
+                                "range"
+                              ]
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        "automation": {
+                          "type": "string",
+                          "enum": [
+                            "auto",
+                            "manual"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "sourceLanguage",
+                        "caption",
+                        "discovery"
+                      ]
+                    },
+                    "backfillCount": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 3
+                    },
+                    "lastCheckedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "nextCheckAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "lastErrorCode": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "runsStarted": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "videos": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "videoId": {
+                            "type": "string"
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "publishedAt": {
+                            "type": "string"
+                          },
+                          "state": {
+                            "type": "string",
+                            "enum": [
+                              "pending",
+                              "starting",
+                              "started",
+                              "skipped",
+                              "failed"
+                            ]
+                          },
+                          "reason": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "backfill": {
+                            "type": "boolean"
+                          },
+                          "runId": {
+                            "nullable": true,
+                            "type": "string",
+                            "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                          },
+                          "runStatus": {
+                            "nullable": true,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "videoId",
+                          "title",
+                          "publishedAt",
+                          "state",
+                          "reason",
+                          "backfill",
+                          "runId",
+                          "runStatus"
+                        ]
+                      }
+                    },
+                    "createdBy": {
+                      "type": "string",
+                      "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "kind",
+                    "channelId",
+                    "channelUrl",
+                    "title",
+                    "handle",
+                    "state",
+                    "stateReason",
+                    "message",
+                    "setup",
+                    "backfillCount",
+                    "lastCheckedAt",
+                    "nextCheckAt",
+                    "lastErrorCode",
+                    "runsStarted",
+                    "videos",
+                    "createdBy",
+                    "createdAt",
+                    "updatedAt"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Pick up new videos again",
+        "tags": [
+          "repurpose"
+        ]
+      }
+    },
+    "/repurpose/runs/bulk": {
+      "post": {
+        "description": "Up to 20 links. Line by line: `started`, `already_running` (with that run), `duplicate` (the same video as an earlier line) or `refused` with the code a single start answers with. Partial success is a 200.",
+        "operationId": "createRepurposeRunsBulk",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "links": {
+                    "minItems": 1,
+                    "maxItems": 20,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "maxLength": 2048
+                    }
+                  },
+                  "setup": {
+                    "type": "object",
+                    "properties": {
+                      "sourceLanguage": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "auto"
+                            ]
+                          },
+                          {
+                            "type": "string",
+                            "minLength": 2,
+                            "maxLength": 64
+                          }
+                        ]
+                      },
+                      "caption": {
+                        "type": "object",
+                        "properties": {
+                          "outputLanguage": {
+                            "default": "same",
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "same"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "minLength": 2,
+                                "maxLength": 64
+                              }
+                            ]
+                          },
+                          "scriptMode": {
+                            "default": "auto",
+                            "type": "string",
+                            "enum": [
+                              "auto",
+                              "roman",
+                              "native",
+                              "bilingual"
+                            ]
+                          },
+                          "styleId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 160
+                          }
+                        },
+                        "required": [
+                          "styleId"
+                        ]
+                      },
+                      "discovery": {
+                        "type": "object",
+                        "properties": {
+                          "mode": {
+                            "default": "ai",
+                            "type": "string",
+                            "enum": [
+                              "ai",
+                              "manual",
+                              "mixed"
+                            ]
+                          },
+                          "requestedCandidates": {
+                            "default": 5,
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 20
+                          },
+                          "minDurationMs": {
+                            "default": 15000,
+                            "type": "integer",
+                            "minimum": 3000,
+                            "maximum": 180000
+                          },
+                          "maxDurationMs": {
+                            "default": 60000,
+                            "type": "integer",
+                            "minimum": 3000,
+                            "maximum": 180000
+                          },
+                          "contentGoal": {
+                            "default": "reach",
+                            "type": "string",
+                            "enum": [
+                              "reach",
+                              "education",
+                              "authority",
+                              "engagement"
+                            ]
+                          },
+                          "topic": {
+                            "type": "string",
+                            "minLength": 2,
+                            "maxLength": 200
+                          },
+                          "clipLength": {
+                            "type": "string",
+                            "enum": [
+                              "short",
+                              "medium",
+                              "long"
+                            ]
+                          },
+                          "skipIntroMs": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 1800000
+                          },
+                          "skipOutroMs": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 1800000
+                          }
+                        }
+                      },
+                      "window": {
+                        "type": "object",
+                        "properties": {
+                          "startMs": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 86400000
+                          },
+                          "policy": {
+                            "type": "string",
+                            "enum": [
+                              "first",
+                              "most_replayed",
+                              "range"
+                            ]
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      "automation": {
+                        "type": "string",
+                        "enum": [
+                          "auto",
+                          "manual"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "sourceLanguage",
+                      "caption",
+                      "discovery"
+                    ]
+                  },
+                  "rightsAttested": {
+                    "type": "boolean",
+                    "enum": [
+                      true
+                    ]
+                  }
+                },
+                "required": [
+                  "links",
+                  "setup",
+                  "rightsAttested"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "One result per link, in order.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "results": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "index": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "link": {
+                            "type": "string"
+                          },
+                          "outcome": {
+                            "type": "string",
+                            "enum": [
+                              "started",
+                              "already_running",
+                              "duplicate",
+                              "refused"
+                            ]
+                          },
+                          "runId": {
+                            "nullable": true,
+                            "type": "string",
+                            "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+                          },
+                          "code": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "message": {
+                            "nullable": true,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "index",
+                          "link",
+                          "outcome",
+                          "runId",
+                          "code",
+                          "message"
+                        ]
+                      }
+                    },
+                    "started": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "results",
+                    "started"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Start one run per YouTube link, with one setup",
+        "tags": [
+          "repurpose"
+        ]
+      }
     }
   },
   "info": {
@@ -28620,7 +31433,9 @@
               "clips-ready",
               "run-complete",
               "run-failed",
-              "run-needs-you"
+              "run-needs-you",
+              "watch-new-video",
+              "watch-paused"
             ],
             "description": "What happened. The client renders its own wording per locale, so the row carries no text of its own."
           },

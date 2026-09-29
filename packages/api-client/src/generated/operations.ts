@@ -705,6 +705,20 @@ export const API_OPERATIONS = [
     summary: "Start a repurposing run from a link or an upload",
   },
   {
+    operationId: "createRepurposeRunsBulk",
+    method: "POST",
+    path: "/repurpose/runs/bulk",
+    tags: ["repurpose"],
+    summary: "Start one run per YouTube link, with one setup",
+  },
+  {
+    operationId: "createRepurposeWatch",
+    method: "POST",
+    path: "/repurpose/watches",
+    tags: ["repurpose"],
+    summary: "Connect a YouTube channel: its new videos become clips on Autopilot",
+  },
+  {
     operationId: "createSampleProject",
     method: "POST",
     path: "/projects/sample",
@@ -808,6 +822,13 @@ export const API_OPERATIONS = [
     path: "/me/push-subscriptions",
     tags: ["notifications"],
     summary: "Turn off device notifications in this browser",
+  },
+  {
+    operationId: "deleteRepurposeWatch",
+    method: "DELETE",
+    path: "/repurpose/watches/{watchId}",
+    tags: ["repurpose"],
+    summary: "Stop following a channel",
   },
   {
     operationId: "deleteStylePreset",
@@ -1179,6 +1200,13 @@ export const API_OPERATIONS = [
     path: "/repurpose/runs/{runId}",
     tags: ["repurpose"],
     summary: "Read one repurposing run",
+  },
+  {
+    operationId: "getRepurposeWatch",
+    method: "GET",
+    path: "/repurpose/watches/{watchId}",
+    tags: ["repurpose"],
+    summary: "One channel automation",
   },
   {
     operationId: "getStatusRss",
@@ -1608,6 +1636,13 @@ export const API_OPERATIONS = [
     summary: "List repurposing runs",
   },
   {
+    operationId: "listRepurposeWatches",
+    method: "GET",
+    path: "/repurpose/watches",
+    tags: ["repurpose"],
+    summary: "This workspace's channel automations",
+  },
+  {
     operationId: "listScheduledTasks",
     method: "GET",
     path: "/admin/scheduler/tasks",
@@ -1732,6 +1767,13 @@ export const API_OPERATIONS = [
     path: "/auth/oauth/google/start",
     tags: ["auth"],
     summary: "Begin Google sign-in",
+  },
+  {
+    operationId: "pauseRepurposeWatch",
+    method: "POST",
+    path: "/repurpose/watches/{watchId}/pause",
+    tags: ["repurpose"],
+    summary: "Stop picking up new videos",
   },
   {
     operationId: "pauseSubscription",
@@ -1972,6 +2014,13 @@ export const API_OPERATIONS = [
     summary: "Settle or release orphaned holds per their job's outcome",
   },
   {
+    operationId: "resolveRepurposeChannel",
+    method: "POST",
+    path: "/repurpose/watches/resolve",
+    tags: ["repurpose"],
+    summary: "Which YouTube channel a link is",
+  },
+  {
     operationId: "resolveShareLink",
     method: "GET",
     path: "/s/{token}",
@@ -1991,6 +2040,13 @@ export const API_OPERATIONS = [
     path: "/repurpose/runs/{runId}/candidates/{candidateId}/restore",
     tags: ["repurpose"],
     summary: "Bring back a removed moment",
+  },
+  {
+    operationId: "resumeRepurposeWatch",
+    method: "POST",
+    path: "/repurpose/watches/{watchId}/resume",
+    tags: ["repurpose"],
+    summary: "Pick up new videos again",
   },
   {
     operationId: "resumeSubscription",
@@ -2341,6 +2397,13 @@ export const API_OPERATIONS = [
     path: "/projects/{projectId}",
     tags: ["projects"],
     summary: "Rename, re-file, re-tag or archive a project",
+  },
+  {
+    operationId: "updateRepurposeWatch",
+    method: "PATCH",
+    path: "/repurpose/watches/{watchId}",
+    tags: ["repurpose"],
+    summary: "Change the settings its next runs start with",
   },
   {
     operationId: "updateStylePreset",

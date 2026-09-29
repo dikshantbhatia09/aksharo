@@ -9,6 +9,7 @@ import {
   LayoutTemplate,
   Palette,
   Plug,
+  Radar,
   SlidersHorizontal,
   Users,
   Waypoints,
@@ -18,7 +19,6 @@ import {
 import { BRAND } from "@montaj/config";
 
 import type { LucideIcon } from "lucide-react";
-
 
 /**
  * The navigation of the premium design canvas ("Aksharo Studio (premium)"), in
@@ -151,6 +151,16 @@ export const PRIMARY_NAV: readonly NavItem[] = [
  * the eight the design chose to put one click away.
  */
 export const SECONDARY_NAV: readonly NavItem[] = [
+  {
+    // 2026-10-02: channel automations, part of the clips pipeline. Listed only
+    // while `repurpose_automations` is on for the workspace (`use-nav-targets.ts`).
+    key: "automations",
+    label: "Automations",
+    short: "Auto",
+    href: "/repurpose/automations",
+    icon: Radar,
+    ready: true,
+  },
   {
     key: "templates",
     label: "Templates",

@@ -37,6 +37,8 @@ describe("the kind list", () => {
       "support-ticket-created",
       "support-ticket-reply",
       "verify-email",
+      "watch-new-video",
+      "watch-paused",
     ]);
   });
 

@@ -821,3 +821,79 @@ Aksharo की ओर से भेजा गया। कोई सवाल? �
 ",
 }
 `;
+
+exports[`rendering > renders watch-new-video in English 1`] = `
+{
+  "subject": "New video from Asha Cooks: making clips",
+  "text": "Aksharo
+
+New episode found
+
+Hi Asha, Asha Cooks published Diwali sweets, part 2. We are making clips of it on Autopilot, with the settings you chose.
+
+Open the run to follow it. We will tell you when the first clips are ready.
+
+Open the run:
+https://app.example.test/repurpose/01JRUN0000000000000000000A
+
+You get this because Asha Cooks is connected to your workspace. Pause it in Automations to stop.
+
+Sent by Aksharo. Questions? Reply to this message or write to support@aksharo.ai.
+",
+}
+`;
+
+exports[`rendering > renders watch-new-video in Hindi 1`] = `
+{
+  "subject": "Asha Cooks का नया वीडियो: क्लिप बन रही हैं",
+  "text": "Aksharo
+
+नया एपिसोड मिला
+
+नमस्ते Asha, Asha Cooks ने Diwali sweets, part 2 पब्लिश किया है। आपकी चुनी सेटिंग के साथ, ऑटोपायलट पर इसकी क्लिप बन रही हैं।
+
+इसे देखने के लिए रन खोलें। पहली क्लिप तैयार होते ही हम बताएँगे।
+
+रन खोलें:
+https://app.example.test/repurpose/01JRUN0000000000000000000A
+
+यह मेल इसलिए आया क्योंकि Asha Cooks आपके वर्कस्पेस से जुड़ा है। रोकने के लिए ऑटोमेशन में इसे पॉज़ करें।
+
+Aksharo की ओर से भेजा गया। कोई सवाल? इसी मेल का जवाब दें या support@aksharo.ai पर लिखें।
+",
+}
+`;
+
+exports[`rendering > renders watch-paused in English 1`] = `
+{
+  "subject": "Add credits: Asha Cooks is paused",
+  "text": "Aksharo
+
+You are out of credits
+
+Hi Asha, the automation for Asha Cooks ran out of credits and paused itself. Add credits, then resume it: the video it could not start is picked up first.
+
+Open Automations:
+https://app.example.test/repurpose/automations
+
+Sent by Aksharo. Questions? Reply to this message or write to support@aksharo.ai.
+",
+}
+`;
+
+exports[`rendering > renders watch-paused in Hindi 1`] = `
+{
+  "subject": "क्रेडिट जोड़ें: Asha Cooks रुका हुआ है",
+  "text": "Aksharo
+
+आपके क्रेडिट ख़त्म हो गए
+
+नमस्ते Asha, Asha Cooks का ऑटोमेशन क्रेडिट ख़त्म होने पर अपने-आप रुक गया। क्रेडिट जोड़ें, फिर इसे दोबारा चालू करें: जो वीडियो शुरू नहीं हो पाया था, वह सबसे पहले लिया जाएगा।
+
+ऑटोमेशन खोलें:
+https://app.example.test/repurpose/automations
+
+Aksharo की ओर से भेजा गया। कोई सवाल? इसी मेल का जवाब दें या support@aksharo.ai पर लिखें।
+",
+}
+`;

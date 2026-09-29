@@ -45,6 +45,7 @@ import { PublicApiModule } from "./public-api/public-api.module.js";
 import { PublishingModule } from "./publishing/publishing.module.js";
 import { RealtimeModule } from "./realtime/realtime.module.js";
 import { ReferralsModule } from "./referrals/referrals.module.js";
+import { RepurposeAutomationsModule } from "./repurpose/automations/automations.module.js";
 import { RepurposeModule } from "./repurpose/repurpose.module.js";
 import { SchedulerTasksModule } from "./scheduler/scheduler-tasks.module.js";
 import { ShareModule } from "./share/share.module.js";
@@ -208,6 +209,12 @@ import { WorkspacesModule } from "./workspaces/workspaces.module.js";
     // `/repurpose/runs/:id/.../posts`). Gated by `publishing_postiz` (seeded
     // off) and a Postiz key; without the key its consumer does not start.
     PublishingModule,
+    // 2026-10-02: channel automations (`/repurpose/watches`, the
+    // `repurpose.source-watch` task) and several links at once
+    // (`/repurpose/runs/bulk`). Gated by `repurpose_automations` (seeded off;
+    // a missing row is off) plus `repurpose_flow` and `source_youtube_acquire`;
+    // the task runs only where MONTAJ_SCHEDULER_TASKS names it.
+    RepurposeAutomationsModule,
   ],
 })
 export class AppModule {}
