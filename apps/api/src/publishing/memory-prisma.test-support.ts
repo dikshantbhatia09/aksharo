@@ -26,6 +26,9 @@ export interface Tables {
   clipVariant: Row[];
   export: Row[];
   edgDocument: Row[];
+  /** Clip review (2026-10-03): the setting and the decisions posting reads. */
+  workspace: Row[];
+  clipReview: Row[];
 }
 
 const DEAD = new Set(["cancelled", "failed_permanent"]);
@@ -92,6 +95,8 @@ export class MemoryPrisma {
     clipVariant: [],
     export: [],
     edgDocument: [],
+    workspace: [],
+    clipReview: [],
   };
 
   now: () => number = () => Date.now();
@@ -344,6 +349,17 @@ export class MemoryPrisma {
         }),
   };
 
+  /** `ClipApprovalGate`'s reads: a workspace's settings, and clips' decisions. */
+  readonly workspace = {
+    findUnique: async (args: { where: Row }): Promise<Row | null> =>
+      this.tables.workspace.find((entry) => entry["id"] === args.where["id"]) ?? null,
+  };
+
+  readonly clipReview = {
+    findMany: async (args: { where?: Row }): Promise<Row[]> =>
+      this.tables.clipReview.filter((entry) => this.matches("clipReview", entry, args.where)),
+  };
+
   async $transaction<T>(work: (tx: this) => Promise<T>): Promise<T> {
     return work(this);
   }
@@ -441,4 +457,59 @@ export function seedClip(db: MemoryPrisma, options: SeedOptions = {}): { clipId:
     });
   }
   return { clipId };
+}
+
+/** Turn "Clips need approval before posting" on or off for the test workspace. */
+export function requireApproval(db: MemoryPrisma, on = true): void {
+  db.tables.workspace = db.tables.workspace.filter((row) => row["id"] !== IDS.ws);
+  db.tables.workspace.push({ id: IDS.ws, settings: { clipsNeedApproval: on } });
+}
+
+/**
+ * Record a decision on a clip, pinned to the render of each of `shapes` that
+ * `seedClip` made (the export ids it minted), as the review module would.
+ */
+export function reviewClip(
+  db: MemoryPrisma,
+  state: "approved" | "changes_requested" | "pending",
+  shapes: readonly Shape[] = ["9:16", "4:5", "1:1", "16:9"],
+  clipId: string = IDS.clip,
+): void {
+  const suffix = clipId.slice(-4);
+  const videos: Record<string, string> = {};
+  for (const shape of shapes) {
+    const { code } = SHAPE_CODE[shape];
+    videos[shape] = `01JCEXP${code}${suffix}00000000000000`.slice(0, 26);
+  }
+  db.tables.clipReview = db.tables.clipReview.filter((row) => row["clipId"] !== clipId);
+  db.tables.clipReview.push({
+    clipId,
+    workspaceId: IDS.ws,
+    state,
+    videos: state === "pending" ? {} : videos,
+  });
+}
+
+/** A new captioned video for one shape of a clip: the edit after a decision. */
+export function renderAgain(db: MemoryPrisma, shape: Shape, clipId: string = IDS.clip): string {
+  const suffix = clipId.slice(-4);
+  const { code } = SHAPE_CODE[shape];
+  const variantId = `01JCVAR${code}${suffix}00000000000000`.slice(0, 26);
+  const projectId = `01JCPRJ${code}${suffix}00000000000000`.slice(0, 26);
+  const exportId = `01JCEXN${code}${suffix}00000000000000`.slice(0, 26);
+  db.tables.export.push({
+    id: exportId,
+    projectId,
+    status: "succeeded",
+    kind: "mp4",
+    storageKey: `ws/${projectId}/exports/${exportId}.mp4`,
+    bucket: "r2",
+    sizeBytes: BigInt(24),
+    durationMs: 31_000,
+    createdAt: new Date("2026-09-30T11:00:00Z"),
+  });
+  const variant = db.tables.clipVariant.find((row) => row["id"] === variantId);
+  if (variant === undefined) throw new Error(`no ${shape} variant`);
+  variant["latestExportId"] = exportId;
+  return exportId;
 }

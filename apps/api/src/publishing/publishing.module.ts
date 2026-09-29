@@ -14,6 +14,7 @@ import { PublishingController, RepurposePublishingController } from "./publishin
 import { PublishingService } from "./publishing.service.js";
 import { JobsModule } from "../jobs/jobs.module.js";
 import { IdempotencyService } from "../public-api/v1/idempotency.service.js";
+import { ClipApprovalGate } from "../repurpose/review/clip-approval.gate.js";
 import { WorkspacesModule } from "../workspaces/workspaces.module.js";
 
 /**
@@ -39,6 +40,9 @@ export const PUBLISHING_PROVIDERS = [
   PublishingService,
   // A second binding of a stateless class, as `RepurposeModule` has.
   IdempotencyService,
+  // "Clips need approval before posting" (2026-10-03): stateless over the
+  // database, bound here rather than importing the clip review module.
+  ClipApprovalGate,
 ];
 
 @Module({
