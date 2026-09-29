@@ -24,10 +24,14 @@ import {
 import {
   LOGO_CONTENT_TYPES,
   logoFileProblem,
+  MUSIC_ACCEPT,
+  musicFileProblem,
   useBrandKit,
   useRemoveLogo,
+  useRemoveMusic,
   useSaveBrandKit,
   useUploadLogo,
+  useUploadMusic,
   type BrandKitView as BrandKitResponse,
 } from "@/components/brand-kit/use-brand-kit";
 import { CaptionStage } from "@/components/editor/canvas/CaptionStage";
@@ -45,6 +49,11 @@ import { messageForError } from "@/lib/errors";
  * what it shows is what a clip will look like. The logo uploads on its own the
  * moment it is chosen (a signed PUT, then the server checks the file), and
  * taking it off is confirmed, since the file goes once no clip draws it.
+ *
+ * Music (2026-10-04) uploads the same way, once the person has confirmed they
+ * have the rights to use it - a checkbox, required, recorded by the API with
+ * who ticked it and when. Whether clips get it, and how loud, are ordinary
+ * draft settings, saved with the rest.
  *
  * Viewers see the kit; only editors change it.
  */
@@ -489,6 +498,282 @@ function LogoGroup({
   );
 }
 
+const MUSIC_LEVELS: readonly {
+  readonly value: BrandKitSettings["music"]["level"];
+  readonly label: string;
+  readonly hint: string;
+}[] = [
+  { value: "quiet", label: "Quiet", hint: "Heard in the pauses" },
+  { value: "medium", label: "Medium", hint: "Heard throughout" },
+];
+
+/** `83_000` → `1:23`. */
+function trackLength(ms: number): string {
+  const total = Math.max(0, Math.round(ms / 1000));
+  return `${String(Math.floor(total / 60))}:${String(total % 60).padStart(2, "0")}`;
+}
+
+/** An ISO time as a short date, for "Rights confirmed on …". */
+function shortDate(iso: string): string {
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime())
+    ? ""
+    : date.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+}
+
+function MusicGroup({
+  view,
+  settings,
+  canEdit,
+  onSettings,
+}: {
+  readonly view: BrandKitResponse | null | undefined;
+  readonly settings: BrandKitSettings["music"];
+  readonly canEdit: boolean;
+  readonly onSettings: (patch: Partial<BrandKitSettings["music"]>) => void;
+}): React.JSX.Element {
+  const upload = useUploadMusic();
+  const remove = useRemoveMusic();
+  const [problem, setProblem] = React.useState<string | null>(null);
+  const [pending, setPending] = React.useState<File | null>(null);
+  const [rights, setRights] = React.useState(false);
+  const inputRef = React.useRef<HTMLInputElement | null>(null);
+  const music = view?.music ?? null;
+  const locked = !canEdit;
+
+  const choose = (file: File): void => {
+    setProblem(null);
+    const local = musicFileProblem(file);
+    if (local !== null) {
+      setProblem(local);
+      return;
+    }
+    setPending(file);
+    setRights(false);
+  };
+
+  const send = (): void => {
+    if (pending === null) return;
+    setProblem(null);
+    upload.mutate(
+      { file: pending, rightsAttested: rights },
+      {
+        onSuccess: () => {
+          setPending(null);
+          setRights(false);
+        },
+        onError: (error) => {
+          setProblem(messageForError(error));
+        },
+      },
+    );
+  };
+
+  return (
+    <SettingsGroup
+      title="Music"
+      description="Your own track under Autopilot's clips when a run uses the brand kit: faded in and out, and quieter whenever anyone talks. MP3, WAV or M4A, 5 seconds to 10 minutes, up to 25 MB."
+      testId="brand-kit-music"
+    >
+      <Card className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex min-w-0 flex-[1_1_200px] flex-col gap-0.5">
+            {music === null ? (
+              <p className="text-fg-0 m-0 text-sm" data-testid="brand-kit-music-none">
+                No music yet.
+              </p>
+            ) : (
+              <>
+                <p className="text-fg-0 m-0 truncate text-sm" data-testid="brand-kit-music-title">
+                  {music.title ?? "Your music"}
+                </p>
+                <p className="text-fg-2 m-0 text-xs" data-testid="brand-kit-music-facts">
+                  {`${music.format.toUpperCase()} · ${trackLength(music.durationMs)}`}
+                  {music.rightsAttestedAt === null
+                    ? ""
+                    : ` · Rights confirmed on ${shortDate(music.rightsAttestedAt)}`}
+                </p>
+              </>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              ref={inputRef}
+              type="file"
+              accept={MUSIC_ACCEPT}
+              className="sr-only"
+              tabIndex={-1}
+              aria-hidden="true"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                event.target.value = "";
+                if (file !== undefined) choose(file);
+              }}
+              data-testid="brand-kit-music-input"
+            />
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              disabled={locked || upload.isPending}
+              onClick={() => inputRef.current?.click()}
+              data-testid="brand-kit-music-choose"
+            >
+              <Upload aria-hidden="true" strokeWidth={1.75} />
+              {music === null ? "Choose music" : "Replace"}
+            </Button>
+            {music === null ? null : (
+              <ConfirmAction
+                trigger={
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    disabled={locked || remove.isPending}
+                    data-testid="brand-kit-music-remove"
+                  >
+                    Remove
+                  </Button>
+                }
+                title="Remove your music?"
+                description="New clips will not get music. Clips that already have it keep it until you take it off them in the editor; once none does, the file is deleted."
+                confirmLabel="Remove music"
+                confirmTestId="brand-kit-music-remove-confirm"
+                onConfirm={() => {
+                  setProblem(null);
+                  remove.mutate(undefined, {
+                    onError: (error) => {
+                      setProblem(messageForError(error));
+                    },
+                  });
+                }}
+              />
+            )}
+          </div>
+        </div>
+
+        {music === null ? null : (
+          <audio
+            controls
+            preload="none"
+            src={music.url}
+            className="w-full"
+            aria-label={`Play ${music.title ?? "your music"}`}
+            data-testid="brand-kit-music-player"
+          />
+        )}
+
+        {pending === null ? null : (
+          <div
+            className="bg-sunken flex flex-col gap-2 rounded-md p-3"
+            data-testid="brand-kit-music-pending"
+          >
+            <p className="text-fg-0 m-0 truncate text-sm">{pending.name}</p>
+            <label className="text-fg-1 flex min-h-8 cursor-pointer items-start gap-2.5 text-sm">
+              <input
+                type="checkbox"
+                className="accent-accent mt-0.5 size-4 shrink-0"
+                checked={rights}
+                onChange={(event) => {
+                  setRights(event.target.checked);
+                }}
+                data-testid="brand-kit-music-rights"
+              />
+              <span>
+                I have the rights to use this music in my videos, wherever they are posted.
+              </span>
+            </label>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                disabled={!rights || upload.isPending}
+                onClick={send}
+                data-testid="brand-kit-music-upload"
+              >
+                {upload.isPending ? "Uploading…" : "Upload music"}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                disabled={upload.isPending}
+                onClick={() => {
+                  setPending(null);
+                  setRights(false);
+                }}
+                data-testid="brand-kit-music-cancel"
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {problem === null ? null : (
+          <p role="alert" className="text-rejected m-0 text-xs" data-testid="brand-kit-music-error">
+            {problem}
+          </p>
+        )}
+
+        <Row
+          label="Add to clips"
+          htmlFor="brand-kit-music-on"
+          hint={
+            music === null
+              ? "Once you have uploaded a track."
+              : "Under every clip of a run that uses the brand kit."
+          }
+        >
+          <input
+            id="brand-kit-music-on"
+            type="checkbox"
+            role="switch"
+            className="panel-switch"
+            checked={settings.enabled}
+            disabled={locked}
+            onChange={(event) => {
+              onSettings({ enabled: event.target.checked });
+            }}
+            data-testid="brand-kit-music-on"
+          />
+        </Row>
+        <fieldset className="m-0 border-0 p-0 pb-2" disabled={locked || !settings.enabled}>
+          <legend className="text-fg-0 mb-2 p-0 text-sm font-medium">Level</legend>
+          <div className="grid grid-cols-2 gap-2">
+            {MUSIC_LEVELS.map((level) => (
+              <label
+                key={level.value}
+                className={cn(
+                  "flex min-h-11 cursor-pointer flex-col items-center justify-center rounded-sm border px-2 py-1 text-sm",
+                  settings.level === level.value
+                    ? "border-accent text-fg-0"
+                    : "text-fg-1 border-neutral-600",
+                )}
+              >
+                <input
+                  type="radio"
+                  name="brand-kit-music-level"
+                  className="sr-only"
+                  value={level.value}
+                  checked={settings.level === level.value}
+                  onChange={() => {
+                    onSettings({ level: level.value });
+                  }}
+                  data-testid={`brand-kit-music-level-${level.value}`}
+                />
+                {level.label}
+                <span className="text-fg-2 text-2xs">{level.hint}</span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+      </Card>
+    </SettingsGroup>
+  );
+}
+
 export function BrandKitView(): React.JSX.Element {
   const session = useSession();
   const canEdit = session !== null && session.role !== "viewer";
@@ -591,6 +876,15 @@ export function BrandKitView(): React.JSX.Element {
           <BrandPreview settings={draft} view={view} />
 
           <LogoGroup view={view} canEdit={canEdit} />
+
+          <MusicGroup
+            view={view}
+            settings={draft.music}
+            canEdit={canEdit}
+            onSettings={(patch) => {
+              set("music", patch);
+            }}
+          />
 
           <SettingsGroup
             title="Logo placement"
