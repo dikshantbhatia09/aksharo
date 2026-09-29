@@ -146,6 +146,7 @@ describe("FEATURE_FLAG_SEEDS", () => {
       "provider_bhashini",
       "publishing_postiz",
       "publishing_tiktok",
+      "repurpose_automations",
       "repurpose_flow",
       "source_youtube_acquire",
       "streak_experiment",

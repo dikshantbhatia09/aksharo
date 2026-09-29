@@ -254,5 +254,34 @@ export const EN_MESSAGES: MessageCatalogue = {
         body: "{reason, select, credits {Add credits to finish {video}.} upload {YouTube keeps refusing {video}. Upload it from your device.} add {Add the moments you want from {video}.} other {Pick the moments you want from {video}.}}",
       },
     },
+
+    "watch-new-video": {
+      subject: "New video from {channel}: making clips",
+      heading: "New episode found",
+      paragraphs: [
+        "Hi {name}, {channel} published {video}. We are making clips of it on Autopilot, with the settings you chose.",
+        "Open the run to follow it. We will tell you when the first clips are ready.",
+      ],
+      cta: "Open the run",
+      footnotes: [
+        "You get this because {channel} is connected to your workspace. Pause it in Automations to stop.",
+      ],
+    },
+
+    "watch-paused": {
+      subject:
+        "{reason, select, credits {Add credits: {channel} is paused} style {{channel} is paused: choose a caption look} setup {{channel} is paused: check its settings} other {{channel} could not be found}}",
+      heading:
+        "{reason, select, credits {You are out of credits} style {Its caption look is gone} setup {Its settings need a look} other {The channel is gone}}",
+      paragraphs: [
+        "Hi {name}, {reason, select, credits {the automation for {channel} ran out of credits and paused itself. Add credits, then resume it: the video it could not start is picked up first.} style {the automation for {channel} paused itself because its caption look is no longer available. Choose another in its settings, then resume it.} setup {the automation for {channel} paused itself because its settings no longer pass. Save them again, then resume it.} other {we could not find {channel} on YouTube, so its automation stopped. If the channel is back, resume it.}}",
+      ],
+      cta: "Open Automations",
+      push: {
+        title:
+          "{reason, select, credits {Automation paused: out of credits} style {Automation paused} setup {Automation paused} other {Channel not found}}",
+        body: "{reason, select, credits {Add credits, then resume {channel}.} style {Choose a caption look for {channel}, then resume it.} setup {Check the settings for {channel}, then resume it.} other {We could not find {channel} on YouTube.}}",
+      },
+    },
   },
 };

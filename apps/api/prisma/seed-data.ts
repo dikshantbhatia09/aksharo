@@ -368,6 +368,11 @@ export const FEATURE_FLAG_SEEDS: readonly FeatureFlagSeed[] = [
       "Authorized YouTube source acquisition. Off until the downloader, limits, rights, and security gates pass.",
   },
   {
+    key: "repurpose_automations",
+    description:
+      "Channel automations and several links at once (2026-10-02). Off until the owner turns it on; needs repurpose_flow and source_youtube_acquire too, and the repurpose.source-watch scheduled task to read feeds.",
+  },
+  {
     key: "highlight_discovery",
     description:
       "Multimodal highlight candidate discovery. Off until schema parity and multilingual quality benchmarks pass.",

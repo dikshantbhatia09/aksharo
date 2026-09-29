@@ -41,6 +41,13 @@ export const NOTIFY_KINDS = [
   "run-complete",
   "run-failed",
   "run-needs-you",
+  // 2026-10-02, channel automations (`repurpose/automations/watch-notices.ts`):
+  // a watched channel's new video started a run ("New episode found - making
+  // clips"), once per run; and a watch paused itself for something its person
+  // can fix (credits, a caption look that is gone, its settings, a channel that
+  // disappeared), once per pause.
+  "watch-new-video",
+  "watch-paused",
 ] as const;
 
 export type NotifyKind = (typeof NOTIFY_KINDS)[number];
@@ -95,6 +102,8 @@ export const IN_APP_KINDS: readonly NotifyKind[] = [
   "run-complete",
   "run-failed",
   "run-needs-you",
+  "watch-new-video",
+  "watch-paused",
 ];
 
 const IN_APP_SET: ReadonlySet<string> = new Set<string>(IN_APP_KINDS);
@@ -118,6 +127,9 @@ export const DEVICE_KINDS: readonly NotifyKind[] = [
   "run-complete",
   "run-failed",
   "run-needs-you",
+  // A watch that stopped itself waits on its person. A new episode found is not
+  // a buzz: its run's own "clips ready" is the one worth having.
+  "watch-paused",
 ];
 
 const DEVICE_SET: ReadonlySet<string> = new Set<string>(DEVICE_KINDS);

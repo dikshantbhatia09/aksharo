@@ -126,6 +126,19 @@ const DATA: Readonly<Record<NotifyKind, TemplateData>> = {
     runId: "01JRUN0000000000000000000A",
     link: "https://app.example.test/repurpose/01JRUN0000000000000000000A",
   },
+  "watch-new-video": {
+    name: "Asha",
+    channel: "Asha Cooks",
+    video: "Diwali sweets, part 2",
+    runId: "01JRUN0000000000000000000A",
+    link: "https://app.example.test/repurpose/01JRUN0000000000000000000A",
+  },
+  "watch-paused": {
+    name: "Asha",
+    channel: "Asha Cooks",
+    reason: "credits",
+    link: "https://app.example.test/repurpose/automations",
+  },
 };
 
 const UNSUBSCRIBE = "https://app.example.test/settings/notifications";
@@ -354,7 +367,8 @@ describe("device text (the push strings)", () => {
       const text = renderDeviceText({ kind, locale, data: DATA[kind] });
       expect(text).not.toBeNull();
       expect(text?.title.length).toBeGreaterThan(0);
-      expect(text?.body).toContain("Diwali vlog");
+      // The thing it is about: the video, or for an automation, its channel.
+      expect(text?.body).toContain(kind === "watch-paused" ? "Asha Cooks" : "Diwali vlog");
       // Nothing a lock screen would print literally.
       expect(`${text?.title ?? ""} ${text?.body ?? ""}`).not.toMatch(/[{}<>]/);
     }
