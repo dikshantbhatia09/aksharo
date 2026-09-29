@@ -725,7 +725,14 @@ function wordCommands(
   // `textPaint(..., word.box, colour)` below. Every other use of `colour` in
   // this function (stroke, underline, strikethrough) is solid-only ground, so
   // it goes through `resolveColour` first.
-  const colour = preset?.color ?? baseColour;
+  // A `highlight` preset paints its colour as the marker BEHIND the word
+  // (`emphasisGround`); the word itself takes the ink that reads on that
+  // marker. It used to take the preset colour too, so the word vanished into
+  // its own marker (found 2026-09-29 while choosing the pickable styles).
+  const colour =
+    preset?.effect === "highlight"
+      ? contrastingInk(preset.color === undefined ? "#ffd400" : resolveColour(preset.color))
+      : (preset?.color ?? baseColour);
   const solidColour = resolveColour(colour);
 
   let stroke = typeStroke(style, layout);

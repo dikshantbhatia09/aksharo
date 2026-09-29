@@ -383,8 +383,11 @@ describe("K08: gradient text colour", () => {
     "resolves an emphasis preset's Gradient colour to a solid stand-in for its own decorative " +
       "ground, while still painting the word's own ink as the full gradient",
     () => {
+      // An underline, not a highlight: a highlight's word takes the ink that
+      // reads on its marker (see the next test), so it is not painted in the
+      // preset colour at all.
       const doc = style("vertical-clean", {
-        emphasisPresets: [{ id: "grad", color: gradient, effect: "highlight" }],
+        emphasisPresets: [{ id: "grad", color: gradient, effect: "underline" }],
       });
       const marked = WORDS.map((word, index) =>
         index === 0 ? { ...word, emphasisPresetId: "grad" } : word,
@@ -393,7 +396,7 @@ describe("K08: gradient text colour", () => {
       let groundChecked = false;
       let inkIsGradient = false;
       for (const command of walkCommands(commands)) {
-        if (command.kind === "roundRect" && command.fill !== undefined && !groundChecked) {
+        if (command.kind === "rect" && command.fill !== undefined && !groundChecked) {
           expect(command.fill.paint).toEqual({ type: "solid", color: "#ff2e63ff" });
           groundChecked = true;
         }
@@ -405,6 +408,28 @@ describe("K08: gradient text colour", () => {
       expect(inkIsGradient).toBe(true);
     },
   );
+
+  // 2026-09-29: a highlight preset painted the word in its own marker colour,
+  // so the word vanished into the marker.
+  it("draws a highlighted word in the ink that reads on its marker, not in the marker colour", () => {
+    const doc = style("vertical-clean", {
+      emphasisPresets: [{ id: "marker", color: "#ffd400", effect: "highlight" }],
+    });
+    const marked = WORDS.map((word, index) =>
+      index === 0 ? { ...word, emphasisPresetId: "marker" } : word,
+    );
+    const commands = [...walkCommands(draw(doc, 1500, marked))];
+    const marker = commands.find((command) => command.kind === "roundRect");
+    expect(marker?.kind === "roundRect" ? marker.fill?.paint : undefined).toMatchObject({
+      type: "solid",
+      color: "#ffd400ff",
+    });
+    const inks = commands
+      .filter((command) => command.kind === "text" && command.fill !== undefined)
+      .map((command) => (command.kind === "text" ? command.fill?.paint : undefined));
+    // Yellow is light: the word reads in black on it, and nothing is painted yellow-on-yellow.
+    expect(inks).toContainEqual({ type: "solid", color: "#000000ff" });
+  });
 
   it("golden-hash safety: every shipped system style still keeps a plain string colors.text", () => {
     for (const doc of styles.values()) {
