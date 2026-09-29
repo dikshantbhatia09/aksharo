@@ -10,11 +10,13 @@ import { loadServiceEnv } from "@montaj/config";
 import { CallbackClient } from "./callbacks.js";
 import { loadRenderSettings } from "./config.js";
 import { assertMediaToolsAvailable } from "./ffmpeg/tools.js";
+import { HeavySlots } from "./heavy-slot.js";
 import { logger } from "./logger.js";
 import { workerOptions } from "./policies.js";
+import { processRenderCompilation } from "./processors/render-compilation.js";
 import { processRenderSubtitle } from "./processors/render-subtitle.js";
 import { processRenderVideo } from "./processors/render-video.js";
-import { RENDER_SUBTITLE_QUEUE, RENDER_VIDEO_QUEUE } from "./queues.js";
+import { RENDER_COMPILATION_QUEUE, RENDER_SUBTITLE_QUEUE, RENDER_VIDEO_QUEUE } from "./queues.js";
 import { createObjectStore } from "./storage.js";
 
 /** Load the nearest `.env` walking up to the repo root; real env vars win. */
@@ -89,15 +91,39 @@ async function main(): Promise<void> {
     concurrency: settings.concurrency,
   };
 
+  // A video render and a compilation never encode side by side (`heavy-slot.ts`).
+  const heavy = new HeavySlots(settings.concurrency);
+
   const video = new Worker(
     RENDER_VIDEO_QUEUE,
     (job) =>
-      processRenderVideo(job, {
-        dependencies,
-        callbacks,
-        progressIntervalMs: settings.progressIntervalMs,
-      }),
+      heavy.run(() =>
+        processRenderVideo(job, {
+          dependencies,
+          callbacks,
+          progressIntervalMs: settings.progressIntervalMs,
+        }),
+      ),
     { ...shared, ...workerOptions(RENDER_VIDEO_QUEUE) },
+  );
+
+  // A run's clips joined into one video (2026-10-03). One at a time per node.
+  const compilation = new Worker(
+    RENDER_COMPILATION_QUEUE,
+    (job) =>
+      heavy.run(() =>
+        processRenderCompilation(job, {
+          dependencies: {
+            derivedStore,
+            fontDir: settings.fontDir,
+            workDir: settings.workDir,
+            ffmpegLogLevel: settings.logLevel,
+          },
+          callbacks,
+          progressIntervalMs: settings.progressIntervalMs,
+        }),
+      ),
+    { ...shared, concurrency: 1, ...workerOptions(RENDER_COMPILATION_QUEUE) },
   );
 
   const subtitle = new Worker(
@@ -114,7 +140,7 @@ async function main(): Promise<void> {
     { ...shared, ...workerOptions(RENDER_SUBTITLE_QUEUE) },
   );
 
-  for (const worker of [video, subtitle]) {
+  for (const worker of [video, subtitle, compilation]) {
     worker.on("ready", () => {
       logger.info(`render ready — waiting for jobs on ${worker.name}`, {
         queue: worker.name,
@@ -136,7 +162,7 @@ async function main(): Promise<void> {
 
   const shutdown = (signal: NodeJS.Signals): void => {
     logger.info("shutting down", { signal });
-    void Promise.all([video.close(), subtitle.close()])
+    void Promise.all([video.close(), subtitle.close(), compilation.close()])
       .then(() => connection.quit())
       .then(() => process.exit(0))
       .catch(() => process.exit(1));
