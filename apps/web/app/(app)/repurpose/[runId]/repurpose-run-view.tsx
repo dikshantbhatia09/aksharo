@@ -51,6 +51,7 @@ import type { StageKey } from "@/components/repurpose/copy";
 import { AddMomentForm } from "@/components/repurpose/AddMomentForm";
 import { CandidateCard } from "@/components/repurpose/CandidateCard";
 import { AUTOPILOT_COPY, CLIP_STATE_COPY } from "@/components/repurpose/copy";
+import { EpisodePackPanel } from "@/components/repurpose/EpisodePackPanel";
 import { describeRefusal, type Refusal } from "@/components/repurpose/refusal";
 import { canAddMoments, runActivity, serverIsWorking } from "@/components/repurpose/run-activity";
 import {
@@ -656,6 +657,9 @@ export function RepurposeRunView({ runId }: { readonly runId: string }): React.J
               />
             </StagePanel>
           )}
+
+          {/* The text for the whole video, beside its clips (2026-09-29). */}
+          <EpisodePackPanel run={run} />
         </div>
       </div>
 

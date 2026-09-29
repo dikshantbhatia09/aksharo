@@ -2,10 +2,9 @@ import { Injectable, Logger, type OnModuleInit } from "@nestjs/common";
 import { z } from "zod";
 
 import { newId } from "@montaj/edg";
-import type { InsightKind } from "@montaj/prompts";
 
 import { INSIGHT_KIND_TENTHS } from "./insights.quote.js";
-import { InsightsRepository } from "./insights.repository.js";
+import { InsightsRepository, type LlmOutputKind } from "./insights.repository.js";
 import { PrismaService } from "../common/prisma/prisma.service.js";
 import { JobCompletionRegistry } from "../jobs/completion-handlers.js";
 import { retentionClassOf } from "../transcripts/transcribe.handler.js";
@@ -26,7 +25,10 @@ import type { Prisma } from "@prisma/client";
  * follows for transcription).
  */
 const LlmResultSchema = z.object({
-  templateId: z.enum(["chapters", "summary", "hooks"]),
+  // `episode-pack` (2026-09-29): a clips run's text for its source video,
+  // written at no charge to the person (its hold is zero, and so is its
+  // settlement).
+  templateId: z.enum(["chapters", "summary", "hooks", "episode-pack"]),
   version: z.string().min(1),
   provider: z.string().min(1),
   region: z.string().min(1),
@@ -69,7 +71,7 @@ export class InsightsCompletionHandler implements JobCompletionHandler, OnModule
     if (projectId === null) {
       throw new Error(`job ${job.id} is an ai.llm with no project`);
     }
-    const kind = result.templateId as InsightKind;
+    const kind: LlmOutputKind = result.templateId;
 
     const row = await this.repository.create({
       projectId,
@@ -102,9 +104,13 @@ export class InsightsCompletionHandler implements JobCompletionHandler, OnModule
 
     // Flat per-kind price (`insights.quote.ts`); an `ai.llm` run has no partial
     // settlement the way transcription does, so the hold and the settlement are
-    // always the same figure — never more than what was held.
-    // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
-    const actualTenths = Math.min(job.creditsChargedTenths, INSIGHT_KIND_TENTHS[kind]);
+    // always the same figure — never more than what was held. The episode pack
+    // is part of a clips run and costs the person nothing.
+    const actualTenths =
+      kind === "episode-pack"
+        ? 0
+        : // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
+          Math.min(job.creditsChargedTenths, INSIGHT_KIND_TENTHS[kind]);
 
     this.logger.log(
       { jobId: job.id, projectId, kind, outputId: row.id, provider: result.provider },

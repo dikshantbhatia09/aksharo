@@ -215,13 +215,24 @@ def build_translation_providers(settings: Settings) -> tuple[TranslationProvider
         )
     if settings.indictrans2_base_url:
         providers.append(IndicTrans2Provider(base_url=settings.indictrans2_base_url))
+    provider, model = settings.llm_provider, settings.llm_model
+    if provider == "sarvam":
+        # Sarvam's own translator (Mayura) already heads this chain, so its
+        # last link is the configured fallback: the local model, or the mock
+        # when there is none. `LLMTranslateProvider` refuses a provider it does
+        # not know, and it is built at boot: passing `sarvam` through would
+        # stop the whole worker from starting.
+        if settings.llm_fallback_provider == "ollama":
+            provider, model = "ollama", settings.llm_fallback_model
+        else:
+            provider = "mock"
     providers.append(
         LLMTranslateProvider(
-            provider=settings.llm_provider,
+            provider=provider,
             anthropic_api_key=settings.anthropic_api_key,
             openai_api_key=settings.openai_api_key,
             base_url=settings.llm_base_url,
-            model=settings.llm_model,
+            model=model,
         )
     )
     return tuple(providers)

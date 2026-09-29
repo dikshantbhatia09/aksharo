@@ -600,6 +600,29 @@ describe("createClip", () => {
     expect(h.maybeEnqueueFaces).not.toHaveBeenCalled();
   });
 
+  it("starts the clip from its moment's copy, the words to post it with (2026-09-29)", async () => {
+    const copy = {
+      summary: "Salary badhne par bhi paise kyun nahi bachte.",
+      hook: "Yeh galti sab karte hain",
+      cta: "Poora video zaroor dekhiye.",
+      hashtags: ["#money", "#paisa"],
+      locale: "hi-Latn",
+      title: "Salary se ameer kyun nahi bante?",
+      source: "model",
+    };
+    const moment = h.tables.candidates.find((row) => row["id"] === CAND_A);
+    if (moment !== undefined) moment["copy"] = copy;
+
+    await h.service.createClip(WS, USER, RUN, { candidateId: CAND_A });
+
+    expect(h.tables.clips.find((row) => row["candidateId"] === CAND_A)?.["copy"]).toEqual(copy);
+  });
+
+  it("starts a clip with no copy when its moment has none", async () => {
+    await h.service.createClip(WS, USER, RUN, { candidateId: CAND_A });
+    expect(h.tables.clips.find((row) => row["candidateId"] === CAND_A)).not.toHaveProperty("copy");
+  });
+
   it("keeps a clip asked for while the plan's lane is full, waiting, instead of failing", async () => {
     // The live run of 2026-09-19: three of five clips refused with 429 and
     // orphaned on "Cutting the 9:16 clip…" forever.

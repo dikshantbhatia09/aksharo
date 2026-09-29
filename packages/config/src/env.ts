@@ -120,7 +120,13 @@ const pemKey = (name: string) =>
 /** Unescape `\n` so a single-line PEM from a .env file becomes a real key. */
 const unescapeNewlines = (value: string): string => value.replace(/\\n/g, "\n");
 
-export const LLM_PROVIDERS = ["anthropic", "openai", "ollama", "mock"] as const;
+/**
+ * `sarvam` (2026-09-29): Sarvam's chat model, keyed by `SARVAM_API_KEY`, read
+ * only by `apps/worker-ai` (its chain, budget and fallback are the worker's own
+ * settings). Listed here because every Node service loads the same env file:
+ * a value this schema did not know would stop them all from booting.
+ */
+export const LLM_PROVIDERS = ["anthropic", "openai", "ollama", "sarvam", "mock"] as const;
 export const MAIL_PROVIDERS = ["ses", "smtp", "dev"] as const;
 export type MailProviderName = (typeof MAIL_PROVIDERS)[number];
 

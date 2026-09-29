@@ -7,6 +7,7 @@ from worker_ai.llm.providers.base import LlmError, LlmProvider, LlmRequest, LlmR
 from worker_ai.llm.providers.mock import MockLlmProvider
 from worker_ai.llm.providers.ollama import OllamaLlmProvider
 from worker_ai.llm.providers.openai import OpenAiLlmProvider
+from worker_ai.llm.providers.sarvam import SarvamLlmProvider
 
 __all__ = [
     "AnthropicLlmProvider",
@@ -18,4 +19,5 @@ __all__ = [
     "MockLlmProvider",
     "OllamaLlmProvider",
     "OpenAiLlmProvider",
+    "SarvamLlmProvider",
 ]

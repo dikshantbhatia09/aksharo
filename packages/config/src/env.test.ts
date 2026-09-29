@@ -292,6 +292,14 @@ describe("loadEnv", () => {
     if (result.success) return;
     expect(result.error.message).toContain("LLM_PROVIDER");
   });
+
+  it("accepts sarvam, which only the AI worker reads, so the other services still boot", () => {
+    const env = loadEnv({
+      source: validEnv({ LLM_PROVIDER: "sarvam", LLM_MODEL: "sarvam-105b-conversations" }),
+    });
+    expect(env.LLM_PROVIDER).toBe("sarvam");
+    expect(env.LLM_MODEL).toBe("sarvam-105b-conversations");
+  });
 });
 
 describe("transactional mail (CONTRACTS §1, added after A04)", () => {

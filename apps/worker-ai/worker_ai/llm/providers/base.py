@@ -69,6 +69,15 @@ class LlmProvider(ABC):
     #: ``provider_submissions`` row's retention class.
     no_training: bool = True
 
+    #: The model this adapter calls, as the vendor names it. Recorded on what a
+    #: model judged (a highlight's ``judgement.model``) so a row says which one.
+    model: str = ""
+
+    #: Roughly how much prompt text (characters) one call may carry. A local
+    #: model runs with a small context window, a hosted one with a large one;
+    #: callers that build long prompts (the episode text pack) size them to it.
+    max_prompt_chars: int = 60_000
+
     @abstractmethod
     async def generate(self, request: LlmRequest) -> LlmResponse:
         """Call the model. :raises LlmError: on any provider-side failure."""

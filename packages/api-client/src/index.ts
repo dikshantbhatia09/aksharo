@@ -70,6 +70,7 @@ export { ApiProvider, useApiClient, useApiContext, useSession, useWorkspaceId } 
 export type { ApiContextValue } from "./context.js";
 
 export * from "./hooks.js";
+export * from "./repurpose-copy.js";
 
 export {
   backoffDelayMs,

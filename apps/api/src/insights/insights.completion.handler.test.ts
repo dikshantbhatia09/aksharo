@@ -116,6 +116,33 @@ describe("InsightsCompletionHandler", () => {
     expect(outcome.actualTenths).toBe(5);
   });
 
+  it("stores a clips run's episode pack at no charge (2026-09-29)", async () => {
+    const { handler, repository, prisma } = buildHandler();
+    const outcome = await handler.handle({
+      job: { ...JOB, creditsChargedTenths: 0 } as unknown as Job,
+      attemptId: "attempt1",
+      usage: undefined,
+      completion: {} as never,
+      result: {
+        templateId: "episode-pack",
+        version: "episode-pack@1",
+        provider: "sarvam",
+        region: "in",
+        output: { chapters: [{ startMs: 0, title: "Shuruaat" }], youtubeDescription: "..." },
+        usage: { inputTokens: 900, outputTokens: 300, costMinor: 5, currency: "INR" },
+        providerSubmissions: [
+          { provider: "sarvam", endpoint: "https://api.sarvam.ai/v1/chat/completions" },
+        ],
+      },
+    });
+
+    expect(repository.create).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: "episode-pack", templateVersion: "episode-pack@1" }),
+    );
+    expect(outcome.actualTenths).toBe(0);
+    expect(prisma.providerSubmission.createMany).toHaveBeenCalled();
+  });
+
   it("rejects a completion with no project", async () => {
     const { handler } = buildHandler();
     await expect(

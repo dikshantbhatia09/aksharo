@@ -15,9 +15,17 @@ how a worker ends up analysing the wrong revision of a transcript.
 
 from __future__ import annotations
 
+import unicodedata
 from typing import Annotated, Final, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    ConfigDict,
+    Field,
+    StringConstraints,
+    model_validator,
+)
 
 __all__ = [
     "HIGHLIGHTS_SCHEMA_VERSION",
@@ -139,6 +147,10 @@ class HighlightsOptions(_Strict):
     )
     #: Write per-proposal copy with the language model.
     copy_options: CopyOptions | None = Field(default=None, alias="copy")
+    #: The workspace's jurisdiction: which language-model providers may read
+    #: these words (`worker_ai.llm.region`). Absent is `in`, the platform
+    #: default, exactly as `ai.llm` treats a payload without one.
+    region: Literal["in", "eu", "us"] | None = None
 
     @model_validator(mode="after")
     def _duration_range_is_ordered(self) -> HighlightsOptions:
@@ -177,9 +189,22 @@ class ProposalReason(_Strict):
     explanation: Annotated[str, _trimmed(1, 240)]
 
 
-#: A hashtag as the TypeScript `HashtagSchema` pins it: `#` then letters,
-#: digits or underscores, in any script.
-_HASHTAG_PATTERN: Final[str] = r"^#[\w]+$"
+def _hashtag(value: str) -> str:
+    """A hashtag as the TypeScript `HashtagSchema` pins it: `#` then letters,
+    combining marks, digits or underscores, in any script.
+
+    Not a `\\w` pattern: a Devanagari vowel sign or anusvara is a combining
+    mark, which `\\w` does not match, so `#हिंदी` would be refused.
+    """
+    body = value[1:]
+    if not value.startswith("#") or not body:
+        raise ValueError("a hashtag starts with # and has something after it")
+    if not all(char == "_" or unicodedata.category(char)[0] in "LMN" for char in body):
+        raise ValueError("a hashtag holds only letters, marks, digits and underscores")
+    return value
+
+
+Hashtag = Annotated[str, StringConstraints(max_length=100), AfterValidator(_hashtag)]
 
 
 class _YouTubeCopy(_Strict):
@@ -218,9 +243,7 @@ class ClipCopy(_Strict):
     summary: Annotated[str, _trimmed(0, 2_000)]
     hook: Annotated[str, _trimmed(0, 500)]
     cta: Annotated[str, _trimmed(0, 500)]
-    hashtags: tuple[
-        Annotated[str, StringConstraints(pattern=_HASHTAG_PATTERN, max_length=100)], ...
-    ] = Field(max_length=30)
+    hashtags: tuple[Hashtag, ...] = Field(max_length=30)
     locale: Annotated[str, _trimmed(2, 64)]
     title: Annotated[str, _trimmed(1, 160)] | None = None
     description: Annotated[str, _trimmed(0, 2_000)] | None = None

@@ -1,10 +1,12 @@
-import { Injectable, Logger, type OnModuleInit } from "@nestjs/common";
+import { Injectable, Logger, Optional, type OnModuleInit } from "@nestjs/common";
 import { ulid } from "ulid";
 
 import { HighlightsResultSchema } from "@montaj/repurpose-contracts";
 
+import { candidateModelFields } from "./clip-copy.js";
+import { RepurposeEpisodePackService } from "./episode-pack.service.js";
 import { STAGE_OF_FAILURE, runFailureCode } from "./failure-codes.js";
-import { PRE_CANDIDATE_STATUSES } from "./repurpose.constants.js";
+import { PRE_CANDIDATE_STATUSES, automationOf } from "./repurpose.constants.js";
 import { RepurposeService } from "./repurpose.service.js";
 import { PrismaService } from "../common/prisma/prisma.service.js";
 import { JobCompletionRegistry } from "../jobs/completion-handlers.js";
@@ -42,6 +44,8 @@ export class RepurposeHighlightsCompletionHandler implements JobCompletionHandle
     private readonly runs: RepurposeService,
     private readonly registry: JobCompletionRegistry,
     private readonly realtime: RealtimePublisher,
+    // Optional so a handler built without it (older tests) still stores moments.
+    @Optional() private readonly episodePack?: RepurposeEpisodePackService,
   ) {}
 
   onModuleInit(): void {
@@ -131,7 +135,8 @@ export class RepurposeHighlightsCompletionHandler implements JobCompletionHandle
         endMs: proposal.endMs,
         startWordId: proposal.startWordId,
         endWordId: proposal.endWordId,
-        title: proposal.title,
+        // Its title, copy and the model's judgement (2026-09-29, `clip-copy.ts`).
+        ...candidateModelFields(proposal),
         transcriptExcerpt: proposal.transcriptExcerpt,
         potentialScore: proposal.potentialScore,
         scoreBreakdown: proposal.scoreBreakdown as unknown as Prisma.InputJsonValue,
@@ -171,6 +176,10 @@ export class RepurposeHighlightsCompletionHandler implements JobCompletionHandle
     const updated = await this.prisma.repurposeRun.findUnique({ where: { id: run.id } });
     if (updated !== null) {
       await this.runs.publishStage(updated, { candidateCount: candidatesData.length });
+      // Autopilot also writes the episode text, now its transcript is final
+      // (`episode-pack.service.ts`). Not awaited: reading a long transcript for
+      // it must not hold up this completion, and `ensure` never throws.
+      if (automationOf(updated) === "auto") void this.episodePack?.ensure(updated);
     }
 
     this.logger.log(

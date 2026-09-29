@@ -630,6 +630,9 @@ deliberately _not_ in CONTRACTS §1 — the same precedent the API set for
 | `PASS_FACE_DETECTOR`                   | unset (`BrightBlobDetector`)    | B19b: `yunet` selects a real face detector for `zoom`/`reframe` frame sampling; unimplemented this WP (needs `PASS_FACE_DETECTOR_WEIGHTS` too — H-22) |
 | `PASS_FACE_DETECTOR_WEIGHTS`           | —                               | B19b: weights path for the above, provisioned at image build, not a repo checkout                                                                     |
 | `YUNET_MODEL_PATH`                     | unset (`ai.faces` fails)        | `ai.faces`: path to `face_detection_yunet_2023mar.onnx`, run through onnxruntime; captions keep their style's own position without it                  |
+| `LLM_FALLBACK_PROVIDER`                | `ollama`                        | where a `sarvam` chain goes after Sarvam fails or the day's budget is spent: `ollama` (reached at `LLM_BASE_URL`) or `none` |
+| `LLM_FALLBACK_MODEL`                   | `qwen2.5:3b`                    | the fallback's model |
+| `LLM_DAILY_BUDGET_INR`                 | `300`                           | rupees the paid model (Sarvam) may cost per UTC day, across every worker; `0` turns it off |
 
 `GPU_PROVIDER_URL` is a **raise for the orchestrator**: CONTRACTS §1 freezes
 `GPU_PROVIDER` but not its endpoint, and A09 may not edit that file. It is
@@ -638,6 +641,32 @@ documented here until §1 gains it.
 Provider enablement is `credential present` AND `feature flag not off`. Flags come
 from `FEATURE_FLAGS_JSON` and are named `asr.<provider>`; the two non-ASR stages
 have flags too, `align.elevenlabs` (the paid aligner) and `diarise.pyannote`.
+
+### The language model (2026-09-29)
+
+`LLM_PROVIDER=sarvam` (with `SARVAM_API_KEY`, and `LLM_MODEL`, default
+`sarvam-105b-conversations`; never `sarvam-105b`, a reasoning model that answers
+`null`) makes Sarvam's chat model the first choice for every language-model job,
+behind a daily rupee budget (`LLM_DAILY_BUDGET_INR`, tallied per UTC day in Redis
+under `montaj:llm:spend:v1:<date>`, priced in `worker_ai/llm/pricing.py`), then
+`LLM_FALLBACK_PROVIDER` (the local Ollama model by default). Sarvam serves
+Indian workspaces only; an EU or US workspace's words go to the fallback.
+
+What uses it:
+
+- `ai.highlights` re-ranks the heuristic's shortlist (standalone, payoff,
+  humour, topic fit: `worker_ai/highlights/rerank.py`) and, with `options.copy`,
+  writes each pick's title, hook, hashtags and captions
+  (`worker_ai/highlights/clip_copy.py`);
+- `ai.llm` kind `episode-pack` writes a run's chapters, YouTube description,
+  show notes, LinkedIn post, X thread and newsletter
+  (`worker_ai/llm/episode_pack.py`);
+- the insights templates (chapters, summary, hooks) as before.
+
+None of the first two can fail a job because of the model: an error, a timeout,
+a reply with no JSON, one that fails its checks (the wrong script, a Hinglish
+speaker described in English), or the budget being spent moves the call to the
+next provider, and past the chain the job answers by rule.
 
 ## Dependencies
 

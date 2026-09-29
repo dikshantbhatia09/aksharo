@@ -23,6 +23,18 @@ ai.llm completes → InsightsCompletionHandler
 GET /projects/{id}/insights → latest llm_outputs row per kind + the disclosure line
 ```
 
+## The episode pack (2026-09-29)
+
+`InsightsService.requestEpisodePack` enqueues `ai.llm` kind `episode-pack` for
+a clips run's source project (`apps/api/src/repurpose/episode-pack.service.ts`,
+`GET/POST /repurpose/runs/{id}/episode-pack`): chapters, a YouTube
+description, show notes, a LinkedIn post, an X thread and a newsletter, in the
+run's language and script (`copy: {language, scriptMode}` in the payload). It
+is part of the run, so its hold and settlement are zero and it skips the
+plan's admission lane. The worker never fails it for the model's sake
+(`worker_ai/llm/episode_pack.py` writes by rule what the model cannot); the
+row lands in `llm_outputs` like any insight, `kind: "episode-pack"`.
+
 ## Credits
 
 `insights.quote.ts` prices per kind (brief §4): chapters 2 credits, summary 1

@@ -12,6 +12,7 @@ import {
 } from "@montaj/repurpose-contracts";
 
 import { failureDetailOf, runFailureCode } from "./failure-codes.js";
+import { discoveryModelOptionsFor } from "./highlights-options.js";
 import {
   ACQUIRE_MAX_BYTES,
   ACQUIRE_MAX_DURATION_MS,
@@ -2176,6 +2177,9 @@ export class RepurposeService {
           (discovery["contentGoal"] as "reach" | "education" | "authority" | "engagement") ||
           "reach",
         language: sourceLanguage,
+        // The language model's part (2026-09-29): the run's topic, the language
+        // and script to write each clip's copy in, and who may read the words.
+        ...(await discoveryModelOptionsFor(this.prisma, run, sourceLanguage)),
       },
       promptVersion: "highlights-v1",
       featureVersion: "features-v1",

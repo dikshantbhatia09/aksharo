@@ -5,6 +5,7 @@ import { REPURPOSE_SCHEMA_VERSION } from "@montaj/repurpose-contracts";
 import { RepurposeHighlightsCompletionHandler } from "./highlights-completion.handler.js";
 import { JobCompletionRegistry } from "../jobs/completion-handlers.js";
 
+import type { RepurposeEpisodePackService } from "./episode-pack.service.js";
 import type { RepurposeService } from "./repurpose.service.js";
 import type { PrismaService } from "../common/prisma/prisma.service.js";
 import type { JobCompletionContext } from "../jobs/completion-handlers.js";
@@ -84,8 +85,11 @@ function failedWith(code: string): JobCompletionContext {
   } as unknown as JobCompletionContext;
 }
 
-function harness(status: string) {
-  let run = { id: RUN, workspaceId: WS, sourceProjectId: PROJECT, status };
+function harness(
+  status: string,
+  options: { config?: Record<string, unknown>; episodePack?: { ensure: () => Promise<void> } } = {},
+) {
+  let run = { id: RUN, workspaceId: WS, sourceProjectId: PROJECT, status, config: options.config };
   const createMany = vi.fn(async () => ({ count: 0 }));
   const updateMany = vi.fn(
     async (args: { where: { status: { in: readonly string[] } }; data: { status: string } }) => {
@@ -110,6 +114,7 @@ function harness(status: string) {
     runs as unknown as RepurposeService,
     new JobCompletionRegistry(),
     {} as RealtimePublisher,
+    options.episodePack as unknown as RepurposeEpisodePackService | undefined,
   );
   return { handler, runs, createMany, updateMany, current: () => run };
 }
@@ -174,6 +179,60 @@ describe("RepurposeHighlightsCompletionHandler — a result", () => {
     expect(outcome.data).toMatchObject({ applied: false });
     expect(h.createMany).not.toHaveBeenCalled();
     expect(h.current().status).toBe("cancelled");
+  });
+});
+
+describe("RepurposeHighlightsCompletionHandler — the language model's part (2026-09-29)", () => {
+  const copy = {
+    summary: "Salary badhne par bhi paise kyun nahi bachte.",
+    hook: "Yeh galti sab karte hain",
+    cta: "Poora video zaroor dekhiye.",
+    hashtags: ["#money", "#paisa"],
+    locale: "hi-Latn",
+    title: "Salary se ameer kyun nahi bante?",
+    source: "model",
+  };
+  const judgement = { standalone: 8, payoff: 7, humour: 2, model: "sarvam-105b-conversations" };
+
+  it("stores each moment's copy and judgement, titled by its copy", async () => {
+    await h.handler.handle(
+      succeeded(result([{ ...proposal(0), copy, judgement }, proposal(60_000)])),
+    );
+
+    const calls = h.createMany.mock.calls as unknown as Array<
+      [{ data: Array<Record<string, unknown>> }]
+    >;
+    const [first, second] = calls[0]?.[0].data ?? [];
+    expect(first).toMatchObject({ title: copy.title, copy, judgement, rank: 1 });
+    // A moment the model wrote nothing for keeps its own title and the defaults.
+    expect(second).toMatchObject({ title: "A strong moment", rank: 2 });
+    expect(second).not.toHaveProperty("copy");
+    expect(second).not.toHaveProperty("judgement");
+  });
+
+  it("asks for the episode text once an Autopilot run's moments are stored", async () => {
+    const episodePack = { ensure: vi.fn(async () => undefined) };
+    h = harness("analyzing", { config: { automation: "auto" }, episodePack });
+
+    await h.handler.handle(succeeded(result([proposal(0)])));
+
+    expect(episodePack.ensure).toHaveBeenCalledWith(
+      expect.objectContaining({ id: RUN, status: "candidates_ready" }),
+    );
+  });
+
+  it("leaves a run whose person picks the moments to ask for it", async () => {
+    const episodePack = { ensure: vi.fn(async () => undefined) };
+    h = harness("analyzing", { config: { automation: "manual" }, episodePack });
+    await h.handler.handle(succeeded(result([proposal(0)])));
+    expect(episodePack.ensure).not.toHaveBeenCalled();
+  });
+
+  it("asks for nothing when the result no longer applies", async () => {
+    const episodePack = { ensure: vi.fn(async () => undefined) };
+    h = harness("materializing", { config: { automation: "auto" }, episodePack });
+    await h.handler.handle(succeeded(result([proposal(0)])));
+    expect(episodePack.ensure).not.toHaveBeenCalled();
   });
 });
 

@@ -40,6 +40,7 @@ class AnthropicLlmProvider(LlmProvider):
     def __init__(self, api_key: str, model: str = _DEFAULT_MODEL, timeout_s: float = 60.0) -> None:
         self._api_key = api_key
         self._model = model
+        self.model = model
         self._timeout_s = timeout_s
 
     async def generate(self, request: LlmRequest) -> LlmResponse:

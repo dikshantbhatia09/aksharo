@@ -3,6 +3,8 @@ import { Module } from "@nestjs/common";
 import { RepurposeAcquireCompletionHandler } from "./acquire-completion.handler.js";
 import { RepurposeClipCompletionHandler } from "./clip-completion.handler.js";
 import { ClipFinishing } from "./clip-finishing.js";
+import { RepurposeEpisodePackController } from "./episode-pack.controller.js";
+import { RepurposeEpisodePackService } from "./episode-pack.service.js";
 import { RepurposeHighlightsCompletionHandler } from "./highlights-completion.handler.js";
 import { RepurposeTranscriptCompletedListener } from "./listeners/transcript-completed.listener.js";
 import { RepurposeReconciler } from "./reconciler.js";
@@ -18,6 +20,7 @@ import { SourceGate } from "./source-gate.js";
 import { RepurposeStillsCompletionHandler } from "./stills-completion.handler.js";
 import { EdgModule } from "../edg/index.js";
 import { ExportsModule } from "../exports/exports.module.js";
+import { InsightsModule } from "../insights/insights.module.js";
 import { JobsModule } from "../jobs/jobs.module.js";
 import { MediaModule } from "../media/media.module.js";
 import { PassesModule } from "../passes/passes.module.js";
@@ -49,8 +52,10 @@ import { WorkspacesModule } from "../workspaces/workspaces.module.js";
     // For `AutoTranscribeTrigger`'s own dependencies (the reconciler starts a
     // run's transcription through it).
     TranscriptsModule,
+    // The episode text pack is an `ai.llm` job through the insights producer.
+    InsightsModule,
   ],
-  controllers: [RepurposeController, RepurposeSteeringController],
+  controllers: [RepurposeController, RepurposeSteeringController, RepurposeEpisodePackController],
   providers: [
     RepurposeService,
     RepurposeSteeringService,
@@ -64,6 +69,7 @@ import { WorkspacesModule } from "../workspaces/workspaces.module.js";
     RepurposeClipsService,
     ClipFinishing,
     RepurposeReconciler,
+    RepurposeEpisodePackService,
     SourceGate,
     // Progress and alerts (2026-09-29): the step a run is on, and its notifications.
     RunActivityReader,

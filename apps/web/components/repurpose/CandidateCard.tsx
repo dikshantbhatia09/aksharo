@@ -27,6 +27,7 @@ import Link from "next/link";
 import * as React from "react";
 
 import {
+  clipCopyOf,
   useCreateRepurposeClip,
   useRetryRepurposeClip,
   type RepurposeCandidateItem,
@@ -36,6 +37,7 @@ import {
 import { Badge, Button } from "@montaj/ui";
 
 import { ClipControls, RemovedMoment } from "@/components/repurpose/ClipControls";
+import { ClipCopyPanel } from "@/components/repurpose/ClipCopyPanel";
 import { ClipFormats } from "@/components/repurpose/ClipFormats";
 import { ClipPreview } from "@/components/repurpose/ClipPreview";
 import { CAPTIONED_COPY, CLIP_STATE_COPY, clipFailureCopy } from "@/components/repurpose/copy";
@@ -175,7 +177,10 @@ export function CandidateCard({
 
   // Never invent a score: a candidate without one shows none.
   const score = candidate.potentialScore ?? candidate.score;
-  const title = candidate.title ?? candidate.headline ?? "Suggested moment";
+  // The words to post it with (2026-09-29): the clip's own once it has them,
+  // else its moment's. Their title is the one a person would post.
+  const copy = clipCopyOf(clip?.copy) ?? clipCopyOf(candidate.copy);
+  const title = copy?.title ?? candidate.title ?? candidate.headline ?? "Suggested moment";
   const picked = candidate["source"] === "manual";
   // The clip's own project: where its captions live and are exported. The
   // 9:16 one: an Autopilot clip has a project per shape (2026-09-29).
@@ -462,6 +467,10 @@ export function CandidateCard({
           images={clip.images}
         />
       ) : null}
+
+      {copy === null ? null : (
+        <ClipCopyPanel candidateId={candidate.id} title={title} copy={copy} />
+      )}
 
       <ClipControls
         runId={runId}
