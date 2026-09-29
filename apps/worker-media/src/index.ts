@@ -9,12 +9,14 @@ import { assertMediaToolsAvailable } from "./media-tools.js";
 import { workerOptions } from "./policies.js";
 import { processAcquire } from "./processors/acquire.js";
 import { processClip } from "./processors/clip.js";
+import { processDub } from "./processors/dub.js";
 import { processProbe } from "./processors/probe.js";
 import { processProxy } from "./processors/proxy.js";
 import { processStills } from "./processors/stills.js";
 import {
   MEDIA_ACQUIRE_QUEUE,
   MEDIA_CLIP_QUEUE,
+  MEDIA_DUB_QUEUE,
   MEDIA_PROBE_QUEUE,
   MEDIA_PROXY_QUEUE,
   MEDIA_STILLS_QUEUE,
@@ -54,6 +56,7 @@ const PROCESSORS: Readonly<Record<MediaQueue, Processor>> = {
   [MEDIA_PROXY_QUEUE]: processProxy,
   [MEDIA_CLIP_QUEUE]: processClip,
   [MEDIA_STILLS_QUEUE]: processStills,
+  [MEDIA_DUB_QUEUE]: processDub,
 };
 
 function startWorkers(

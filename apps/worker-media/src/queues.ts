@@ -59,6 +59,8 @@ export const MEDIA_ACQUIRE_QUEUE = "media.acquire" satisfies QueueName;
 export const MEDIA_CLIP_QUEUE = "media.clip" satisfies QueueName;
 /** A clip's image formats (2026-09-29), `processors/stills.ts`. */
 export const MEDIA_STILLS_QUEUE = "media.stills" satisfies QueueName;
+/** A dub laid under one shape of a clip (2026-10-04), `processors/dub.ts`. */
+export const MEDIA_DUB_QUEUE = "media.dub" satisfies QueueName;
 
 /** The media queues consumed by this worker. */
 export const MEDIA_QUEUES = [
@@ -67,6 +69,7 @@ export const MEDIA_QUEUES = [
   MEDIA_PROXY_QUEUE,
   MEDIA_CLIP_QUEUE,
   MEDIA_STILLS_QUEUE,
+  MEDIA_DUB_QUEUE,
 ] as const;
 
 export type MediaQueue = (typeof MEDIA_QUEUES)[number];

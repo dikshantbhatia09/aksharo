@@ -47,13 +47,15 @@ describe("queue contract (CONTRACTS §3)", () => {
 
   it("consumes exactly the media queues it has processors for", () => {
     expect(MEDIA_PROBE_QUEUE).toBe("media.probe");
-    // Five: media.stills (a clip's image formats) since 2026-09-29.
+    // Six: media.stills (a clip's image formats) since 2026-09-29, media.dub
+    // (a dub laid under a clip) since 2026-10-04.
     expect(MEDIA_QUEUES).toEqual([
       "media.acquire",
       "media.probe",
       "media.proxy",
       "media.clip",
       "media.stills",
+      "media.dub",
     ]);
     expect(MEDIA_QUEUES).toContain("media.clip");
   });
