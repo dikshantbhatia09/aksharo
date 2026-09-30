@@ -1446,6 +1446,79 @@ worktrees (`wt/<name>`, branch `feat/<name>`), each merged and verified in
     the body, so anyone who knew a workspace's id could attribute it to their
     own code; it now needs a signed-in caller and attaches only to the
     caller's own user and workspace (onboarding sends its bearer token).
+- **Wave 5, deployed as 3cf7ee70** (`deploy-20260930a.ps1`, undo
+  `rollback-20260930a.ps1`; DB backup `montaj_main-pre-20260930a.dump`;
+  migrations `20261004100000_clip_dubs` (with a nullable `jobs.checkpoint`)
+  and `20261004110000_brand_music`, both additive). Every service restarted:
+  workers first, worker-media before the api, worker-ai after it.
+  - **Dubbing** (`apps/api/src/repurpose/dubbing`, flag `repurpose_dubbing`,
+    **owner's workspace only**: every dub costs real money). A clip is dubbed
+    into other Indian languages in the speaker's own voice by Sarvam's
+    Dubbing API (beta): `POST https://api.sarvam.ai/dubbing/jobs`, a PUT of
+    the clean 9:16 cut to its signed `upload_url`, `start`, `live-status`,
+    `export-status?limit=`, `cancel`; Rs 40 per minute per target language
+    (`editor_flow` true would double it and is never sent). One vendor job per
+    request (`ai.dub`, worker-ai); its id is written to `jobs.checkpoint`
+    BEFORE the job is started, so a retried or restarted attempt resumes that
+    job and never pays for a second. Each language x shape is laid under the
+    shape's clean video by `media.dub` (worker-media; the plain worker's
+    `WORKER_MEDIA_QUEUES` now ends `,media.dub`, also in
+    `start-production-stack.ps1`) and becomes its own project with a
+    transcript from Sarvam's SRT, a document and a captioned MP4. 25 credits
+    per minute per language, held while the job runs and charged for the
+    languages that come back; `DUB_DAILY_BUDGET_INR` (default 500, Redis
+    `montaj:dub:spend:v1:<day>`); `DUB_ORIGINAL_BED_DB` keeps the clip's own
+    sound under the dub (unset = the dub replaces it). The consent tick
+    ("I have the right to use this speaker's voice...") is an attestation
+    stored on the dub and in `audit_log`: never tick it for a voice we have no
+    right to, including in a test.
+    Verified live 2026-09-30 on a rights-clean source (a Windows synthetic
+    voice, so no person's voice was cloned): a 27 s English clip into Hindi,
+    Rs 18.03 at the vendor (the job's `cost_minor`) and 11.7 credits; the
+    dubbed audio came back 11 ms longer than the clip (`media.dub` `fit:
+    exact`), the SRT in natural Devanagari, all four shapes captioned. The
+    vendor listed the files **54 minutes after live-status said completed**:
+    the 20-minute export wait failed twice (`dub/exports_pending`, the same
+    vendor job resumed both times) and "Try again" collected them with no
+    second charge; the wait is now 2 h, polled once a minute.
+  - **Audiograms**: a clip of a source with no picture is cut with one
+    (`media.clip` `audiogram`: background, accent, optional artwork; a live
+    waveform in the top 6-47 % so the caption zone stays clear; clip profile
+    "4"). Artwork: the run's cover (`POST /repurpose/covers`, then
+    `setup.audiogram.coverAssetId`), else the kit logo on brand runs, else
+    none. **worker-media now refuses any `media.clip` field it does not know**
+    (`worker/outdated`, not retried): a new field needs worker-media deployed
+    before the api. Clips cut before this deploy stay picture-less until
+    asked for again.
+    Verified live the same night: a 68 s audio-only upload became 2 clips x 4
+    shapes of audiograms (1080 x 1920 at 30 fps; waveform at the top, Punch Pop
+    captions below). The hook title overlaps the waveform (cosmetic, open).
+  - **The brand kit's own music** (Settings > Brand kit > Music: MP3/WAV/M4A,
+    25 MB, 5 s-10 min, a required rights confirmation stored with who and
+    when): Autopilot lays it under the clips of brand runs, quiet (-20 dB) or
+    medium (-14 dB), 10 dB lower under speech; the cloud render and the
+    browser export mix it, the editor preview and the share viewer do not
+    play it yet. Four bugs in the old music/SFX mixing were fixed on the way
+    (ducks after cuts, beds restarting at cuts, the browser export never
+    fetching the files, and its plain copy path dropping them).
+  - **Flags**: `_orchestration/tools/ops-flag.cjs <key> owner|everyone|off|show
+    "<reason>" ["<description>"]` creates or changes one flag with an audit
+    row. A change shows within 60 s (the entitlement snapshot is cached in
+    Redis for 60 s).
+  - **The tunnel dropped for 4 minutes at 00:44 IST on 2026-09-30** (530,
+    Cloudflare error 1033 on every hostname; the api and web answered 200
+    locally): `run-logs/tunnel/cloudflared.err.log` showed TLS handshakes to
+    the edge timing out, then all four connections registered again on their
+    own at 00:47:32. Not the deploy. The scheduled task runs a supervisor
+    (`Start-AksharoTunnel.ps1`) that starts cloudflared **detached**, so
+    `Stop-ScheduledTask` stops only the supervisor, never the tunnel; to
+    restart a stuck tunnel, stop the pid in `run-logs/tunnel/cloudflared.pid`
+    and let the supervisor start a new one within 30 s.
+  - **API unit tests must be pointed away from production**: `test/setup-env.ts`
+    only fills a variable that is unset (`??=`), with `localhost:6379` and
+    `localhost:9000` - this machine's production Redis and MinIO. Run them as
+    `DATABASE_URL=postgresql://x:x@127.0.0.1:1/x REDIS_URL=redis://127.0.0.1:1
+    S3_ENDPOINT=http://127.0.0.1:1 R2_ENDPOINT=http://127.0.0.1:1 npx vitest run src prisma`.
 - **Known, not fixed**: API unit tests and past dev sessions left ~40 MB of
   keys under test prefixes (`montaj-test-*`, `a23`, `montaj-s07`, ...) in the
   production Redis (`test/setup-env.ts` assigns `localhost:6379`).
