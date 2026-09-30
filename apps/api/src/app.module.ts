@@ -48,6 +48,7 @@ import { PublishingModule } from "./publishing/publishing.module.js";
 import { RealtimeModule } from "./realtime/realtime.module.js";
 import { ReferralsModule } from "./referrals/referrals.module.js";
 import { RepurposeAutomationsModule } from "./repurpose/automations/automations.module.js";
+import { RepurposePerformanceModule } from "./repurpose/performance/performance.module.js";
 import { RepurposeModule } from "./repurpose/repurpose.module.js";
 import { ClipReviewModule } from "./repurpose/review/clip-review.module.js";
 import { SchedulerTasksModule } from "./scheduler/scheduler-tasks.module.js";
@@ -229,6 +230,11 @@ import { WorkspacesModule } from "./workspaces/workspaces.module.js";
     // team's routes answer 404 while `repurpose_flow` is off, the client's while
     // `shares.public` is; "Clips need approval before posting" starts off.
     ClipReviewModule,
+    // 2026-10-05: learn what works (`/repurpose/runs/:id/performance`,
+    // `/repurpose/performance/what-works`, the `repurpose.performance-refresh`
+    // task). Gated by `repurpose_performance` (seeded off) and `repurpose_flow`;
+    // the task runs only where MONTAJ_SCHEDULER_TASKS names it.
+    RepurposePerformanceModule,
   ],
 })
 export class AppModule {}

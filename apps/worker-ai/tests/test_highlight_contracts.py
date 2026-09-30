@@ -228,3 +228,66 @@ def test_job_key_changes_with_the_transcript_revision() -> None:
     first = highlights_job_key("R", "T", 3, "cfg")
     second = highlights_job_key("R", "T", 4, "cfg")
     assert first != second
+
+
+# ---------------------------------------------------------------------------
+# A workspace's track record (2026-10-05): `options.performance`
+# ---------------------------------------------------------------------------
+
+
+def test_parses_the_shared_performance_payload() -> None:
+    payload = HighlightsPayload.model_validate(fixture("ai-highlights-payload-performance.v1.json"))
+    performance = payload.options.performance
+    assert performance is not None
+    assert performance.basis == 14
+    assert [hit.views for hit in performance.hits] == [12_400, 5_200]
+    assert performance.hits[0].platform == "youtube"
+    assert performance.length is not None and performance.length.min_ms == 20_000
+    assert performance.hook is not None and performance.hook.style == "question"
+    # The option lives inside `options`: the payload's own fields are unchanged.
+    assert sorted(fixture("ai-highlights-payload-performance.v1.json")) == PAYLOAD_FIELDS
+
+
+def test_round_trips_a_result_with_a_track_record_reason() -> None:
+    source = fixture("ai-highlights-result-performance.v1.json")
+    parsed = HighlightsResult.model_validate(source)
+    assert "track_record" in [reason.label for reason in parsed.proposals[0].reasons]
+    assert json.loads(parsed.model_dump_json(by_alias=True, exclude_none=True)) == source
+
+
+def test_the_performance_signal_declares_the_typescript_fields() -> None:
+    from worker_ai.highlights.contracts import (
+        PerformanceHit,
+        PerformanceHook,
+        PerformanceLength,
+        PerformanceSignal,
+    )
+
+    def aliases(model: type[Any]) -> list[str]:
+        return sorted((field.alias or name) for name, field in model.model_fields.items())
+
+    assert aliases(PerformanceSignal) == ["basis", "hits", "hook", "length"]
+    assert aliases(PerformanceHit) == ["excerpt", "hook", "platform", "title", "views"]
+    assert aliases(PerformanceLength) == ["maxMs", "minMs", "posts"]
+    assert aliases(PerformanceHook) == ["posts", "style"]
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"hits": [{"title": "A clip", "views": 10, "platform": "youtube"}] * 6},
+        {"hits": [{"title": "A clip", "views": 10, "platform": "myspace"}]},
+        {"hits": [{"title": "A clip", "views": -1, "platform": "youtube"}]},
+        {"hits": [{"title": "A clip", "views": 10, "platform": "youtube", "extra": True}]},
+        {"length": {"minMs": 40_000, "maxMs": 20_000, "posts": 5}},
+        {"length": {"minMs": 0, "maxMs": 400_000, "posts": 5}},
+        {"hook": {"style": "shouting", "posts": 5}},
+        {"basis": 0},
+        {"weight": 2},
+    ],
+)
+def test_refuses_a_track_record_out_of_bounds(change: dict[str, Any]) -> None:
+    source = fixture("ai-highlights-payload-performance.v1.json")
+    source["options"]["performance"] = source["options"]["performance"] | change
+    with pytest.raises(ValidationError):
+        HighlightsPayload.model_validate(source)

@@ -36558,6 +36558,268 @@
           "review-public"
         ]
       }
+    },
+    "/repurpose/runs/{runId}/performance": {
+      "get": {
+        "description": "Each post (from Postiz, or a pasted link) with its newest views, likes, comments and shares - each saying whether it was measured or entered, and when - and how its numbers are kept up to date. `clips` says, per clip, the shapes and dubbed languages a post can be of. `enabled: false` while the feature is off for the workspace.",
+        "operationId": "getRepurposeRunPerformance",
+        "parameters": [
+          {
+            "name": "runId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Where the run's clips were posted, and how each post did",
+        "tags": [
+          "repurpose"
+        ]
+      }
+    },
+    "/repurpose/runs/{runId}/clips/{clipId}/performance/posts": {
+      "post": {
+        "description": "A link to a post on YouTube, Instagram, TikTok, LinkedIn, X, Facebook or Threads, and the shape (and dubbed language) posted. A YouTube post's views are then read by themselves; other platforms' numbers are typed in. 400 `performance/link_invalid`, `link_unsupported`, `link_not_a_post`, `link_short`, `shape_unknown`, `language_unknown`, `date_invalid`; 409 `performance/post_exists` (`details.postId`, `details.clipId`) or `too_many_posts`.",
+        "operationId": "addRepurposeClipPost",
+        "parameters": [
+          {
+            "name": "runId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "clipId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "url": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2048
+                  },
+                  "shape": {
+                    "type": "string",
+                    "enum": [
+                      "9:16",
+                      "4:5",
+                      "1:1",
+                      "16:9"
+                    ]
+                  },
+                  "language": {
+                    "type": "string",
+                    "minLength": 2,
+                    "maxLength": 64
+                  },
+                  "postedAt": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                      },
+                      {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "url"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "I posted this: follow a post of the clip by its link",
+        "tags": [
+          "repurpose"
+        ]
+      }
+    },
+    "/repurpose/runs/{runId}/performance/posts/{postId}": {
+      "delete": {
+        "description": "Its numbers go with it. 409 `performance/post_not_removable` for a post made through Postiz, which is followed from there.",
+        "operationId": "removeRepurposeClipPost",
+        "parameters": [
+          {
+            "name": "runId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "postId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Stop following a pasted post",
+        "tags": [
+          "repurpose"
+        ]
+      }
+    },
+    "/repurpose/runs/{runId}/performance/posts/{postId}/numbers": {
+      "post": {
+        "description": "Any of views, likes, comments and shares; kept as entered, beside anything measured. 400 `performance/numbers_empty` with none.",
+        "operationId": "enterRepurposeClipPostNumbers",
+        "parameters": [
+          {
+            "name": "runId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "postId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "views": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 2147483647
+                  },
+                  "likes": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 2147483647
+                  },
+                  "comments": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 2147483647
+                  },
+                  "shares": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 2147483647
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Type in a post's numbers, as read off the platform",
+        "tags": [
+          "repurpose"
+        ]
+      }
+    },
+    "/repurpose/performance/what-works": {
+      "get": {
+        "description": "The best clips by views and by engagement, and how clips of each length, opening, topic word, layout, language and posting time did against the rest, compared platform by platform - every group with its number of posts, nothing claimed from fewer than five - and what the next runs' picks lean toward.",
+        "operationId": "getRepurposeWhatWorks",
+        "parameters": [
+          {
+            "name": "days",
+            "required": false,
+            "in": "query",
+            "description": "The window, in days; 90 by default.",
+            "schema": {
+              "enum": [
+                30,
+                90,
+                365
+              ],
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "What works: the clips that did best, and what they share",
+        "tags": [
+          "repurpose"
+        ]
+      }
     }
   },
   "info": {

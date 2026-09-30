@@ -39,6 +39,10 @@ __all__ = [
     "HighlightsPayload",
     "HighlightsResult",
     "Judgement",
+    "PerformanceHit",
+    "PerformanceHook",
+    "PerformanceLength",
+    "PerformanceSignal",
     "PlatformCopy",
     "ProposalReason",
     "ScoreBreakdown",
@@ -73,6 +77,9 @@ def _trimmed(min_length: int, max_length: int) -> object:
     return StringConstraints(strip_whitespace=True, min_length=min_length, max_length=max_length)
 
 
+#: ``track_record`` (2026-10-05) is the chip the workspace's own posted clips
+#: add ("like your clip about ... that got 12k views"); it is only ever emitted
+#: for a payload that carried ``options.performance``.
 _ReasonLabel = Literal[
     "hook",
     "clear_point",
@@ -81,7 +88,16 @@ _ReasonLabel = Literal[
     "novelty",
     "standalone",
     "safety",
+    "track_record",
 ]
+
+#: Mirrors ``PERFORMANCE_PLATFORMS`` and ``HOOK_STYLES`` in ``jobs.ts``.
+_PerformancePlatform = Literal[
+    "youtube", "instagram", "tiktok", "linkedin", "x", "facebook", "threads"
+]
+_HookStyle = Literal["question", "number", "you", "statement"]
+#: A post's count: a Postgres ``integer``.
+_MAX_COUNT: Final[int] = 2_147_483_647
 
 
 class _Strict(BaseModel):
@@ -127,6 +143,52 @@ class CopyOptions(_Strict):
     script_mode: Literal["auto", "roman", "native", "bilingual"] = Field(alias="scriptMode")
 
 
+class PerformanceHit(_Strict):
+    """One of the workspace's best posted clips (2026-10-05)."""
+
+    title: Annotated[str, _trimmed(1, 160)]
+    hook: Annotated[str, _trimmed(1, 500)] | None = None
+    excerpt: Annotated[str, _trimmed(1, 600)] | None = None
+    views: int = Field(ge=0, le=_MAX_COUNT)
+    platform: _PerformancePlatform
+
+
+class PerformanceLength(_Strict):
+    """The length band that did clearly better than the rest."""
+
+    min_ms: int = Field(alias="minMs", ge=0, le=MAX_DURATION_MS)
+    max_ms: int = Field(alias="maxMs", ge=MIN_DURATION_MS, le=MAX_DURATION_MS)
+    posts: int = Field(ge=1, le=1_000_000)
+
+    @model_validator(mode="after")
+    def _ends_after_it_starts(self) -> PerformanceLength:
+        if self.max_ms <= self.min_ms:
+            raise ValueError("a length band must end after it starts")
+        return self
+
+
+class PerformanceHook(_Strict):
+    """The kind of opening that did clearly better than the rest."""
+
+    style: _HookStyle
+    posts: int = Field(ge=1, le=1_000_000)
+
+
+class PerformanceSignal(_Strict):
+    """What a workspace's posted clips say worked: ``options.performance``.
+
+    Mirrors ``PerformanceSignalSchema`` (``jobs.ts``). Sent only once the
+    workspace has enough measured posts; ``worker_ai.highlights.performance``
+    turns it into a small, capped lift that never overrides the person's own
+    steering.
+    """
+
+    basis: int = Field(ge=1, le=1_000_000)
+    hits: tuple[PerformanceHit, ...] = Field(max_length=5)
+    length: PerformanceLength | None = None
+    hook: PerformanceHook | None = None
+
+
 class HighlightsOptions(_Strict):
     count: int = Field(ge=1, le=40)
     #: The bar a moment must clear to be returned at all (0-1); ``None`` keeps
@@ -151,6 +213,9 @@ class HighlightsOptions(_Strict):
     #: these words (`worker_ai.llm.region`). Absent is `in`, the platform
     #: default, exactly as `ai.llm` treats a payload without one.
     region: Literal["in", "eu", "us"] | None = None
+    #: What the workspace's posted clips say worked (2026-10-05); absent
+    #: without enough measured posts, and from an API that predates it.
+    performance: PerformanceSignal | None = None
 
     @model_validator(mode="after")
     def _duration_range_is_ordered(self) -> HighlightsOptions:

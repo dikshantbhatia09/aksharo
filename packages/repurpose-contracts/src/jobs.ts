@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import {
   AspectSchema,
+  CANDIDATE_REASON_LABELS,
   ClipCopySchema,
   ExcludeRangeSchema,
   MillisecondsSchema,
@@ -409,6 +410,73 @@ export const MediaClipResultSchema = z
     }
   });
 
+/** The platforms a posted clip's numbers come from (2026-10-05). */
+export const PERFORMANCE_PLATFORMS = [
+  "youtube",
+  "instagram",
+  "tiktok",
+  "linkedin",
+  "x",
+  "facebook",
+  "threads",
+] as const;
+
+/**
+ * How a clip opens, as both sides classify it: a question, a number, the
+ * viewer addressed ("you", "aap"), or a plain statement.
+ */
+export const HOOK_STYLES = ["question", "number", "you", "statement"] as const;
+
+/** A post's count: a Postgres `integer`. */
+const CountSchema = z.int().min(0).max(2_147_483_647);
+const PostsSchema = z.int().min(1).max(1_000_000);
+
+/**
+ * What a workspace's posted clips say worked (2026-10-05): `ai.highlights@1`'s
+ * `options.performance`, sent only once the workspace has enough measured
+ * posts (`apps/api/src/repurpose/performance/steering-signal.ts`).
+ *
+ * Compact on purpose: its best clips' words (at most five), and - when the
+ * numbers show a clear difference - the length band and the kind of opening
+ * that did best, each with the number of posts behind it. The worker turns
+ * it into a small, capped lift on the moments that resemble them, named in
+ * the moment's reasons (`track_record`); it never changes which moments the
+ * person's own steering allows (topic, length, skipped parts, the bar).
+ */
+export const PerformanceSignalSchema = z.strictObject({
+  /** The posts with numbers this was worked out from. */
+  basis: PostsSchema,
+  /** The best clips, best first. */
+  hits: z
+    .array(
+      z.strictObject({
+        title: z.string().trim().min(1).max(160),
+        /** Its on-screen hook, when it had one. */
+        hook: z.string().trim().min(1).max(500).optional(),
+        /** A little of what was said in it. */
+        excerpt: z.string().trim().min(1).max(600).optional(),
+        /** Its best post's views, and where. */
+        views: CountSchema,
+        platform: z.enum(PERFORMANCE_PLATFORMS),
+      }),
+    )
+    .max(5),
+  /** The length band that did clearly better than the rest. */
+  length: z
+    .strictObject({
+      minMs: z.int().min(0).max(180_000),
+      maxMs: z.int().min(3_000).max(180_000),
+      posts: PostsSchema,
+    })
+    .refine((band) => band.maxMs > band.minMs, {
+      message: "A length band must end after it starts.",
+      path: ["maxMs"],
+    })
+    .optional(),
+  /** The kind of opening that did clearly better than the rest. */
+  hook: z.strictObject({ style: z.enum(HOOK_STYLES), posts: PostsSchema }).optional(),
+});
+
 /**
  * `ai.highlights@1` — rank bounded, deterministic windows.
  *
@@ -460,6 +528,13 @@ export const HighlightsPayloadSchema = z
        * as for `ai.llm`.
        */
       region: z.enum(["in", "eu", "us"]).optional(),
+      /**
+       * What its posted clips say worked (2026-10-05, {@link PerformanceSignalSchema}).
+       * Absent for a workspace without enough measured posts, and from an API
+       * that predates it. A worker from before it refuses a payload that has
+       * it (strict), so the worker deploys first.
+       */
+      performance: PerformanceSignalSchema.optional(),
     }),
     promptVersion: z.string().trim().min(1).max(100),
     featureVersion: z.string().trim().min(1).max(100),
@@ -501,15 +576,10 @@ export const HighlightProposalSchema = z
     reasons: z
       .array(
         z.strictObject({
-          label: z.enum([
-            "hook",
-            "clear_point",
-            "emotion",
-            "visual",
-            "novelty",
-            "standalone",
-            "safety",
-          ]),
+          // `track_record` (2026-10-05) only ever comes back for a payload
+          // that carried `options.performance`, which only an API that reads
+          // it sends: an older API never meets it.
+          label: z.enum(CANDIDATE_REASON_LABELS),
           explanation: z.string().trim().min(1).max(240),
         }),
       )
@@ -675,6 +745,9 @@ export type MediaClipResult = z.infer<typeof MediaClipResultSchema>;
 export type HighlightsPayload = z.infer<typeof HighlightsPayloadSchema>;
 export type HighlightProposal = z.infer<typeof HighlightProposalSchema>;
 export type HighlightsResult = z.infer<typeof HighlightsResultSchema>;
+export type PerformanceSignal = z.infer<typeof PerformanceSignalSchema>;
+export type HookStyle = (typeof HOOK_STYLES)[number];
+export type PerformancePlatform = (typeof PERFORMANCE_PLATFORMS)[number];
 export type StillRequest = z.infer<typeof StillRequestSchema>;
 export type MediaStillsPayload = z.infer<typeof MediaStillsPayloadSchema>;
 export type MediaStillsResult = z.infer<typeof MediaStillsResultSchema>;

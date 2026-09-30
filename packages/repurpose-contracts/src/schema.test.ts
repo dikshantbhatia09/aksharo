@@ -45,6 +45,16 @@ describe("repurpose@1 fixture contracts", () => {
     expect(RepurposeClipViewSchema.safeParse(fixture("clip-view.v1.json")).success).toBe(true);
   });
 
+  it("takes a candidate's track-record reason, and no label it does not know", () => {
+    const candidate = fixture("candidate.v1.json") as Record<string, unknown>;
+    const reason = (label: string) => ({
+      ...candidate,
+      reasons: [{ label, explanation: "Like your clip about SIPs that got 12k views." }],
+    });
+    expect(ClipCandidateSchema.safeParse(reason("track_record")).success).toBe(true);
+    expect(ClipCandidateSchema.safeParse(reason("viral")).success).toBe(false);
+  });
+
   it("freezes a steered discovery (topic, length, skips) and still refuses nonsense in it", () => {
     // Steering (2026-09-29): what the create request's `discovery` carries is
     // what the run config freezes, so every preset the request accepts must be
