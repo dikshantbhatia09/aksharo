@@ -26,8 +26,12 @@
  * waiting, approved or changes requested, the decision the person may make,
  * and its comments - pinned to where the video above was playing. The card is
  * the anchor a review notification's link lands on (`#clip-<id>`).
+ *
+ * And how it did once posted (2026-10-05, `performance/ClipPerformance.tsx`);
+ * a moment picked partly for being like the workspace's best clips says so,
+ * under its words (its `track_record` reason).
  */
-import { AlertTriangle, CircleSlash, Clock, Download, Loader2 } from "lucide-react";
+import { AlertTriangle, CircleSlash, Clock, Download, Loader2, TrendingUp } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
 
@@ -55,6 +59,7 @@ import { ClipPreview } from "@/components/repurpose/ClipPreview";
 import { CAPTIONED_COPY, CLIP_STATE_COPY, clipFailureCopy } from "@/components/repurpose/copy";
 import { ClipDubs } from "@/components/repurpose/dubbing/ClipDubs";
 import { formatClock } from "@/components/repurpose/moment-time";
+import { ClipPerformance } from "@/components/repurpose/performance/ClipPerformance";
 import { ClipPosts } from "@/components/repurpose/publishing/ClipPosts";
 import { describeRefusal } from "@/components/repurpose/refusal";
 import { ClipReview } from "@/components/repurpose/review/ClipReview";
@@ -248,6 +253,9 @@ export function CandidateCard({
   // else its moment's. Their title is the one a person would post.
   const copy = clipCopyOf(clip?.copy) ?? clipCopyOf(candidate.copy);
   const title = copy?.title ?? candidate.title ?? candidate.headline ?? "Suggested moment";
+  // What the workspace's own posted clips said about this moment (2026-10-05).
+  const trackRecord =
+    candidate.reasons?.find((reason) => reason.label === "track_record")?.explanation ?? null;
   const picked = candidate["source"] === "manual";
   // The clip's own project: where its captions live and are exported. The
   // 9:16 one: an Autopilot clip has a project per shape (2026-09-29).
@@ -310,6 +318,19 @@ export function CandidateCard({
           {(candidate.transcriptExcerpt || candidate.reason) && (
             <p className="mt-1 line-clamp-2 text-sm text-fg-2">
               {candidate.transcriptExcerpt ?? candidate.reason}
+            </p>
+          )}
+          {trackRecord === null ? null : (
+            <p
+              className="m-0 mt-1 flex items-start gap-1.5 text-xs text-fg-2"
+              data-testid={`track-record-${candidate.id}`}
+            >
+              <TrendingUp
+                className="mt-0.5 size-3.5 shrink-0"
+                strokeWidth={1.75}
+                aria-hidden="true"
+              />
+              <span>{trackRecord}</span>
             </p>
           )}
           {select?.note === undefined ? null : (
@@ -599,6 +620,9 @@ export function CandidateCard({
 
       {/* Posting to social accounts (2026-09-29): nothing while it is switched off. */}
       <ClipPosts runId={runId} clipId={clip?.id} title={title} ready={state === "ready"} />
+
+      {/* How it did once posted (2026-10-05): nothing while it is switched off. */}
+      <ClipPerformance runId={runId} clipId={clip?.id} title={title} ready={state === "ready"} />
 
       <ClipControls
         runId={runId}

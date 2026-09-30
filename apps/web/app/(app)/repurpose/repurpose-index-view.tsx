@@ -28,6 +28,7 @@ import { REPURPOSE_FLOW_FLAG } from "@/components/home/pipeline-banner";
 import { formatRelative } from "@/components/projects/project-table";
 import { AUTOMATIONS_FLAG } from "@/components/repurpose/automations/use-automations";
 import { safeErrorCopy } from "@/components/repurpose/copy";
+import { PERFORMANCE_FLAG } from "@/components/repurpose/performance/use-performance";
 import { runActivity, serverIsWorking } from "@/components/repurpose/run-activity";
 import { runPartLabel, runTitle } from "@/components/repurpose/run-window";
 
@@ -61,6 +62,8 @@ export function RepurposeIndexView(): React.JSX.Element {
   const enabled = useFeatureFlag(REPURPOSE_FLOW_FLAG);
   // Channel automations (2026-10-02): a way in from here while they are on.
   const automations = useFeatureFlag(AUTOMATIONS_FLAG);
+  // What works (2026-10-05): the same, while it is on.
+  const whatWorks = useFeatureFlag(PERFORMANCE_FLAG);
   const runs = useRepurposeRuns(enabled);
   const router = useRouter();
   const [url, setUrl] = React.useState("");
@@ -95,18 +98,33 @@ export function RepurposeIndexView(): React.JSX.Element {
         eyebrow="Clips pipeline"
         title={PAGE_TITLE}
         description="Paste a link and the pipeline runs end to end: it reads the transcript, finds the moments worth cutting, reframes and captions them, and builds a version per platform. Every stage can be resumed, and nothing is posted until you say so."
-        {...(automations
+        {...(automations || whatWorks
           ? {
               actions: (
-                <Button variant="ghost" size="sm" asChild>
-                  <NextLink
-                    href="/repurpose/automations"
-                    className="no-underline"
-                    data-testid="repurpose-automations-link"
-                  >
-                    Automations
-                  </NextLink>
-                </Button>
+                <>
+                  {whatWorks ? (
+                    <Button variant="ghost" size="sm" asChild>
+                      <NextLink
+                        href="/repurpose/what-works"
+                        className="no-underline"
+                        data-testid="repurpose-what-works-link"
+                      >
+                        What works
+                      </NextLink>
+                    </Button>
+                  ) : null}
+                  {automations ? (
+                    <Button variant="ghost" size="sm" asChild>
+                      <NextLink
+                        href="/repurpose/automations"
+                        className="no-underline"
+                        data-testid="repurpose-automations-link"
+                      >
+                        Automations
+                      </NextLink>
+                    </Button>
+                  ) : null}
+                </>
               ),
             }
           : {})}

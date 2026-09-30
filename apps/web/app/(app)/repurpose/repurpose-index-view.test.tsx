@@ -36,7 +36,11 @@ const NO_PLAN_LIMIT_FACTS = {
   nextWindowAvailable: false,
 };
 
-function run(id: string, status: string, overrides: Partial<RepurposeRunView> = {}): RepurposeRunView {
+function run(
+  id: string,
+  status: string,
+  overrides: Partial<RepurposeRunView> = {},
+): RepurposeRunView {
   return {
     ...NO_PLAN_LIMIT_FACTS,
     id,
@@ -80,9 +84,7 @@ function renderList(items: readonly RepurposeRunView[]): void {
 
 describe("<RepurposeIndexView /> run list", () => {
   it("names a failure and says it needs attention", async () => {
-    renderList([
-      run("01FAIL", "failed", { failureCode: "repurpose/source_too_long" }),
-    ]);
+    renderList([run("01FAIL", "failed", { failureCode: "repurpose/source_too_long" })]);
     const row = await screen.findByTestId("repurpose-run-01FAIL");
     expect(row).toHaveTextContent("Needs attention · This video is longer than your plan allows");
     expect(row).not.toHaveTextContent("Something went wrong");
@@ -152,7 +154,12 @@ describe("<RepurposeIndexView /> names each run by its video's title", () => {
     const part = (id: string, startMs: number): RepurposeRunView =>
       run(id, "candidates_ready", {
         sourceTitle: "A three-hour podcast",
-        window: { startMs, endMs: startMs + 20 * MIN, sourceDurationMs: 180 * MIN, policy: "range" },
+        window: {
+          startMs,
+          endMs: startMs + 20 * MIN,
+          sourceDurationMs: 180 * MIN,
+          policy: "range",
+        },
       });
     renderList([part("01PART2", 20 * MIN), part("01PART1", 0), run("01WHOLE", "candidates_ready")]);
 
@@ -162,5 +169,31 @@ describe("<RepurposeIndexView /> names each run by its video's title", () => {
     expect(screen.getByTestId("repurpose-run-part-01PART1")).toHaveTextContent("Part 0:00–20:00");
     // A whole video is not "part" of anything.
     expect(screen.queryByTestId("repurpose-run-part-01WHOLE")).toBeNull();
+  });
+});
+
+describe("the way in to What works (2026-10-05)", () => {
+  function renderWith(flags: Record<string, boolean>): void {
+    renderWithProviders(<RepurposeIndexView />, {
+      routes: {
+        "/workspaces/01JWORKSPACE/entitlement": { ...ENTITLEMENT, entitlements: { flags } },
+        "/repurpose/runs": { items: [], nextCursor: null },
+      },
+    });
+  }
+
+  it("is offered while it is on", async () => {
+    renderWith({ repurpose_flow: true, repurpose_performance: true });
+    expect(await screen.findByTestId("repurpose-what-works-link")).toHaveAttribute(
+      "href",
+      "/repurpose/what-works",
+    );
+    expect(screen.queryByTestId("repurpose-automations-link")).toBeNull();
+  });
+
+  it("is not offered while it is off", async () => {
+    renderWith({ repurpose_flow: true });
+    expect(await screen.findByTestId("repurpose-index")).toBeInTheDocument();
+    expect(screen.queryByTestId("repurpose-what-works-link")).toBeNull();
   });
 });
