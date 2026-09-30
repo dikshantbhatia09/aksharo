@@ -120,6 +120,11 @@ export interface SafeFetchResult {
   readonly url: string;
   readonly status: number;
   readonly contentType?: string;
+  /**
+   * The final response's headers, lower-case names (2026-10-05): what a caller
+   * reads a service's rate-limit headers from (the B-roll stock client).
+   */
+  readonly headers: Readonly<Record<string, string | undefined>>;
   readonly body: Buffer;
   /** Every URL visited before the final one, in order. */
   readonly redirects: readonly string[];
@@ -262,6 +267,7 @@ export async function safeFetch(
       url: current,
       status: response.status,
       ...(contentType === undefined ? {} : { contentType }),
+      headers: response.headers,
       body,
       redirects,
     };

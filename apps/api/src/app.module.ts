@@ -16,6 +16,7 @@ import { BatchModule } from "./batch/batch.module.js";
 import { BillingModule } from "./billing/billing.module.js";
 import { BrandKitModule } from "./brand-kit/brand-kit.module.js";
 import { BridgeRelayModule } from "./bridge-relay/bridge-relay.module.js";
+import { BrollModule } from "./broll/broll.module.js";
 import { CommentsModule } from "./comments/comments.module.js";
 import { CommonModule } from "./common/common.module.js";
 import { ConsentsModule } from "./consents/consents.module.js";
@@ -143,6 +144,9 @@ import { WorkspacesModule } from "./workspaces/workspaces.module.js";
     // 2026-10-02: a workspace's brand kit (`/brand-kit`), which Autopilot applies
     // to a run's clips when the run says so; inert for a workspace without one.
     BrandKitModule,
+    // 2026-10-05: a workspace's B-roll library (`/broll`), the pictures a B-roll
+    // cutaway draws; stock photos only when `PEXELS_API_KEY` is set.
+    BrollModule,
     ExportsModule,
     ReferralsModule,
     // B12: Academy tracks/progress/rewards + What's-new (`AcademyModule`), and

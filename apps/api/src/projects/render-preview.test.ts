@@ -20,6 +20,7 @@ function deps(
     project?: Record<string, unknown> | null;
     overlays?: readonly Record<string, unknown>[];
     keptLogos?: readonly string[];
+    keptPictures?: readonly string[];
   } = {},
 ) {
   const media =
@@ -64,7 +65,16 @@ function deps(
       ),
     ),
   };
-  return { prisma, edg, derived, faces, brandKits };
+  const broll = {
+    imageUrls: vi.fn(async (_workspaceId: string, ids: readonly string[]) =>
+      Object.fromEntries(
+        ids
+          .filter((id) => (options.keptPictures ?? []).includes(id))
+          .map((id) => [id, `https://cdn.example.test/broll/${id}`]),
+      ),
+    ),
+  };
+  return { prisma, edg, derived, faces, brandKits, broll };
 }
 
 /** Every TTL `presignGet` was asked for, by key. */
@@ -143,6 +153,7 @@ describe("RenderPreviewService.forProject", () => {
       d.derived as never,
       d.faces as never,
       d.brandKits as never,
+      d.broll as never,
     );
   }
 
@@ -181,10 +192,46 @@ describe("RenderPreviewService.forProject", () => {
     ]);
   });
 
+  it("signs the B-roll pictures the document's cutaways draw, and leaves out one deleted from the library (2026-10-05)", async () => {
+    const cutaway = (id: string, assetId: string) => ({
+      id,
+      kind: "b-roll",
+      startMs: 4_000,
+      endMs: 6_500,
+      image: { assetId, format: "jpeg", width: 1440, height: 2560 },
+      mode: "full",
+      motion: "push-in",
+    });
+    const KEPT = "01JPX0000000000000000000K1";
+    const GONE = "01JPX0000000000000000000G1";
+    const d = deps({
+      project: { id: PROJECT, aspect: "r9x16", workspaceId: WS },
+      overlays: [
+        cutaway("01JBR0000000000000000000A1", KEPT),
+        cutaway("01JBR0000000000000000000B1", GONE),
+      ],
+      keptPictures: [KEPT],
+      // A logo with the same id as the deleted picture never makes its cutaway pass.
+      keptLogos: [GONE],
+    });
+    const preview = await service(d).forProject(WS, PROJECT);
+    expect(d.broll.imageUrls).toHaveBeenCalledWith(
+      WS,
+      [KEPT, GONE],
+      WORKSPACE_PREVIEW_URL_TTL_SECONDS,
+    );
+    expect(d.brandKits.imageUrls).not.toHaveBeenCalled();
+    expect(preview.images).toEqual({ [KEPT]: `https://cdn.example.test/broll/${KEPT}` });
+    expect(preview.projection?.overlays?.map((overlay) => overlay.id)).toEqual([
+      "01JBR0000000000000000000A1",
+    ]);
+  });
+
   it("asks for no logo at all for a document that draws none", async () => {
     const d = deps({ project: { id: PROJECT, aspect: "r9x16", workspaceId: WS } });
     const preview = await service(d).forProject(WS, PROJECT);
     expect(d.brandKits.imageUrls).not.toHaveBeenCalled();
+    expect(d.broll.imageUrls).not.toHaveBeenCalled();
     expect(preview).not.toHaveProperty("images");
   });
 

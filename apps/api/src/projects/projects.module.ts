@@ -7,6 +7,7 @@ import { ProjectsService } from "./projects.service.js";
 import { RenderPreviewController } from "./render-preview.controller.js";
 import { RenderPreviewService } from "./render-preview.js";
 import { BrandKitModule } from "../brand-kit/brand-kit.module.js";
+import { BrollModule } from "../broll/broll.module.js";
 import { EdgModule } from "../edg/edg.module.js";
 import { JobsModule } from "../jobs/jobs.module.js";
 import { FacesTrigger } from "../media/faces.js";
@@ -35,7 +36,7 @@ import { WorkspacesModule } from "../workspaces/workspaces.module.js";
  * nothing either.
  */
 @Module({
-  imports: [WorkspacesModule, EdgModule, JobsModule, BrandKitModule],
+  imports: [WorkspacesModule, EdgModule, JobsModule, BrandKitModule, BrollModule],
   controllers: [ProjectsController, FoldersController, RenderPreviewController],
   providers: [ProjectsService, FoldersService, RenderPreviewService, FacesTrigger],
   exports: [ProjectsService, FoldersService],

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { EdgProjection, TranscriptChunk } from "@montaj/edg/schemas";
 
-import { buildRenderProjection, overlayImageIds } from "./projection.js";
+import { brollImageIds, buildRenderProjection, overlayImageIds } from "./projection.js";
 
 const EDG_ID = "01JA20EDG00000000000000000";
 const PROJECT_ID = "01JA20PRJECT00000000000000";
@@ -110,6 +110,57 @@ describe("buildRenderProjection", () => {
       // A card that was only its logo is left out altogether.
       expect(
         buildRenderProjection(baseEdg({ overlays: [card(GONE, false)] }), [], { images }),
+      ).not.toHaveProperty("overlays");
+    });
+  });
+
+  describe("b-roll cutaways (2026-10-05)", () => {
+    const KEPT = "01JPX0000000000000000000K1";
+    const GONE = "01JPX0000000000000000000G1";
+    const cutaway = (id: string, assetId: string) => ({
+      id,
+      kind: "b-roll" as const,
+      startMs: 4_000,
+      endMs: 6_500,
+      image: { assetId, format: "jpeg" as const, width: 1440, height: 2560 },
+      mode: "pip" as const,
+      motion: "pan-left" as const,
+      startWordId: "0:12" as const,
+      endWordId: "0:14" as const,
+      label: "the Taj Mahal",
+    });
+    const first = cutaway("01JBR0000000000000000000A1", KEPT);
+    const second = cutaway("01JBR0000000000000000000B1", GONE);
+
+    it("names every picture the cutaways draw, once, and none of the logos", () => {
+      const logo = {
+        id: "01JL0G00000000000000000000",
+        kind: "logo" as const,
+        startMs: 0,
+        endMs: 30_000,
+        image: { assetId: GONE, format: "png" as const, width: 10, height: 10 },
+        corner: "top-right" as const,
+        sizePct: 16,
+        opacity: 1,
+        marginPct: 4,
+      };
+      const edg = baseEdg({
+        overlays: [first, { ...first, id: "01JBR0000000000000000000C1" }, logo],
+      });
+      expect(brollImageIds(edg)).toEqual([KEPT]);
+      expect(overlayImageIds(edg)).toEqual([GONE]);
+    });
+
+    it("passes a cutaway as stored, and leaves out one whose picture the library no longer keeps", () => {
+      expect(buildRenderProjection(baseEdg({ overlays: [first] }), []).overlays).toEqual([first]);
+      const projection = buildRenderProjection(baseEdg({ overlays: [first, second] }), [], {
+        // A logo with the deleted picture's id never makes its cutaway pass.
+        images: new Set([GONE]),
+        brollImages: new Set([KEPT]),
+      });
+      expect(projection.overlays).toEqual([first]);
+      expect(
+        buildRenderProjection(baseEdg({ overlays: [second] }), [], { brollImages: new Set() }),
       ).not.toHaveProperty("overlays");
     });
   });

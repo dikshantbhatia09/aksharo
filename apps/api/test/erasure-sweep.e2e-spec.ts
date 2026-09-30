@@ -31,7 +31,10 @@ function id(suffix: string): string {
   return (ULID_A.slice(0, 26 - suffix.length) + suffix).toUpperCase();
 }
 
-function fakeStore(): ObjectStore {
+/** Every key the cascade asked the derived store to delete. */
+const derivedDeleted: string[] = [];
+
+function fakeStore(deleted?: string[]): ObjectStore {
   return {
     bucket: "fake",
     kind: "s3",
@@ -46,7 +49,10 @@ function fakeStore(): ObjectStore {
     put: async () => undefined,
     get: async () => Buffer.alloc(0),
     delete: async () => undefined,
-    deleteMany: async (keys: readonly string[]) => keys.length,
+    deleteMany: async (keys: readonly string[]) => {
+      deleted?.push(...keys);
+      return keys.length;
+    },
     tag: async () => undefined,
   };
 }
@@ -67,7 +73,7 @@ describe.skipIf(!available)("erasure cascade — the sweep (acceptance criterion
     cascade = new ErasureCascadeService(
       prisma as unknown as PrismaService,
       fakeStore(),
-      fakeStore(),
+      fakeStore(derivedDeleted),
       audit,
     );
   }, 60_000);
@@ -133,6 +139,21 @@ describe.skipIf(!available)("erasure cascade — the sweep (acceptance criterion
     await prisma.comment.create({
       data: { id: id("CM1"), projectId, authorId: userId, body: "note to self" },
     });
+    // The B-roll library (2026-10-05): the row goes, and its picture before it.
+    const pictureKey = `ws/${workspaceId}/broll/${id("BR1")}.jpg`;
+    await prisma.brollAsset.create({
+      data: {
+        id: id("BR1"),
+        workspaceId,
+        storageKey: pictureKey,
+        contentType: "image/jpeg",
+        sizeBytes: 1_000,
+        width: 1440,
+        height: 2560,
+        tags: ["taj mahal"],
+        createdBy: userId,
+      },
+    });
 
     // C12: telemetry rows are FK-less (`CrashReport`/`ProductEvent`, by
     // design), so they need their own explicit sweep in the cascade — proven
@@ -196,6 +217,7 @@ describe.skipIf(!available)("erasure cascade — the sweep (acceptance criterion
 
     const after = await residue.check({ userId, workspaceId });
     expect(after).toEqual([]);
+    expect(derivedDeleted).toContain(pictureKey);
 
     // Billing document survives, minimised.
     const survivingInvoice = await prisma.invoice.findUnique({ where: { id: invoice.id } });

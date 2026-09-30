@@ -52,6 +52,7 @@ export interface ErasureCascadeReport {
  *    e. delete the workspace-scoped rows `projects` cascade does not reach:
  *       `memory_entries`, `folders`, `devices`, `api_keys`, `license_keys`,
  *       `bridge_pairings`, `streak_experiments`, `brand_assets`,
+ *       `broll_assets` (the B-roll library, 2026-10-05, objects first),
  *       `style_presets`, `brand_kits`, `fonts`, `webhook_endpoints`,
  *       `notifications`, `asset_clearance_grants`;
  *    f. **soft-delete** the workspace (`deletedAt`), never hard-delete it.
@@ -273,6 +274,22 @@ export class ErasureCascadeService {
       }
     }
 
+    // The B-roll library (2026-10-05): the workspace's own pictures and saved
+    // stock photos, objects here and rows with the others below, like the
+    // brand assets.
+    const brollPictures = await this.prisma.brollAsset.findMany({
+      where: { workspaceId },
+      select: { storageKey: true },
+    });
+    const brollKeys = brollPictures.map((asset) => asset.storageKey).filter((key) => key !== "");
+    if (brollKeys.length > 0) {
+      try {
+        derivedObjectsDeleted += await this.derived.deleteMany(brollKeys);
+      } catch (error) {
+        this.logger.warn({ err: describe(error) }, "b-roll pictures not erased");
+      }
+    }
+
     const exports = await this.prisma.export.findMany({
       where: { workspaceId, storageKey: { not: null } },
       select: { storageKey: true },
@@ -306,6 +323,7 @@ export class ErasureCascadeService {
       this.prisma.bridgePairing.deleteMany({ where: { workspaceId } }),
       this.prisma.streakExperiment.deleteMany({ where: { workspaceId } }),
       this.prisma.brandAsset.deleteMany({ where: { workspaceId } }),
+      this.prisma.brollAsset.deleteMany({ where: { workspaceId } }),
       this.prisma.stylePreset.deleteMany({ where: { workspaceId } }),
       this.prisma.brandKit.deleteMany({ where: { workspaceId } }),
       this.prisma.font.deleteMany({ where: { workspaceId } }),
