@@ -109,7 +109,8 @@ const STOPPED_NOTES: Readonly<Record<string, string>> = Object.freeze({
   [READ_ERRORS.failed]: "Reading its numbers kept failing, so it stopped.",
   [READ_ERRORS.unavailable]:
     "The video is private, removed or not out yet, so its numbers cannot be read.",
-  [READ_ERRORS.missing]: "Postiz no longer has this post, so its numbers cannot be read.",
+  [READ_ERRORS.missing]:
+    "The post is gone from where it was scheduled, so its numbers cannot be read.",
 });
 
 function metricView(entry: LatestEntry | undefined): MetricView | null {
