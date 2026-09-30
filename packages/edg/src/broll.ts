@@ -248,6 +248,31 @@ export function planBroll(input: PlanBrollInput): PlannedBroll[] {
   return kept.sort((a, b) => a.startMs - b.startMs);
 }
 
+/** Why a person cannot put a cutaway somewhere: over the hook, or over a title or a card. */
+export type BrollPlacementProblem = "hook" | "title";
+
+/**
+ * Why a cutaway cannot go at `window` - one a person places or moves in the
+ * editor - or `undefined` when it can: it may not start in the first
+ * `hookClearMs` of the video as it plays, nor cover a hook title (a series
+ * label is one) or an end card. The other rules (spacing, how much of the
+ * video, the last seconds) are Autopilot's own restraint, not a person's.
+ */
+export function brollPlacementProblem(
+  window: BrollSpan,
+  input: {
+    readonly clock: BrollClock;
+    readonly blocked: readonly BrollSpan[];
+    readonly rules?: Partial<BrollRules>;
+  },
+): BrollPlacementProblem | undefined {
+  const rules: BrollRules = { ...BROLL_RULES, ...input.rules };
+  const start = outputOf(input.clock, window.startMs);
+  if (start !== null && start < rules.hookClearMs) return "hook";
+  if (input.blocked.some((span) => overlaps(span, window))) return "title";
+  return undefined;
+}
+
 /**
  * Full frame, unless the picture's shape is so far from the frame's that
  * covering it would crop away more than half of the picture (a wide photo in a

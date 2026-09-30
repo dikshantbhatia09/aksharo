@@ -71,10 +71,11 @@ export function displayScriptOf(script: string | undefined): DisplayScript {
 }
 
 /**
- * The brand logos (2026-10-02) each renderer on the page has been given, by
- * asset id. A logo's bytes never change under its id, so each is fetched once
- * per page and registered with the shared backend, whichever stage asked
- * first; a failed fetch is forgotten, so a fresh URL can try again.
+ * The brand logos (2026-10-02) and B-roll pictures (2026-10-05) each renderer
+ * on the page has been given, by asset id. An image's bytes never change under
+ * its id, so each is fetched once per page and registered with the shared
+ * backend, whichever stage asked first; a failed fetch is forgotten, so a
+ * fresh URL can try again.
  */
 const REGISTERED_IMAGES = new WeakMap<CanvasKitBackend, Map<string, Promise<boolean>>>();
 
@@ -94,7 +95,7 @@ function registerImage(backend: CanvasKitBackend, assetId: string, url: string):
     })
     .catch((error: unknown) => {
       console.warn(
-        `[renderer] could not load the logo ${assetId}: ${error instanceof Error ? error.message : String(error)}`,
+        `[renderer] could not load the image ${assetId}: ${error instanceof Error ? error.message : String(error)}`,
       );
       byId.delete(assetId);
       return false;
@@ -187,10 +188,11 @@ export interface CaptionStageProps {
   readonly script?: string;
   readonly showSafeZones?: boolean;
   /**
-   * The brand logos the projection's overlays draw (2026-10-02), asset id to a
-   * URL for its bytes: `GET /brand-kit`'s `images` in the editor, a render
-   * preview's `images` elsewhere. A logo with no URL is not drawn, exactly as
-   * an export leaves out a logo the workspace no longer keeps.
+   * The images the projection's overlays draw - brand logos (2026-10-02) and
+   * B-roll pictures (2026-10-05) - asset id to a URL for its bytes: `GET
+   * /brand-kit`'s `images` and `GET /broll`'s pictures in the editor, a render
+   * preview's `images` elsewhere. An image with no URL is not drawn, exactly
+   * as an export leaves out one the workspace no longer keeps.
    */
   readonly images?: Readonly<Record<string, string>>;
   /**

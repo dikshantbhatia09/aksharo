@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   BROLL_RULES,
   blockedBrollSpans,
+  brollPlacementProblem,
   brollModeFor,
   brollMotionAt,
   brollOverlaysOf,
@@ -277,5 +278,37 @@ describe("nudgeBrollWindow", () => {
     expect(nudgeBrollWindow({ startMs: 2_000, endMs: 3_400 }, list, "end", -1)).toBeUndefined();
     expect(nudgeBrollWindow({ startMs: 0, endMs: 2_400 }, list, "both", -1)).toBeUndefined();
     expect(nudgeBrollWindow(window, [], "start", 1)).toBeUndefined();
+  });
+});
+
+describe("brollPlacementProblem", () => {
+  const clock = uncutClock(60_000);
+  const blocked = [{ startMs: 27_000, endMs: 30_000 }];
+
+  it("keeps a person's cutaway off the hook's first seconds and off a title or a card", () => {
+    expect(brollPlacementProblem({ startMs: 1_000, endMs: 3_500 }, { clock, blocked })).toBe(
+      "hook",
+    );
+    expect(brollPlacementProblem({ startMs: 26_000, endMs: 28_000 }, { clock, blocked })).toBe(
+      "title",
+    );
+    expect(
+      brollPlacementProblem({ startMs: 10_000, endMs: 12_500 }, { clock, blocked }),
+    ).toBeUndefined();
+    // Near the end is a person's call: only Autopilot keeps clear of it.
+    expect(
+      brollPlacementProblem({ startMs: 56_000, endMs: 59_000 }, { clock, blocked }),
+    ).toBeUndefined();
+  });
+
+  it("measures the hook on the video as it plays, after its cuts", () => {
+    const cut = clockWithCut(60_000, 1_000, 5_000);
+    // 5.5 s of source plays at 1.5 s: still the hook.
+    expect(
+      brollPlacementProblem({ startMs: 5_500, endMs: 8_000 }, { clock: cut, blocked: [] }),
+    ).toBe("hook");
+    expect(
+      brollPlacementProblem({ startMs: 8_000, endMs: 10_000 }, { clock: cut, blocked: [] }),
+    ).toBeUndefined();
   });
 });

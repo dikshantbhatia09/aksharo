@@ -13,14 +13,14 @@
  * "Captions" renders (`children`), so relocating it here changes nothing
  * about caption-editing behaviour.
  */
-import { Captions, FolderOpen, Type } from "lucide-react";
+import { Captions, FolderOpen, Images, Type } from "lucide-react";
 import * as React from "react";
 
 import { cn, Tooltip, TooltipContent, TooltipTrigger } from "@montaj/ui";
 
 import type { LucideIcon } from "lucide-react";
 
-export type EditorRailTab = "captions" | "fonts" | "library";
+export type EditorRailTab = "captions" | "fonts" | "library" | "broll";
 
 const TABS: readonly {
   readonly id: EditorRailTab;
@@ -30,6 +30,8 @@ const TABS: readonly {
   { id: "captions", label: "Captions", icon: Captions },
   { id: "fonts", label: "Custom fonts", icon: Type },
   { id: "library", label: "Library", icon: FolderOpen },
+  // B-roll (2026-10-05): the clip's picture cutaways, and adding one at the playhead.
+  { id: "broll", label: "B-roll", icon: Images },
 ];
 
 export interface EditorRailProps {
@@ -39,6 +41,8 @@ export interface EditorRailProps {
   readonly captions: React.ReactNode;
   readonly fonts: React.ReactNode;
   readonly library: React.ReactNode;
+  /** The B-roll tab's content (2026-10-05); without it the tab is not offered. */
+  readonly broll?: React.ReactNode;
   readonly className?: string;
 }
 
@@ -48,8 +52,10 @@ export function EditorRail({
   captions,
   fonts,
   library,
+  broll,
   className,
 }: EditorRailProps): React.JSX.Element {
+  const tabs = broll === undefined ? TABS.filter((tab) => tab.id !== "broll") : TABS;
   return (
     <div className={cn("flex h-full min-w-0", className)} data-testid="editor-rail">
       <div
@@ -58,7 +64,7 @@ export function EditorRail({
         aria-label="Editor rail"
         data-testid="editor-rail-tabs"
       >
-        {TABS.map((tab) => {
+        {tabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = tab.id === active;
           return (
@@ -102,6 +108,11 @@ export function EditorRail({
         <div role="tabpanel" hidden={active !== "library"} className="h-full">
           {library}
         </div>
+        {broll === undefined ? null : (
+          <div role="tabpanel" hidden={active !== "broll"} className="h-full">
+            {broll}
+          </div>
+        )}
       </div>
     </div>
   );
