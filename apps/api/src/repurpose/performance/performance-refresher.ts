@@ -216,8 +216,10 @@ export class PerformanceRefresher implements OnModuleInit {
         ready.push(row);
         continue;
       }
+      // By id alone: a time set by hand in SQL carries microseconds, which an
+      // equality on the value Prisma read (milliseconds) would never match.
       await this.prisma.clipPost.updateMany({
-        where: { id: row.id, nextReadAt: row.nextReadAt },
+        where: { id: row.id },
         data: { nextReadAt: new Date(now.getTime() + FLAG_OFF_RECHECK_MS) },
       });
     }
