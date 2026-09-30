@@ -25,8 +25,9 @@ import type { ZodType } from "zod";
  * Endpoints (https://docs.postiz.com/public-api, checked against the Postiz
  * v1.47 source): `GET /public/v1/integrations`, `POST /public/v1/upload`
  * (multipart, field `file`), `POST /public/v1/posts`, `GET /public/v1/posts`
- * (a date window) and `DELETE /public/v1/posts/{id}`. The key goes in the
- * `Authorization` header as it is, no `Bearer`.
+ * (a date window) and `DELETE /public/v1/posts/{id}`; and, for learning what
+ * works (2026-10-05, `repurpose/performance`), `GET /public/v1/analytics/post/
+ * {id}`. The key goes in the `Authorization` header as it is, no `Bearer`.
  *
  * What it holds to:
  *
@@ -134,6 +135,29 @@ export class PostizClient {
     });
     const body = await this.readWithRetry("/posts", query, MAX_LIST_BYTES);
     return this.parse(PostizPostListSchema, body).posts;
+  }
+
+  /**
+   * One post's figures over the last `days` (2026-10-05): the platform's own
+   * labels and series, as Postiz answers them, for `repurpose/performance/
+   * postiz-analytics.ts` to read - it knows their odd shapes, so this only
+   * checks the answer is JSON.
+   *
+   * ONE request, never retried here, unlike the other reads: the key's hourly
+   * allowance is shared with posting, and the caller already schedules the
+   * next read of every post.
+   */
+  async postAnalytics(postId: string, days: number): Promise<unknown> {
+    const response = await this.send("GET", `/analytics/post/${encodeURIComponent(postId)}`, {
+      query: new URLSearchParams({ date: String(days) }),
+      timeoutMs: READ_TIMEOUT_MS,
+    });
+    const text = await this.readBody(response, MAX_SMALL_BYTES);
+    try {
+      return JSON.parse(text) as unknown;
+    } catch {
+      throw new PostizError("malformed", "Postiz answered with something that is not JSON.");
+    }
   }
 
   // -------------------------------------------------------------------------

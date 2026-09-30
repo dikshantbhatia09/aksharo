@@ -142,6 +142,37 @@ describe("PostizClient", () => {
     ).toEqual([]);
   });
 
+  it("reads one post's analytics, once, with the window in days", async () => {
+    const fake = new FakePostiz();
+    const figures = [{ label: "Views", data: [{ total: "4820", date: "2026-10-05" }] }];
+    fake.analytics.set("post/9", figures);
+    await expect(client(fake).postAnalytics("post/9", 30)).resolves.toEqual(figures);
+    expect(fake.calls).toEqual([
+      expect.objectContaining({
+        method: "GET",
+        path: "/analytics/post/post%2F9",
+        authorization: FAKE_KEY,
+      }),
+    ]);
+    expect(fake.analyticsDays).toEqual(["30"]);
+
+    // Never retried: the key's hourly allowance is shared with posting.
+    fake.failures.push({ method: "GET", path: "/analytics/post/p1", status: "network" });
+    expect((await failureOf(client(fake).postAnalytics("p1", 7))).kind).toBe("network");
+    expect(fake.calls.filter((call) => call.path === "/analytics/post/p1")).toHaveLength(1);
+
+    fake.failures.push({
+      method: "GET",
+      path: "/analytics/post/p2",
+      status: 429,
+      headers: { "retry-after": "120" },
+    });
+    expect(await failureOf(client(fake).postAnalytics("p2", 7))).toMatchObject({
+      kind: "rate_limited",
+      retryAfterMs: 120_000,
+    });
+  });
+
   describe("errors", () => {
     it("says a refused key is unauthorized, and never includes the key", async () => {
       const fake = new FakePostiz();

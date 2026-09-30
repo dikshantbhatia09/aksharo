@@ -61,6 +61,13 @@ export class FakePostiz {
     [];
   readonly calls: FakeCall[] = [];
   readonly failures: FakeFailure[] = [];
+  /**
+   * Per post id, what `GET /analytics/post/{id}` answers (2026-10-05); a post
+   * not listed answers `[]`, as Postiz does for a platform with no figures.
+   */
+  readonly analytics = new Map<string, unknown>();
+  /** The `date` (days) each analytics read asked for, in order. */
+  readonly analyticsDays: (string | null)[] = [];
   now: () => number = () => Date.now();
   private sequence = 0;
 
@@ -200,6 +207,12 @@ export class FakePostiz {
             },
           })),
       });
+    }
+
+    const analyticsMatch = /^\/analytics\/post\/([^/]+)$/.exec(path);
+    if (method === "GET" && analyticsMatch !== null) {
+      this.analyticsDays.push(url.searchParams.get("date"));
+      return json(200, this.analytics.get(decodeURIComponent(analyticsMatch[1] ?? "")) ?? []);
     }
 
     const deleteMatch = /^\/posts\/([^/]+)$/.exec(path);
