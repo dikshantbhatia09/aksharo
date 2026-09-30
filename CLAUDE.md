@@ -37,10 +37,11 @@ Read this before touching anything. The most important section is
 > - Production still runs `NODE_ENV=development` and `MAIL_PROVIDER=dev` (no
 >   email is sent). Switching NODE_ENV to production needs a real mail provider
 >   and a SENTRY_DSN or its opt-out flag first.
-> - **Scheduler: eight tasks (since 2026-09-29, §20).**
+> - **Scheduler: nine tasks (since 2026-09-30, §20).**
 >   `MONTAJ_SCHEDULER_DISABLED=0` with `MONTAJ_SCHEDULER_TASKS=ops.watch,`
 >   `jobs.dlq-depth,jobs.lease-reaper,credits.grant-reset,credits.lot-expiry,`
->   `scheduler.export-retention,scheduler.media-retention,repurpose.source-watch`.
+>   `scheduler.export-retention,scheduler.media-retention,repurpose.source-watch,`
+>   `repurpose.performance-refresh`.
 >   `jobs.queue-timeout` must stay off (§20). Every other task
 >   (project retention — it would soft-delete 151 projects — stuck-run sweep,
 >   payouts, dunning, status snapshots) stays off. `DISABLED=1` still wins;
@@ -1555,6 +1556,34 @@ worktrees (`wt/<name>`, branch `feat/<name>`), each merged and verified in
   `FORMATS_MIN_FREE_BYTES`); by midday it had shrunk back to 35 GB on its own
   (no reboot) and C: was at 22 GiB. `hiberfil.sys` is 6.3 GB. Run one agent at
   a time on this machine, and point API unit tests at closed ports.
+- **Wave 6b, deployed as 32187672: learn what works** (`deploy-20260930d.ps1`,
+  undo `rollback-20260930d.ps1`; DB backup `montaj_main-pre-20260930d.dump`;
+  migration `20261005120000_clip_performance`, two new tables; env edit
+  `env-20260930d.cjs` added the scheduled task). Flag `repurpose_performance`,
+  **everyone** since 2026-09-30 (no vendor cost).
+  - **Where a clip went** (`apps/api/src/repurpose/performance/`): one
+    `clip_posts` row per (clip shape, platform post, dub language) - Postiz
+    posts picked up on their own, or a link pasted ("I posted this"), checked
+    per platform and **rebuilt from the post's id**; short links are refused.
+  - **How it did**: `repurpose.performance-refresh` (every 10 min) keeps
+    snapshots (`clip_post_snapshots`): Postiz per-post analytics (at most 6
+    reads an hour, `PERFORMANCE_POSTIZ_READS_PER_HOUR`; idle until Postiz
+    works) and YouTube view counts from the public watch page (2 a pass, 3 s
+    apart, only while `SourceGate` is closed; a refusal trips the gate for all
+    YouTube requests); every 6 h for 2 days, daily to day 7, every 3 days to
+    day 30. Other links take numbers typed in, marked as entered.
+    Verified live 2026-09-30: a pasted YouTube link read 123,554 views
+    (`youtube_page`) on the task's first pass; the test post was deleted.
+  - **What works** (`/repurpose/what-works`): best clips by views and by
+    engagement, and how length, opening, topic words, layout, language and
+    posting time compare against each platform's median; nothing is claimed
+    from fewer than 5 posts, or without 5 a side and a 1.25x difference.
+  - **The next picks**: with 8 posts with views across 4 clips, highlights get
+    `options.performance`; worker-ai adds at most 5 points to a moment like a
+    hit (title/hook words, the winning length or opening), after the topic
+    filter and the 60 % bar, shown as a `track_record` reason. Past hits are
+    never put in the model's prompt. An old worker-ai refuses the option, so
+    worker-ai deploys before the api.
 - **Known, not fixed**: API unit tests and past dev sessions left ~40 MB of
   keys under test prefixes (`montaj-test-*`, `a23`, `montaj-s07`, ...) in the
   production Redis (`test/setup-env.ts` assigns `localhost:6379`).
