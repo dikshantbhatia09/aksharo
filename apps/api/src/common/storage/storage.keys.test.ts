@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   brandAssetKey,
+  brollAssetKey,
   DERIVED_ARTEFACTS,
   derivedKey,
   exportKey,
@@ -62,6 +63,17 @@ describe("CONTRACTS §6 key shapes", () => {
     expect(brandAssetKey(WS, EXPORT, "jpg")).toBe(`ws/${WS}/brand/${EXPORT}.jpg`);
     expect(brandAssetKey(WS, EXPORT, "webp")).toBe(`ws/${WS}/brand/${EXPORT}.webp`);
     expect(() => brandAssetKey(WS, EXPORT, "svg" as "png")).toThrow(StorageKeyError);
+  });
+
+  it("files a B-roll picture in the workspace's own B-roll folder, ids checked (2026-10-05)", () => {
+    expect(brollAssetKey(WS, EXPORT, "jpg")).toBe(`ws/${WS}/broll/${EXPORT}.jpg`);
+    expect(brollAssetKey(WS, EXPORT, "png")).toBe(`ws/${WS}/broll/${EXPORT}.png`);
+    expect(keyBelongsToWorkspace(brollAssetKey(WS, EXPORT, "webp"), WS)).toBe(true);
+    // Never a slug, a path or another folder's extension: only a ULID picture.
+    expect(() => brollAssetKey(WS, "aksharo-watermark", "png")).toThrow(StorageKeyError);
+    expect(() => brollAssetKey(WS, "../../etc/passwd", "png")).toThrow(StorageKeyError);
+    expect(() => brollAssetKey("../other", EXPORT, "png")).toThrow(StorageKeyError);
+    expect(() => brollAssetKey(WS, EXPORT, "mp3" as "png")).toThrow(StorageKeyError);
   });
 
   it("files the imported-subtitle sidecar under the media prefix", () => {

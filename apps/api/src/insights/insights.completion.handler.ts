@@ -27,8 +27,9 @@ import type { Prisma } from "@prisma/client";
 const LlmResultSchema = z.object({
   // `episode-pack` (2026-09-29): a clips run's text for its source video,
   // written at no charge to the person (its hold is zero, and so is its
-  // settlement).
-  templateId: z.enum(["chapters", "summary", "hooks", "episode-pack"]),
+  // settlement). `broll` (2026-10-05): the moments in a clip a picture could
+  // cut away at, for Autopilot, likewise free.
+  templateId: z.enum(["chapters", "summary", "hooks", "episode-pack", "broll"]),
   version: z.string().min(1),
   provider: z.string().min(1),
   region: z.string().min(1),
@@ -105,9 +106,9 @@ export class InsightsCompletionHandler implements JobCompletionHandler, OnModule
     // Flat per-kind price (`insights.quote.ts`); an `ai.llm` run has no partial
     // settlement the way transcription does, so the hold and the settlement are
     // always the same figure — never more than what was held. The episode pack
-    // is part of a clips run and costs the person nothing.
+    // and a clip's B-roll moments are part of a clips run and cost nothing.
     const actualTenths =
-      kind === "episode-pack"
+      kind === "episode-pack" || kind === "broll"
         ? 0
         : // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
           Math.min(job.creditsChargedTenths, INSIGHT_KIND_TENTHS[kind]);

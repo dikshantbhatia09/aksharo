@@ -155,3 +155,19 @@ export {
   type MediaDubPayload,
   type MediaDubResult,
 } from "./dubbing.js";
+export {
+  BROLL_LIMITS,
+  BROLL_LLM_KIND,
+  BROLL_TEMPLATE_VERSION,
+  BrollMomentSchema,
+  BrollOutputSchema,
+  BrollRequestSchema,
+  BrollSpanSchema,
+  BrollWordSchema,
+  brollJobKey,
+  type BrollMoment,
+  type BrollOutput,
+  type BrollRequest,
+  type BrollSpan,
+  type BrollWord,
+} from "./broll.js";

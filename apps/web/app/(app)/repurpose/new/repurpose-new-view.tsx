@@ -43,6 +43,7 @@ import {
 import { PageHeader } from "@montaj/ui";
 
 import { useBrandKit } from "@/components/brand-kit/use-brand-kit";
+import { brollOfferOf, useBrollLibrary } from "@/components/broll/use-broll-library";
 import { rememberLanguage } from "@/components/projects/language-picker";
 import { AUTOMATIONS_FLAG, useBulkRuns } from "@/components/repurpose/automations/use-automations";
 import { SOURCE_CEILING_MS } from "@/components/repurpose/failure-detail";
@@ -163,6 +164,8 @@ export function RepurposeNewView(): React.JSX.Element {
   // The brand kit (2026-10-02): the switch is offered once one is saved.
   const brandKit = useBrandKit();
   const hasBrandKit = brandKit.data?.exists === true;
+  // B-roll (2026-10-05): offered when the library has pictures, or stock photos are set up.
+  const broll = brollOfferOf(useBrollLibrary().data);
   const lastRequest = React.useRef<{ readonly key: string; readonly body: string } | null>(null);
   const [value, setValue] = React.useState<StartFormValue>(() =>
     // A failed run's own setup when it sent one; otherwise detect.
@@ -237,7 +240,10 @@ export function RepurposeNewView(): React.JSX.Element {
   const submitLinks = (): void => {
     const body = {
       links: linksToSend(linkLinesOf(value.links)),
-      setup: runSetupRequest(value, { brandKit: hasBrandKit }),
+      setup: runSetupRequest(value, {
+        brandKit: hasBrandKit,
+        ...(broll === undefined ? {} : { broll }),
+      }),
       rightsAttested: true as const,
     };
     lastRequest.current = idempotencyKeyFor(lastRequest.current, JSON.stringify(body));
@@ -265,7 +271,10 @@ export function RepurposeNewView(): React.JSX.Element {
       setStartingFiles(false);
       return;
     }
-    const setup = withCover(runSetupRequest(value, { brandKit: hasBrandKit }), cover);
+    const setup = withCover(
+      runSetupRequest(value, { brandKit: hasBrandKit, ...(broll === undefined ? {} : { broll }) }),
+      cover,
+    );
     const lines: SeveralLine[] = [];
     const pairs: { file: File; projectId: string }[] = [];
     const failed: File[] = [];
@@ -337,7 +346,10 @@ export function RepurposeNewView(): React.JSX.Element {
         : uploadSource(value.file);
 
     const setup: CreateRepurposeRunRequest["setup"] = {
-      ...runSetupRequest(value, { brandKit: hasBrandKit }),
+      ...runSetupRequest(value, {
+        brandKit: hasBrandKit,
+        ...(broll === undefined ? {} : { broll }),
+      }),
       // Only with a start: no window leaves the choice to the server.
       ...(startMs === undefined ? {} : { window: { startMs, policy: "range" as const } }),
     };
@@ -418,6 +430,7 @@ export function RepurposeNewView(): React.JSX.Element {
           {...(planWindowMs === undefined ? {} : { planWindowMs })}
           processesWholeVideos={processesWholeVideos}
           brandKit={hasBrandKit}
+          {...(broll === undefined ? {} : { broll })}
           // The length holds only while the link is still the one it came
           // with (`validateStartForm`).
           {...(startContext.knownLength === undefined

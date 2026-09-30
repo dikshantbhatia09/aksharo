@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "moments": [
+    {
+      "startWordId": "0:7",
+      "endWordId": "0:8",
+      "startMs": 4800,
+      "endMs": 5620,
+      "phrase": "taj mahal",
+      "spoken": "Taj Mahal",
+      "score": 9
+    },
+    {
+      "startWordId": "0:11",
+      "endWordId": "0:12",
+      "startMs": 11200,
+      "endMs": 12040,
+      "phrase": "masala chai",
+      "spoken": "masala chai",
+      "score": 7
+    }
+  ],
+  "source": "model"
+}

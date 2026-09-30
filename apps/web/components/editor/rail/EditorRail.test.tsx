@@ -9,7 +9,13 @@ import { EditorRail } from "./EditorRail";
 
 import type { EditorRailTab } from "./EditorRail";
 
-function Harness({ initial = "captions" as EditorRailTab }): React.JSX.Element {
+function Harness({
+  initial = "captions" as EditorRailTab,
+  broll = false,
+}: {
+  readonly initial?: EditorRailTab;
+  readonly broll?: boolean;
+}): React.JSX.Element {
   const [active, setActive] = React.useState<EditorRailTab>(initial);
   return (
     <TooltipProvider delayDuration={0}>
@@ -19,6 +25,7 @@ function Harness({ initial = "captions" as EditorRailTab }): React.JSX.Element {
         captions={<div data-testid="captions-content">Captions body</div>}
         fonts={<div data-testid="fonts-content">Fonts body</div>}
         library={<div data-testid="library-content">Library body</div>}
+        {...(broll ? { broll: <div data-testid="broll-content">B-roll body</div> } : {})}
       />
     </TooltipProvider>
   );
@@ -40,6 +47,17 @@ describe("<EditorRail />", () => {
     expect(screen.getByTestId("captions-content").closest('[role="tabpanel"]')).not.toBeVisible();
     // Still in the DOM (not unmounted) — switching tabs must not lose transcript state.
     expect(screen.getByTestId("captions-content")).toBeInTheDocument();
+  });
+
+  it("offers the B-roll tab only when it is given one (2026-10-05)", async () => {
+    const user = userEvent.setup();
+    const { unmount } = render(<Harness />);
+    expect(screen.queryByTestId("editor-rail-tab-broll")).toBeNull();
+    unmount();
+    render(<Harness broll />);
+    await user.click(screen.getByTestId("editor-rail-tab-broll"));
+    expect(screen.getByTestId("broll-content")).toBeVisible();
+    expect(screen.getByTestId("captions-content").closest('[role="tabpanel"]')).not.toBeVisible();
   });
 
   it("switches to Library on click", async () => {

@@ -28,10 +28,12 @@ import * as React from "react";
 import type { CreateRepurposeRunRequest } from "@montaj/api-client";
 import { Button, Field, Input, cn } from "@montaj/ui";
 
+import type { BrollOffer } from "@/components/broll/use-broll-library";
+
 import { PICKABLE_STYLES } from "@/components/editor/panels/system-styles";
 import { LanguagePicker } from "@/components/projects/language-picker";
 import { WritingScriptPicker } from "@/components/projects/writing-script-picker";
-import { AUTOPILOT_COPY, BRAND_COPY, STEERING_COPY } from "@/components/repurpose/copy";
+import { AUTOPILOT_COPY, BRAND_COPY, BROLL_COPY, STEERING_COPY } from "@/components/repurpose/copy";
 import {
   CLIP_LENGTHS,
   DEFAULT_CLIP_LENGTH,
@@ -83,6 +85,14 @@ export interface RunSetupValue {
    * and a kit saved; on by default whenever it is offered.
    */
   readonly useBrand: boolean;
+  /**
+   * B-roll (2026-10-05): Autopilot cuts away to a picture where the speaker
+   * names something (`setup.broll`). Offered only with Autopilot on and
+   * something to fill a cutaway; `undefined` until the person moves the
+   * switch, which reads as on with a library and off with stock photos only
+   * ({@link brollOn}).
+   */
+  readonly useBroll?: boolean;
   /**
    * Steering (2026-09-29), for "Suggest the strongest moments for me" only:
    * what the clips should be about (empty is anything strong), how long they
@@ -143,6 +153,12 @@ export function validateRunSetup(value: RunSetupValue): RunSetupProblems {
   return problems;
 }
 
+/** Whether B-roll is on: what the person chose, else on with a library and off with stock only. */
+export function brollOn(value: RunSetupValue, offer: BrollOffer | undefined): boolean {
+  if (offer === undefined) return false;
+  return value.useBroll ?? offer === "library";
+}
+
 /**
  * The `setup` a run's request carries, from the panel (no window: a picked
  * start belongs to one link, and the start form adds it itself).
@@ -150,7 +166,11 @@ export function validateRunSetup(value: RunSetupValue): RunSetupProblems {
  */
 export function runSetupRequest(
   value: RunSetupValue,
-  options: { readonly forChannel?: boolean; readonly brandKit?: boolean } = {},
+  options: {
+    readonly forChannel?: boolean;
+    readonly brandKit?: boolean;
+    readonly broll?: BrollOffer;
+  } = {},
 ): CreateRepurposeRunRequest["setup"] {
   const method = options.forChannel === true ? "ai" : value.method;
   const autopilot = options.forChannel === true || value.autopilot;
@@ -173,6 +193,8 @@ export function runSetupRequest(
     automation: autopilot ? "auto" : "manual",
     // Only what was offered and left on: Autopilot, a saved kit, the switch.
     ...(autopilot && options.brandKit === true && value.useBrand ? { brand: true } : {}),
+    // B-roll likewise (2026-10-05): Autopilot, something to fill it, the switch.
+    ...(autopilot && brollOn(value, options.broll) ? { broll: true } : {}),
   };
 }
 
@@ -198,6 +220,7 @@ export function runSetupValueOf(setup: CreateRepurposeRunRequest["setup"]): RunS
     requestedCandidates: discovery.requestedCandidates ?? EMPTY_RUN_SETUP.requestedCandidates,
     autopilot: setup.automation !== "manual",
     useBrand: setup.brand === true,
+    useBroll: setup.broll === true,
     topic: discovery.topic ?? "",
     clipLength: discovery.clipLength ?? EMPTY_RUN_SETUP.clipLength,
     skipIntro: minutesText(discovery.skipIntroMs),
@@ -251,6 +274,8 @@ export interface RunSetupFieldsProps<V extends RunSetupValue> {
   readonly idPrefix?: string;
   /** The workspace has a saved brand kit (2026-10-02): the brand switch is offered. */
   readonly brandKit?: boolean;
+  /** What could fill a B-roll cutaway here (2026-10-05); no switch without it. */
+  readonly broll?: BrollOffer;
 }
 
 export function RunSetupFields<V extends RunSetupValue>({
@@ -260,6 +285,7 @@ export function RunSetupFields<V extends RunSetupValue>({
   forChannel = false,
   idPrefix = "repurpose",
   brandKit = false,
+  broll,
 }: RunSetupFieldsProps<V>): React.JSX.Element {
   const [advancedOpen, setAdvancedOpen] = React.useState(false);
   // The last language picked by hand, so "I'll choose it" after a detour to
@@ -636,6 +662,40 @@ export function RunSetupFields<V extends RunSetupValue>({
             data-testid="brand-switch"
             onChange={(event) => {
               set("useBrand", event.target.checked);
+            }}
+          />
+        </div>
+      ) : null}
+
+      {broll !== undefined && (forChannel || value.autopilot) ? (
+        <div className="flex items-start justify-between gap-4" data-testid="broll-option">
+          <div className="min-w-0">
+            <label htmlFor={id("broll")} className="text-sm font-medium text-fg-1">
+              {BROLL_COPY.label}
+            </label>
+            <p className="mt-1 text-xs text-fg-2" data-testid="broll-hint">
+              {brollOn(value, broll)
+                ? broll === "library"
+                  ? BROLL_COPY.library
+                  : BROLL_COPY.stock
+                : BROLL_COPY.off}{" "}
+              <NextLink
+                href="/settings/broll"
+                className="text-accent-300 rounded-sm underline underline-offset-4 hover:text-accent-200"
+              >
+                {BROLL_COPY.link}
+              </NextLink>
+            </p>
+          </div>
+          <input
+            id={id("broll")}
+            type="checkbox"
+            role="switch"
+            className="panel-switch mt-0.5 shrink-0"
+            checked={brollOn(value, broll)}
+            data-testid="broll-switch"
+            onChange={(event) => {
+              set("useBroll", event.target.checked);
             }}
           />
         </div>

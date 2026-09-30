@@ -21,6 +21,7 @@ import { looksLikeChannelLink, normaliseChannelLink } from "./channel-link";
 import { useCreateWatch, useResolveChannel, type ResolvedChannel } from "./use-automations";
 
 import { useBrandKit } from "@/components/brand-kit/use-brand-kit";
+import { brollOfferOf, useBrollLibrary } from "@/components/broll/use-broll-library";
 import {
   EMPTY_RUN_SETUP,
   RunSetupFields,
@@ -45,6 +46,7 @@ export function AddChannelForm({
   // A saved brand kit offers the brand switch for the channel's runs (2026-10-02).
   const brandKit = useBrandKit();
   const hasBrandKit = brandKit.data?.exists === true;
+  const broll = brollOfferOf(useBrollLibrary().data);
   const [link, setLink] = React.useState("");
   const [found, setFound] = React.useState<ResolvedChannel | null>(null);
   const [setup, setSetup] = React.useState<RunSetupValue>(EMPTY_RUN_SETUP);
@@ -96,7 +98,11 @@ export function AddChannelForm({
     create.mutate(
       {
         url: normalised,
-        setup: runSetupRequest(setup, { forChannel: true, brandKit: hasBrandKit }),
+        setup: runSetupRequest(setup, {
+          forChannel: true,
+          brandKit: hasBrandKit,
+          ...(broll === undefined ? {} : { broll }),
+        }),
         backfill,
         rightsAttested: true,
       },
@@ -208,6 +214,7 @@ export function AddChannelForm({
               problems={visible}
               forChannel
               brandKit={hasBrandKit}
+              {...(broll === undefined ? {} : { broll })}
               idPrefix="watch-new"
             />
 

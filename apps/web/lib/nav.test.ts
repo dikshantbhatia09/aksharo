@@ -49,6 +49,7 @@ describe("PRIMARY_NAV", () => {
       "Plugins",
       "Team",
       "Brand kit",
+      "B-roll library",
       "Refer & earn",
       "Help",
     ]);
@@ -77,7 +78,7 @@ describe("PRIMARY_NAV", () => {
 });
 
 describe("SETTINGS_NAV", () => {
-  it("covers the sections of 08 §Settings that A13 owns, plus B04's Subscription section, B08's Licence keys, B14's Developers and the brand kit", () => {
+  it("covers the sections of 08 §Settings that A13 owns, plus B04's Subscription section, B08's Licence keys, B14's Developers, the brand kit and the B-roll library", () => {
     expect(SETTINGS_NAV.map((item) => item.key)).toEqual([
       "profile",
       "languages",
@@ -85,6 +86,7 @@ describe("SETTINGS_NAV", () => {
       "devices",
       "privacy",
       "brand-kit",
+      "broll",
       "notifications",
       "support",
       "subscription",

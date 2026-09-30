@@ -23,7 +23,9 @@ import { createFontRegistry } from "./fonts/registry.js";
 import { type Shaper } from "./fonts/shaper.js";
 import { type FontRegistry, type FontResource } from "./fonts/types.js";
 import { type RenderWord } from "./layout/types.js";
+import { brollOpacity, drawBRoll, layoutBRoll } from "./overlay/b-roll.js";
 import { HookTitleCache, renderHookTitles } from "./overlay/hook-title.js";
+import { type BRollTrack } from "./overlay/types.js";
 import { type WordScript } from "./script.js";
 import { type CanvasSize } from "./units.js";
 
@@ -253,4 +255,53 @@ export function hookTitleGoldenCommands(
     cache: new HookTitleCache(),
     cacheOwner: {},
   });
+}
+
+/**
+ * The B-roll golden inputs (2026-10-05): a full-frame push in over a portrait
+ * photo, a full-frame pan over a landscape one and a picture-in-picture pull
+ * out over a square one, on a vertical and a wide canvas, fading in, in the
+ * middle and fading out. No fonts: a cutaway is a picture, never text.
+ */
+export const BROLL_FIXTURES: readonly BRollTrack[] = [
+  {
+    id: "01JBR0GD000000000000000001",
+    kind: "b-roll",
+    startMs: 4_000,
+    endMs: 7_000,
+    image: { assetId: "01JPX0GD000000000000000001", format: "jpeg", width: 1200, height: 1800 },
+    mode: "full",
+    motion: "push-in",
+  },
+  {
+    id: "01JBR0GD000000000000000002",
+    kind: "b-roll",
+    startMs: 4_000,
+    endMs: 7_000,
+    image: { assetId: "01JPX0GD000000000000000002", format: "jpeg", width: 1800, height: 1200 },
+    mode: "full",
+    motion: "pan-left",
+  },
+  {
+    id: "01JBR0GD000000000000000003",
+    kind: "b-roll",
+    startMs: 4_000,
+    endMs: 7_000,
+    image: { assetId: "01JPX0GD000000000000000003", format: "png", width: 1000, height: 1000 },
+    mode: "pip",
+    motion: "pull-out",
+  },
+];
+
+export const BROLL_CANVASES: Readonly<Record<string, CanvasSize>> = HOOK_TITLE_CANVASES;
+
+export const BROLL_TIMESTAMPS_MS: readonly number[] = [4_100, 5_500, 6_900];
+
+/** One B-roll golden frame: the golden build script and its test draw exactly this. */
+export function brollGoldenCommands(
+  overlay: BRollTrack,
+  canvas: CanvasSize,
+  tMs: number,
+): DrawCommand[] {
+  return drawBRoll(layoutBRoll({ overlay, canvas }), tMs, brollOpacity(overlay, tMs));
 }

@@ -887,6 +887,7 @@ model Workspace {
   exportManifests        ExportManifest[]
   exports                Export[]
   brandAssets            BrandAsset[]
+  brollAssets            BrollAsset[]
   stylePresets           StylePreset[]
   brandKits              BrandKit[]
   fonts                  Font[]
@@ -2104,6 +2105,45 @@ model BrandAsset {
 
   @@index([workspaceId])
   @@map("brand_assets")
+}
+
+/// A picture in a workspace's B-roll library (2026-10-05): what a B-roll
+/// cutaway (`EdgHot.overlays`, kind `b-roll`) draws over the words that name
+/// it. Uploaded by a person (a PNG, JPEG or WebP, checked on `complete`) or
+/// saved from a stock photo search (Pexels, when `PEXELS_API_KEY` is set),
+/// stored at `ws/{workspaceId}/broll/{id}.{png|jpg|webp}` in the derived
+/// store: the only folder a render reads a cutaway's picture from. Kept until
+/// the person deletes it or the workspace is erased (the erasure cascade deletes
+/// the objects, then the rows); a clip that showed a deleted picture no longer
+/// shows it.
+model BrollAsset {
+  id          String   @id @db.Char(26)
+  workspaceId String   @map("workspace_id") @db.Char(26)
+  storageKey  String   @map("storage_key")
+  contentType String   @map("content_type")
+  sizeBytes   Int      @map("size_bytes")
+  /// Pixel size, measured from the file's header when it was saved.
+  width       Int
+  height      Int
+  /// Lower-case words a picture is matched on ("taj mahal", "chai"); at most ten.
+  tags        String[] @default([])
+  /// What it shows, in a few words: the file's name, or a stock photo's description.
+  title       String?
+  /// `upload`, or `pexels` for a stock photo saved from a search.
+  source      String   @default("upload")
+  /// The photo's id at its source (`pexels`), so the same photo is saved once.
+  sourceRef   String?  @map("source_ref")
+  /// A stock photo's credit, kept though not required: `{provider, photographer,
+  /// photographerUrl, pageUrl}`.
+  credit      Json?    @db.JsonB
+  createdBy   String?  @map("created_by") @db.Char(26)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, source, sourceRef])
+  @@index([workspaceId, createdAt])
+  @@map("broll_assets")
 }
 
 // ===========================================================================

@@ -10,6 +10,7 @@ import {
 import { generateShareToken, ShareSessionSigner } from "./token.js";
 import { PasswordService } from "../auth/password.service.js";
 import { BrandKitService } from "../brand-kit/brand-kit.service.js";
+import { BrollLibraryService } from "../broll/broll.service.js";
 import { CommonAuditService } from "../common/audit/audit.service.js";
 import { AppException, PrismaService } from "../common/index.js";
 import { DERIVED_STORE } from "../common/storage/index.js";
@@ -92,6 +93,8 @@ export class ShareLinksService {
     @Inject(DERIVED_STORE) private readonly derivedStore: ObjectStore,
     /** Signs a shared clip's brand logo (2026-10-02); optional so a test need not. */
     @Optional() private readonly brandKits?: BrandKitService,
+    /** Signs a shared clip's B-roll pictures (2026-10-05); optional so a test need not. */
+    @Optional() private readonly broll?: BrollLibraryService,
   ) {}
 
   async create(
@@ -425,6 +428,7 @@ export class ShareLinksService {
         edg: this.edg,
         derived: this.derivedStore,
         ...(this.brandKits === undefined ? {} : { brandKits: this.brandKits }),
+        ...(this.broll === undefined ? {} : { broll: this.broll }),
       },
       project,
     );

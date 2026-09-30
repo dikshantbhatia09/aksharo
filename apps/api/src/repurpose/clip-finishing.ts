@@ -1,11 +1,14 @@
 import { HttpStatus, Injectable, Logger, Optional } from "@nestjs/common";
 
 import {
+  blockedBrollSpans,
   brandCaptionOverrides,
   brandEndCardOverlay,
   brandHookAppearance,
   brandLogoOverlay,
   brandMusicPass,
+  brollModeFor,
+  brollOverlaysOf,
   newId,
   stableOverlayId,
 } from "@montaj/edg";
@@ -19,15 +22,28 @@ import type {
   WordId,
 } from "@montaj/edg/schemas";
 import { mergeOverrides } from "@montaj/render-core";
+import { brollJobKey, BrollOutputSchema, type BrollMoment } from "@montaj/repurpose-contracts";
 import { fromAcceptedItems } from "@montaj/timemap";
 
 import { coverAssetIdOf, hasNoPicture } from "./audiogram.js";
+import {
+  brollAvoidSpans,
+  brollOverlayFor,
+  brollPlan,
+  brollRequestOf,
+  orientationOf,
+  playingWords,
+  proposalsFrom,
+} from "./clip-broll.js";
 import { chooseEmphasis, normaliseWord } from "./keyword-emphasis.js";
-import { brandOf } from "./repurpose.constants.js";
+import { brandOf, brollOf } from "./repurpose.constants.js";
 import { BrandKitService } from "../brand-kit/brand-kit.service.js";
+import { spokenTags, type LibraryPicture } from "../broll/broll-match.js";
+import { BrollLibraryService } from "../broll/broll.service.js";
 import { AppException, PrismaService } from "../common/index.js";
 import { EdgRepository, EdgService } from "../edg/index.js";
 import { resolveStyleSnapshot } from "../exports/projection.js";
+import { InsightsService } from "../insights/insights.service.js";
 import { JOB_ERROR_CODES } from "../jobs/jobs.errors.js";
 import { PassesService } from "../passes/passes.service.js";
 import { EntitlementService } from "../workspaces/entitlement.service.js";
@@ -74,6 +90,18 @@ import type { Prisma, RepurposeRun } from "@prisma/client";
  *    clip (`brandMusicPass`), looped, faded, and ducked under speech by the
  *    render. A clip that already has a bed - or one a person took off it - gets
  *    none, so their choice stands.
+ * 7. **broll** (2026-10-05) - when the run asked for it (`setup.broll`): short
+ *    picture cutaways where the speaker names something visual (`clip-broll.ts`).
+ *    The 9:16 shape asks the language model for the moments (`ai.llm` kind
+ *    `broll`, free, under the daily model budget) and adds every library tag
+ *    the speaker says; each moment is filled from the workspace's B-roll
+ *    library, else a stock photo when stock is set up, else left out, and
+ *    placed by `@montaj/edg`'s rules (never over the hook, the end, a title or
+ *    a card; spaced; at most 22 % of the video). Last, so it knows where the
+ *    hook title and the end card are. The other shapes take the 9:16 shape's
+ *    cutaways as they are (the same cut of the same moment), each boxed
+ *    picture-in-picture where its picture's shape would not fill the frame. A
+ *    clip that already has a cutaway keeps what it has.
  *
  * A clip of a source with no picture (an audiogram, 2026-10-04) is never
  * zoomed: its picture is drawn, not filmed, and a punch-in only crops its
@@ -111,7 +139,15 @@ const SAME_TIMELINE_MS = 100;
 const MIN_CUT_CONFIDENCE = 0.5;
 const MIN_RETAKE_CONFIDENCE = 0.75;
 
-export const FINISHING_STEPS = ["autocut", "emphasis", "zoom", "hook", "brand", "music"] as const;
+export const FINISHING_STEPS = [
+  "autocut",
+  "emphasis",
+  "zoom",
+  "hook",
+  "brand",
+  "music",
+  "broll",
+] as const;
 export type FinishingStep = (typeof FINISHING_STEPS)[number];
 
 export interface FinishingStepRecord {
@@ -278,6 +314,10 @@ export class ClipFinishing {
     @Optional() private readonly passes?: PassesService,
     /** The workspace's brand kit (2026-10-02); without it the brand step is skipped. */
     @Optional() private readonly brandKits?: BrandKitService,
+    /** The workspace's B-roll library (2026-10-05); without it the B-roll step is skipped. */
+    @Optional() private readonly broll?: BrollLibraryService,
+    /** Where B-roll moments are asked for (`ai.llm`); without it only spoken tags are placed. */
+    @Optional() private readonly insights?: InsightsService,
   ) {}
 
   /**
@@ -384,6 +424,8 @@ export class ClipFinishing {
         return this.brand(context);
       case "music":
         return this.music(context);
+      case "broll":
+        return this.brollStep(context);
     }
   }
 
@@ -642,6 +684,233 @@ export class ClipFinishing {
       { opId: newId(), type: "MergePass", pass: bed },
     ]);
     return { state: "done", at: now.toISOString(), applied };
+  }
+
+  /**
+   * B-roll (2026-10-05), for a run that asked for it: see step 7 of the module
+   * comment. Never a failure: a model that does not answer, a library with
+   * nothing that fits, stock photos off or spent - each is a clip made without
+   * that cutaway.
+   */
+  private async brollStep(context: ShapeContext): Promise<StepResult> {
+    const { run, variant, now, previous } = context;
+    if (!brollOf(run)) return skipped(now, "off");
+    const library = this.broll;
+    if (library === undefined) return skipped(now, "unavailable");
+    if (previous?.state === "requested") return this.landBroll(context, library);
+    const document = await this.documentOf(variant.projectId);
+    if (document === undefined) return skipped(now, "no-document");
+    // A clip with cutaways already - a person's, or a repeated ask's - keeps them.
+    if (brollOverlaysOf(document.projection.overlays).length > 0) {
+      return { state: "done", at: now.toISOString(), applied: 0 };
+    }
+    if (variant.aspect !== "r9x16") {
+      const copied = await this.copyBroll(context, document);
+      if (copied !== undefined) return copied;
+    }
+    const pictures = await library.picturesFor(run.workspaceId);
+    if (pictures.length === 0 && !library.stockEnabled) return skipped(now, "no-pictures");
+    const items = document.projection.passes.flatMap((pass) => pass.items);
+    const words = playingWords(document.chunks, items);
+    if (words.length === 0) return skipped(now, "no-words");
+
+    const insights = this.insights;
+    if (insights === undefined || context.overdue) {
+      return this.placeBroll(context, library, document, [], pictures);
+    }
+    const durationMs = primaryDurationOf(document.projection);
+    const clock = fromAcceptedItems(items, { sourceDurationMs: durationMs });
+    const clip = await this.prisma.repurposeClip.findUnique({
+      where: { id: variant.clipId },
+      select: { title: true },
+    });
+    const request = brollRequestOf({
+      words,
+      language: document.projection.transcript.language,
+      ...(clip === null ? {} : { title: clip.title }),
+      avoid: brollAvoidSpans({
+        toSource: (outputMs) => clock.toSource(outputMs),
+        outputDurationMs: clock.outputDurationMs,
+        sourceDurationMs: durationMs,
+        blocked: blockedBrollSpans(document.projection.overlays),
+      }),
+    });
+    try {
+      const { jobId } = await insights.requestBroll({
+        projectId: variant.projectId,
+        workspaceId: run.workspaceId,
+        jobKey: brollJobKey(variant.projectId, document.revision),
+        request,
+      });
+      return { state: "requested", at: now.toISOString(), jobId };
+    } catch (error) {
+      this.logger.warn(
+        { runId: run.id, variantId: variant.id, err: error },
+        "b-roll moments could not be asked for; the library's spoken tags alone are placed",
+      );
+      return this.placeBroll(context, library, document, [], pictures);
+    }
+  }
+
+  /**
+   * The model's answer, once its job has settled: the moments it proposed, or
+   * none when it failed, was lost, or has not landed in time - the spoken tags
+   * are then placed alone.
+   */
+  private async landBroll(
+    context: ShapeContext,
+    library: BrollLibraryService,
+  ): Promise<StepResult> {
+    const { variant, now, previous } = context;
+    const moments = await this.brollMoments(context);
+    if (moments === "wait") return "wait";
+    const document = await this.documentOf(variant.projectId);
+    if (document === undefined) return skipped(now, "no-document", previous);
+    return this.placeBroll(context, library, document, moments);
+  }
+
+  /** The moments the requested job answered, `[]` for none, or `wait` while it may still. */
+  private async brollMoments(context: ShapeContext): Promise<BrollMoment[] | "wait"> {
+    const { now, previous } = context;
+    const jobId = previous?.jobId;
+    if (jobId === undefined || context.overdue) return [];
+    const job = await this.prisma.job.findUnique({
+      where: { id: jobId },
+      select: { status: true, finishedAt: true },
+    });
+    if (job === null || job.status === "failed" || job.status === "cancelled") return [];
+    if (job.status === "succeeded") {
+      const row = await this.prisma.llmOutput.findFirst({
+        where: { jobId, kind: "broll" },
+        orderBy: { createdAt: "desc" },
+        select: { output: true },
+      });
+      if (row !== null) {
+        const parsed = BrollOutputSchema.safeParse(row.output);
+        return parsed.success ? [...parsed.data.moments] : [];
+      }
+      // Finished, and its answer never landed (its completion was refused).
+      if (job.finishedAt !== null && now.getTime() - job.finishedAt.getTime() > LANDING_GRACE_MS) {
+        return [];
+      }
+    }
+    // Queued, running, or succeeded with its answer still landing.
+    const since = previous === undefined ? now.getTime() : Date.parse(previous.at);
+    return now.getTime() - since > FINISHING_STEP_MAX_MS ? [] : "wait";
+  }
+
+  /** Places the model's moments and the spoken tags, and fills each (`clip-broll.ts`). */
+  private async placeBroll(
+    context: ShapeContext,
+    library: BrollLibraryService,
+    document: { projection: EdgProjection; chunks: TranscriptChunk[]; revision: number },
+    moments: readonly BrollMoment[],
+    known?: readonly LibraryPicture[],
+  ): Promise<StepResult> {
+    const { run, variant, now, previous } = context;
+    const jobId = previous?.jobId;
+    const done = (applied: number): FinishingStepRecord => ({
+      state: "done",
+      at: now.toISOString(),
+      applied,
+      ...(jobId === undefined ? {} : { jobId }),
+    });
+    const { projection } = document;
+    if (brollOverlaysOf(projection.overlays).length > 0) return done(0);
+    const items = projection.passes.flatMap((pass) => pass.items);
+    const durationMs = primaryDurationOf(projection);
+    const words = playingWords(document.chunks, items);
+    const pictures = [...(known ?? (await library.picturesFor(run.workspaceId)))];
+    const proposals = proposalsFrom(moments, spokenTags(words, pictures), words);
+    if (proposals.length === 0) return done(0);
+    const canvas = projection.canvas;
+    const plan = brollPlan({
+      proposals,
+      pictures,
+      words,
+      clock: fromAcceptedItems(items, { sourceDurationMs: durationMs }),
+      blocked: blockedBrollSpans(projection.overlays),
+      canvas,
+      stockEnabled: library.stockEnabled && !context.overdue,
+    });
+    const ops: EdgOp[] = [];
+    for (const entry of plan) {
+      const picture =
+        entry.picture ??
+        (await library.stockForMoment(
+          run.workspaceId,
+          entry.proposal.phrase,
+          orientationOf(canvas),
+        ));
+      if (picture === null) continue;
+      ops.push({
+        opId: newId(),
+        type: "SetOverlay",
+        overlay: brollOverlayFor({
+          variantId: variant.id,
+          index: ops.length,
+          planned: entry.planned,
+          proposal: entry.proposal,
+          picture,
+          canvas,
+        }),
+      });
+    }
+    if (ops.length === 0) return done(0);
+    return done(await this.apply(variant.projectId, document.revision, ops));
+  }
+
+  /**
+   * A shape other than 9:16 takes the 9:16 shape's cutaways: the same moments
+   * of the same cut, each boxed where its picture would not fill this frame.
+   * `undefined` when that is not possible (no 9:16 shape, or timelines that do
+   * not match): the shape then finds its own.
+   */
+  private async copyBroll(
+    context: ShapeContext,
+    mine: { projection: EdgProjection; revision: number },
+  ): Promise<StepResult | undefined> {
+    const { variant, now } = context;
+    const vertical = await this.prisma.clipVariant.findUnique({
+      where: { clipId_aspect: { clipId: variant.clipId, aspect: "r9x16" } },
+      select: { id: true, projectId: true, finishing: true, latestExportId: true },
+    });
+    if (vertical === null) return undefined;
+    const record = finishingRecordOf(vertical.finishing);
+    if (record === null && vertical.latestExportId !== null) return undefined;
+    const theirStep = record?.steps.broll;
+    // The 9:16 shape is still finding its cutaways (bounded by FINISHING_MAX_MS).
+    if (theirStep === undefined || theirStep.state === "requested") return "wait";
+    if (theirStep.state === "skipped") {
+      return skipped(now, theirStep.reason ?? "skipped", { copiedFrom: vertical.id });
+    }
+    const theirs = await this.documentOf(vertical.projectId);
+    if (theirs === undefined) return undefined;
+    if (
+      Math.abs(primaryDurationOf(mine.projection) - primaryDurationOf(theirs.projection)) >
+      SAME_TIMELINE_MS
+    ) {
+      return undefined;
+    }
+    const cutaways = brollOverlaysOf(theirs.projection.overlays);
+    if (cutaways.length === 0) {
+      return { state: "done", at: now.toISOString(), applied: 0, copiedFrom: vertical.id };
+    }
+    const canvas = mine.projection.canvas;
+    const applied = await this.apply(
+      variant.projectId,
+      mine.revision,
+      cutaways.map((cutaway, index) => ({
+        opId: newId(),
+        type: "SetOverlay" as const,
+        overlay: {
+          ...cutaway,
+          id: stableOverlayId(`${variant.id}:broll:${String(index)}`),
+          mode: brollModeFor(cutaway.image, canvas),
+        },
+      })),
+    );
+    return { state: "done", at: now.toISOString(), applied, copiedFrom: vertical.id };
   }
 
   /** Whether the run's source has no picture, so its clips are audiograms (2026-10-04). */

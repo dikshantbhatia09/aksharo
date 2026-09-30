@@ -12,6 +12,7 @@ import {
 } from "./render-completion.handler.js";
 import { AudioAssetsModule } from "../audio-assets/index.js";
 import { BrandKitModule } from "../brand-kit/brand-kit.module.js";
+import { BrollModule } from "../broll/broll.module.js";
 import { ManifestSignerService } from "../common/crypto/manifest-signer.js";
 import { EdgModule } from "../edg/index.js";
 import { JobsModule } from "../jobs/jobs.module.js";
@@ -47,6 +48,8 @@ import { WorkspacesModule } from "../workspaces/workspaces.module.js";
     PartnerCatalogueModule,
     // 2026-10-02: which of a document's brand logos the workspace still keeps.
     BrandKitModule,
+    // 2026-10-05: which of a document's B-roll pictures its library still keeps.
+    BrollModule,
   ],
   controllers: [ExportsController, BrandAssetsController],
   providers: [

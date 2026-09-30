@@ -28,6 +28,7 @@ import { AppException } from "../common/index.js";
 import { JOB_ERROR_CODES } from "../jobs/jobs.errors.js";
 
 import type { KitForClips } from "../brand-kit/brand-kit.service.js";
+import type { LibraryPicture } from "../broll/broll-match.js";
 import type { RepurposeRun } from "@prisma/client";
 
 const WS = "01JFWS0000000000000000000A";
@@ -135,6 +136,16 @@ let finishing: ClipFinishing;
 let kit: KitForClips | null;
 /** The run's source media: a video by default; no picture size is an audio-only source. */
 let source: { width: number | null; height: number | null } | null;
+/** The workspace's B-roll library (2026-10-05): its pictures, and stock photos when on. */
+let library: {
+  pictures: LibraryPicture[];
+  stockEnabled: boolean;
+  picturesFor: ReturnType<typeof vi.fn>;
+  stockForMoment: ReturnType<typeof vi.fn>;
+};
+/** Where B-roll moments are asked for, and what each `ai.llm` job answered (`llm_outputs`). */
+let insights: { requestBroll: ReturnType<typeof vi.fn> };
+let llmOutputs: Map<string, unknown>;
 
 function edgIdOf(projectId: string): string {
   return `${projectId.slice(0, 24)}ED`;
@@ -244,6 +255,20 @@ beforeEach(() => {
   ]);
   jobs = new Map();
   kit = null;
+  llmOutputs = new Map();
+  library = {
+    pictures: [],
+    stockEnabled: false,
+    picturesFor: vi.fn(async () => [...library.pictures]),
+    stockForMoment: vi.fn(async () => null),
+  };
+  insights = {
+    requestBroll: vi.fn(async (input: { projectId: string; jobKey: string }) => {
+      const jobId = `01JFJ0BBR0LL${input.projectId.slice(-14)}`;
+      jobs.set(jobId, { status: "queued", finishedAt: null });
+      return { jobId, deduplicated: false };
+    }),
+  };
   source = { width: 1_920, height: 1_080 };
   plan = { autocut: true, reframeZoom: true };
   applied = [];
@@ -292,6 +317,13 @@ beforeEach(() => {
     stylePreset: { findMany: vi.fn(async () => []) },
     // The run's source (audiograms, 2026-10-04).
     mediaAsset: { findFirst: vi.fn(async () => source) },
+    // What a B-roll ask answered (2026-10-05).
+    llmOutput: {
+      findFirst: vi.fn(async (args: { where: { jobId: string } }) => {
+        const output = llmOutputs.get(args.where.jobId);
+        return output === undefined ? null : { output };
+      }),
+    },
   };
   const edg = {
     applyWorkerOps: vi.fn(
@@ -334,6 +366,14 @@ beforeEach(() => {
     entitlements as never,
     passes as never,
     { forClips: vi.fn(async () => kit) } as never,
+    {
+      get stockEnabled() {
+        return library.stockEnabled;
+      },
+      picturesFor: library.picturesFor,
+      stockForMoment: library.stockForMoment,
+    } as never,
+    insights as never,
   );
 });
 
@@ -1012,6 +1052,156 @@ describe("ClipFinishing on an audiogram (2026-10-04)", () => {
     expect(recordOf(VERTICAL)?.steps.zoom).toMatchObject({ state: "skipped", reason: "audiogram" });
     // The hook title still goes on.
     expect(recordOf(VERTICAL)?.steps.hook).toMatchObject({ state: "done" });
+  });
+});
+
+describe("ClipFinishing with B-roll (2026-10-05)", () => {
+  const BROLL_RUN = {
+    ...RUN,
+    config: { automation: "auto", broll: true },
+  } as unknown as RepurposeRun;
+  const MUMBAI: LibraryPicture = {
+    id: "01JFPX0000000000000000000M",
+    tags: ["mumbai"],
+    title: null,
+    width: 1440,
+    height: 2560,
+    format: "jpeg",
+  };
+  /** The model's answer: "Mumbai", said at 8 s (word 0:8). */
+  const MUMBAI_MOMENT = {
+    schemaVersion: 1,
+    moments: [
+      {
+        startWordId: "0:8",
+        endWordId: "0:8",
+        startMs: 8_000,
+        endMs: 8_800,
+        phrase: "mumbai skyline",
+        spoken: "Mumbai",
+        score: 9,
+      },
+    ],
+    source: "model",
+  };
+  const cutaways = (projectId: string) =>
+    (projection(projectId).overlays ?? []).filter((overlay) => overlay.kind === "b-roll");
+
+  beforeEach(() => {
+    // No passes, so every earlier step settles on the first ask.
+    plan = { autocut: false, reframeZoom: false };
+  });
+
+  /** Asks, answers the model's job with `output` (or fails it), and asks again. */
+  async function finishWith(output: unknown, status = "succeeded"): Promise<string> {
+    expect(await finishing.advance(BROLL_RUN, vertical())).toBe("waiting");
+    const step = recordOf(VERTICAL)?.steps.broll;
+    expect(step).toMatchObject({ state: "requested" });
+    const jobId = step?.jobId ?? "";
+    if (output !== undefined) llmOutputs.set(jobId, output);
+    jobs.set(jobId, { status, finishedAt: new Date() });
+    return finishing.advance(BROLL_RUN, vertical());
+  }
+
+  it("asks the model about the words that play, then cuts away to the library's picture", async () => {
+    library.pictures = [MUMBAI];
+    expect(await finishWith(MUMBAI_MOMENT)).toBe("just-finished");
+
+    const [ask] = insights.requestBroll.mock.calls[0] as [Record<string, unknown>];
+    expect(ask["projectId"]).toBe(PROJECT_9X16);
+    expect(ask["workspaceId"]).toBe(WS);
+    expect(String(ask["jobKey"]).startsWith(`ai.llm:broll:${PROJECT_9X16}:`)).toBe(true);
+    const request = ask["request"] as { words: unknown[]; avoid: unknown[]; language: string };
+    expect(request.words).toHaveLength(10);
+    expect(request.language).toBe("hi-Latn");
+    // The hook's first 3 s, the last 3 s, and the hook title itself.
+    expect(request.avoid).toEqual([
+      { startMs: 0, endMs: 3_000 },
+      { startMs: 27_000, endMs: 30_000 },
+      { startMs: 0, endMs: HOOK_TITLE_MS },
+    ]);
+
+    expect(cutaways(PROJECT_9X16)).toEqual([
+      {
+        id: stableOverlayId(`${VERTICAL}:broll:0`),
+        kind: "b-roll",
+        // From "Mumbai" to the end of the next word: the clip says nothing after.
+        startMs: 8_000,
+        endMs: 9_800,
+        image: { assetId: MUMBAI.id, format: "jpeg", width: 1440, height: 2560 },
+        mode: "full",
+        motion: "push-in",
+        startWordId: "0:8",
+        endWordId: "0:9",
+        label: "mumbai skyline",
+      },
+    ]);
+    expect(recordOf(VERTICAL)?.steps.broll).toMatchObject({ state: "done", applied: 1 });
+    expect(library.stockForMoment).not.toHaveBeenCalled();
+  });
+
+  it("places a library tag the speaker says even when the model fails", async () => {
+    library.pictures = [MUMBAI];
+    expect(await finishWith(undefined, "failed")).toBe("just-finished");
+    expect(cutaways(PROJECT_9X16).map((overlay) => overlay.startMs)).toEqual([8_000]);
+  });
+
+  it("adds nothing when nothing fits: no picture matches and stock photos are off", async () => {
+    library.pictures = [{ ...MUMBAI, tags: ["goa beach"] }];
+    expect(await finishWith(MUMBAI_MOMENT)).toBe("just-finished");
+    expect(cutaways(PROJECT_9X16)).toEqual([]);
+    expect(recordOf(VERTICAL)?.steps.broll).toMatchObject({ state: "done", applied: 0 });
+  });
+
+  it("fills a moment with a stock photo when the library has none and stock is on", async () => {
+    library.stockEnabled = true;
+    library.stockForMoment.mockResolvedValueOnce({ ...MUMBAI, tags: ["mumbai skyline"] });
+    expect(await finishWith(MUMBAI_MOMENT)).toBe("just-finished");
+    expect(library.stockForMoment).toHaveBeenCalledWith(WS, "mumbai skyline", "portrait");
+    expect(cutaways(PROJECT_9X16)).toHaveLength(1);
+  });
+
+  it("skips a run that did not ask, and a library with nothing and no stock", async () => {
+    expect(await finishing.advance(RUN, vertical())).toBe("just-finished");
+    expect(recordOf(VERTICAL)?.steps.broll).toMatchObject({ state: "skipped", reason: "off" });
+    const row = variants.get(VERTICAL);
+    if (row !== undefined) row["finishing"] = null;
+    expect(await finishing.advance(BROLL_RUN, vertical())).toBe("just-finished");
+    expect(recordOf(VERTICAL)?.steps.broll).toMatchObject({
+      state: "skipped",
+      reason: "no-pictures",
+    });
+    expect(insights.requestBroll).not.toHaveBeenCalled();
+  });
+
+  it("gives the other shapes the 9:16 shape's cutaways, boxed where the picture will not fill", async () => {
+    library.pictures = [MUMBAI];
+    expect(await finishWith(MUMBAI_MOMENT)).toBe("just-finished");
+
+    const square = variant(SQUARE, PROJECT_1X1, "r1x1");
+    const wide = variant(WIDE, PROJECT_16X9, "r16x9");
+    expect(await finishing.advance(BROLL_RUN, square)).toBe("just-finished");
+    expect(await finishing.advance(BROLL_RUN, wide)).toBe("just-finished");
+    expect(cutaways(PROJECT_1X1)).toMatchObject([
+      { id: stableOverlayId(`${SQUARE}:broll:0`), startMs: 8_000, mode: "full" },
+    ]);
+    expect(cutaways(PROJECT_16X9)).toMatchObject([
+      { id: stableOverlayId(`${WIDE}:broll:0`), startMs: 8_000, mode: "pip" },
+    ]);
+    expect(recordOf(WIDE)?.steps.broll).toMatchObject({ state: "done", copiedFrom: VERTICAL });
+    // One ask for the whole clip.
+    expect(insights.requestBroll).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps a clip's own cutaways and asks for nothing more", async () => {
+    library.pictures = [MUMBAI];
+    expect(await finishWith(MUMBAI_MOMENT)).toBe("just-finished");
+    const before = cutaways(PROJECT_9X16);
+    const row = variants.get(VERTICAL);
+    if (row !== undefined) row["finishing"] = null;
+    expect(await finishing.advance(BROLL_RUN, vertical())).toBe("just-finished");
+    expect(cutaways(PROJECT_9X16)).toEqual(before);
+    expect(insights.requestBroll).toHaveBeenCalledTimes(1);
   });
 });
 

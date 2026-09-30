@@ -1,4 +1,4 @@
-import { HttpStatus, Inject, Injectable, Logger } from "@nestjs/common";
+import { HttpStatus, Inject, Injectable, Logger, Optional } from "@nestjs/common";
 import { EventEmitter2 } from "@nestjs/event-emitter";
 import { ulid } from "ulid";
 
@@ -23,9 +23,15 @@ import {
 import { EXPORT_ERROR_CODES } from "./exports.errors.js";
 import { buildRenderManifest, RENDER_CORE_VERSION } from "./manifest-builder.js";
 import { NINE_PASS_LEDGER, type NinePassLedger } from "./nine-pass-ledger.js";
-import { buildRenderProjection, overlayImageIds, resolveStyleSnapshot } from "./projection.js";
+import {
+  brollImageIds,
+  buildRenderProjection,
+  overlayImageIds,
+  resolveStyleSnapshot,
+} from "./projection.js";
 import { AudioAssetsRepository } from "../audio-assets/index.js";
 import { BrandKitService } from "../brand-kit/brand-kit.service.js";
+import { BrollLibraryService } from "../broll/broll.service.js";
 import { ManifestSignerService } from "../common/crypto/manifest-signer.js";
 import { AppException, ERROR_CODES } from "../common/errors/error-codes.js";
 import { PrismaService } from "../common/prisma/prisma.service.js";
@@ -170,6 +176,8 @@ export class ExportsService {
     private readonly events: EventEmitter2,
     private readonly audioAssets: AudioAssetsRepository,
     private readonly brandKits: BrandKitService,
+    /** Which B-roll pictures the workspace still keeps (2026-10-05); without it no cutaway is drawn. */
+    @Optional() private readonly broll?: BrollLibraryService,
   ) {}
 
   // -------------------------------------------------------------------------
@@ -238,10 +246,22 @@ export class ExportsService {
       imageIds.length === 0
         ? undefined
         : await this.brandKits.availableImages(input.workspaceId, imageIds);
+    // A B-roll cutaway (2026-10-05) likewise, only while its picture is still
+    // in the workspace's library: one deleted from it leaves the clip.
+    const brollIds = brollImageIds(edg);
+    const brollImages =
+      brollIds.length === 0
+        ? undefined
+        : this.broll === undefined
+          ? new Set<string>()
+          : await this.broll.availableImages(input.workspaceId, brollIds);
     const projection = buildRenderProjection(
       edg,
       await this.edgRepository.loadChunks(edg.transcript.transcriptId),
-      images === undefined ? {} : { images },
+      {
+        ...(images === undefined ? {} : { images }),
+        ...(brollImages === undefined ? {} : { brollImages }),
+      },
     );
 
     const brandWatermark =

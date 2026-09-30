@@ -29,6 +29,7 @@ import { RepurposeSeriesService } from "./series.service.js";
 import { SourceGate } from "./source-gate.js";
 import { RepurposeStillsCompletionHandler } from "./stills-completion.handler.js";
 import { BrandKitModule } from "../brand-kit/brand-kit.module.js";
+import { BrollModule } from "../broll/broll.module.js";
 import { EdgModule } from "../edg/index.js";
 import { ExportsModule } from "../exports/exports.module.js";
 import { InsightsModule } from "../insights/insights.module.js";
@@ -68,6 +69,8 @@ import { WorkspacesModule } from "../workspaces/workspaces.module.js";
     // Autopilot's finishing pass applies the workspace's brand kit to a run
     // that asks for it (2026-10-02).
     BrandKitModule,
+    // ... and B-roll from the workspace's library, or stock photos (2026-10-05).
+    BrollModule,
   ],
   controllers: [
     RepurposeController,

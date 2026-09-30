@@ -6,7 +6,7 @@ import {
   RunConfigSchema,
 } from "@montaj/repurpose-contracts";
 
-import { brandOf } from "./repurpose.constants.js";
+import { brandOf, brollOf } from "./repurpose.constants.js";
 import { createRunSchema, listRunsSchema, runViewSchema } from "./repurpose.dto.js";
 import { withLengthPreset } from "./steering.js";
 
@@ -358,6 +358,17 @@ describe("create-run DTO — the brand kit (2026-10-02)", () => {
     expect(brandOf({ config: { brand: "true" } })).toBe(false);
     expect(brandOf({ config: {} })).toBe(false);
     expect(brandOf({ config: null })).toBe(false);
+  });
+
+  it("takes the B-roll switch the same way, and reads it off the config (2026-10-05)", () => {
+    const on = createRunSchema.safeParse(body({ broll: true }));
+    expect(on.success).toBe(true);
+    expect(on.data?.setup.broll).toBe(true);
+    expect(createRunSchema.safeParse(body({})).data?.setup).not.toHaveProperty("broll");
+    expect(createRunSchema.safeParse(body({ broll: 1 })).success).toBe(false);
+    expect(brollOf({ config: { broll: true } })).toBe(true);
+    expect(brollOf({ config: { broll: "true" } })).toBe(false);
+    expect(brollOf({ config: null })).toBe(false);
   });
 });
 

@@ -1,4 +1,4 @@
-"""``ai.llm`` — chapters, summary, hooks/titles/hashtags (B11), and the episode pack.
+"""``ai.llm`` — chapters, summary, hooks/titles/hashtags (B11), the episode pack, B-roll.
 
 Like ``ai.translate``, this processor is stateless: the producer
 (``POST /projects/{id}/insights``) hands it the transcript text (language +
@@ -11,13 +11,27 @@ to ``llm_outputs``.
 (`worker_ai.llm.episode_pack`), written for a clips run's source video at no
 charge to the person. Unlike the other kinds it never fails for the model's
 sake: what the model cannot write is written by rule from the transcript.
+
+``broll`` (2026-10-05) is where in one clip a still picture could cut away
+(`worker_ai.llm.broll`), asked by Autopilot for a run with B-roll on. Its
+payload is ``broll`` (the clip's words, not a transcript of segments), and like
+the episode pack it never fails for the model's sake: no answer is no moments.
 """
 
 from __future__ import annotations
 
 from typing import Any, Final
 
+from pydantic import ValidationError
+
 from worker_ai.callbacks import JobUsage
+from worker_ai.llm.broll import propose_broll
+from worker_ai.llm.broll_contracts import (
+    BROLL_LLM_KIND,
+    BROLL_TEMPLATE_VERSION,
+    BrollOutput,
+    BrollRequest,
+)
 from worker_ai.llm.calls import CallLedger, model_chain
 from worker_ai.llm.episode_pack import EPISODE_PACK_TEMPLATE_VERSION, write_episode_pack
 from worker_ai.llm.pricing import inr_to_paise
@@ -33,7 +47,7 @@ __all__ = ["process_llm"]
 _log = get_logger(__name__)
 
 _EPISODE_PACK: Final[str] = "episode-pack"
-_VALID_KINDS = {"chapters", "summary", "hooks", _EPISODE_PACK}
+_VALID_KINDS = {"chapters", "summary", "hooks", _EPISODE_PACK, BROLL_LLM_KIND}
 _SCRIPT_MODES = {"auto", "roman", "native", "bilingual"}
 
 
@@ -53,6 +67,8 @@ async def process_llm(context: JobContext) -> ProcessorOutcome:
             retryable=False,
         )
     region = context.payload_str("region", default="in") or "in"
+    if kind == BROLL_LLM_KIND:
+        return await _process_broll(context, region)
     transcript_raw = context.envelope.payload.get("transcript")
     if not isinstance(transcript_raw, dict):
         raise JobFailureError(
@@ -172,3 +188,68 @@ async def _process_episode_pack(
         else JobUsage(provider=paid[0], model=paid[1] or None, cost_minor=cost_minor)
     )
     return ProcessorOutcome(result=output, usage=usage)
+
+
+async def _process_broll(context: JobContext, region: str) -> ProcessorOutcome:
+    """``kind: "broll"`` (2026-10-05): the moments in one clip a picture could cut away at."""
+    try:
+        request = BrollRequest.model_validate(context.envelope.payload.get(BROLL_LLM_KIND))
+    except ValidationError as error:
+        raise JobFailureError(
+            "worker/invalid_payload",
+            f"ai.llm broll payload is malformed ({error.error_count()} problems)",
+            retryable=False,
+        ) from error
+
+    await context.progress(10, message="Looking for moments a picture could show")
+    ledger = CallLedger()
+    try:
+        output, provider, model = await propose_broll(
+            request,
+            chain=model_chain(context.services.llm_providers, region),
+            ledger=ledger,
+            region=region,
+        )
+    except Exception:
+        # Whatever went wrong on the model's side, the clip goes without cutaways.
+        _log.exception("b-roll moments failed with the language model; none are proposed")
+        output = BrollOutput(schemaVersion=1, moments=(), source="none")
+        provider, model = "none", ""
+
+    context.record(
+        tuple(
+            ProviderSubmission(
+                provider=name,
+                endpoint=use.endpoint,
+                artefact="llm_output",
+                region=region,
+                retention_class=_retention(name, use.no_training),
+            )
+            for name, use in ledger.providers.items()
+        )
+    )
+    await context.progress(100, message="done")
+
+    paid = ledger.paid_provider
+    cost_minor = inr_to_paise(ledger.cost_inr)
+    result: dict[str, Any] = {
+        "templateId": BROLL_LLM_KIND,
+        "version": BROLL_TEMPLATE_VERSION,
+        "provider": provider,
+        "region": region,
+        "output": output.model_dump(by_alias=True, mode="json"),
+        "usage": {
+            "inputTokens": ledger.input_tokens,
+            "outputTokens": ledger.output_tokens,
+            "costMinor": cost_minor,
+            "currency": "INR",
+            **({} if not model else {"model": model}),
+        },
+        "providerSubmissions": context.submissions_wire(),
+    }
+    usage = (
+        None
+        if paid is None
+        else JobUsage(provider=paid[0], model=paid[1] or None, cost_minor=cost_minor)
+    )
+    return ProcessorOutcome(result=result, usage=usage)

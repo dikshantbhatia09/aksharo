@@ -593,6 +593,13 @@ export const API_OPERATIONS = [
     summary: "Make an uploaded track the kit's music",
   },
   {
+    operationId: "completeBrollUpload",
+    method: "POST",
+    path: "/broll/{assetId}/complete",
+    tags: ["broll"],
+    summary: "Keep an uploaded picture in the library",
+  },
+  {
     operationId: "completeExportManifest",
     method: "POST",
     path: "/exports/manifests/{manifestId}/complete",
@@ -682,6 +689,13 @@ export const API_OPERATIONS = [
     path: "/admin/privacy/breach-incidents",
     tags: ["admin"],
     summary: "Open a breach incident",
+  },
+  {
+    operationId: "createBrollUpload",
+    method: "POST",
+    path: "/broll/uploads",
+    tags: ["broll"],
+    summary: "Start uploading a picture (PNG, JPEG or WebP, up to 8 MB)",
   },
   {
     operationId: "createCheckout",
@@ -908,6 +922,13 @@ export const API_OPERATIONS = [
     summary: "Take the music off the brand kit",
   },
   {
+    operationId: "deleteBrollPicture",
+    method: "DELETE",
+    path: "/broll/{assetId}",
+    tags: ["broll"],
+    summary: "Delete a picture",
+  },
+  {
     operationId: "deleteFolder",
     method: "DELETE",
     path: "/folders/{folderId}",
@@ -1109,6 +1130,13 @@ export const API_OPERATIONS = [
     path: "/admin/privacy/breach-incidents/{id}/templates",
     tags: ["admin"],
     summary: "Draft Board report and user notice for one incident",
+  },
+  {
+    operationId: "getBrollLibrary",
+    method: "GET",
+    path: "/broll",
+    tags: ["broll"],
+    summary: "The workspace's B-roll library",
   },
   {
     operationId: "getBundledFontManifest",
@@ -2385,6 +2413,13 @@ export const API_OPERATIONS = [
     summary: "Run one scheduled task now, out of band",
   },
   {
+    operationId: "saveBrollStock",
+    method: "POST",
+    path: "/broll/stock",
+    tags: ["broll"],
+    summary: "Keep a stock photo in the library",
+  },
+  {
     operationId: "savePushSubscription",
     method: "POST",
     path: "/me/push-subscriptions",
@@ -2397,6 +2432,13 @@ export const API_OPERATIONS = [
     path: "/repurpose/runs/{runId}/posts/daily",
     tags: ["repurpose"],
     summary: "Post one a day",
+  },
+  {
+    operationId: "searchBrollStock",
+    method: "GET",
+    path: "/broll/stock",
+    tags: ["broll"],
+    summary: "Search stock photos",
   },
   {
     operationId: "searchPartnerCatalogue",
@@ -2593,6 +2635,13 @@ export const API_OPERATIONS = [
     path: "/admin/privacy/breach-incidents/{id}",
     tags: ["admin"],
     summary: "Update a breach incident's status or notification timestamps",
+  },
+  {
+    operationId: "updateBrollPicture",
+    method: "PATCH",
+    path: "/broll/{assetId}",
+    tags: ["broll"],
+    summary: "Change a picture's tags or title",
   },
   {
     operationId: "updateFolder",

@@ -28,7 +28,13 @@ import {
   loadCanvasKit,
 } from "@montaj/render-canvaskit";
 import { buildBaselineCommands } from "@montaj/render-canvaskit/testing";
-import type { DrawCommand } from "@montaj/render-core";
+import {
+  brollOpacity,
+  type BRollTrack,
+  type DrawCommand,
+  drawBRoll,
+  layoutBRoll,
+} from "@montaj/render-core";
 
 import { SkiaNodeBackend } from "./backend.js";
 import {
@@ -471,5 +477,86 @@ describe("the backdrop blur, clipped to its bounds in both backends", () => {
       expect(withPanel[index]).toBe(plain[index]);
       expect(withPanel[index + 3]).toBe(plain[index + 3]);
     }
+  });
+});
+
+/**
+ * A B-roll cutaway (2026-10-05): a picture covering the frame and clipped to
+ * it, or in a rounded, shadowed box, drawn at a fractional scale as it moves.
+ * The picture is made here, by this backend, with a gradient and hard edges in
+ * it so a difference in how either backend samples a scaled image moves pixels.
+ * No text: a full-frame cutaway must come out exactly the same, and a box
+ * differs only along its anti-aliased rounded corners (18 pixels of 57,600,
+ * measured), pinned well inside D33's 1 % so a regression shows. Before the
+ * browser sampled images bilinearly too (`render-canvaskit`'s `execute.ts`),
+ * 5 % of a full-frame cutaway's pixels differed, by up to half the range.
+ */
+describe("a B-roll cutaway, drawn the same in both backends", () => {
+  const PICTURE = "01JPX0000000000000000000P1";
+  const canvas = { width: 180, height: 320 };
+  const background = "#1a1a20ff";
+  const track = (mode: "full" | "pip", motion: BRollTrack["motion"]): BRollTrack => ({
+    id: "01JBR0000000000000000000P1",
+    kind: "b-roll",
+    startMs: 0,
+    endMs: 3_000,
+    image: { assetId: PICTURE, format: "png", width: 60, height: 90 },
+    mode,
+    motion,
+  });
+
+  beforeAll(async () => {
+    const picture = cloud.renderToPng(
+      [
+        {
+          kind: "rect",
+          rect: [0, 0, 60, 90],
+          fill: {
+            paint: {
+              type: "linear-gradient",
+              from: [0, 0],
+              to: [60, 90],
+              stops: [
+                { offset: 0, color: "#f0508aff" },
+                { offset: 1, color: "#7fa6f5ff" },
+              ],
+            },
+          },
+        },
+        {
+          kind: "rect",
+          rect: [10, 20, 30, 50],
+          fill: { paint: { type: "solid", color: "#ffd400ff" } },
+        },
+        {
+          kind: "roundRect",
+          rect: [34, 40, 54, 80],
+          radiusX: 6,
+          radiusY: 6,
+          fill: { paint: { type: "solid", color: "#0e0c10ff" } },
+        },
+      ],
+      { width: 60, height: 90, background: "#203040ff" },
+    );
+    browser.registerImage(PICTURE, picture);
+    await cloud.registerImage(PICTURE, picture);
+  });
+
+  const frames: readonly (readonly [string, BRollTrack, number])[] = [
+    ["full push-in, fading in", track("full", "push-in"), 120],
+    ["full push-in, halfway", track("full", "push-in"), 1_500],
+    ["full pan-left, halfway", track("full", "pan-left"), 1_500],
+    ["pip pull-out, halfway", track("pip", "pull-out"), 1_500],
+    ["pip pan-right, fading out", track("pip", "pan-right"), 2_900],
+  ];
+
+  it.each(frames)("%s", (_name, overlay, tMs) => {
+    const commands = drawBRoll(layoutBRoll({ overlay, canvas }), tMs, brollOpacity(overlay, tMs));
+    expect(commands.length).toBeGreaterThan(0);
+    const expected = browserPixels(commands, canvas.width, canvas.height, background);
+    const actual = cloud.renderFrameToRgba(commands, { ...canvas, background });
+    const diff = comparePixels(expected, actual);
+    if (overlay.mode === "full") expect(diff.differing).toBe(0);
+    else expect(diff.ratio).toBeLessThanOrEqual(PARITY_MAX_DIFF_RATIO / 10);
   });
 });

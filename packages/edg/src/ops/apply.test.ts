@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { BROLL_DURATION_MS, MAX_BROLL_OVERLAYS, MAX_OVERLAYS } from "../schemas/document.js";
 import { type EdgOp, type OpRejectionReason } from "../schemas/ops.js";
 import { type Pass } from "../schemas/pass.js";
 import { buildFixture, idFactory } from "../testing.js";
@@ -1361,9 +1362,9 @@ describe("SetOverlay and RemoveOverlay", () => {
     expect(reasons(again)).toEqual(["unknown-id"]);
   });
 
-  it("refuses a ninth overlay but lets an existing one be edited at the cap", () => {
+  it("refuses an overlay past the cap but lets an existing one be edited at it", () => {
     const { state } = setup();
-    const ids = Array.from({ length: 8 }, () => overlayId());
+    const ids = Array.from({ length: MAX_OVERLAYS }, () => overlayId());
     const full = apply(
       state,
       ids.map((id, index) =>
@@ -1372,7 +1373,7 @@ describe("SetOverlay and RemoveOverlay", () => {
         }),
       ),
     );
-    expect(full.state.hot.overlays).toHaveLength(8);
+    expect(full.state.hot.overlays).toHaveLength(MAX_OVERLAYS);
     const result = applyOps(full.state, [
       op("SetOverlay", { overlay: { ...hook(), id: overlayId() } }),
       op("SetOverlay", { overlay: { ...hook({ text: "edited" }), id: ids[0] ?? "" } }),
@@ -1448,5 +1449,90 @@ describe("SetOverlay and RemoveOverlay", () => {
       op("SetOverlay", { overlay: { ...logo, startMs: 0, endMs: 200_000 } }),
     ]);
     expect(result.state.hot.overlays?.[0]).toMatchObject({ startMs: 0, endMs: 90_000 });
+  });
+
+  // B-roll cutaways (2026-10-05).
+  const picture = { assetId: overlayId(), format: "jpeg" as const, width: 1440, height: 2560 };
+  const broll = (
+    fields: Partial<{ id: string; startMs: number; endMs: number; label: string }> = {},
+  ) => ({
+    id: overlayId(),
+    kind: "b-roll" as const,
+    startMs: 10_000,
+    endMs: 12_500,
+    image: picture,
+    mode: "full" as const,
+    motion: "push-in" as const,
+    startWordId: "0:3" as const,
+    endWordId: "0:5" as const,
+    ...fields,
+  });
+
+  it("stores a b-roll cutaway beside the other overlays, its label trimmed or left out", () => {
+    const { state } = setup();
+    const labelled = broll({ label: "  the Taj Mahal  " });
+    const bare = broll({ startMs: 20_000, endMs: 22_000, label: "   " });
+    const result = apply(state, [
+      op("SetOverlay", { overlay: hook() }),
+      op("SetOverlay", { overlay: labelled }),
+      op("SetOverlay", { overlay: bare }),
+    ]);
+    const stored = result.state.hot.overlays ?? [];
+    expect(stored.map((overlay) => overlay.kind)).toEqual(["hook-title", "b-roll", "b-roll"]);
+    expect(stored[1]).toEqual({ ...labelled, label: "the Taj Mahal" });
+    expect(stored[2]).not.toHaveProperty("label");
+  });
+
+  it("refuses a cutaway shorter than a second and cuts a long one to the maximum", () => {
+    const { state } = setup();
+    const refused = applyOps(state, [
+      op("SetOverlay", { overlay: broll({ startMs: 10_000, endMs: 10_900 }) }),
+      // Clamped to the media first: 89.5 s to 90 s is half a second.
+      op("SetOverlay", { overlay: broll({ startMs: 89_500, endMs: 95_000 }) }),
+    ]);
+    expect(reasons(refused)).toEqual(["invalid-range", "invalid-range"]);
+    expect(refused.state.hot.overlays).toBeUndefined();
+
+    const long = apply(state, [
+      op("SetOverlay", { overlay: broll({ startMs: 10_000, endMs: 40_000 }) }),
+    ]);
+    expect(long.state.hot.overlays?.[0]).toMatchObject({
+      startMs: 10_000,
+      endMs: 10_000 + BROLL_DURATION_MS.max,
+    });
+  });
+
+  it("carries at most eight cutaways, and still lets one of them move", () => {
+    const { state } = setup();
+    const ids = Array.from({ length: MAX_BROLL_OVERLAYS }, () => overlayId());
+    const full = apply(
+      state,
+      ids.map((id, index) =>
+        op("SetOverlay", {
+          overlay: broll({ id, startMs: index * 5_000, endMs: index * 5_000 + 2_000 }),
+        }),
+      ),
+    );
+    expect(full.state.hot.overlays).toHaveLength(MAX_BROLL_OVERLAYS);
+    const result = applyOps(full.state, [
+      op("SetOverlay", { overlay: broll({ startMs: 80_000, endMs: 82_000 }) }),
+      op("SetOverlay", { overlay: broll({ id: ids[0] ?? "", startMs: 1_000, endMs: 3_000 }) }),
+      // Another kind still fits beside them.
+      op("SetOverlay", { overlay: hook() }),
+    ]);
+    expect(reasons(result)).toEqual(["invariant"]);
+    expect(result.state.hot.overlays?.find((overlay) => overlay.id === ids[0])).toMatchObject({
+      startMs: 1_000,
+      endMs: 3_000,
+    });
+    expect(result.state.hot.overlays).toHaveLength(MAX_BROLL_OVERLAYS + 1);
+  });
+
+  it("removes a cutaway like any overlay", () => {
+    const { state } = setup();
+    const cutaway = broll();
+    const placed = apply(state, [op("SetOverlay", { overlay: cutaway })]);
+    const removed = apply(placed.state, [op("RemoveOverlay", { overlayId: cutaway.id })]);
+    expect(removed.state.hot).not.toHaveProperty("overlays");
   });
 });

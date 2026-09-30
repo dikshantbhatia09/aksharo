@@ -31,6 +31,7 @@ import { type Shaper } from "../fonts/shaper.js";
 import { type FontRegistry } from "../fonts/types.js";
 import { layoutSegment } from "../layout/layout.js";
 import { type Layout } from "../layout/types.js";
+import { type BRollLayout, brollOpacity, drawBRoll, layoutBRoll } from "../overlay/b-roll.js";
 import {
   drawEndCardBackdrop,
   drawEndCardContent,
@@ -40,7 +41,7 @@ import {
 } from "../overlay/end-card.js";
 import { HookTitleCache, renderHookTitles } from "../overlay/hook-title.js";
 import { drawLogo, type LogoPlacement, placeLogo } from "../overlay/logo.js";
-import { type EndCardTrack, type LogoTrack, OverlayLayoutCache } from "../overlay/types.js";
+import { OverlayLayoutCache, type OverlayTrack } from "../overlay/types.js";
 import { type CanvasSize, assertCanvas } from "../units.js";
 
 export interface RenderFrameOptions {
@@ -98,6 +99,8 @@ const SHARED_HOOK_TITLES = new HookTitleCache();
 /** Brand logos and end cards (2026-10-02), placed once per document. Weakly keyed by projection. */
 const SHARED_LOGOS = new OverlayLayoutCache<LogoPlacement>();
 const SHARED_END_CARDS = new OverlayLayoutCache<EndCardLayout>();
+/** B-roll cutaways (2026-10-05), placed once per document, like the logos. */
+const SHARED_BROLL = new OverlayLayoutCache<BRollLayout>();
 
 /** The layouts that make up one frame; `renderFrame` is this plus `animate`. */
 export function layoutFrame(options: RenderFrameOptions): { layout: Layout; style: StyleDoc }[] {
@@ -179,6 +182,12 @@ export function renderFrame(options: RenderFrameOptions): DrawCommand[] {
   const overlays = projection.overlays ?? [];
 
   const commands: DrawCommand[] = [];
+  // B-roll cutaways (2026-10-05) go under everything else: the captions, a
+  // logo, a hook title and an end card are all drawn over them. Only a
+  // document with a cutaway draws anything here.
+  if (overlays.some((overlay) => overlay.kind === "b-roll")) {
+    commands.push(...brollCommands(options, sourceMs));
+  }
   // An end card's dim goes under the captions (2026-10-02), so a line still
   // being spoken reads on top of it. Only a document with an end card on
   // screen draws anything here.
@@ -229,23 +238,7 @@ function overlayCommands(options: RenderFrameOptions, sourceMs: number): DrawCom
   const { projection } = options;
   const overlays = projection.overlays ?? [];
   const canvas = assertCanvas(options.canvas ?? projection.canvas);
-  let style: StyleDoc | undefined;
-  try {
-    style = resolveStyle(
-      {
-        catalogue: options.catalogue,
-        defaultStyleId: projection.styles.defaultStyleId,
-        ...(projection.styles.inline?.doc === undefined
-          ? {}
-          : { documentOverrides: projection.styles.inline.doc }),
-      },
-      {},
-      options.styleCache,
-    );
-  } catch (error) {
-    if (!isRenderError(error)) throw error;
-    style = undefined;
-  }
+  const style = documentStyle(options);
   const commands: DrawCommand[] = [];
   const logos = logoPlacements(options, canvas, style);
   if (logos.length > 0) {
@@ -306,12 +299,83 @@ function overlayCommands(options: RenderFrameOptions, sourceMs: number): DrawCom
 }
 
 /**
- * What decides a brand overlay's place besides the projection itself (the
- * cache's owner): the overlay, the canvas, the style, the face track and which
- * of the words' scripts the captions are drawn in.
+ * The document's own style - its default with the document overrides, the one
+ * a caption without a style of its own is drawn in - or `undefined` when it
+ * cannot be resolved.
+ */
+function documentStyle(options: RenderFrameOptions): StyleDoc | undefined {
+  const { projection } = options;
+  try {
+    return resolveStyle(
+      {
+        catalogue: options.catalogue,
+        defaultStyleId: projection.styles.defaultStyleId,
+        ...(projection.styles.inline?.doc === undefined
+          ? {}
+          : { documentOverrides: projection.styles.inline.doc }),
+      },
+      {},
+      options.styleCache,
+    );
+  } catch (error) {
+    if (!isRenderError(error)) throw error;
+    return undefined;
+  }
+}
+
+/**
+ * The frame's B-roll cutaways (2026-10-05), each at its own fade and giving
+ * way to any hook title or end card up at the same time (`brollOpacity`). A
+ * picture-in-picture box is placed once per cutaway, off the faces, the
+ * captions shown while it is up and the logos.
+ */
+function brollCommands(options: RenderFrameOptions, sourceMs: number): DrawCommand[] {
+  const { projection } = options;
+  const overlays = projection.overlays ?? [];
+  const canvas = assertCanvas(options.canvas ?? projection.canvas);
+  const commands: DrawCommand[] = [];
+  let style: StyleDoc | undefined;
+  let styleResolved = false;
+  for (const overlay of overlays) {
+    if (overlay.kind !== "b-roll") continue;
+    const opacity = brollOpacity(overlay, sourceMs, overlays);
+    if (opacity <= 0) continue;
+    if (!styleResolved) {
+      style = documentStyle(options);
+      styleResolved = true;
+    }
+    const layout = SHARED_BROLL.get(
+      projection,
+      brandOverlayKey(overlay, options, canvas, style),
+      () =>
+        layoutBRoll({
+          overlay,
+          canvas,
+          ...(options.faces === undefined ? {} : { faces: options.faces }),
+          ...(overlay.mode === "pip"
+            ? {
+                obstacles: [
+                  ...safeCaptionExtents(options, canvas, overlay.startMs, overlay.endMs),
+                  ...logoPlacements(options, canvas, style)
+                    .filter((logo) => logo.startMs < overlay.endMs && logo.endMs > overlay.startMs)
+                    .map((logo) => logo.dest),
+                ],
+              }
+            : {}),
+        }),
+    );
+    if (layout !== undefined) commands.push(...drawBRoll(layout, sourceMs, opacity));
+  }
+  return commands;
+}
+
+/**
+ * What decides an overlay's place besides the projection itself (the cache's
+ * owner): the overlay, the canvas, the style, the face track and which of the
+ * words' scripts the captions are drawn in.
  */
 function brandOverlayKey(
-  overlay: LogoTrack | EndCardTrack,
+  overlay: OverlayTrack,
   options: RenderFrameOptions,
   canvas: CanvasSize,
   style: StyleDoc | undefined,

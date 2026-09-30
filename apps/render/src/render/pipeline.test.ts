@@ -25,9 +25,10 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { isRenderManifestError } from "@montaj/render-manifest";
 import { fixtureManifest } from "@montaj/render-manifest/testing";
+import { SkiaNodeBackend } from "@montaj/render-skia-node";
 
 import { renderVideo, type RenderDependencies } from "./pipeline.js";
-import { brandAssetKey, rawKey } from "../storage.js";
+import { brandAssetKey, brollAssetKey, rawKey } from "../storage.js";
 import {
   createDirectoryStore,
   FIXTURE_IDS,
@@ -327,6 +328,97 @@ describe("a whole cloud render", () => {
     const pixel = await readFile(frame);
     expect(pixel[0]).toBeGreaterThan((pixel[1] ?? 0) + 60);
     expect(pixel[0]).toBeGreaterThan((pixel[2] ?? 0) + 60);
+  }, 600_000);
+
+  it("draws a B-roll cutaway from the workspace's own B-roll folder, never another's (2026-10-05)", async () => {
+    const assetId = "01JPX0000000000000000000C1";
+    const other = "01JQTHER000000000000000000";
+    const picture = async (colour: string): Promise<Uint8Array> => {
+      const skia = await SkiaNodeBackend.create();
+      try {
+        return skia.renderToPng(
+          [
+            {
+              kind: "rect",
+              rect: [0, 0, 8, 12],
+              fill: { paint: { type: "solid", color: colour } },
+            },
+          ],
+          { width: 8, height: 12 },
+        );
+      } finally {
+        skia.dispose();
+      }
+    };
+    // The same asset id, red, in another workspace's folder.
+    await derivedStore.seedBytes(brollAssetKey(other, assetId, "png"), await picture("#ff0000ff"));
+    const payload = await samplePayload(SECRET, baseOverrides(), CLIP_SECONDS * 1000);
+    const withCutaway: RenderVideoPayload = {
+      ...payload,
+      projection: {
+        ...payload.projection,
+        overlays: [
+          {
+            id: "01JBR0000000000000000000C1",
+            kind: "b-roll",
+            startMs: 2_000,
+            endMs: 8_000,
+            image: { assetId, format: "png", width: 8, height: 12 },
+            mode: "full",
+            motion: "none",
+          },
+        ],
+      },
+    };
+    // Only another workspace has it: an unreadable image, before any encode.
+    await expect(
+      renderVideo(withCutaway, FIXTURE_IDS.workspaceId, dependencies({ rasterWorkers: 0 })),
+    ).rejects.toMatchObject({ code: "render/overlay-image-unreadable", assetId });
+
+    // Green in the render's own workspace: that is what covers the frame.
+    await derivedStore.seedBytes(
+      brollAssetKey(FIXTURE_IDS.workspaceId, assetId, "png"),
+      await picture("#00c040ff"),
+    );
+    const outcome = await renderVideo(
+      withCutaway,
+      FIXTURE_IDS.workspaceId,
+      dependencies({ rasterWorkers: 0 }),
+    );
+    const sample = async (seconds: number): Promise<Buffer> => {
+      const frame = join(scratch, `broll-frame-${String(seconds)}.rgb`);
+      await run(
+        "ffmpeg",
+        [
+          "-hide_banner",
+          "-loglevel",
+          "error",
+          "-y",
+          "-ss",
+          String(seconds),
+          "-i",
+          derivedStore.pathFor(outcome.outputKey),
+          "-frames:v",
+          "1",
+          "-vf",
+          "crop=32:32:8:8,scale=1:1",
+          "-f",
+          "rawvideo",
+          "-pix_fmt",
+          "rgb24",
+          frame,
+        ],
+        { timeout: 120_000, windowsHide: true },
+      );
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- a path in this test's own scratch directory
+      return readFile(frame);
+    };
+    const during = await sample(5);
+    expect(during[1]).toBeGreaterThan((during[0] ?? 0) + 60);
+    expect(during[1]).toBeGreaterThan((during[2] ?? 0) + 30);
+    // Before its window, the source's own picture: not green.
+    const before = await sample(1);
+    expect(before[1]).toBeLessThan((before[0] ?? 0) + 60);
   }, 600_000);
 
   it("rasterises far fewer frames than it writes, because captions hold still", async () => {

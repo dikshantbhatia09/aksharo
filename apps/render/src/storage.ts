@@ -117,6 +117,18 @@ export function brandAssetKey(workspaceId: string, assetId: string, ext = "png")
   return `ws/${checked("workspaceId", workspaceId)}/brand/${assetId}.${checkedExtension(ext)}`;
 }
 
+/**
+ * Key of a picture in a workspace's B-roll library (2026-10-05):
+ * `ws/{workspaceId}/broll/{assetId}.{png|jpg|webp}`, in the derived store
+ * beside the brand prefix. Deliberately its own prefix and its own function: a
+ * B-roll overlay is read from here and nowhere else, so a payload naming a
+ * logo's id as a cutaway (or the other way round) finds nothing rather than
+ * another folder's file. Both ids are ULIDs, checked before they are pasted in.
+ */
+export function brollAssetKey(workspaceId: string, assetId: string, ext: string): string {
+  return `ws/${checked("workspaceId", workspaceId)}/broll/${checked("assetId", assetId)}.${checkedExtension(ext)}`;
+}
+
 export interface PutOptions {
   readonly contentType?: string;
 }

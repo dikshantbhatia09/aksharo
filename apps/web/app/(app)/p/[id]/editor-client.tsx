@@ -14,9 +14,19 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
-import { ApiError, useProject, useRecordSpellingFixMemory } from "@montaj/api-client";
+import { ApiError, useProject, useRecordSpellingFixMemory, useSession } from "@montaj/api-client";
 import type { StyleDoc } from "@montaj/caption-styles";
-import { isWorkspaceMusicItem, newId, orderedSegments, wordsBetween } from "@montaj/edg";
+import {
+  blockedBrollSpans,
+  brollOverlaysOf,
+  brollPlacementProblem,
+  isWorkspaceMusicItem,
+  MAX_BROLL_OVERLAYS,
+  newId,
+  orderedSegments,
+  uncutClock,
+  wordsBetween,
+} from "@montaj/edg";
 import type { Segment } from "@montaj/edg";
 import { faceTrackOnCanvas, resolveStyle } from "@montaj/render-core";
 import type { FontRegistry, Shaper } from "@montaj/render-core";
@@ -50,6 +60,11 @@ import type { EditorSnapshot, EditorStore } from "@/lib/edg/store";
 
 import { editorEndCardOverlay, editorLogoOverlay } from "@/components/brand-kit/brand-overlays";
 import { useBrandKit } from "@/components/brand-kit/use-brand-kit";
+import {
+  brollImagesOf,
+  useBrollLibrary,
+  type BrollPicture,
+} from "@/components/broll/use-broll-library";
 import { CaptionStage } from "@/components/editor/canvas/CaptionStage";
 import { CropWindowOverlay } from "@/components/editor/canvas/CropWindowOverlay";
 import { aspectRatioOf, containWidth } from "@/components/editor/canvas/stage-fit";
@@ -68,7 +83,13 @@ import {
 import { type PanelOp, type PanelScope } from "@/components/editor/panels/ops";
 import { RightPanel, type PanelTab } from "@/components/editor/panels/RightPanel";
 import { PICKABLE_STYLES, SYSTEM_STYLE_MAP } from "@/components/editor/panels/system-styles";
+import { BrollPanel } from "@/components/editor/rail/BrollPanel";
 import { CustomFontsPanel } from "@/components/editor/rail/CustomFontsPanel";
+import {
+  brollAddAt,
+  cutawayForPicture,
+  playingWordsOf,
+} from "@/components/editor/rail/editor-broll";
 import { EditorRail, type EditorRailTab } from "@/components/editor/rail/EditorRail";
 import { LibraryPanel } from "@/components/editor/rail/LibraryPanel";
 import { RetranscribeDialog } from "@/components/editor/RetranscribeDialog";
@@ -755,6 +776,60 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
             ...(music === undefined ? {} : { music }),
           };
 
+  // --- B-roll (2026-10-05) -------------------------------------------------
+  // The workspace's pictures (signed by `GET /broll`), drawn by the stage and
+  // the browser export beside the brand logos, and the B-roll tab: the clip's
+  // cutaways, and adding one where the playhead is. Each change is one
+  // undoable op.
+  const session = useSession();
+  const canEditBroll = session === null || session.role !== "viewer";
+  const brollLibrary = useBrollLibrary();
+  const brollImages = useMemo(() => brollImagesOf(brollLibrary.data), [brollLibrary.data]);
+  const stageImages = useMemo(
+    () =>
+      brandImages === undefined && Object.keys(brollImages).length === 0
+        ? undefined
+        : { ...brandImages, ...brollImages },
+    [brandImages, brollImages],
+  );
+  const cutaways = useMemo(() => brollOverlaysOf(state.hot.overlays), [state.hot.overlays]);
+  const playingWords = useMemo(
+    () => playingWordsOf(state.words.values(), passItems),
+    [state.words, passItems],
+  );
+  const brollClock = useMemo(
+    () => timeMap ?? uncutClock(primaryMedia?.durationMs ?? 0),
+    [timeMap, primaryMedia?.durationMs],
+  );
+  const brollBlocked = useMemo(() => blockedBrollSpans(state.hot.overlays), [state.hot.overlays]);
+  const brollAdd = brollAddAt({
+    words: playingWords,
+    playheadMs: playheadSnapshot.ms,
+    clock: brollClock,
+    blocked: brollBlocked,
+  });
+
+  function onAddBroll(picture: BrollPicture): void {
+    if (brollAdd === undefined || brollAdd.problem !== undefined) return;
+    if (cutaways.length >= MAX_BROLL_OVERLAYS) {
+      toast.error(`A clip can have at most ${String(MAX_BROLL_OVERLAYS)} cutaways.`);
+      return;
+    }
+    store.submitOp(
+      {
+        type: "SetOverlay",
+        opId: newId(),
+        overlay: cutawayForPicture({
+          picture,
+          window: brollAdd.window,
+          canvas: state.hot.canvas,
+          index: cutaways.length,
+        }),
+      },
+      { label: "Add B-roll" },
+    );
+  }
+
   const audioClean = (state.hot.audio as { clean?: { cleanId?: string | null } } | undefined)
     ?.clean;
   const appliedCleanId = typeof audioClean?.cleanId === "string" ? audioClean.cleanId : undefined;
@@ -1254,6 +1329,47 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
                       }
                       fonts={<CustomFontsPanel className="p-3" />}
                       library={<LibraryPanel className="p-3" />}
+                      broll={
+                        <BrollPanel
+                          className="p-3"
+                          cutaways={cutaways}
+                          words={playingWords}
+                          {...(brollAdd === undefined
+                            ? {}
+                            : {
+                                addAt: {
+                                  word: brollAdd.word,
+                                  startMs: brollAdd.startMs,
+                                  ...(brollAdd.problem === undefined
+                                    ? {}
+                                    : { problem: brollAdd.problem }),
+                                },
+                              })}
+                          library={brollLibrary.data}
+                          canvas={state.hot.canvas}
+                          canEdit={canEditBroll}
+                          placementProblem={(window) =>
+                            brollPlacementProblem(window, {
+                              clock: brollClock,
+                              blocked: brollBlocked,
+                            })
+                          }
+                          onAdd={onAddBroll}
+                          onChange={(overlay, label) => {
+                            store.submitOp(
+                              { type: "SetOverlay", opId: newId(), overlay },
+                              { label },
+                            );
+                          }}
+                          onRemove={(overlay) => {
+                            store.submitOp(
+                              { type: "RemoveOverlay", opId: newId(), overlayId: overlay.id },
+                              { label: "Remove B-roll" },
+                            );
+                          }}
+                          onSeek={(ms) => playhead.seek(ms)}
+                        />
+                      }
                     />
                   </div>
                 </ResizablePanel>
@@ -1463,7 +1579,7 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
                       onMediaError={() => timelineMedia.refresh()}
                       projection={projection}
                       {...(faceTrack === undefined ? {} : { faces: faceTrack })}
-                      {...(brandImages === undefined ? {} : { images: brandImages })}
+                      {...(stageImages === undefined ? {} : { images: stageImages })}
                       catalogue={SYSTEM_STYLE_MAP}
                       script={script}
                       showSafeZones={safeZonesOn}
@@ -1582,7 +1698,7 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
                     }
                     projection={toRenderProjection(state)}
                     {...(faceTrack === undefined ? {} : { faces: faceTrack })}
-                    {...(brandImages === undefined ? {} : { images: brandImages })}
+                    {...(stageImages === undefined ? {} : { images: stageImages })}
                     catalogue={SYSTEM_STYLE_MAP}
                     registry={registry}
                     shaper={shaper}

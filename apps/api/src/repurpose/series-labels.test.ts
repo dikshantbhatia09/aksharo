@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { MAX_OVERLAYS } from "@montaj/edg";
 import type { HookTitleOverlay, Overlay, PassItem } from "@montaj/edg/schemas";
 
 import {
@@ -158,11 +159,12 @@ describe("planSeriesLabels (2026-10-03)", () => {
   });
 
   it("keeps within the document's overlays, dropping what comes next first", () => {
+    // A full document, whatever the cap is (8 until B-roll, 16 since).
     const others: Overlay[] = [
       autopilotHook,
-      ...Array.from({ length: 7 }, (_, index) =>
+      ...Array.from({ length: MAX_OVERLAYS - 1 }, (_, index) =>
         ownHook(
-          `01JCM1NE00000000000000000${String(index)}`,
+          `01JCM1NE${String(index).padStart(18, "0")}`,
           5_000 + index * 2_000,
           6_000 + index * 2_000,
         ),
@@ -176,7 +178,7 @@ describe("planSeriesLabels (2026-10-03)", () => {
       items: [],
       durationMs: 60_000,
     });
-    // The part label takes Autopilot's place; there is no room for a ninth.
+    // The part label takes Autopilot's place; there is no room for one more.
     expect(plan.added).toEqual([IDS.part]);
   });
 

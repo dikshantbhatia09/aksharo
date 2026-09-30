@@ -25,8 +25,9 @@ export interface RenderProjectionPayload {
   readonly words: readonly ProjectedWord[];
   readonly speakerColours?: Record<string, string>;
   /**
-   * `EdgHot.overlays` (2026-09-29): the hook title, and a brand kit's logo and
-   * end card (2026-10-02); absent when there is none.
+   * `EdgHot.overlays` (2026-09-29): the hook title, a brand kit's logo and end
+   * card (2026-10-02), and B-roll cutaways (2026-10-05); absent when there is
+   * none.
    */
   readonly overlays?: readonly ProjectedOverlay[];
 }
@@ -45,6 +46,14 @@ export interface BuildRenderProjectionOptions {
    * not there. Without it every overlay passes as stored.
    */
   readonly images?: ReadonlySet<string>;
+  /**
+   * The B-roll library pictures the workspace still keeps (2026-10-05). With
+   * it, a cutaway whose picture is gone - deleted from the library - is left
+   * out. Without it every cutaway passes as stored. Its own set, not
+   * {@link images}: a cutaway is read from the B-roll folder only, so a logo's
+   * id must never make one pass.
+   */
+  readonly brollImages?: ReadonlySet<string>;
 }
 
 /** Every logo a document's overlays name, for the caller to ask which the workspace still keeps. */
@@ -57,8 +66,21 @@ export function overlayImageIds(edg: Pick<EdgProjection, "overlays">): string[] 
   return [...ids];
 }
 
+/**
+ * Every B-roll picture a document's cutaways name (2026-10-05), for the caller
+ * to ask which the workspace's library still keeps.
+ */
+export function brollImageIds(edg: Pick<EdgProjection, "overlays">): string[] {
+  const ids = new Set<string>();
+  for (const overlay of edg.overlays ?? []) {
+    if (overlay.kind === "b-roll") ids.add(overlay.image.assetId);
+  }
+  return [...ids];
+}
+
 /** One overlay for the payload, or none when it would draw nothing (see the options). */
-function projectOverlay(overlay: Overlay, images: ReadonlySet<string> | undefined): Overlay[] {
+function projectOverlay(overlay: Overlay, options: BuildRenderProjectionOptions): Overlay[] {
+  const images = options.images;
   switch (overlay.kind) {
     case "hook-title":
       // Exactly the fields a title carried before the brand kit, plus its look
@@ -87,6 +109,10 @@ function projectOverlay(overlay: Overlay, images: ReadonlySet<string> | undefine
       const words = (overlay.cta ?? "").trim() !== "" || (overlay.handle ?? "").trim() !== "";
       return words ? [withoutLogo] : [];
     }
+    case "b-roll":
+      return options.brollImages !== undefined && !options.brollImages.has(overlay.image.assetId)
+        ? []
+        : [overlay];
   }
 }
 
@@ -155,9 +181,7 @@ export function buildRenderProjection(
   const speakerColours = speakerColoursOf(edg.transcript.speakers);
   // Only when there are some: a projection without overlays is byte-for-byte
   // the payload every render before them was given.
-  const overlays = (edg.overlays ?? []).flatMap((overlay) =>
-    projectOverlay(overlay, options.images),
-  );
+  const overlays = (edg.overlays ?? []).flatMap((overlay) => projectOverlay(overlay, options));
 
   return {
     canvas: { width: edg.canvas.width, height: edg.canvas.height },

@@ -4,10 +4,11 @@ import type { EdgProjection } from "@montaj/render-core";
 
 import { MEDIA_ERRORS, PROJECT_ERRORS } from "./projects.constants.js";
 import { BrandKitService } from "../brand-kit/brand-kit.service.js";
+import { BrollLibraryService } from "../broll/broll.service.js";
 import { AppException, PrismaService } from "../common/index.js";
 import { DERIVED_STORE, DOWNLOAD_URL_TTL_SECONDS } from "../common/storage/index.js";
 import { EdgRepository } from "../edg/index.js";
-import { buildRenderProjection, overlayImageIds } from "../exports/projection.js";
+import { brollImageIds, buildRenderProjection, overlayImageIds } from "../exports/projection.js";
 import { FacesTrigger } from "../media/faces.js";
 
 import type { ObjectStore } from "../common/index.js";
@@ -26,8 +27,8 @@ export interface RenderPreview {
   readonly projection: EdgProjection | null;
   /**
    * Signed URLs for the brand logos the projection's overlays draw, by asset id
-   * (2026-10-02): `CaptionStage` fetches and registers them. Absent when it
-   * draws none.
+   * (2026-10-02), and for its B-roll cutaways' pictures (2026-10-05):
+   * `CaptionStage` fetches and registers them. Absent when it draws none.
    */
   readonly images?: Readonly<Record<string, string>>;
 }
@@ -67,6 +68,11 @@ export async function buildRenderPreview(
     readonly derived: ObjectStore;
     /** Signs the brand logos a document draws; without it they are not signed. */
     readonly brandKits?: Pick<BrandKitService, "imageUrls">;
+    /**
+     * Signs the B-roll pictures a document's cutaways draw (2026-10-05);
+     * without it no cutaway is previewed.
+     */
+    readonly broll?: Pick<BrollLibraryService, "imageUrls">;
   },
   project: { readonly id: string; readonly aspect: string; readonly workspaceId?: string },
   options: {
@@ -99,11 +105,19 @@ export async function buildRenderPreview(
     const canSign =
       imageIds.length > 0 && signer !== undefined && project.workspaceId !== undefined;
     if (canSign) images = await signer.imageUrls(project.workspaceId, imageIds, ttlSeconds);
-    const built = buildRenderProjection(
-      edg,
-      chunks,
-      canSign ? { images: new Set(Object.keys(images)) } : {},
-    );
+    // B-roll pictures (2026-10-05): signed while the library keeps them; a
+    // cutaway whose picture is gone, or that nothing here can sign, is left
+    // out, as in a render.
+    const brollIds = brollImageIds(edg);
+    let brollImages: Record<string, string> = {};
+    if (brollIds.length > 0 && deps.broll !== undefined && project.workspaceId !== undefined) {
+      brollImages = await deps.broll.imageUrls(project.workspaceId, brollIds, ttlSeconds);
+    }
+    const built = buildRenderProjection(edg, chunks, {
+      ...(canSign ? { images: new Set(Object.keys(images)) } : {}),
+      ...(brollIds.length > 0 ? { brollImages: new Set(Object.keys(brollImages)) } : {}),
+    });
+    images = { ...images, ...brollImages };
     projection = {
       canvas: built.canvas,
       styles: edg.styles as EdgProjection["styles"],
@@ -111,7 +125,7 @@ export async function buildRenderPreview(
       segments: built.segments,
       words: built.words,
       ...(built.speakerColours === undefined ? {} : { speakerColours: built.speakerColours }),
-      // The hook title: the share viewer and a run's clip preview draw it too.
+      // The hook title and the rest: the share viewer and a run's clip preview draw them too.
       ...(built.overlays === undefined ? {} : { overlays: built.overlays }),
     };
   }
@@ -148,6 +162,7 @@ export class RenderPreviewService {
     @Inject(DERIVED_STORE) private readonly derived: ObjectStore,
     private readonly faces: FacesTrigger,
     private readonly brandKits: BrandKitService,
+    private readonly broll: BrollLibraryService,
   ) {}
 
   /**
@@ -166,7 +181,13 @@ export class RenderPreviewService {
     }
 
     const preview = await buildRenderPreview(
-      { prisma: this.prisma, edg: this.edg, derived: this.derived, brandKits: this.brandKits },
+      {
+        prisma: this.prisma,
+        edg: this.edg,
+        derived: this.derived,
+        brandKits: this.brandKits,
+        broll: this.broll,
+      },
       project,
       {
         ttlSeconds: WORKSPACE_PREVIEW_URL_TTL_SECONDS,

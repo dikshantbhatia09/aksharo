@@ -8,6 +8,7 @@
  *                                                              |thumb-{n}.jpg}
  * exports (R2) ws/{workspaceId}/p/{projectId}/exports/{exportId}.{ext}
  * fonts   (R2) ws/{workspaceId}/fonts/{fontId}.{ttf|otf|woff2}
+ * broll   (R2) ws/{workspaceId}/broll/{assetId}.{png|jpg|webp}   (B-roll library, 2026-10-05)
  * ```
  *
  * This is the TypeScript twin of `apps/worker-ai/worker_ai/storage.py`, which the
@@ -196,6 +197,28 @@ export function brandAssetKey(
     throw new StorageKeyError(`${JSON.stringify(extension)} is not a brand asset extension`);
   }
   return `ws/${checkedId("workspaceId", workspaceId)}/brand/${assetId}.${extension}`;
+}
+
+/** The file types a B-roll library picture is stored as (2026-10-05). */
+export const BROLL_ASSET_EXTENSIONS = ["png", "jpg", "webp"] as const;
+
+export type BrollAssetExtension = (typeof BROLL_ASSET_EXTENSIONS)[number];
+
+/**
+ * A picture in a workspace's B-roll library, in the R2 bucket (2026-10-05):
+ * `ws/{workspaceId}/broll/{assetId}.{png|jpg|webp}`. Its own folder beside
+ * `brand/`: the render reads a cutaway's picture from here and nowhere else
+ * (`apps/render/src/storage.ts` `brollAssetKey`). Both ids must be ULIDs.
+ */
+export function brollAssetKey(
+  workspaceId: string,
+  assetId: string,
+  extension: BrollAssetExtension,
+): string {
+  if (!BROLL_ASSET_EXTENSIONS.includes(extension)) {
+    throw new StorageKeyError(`${JSON.stringify(extension)} is not a b-roll picture extension`);
+  }
+  return `ws/${checkedId("workspaceId", workspaceId)}/broll/${checkedId("assetId", assetId)}.${extension}`;
 }
 
 /**

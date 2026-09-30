@@ -9251,6 +9251,1003 @@
         ]
       }
     },
+    "/broll": {
+      "get": {
+        "description": "Every picture, newest first, each signed for an hour, and whether stock photos can be searched here. Never 404: an empty library is an empty list.",
+        "operationId": "getBrollLibrary",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The library.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "assetId": {
+                            "type": "string"
+                          },
+                          "format": {
+                            "type": "string",
+                            "enum": [
+                              "png",
+                              "jpeg",
+                              "webp"
+                            ]
+                          },
+                          "contentType": {
+                            "type": "string",
+                            "enum": [
+                              "image/png",
+                              "image/jpeg",
+                              "image/webp"
+                            ]
+                          },
+                          "width": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "height": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "sizeBytes": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "tags": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "title": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "source": {
+                            "type": "string",
+                            "enum": [
+                              "upload",
+                              "pexels"
+                            ]
+                          },
+                          "credit": {
+                            "nullable": true,
+                            "type": "object",
+                            "properties": {
+                              "provider": {
+                                "type": "string",
+                                "enum": [
+                                  "pexels"
+                                ]
+                              },
+                              "photographer": {
+                                "type": "string"
+                              },
+                              "photographerUrl": {
+                                "type": "string"
+                              },
+                              "pageUrl": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "provider",
+                              "photographer",
+                              "photographerUrl",
+                              "pageUrl"
+                            ]
+                          },
+                          "url": {
+                            "type": "string"
+                          },
+                          "createdAt": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "assetId",
+                          "format",
+                          "contentType",
+                          "width",
+                          "height",
+                          "sizeBytes",
+                          "tags",
+                          "title",
+                          "source",
+                          "credit",
+                          "url",
+                          "createdAt"
+                        ]
+                      }
+                    },
+                    "stock": {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean"
+                        },
+                        "provider": {
+                          "nullable": true,
+                          "type": "string",
+                          "enum": [
+                            "pexels"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "enabled",
+                        "provider"
+                      ]
+                    },
+                    "limits": {
+                      "type": "object",
+                      "properties": {
+                        "maxBytes": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "contentTypes": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "minSide": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "maxSide": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "uploadLongSide": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "maxAssets": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "maxTags": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "tagMax": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "titleMax": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "maxBytes",
+                        "contentTypes",
+                        "minSide",
+                        "maxSide",
+                        "uploadLongSide",
+                        "maxAssets",
+                        "maxTags",
+                        "tagMax",
+                        "titleMax"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "stock",
+                    "limits"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "The workspace's B-roll library",
+        "tags": [
+          "broll"
+        ]
+      }
+    },
+    "/broll/uploads": {
+      "post": {
+        "description": "A presigned PUT; the browser uploads the bytes straight to storage with the same `Content-Type`, then calls `complete`. 413 `broll/picture_too_large`, 409 `broll/library_full`.",
+        "operationId": "createBrollUpload",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "contentType": {
+                    "type": "string",
+                    "enum": [
+                      "image/png",
+                      "image/jpeg",
+                      "image/webp"
+                    ]
+                  },
+                  "sizeBytes": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "contentType",
+                  "sizeBytes"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Where to PUT the picture.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "assetId": {
+                      "type": "string"
+                    },
+                    "uploadUrl": {
+                      "type": "string"
+                    },
+                    "contentType": {
+                      "type": "string",
+                      "enum": [
+                        "image/png",
+                        "image/jpeg",
+                        "image/webp"
+                      ]
+                    },
+                    "expiresAt": {
+                      "type": "string"
+                    },
+                    "maxBytes": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "assetId",
+                    "uploadUrl",
+                    "contentType",
+                    "expiresAt",
+                    "maxBytes"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Start uploading a picture (PNG, JPEG or WebP, up to 8 MB)",
+        "tags": [
+          "broll"
+        ]
+      }
+    },
+    "/broll/{assetId}/complete": {
+      "post": {
+        "description": "The bytes must open as the image type they were uploaded as, 320 to 3840 pixels a side; otherwise they are deleted and refused (422 `broll/picture_invalid` or `broll/picture_bad_size`). 409 `broll/picture_not_uploaded` before they arrive. Idempotent.",
+        "operationId": "completeBrollUpload",
+        "parameters": [
+          {
+            "name": "assetId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "contentType": {
+                    "type": "string",
+                    "enum": [
+                      "image/png",
+                      "image/jpeg",
+                      "image/webp"
+                    ]
+                  },
+                  "tags": {
+                    "maxItems": 10,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 40
+                    }
+                  },
+                  "title": {
+                    "type": "string",
+                    "maxLength": 120
+                  }
+                },
+                "required": [
+                  "contentType"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The picture.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "assetId": {
+                      "type": "string"
+                    },
+                    "format": {
+                      "type": "string",
+                      "enum": [
+                        "png",
+                        "jpeg",
+                        "webp"
+                      ]
+                    },
+                    "contentType": {
+                      "type": "string",
+                      "enum": [
+                        "image/png",
+                        "image/jpeg",
+                        "image/webp"
+                      ]
+                    },
+                    "width": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "height": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "sizeBytes": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "tags": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "title": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "source": {
+                      "type": "string",
+                      "enum": [
+                        "upload",
+                        "pexels"
+                      ]
+                    },
+                    "credit": {
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "provider": {
+                          "type": "string",
+                          "enum": [
+                            "pexels"
+                          ]
+                        },
+                        "photographer": {
+                          "type": "string"
+                        },
+                        "photographerUrl": {
+                          "type": "string"
+                        },
+                        "pageUrl": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "provider",
+                        "photographer",
+                        "photographerUrl",
+                        "pageUrl"
+                      ]
+                    },
+                    "url": {
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "assetId",
+                    "format",
+                    "contentType",
+                    "width",
+                    "height",
+                    "sizeBytes",
+                    "tags",
+                    "title",
+                    "source",
+                    "credit",
+                    "url",
+                    "createdAt"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Keep an uploaded picture in the library",
+        "tags": [
+          "broll"
+        ]
+      }
+    },
+    "/broll/{assetId}": {
+      "patch": {
+        "description": "Tags are what Autopilot matches a picture on; they are lower-cased and trimmed, at most ten. 404 `broll/picture_not_found`.",
+        "operationId": "updateBrollPicture",
+        "parameters": [
+          {
+            "name": "assetId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "tags": {
+                    "maxItems": 10,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 40
+                    }
+                  },
+                  "title": {
+                    "type": "string",
+                    "maxLength": 120
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The picture.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "assetId": {
+                      "type": "string"
+                    },
+                    "format": {
+                      "type": "string",
+                      "enum": [
+                        "png",
+                        "jpeg",
+                        "webp"
+                      ]
+                    },
+                    "contentType": {
+                      "type": "string",
+                      "enum": [
+                        "image/png",
+                        "image/jpeg",
+                        "image/webp"
+                      ]
+                    },
+                    "width": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "height": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "sizeBytes": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "tags": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "title": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "source": {
+                      "type": "string",
+                      "enum": [
+                        "upload",
+                        "pexels"
+                      ]
+                    },
+                    "credit": {
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "provider": {
+                          "type": "string",
+                          "enum": [
+                            "pexels"
+                          ]
+                        },
+                        "photographer": {
+                          "type": "string"
+                        },
+                        "photographerUrl": {
+                          "type": "string"
+                        },
+                        "pageUrl": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "provider",
+                        "photographer",
+                        "photographerUrl",
+                        "pageUrl"
+                      ]
+                    },
+                    "url": {
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "assetId",
+                    "format",
+                    "contentType",
+                    "width",
+                    "height",
+                    "sizeBytes",
+                    "tags",
+                    "title",
+                    "source",
+                    "credit",
+                    "url",
+                    "createdAt"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Change a picture's tags or title",
+        "tags": [
+          "broll"
+        ]
+      },
+      "delete": {
+        "description": "The picture is deleted for good. Clips that show it stop showing it; a captioned video already made keeps it. Idempotent: `deleted: false` when there was no such picture.",
+        "operationId": "deleteBrollPicture",
+        "parameters": [
+          {
+            "name": "assetId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Whether a picture was deleted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "deleted": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "deleted"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Delete a picture",
+        "tags": [
+          "broll"
+        ]
+      }
+    },
+    "/broll/stock": {
+      "get": {
+        "description": "Photos from Pexels, when this deployment has a key (404 `broll/stock_disabled` otherwise). 429 `broll/stock_busy` when the hour's searches are used up, 502 `broll/stock_unavailable` when Pexels does not answer.",
+        "operationId": "searchBrollStock",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "1 to 20; 1 by default.",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "orientation",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "portrait",
+                "landscape",
+                "square"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "query",
+            "required": true,
+            "in": "query",
+            "description": "What to look for, 2 to 80 characters.",
+            "schema": {}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One page of photos.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "provider": {
+                      "type": "string",
+                      "enum": [
+                        "pexels"
+                      ]
+                    },
+                    "query": {
+                      "type": "string"
+                    },
+                    "page": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "photos": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "width": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "height": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "alt": {
+                            "type": "string"
+                          },
+                          "photographer": {
+                            "type": "string"
+                          },
+                          "photographerUrl": {
+                            "type": "string"
+                          },
+                          "pageUrl": {
+                            "type": "string"
+                          },
+                          "previewUrl": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "width",
+                          "height",
+                          "alt",
+                          "photographer",
+                          "photographerUrl",
+                          "pageUrl",
+                          "previewUrl"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "provider",
+                    "query",
+                    "page",
+                    "photos"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Search stock photos",
+        "tags": [
+          "broll"
+        ]
+      },
+      "post": {
+        "description": "Reads the photo from Pexels by its id, at most 2560 pixels on its long side, and keeps it with its photographer's credit. The same photo again answers the picture already kept. Refusals as for a search, and 404 `broll/stock_not_found`, 409 `broll/library_full`.",
+        "operationId": "saveBrollStock",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "photoId": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "exclusiveMinimum": true,
+                    "maximum": 9007199254740991
+                  },
+                  "tags": {
+                    "maxItems": 10,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 40
+                    }
+                  }
+                },
+                "required": [
+                  "photoId"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The picture.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "assetId": {
+                      "type": "string"
+                    },
+                    "format": {
+                      "type": "string",
+                      "enum": [
+                        "png",
+                        "jpeg",
+                        "webp"
+                      ]
+                    },
+                    "contentType": {
+                      "type": "string",
+                      "enum": [
+                        "image/png",
+                        "image/jpeg",
+                        "image/webp"
+                      ]
+                    },
+                    "width": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "height": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "sizeBytes": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "tags": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "title": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "source": {
+                      "type": "string",
+                      "enum": [
+                        "upload",
+                        "pexels"
+                      ]
+                    },
+                    "credit": {
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "provider": {
+                          "type": "string",
+                          "enum": [
+                            "pexels"
+                          ]
+                        },
+                        "photographer": {
+                          "type": "string"
+                        },
+                        "photographerUrl": {
+                          "type": "string"
+                        },
+                        "pageUrl": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "provider",
+                        "photographer",
+                        "photographerUrl",
+                        "pageUrl"
+                      ]
+                    },
+                    "url": {
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "assetId",
+                    "format",
+                    "contentType",
+                    "width",
+                    "height",
+                    "sizeBytes",
+                    "tags",
+                    "title",
+                    "source",
+                    "credit",
+                    "url",
+                    "createdAt"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Keep a stock photo in the library",
+        "tags": [
+          "broll"
+        ]
+      }
+    },
     "/projects/{projectId}/media": {
       "get": {
         "description": "Includes imported subtitle sidecars, which carry the role `subtitle`.",
@@ -27626,6 +28623,9 @@
                       "brand": {
                         "type": "boolean"
                       },
+                      "broll": {
+                        "type": "boolean"
+                      },
                       "audiogram": {
                         "type": "object",
                         "properties": {
@@ -27864,6 +28864,9 @@
                           ]
                         },
                         "brand": {
+                          "type": "boolean"
+                        },
+                        "broll": {
                           "type": "boolean"
                         },
                         "waitingFor": {
@@ -28317,6 +29320,9 @@
                           "brand": {
                             "type": "boolean"
                           },
+                          "broll": {
+                            "type": "boolean"
+                          },
                           "waitingFor": {
                             "nullable": true,
                             "type": "object",
@@ -28689,6 +29695,9 @@
                     "brand": {
                       "type": "boolean"
                     },
+                    "broll": {
+                      "type": "boolean"
+                    },
                     "waitingFor": {
                       "nullable": true,
                       "type": "object",
@@ -29051,6 +30060,9 @@
                     "brand": {
                       "type": "boolean"
                     },
+                    "broll": {
+                      "type": "boolean"
+                    },
                     "waitingFor": {
                       "nullable": true,
                       "type": "object",
@@ -29410,6 +30422,9 @@
                       ]
                     },
                     "brand": {
+                      "type": "boolean"
+                    },
+                    "broll": {
                       "type": "boolean"
                     },
                     "waitingFor": {
@@ -29777,6 +30792,9 @@
                         "brand": {
                           "type": "boolean"
                         },
+                        "broll": {
+                          "type": "boolean"
+                        },
                         "waitingFor": {
                           "nullable": true,
                           "type": "object",
@@ -30142,6 +31160,9 @@
                       ]
                     },
                     "brand": {
+                      "type": "boolean"
+                    },
+                    "broll": {
                       "type": "boolean"
                     },
                     "waitingFor": {
@@ -32305,6 +33326,9 @@
                               "brand": {
                                 "type": "boolean"
                               },
+                              "broll": {
+                                "type": "boolean"
+                              },
                               "audiogram": {
                                 "type": "object",
                                 "properties": {
@@ -32630,6 +33654,9 @@
                       "brand": {
                         "type": "boolean"
                       },
+                      "broll": {
+                        "type": "boolean"
+                      },
                       "audiogram": {
                         "type": "object",
                         "properties": {
@@ -32876,6 +33903,9 @@
                           ]
                         },
                         "brand": {
+                          "type": "boolean"
+                        },
+                        "broll": {
                           "type": "boolean"
                         },
                         "audiogram": {
@@ -33240,6 +34270,9 @@
                         "brand": {
                           "type": "boolean"
                         },
+                        "broll": {
+                          "type": "boolean"
+                        },
                         "audiogram": {
                           "type": "object",
                           "properties": {
@@ -33553,6 +34586,9 @@
                       "brand": {
                         "type": "boolean"
                       },
+                      "broll": {
+                        "type": "boolean"
+                      },
                       "audiogram": {
                         "type": "object",
                         "properties": {
@@ -33785,6 +34821,9 @@
                           ]
                         },
                         "brand": {
+                          "type": "boolean"
+                        },
+                        "broll": {
                           "type": "boolean"
                         },
                         "audiogram": {
@@ -34177,6 +35216,9 @@
                         "brand": {
                           "type": "boolean"
                         },
+                        "broll": {
+                          "type": "boolean"
+                        },
                         "audiogram": {
                           "type": "object",
                           "properties": {
@@ -34540,6 +35582,9 @@
                         "brand": {
                           "type": "boolean"
                         },
+                        "broll": {
+                          "type": "boolean"
+                        },
                         "audiogram": {
                           "type": "object",
                           "properties": {
@@ -34853,6 +35898,9 @@
                         ]
                       },
                       "brand": {
+                        "type": "boolean"
+                      },
+                      "broll": {
                         "type": "boolean"
                       },
                       "audiogram": {

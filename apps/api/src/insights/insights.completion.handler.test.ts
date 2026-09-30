@@ -143,6 +143,29 @@ describe("InsightsCompletionHandler", () => {
     expect(prisma.providerSubmission.createMany).toHaveBeenCalled();
   });
 
+  it("stores a clip's B-roll moments at no charge (2026-10-05)", async () => {
+    const { handler, repository } = buildHandler();
+    const outcome = await handler.handle({
+      job: { ...JOB, creditsChargedTenths: 0 } as unknown as Job,
+      attemptId: "attempt1",
+      usage: undefined,
+      completion: {} as never,
+      result: {
+        templateId: "broll",
+        version: "broll@1",
+        provider: "none",
+        region: "in",
+        output: { schemaVersion: 1, moments: [], source: "none" },
+        usage: {},
+        providerSubmissions: [],
+      },
+    });
+    expect(repository.create).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: "broll", templateVersion: "broll@1" }),
+    );
+    expect(outcome.actualTenths).toBe(0);
+  });
+
   it("rejects a completion with no project", async () => {
     const { handler } = buildHandler();
     await expect(
