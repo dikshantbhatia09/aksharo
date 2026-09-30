@@ -1858,6 +1858,98 @@ describe("<RepurposeRunView /> clip review (2026-10-03)", () => {
     expect(await screen.findByTestId("clip-video-01CAND1")).toBeInTheDocument();
     expect(screen.queryByTestId("clip-review-01CLIP1")).toBeNull();
     expect(screen.queryByTestId("share-for-review-open")).toBeNull();
+    expect(screen.queryByTestId("share-with-guest-open")).toBeNull();
+  });
+});
+
+describe("<RepurposeRunView /> guest links (2026-10-05)", () => {
+  const readyRun = () =>
+    run({
+      status: "review_ready",
+      currentStage: "review",
+      automation: "auto",
+      candidateCount: 2,
+      message: "Your videos are ready to review.",
+    });
+  const readyClip = (id: string, candidateId: string, title: string) =>
+    clip(id, candidateId, {
+      state: "ready",
+      title,
+      mezzanineKey: "ws/x/master.mp4",
+      mezzanineUrl: "https://media.test/master.mp4?X-Amz-Signature=a",
+    });
+  const review = (revokeLinks: boolean) => ({
+    runId: RUN_ID,
+    needsApproval: true,
+    permissions: {
+      approve: false,
+      requestChanges: revokeLinks,
+      comment: true,
+      resolveAny: revokeLinks,
+      shareLinks: false,
+      revokeLinks,
+    },
+    clips: [
+      {
+        clipId: "01CLIP1",
+        state: "pending",
+        decidedBy: null,
+        decidedAt: null,
+        reason: null,
+        covered: [],
+        uncovered: [],
+        videos: {},
+        video: null,
+        comments: { total: 0, open: 0 },
+      },
+    ],
+  });
+
+  it("offers an editor 'Share with a guest' beside 'Share for review', with the run's own clips", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<RepurposeRunView runId={RUN_ID} />, {
+      config: { flags: { "shares.public": true } },
+      routes: {
+        [RUN_PATH]: readyRun(),
+        ...momentsRoutes(
+          [candidate("01CAND1"), candidate("01CAND2", { state: "rejected" })],
+          [
+            readyClip("01CLIP1", "01CAND1", "Why most people never save"),
+            readyClip("01CLIP2", "01CAND2", "A removed moment"),
+          ],
+        ),
+        [`${RUN_PATH}/review`]: review(true),
+        [`${RUN_PATH}/guest-links`]: { links: [] },
+      },
+    });
+    const open = await screen.findByTestId("share-with-guest-open");
+    expect(open).toHaveTextContent("Share with a guest");
+    expect(screen.getByTestId("share-for-review-open")).toBeInTheDocument();
+    await user.click(open);
+    const dialog = await screen.findByTestId("share-with-guest-dialog");
+    expect(within(dialog).getByTestId("guest-link-approval-note")).toBeInTheDocument();
+    await user.click(within(dialog).getByTestId("guest-link-all-clips"));
+    const list = within(dialog).getByTestId("guest-link-clips");
+    expect(within(list).getByText("Why most people never save")).toBeInTheDocument();
+    // A removed moment's clip is not one the page lists, so not one to share.
+    expect(within(list).queryByText("A removed moment")).toBeNull();
+  });
+
+  it("shows a viewer no guest button", async () => {
+    renderWithProviders(<RepurposeRunView runId={RUN_ID} />, {
+      config: { flags: { "shares.public": true } },
+      routes: {
+        [RUN_PATH]: readyRun(),
+        ...momentsRoutes(
+          [candidate("01CAND1")],
+          [readyClip("01CLIP1", "01CAND1", "Why most people never save")],
+        ),
+        [`${RUN_PATH}/review`]: review(false),
+      },
+    });
+    // The run's review has landed (its panel is on the card): the viewer's role is known.
+    expect(await screen.findByTestId("clip-review-01CLIP1")).toBeInTheDocument();
+    expect(screen.queryByTestId("share-with-guest-open")).toBeNull();
   });
 });
 

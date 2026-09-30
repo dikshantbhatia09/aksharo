@@ -68,6 +68,8 @@ describe("middleware launch-surface edge enforcement (RLS-006)", () => {
 
       expect(middleware(request("/share")).status).toBe(404);
       expect(middleware(request("/share/some-token-abc")).status).toBe(404);
+      // A guest's page (2026-10-05) lives and dies with the other public links.
+      expect(middleware(request("/share/guest/abcdefghijklmnopqrstuvwx")).status).toBe(404);
     } finally {
       process.env["FEATURE_FLAGS_JSON"] = prev;
     }
@@ -105,6 +107,7 @@ describe("middleware launch-surface edge enforcement (RLS-006)", () => {
 
       // Public shares
       expect(middleware(request("/share/some-token-abc")).status).toBe(200);
+      expect(middleware(request("/share/guest/abcdefghijklmnopqrstuvwx")).status).toBe(200);
     } finally {
       process.env["FEATURE_FLAGS_JSON"] = prev;
     }

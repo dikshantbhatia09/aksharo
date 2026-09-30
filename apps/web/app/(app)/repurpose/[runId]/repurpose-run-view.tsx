@@ -30,6 +30,10 @@
  * Clip review (2026-10-03) reads the run's review once for the page
  * (`useRunReview`, polled so a client's decision shows up) and hands each
  * card its clip's part; "Share for review" sits beside "Post one a day".
+ *
+ * Guest pages (2026-10-05): "Share with a guest" sits beside "Share for
+ * review", for editors and up (the review permissions' `revokeLinks`, the
+ * same bar), offering the run's clips as the page lists them.
  */
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -67,6 +71,7 @@ import {
 import { CompilationsPanel } from "@/components/repurpose/CompilationsPanel";
 import { AUTOPILOT_COPY, CLIP_STATE_COPY } from "@/components/repurpose/copy";
 import { EpisodePackPanel } from "@/components/repurpose/EpisodePackPanel";
+import { ShareWithGuest } from "@/components/repurpose/guest/ShareWithGuest";
 import { RunPublishing } from "@/components/repurpose/publishing/RunPublishing";
 import { describeRefusal, type Refusal } from "@/components/repurpose/refusal";
 import { ShareForReview } from "@/components/repurpose/review/ShareForReview";
@@ -241,6 +246,12 @@ export function RepurposeRunView({ runId }: { readonly runId: string }): React.J
   const keptCount = candidates.filter((cand) => !isRemovedCandidate(cand)).length;
   const steeringLine = steeringSummary(run.steering);
   const clips = clipsQuery.data?.clips ?? [];
+  // What a guest link can share: the clips the page lists, removed moments' not.
+  const guestChoices = clips.flatMap((clip: RepurposeClipItem) => {
+    const moment = candidates.find((cand) => cand.id === clip.candidateId);
+    if (moment !== undefined && isRemovedCandidate(moment)) return [];
+    return [{ id: clip.id, title: clip.title ?? moment?.title ?? "Clip" }];
+  });
   const momentsAllowed = canAddMoments(run);
   // While picking: the clips that can be ticked for what is being made.
   const pickableFor = (
@@ -638,7 +649,8 @@ export function RepurposeRunView({ runId }: { readonly runId: string }): React.J
                   </p>
 
                   {/* "Post one a day" (2026-09-29): nothing while posting is switched off.
-                      "Share for review" (2026-10-03): nothing while public links are. */}
+                      "Share for review" (2026-10-03) and "Share with a guest"
+                      (2026-10-05): nothing while public links are. */}
                   <div className="flex flex-wrap items-center gap-2">
                     <RunPublishing
                       runId={runId}
@@ -650,6 +662,17 @@ export function RepurposeRunView({ runId }: { readonly runId: string }): React.J
                     />
                     {clips.length === 0 ? null : (
                       <ShareForReview runId={runId} permissions={reviewQuery.data?.permissions} />
+                    )}
+                    {guestChoices.length === 0 ? null : (
+                      <ShareWithGuest
+                        runId={runId}
+                        clips={guestChoices}
+                        canShare={reviewQuery.data?.permissions.revokeLinks === true}
+                        needsApproval={reviewQuery.data?.needsApproval === true}
+                        hasDubs={(dubsQuery.data?.dubs ?? []).some(
+                          (dub) => dub.status === "making" || dub.status === "ready",
+                        )}
+                      />
                     )}
                   </div>
 

@@ -27,9 +27,10 @@ export const CLIP_REVIEW_PROVIDERS: Provider[] = [
  * `WorkspacesModule` for the guard chain and `EntitlementService` (the
  * `repurpose_flow` check). `PrismaService`, `CommonAuditService`, the object
  * stores, `RateLimitService` and `NotifyService` come from global modules, and
- * `export.completed` from the global event emitter. Nothing here is needed by
- * another module: posting reads the approval through its own binding of
- * `ClipApprovalGate`, which is stateless over the database.
+ * `export.completed` from the global event emitter. Posting reads the approval
+ * through its own binding of `ClipApprovalGate`, which is stateless over the
+ * database. Guest pages (2026-10-05, `repurpose/guest`) reuse the review
+ * links' checks and the approval gate, so those two are exported.
  *
  * Needs no flag of its own: the team's routes answer 404 while `repurpose_flow`
  * is off, the client's while `shares.public` is, and "Clips need approval before
@@ -39,5 +40,6 @@ export const CLIP_REVIEW_PROVIDERS: Provider[] = [
   imports: [WorkspacesModule],
   controllers: [ClipReviewController, PublicReviewController],
   providers: CLIP_REVIEW_PROVIDERS,
+  exports: [ClipReviewService, ClipApprovalGate],
 })
 export class ClipReviewModule {}
