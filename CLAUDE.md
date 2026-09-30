@@ -1670,6 +1670,20 @@ worktrees (`wt/<name>`, branch `feat/<name>`), each merged and verified in
   minutes, BillionMail's supervisor restarted Docker, and the UAC prompt went
   unanswered (Windows cancels it after 2 minutes) - 9 minutes of downtime for
   nothing.
+- **Docker cleaned and compacted, 23:05 the same night** (owner: "too many
+  unnecessary things in Docker"). Removed: the `montaj-e2e-*` APP containers
+  and images (api, web, worker-ai, worker-media, render, api-migrate,
+  minio-bootstrap: builds from 2026-09-18, far behind the code, ~12 GB);
+  Postiz's stopped `temporal-ui` and `temporal-admin-tools` (its compose file
+  still lists them: `docker compose up -d` without `--no-deps` pulls them
+  again); `node:22-bookworm`, `postgres:16-alpine`, `alpine`; 346 MB of
+  orphaned volumes. KEPT: `montaj-e2e-minio/-postgres/-redis` (API suites
+  that upload use the e2e MinIO on 59000), `redis:7-alpine` and
+  `pgvector/pgvector:pg16` (the API test harness), `node:22-bookworm-slim`
+  (image builds). Images 26.2 -> 13.7 GB. Then `maintenance-20260930.ps1`
+  (admin accepted in 11 s): `docker_data.vhdx` 68.5 -> 34.0 GB, C: 15.9 ->
+  50.4 GB free, site down 6.5 minutes. Jobs cut off by the restart failed as
+  passing errors and Autopilot re-ran them.
 - `.next-live-20260930d` was deleted for disk; `rollback-20260930e.ps1` needs
   it rebuilt from dc7976a7 first.
 - **Load trap**: with a backlog of format cuts landing at once plus builds and
