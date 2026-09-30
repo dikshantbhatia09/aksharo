@@ -320,3 +320,12 @@ async def test_a_job_id_is_never_pasted_into_a_path_unless_it_is_an_id() -> None
 
     with pytest.raises(DubbingVendorError):
         await client_with(handler).start("../../admin")
+
+
+def test_the_export_wait_outlasts_what_the_vendor_was_measured_to_take() -> None:
+    # 2026-09-30, live: the audio and SRT of a completed dub were listed 54
+    # minutes after live-status said completed, and a 20-minute wait failed
+    # twice. The wait must cover that with room, without asking every 10 s.
+    client = SarvamDubbingClient("key")
+    assert client.export_timeout_s >= 90 * 60
+    assert client.export_interval_s >= 30

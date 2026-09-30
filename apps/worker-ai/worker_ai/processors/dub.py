@@ -415,7 +415,9 @@ class _DubJob:
                     "they are fetched again shortly.",
                     retryable=True,
                 )
-            ack = await self.context.beat(88, message="Waiting for the dubbed files")
+            ack = await self.context.beat(
+                88, message="Waiting for the dubbed files (this can take up to an hour)"
+            )
             await self._stop_if_settled(ack, job_id)
             await self.vendor.sleep(self.vendor.export_interval_s)
             waited += self.vendor.export_interval_s

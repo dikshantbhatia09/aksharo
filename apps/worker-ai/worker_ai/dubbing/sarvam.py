@@ -164,8 +164,11 @@ class SarvamDubbingClient:
         sleep: Sleep = asyncio.sleep,
         poll_interval_s: float = 15.0,
         poll_timeout_s: float = 2 * 60 * 60.0,
-        export_interval_s: float = 10.0,
-        export_timeout_s: float = 20 * 60.0,
+        # Measured live 2026-09-30: the vendor listed a dub's audio and SRT
+        # 54 minutes after live-status said it was completed, so a 20-minute
+        # wait failed twice. Two hours, asked once a minute.
+        export_interval_s: float = 60.0,
+        export_timeout_s: float = 2 * 60 * 60.0,
     ) -> None:
         if not api_key:
             raise ValueError("SarvamDubbingClient needs SARVAM_API_KEY")
