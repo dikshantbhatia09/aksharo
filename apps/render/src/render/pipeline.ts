@@ -38,7 +38,12 @@ import {
   type FrameSource,
   type FrameStats,
 } from "./frames.js";
-import { extensionOfFormat, loadOverlayImages, overlayImagesOf } from "./overlay-images.js";
+import {
+  loadOverlayImages,
+  overlayImageKey,
+  overlayImagesOf,
+  type OverlayImageToLoad,
+} from "./overlay-images.js";
 import { assertPartnerGrantForTrack, type VerifyPartnerGrant } from "./partner-grant.js";
 import { createRasterPool, defaultPoolSize, type RasterPool } from "./pool.js";
 import { buildRenderTimeMap, parseStyleCatalogue, toEdgProjection } from "./projection.js";
@@ -49,7 +54,7 @@ import { buildFfmpegArgs, type VideoEncoder } from "../ffmpeg/graph.js";
 import { probeAudioAsset, probeMedia } from "../ffmpeg/probe.js";
 import { brandAssetKey, contentTypeFor, exportKey, type ObjectStore } from "../storage.js";
 
-import type { OverlayImage, RenderVideoPayload } from "../queues.js";
+import type { RenderVideoPayload } from "../queues.js";
 
 /** Same bound the API applies before framing a clip (`reframe.ts`). */
 const FACE_TRACK_MAX_BYTES = 64 * 1024 * 1024;
@@ -83,10 +88,12 @@ export interface RenderDependencies {
   readonly resolveBrandAsset?: (assetId: string) => Promise<Uint8Array>;
   /**
    * Reads the bytes of an image an overlay draws (a brand kit's logo,
-   * 2026-10-02). Defaults to R2 under `ws/{workspaceId}/brand/{assetId}.{ext}`,
-   * the workspace being the signed manifest's; injected in tests.
+   * 2026-10-02; a B-roll picture, 2026-10-05). Defaults to R2 under
+   * `ws/{workspaceId}/brand/` or `ws/{workspaceId}/broll/` by the overlay's
+   * kind (`overlayImageKey`), the workspace being the signed manifest's;
+   * injected in tests.
    */
-  readonly resolveOverlayImage?: (image: OverlayImage) => Promise<Uint8Array>;
+  readonly resolveOverlayImage?: (image: OverlayImageToLoad) => Promise<Uint8Array>;
   readonly now?: () => number;
   readonly signal?: AbortSignal;
   /** Overrides the rasteriser worker entry point; a test points it elsewhere. */
@@ -237,16 +244,14 @@ export async function renderVideo(
       images.push({ assetId: manifest.watermark.assetId, bytes });
       await backend.registerImage(manifest.watermark.assetId, bytes);
     }
-    // A brand kit's logo (2026-10-02), in a corner and on an end card. Read
-    // from the signed manifest's workspace only; a projection without logo
-    // overlays reads nothing here.
+    // A brand kit's logo (2026-10-02), in a corner and on an end card, and a
+    // B-roll cutaway's picture (2026-10-05). Read from the signed manifest's
+    // workspace only; a projection without such overlays reads nothing here.
     const overlayImages = await loadOverlayImages(
       overlayImagesOf(payload.projection),
       dependencies.resolveOverlayImage ??
-        ((image: OverlayImage) =>
-          dependencies.derivedStore.getBytes(
-            brandAssetKey(manifest.workspaceId, image.assetId, extensionOfFormat(image.format)),
-          )),
+        ((image: OverlayImageToLoad) =>
+          dependencies.derivedStore.getBytes(overlayImageKey(manifest.workspaceId, image))),
     );
     for (const image of overlayImages) {
       images.push(image);

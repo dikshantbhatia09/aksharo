@@ -3,12 +3,13 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { OverlaySchema } from "@montaj/edg/schemas";
+import { MAX_OVERLAYS, OverlaySchema } from "@montaj/edg/schemas";
 import { signedFixtureManifest } from "@montaj/render-manifest/testing";
 
 import {
   bullJobId,
   isJobEnvelope,
+  MAX_PROJECTED_OVERLAYS,
   RENDER_COMPILATION_QUEUE,
   RENDER_QUEUES,
   RENDER_SUBTITLE_QUEUE,
@@ -212,6 +213,63 @@ describe("the payload schemas", () => {
           RenderProjectionSchema.safeParse({ ...projection, overlays: [overlay] }).success,
         ).toBe(false);
       }
+    });
+  });
+
+  describe("a B-roll cutaway (2026-10-05)", () => {
+    const cutaway = {
+      id: "01JBR0000000000000000000C1",
+      kind: "b-roll",
+      startMs: 4_000,
+      endMs: 6_500,
+      image: { assetId: "01JPX0000000000000000000C1", format: "jpeg", width: 1440, height: 2560 },
+      mode: "pip",
+      motion: "pan-left",
+      startWordId: "0:12",
+      endWordId: "0:14",
+      label: "the Taj Mahal",
+    };
+
+    it("carries a cutaway, and refuses what the document would refuse", () => {
+      expect(RenderProjectionSchema.parse({ ...projection, overlays: [cutaway] }).overlays).toEqual(
+        [cutaway],
+      );
+      const bad = [
+        { ...cutaway, mode: "corner" },
+        { ...cutaway, motion: "spin" },
+        { ...cutaway, startWordId: "twelve" },
+        { ...cutaway, label: "x".repeat(81) },
+        { ...cutaway, image: { ...cutaway.image, assetId: "../../ws/other/broll/x" } },
+        { ...cutaway, image: undefined },
+      ];
+      const { label: _label, startWordId: _start, endWordId: _end, ...bare } = cutaway;
+      for (const overlay of [cutaway, bare, ...bad]) {
+        const here = RenderProjectionSchema.safeParse({ ...projection, overlays: [overlay] });
+        expect(here.success, JSON.stringify(overlay)).toBe(
+          OverlaySchema.safeParse(overlay).success,
+        );
+      }
+      for (const overlay of bad) {
+        expect(
+          RenderProjectionSchema.safeParse({ ...projection, overlays: [overlay] }).success,
+        ).toBe(false);
+      }
+    });
+
+    it("takes as many overlays as a document carries, and no more", () => {
+      const many = (count: number) =>
+        Array.from({ length: count }, (_, index) => ({
+          ...cutaway,
+          id: `01JBR00000000000000000${String(index).padStart(4, "0")}`,
+        }));
+      expect(MAX_PROJECTED_OVERLAYS).toBe(MAX_OVERLAYS);
+      expect(
+        RenderProjectionSchema.safeParse({ ...projection, overlays: many(MAX_OVERLAYS) }).success,
+      ).toBe(true);
+      expect(
+        RenderProjectionSchema.safeParse({ ...projection, overlays: many(MAX_OVERLAYS + 1) })
+          .success,
+      ).toBe(false);
     });
   });
 });

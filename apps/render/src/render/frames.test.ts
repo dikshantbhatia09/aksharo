@@ -187,3 +187,66 @@ describe("createFrameSource with a brand kit's logo (2026-10-02)", () => {
     expect(at(20, 460)[3]).toBe(0);
   });
 });
+
+describe("createFrameSource with a B-roll cutaway (2026-10-05)", () => {
+  const PICTURE = "01JPX0000000000000000000C1";
+
+  it("covers the frame with the picture, under the captions, and fades it", async () => {
+    // A 12×8 opaque green picture, wider than the 320×480 frame: covering it
+    // scales it up and crops its sides.
+    const green = backend.renderToPng(
+      [
+        {
+          kind: "rect",
+          rect: [0, 0, 12, 8],
+          fill: { paint: { type: "solid", color: "#00c040ff" } },
+        },
+      ],
+      { width: 12, height: 8 },
+    );
+    await backend.registerImage(PICTURE, green);
+    const source = createFrameSource({
+      ...baseOptions(),
+      projection: {
+        ...EMPTY_PROJECTION,
+        overlays: [
+          {
+            id: "01JBR0000000000000000000C1",
+            kind: "b-roll",
+            startMs: 1_000,
+            endMs: 9_000,
+            image: { assetId: PICTURE, format: "png", width: 12, height: 8 },
+            mode: "full",
+            motion: "push-in",
+          },
+        ],
+      },
+      backend,
+      batch: backend.createBatch({ width: 320, height: 480 }),
+    });
+    const at = (bytes: Uint8Array, x: number, y: number): number[] => {
+      const offset = (y * 320 + x) * 4;
+      return [...bytes.slice(offset, offset + 4)];
+    };
+    // Frame 50 of 10 fps: 5 s, the middle of its window. Every corner is green.
+    const middle = await source.frame(50);
+    for (const [x, y] of [
+      [2, 2],
+      [317, 2],
+      [160, 240],
+      [2, 477],
+      [317, 477],
+    ] as const) {
+      const [r = 0, g = 0, b = 0, a = 0] = at(middle, x, y);
+      expect(g, `green at ${String(x)},${String(y)}`).toBeGreaterThan(150);
+      expect(r).toBeLessThan(40);
+      expect(b).toBeLessThan(100);
+      expect(a).toBeGreaterThan(250);
+    }
+    // Before its window, nothing; a tenth of a second in, still fading in.
+    expect(at(await source.frame(5), 160, 240)[3]).toBe(0);
+    const fading = at(await source.frame(11), 160, 240)[3] ?? 0;
+    expect(fading).toBeGreaterThan(0);
+    expect(fading).toBeLessThan(250);
+  });
+});

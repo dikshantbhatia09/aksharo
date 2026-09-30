@@ -95,10 +95,12 @@ export const ProjectedWordSchema = z.object({
 const HexColourSchema = z.string().regex(/^#[0-9a-fA-F]{6}$/);
 
 /**
- * An image an overlay draws (2026-10-02): a workspace's brand logo. Only the id
- * and the format travel; the bytes are read from the workspace's own brand
- * prefix (`brandAssetKey`), the workspace taken from the signed manifest, so a
- * payload can never point a render at another tenant's object.
+ * An image an overlay draws (2026-10-02): a workspace's brand logo, or a
+ * picture of its B-roll library (2026-10-05). Only the id and the format
+ * travel; the bytes are read from the workspace's own brand or B-roll prefix
+ * (`brandAssetKey`, `brollAssetKey`, chosen by the overlay's kind), the
+ * workspace taken from the signed manifest, so a payload can never point a
+ * render at another tenant's object.
  */
 export const OverlayImageSchema = z.object({
   assetId: z.string().regex(/^[0-9A-HJKMNP-TV-Z]{26}$/),
@@ -111,11 +113,11 @@ export type OverlayImage = z.infer<typeof OverlayImageSchema>;
 
 /**
  * An overlay drawn with the captions (`EdgHot.overlays`), on the source clock
- * like a segment: the hook title (2026-09-29), and a brand kit's logo and end
- * card (2026-10-02). Only the kinds this renderer knows are accepted; the
- * document refuses any other. Restated from `@montaj/edg`'s `OverlaySchema`
- * rather than imported (this worker is deployed without it); `queues.test.ts`
- * holds the two to the same samples.
+ * like a segment: the hook title (2026-09-29), a brand kit's logo and end card
+ * (2026-10-02), and a B-roll cutaway (2026-10-05). Only the kinds this renderer
+ * knows are accepted; the document refuses any other. Restated from
+ * `@montaj/edg`'s `OverlaySchema` rather than imported (this worker is deployed
+ * without it); `queues.test.ts` holds the two to the same samples.
  */
 export const ProjectedOverlaySchema = z.discriminatedUnion("kind", [
   z.object({
@@ -156,7 +158,28 @@ export const ProjectedOverlaySchema = z.discriminatedUnion("kind", [
     fontFamily: z.string().min(1).max(120).optional(),
     image: OverlayImageSchema.optional(),
   }),
+  z.object({
+    id: z.string().min(1),
+    kind: z.literal("b-roll"),
+    startMs: z.number().int().min(0),
+    endMs: z.number().int().min(0),
+    image: OverlayImageSchema,
+    mode: z.enum(["full", "pip"]),
+    motion: z.enum(["push-in", "pull-out", "pan-left", "pan-right", "none"]),
+    startWordId: z
+      .string()
+      .regex(/^\d+:\d+$/)
+      .optional(),
+    endWordId: z
+      .string()
+      .regex(/^\d+:\d+$/)
+      .optional(),
+    label: z.string().max(80).optional(),
+  }),
 ]);
+
+/** The most overlays a document carries (`@montaj/edg` `MAX_OVERLAYS`: 16 since B-roll, 8 before). */
+export const MAX_PROJECTED_OVERLAYS = 16;
 
 /** The read model a render needs, pinned at the manifest's revision. */
 export const RenderProjectionSchema = z.object({
@@ -168,7 +191,7 @@ export const RenderProjectionSchema = z.object({
   words: z.array(ProjectedWordSchema),
   speakerColours: z.record(z.string(), z.string()).optional(),
   /** Absent on every payload built before overlays existed, which renders as before. */
-  overlays: z.array(ProjectedOverlaySchema).max(8).optional(),
+  overlays: z.array(ProjectedOverlaySchema).max(MAX_PROJECTED_OVERLAYS).optional(),
 });
 
 export type RenderProjection = z.infer<typeof RenderProjectionSchema>;
