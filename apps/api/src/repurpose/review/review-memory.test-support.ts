@@ -25,6 +25,7 @@ import type { EntitlementService } from "../../workspaces/entitlement.service.js
  * `memberships: { some }`, a clip's `candidate`, a variant's `latestExport` and
  * project exports, a run's `sourceProject`, a workspace's `owner`). It enforces
  * the one rule the review leans on: `clip_reviews.clip_id` is a primary key.
+ * Guest pages (2026-10-05) use it too, with the tables they read added.
  *
  * Not a test file; only ever imported by the review tests.
  */
@@ -46,6 +47,12 @@ export interface ReviewTables {
   clipComment: Row[];
   clipReviewLink: Row[];
   notification: Row[];
+  /** Guest pages (2026-10-05, `repurpose/guest`) read these too. */
+  clipGuestLink: Row[];
+  mediaAsset: Row[];
+  clipDub: Row[];
+  clipDubVariant: Row[];
+  llmOutput: Row[];
 }
 
 function compare(value: unknown, other: unknown): number {
@@ -125,6 +132,11 @@ export class ReviewMemory {
     clipComment: [],
     clipReviewLink: [],
     notification: [],
+    clipGuestLink: [],
+    mediaAsset: [],
+    clipDub: [],
+    clipDubVariant: [],
+    llmOutput: [],
   };
 
   now: () => number = () => Date.now();
@@ -248,6 +260,21 @@ export class ReviewMemory {
         };
       case "notification":
         return { readAt: null, createdAt: at, ...data };
+      case "clipGuestLink":
+        return {
+          guestName: null,
+          allClips: false,
+          clipIds: [],
+          includeDubs: false,
+          revokedAt: null,
+          revokedBy: null,
+          viewCount: 0,
+          lastViewedAt: null,
+          downloadCount: 0,
+          lastDownloadedAt: null,
+          createdAt: at,
+          ...data,
+        };
       default:
         return { ...data };
     }
@@ -355,6 +382,11 @@ export class ReviewMemory {
   readonly clipComment = this.model("clipComment");
   readonly clipReviewLink = this.model("clipReviewLink");
   readonly notification = this.model("notification");
+  readonly clipGuestLink = this.model("clipGuestLink");
+  readonly mediaAsset = this.model("mediaAsset");
+  readonly clipDub = this.model("clipDub");
+  readonly clipDubVariant = this.model("clipDubVariant");
+  readonly llmOutput = this.model("llmOutput");
 
   /**
    * A transaction over copies of every table: a throw discards what it wrote,

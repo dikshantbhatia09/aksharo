@@ -48,6 +48,7 @@ import { PublishingModule } from "./publishing/publishing.module.js";
 import { RealtimeModule } from "./realtime/realtime.module.js";
 import { ReferralsModule } from "./referrals/referrals.module.js";
 import { RepurposeAutomationsModule } from "./repurpose/automations/automations.module.js";
+import { RepurposeGuestModule } from "./repurpose/guest/guest.module.js";
 import { RepurposePerformanceModule } from "./repurpose/performance/performance.module.js";
 import { RepurposeModule } from "./repurpose/repurpose.module.js";
 import { ClipReviewModule } from "./repurpose/review/clip-review.module.js";
@@ -235,6 +236,11 @@ import { WorkspacesModule } from "./workspaces/workspaces.module.js";
     // task). Gated by `repurpose_performance` (seeded off) and `repurpose_flow`;
     // the task runs only where MONTAJ_SCHEDULER_TASKS names it.
     RepurposePerformanceModule,
+    // 2026-10-05: guest pages (`/repurpose/runs/:id/guest-links`, `/guest`): a
+    // link a guest downloads the clips they appear in through, with no account.
+    // The team's routes answer 404 while `repurpose_flow` is off, the guest's
+    // while `shares.public` is.
+    RepurposeGuestModule,
   ],
 })
 export class AppModule {}
