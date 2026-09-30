@@ -162,8 +162,24 @@ export const CandidateScoreBreakdownSchema = z.strictObject({
   safety: ScoreSchema,
 });
 
+/**
+ * What an evidence chip is about. `track_record` (2026-10-05) is the one the
+ * workspace's own posted clips add: "like your clip about ... that got 12k
+ * views" (`ai.highlights@1`'s `options.performance`).
+ */
+export const CANDIDATE_REASON_LABELS = [
+  "hook",
+  "clear_point",
+  "emotion",
+  "visual",
+  "novelty",
+  "standalone",
+  "safety",
+  "track_record",
+] as const;
+
 export const CandidateReasonSchema = z.strictObject({
-  label: z.enum(["hook", "clear_point", "emotion", "visual", "novelty", "standalone", "safety"]),
+  label: z.enum(CANDIDATE_REASON_LABELS),
   explanation: z.string().trim().min(1).max(240),
 });
 

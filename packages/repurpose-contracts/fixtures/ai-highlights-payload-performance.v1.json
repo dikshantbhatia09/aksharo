@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "runId": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+  "projectId": "01ARZ3NDEKTSV4RRFFQ69G5FAX",
+  "transcriptId": "01ARZ3NDEKTSV4RRFFQ69G5FB7",
+  "transcriptRevision": 3,
+  "proxy": {
+    "bucket": "r2",
+    "key": "ws/01ARZ3NDEKTSV4RRFFQ69G5FB0/p/01ARZ3NDEKTSV4RRFFQ69G5FAX/media/01ARZ3NDEKTSV4RRFFQ69G5FB6/proxy540.mp4"
+  },
+  "waveform": null,
+  "options": {
+    "count": 5,
+    "minDurationMs": 15000,
+    "maxDurationMs": 60000,
+    "contentGoal": "reach",
+    "language": "hi-Latn",
+    "topic": "saving money",
+    "performance": {
+      "basis": 14,
+      "hits": [
+        {
+          "title": "Salary aate hi ye galti mat karna",
+          "hook": "Salary aate hi ye galti?",
+          "excerpt": "Salary aate hi log sabse pehle kharcha karte hain, saving baad mein. Ulta karo: pehle saving, phir kharcha.",
+          "views": 12400,
+          "platform": "youtube"
+        },
+        {
+          "title": "SIP kab shuru karein",
+          "views": 5200,
+          "platform": "instagram"
+        }
+      ],
+      "length": { "minMs": 20000, "maxMs": 40000, "posts": 7 },
+      "hook": { "style": "question", "posts": 6 }
+    }
+  },
+  "promptVersion": "highlight-candidates-1",
+  "featureVersion": "features-1"
+}

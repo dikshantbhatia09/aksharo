@@ -30,6 +30,14 @@ With ``options.copy``, each pick also gets the words to post it with
 (`worker_ai.highlights.clip_copy`). The model can make a pick better, never make
 a run fail: anything it does not answer, in time or at all, is decided by rule,
 exactly as before it existed.
+
+2026-10-05, a workspace's track record. With ``options.performance`` (sent once
+a workspace has enough measured posts), each moment gets a small, capped lift
+for being like one of its best clips, or for the length or opening that did
+best (`worker_ai.highlights.performance`), named in a ``track_record`` reason.
+The lift orders what the person's steering allows and nothing else: the topic
+filter and ``minPotential`` read the potential without it. Without the option,
+every answer is exactly what it was before.
 """
 
 from __future__ import annotations
@@ -52,6 +60,15 @@ from worker_ai.highlights.contracts import (
     HighlightsOptions,
     HighlightsPayload,
     HighlightsResult,
+)
+from worker_ai.highlights.performance import (
+    NO_LIFT,
+    OPENING_WORDS,
+    Lift,
+    TrackRecord,
+    keywords,
+    lift_for,
+    reason_for,
 )
 from worker_ai.highlights.rerank import (
     MODEL_WEIGHT,
@@ -140,15 +157,32 @@ class _Scored:
     candidates: list[_Candidate]
     windows_considered: int
     timeline: tuple[int, int]
+    #: The workspace's track record, when the payload carried one, and the
+    #: lift it gives each window that gains any (by window id).
+    track: TrackRecord | None = None
+    lifts: dict[str, Lift] = field(default_factory=dict)
+
+    def lift_of(self, candidate: _Candidate) -> Lift:
+        return self.lifts.get(candidate.window.window_id, NO_LIFT)
 
 
 @dataclass(frozen=True, slots=True)
 class _Ranked:
-    """A candidate with the potential it is ranked on, and the model's view of it."""
+    """A candidate with the potential it is ranked on, and the model's view of it.
+
+    ``potential`` is the ranking's own reading, which every rule the person
+    set is applied to; ``lift`` is the track record's, added only to order
+    what those rules allowed (and to the figure shown).
+    """
 
     candidate: _Candidate
     potential: float
     judged: Judged | None = None
+    lift: Lift = NO_LIFT
+
+    @property
+    def ranked_on(self) -> float:
+        return self.potential + self.lift.value
 
 
 @dataclass(slots=True)
@@ -287,6 +321,7 @@ def _score_all(
     for window in windows:
         signals = features.signals(window.first, window.last, window.start_ms, window.end_ms)
         candidates.append(_Candidate(window, signals, score(signals, options.content_goal)))
+    track, lifts = _track_lifts(words, units, candidates, options)
     return _Scored(
         words=words,
         units=units,
@@ -294,7 +329,41 @@ def _score_all(
         candidates=candidates,
         windows_considered=min(len(windows), _MAX_WINDOWS_REPORTED),
         timeline=(words[0].start_ms, speech_end_ms),
+        track=track,
+        lifts=lifts,
     )
+
+
+def _track_lifts(
+    words: Sequence[Word],
+    units: Sequence[Unit],
+    candidates: Sequence[_Candidate],
+    options: HighlightsOptions,
+) -> tuple[TrackRecord | None, dict[str, Lift]]:
+    """Each window's lift from the workspace's track record; none without one."""
+    signal = options.performance
+    if signal is None or not candidates:
+        return None, {}
+    word_keys = [keywords(word.text) for word in words]
+
+    def keys_of(first: int, last: int) -> frozenset[str]:
+        return frozenset[str]().union(*word_keys[first : last + 1])
+
+    record = TrackRecord.of(signal, [keys_of(unit.first, unit.last) for unit in units])
+    window_keys = [
+        keys_of(candidate.window.first, candidate.window.last) for candidate in candidates
+    ]
+    lifts: dict[str, Lift] = {}
+    for candidate, keys in zip(candidates, window_keys, strict=True):
+        window = candidate.window
+        opening = " ".join(
+            word.text
+            for word in words[window.first : min(window.last + 1, window.first + OPENING_WORDS)]
+        )
+        lift = lift_for(record, keys, window.end_ms - window.start_ms, opening)
+        if lift.value > 0:
+            lifts[window.window_id] = lift
+    return record, lifts
 
 
 def _heuristic_pick(scored: _Scored, options: HighlightsOptions) -> list[_Candidate]:
@@ -306,11 +375,12 @@ def _heuristic_pick(scored: _Scored, options: HighlightsOptions) -> list[_Candid
         candidates = [candidate for candidate in candidates if candidate.score.potential >= floor]
         if not candidates:
             return []
+    # The track record orders what cleared the bar; it never helps anything clear it.
     return select(
         candidates,
         count=options.count,
         window_of=lambda candidate: candidate.window,
-        score_of=lambda candidate: candidate.score.potential,
+        score_of=lambda candidate: candidate.score.potential + scored.lift_of(candidate).value,
         timeline=scored.timeline,
     )
 
@@ -333,7 +403,10 @@ def discover(
         return [], 0
     picked = _heuristic_pick(scored, options)
     proposals = [
-        _proposal(_Ranked(candidate, candidate.score.potential), scored) for candidate in picked
+        _proposal(
+            _Ranked(candidate, candidate.score.potential, lift=scored.lift_of(candidate)), scored
+        )
+        for candidate in picked
     ]
     return proposals, scored.windows_considered
 
@@ -358,6 +431,11 @@ def _proposal(
             scored.features.emphatic_words(window.first, window.last),
         )
     ]
+    # What the workspace's own clips say, next: it is why this moment was
+    # lifted, and a person should see that before the heuristic's detail.
+    track = None if scored.track is None else reason_for(ranked.lift, scored.track)
+    if track is not None:
+        reasons = [{"label": track[0], "explanation": track[1]}, *reasons]
     judged = ranked.judged
     if judged is not None:
         # The model's view first: it is the one a person reads to decide.
@@ -373,7 +451,7 @@ def _proposal(
         "endWordId": inside[-1].wid,
         "title": make_title(texts, fallback=_moment_title(window.start_ms)),
         "transcriptExcerpt": make_excerpt(texts),
-        "potentialScore": _percent(ranked.potential),
+        "potentialScore": _percent(ranked.ranked_on),
         "scoreBreakdown": candidate.score.breakdown(),
         "reasons": reasons[:12],
     }
@@ -435,6 +513,7 @@ def _rank_with_model(
     judged: dict[str, Judged],
     answered: frozenset[str],
     options: HighlightsOptions,
+    scored: _Scored | None = None,
 ) -> list[_Ranked]:
     """The shortlist re-scored with the model's judgement, filtered for topic and bar.
 
@@ -460,7 +539,8 @@ def _rank_with_model(
             potential = blend(heuristic, verdict, goal, with_topic=with_topic)
         else:
             potential = (1 - MODEL_WEIGHT) * heuristic + MODEL_WEIGHT * typical
-        entries.append(_Ranked(candidate, potential, verdict))
+        lift = NO_LIFT if scored is None else scored.lift_of(candidate)
+        entries.append(_Ranked(candidate, potential, verdict, lift))
 
     if with_topic:
         on_topic = [
@@ -490,7 +570,8 @@ def _rank_with_model(
         entries = on_topic
 
     # `minPotential` is the bar for what the RANKING says a moment is worth,
-    # so it applies to the blended score, after the model has had its say.
+    # so it applies to the blended score, after the model has had its say -
+    # and without the track record's lift, which only orders what cleared it.
     if options.min_potential is not None:
         floor = options.min_potential
         entries = [entry for entry in entries if entry.potential >= floor]
@@ -520,7 +601,7 @@ async def _discover_with_model(
             scored.candidates,
             count=shortlist_size(options.count),
             window_of=lambda candidate: candidate.window,
-            score_of=lambda candidate: candidate.score.potential,
+            score_of=lambda candidate: candidate.score.potential + scored.lift_of(candidate).value,
             timeline=scored.timeline,
         )
         items = _moment_texts(scored, shortlist)
@@ -542,19 +623,24 @@ async def _discover_with_model(
         )
         use.judged = len(judgements.judged)
         if judgements.judged:
-            ranked = _rank_with_model(shortlist, judgements.judged, judgements.answered, options)
+            ranked = _rank_with_model(
+                shortlist, judgements.judged, judgements.answered, options, scored
+            )
             ranked = select(
                 ranked,
                 count=options.count,
                 window_of=lambda entry: entry.candidate.window,
-                score_of=lambda entry: entry.potential,
+                score_of=lambda entry: entry.ranked_on,
                 timeline=scored.timeline,
             )
 
     if ranked is None:
         # No model, or no answer from it: the heuristic's own pick, as before.
         picked = await asyncio.to_thread(_heuristic_pick, scored, options)
-        ranked = [_Ranked(candidate, candidate.score.potential) for candidate in picked]
+        ranked = [
+            _Ranked(candidate, candidate.score.potential, lift=scored.lift_of(candidate))
+            for candidate in picked
+        ]
 
     copies: dict[str, dict[str, Any]] = {}
     if options.copy_options is not None and ranked:

@@ -396,6 +396,57 @@ describe("ai.highlights@1", () => {
     expect(HighlightsResultSchema.safeParse(withTags(["money"])).success).toBe(false);
   });
 
+  it("carries a workspace's track record, and the reason it adds (2026-10-05)", () => {
+    const payload = HighlightsPayloadSchema.parse(
+      fixture("ai-highlights-payload-performance.v1.json"),
+    );
+    expect(payload.options.performance).toMatchObject({
+      basis: 14,
+      length: { minMs: 20_000, maxMs: 40_000, posts: 7 },
+      hook: { style: "question", posts: 6 },
+    });
+    expect(payload.options.performance?.hits).toHaveLength(2);
+    // Nothing but the performance option differs from the documented payload.
+    expect(Object.keys(payload).sort()).toEqual(HIGHLIGHTS_PAYLOAD_FIELDS);
+
+    const result = HighlightsResultSchema.parse(
+      fixture("ai-highlights-result-performance.v1.json"),
+    );
+    expect(result.proposals[0]?.reasons.map((reason) => reason.label)).toContain("track_record");
+    const source = fixture("ai-highlights-result-performance.v1.json");
+    expect(JSON.parse(JSON.stringify(HighlightsResultSchema.parse(source)))).toEqual(source);
+  });
+
+  it("holds the track record to its bounds", () => {
+    const payload = fixture("ai-highlights-payload-performance.v1.json");
+    const options = payload["options"] as Record<string, unknown>;
+    const performance = options["performance"] as Record<string, unknown>;
+    const withPerformance = (change: Record<string, unknown>) => ({
+      ...payload,
+      options: { ...options, performance: { ...performance, ...change } },
+    });
+    const hit = { title: "A clip", views: 10, platform: "youtube" };
+    for (const change of [
+      { hits: Array.from({ length: 6 }, () => hit) },
+      { hits: [{ ...hit, platform: "myspace" }] },
+      { hits: [{ ...hit, views: -1 }] },
+      { hits: [{ ...hit, extra: true }] },
+      { length: { minMs: 40_000, maxMs: 20_000, posts: 5 } },
+      { length: { minMs: 0, maxMs: 400_000, posts: 5 } },
+      { hook: { style: "shouting", posts: 5 } },
+      { basis: 0 },
+      { weight: 2 },
+    ]) {
+      expect(
+        HighlightsPayloadSchema.safeParse(withPerformance(change)).success,
+        JSON.stringify(change),
+      ).toBe(false);
+    }
+    expect(
+      HighlightsPayloadSchema.safeParse(withPerformance({ hits: [], length: undefined })).success,
+    ).toBe(true);
+  });
+
   it("puts the transcript revision in the key, so an edit re-analyses", () => {
     expect(highlightsJobKey(RUN, "T1", 3, "cfg")).toBe(`ai.highlights:${RUN}:T1:3:cfg`);
     expect(highlightsJobKey(RUN, "T1", 3, "cfg")).not.toBe(highlightsJobKey(RUN, "T1", 4, "cfg"));
