@@ -1599,6 +1599,44 @@ worktrees (`wt/<name>`, branch `feat/<name>`), each merged and verified in
   platforms, the episode's LinkedIn post and X thread; a wrong token 404, a
   turned-off link 410. **Open:** renders expire after 7 days (owner exempt)
   while a link lasts 14 by default - after that a guest gets the clean cut only.
-- **Known, not fixed**: API unit tests and past dev sessions left ~40 MB of
+- **Owner follow-ups, deployed as e75c0908** (`deploy-20260930f.ps1`, undo
+  `rollback-20260930f.ps1`; no migration):
+  - **Dubbing costs 50 credits a minute a language** (was 25: a credit is worth
+    Rs 1.99 on Starter, 1.40 Creator, 1.33 Agency, 1.11 Studio, so 25 paid less
+    than Sarvam's Rs 40 on every plan but Starter). `repurpose_dubbing` now
+    targets the owner **and every paying plan** (`ops-flag.cjs ... paid`, which
+    sets `planKeys`; flags can target plans, `entitlement.service.ts`), not Free.
+  - **Starter grants 300 credits a month during the beta** (was 150, below
+    Free's 200): plans row, seeds, pricing copy (`ops-20260930f-starter.cjs`,
+    audited). Its two subscribers' `monthly_grant_tenths` had been **0**; now
+    3000. After the beta, Free and Starter go back to 04's numbers together.
+  - **A video a live guest or client-review link shares outlives render
+    retention**: the export sweep moves its `expiresAt` to a day after the last
+    live link ends (dubbed shapes only when the guest link includes dubs; the
+    9:16 only for a review link) instead of deleting it.
+  - **Production Redis cleaned**: `_orchestration/tools/ops-redis-test-keys.cjs`
+    removed 7,400 keys that tests and old dev runs had left (34.5 -> 24.2 MB),
+    keeping every `montaj-main`/`montaj` key and anything touched within the
+    hour. The "Known, not fixed" item below is resolved; the cause (unset test
+    env vars) is not, so point API unit tests at closed ports.
+- **Postiz is self-hosted on this laptop** (owner decision 2026-09-30, instead
+  of Postiz Cloud): the open-source app in `C:\Dikshant\postiz-app` (compose
+  project `postiz-app`, `http://localhost:4007`). Its Temporal containers had
+  been down since 2026-09-28 (`restart: no`), which is why it answered 502;
+  they now run with `restart: unless-stopped` (compose file too; backup
+  `docker-compose.yaml.bak-20260930`) and Postiz is healthy. **Cost: about
+  2.3 GB of RAM** in Docker (Postiz 1.3 GB, Elasticsearch 0.6, Temporal and its
+  database 0.35). DNS `postiz.crestmondtechnologies.com` routes to the tunnel;
+  `_orchestration/tools/postiz-go-public.ps1` (undo `-Rollback`) closes sign-up
+  and puts it on that address once the owner's account exists (the first
+  account is the admin). Then each platform needs the owner's developer app
+  (`docs/publishing/POSTIZ-SETUP.md` section 2), the owner connects the
+  channels and creates the Public API key, and Aksharo gets `POSTIZ_API_KEY`,
+  `POSTIZ_WORKSPACE_IDS` and the `publishing_postiz` flag.
+- **Trap: PowerShell strips double quotes from a native command's arguments.**
+  `docker exec ... psql -c 'select count(*) from "User"'` ran as `from User`,
+  which Postgres reads as the `user` function and always counts 1. Pipe SQL to
+  `psql` on stdin instead.
+- **Known, not fixed (keys removed 2026-09-30, cause remains)**: API unit tests and past dev sessions left ~40 MB of
   keys under test prefixes (`montaj-test-*`, `a23`, `montaj-s07`, ...) in the
   production Redis (`test/setup-env.ts` assigns `localhost:6379`).
