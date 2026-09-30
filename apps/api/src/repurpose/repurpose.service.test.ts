@@ -2025,6 +2025,13 @@ describe("the brand kit on a run (2026-10-02)", () => {
     const h = next({ automation: "auto" });
     await h.service.nextWindow(WS, USER, RUN);
     expect(createdRunData(h)["config"]).not.toHaveProperty("brand");
+    expect(createdRunData(h)["config"]).not.toHaveProperty("broll");
+  });
+
+  it("keeps B-roll on when the next part is started (2026-10-05)", async () => {
+    const h = next({ automation: "auto", broll: true });
+    await h.service.nextWindow(WS, USER, RUN);
+    expect(createdRunData(h)["config"]).toMatchObject({ automation: "auto", broll: true });
   });
 });
 

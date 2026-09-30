@@ -9,9 +9,10 @@ import type { LlmOutput, Prisma } from "@prisma/client";
 
 /**
  * What an `llm_outputs` row holds: an insight kind, or `episode-pack`, the text
- * a clips run writes for its source video (2026-09-29).
+ * a clips run writes for its source video (2026-09-29), or `broll`, the moments
+ * in one clip a picture could cut away at (2026-10-05, on the clip's project).
  */
-export type LlmOutputKind = InsightKind | "episode-pack";
+export type LlmOutputKind = InsightKind | "episode-pack" | "broll";
 
 export interface CreateLlmOutputInput {
   readonly projectId: string;

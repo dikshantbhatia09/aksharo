@@ -229,6 +229,17 @@ export function brandOf(run: { readonly config: unknown }): boolean {
 }
 
 /**
+ * Whether Autopilot cuts away to B-roll in this run's clips (`config.broll`,
+ * 2026-10-05). Absent reads as off, as every run from before B-roll was; on,
+ * a clip that names nothing a picture could show still gets none.
+ */
+export function brollOf(run: { readonly config: unknown }): boolean {
+  const config = run.config;
+  if (typeof config !== "object" || config === null || Array.isArray(config)) return false;
+  return (config as Record<string, unknown>)["broll"] === true;
+}
+
+/**
  * The latest start a request may name: `media.acquire`'s own bound on a source
  * (24 h). The plan's ceiling (`maxSourceDurationMs`, 12 h) is lower and is the
  * downloader's to apply, once it knows how long the video really is.

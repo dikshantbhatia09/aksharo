@@ -35,6 +35,7 @@ import {
   automationOf,
   autopilotClipCount,
   brandOf,
+  brollOf,
 } from "./repurpose.constants.js";
 import { createRunSchema } from "./repurpose.dto.js";
 import {
@@ -903,6 +904,8 @@ export class RepurposeService {
             automation: input.setup.automation ?? "manual",
             // The brand kit (`brandOf`, 2026-10-02): only when asked for.
             ...(input.setup.brand === true ? { brand: true } : {}),
+            // B-roll (`brollOf`, 2026-10-05): only when asked for.
+            ...(input.setup.broll === true ? { broll: true } : {}),
             // The cover a source with no picture is drawn with (`coverAssetIdOf`,
             // 2026-10-04): only when one was given.
             ...(input.setup.audiogram === undefined
@@ -1414,9 +1417,10 @@ export class RepurposeService {
         caption: config["caption"],
         discovery: config["discovery"] ?? { mode: run.mode },
         window: { startMs },
-        // The next part runs the way this one did, brand kit and cover and all.
+        // The next part runs the way this one did, brand kit, B-roll and cover and all.
         automation: automationOf(run),
         ...(brandOf(run) ? { brand: true } : {}),
+        ...(brollOf(run) ? { broll: true } : {}),
         ...(cover === undefined ? {} : { audiogram: { coverAssetId: cover } }),
       },
     });
@@ -2170,6 +2174,7 @@ export class RepurposeService {
       nextWindowAvailable: nextWindowAvailable(run),
       automation: automationOf(run),
       brand: brandOf(run),
+      broll: brollOf(run),
       waitingFor,
       steering: steeringOf(run.config),
       activity: activity?.activity ?? null,

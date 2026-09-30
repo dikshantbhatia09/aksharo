@@ -21,7 +21,7 @@
  * shows exactly what is matched on.
  */
 
-import type { BrollProposal, BrollWord } from "@montaj/edg";
+import type { BrollProposal, BrollWord, OverlayImage } from "@montaj/edg";
 
 /** Below this, a picture does not show the moment: nothing is better than a wrong picture. */
 export const MIN_MATCH = 0.6;
@@ -34,6 +34,16 @@ export interface LibraryPicture {
   readonly width: number;
   readonly height: number;
   readonly format: "png" | "jpeg" | "webp";
+}
+
+/** A picture as an overlay names it. */
+export function overlayImageOfPicture(picture: LibraryPicture): OverlayImage {
+  return {
+    assetId: picture.id,
+    format: picture.format,
+    width: picture.width,
+    height: picture.height,
+  };
 }
 
 /** Words that say nothing about what a picture shows, in English and Hinglish. */

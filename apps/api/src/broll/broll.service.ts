@@ -1,8 +1,6 @@
 import { HttpStatus, Inject, Injectable, Logger } from "@nestjs/common";
 import { ulid } from "ulid";
 
-import type { OverlayImage } from "@montaj/edg";
-
 import { normaliseTags, type LibraryPicture } from "./broll-match.js";
 import {
   BROLL_CONTENT_TYPE_LIST,
@@ -551,16 +549,6 @@ export class BrollLibraryService {
       this.logger.warn({ key, err: error }, "could not delete a refused b-roll picture");
     });
   }
-}
-
-/** A picture as an overlay names it. */
-export function overlayImageOfPicture(picture: LibraryPicture): OverlayImage {
-  return {
-    assetId: picture.id,
-    format: picture.format,
-    width: picture.width,
-    height: picture.height,
-  };
 }
 
 function pictureOfView(item: BrollItemView): LibraryPicture {

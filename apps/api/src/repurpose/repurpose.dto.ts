@@ -163,6 +163,13 @@ export const createRunSchema = z.object({
      */
     brand: z.boolean().optional(),
     /**
+     * B-roll (2026-10-05): Autopilot cuts away to a picture where the speaker
+     * names something visual - from the workspace's B-roll library first, a
+     * stock photo second when stock photos are set up. Left out, or with
+     * nothing to show, the clips are made exactly as without it.
+     */
+    broll: z.boolean().optional(),
+    /**
      * Audiograms (2026-10-04): the cover a source with no picture - an audio
      * file - has its clips drawn with, uploaded first through
      * `POST /repurpose/covers`. Left out, the brand kit's logo (with `brand`)
@@ -272,6 +279,8 @@ export const runViewSchema = z.object({
    * Optional only so a view described before it still reads as one.
    */
   brand: z.boolean().optional(),
+  /** Whether the run asked for B-roll (`setup.broll`, 2026-10-05); optional for the same reason. */
+  broll: z.boolean().optional(),
   /**
    * Why a run that is not failed is not moving, and until when: YouTube is
    * refusing this server's downloads, and the run continues by itself after

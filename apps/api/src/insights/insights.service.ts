@@ -2,6 +2,7 @@ import { HttpStatus, Injectable, Logger } from "@nestjs/common";
 
 import type { Segment, TranscriptChunk } from "@montaj/edg/schemas";
 import type { PromptTranscriptInput, InsightKind } from "@montaj/prompts";
+import { BROLL_LLM_KIND, type BrollRequest } from "@montaj/repurpose-contracts";
 
 import {
   INSIGHTS_MAX_CHUNK_PAGES,
@@ -154,6 +155,38 @@ export class InsightsService {
     this.logger.log(
       { projectId: project.id, jobId: job.id, deduplicated },
       "episode pack requested",
+    );
+    return { jobId: job.id, deduplicated };
+  }
+
+  /**
+   * Ask for the moments in one clip a picture could cut away at (2026-10-05,
+   * `ai.llm` kind `broll`): Autopilot's finishing pass, for a run with B-roll
+   * on. The request is the clip's words and bounds, built by the caller; the
+   * worker answers into this project's `llm_outputs` (kind `broll`). Free and
+   * outside the plan's admission lane, like the episode pack.
+   */
+  async requestBroll(input: {
+    readonly projectId: string;
+    readonly workspaceId: string;
+    readonly jobKey: string;
+    readonly request: BrollRequest;
+  }): Promise<{ readonly jobId: string; readonly deduplicated: boolean }> {
+    const project = await this.project(input.projectId, input.workspaceId);
+    const region = await this.regionOf(input.workspaceId);
+    const { job, deduplicated } = await this.jobs.enqueue({
+      type: "ai.llm",
+      workspaceId: input.workspaceId,
+      projectId: project.id,
+      jobKey: input.jobKey,
+      worstCaseTenths: 0,
+      reason: "ai.llm · broll",
+      skipAdmission: true,
+      params: { kind: BROLL_LLM_KIND, region, broll: input.request },
+    });
+    this.logger.log(
+      { projectId: project.id, jobId: job.id, deduplicated, words: input.request.words.length },
+      "b-roll moments requested",
     );
     return { jobId: job.id, deduplicated };
   }
