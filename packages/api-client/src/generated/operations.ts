@@ -656,6 +656,13 @@ export const API_OPERATIONS = [
     summary: "Confirm an uploaded diagnostics bundle and attach it to the ticket",
   },
   {
+    operationId: "countGuestLinkDownload",
+    method: "POST",
+    path: "/guest/downloads",
+    tags: ["guest-public"],
+    summary: "Count a download from a guest page",
+  },
+  {
     operationId: "createApiKey",
     method: "POST",
     path: "/workspaces/{id}/api-keys",
@@ -794,6 +801,13 @@ export const API_OPERATIONS = [
     path: "/repurpose/runs/{runId}/clips/{clipId}/dubs",
     tags: ["repurpose"],
     summary: "Dub a clip into other languages, in the speaker's own voice",
+  },
+  {
+    operationId: "createRepurposeGuestLink",
+    method: "POST",
+    path: "/repurpose/runs/{runId}/guest-links",
+    tags: ["repurpose"],
+    summary: "Share a run's clips with a guest, to download with no account",
   },
   {
     operationId: "createRepurposeReviewLink",
@@ -1853,6 +1867,13 @@ export const API_OPERATIONS = [
     summary: "The run's dubs, and what each clip can be dubbed into",
   },
   {
+    operationId: "listRepurposeGuestLinks",
+    method: "GET",
+    path: "/repurpose/runs/{runId}/guest-links",
+    tags: ["repurpose"],
+    summary: "A run's guest links",
+  },
+  {
     operationId: "listRepurposePosts",
     method: "GET",
     path: "/repurpose/runs/{runId}/posts",
@@ -2012,6 +2033,13 @@ export const API_OPERATIONS = [
     path: "/auth/oauth/google/start",
     tags: ["auth"],
     summary: "Begin Google sign-in",
+  },
+  {
+    operationId: "openGuestLink",
+    method: "GET",
+    path: "/guest",
+    tags: ["guest-public"],
+    summary: "Open a guest link: the clips it shares, ready to download",
   },
   {
     operationId: "openReviewLink",
@@ -2404,6 +2432,13 @@ export const API_OPERATIONS = [
     path: "/partner-catalogue/grants/{grantId}",
     tags: ["partner-catalogue"],
     summary: "Revoke a partner catalogue grant",
+  },
+  {
+    operationId: "revokeRepurposeGuestLink",
+    method: "DELETE",
+    path: "/repurpose/runs/{runId}/guest-links/{linkId}",
+    tags: ["repurpose"],
+    summary: "Revoke a guest link",
   },
   {
     operationId: "revokeRepurposeReviewLink",
