@@ -182,16 +182,18 @@ function PostRow({
   runId,
   post,
   canChange,
+  readsEnabled,
 }: {
   readonly runId: string;
   readonly post: ClipPost;
   readonly canChange: boolean;
+  readonly readsEnabled: boolean;
 }): React.JSX.Element {
   const remove = useRemovePost();
   const [typing, setTyping] = React.useState(false);
   const where = [post.platformLabel, post.shape, post.language].filter(Boolean).join(" · ");
   const sources = provenance(post);
-  const reading = readingLine(post);
+  const reading = readingLine(post, Date.now(), readsEnabled);
   return (
     <li
       className="flex flex-col gap-1.5 py-2"
@@ -490,7 +492,13 @@ export function ClipPerformance({
       {posts.length === 0 ? null : (
         <ul className="m-0 list-none divide-y divide-border p-0">
           {posts.map((post) => (
-            <PostRow key={post.id} runId={runId} post={post} canChange={canChange} />
+            <PostRow
+              key={post.id}
+              runId={runId}
+              post={post}
+              canChange={canChange}
+              readsEnabled={data.readsEnabled}
+            />
           ))}
         </ul>
       )}

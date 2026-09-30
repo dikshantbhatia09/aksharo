@@ -76,6 +76,7 @@ function performance(posts: ClipPost[] = [post()]): RunPerformance {
   return {
     runId: RUN,
     enabled: true,
+    readsEnabled: true,
     posts,
     clips: [{ clipId: CLIP, shapes: ["9:16", "1:1"], languages: ["hi-IN"] }],
   };
@@ -168,6 +169,13 @@ describe("<ClipPerformance />", () => {
     );
     expect(screen.getByTestId(`clip-performance-${CLIP}`)).toHaveTextContent(
       "1 post · 12.4k views",
+    );
+  });
+
+  it("says so when this server reads no numbers by itself", async () => {
+    render({ body: { ...performance(), readsEnabled: false } });
+    expect(await screen.findByTestId(`performance-reading-${POST}`)).toHaveTextContent(
+      "Numbers are not read by themselves right now: type them in when you check.",
     );
   });
 

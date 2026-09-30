@@ -8,6 +8,7 @@ import { AppException } from "../../common/errors/error-codes.js";
 
 import type { CommonAuditService } from "../../common/audit/audit.service.js";
 import type { PrismaService } from "../../common/prisma/prisma.service.js";
+import type { ScheduledTasksService } from "../../common/scheduler/scheduled-tasks.service.js";
 import type { RepurposeService } from "../repurpose.service.js";
 import type { ClipPost } from "@prisma/client";
 
@@ -61,6 +62,8 @@ function harness(
     readonly existing?: ClipPost | null;
     readonly count?: number;
     readonly createError?: unknown;
+    /** The scheduled tasks this server runs. */
+    readonly scheduled?: readonly string[];
   } = {},
 ) {
   const flags = options.flags ?? { repurpose_flow: true, [PERFORMANCE_FLAG]: true };
@@ -68,7 +71,14 @@ function harness(
   const snapshots: unknown[] = [];
   const prisma = {
     repurposeRun: { findFirst: vi.fn(async () => ({ id: RUN })) },
+    publishTarget: { findMany: vi.fn(async () => []) },
+    clipDub: {
+      findMany: vi.fn(async () => [{ clipId: CLIP, variants: [{ language: "hi-IN" }] }]),
+    },
     repurposeClip: {
+      findMany: vi.fn(async () => [
+        { id: CLIP, variants: [{ aspect: "r1x1" }, { aspect: "r9x16" }] },
+      ]),
       findFirst: vi.fn(async () =>
         options.clip === undefined
           ? {
@@ -80,6 +90,11 @@ function harness(
       ),
     },
     clipPost: {
+      findMany: vi.fn(async () =>
+        options.existing === undefined || options.existing === null
+          ? []
+          : [{ ...options.existing, publishTarget: null }],
+      ),
       count: vi.fn(async () => options.count ?? 0),
       create: vi.fn(async ({ data }: { data: Record<string, unknown> }) => {
         if (options.createError !== undefined) throw options.createError;
@@ -124,6 +139,7 @@ function harness(
     prisma as unknown as PrismaService,
     runs as unknown as RepurposeService,
     audit as unknown as CommonAuditService,
+    { scheduled: options.scheduled ?? [] } as unknown as ScheduledTasksService,
   );
   service.now = () => NOW;
   return { service, prisma, audit, created, snapshots };
@@ -161,6 +177,7 @@ describe("ClipPostsService flags", () => {
     expect(await h.service.runPerformance(WS, RUN)).toEqual({
       runId: RUN,
       enabled: false,
+      readsEnabled: false,
       posts: [],
       clips: [],
     });
@@ -169,6 +186,29 @@ describe("ClipPostsService flags", () => {
     );
     expect(error.code).toBe(PERFORMANCE_ERRORS.disabled);
     expect(h.prisma.clipPost.create).not.toHaveBeenCalled();
+  });
+});
+
+describe("ClipPostsService.runPerformance", () => {
+  it("lists the run's posts, each clip's shapes and languages, and whether numbers are read here", async () => {
+    const h = harness({ existing: post(), scheduled: ["repurpose.performance-refresh"] });
+    const view = await h.service.runPerformance(WS, RUN);
+    expect(view).toMatchObject({
+      runId: RUN,
+      enabled: true,
+      readsEnabled: true,
+      clips: [{ clipId: CLIP, shapes: ["9:16", "1:1"], languages: ["hi-IN"] }],
+    });
+    expect(view.posts.map((entry) => entry.id)).toEqual([POST]);
+    // What went out through Postiz is adopted first, for this run only.
+    expect(h.prisma.publishTarget.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ workspaceId: WS, clip: { runId: RUN } }),
+      }),
+    );
+
+    const unread = harness({ existing: post() });
+    expect((await unread.service.runPerformance(WS, RUN)).readsEnabled).toBe(false);
   });
 });
 

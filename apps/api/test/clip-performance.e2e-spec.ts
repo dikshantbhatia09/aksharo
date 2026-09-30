@@ -173,7 +173,9 @@ describe.skipIf(!available)("learning what works against PostgreSQL", () => {
 
     const service = prisma as unknown as PrismaService;
     const runs = { flagEnabled: async () => true } as unknown as RepurposeService;
-    posts = new ClipPostsService(service, runs, new CommonAuditService(service));
+    posts = new ClipPostsService(service, runs, new CommonAuditService(service), {
+      scheduled: ["repurpose.performance-refresh"],
+    } as unknown as ScheduledTasksService);
     posts.now = () => new Date(now);
     whatWorks = new WhatWorksService(service, posts);
     whatWorks.now = () => new Date(now);
@@ -271,6 +273,7 @@ describe.skipIf(!available)("learning what works against PostgreSQL", () => {
 
     const view = await posts.runPerformance(WS, RUN);
     expect(view.enabled).toBe(true);
+    expect(view.readsEnabled).toBe(true);
     expect(
       view.posts.map((post) => [post.platform, post.shape, post.reading.state]).sort(),
     ).toEqual([

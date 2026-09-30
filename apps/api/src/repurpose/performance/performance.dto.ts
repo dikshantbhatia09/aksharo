@@ -120,6 +120,12 @@ export interface RunPerformanceView {
   readonly runId: string;
   /** The feature is on for this workspace: the page shows the panel at all. */
   readonly enabled: boolean;
+  /**
+   * Whether this server reads numbers by itself at all: the
+   * `repurpose.performance-refresh` task is installed here. False, posts wait
+   * and numbers can only be typed in.
+   */
+  readonly readsEnabled: boolean;
   readonly posts: readonly ClipPostView[];
   /** Per clip, what "I posted this" may say was posted: its shapes and dubbed languages. */
   readonly clips: readonly {

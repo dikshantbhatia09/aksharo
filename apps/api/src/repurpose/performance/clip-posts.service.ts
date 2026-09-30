@@ -13,6 +13,7 @@ import {
   MAX_POSTS_PER_CLIP,
   PERFORMANCE_ERRORS,
   PERFORMANCE_FLAG,
+  PERFORMANCE_REFRESH_TASK,
   READ_ERRORS,
 } from "./performance.constants.js";
 import {
@@ -26,6 +27,7 @@ import { MAX_READ_FAILURES } from "./refresh-plan.js";
 import { CommonAuditService } from "../../common/audit/audit.service.js";
 import { AppException } from "../../common/errors/error-codes.js";
 import { PrismaService } from "../../common/prisma/prisma.service.js";
+import { ScheduledTasksService } from "../../common/scheduler/scheduled-tasks.service.js";
 import {
   ASPECT_OF_SHAPE,
   REPURPOSE_ERRORS,
@@ -55,8 +57,9 @@ import type { $Enums, ClipPost, Prisma } from "@prisma/client";
  *   * **One row per post.** A post is one video on one platform - one shape of
  *     one clip, in its own words or a dub's. `(workspace, post_key)` is unique,
  *     `post_key` being the platform's own id for it, so a video pasted twice is
- *     refused the second time, and a link pasted before Aksharo adopted the
- *     same post from Postiz becomes that post.
+ *     refused the second time; a link pasted before Aksharo adopted the same
+ *     post from Postiz becomes that post; and a link pasted for a Postiz post
+ *     Postiz never said the link of becomes its link.
  *   * **Postiz posts arrive by themselves.** Every `publish_targets` row that
  *     went out is adopted (on this page's read, and by the refresh task), with
  *     Postiz's post id to read its analytics by. Such a post cannot be removed
@@ -68,7 +71,7 @@ import type { $Enums, ClipPost, Prisma } from "@prisma/client";
  *     ever found through its own run.
  */
 
-/** A post's facts the view needs, with what is not on the row. */
+/** A `clip_posts` row. */
 type PostRow = ClipPost;
 
 const SHAPES = Object.keys(ASPECT_OF_SHAPE) as (keyof typeof ASPECT_OF_SHAPE)[];
@@ -167,6 +170,7 @@ export class ClipPostsService {
     private readonly prisma: PrismaService,
     private readonly runs: RepurposeService,
     private readonly audit: CommonAuditService,
+    private readonly scheduler: ScheduledTasksService,
   ) {}
 
   // -------------------------------------------------------------------------
@@ -200,7 +204,7 @@ export class ClipPostsService {
     if (!(await this.runs.flagEnabled(workspaceId, REPURPOSE_FLAGS.flow))) throw disabled();
     await this.requireRun(workspaceId, runId);
     if (!(await this.runs.flagEnabled(workspaceId, PERFORMANCE_FLAG))) {
-      return { runId, enabled: false, posts: [], clips: [] };
+      return { runId, enabled: false, readsEnabled: false, posts: [], clips: [] };
     }
     // What went out through Postiz since the last look is here the moment the page asks.
     await this.adoptPublished({ workspaceId, clip: { runId } }).catch((error: unknown) => {
@@ -236,6 +240,7 @@ export class ClipPostsService {
     return {
       runId,
       enabled: true,
+      readsEnabled: this.scheduler.scheduled.includes(PERFORMANCE_REFRESH_TASK),
       posts: posts.map((post) => this.view(post, post.publishTarget?.settings ?? null)),
       clips: clips.map((clip) => ({
         clipId: clip.id,

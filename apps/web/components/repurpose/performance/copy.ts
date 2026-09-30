@@ -53,6 +53,7 @@ export const PERFORMANCE_COPY = Object.freeze({
   postedOn: (day: string): string => `Posted ${day}`,
   readNext: (when: string): string => `Read again ${when}.`,
   readSoon: "Being read.",
+  readsOff: "Numbers are not read by themselves right now: type them in when you check.",
   summary: (posts: number, views: string | null): string =>
     `${String(posts)} ${posts === 1 ? "post" : "posts"}${views === null ? "" : ` · ${views} views`}`,
 });
@@ -260,9 +261,18 @@ export function provenance(post: ClipPost, now: number = Date.now()): string {
   return clauses.length === 0 ? "" : `${clauses.join(" · ")}.`;
 }
 
-/** How the post's numbers are kept up to date, in one line; null when there is nothing to say. */
-export function readingLine(post: ClipPost, now: number = Date.now()): string | null {
+/**
+ * How the post's numbers are kept up to date, in one line; null when there is
+ * nothing to say. `readsEnabled` false: this server reads nothing by itself
+ * right now, so a post waiting to be read says so rather than "Being read".
+ */
+export function readingLine(
+  post: ClipPost,
+  now: number = Date.now(),
+  readsEnabled = true,
+): string | null {
   if (post.reading.state === "reading") {
+    if (!readsEnabled) return PERFORMANCE_COPY.readsOff;
     return post.reading.nextAt === null || Date.parse(post.reading.nextAt) <= now
       ? PERFORMANCE_COPY.readSoon
       : PERFORMANCE_COPY.readNext(until(post.reading.nextAt, now));

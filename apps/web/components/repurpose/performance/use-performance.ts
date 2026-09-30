@@ -65,6 +65,8 @@ export interface ClipPost {
 export interface RunPerformance {
   readonly runId: string;
   readonly enabled: boolean;
+  /** Whether this server reads numbers by itself at all; false, they can only be typed in. */
+  readonly readsEnabled: boolean;
   readonly posts: readonly ClipPost[];
   readonly clips: readonly {
     readonly clipId: string;
@@ -197,7 +199,7 @@ function missingRoute(error: unknown): boolean {
 }
 
 function off(runId: string): RunPerformance {
-  return { runId, enabled: false, posts: [], clips: [] };
+  return { runId, enabled: false, readsEnabled: false, posts: [], clips: [] };
 }
 
 /** How soon to ask again: while a post's numbers are being read, now and then. */
@@ -214,7 +216,11 @@ export function useRunPerformance(runId: string, enabled: boolean): UseQueryResu
     enabled: enabled && workspaceId !== null,
     staleTime: 30_000,
     retry: false,
-    refetchInterval: (query) => performancePollDelay(query.state.data?.posts ?? []),
+    // Only while this server reads numbers by itself: otherwise nothing changes by itself.
+    refetchInterval: (query) =>
+      query.state.data?.readsEnabled === true
+        ? performancePollDelay(query.state.data.posts)
+        : false,
     queryFn: async () => {
       try {
         return await client.call(runEndpoint, { params: { runId } });
