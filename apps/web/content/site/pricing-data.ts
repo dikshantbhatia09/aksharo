@@ -71,9 +71,9 @@ export const FALLBACK_PLAN_CATALOGUE: readonly PlanCatalogueEntry[] = [
       USD: { month: 800, year: 8_040 },
     },
     seatPrice: null,
-    creditsPerMonth: 150,
+    creditsPerMonth: 300,
     highlights: [
-      "150 credits a month",
+      "300 credits a month during the beta",
       "No watermark, 1080p exports",
       "English translation",
       "SRT, VTT and ASS subtitle exports",

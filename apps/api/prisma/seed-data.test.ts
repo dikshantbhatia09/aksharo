@@ -110,10 +110,18 @@ describe("PLAN_SEEDS", () => {
       PLAN_SEEDS.find((plan) => plan.key === key)?.creditsPerMonthTenths;
     // 200 during the beta (2026-09-29); 04 §Plans says 20.
     expect(credits("free")).toBe(200 * TENTHS_PER_CREDIT);
-    expect(credits("starter")).toBe(150 * TENTHS_PER_CREDIT);
+    // 300 during the beta (2026-09-30); 04 §Plans says 150.
+    expect(credits("starter")).toBe(300 * TENTHS_PER_CREDIT);
     expect(credits("creator")).toBe(500 * TENTHS_PER_CREDIT);
     expect(credits("studio")).toBe(1_800 * TENTHS_PER_CREDIT);
     expect(credits("agency")).toBe(900 * TENTHS_PER_CREDIT);
+  });
+
+  it("never grants a paying plan fewer credits than Free (2026-09-30)", () => {
+    const free = PLAN_SEEDS.find((plan) => plan.key === "free")?.creditsPerMonthTenths ?? 0;
+    for (const plan of PLAN_SEEDS.filter((seed) => seed.key !== "free")) {
+      expect(plan.creditsPerMonthTenths, plan.key).toBeGreaterThan(free);
+    }
   });
 
   it("carries the retention row of 04 §Plans into the entitlements", () => {

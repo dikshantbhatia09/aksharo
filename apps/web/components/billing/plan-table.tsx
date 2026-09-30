@@ -33,7 +33,7 @@ const PLAN_TAGLINE: Record<PlanKey, string> = {
 
 const PLAN_HIGHLIGHTS: Record<PlanKey, readonly string[]> = {
   free: ["200 credits/month in the beta", "1080p browser export", "Tunable caption styling"],
-  starter: ["150 credits/month", "Local desktop transcription", "English translation"],
+  starter: ["300 credits/month in the beta", "Local desktop transcription", "English translation"],
   creator: ["500 credits/month", "4K export", "Autocut & Reframe/Zoom", "All languages"],
   studio: ["1,800 credits/month", "3 seats included", "Pro engine, SFX/Music", "API access"],
   agency: ["900 pooled credits/seat", "Client tags & GSTIN invoices", "Per-seat billing"],

@@ -116,11 +116,13 @@ export const MAX_SOURCE_DURATION_MS = 12 * HOUR_MS;
 /**
  * Credits per month as printed in 04 §Plans, converted to tenths. Free is 200
  * during the beta (owner decision 2026-09-29; 04 says 20), so a re-seed keeps
- * what production now grants.
+ * what production now grants. Starter is 300 during the beta too (2026-09-30;
+ * 04 says 150): a paying plan never grants less than Free. After the beta both
+ * go back to 04's numbers together.
  */
 const CREDITS_PER_MONTH: Record<PlanKeyName, number> = {
   free: 200,
-  starter: 150,
+  starter: 300,
   creator: 500,
   studio: 1_800,
   agency: 900,
