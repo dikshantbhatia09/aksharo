@@ -292,6 +292,23 @@ describe.skipIf(!available)("learning what works against PostgreSQL", () => {
     expect(await prisma.clipPost.count({ where: { workspaceId: WS } })).toBe(3);
   });
 
+  it("gives a Postiz post with no link the link pasted for it, not a second post", async () => {
+    const two = await prisma.repurposeClip.findFirstOrThrow({
+      where: { runId: RUN, title: "Clip 2" },
+    });
+    const view = await posts.addLink(WS, OWNER, RUN, two.id, {
+      url: "https://www.instagram.com/reel/DAbCdEfGhIj/?igsh=x",
+    });
+    expect(view).toMatchObject({
+      source: "postiz",
+      url: "https://www.instagram.com/reel/DAbCdEfGhIj/",
+    });
+    expect(await prisma.clipPost.count({ where: { clipId: two.id } })).toBe(1);
+    expect(
+      await prisma.clipPost.findFirstOrThrow({ where: { externalPostId: "pz-ig-1" } }),
+    ).toMatchObject({ postKey: "instagram:DAbCdEfGhIj" });
+  });
+
   it("makes a link pasted before its post was adopted that post, numbers and all", async () => {
     const three = await seedClip(WS, RUN, 3);
     const pasted = await posts.addLink(WS, OWNER, RUN, three.clipId, {

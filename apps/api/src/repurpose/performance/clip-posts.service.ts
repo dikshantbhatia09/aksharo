@@ -305,28 +305,56 @@ export class ClipPostsService {
       );
     }
 
+    // eslint-disable-next-line security/detect-object-injection -- a shape from the closed enum
+    const aspect = ASPECT_OF_SHAPE[shape];
     let post: PostRow;
+    let linked = false;
     try {
-      post = await this.prisma.clipPost.create({
-        data: {
-          id: ulid(),
-          workspaceId,
-          runId,
-          clipId,
-          // eslint-disable-next-line security/detect-object-injection -- a shape from the closed enum
-          aspect: ASPECT_OF_SHAPE[shape],
-          language,
-          platform: link.platform,
-          source: "link",
-          postKey: link.key,
-          url: link.url,
-          postedAt,
-          // A day alone (`2026-10-04`) says nothing about the hour.
-          postedTimeKnown: postedAt !== null && (input.postedAt?.length ?? 0) > 10,
-          nextReadAt: readsItself("link", link.platform, null) ? now : null,
-          createdBy: userId,
-        },
-      });
+      // The clip's post of this platform and shape made from Aksharo, whose
+      // link the posting service never said: the link pasted is its link, not
+      // a second post of the same video (its numbers are still read by id).
+      const unlinked =
+        language === null
+          ? await this.prisma.clipPost.findFirst({
+              where: {
+                workspaceId,
+                clipId,
+                platform: link.platform,
+                aspect,
+                language: null,
+                source: "postiz",
+                url: null,
+              },
+              orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+            })
+          : null;
+      if (unlinked !== null) {
+        post = await this.prisma.clipPost.update({
+          where: { id: unlinked.id },
+          data: { postKey: link.key, url: link.url },
+        });
+        linked = true;
+      } else {
+        post = await this.prisma.clipPost.create({
+          data: {
+            id: ulid(),
+            workspaceId,
+            runId,
+            clipId,
+            aspect,
+            language,
+            platform: link.platform,
+            source: "link",
+            postKey: link.key,
+            url: link.url,
+            postedAt,
+            // A day alone (`2026-10-04`) says nothing about the hour.
+            postedTimeKnown: postedAt !== null && (input.postedAt?.length ?? 0) > 10,
+            nextReadAt: readsItself("link", link.platform, null) ? now : null,
+            createdBy: userId,
+          },
+        });
+      }
     } catch (error) {
       if (!isUniqueViolation(error)) throw error;
       const existing = await this.prisma.clipPost.findUnique({
@@ -344,7 +372,7 @@ export class ClipPostsService {
     }
 
     await this.audit.record({
-      action: "repurpose.performance.post_added",
+      action: linked ? "repurpose.performance.post_linked" : "repurpose.performance.post_added",
       resource: "clip_post",
       resourceId: post.id,
       actorId: userId,

@@ -91,7 +91,14 @@ function harness(
           ? null
           : { id: options.existing.id, clipId: options.existing.clipId },
       ),
-      findFirst: vi.fn(async () => options.existing ?? null),
+      // By id (a post of the run), or a post made from Aksharo with no link yet.
+      findFirst: vi.fn(async ({ where }: { where: { source?: string; url?: null } }) => {
+        const existing = options.existing ?? null;
+        if (existing === null) return null;
+        if (where.source !== undefined && existing.source !== where.source) return null;
+        if ("url" in where && existing.url !== null) return null;
+        return existing;
+      }),
       findUniqueOrThrow: vi.fn(async () => ({ latest: options.existing?.latest ?? {} })),
       update: vi.fn(async ({ data }: { data: Partial<ClipPost> }) => ({
         ...post(options.existing ?? {}),
@@ -220,6 +227,36 @@ describe("ClipPostsService.addLink", () => {
       // X links are not read by themselves: their numbers are typed in.
       nextReadAt: null,
     });
+  });
+
+  it("gives a post made from Aksharo the link it never had, rather than a second post", async () => {
+    const h = harness({
+      existing: post({
+        source: "postiz",
+        platform: "instagram",
+        externalPostId: "pz-9",
+        postKey: "postiz:pz-9",
+        url: null,
+      }),
+    });
+    const view = await h.service.addLink(WS, USER, RUN, CLIP, {
+      url: "https://www.instagram.com/reel/C8xYz12AbCd/",
+    });
+    expect(h.prisma.clipPost.create).not.toHaveBeenCalled();
+    expect(h.prisma.clipPost.update).toHaveBeenCalledWith({
+      where: { id: POST },
+      data: {
+        postKey: "instagram:C8xYz12AbCd",
+        url: "https://www.instagram.com/reel/C8xYz12AbCd/",
+      },
+    });
+    expect(view).toMatchObject({
+      source: "postiz",
+      url: "https://www.instagram.com/reel/C8xYz12AbCd/",
+    });
+    expect(h.audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({ action: "repurpose.performance.post_linked" }),
+    );
   });
 
   it("follows an Instagram reel of a dub, whose numbers are typed in", async () => {
