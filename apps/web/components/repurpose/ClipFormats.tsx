@@ -12,7 +12,7 @@
  * Collapsed by default: the card's own 9:16 video is what most people want,
  * and forty clips with fifteen files each would bury it.
  */
-import { AlertTriangle, Download, Loader2 } from "lucide-react";
+import { AlertTriangle, Download, HardDrive, Loader2 } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
 
@@ -58,6 +58,11 @@ export const FORMATS_COPY = Object.freeze({
   updating: "Updating with your caption changes…",
   failed: "Could not be made. Open it in the editor to export it.",
   imagesPreparing: "The images are taken once every video is made.",
+  // The server's disk is below the floor that holds these (2026-09-30): not
+  // being made, not stuck, and nothing the person has to do.
+  waitingForSpace: "Waiting for storage space on our server. It is made as soon as there is room.",
+  imagesWaitingForSpace:
+    "Waiting for storage space on our server. The images are taken as soon as there is room.",
   imagesFailed: "The images could not be made.",
   withCaptions: "Download",
   withoutCaptions: "Without captions",
@@ -145,9 +150,19 @@ export function ClipFormats({
             {FORMATS_COPY.images}
           </h4>
           {images?.status === "preparing" && imageFiles.length === 0 ? (
-            <p className="m-0 inline-flex items-center gap-1.5 text-xs text-fg-2" role="status">
-              <Loader2 className="size-4 animate-spin" strokeWidth={1.75} aria-hidden="true" />
-              {FORMATS_COPY.imagesPreparing}
+            <p
+              className="m-0 inline-flex items-center gap-1.5 text-xs text-fg-2"
+              role="status"
+              data-testid={`clip-images-status-${candidateId}`}
+            >
+              {images.waitingFor === "space" ? (
+                <HardDrive className="size-4" strokeWidth={1.75} aria-hidden="true" />
+              ) : (
+                <Loader2 className="size-4 animate-spin" strokeWidth={1.75} aria-hidden="true" />
+              )}
+              {images.waitingFor === "space"
+                ? FORMATS_COPY.imagesWaitingForSpace
+                : FORMATS_COPY.imagesPreparing}
             </p>
           ) : images?.status === "failed" ? (
             <p className="m-0 inline-flex items-center gap-1.5 text-xs text-fg-2">
@@ -227,10 +242,13 @@ function FormatRow({
   const name = SHAPE_NAMES[format.shape];
   const download = format.captioned?.downloadUrl ?? null;
   const limits = tooLongFor(format.shape, durationMs);
+  const waiting = format.waitingFor === "space";
   const note =
     format.status === "failed"
       ? FORMATS_COPY.failed
-      : format.status === "stale"
+      : waiting
+        ? FORMATS_COPY.waitingForSpace
+        : format.status === "stale"
         ? FORMATS_COPY.updating
         : format.status === "preparing" ||
             format.status === "finishing" ||
@@ -264,6 +282,8 @@ function FormatRow({
                 strokeWidth={1.75}
                 aria-hidden="true"
               />
+            ) : waiting ? (
+              <HardDrive className="size-3.5" strokeWidth={1.75} aria-hidden="true" />
             ) : (
               <Loader2 className="size-3.5 animate-spin" strokeWidth={1.75} aria-hidden="true" />
             )}

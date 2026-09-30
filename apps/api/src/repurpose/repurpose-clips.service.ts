@@ -157,6 +157,12 @@ export interface ClipFormatView {
   readonly projectId: string | null;
   readonly captioned: CaptionedClipView | null;
   readonly cleanUrl: string | null;
+  /**
+   * `space` while this shape is held for disk ({@link FORMATS_MIN_FREE_BYTES}):
+   * it is not being made, and will be once there is room (2026-09-30). The
+   * page said "Being made…" for hours on a held shape. Absent otherwise.
+   */
+  readonly waitingFor?: "space";
 }
 
 /**
@@ -167,6 +173,8 @@ export interface ClipFormatView {
  */
 export interface ClipImagesView {
   readonly status: "none" | "preparing" | "ready" | "failed";
+  /** `space` while the images are held for disk, as {@link ClipFormatView.waitingFor}. */
+  readonly waitingFor?: "space";
   readonly files: readonly {
     readonly id: string;
     readonly width: number;
@@ -360,11 +368,13 @@ export class RepurposeClipsService {
       clips.map((clip) => clip.candidateId),
     );
     const sourceGone = await this.sourceGoneFor(run, clips, latest);
+    const autopilot = automationOf(run) === "auto";
+    const lowDisk = autopilot && (await this.lowDisk());
     return {
       runId: run.id,
       clips: await Promise.all(
         clips.map((clip) =>
-          this.toItem(clip, latest.get(clip.candidateId), sourceGone, automationOf(run) === "auto"),
+          this.toItem(clip, latest.get(clip.candidateId), sourceGone, autopilot, lowDisk),
         ),
       ),
     };
@@ -907,6 +917,11 @@ export class RepurposeClipsService {
    */
   private readonly captionRequestErrors = new Map<string, number>();
 
+  /** Under the floor that holds a clip's other shapes and images ({@link roomForFormats}). */
+  private async lowDisk(): Promise<boolean> {
+    return (await this.freeBytes()) < FORMATS_MIN_FREE_BYTES;
+  }
+
   private async roomForFormats(run: RepurposeRun): Promise<boolean> {
     const free = await this.freeBytes();
     if (free >= FORMATS_MIN_FREE_BYTES) return true;
@@ -1116,7 +1131,7 @@ export class RepurposeClipsService {
   }
 
   /** The images of a ready Autopilot clip, signed ({@link ClipImagesView}). */
-  private async imagesOf(clip: ClipWithRelations): Promise<ClipImagesView> {
+  private async imagesOf(clip: ClipWithRelations, lowDisk = false): Promise<ClipImagesView> {
     const stored = storedImagesOf(clip.images);
     const plan = await this.imagePlanOf(undefined, clip);
     let status: ClipImagesView["status"];
@@ -1157,7 +1172,12 @@ export class RepurposeClipsService {
         this.logger.warn({ clipId: clip.id, err: error }, "could not sign a clip image");
       }
     }
-    return { status, files: [...files.values()] };
+    return {
+      status,
+      files: [...files.values()],
+      // Not taken while the disk is low (`makeImages`), however ready the videos.
+      ...(lowDisk && status === "preparing" ? { waitingFor: "space" as const } : {}),
+    };
   }
 
   /**
@@ -1980,11 +2000,13 @@ export class RepurposeClipsService {
     });
     const latest = await this.latestJobs(run.workspaceId, [clip.candidateId]);
     const sourceGone = await this.sourceGoneFor(run, [clip], latest);
+    const autopilot = automationOf(run) === "auto";
     return this.toItem(
       clip,
       latest.get(clip.candidateId),
       sourceGone,
-      automationOf(run) === "auto",
+      autopilot,
+      autopilot && (await this.lowDisk()),
     );
   }
 
@@ -2005,6 +2027,7 @@ export class RepurposeClipsService {
     latest: LatestClipJob | undefined,
     sourceGone: boolean,
     autopilot = false,
+    lowDisk = false,
   ): Promise<RepurposeClipItemView> {
     let mezzanineUrl: string | null = null;
     if (clip.mezzanineKey !== null) {
@@ -2016,9 +2039,11 @@ export class RepurposeClipsService {
     }
     const { state, failureCode } = clipStateOf(clipFactsOf(clip), latest, { sourceGone });
     const captioned = state === "ready" ? await this.captionedOf(clip) : null;
-    const formats = state === "ready" ? await this.formatsOf(clip, autopilot) : [];
+    const formats = state === "ready" ? await this.formatsOf(clip, autopilot, lowDisk) : [];
     const images: ClipImagesView =
-      state === "ready" && autopilot ? await this.imagesOf(clip) : { status: "none", files: [] };
+      state === "ready" && autopilot
+        ? await this.imagesOf(clip, lowDisk)
+        : { status: "none", files: [] };
     // JSON round trip: `sizeBytes` on the child media is a BigInt, which the
     // response serialiser cannot write.
     return JSON.parse(
@@ -2043,12 +2068,19 @@ export class RepurposeClipsService {
   /**
    * Every shape of a ready clip (2026-09-29): 9:16 and, on Autopilot, 4:5, 1:1
    * and 16:9 - each with its captioned video once made, and its clean cut.
-   * A shape still being cut or prepared reads `preparing`.
+   * A shape still being cut or prepared reads `preparing`; one the disk floor
+   * is holding also says `waitingFor: "space"` - it is neither cut nor
+   * rendered until there is room ({@link roomForFormats}; 9:16 never waits).
    */
-  private async formatsOf(clip: ClipWithRelations, autopilot: boolean): Promise<ClipFormatView[]> {
+  private async formatsOf(
+    clip: ClipWithRelations,
+    autopilot: boolean,
+    lowDisk = false,
+  ): Promise<ClipFormatView[]> {
     const formats: ClipFormatView[] = [];
     for (const shape of VIDEO_SHAPES) {
       const variant = clip.variants.find((row) => SHAPE_OF_ASPECT[row.aspect] === shape);
+      const held = lowDisk && shape !== "9:16";
       if (variant === undefined) {
         if (autopilot)
           formats.push({
@@ -2057,6 +2089,7 @@ export class RepurposeClipsService {
             projectId: null,
             captioned: null,
             cleanUrl: null,
+            ...(held ? { waitingFor: "space" as const } : {}),
           });
         continue;
       }
@@ -2070,12 +2103,18 @@ export class RepurposeClipsService {
           })
           .catch(() => null);
       }
+      const status = captioned?.status ?? (autopilot ? "preparing" : "ready");
       formats.push({
         shape,
-        status: captioned?.status ?? (autopilot ? "preparing" : "ready"),
+        status,
         projectId: variant.projectId,
         captioned,
         cleanUrl,
+        // Cut, but its captioned video (or its remake after an edit) is not
+        // asked for while the disk is low (`captionClips`).
+        ...(held && autopilot && (status === "preparing" || status === "stale")
+          ? { waitingFor: "space" as const }
+          : {}),
       });
     }
     return formats;

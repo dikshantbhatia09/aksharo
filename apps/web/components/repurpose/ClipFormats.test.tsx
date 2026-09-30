@@ -98,6 +98,34 @@ describe("ClipFormats", () => {
     expect(screen.getByTestId(`clip-format-${CAND}-9x16`)).toHaveTextContent("Being made");
   });
 
+  it("says a shape held for disk space is waiting for it, not being made", () => {
+    // 2026-09-30: C: under the 8 GiB floor held three shapes and the images of
+    // every clip for hours while each row said "Being made…".
+    const held = { status: "preparing", captioned: null, cleanUrl: null, projectId: null } as const;
+    render(
+      <ClipFormats
+        candidateId={CAND}
+        title="A moment"
+        durationMs={30_000}
+        formats={[
+          format("9:16"),
+          format("4:5", { ...held, waitingFor: "space" }),
+          format("1:1", { ...held }),
+        ]}
+        images={{ status: "preparing", waitingFor: "space", files: [] }}
+      />,
+    );
+    const portrait = screen.getByTestId(`clip-format-${CAND}-4x5`);
+    expect(portrait).toHaveTextContent("Waiting for storage space");
+    expect(portrait).not.toHaveTextContent("Being made");
+    expect(portrait.querySelector(".animate-spin")).toBeNull();
+    // A shape the API does not say is held is still being made.
+    expect(screen.getByTestId(`clip-format-${CAND}-1x1`)).toHaveTextContent("Being made");
+    const images = screen.getByTestId(`clip-images-status-${CAND}`);
+    expect(images).toHaveTextContent("Waiting for storage space");
+    expect(images.querySelector(".animate-spin")).toBeNull();
+  });
+
   it("shows nothing for a clip that only has its 9:16 video", () => {
     const { container } = render(
       <ClipFormats

@@ -5,7 +5,10 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import shutil
+import tempfile
 import threading
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -31,6 +34,29 @@ ATTEMPT_ID = "01JBQ8Z2W4N7Y0K3M5P8R1T6VA"
 WORKSPACE_ID = "01JBQ8Z2W4N7Y0K3M5P8R1T6VB"
 PROJECT_ID = "01JBQ8Z2W4N7Y0K3M5P8R1T6VC"
 MEDIA_ID = "01JBQ8Z2W4N7Y0K3M5P8R1T6VD"
+
+
+@pytest.fixture(autouse=True, scope="session")
+def _session_scratch_directory() -> Iterator[None]:
+    """Every temp file of a test session goes in one directory, deleted at the end.
+
+    Tests drive processors directly, so the runtime's ``context.cleanup()``
+    never runs and each job context left its ``montaj-01JBQ8Z2-`` scratch
+    directory (chunk WAVs, ~46 MB) in the system temp area. On the production
+    laptop that was 148 of them, 6.8 GB of the disk the media stores share
+    (2026-09-30), and it helped push C: under the floor that holds
+    Autopilot's other shapes. ``tempfile.gettempdir()`` answers this
+    directory for the whole session, so tests that look for leftovers there
+    (``test_runtime``) still look in the right place.
+    """
+    root = Path(tempfile.mkdtemp(prefix="worker-ai-tests-"))
+    previous = tempfile.tempdir
+    tempfile.tempdir = str(root)
+    try:
+        yield
+    finally:
+        tempfile.tempdir = previous
+        shutil.rmtree(root, ignore_errors=True)
 
 
 def envelope(**payload: Any) -> dict[str, Any]:

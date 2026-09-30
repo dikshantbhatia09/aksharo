@@ -9,6 +9,7 @@ import { RedisService } from "../../common/redis/redis.service.js";
 import { isQueueName, queueForJobType, type QueueName } from "../../jobs/contracts/queue-names.js";
 import { QueueRegistry } from "../../jobs/queue.registry.js";
 import { acquireCeilingMs, workCeilingMs } from "../../repurpose/reconciler.js";
+import { FORMATS_MIN_FREE_BYTES } from "../../repurpose/repurpose.constants.js";
 
 import type { CheckId, Finding } from "./alert-state.js";
 
@@ -333,6 +334,12 @@ export class OpsWatchChecks {
    * also Postgres's, Redis's, MinIO's and the workers' temp directory: a full C:
    * takes the database down with it. Under {@link DISK_MIN_FREE_BYTES} is
    * critical, under {@link DISK_MIN_FREE_FRACTION} a warning.
+   *
+   * Under {@link FORMATS_MIN_FREE_BYTES} it is also its own finding: Autopilot
+   * is holding every clip's other shapes and images. On 2026-09-30 that went
+   * on for hours with no word of it - the 15% warning on a 465 GB disk is on
+   * almost all the time, so its six-hourly reminder said nothing new - while
+   * the run page said "Being made…".
    */
   async diskLow(): Promise<Finding[]> {
     const stats = await this.disk.statfs(this.disk.path);
@@ -341,19 +348,28 @@ export class OpsWatchChecks {
     if (total <= 0) return [];
     const fraction = free / total;
     const critical = free < DISK_MIN_FREE_BYTES;
-    if (!critical && fraction >= DISK_MIN_FREE_FRACTION) return [];
 
     // The volume root only (`C:\`): the working directory's full path names the
     // machine's user account, which is not the alert's business.
     const volume = parse(this.disk.path).root || this.disk.path;
-    return [
-      {
+    const findings: Finding[] = [];
+    if (critical || fraction < DISK_MIN_FREE_FRACTION) {
+      findings.push({
         check: "disk.low",
         subject: volume,
         severity: critical ? "critical" : "warning",
         line: `${volume} ${formatBytes(free)} free of ${formatBytes(total)} (${(fraction * 100).toFixed(1)}%)`,
-      },
-    ];
+      });
+    }
+    if (free < FORMATS_MIN_FREE_BYTES) {
+      findings.push({
+        check: "disk.low",
+        subject: `${volume} clip formats`,
+        severity: "warning",
+        line: `${volume} under ${formatBytes(FORMATS_MIN_FREE_BYTES)} free: Autopilot is holding clips' other sizes and images until there is room`,
+      });
+    }
+    return findings;
   }
 
   /** (f) A clips run that failed in the last {@link EVENT_LOOKBACK_MS}. Informational. */

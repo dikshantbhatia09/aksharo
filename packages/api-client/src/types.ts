@@ -1591,11 +1591,19 @@ export interface RepurposeClipFormat {
   captioned: RepurposeCaptionedClip | null;
   /** The same shape without captions, signed to download. */
   cleanUrl: string | null;
+  /**
+   * `space` while the server's disk is too full to make this shape: it is
+   * not being made, and will be once there is room (2026-09-30). Absent
+   * otherwise, and from an API older than it.
+   */
+  waitingFor?: "space";
 }
 
 /** See {@link RepurposeClipItem.images}. */
 export interface RepurposeClipImages {
   status: "none" | "preparing" | "ready" | "failed";
+  /** `space` while the images wait for disk, as {@link RepurposeClipFormat.waitingFor}. */
+  waitingFor?: "space";
   /** One entry per image file (`carousel` has several items); what is made so far. */
   files: Array<{
     id: string;

@@ -2420,6 +2420,34 @@ describe("Autopilot's images, disk guard and old renders", () => {
     expect(formatCuts).toHaveLength(0);
   });
 
+  // Live, 2026-09-30: C: under the floor held three shapes and the images of
+  // every clip for hours while the page said "Being made…" on each of them.
+  it("tells the page which shapes and images wait for disk space", async () => {
+    const heldView = async (free: number) => {
+      h = harness({ run: auto });
+      everyShapeMade(h);
+      // 4:5 never cut; 1:1 cut but its captioned video never asked for.
+      h.tables.variants.splice(1, 1);
+      Object.assign(h.tables.variants[1] ?? {}, { latestExportId: null });
+      h.service.freeBytes = async () => free;
+      const [item] = (await h.service.listClips(WS, RUN)).clips;
+      return item;
+    };
+
+    const low = await heldView(2 * 1024 ** 3);
+    const shapes = new Map(low?.formats.map((format) => [format.shape, format]));
+    expect(shapes.get("4:5")).toMatchObject({ status: "preparing", waitingFor: "space" });
+    expect(shapes.get("1:1")).toMatchObject({ status: "preparing", waitingFor: "space" });
+    // Made shapes, and the 9:16 clip, never wait.
+    expect(shapes.get("9:16")?.waitingFor).toBeUndefined();
+    expect(shapes.get("16:9")?.waitingFor).toBeUndefined();
+    expect(low?.images).toMatchObject({ status: "preparing", waitingFor: "space" });
+
+    const roomy = await heldView(100 * 1024 ** 3);
+    expect(roomy?.formats.some((format) => format.waitingFor !== undefined)).toBe(false);
+    expect(roomy?.images.waitingFor).toBeUndefined();
+  });
+
   it("deletes the older render of a shape once a newer one is made", async () => {
     h = harness({ run: auto });
     everyShapeMade(h);

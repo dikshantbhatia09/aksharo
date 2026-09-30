@@ -504,7 +504,28 @@ describe("disk.low", () => {
 
     await expect(checks.diskLow()).resolves.toMatchObject([
       { severity: "critical", line: "C:\\ 4.0 GiB free of 20.0 GiB (20.0%)" },
+      { subject: "C:\\ clip formats" },
     ]);
+  });
+
+  // 2026-09-30: held for hours with no alert that said so.
+  it("says, on its own, when Autopilot is holding clips' other sizes for disk", async () => {
+    // 7 GiB of 465: a warning already (under 15%), and under the 8 GiB floor.
+    disk = { bsize: 4096, blocks: (465 * GIB) / 4096, bavail: (7 * GIB) / 4096 };
+
+    const findings = await checks.diskLow();
+
+    expect(findings).toHaveLength(2);
+    expect(findings[1]).toEqual({
+      check: "disk.low",
+      subject: "C:\\ clip formats",
+      severity: "warning",
+      line: "C:\\ under 8.0 GiB free: Autopilot is holding clips' other sizes and images until there is room",
+    });
+
+    // Above the floor, only the percentage warning is left.
+    disk = { ...disk, bavail: (9 * GIB) / 4096 };
+    await expect(checks.diskLow()).resolves.toHaveLength(1);
   });
 });
 
