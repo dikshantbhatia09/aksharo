@@ -1633,6 +1633,49 @@ worktrees (`wt/<name>`, branch `feat/<name>`), each merged and verified in
   (`docs/publishing/POSTIZ-SETUP.md` section 2), the owner connects the
   channels and creates the Public API key, and Aksharo gets `POSTIZ_API_KEY`,
   `POSTIZ_WORKSPACE_IDS` and the `publishing_postiz` flag.
+- **Clips' other sizes held for disk, 2026-09-30 evening** (deployed as
+  1eab47e0, `deploy-20260930g.ps1`, undo `rollback-20260930g.ps1`). Every clip
+  of the owner's run showed its 4:5, 1:1 and 16:9 videos and its images as
+  "Being made..." for hours. Cause: C: was under `FORMATS_MIN_FREE_BYTES`
+  (8 GiB), where Autopilot holds them by design (section 19) - but nothing said
+  so: the page showed a spinner, and ops.watch's 15% disk warning is on almost
+  all the time on this disk, so its reminder was no news. Now the clip list
+  marks a held shape or image set `waitingFor: "space"` and the page says
+  "Waiting for storage space on our server"; ops.watch sends the hold as its
+  own finding (`disk.low|C:\ clip formats`). The 9:16 clip is never held.
+- **What fills C: (one 465 GB disk; G: is the same disk).** `pagefile.sys` is
+  system-managed and grew to 43 GB (commit charge ~50 of 56 GB: VS Code
+  windows ~12 GB, the Docker VM 8 GB, Claude sessions ~5 GB); Windows shrinks
+  it only on its own. `docker_data.vhdx` (73.6 GB) is **not sparse**: deleting
+  in MinIO frees nothing on C: until the file is compacted, and MinIO first
+  moves deleted objects to `.minio.sys/tmp/.trash` and empties that in the
+  background. Docker's VM swap (`%TEMP%\<guid>\swap.vhdx`) grows under memory
+  pressure (1.7 GB). worker-ai tests left a `montaj-01JBQ8Z2-*` scratch dir
+  (~46 MB) per test job: 148 of them, 6.8 GB (fixed in 1eab47e0: a session
+  temp dir in `tests/conftest.py`).
+- **The owner's old test runs were purged** (owner: "delete old test
+  videos"): `_orchestration/tools/ops-purge-test-runs-20260930.cjs` (plan by
+  default, `apply`, audited `admin.repurpose.run_purged`) cancelled 12 runs,
+  soft-deleted 278 projects, marked their media purged and exports' files
+  gone, and deleted their objects: MinIO 29 -> 5.7 GiB. Kept: the run in use
+  (`01M3S65NVAPG5X53S8CQ88FM5R`) and Air India (section 9). A cancelled run is
+  skipped by the watchdog, Autopilot, clip reconcile and run notices.
+- **Compaction needs someone at the keyboard.** `maintenance-20260930.ps1`
+  asks for admin FIRST, while the site is up, and stops nothing unless it is
+  accepted within 3 minutes. It also pauses the scheduled task "Crest Mond -
+  BillionMail Cloudflare Tunnel", whose supervisor restarts Docker Desktop
+  whenever it is down (and with it WSL, which locks the disk file), and gives
+  `docker desktop stop` 2 minutes before ending Docker Desktop's processes.
+  The 22:10 run of `maintenance-20260929.ps1` hit all three: the stop hung 5
+  minutes, BillionMail's supervisor restarted Docker, and the UAC prompt went
+  unanswered (Windows cancels it after 2 minutes) - 9 minutes of downtime for
+  nothing.
+- `.next-live-20260930d` was deleted for disk; `rollback-20260930e.ps1` needs
+  it rebuilt from dc7976a7 first.
+- **Load trap**: with a backlog of format cuts landing at once plus builds and
+  test suites on the same machine, the API ran out of Prisma pool connections
+  for ~4 minutes (22:24-22:28); two queued jobs were lost and settled as
+  `jobs/stalled`, and Autopilot re-rendered the clip. Build and test off-peak.
 - **Trap: PowerShell strips double quotes from a native command's arguments.**
   `docker exec ... psql -c 'select count(*) from "User"'` ran as `from User`,
   which Postgres reads as the `user` function and always counts 1. Pipe SQL to
