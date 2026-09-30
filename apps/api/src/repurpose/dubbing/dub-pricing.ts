@@ -3,17 +3,22 @@
  *
  * The vendor (Sarvam's Dubbing API, checked 2026-09-29) charges ₹40 per
  * minute of source per target language, ₹0.667 a second. A person is charged
- * 25 credits per minute per language, on the clip's length rounded up to the
+ * 50 credits per minute per language, on the clip's length rounded up to the
  * second; the daily rupee budget counts the vendor's price the same way. Both
  * round UP, so a quote is never below what the vendor bills.
+ *
+ * 50, not the 25 it shipped with (2026-09-30): a credit is worth Rs 1.99 on
+ * Starter, 1.40 on Creator, 1.33 on Agency and 1.11 on Studio, so at 25 every
+ * plan but Starter paid less than the vendor's Rs 40. At 50 Studio's cheapest
+ * credits pay about Rs 55 a minute, which also covers failed and retried work.
  *
  * A constant here rather than a `BURN_RATES` row in `@montaj/config`: a burn
  * rate becomes every plan's `operations` entitlement in the plans seed, and
  * dubbing is switched on per workspace by its flag, not by plan.
  */
 
-/** 25 credits a minute a language, in tenths. */
-export const DUB_TENTHS_PER_MINUTE = 250;
+/** 50 credits a minute a language, in tenths. */
+export const DUB_TENTHS_PER_MINUTE = 500;
 
 /** ₹40 a minute a language, in paise: the vendor's price. */
 export const DUB_VENDOR_PAISE_PER_MINUTE = 4_000;

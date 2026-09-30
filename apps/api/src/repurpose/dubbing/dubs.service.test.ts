@@ -7,7 +7,7 @@ import {
   type DubTrack,
 } from "@montaj/repurpose-contracts";
 
-import { dubCostTenths, dubVendorPaise } from "./dub-pricing.js";
+import { DUB_TENTHS_PER_MINUTE, dubCostTenths, dubVendorPaise } from "./dub-pricing.js";
 import { DUB_ERRORS } from "./dubs.constants.js";
 import { RepurposeDubsService } from "./dubs.service.js";
 import { AppException } from "../../common/index.js";
@@ -825,7 +825,7 @@ describe("list", () => {
   it("offers each ready clip with its language, its length and the languages taken", async () => {
     h.t.dubs.push(dubRow({ languages: ["hi-IN"] }));
     const view = await h.service.list(WS, RUN);
-    expect(view).toMatchObject({ enabled: true, tenthsPerMinute: 250 });
+    expect(view).toMatchObject({ enabled: true, tenthsPerMinute: DUB_TENTHS_PER_MINUTE });
     expect(view.clips).toEqual([
       {
         clipId: CLIP,
