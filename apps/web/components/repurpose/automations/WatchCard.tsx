@@ -28,6 +28,7 @@ import {
 } from "./use-automations";
 
 import { useBrandKit } from "@/components/brand-kit/use-brand-kit";
+import { brollOfferOf, useBrollLibrary } from "@/components/broll/use-broll-library";
 import { formatRelative } from "@/components/projects/project-table";
 import {
   RunSetupFields,
@@ -83,6 +84,7 @@ function SettingsEditor({
   // A saved brand kit offers the brand switch for the channel's runs (2026-10-02).
   const brandKit = useBrandKit();
   const hasBrandKit = brandKit.data?.exists === true;
+  const broll = brollOfferOf(useBrollLibrary().data);
   const problems = validateRunSetup(value);
 
   const save = (event: React.FormEvent): void => {
@@ -93,7 +95,11 @@ function SettingsEditor({
     update.mutate(
       {
         watchId: watch.id,
-        setup: runSetupRequest(value, { forChannel: true, brandKit: hasBrandKit }),
+        setup: runSetupRequest(value, {
+          forChannel: true,
+          brandKit: hasBrandKit,
+          ...(broll === undefined ? {} : { broll }),
+        }),
       },
       {
         onSuccess: onDone,
@@ -118,6 +124,7 @@ function SettingsEditor({
         problems={showProblems ? problems : {}}
         forChannel
         brandKit={hasBrandKit}
+        {...(broll === undefined ? {} : { broll })}
         idPrefix={`watch-${watch.id}`}
       />
       {error === null ? null : (

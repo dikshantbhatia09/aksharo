@@ -1338,6 +1338,8 @@ export interface RepurposeRunView {
    * from an API older than it (read as off).
    */
   brand?: boolean;
+  /** Whether the run asked for B-roll (2026-10-05); absent from an older API (read as off). */
+  broll?: boolean;
   /**
    * What the run was steered with at the start (2026-09-29): null when it was
    * not, absent from an API older than steering.
@@ -1492,6 +1494,12 @@ export interface CreateRepurposeRunRequest {
      * clips are made exactly as without one.
      */
     brand?: boolean;
+    /**
+     * B-roll (2026-10-05): Autopilot cuts away to a picture where the speaker
+     * names something visual - the workspace's B-roll library first, stock
+     * photos next where they are set up. Left out, no cutaways.
+     */
+    broll?: boolean;
     /**
      * Audiograms (2026-10-04): the cover a source with no picture (an audio
      * file) has its clips drawn with, uploaded first through

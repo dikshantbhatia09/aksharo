@@ -53,6 +53,8 @@ import * as React from "react";
 import { MEDIA_ACCEPT_ATTRIBUTE } from "@montaj/config";
 import { Button, Field, Input, Textarea, cn } from "@montaj/ui";
 
+import type { BrollOffer } from "@/components/broll/use-broll-library";
+
 import { DETAIL_COPY } from "@/components/repurpose/copy";
 import { SOURCE_CEILING_MS, formatBytes, spanPhrase } from "@/components/repurpose/failure-detail";
 import { formatClock, parseClock } from "@/components/repurpose/moment-time";
@@ -289,6 +291,8 @@ export interface SourceStartFormProps {
   readonly submitLabel?: string;
   /** The workspace has a saved brand kit (2026-10-02): the brand switch is offered. */
   readonly brandKit?: boolean;
+  /** What could fill a B-roll cutaway here (2026-10-05): the B-roll switch is offered. */
+  readonly broll?: BrollOffer;
   readonly className?: string;
 }
 
@@ -315,6 +319,7 @@ export function SourceStartForm({
   allowSeveralFiles = false,
   submitLabel,
   brandKit = false,
+  broll,
   className,
 }: SourceStartFormProps): React.JSX.Element {
   const [showProblems, setShowProblems] = React.useState(false);
@@ -654,7 +659,13 @@ export function SourceStartForm({
       </section>
 
       {/* One setup panel, whichever tab is open (§3.3). */}
-      <RunSetupFields value={value} onChange={onChange} problems={visible} brandKit={brandKit} />
+      <RunSetupFields
+        value={value}
+        onChange={onChange}
+        problems={visible}
+        brandKit={brandKit}
+        {...(broll === undefined ? {} : { broll })}
+      />
 
       {serverError !== null && (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">

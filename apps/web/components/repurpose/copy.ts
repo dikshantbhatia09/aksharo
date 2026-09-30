@@ -725,6 +725,19 @@ export const BRAND_COPY = Object.freeze({
 });
 
 /**
+ * B-roll (2026-10-05): a still picture with a slow push-in or pan, never a
+ * video clip - the copy says "picture" so nobody expects footage.
+ */
+export const BROLL_COPY = Object.freeze({
+  label: "Add B-roll",
+  library:
+    "Autopilot cuts away to a picture from your B-roll library where the speaker names what it shows.",
+  stock: "Autopilot cuts away to a stock photo where the speaker names something to show.",
+  off: "Clips are made without B-roll.",
+  link: "Library",
+});
+
+/**
  * The run page's way round YouTube (Wave B): while YouTube is refusing this
  * server the run waits and continues by itself, and a person who has the file
  * can upload it instead - into the same run, keeping its settings.

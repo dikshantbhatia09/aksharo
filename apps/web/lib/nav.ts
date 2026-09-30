@@ -4,6 +4,7 @@ import {
   Gift,
   GraduationCap,
   HandHeart,
+  Images,
   LayoutGrid,
   LifeBuoy,
   LayoutTemplate,
@@ -200,6 +201,16 @@ export const SECONDARY_NAV: readonly NavItem[] = [
     ready: true,
   },
   {
+    // 2026-10-05: the pictures clips cut away to (B-roll). It lives in
+    // Settings beside the brand kit; this is the way to it.
+    key: "broll",
+    label: "B-roll library",
+    short: "B-roll",
+    href: "/settings/broll",
+    icon: Images,
+    ready: true,
+  },
+  {
     key: "affiliate",
     label: "Refer & earn",
     short: "Refer",
@@ -260,6 +271,12 @@ export const SETTINGS_NAV: readonly SettingsSection[] = [
     label: "Brand kit",
     href: "/settings/brand-kit",
     description: "Your logo, colours and end card, on the clips Autopilot makes.",
+  },
+  {
+    key: "broll",
+    label: "B-roll library",
+    href: "/settings/broll",
+    description: "Pictures your clips cut away to when you name what they show.",
   },
   {
     key: "notifications",
