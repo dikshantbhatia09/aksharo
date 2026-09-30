@@ -8,6 +8,7 @@ import {
   ScriptIdSchema,
   StyleRefSchema,
   UlidSchema,
+  WordIdSchema,
 } from "./primitives.js";
 import { SegmentSchema } from "./segment.js";
 
@@ -127,8 +128,24 @@ export const ProtectedRangeSchema = z
 /** The longest overlay text: a hook is seven words or so, and this still bounds a paste. */
 export const OVERLAY_TEXT_MAX = 120;
 
-/** The most overlays one document carries: one hook title per clip, with room to grow. */
-export const MAX_OVERLAYS = 8;
+/**
+ * The most overlays one document carries: a hook title, a logo, an end card,
+ * two series labels and the B-roll cutaways (2026-10-05; eight before B-roll).
+ */
+export const MAX_OVERLAYS = 16;
+
+/** The most B-roll cutaways one document carries (2026-10-05): half of {@link MAX_OVERLAYS}. */
+export const MAX_BROLL_OVERLAYS = 8;
+
+/**
+ * How long one B-roll cutaway may be, in ms (2026-10-05): shorter reads as a
+ * glitch, longer hides the speaker for too long. The engine refuses a shorter
+ * window and cuts a longer one to the maximum.
+ */
+export const BROLL_DURATION_MS = { min: 1_000, max: 15_000 } as const;
+
+/** A cutaway's label ("the Taj Mahal"): what the editor lists it as, never drawn. */
+export const BROLL_LABEL_MAX = 80;
 
 /** An end card's call to action ("Follow for more"): a line, not a paragraph. */
 export const END_CARD_CTA_MAX = 60;
@@ -144,10 +161,11 @@ export const LOGO_MARGIN_PCT = { min: 0, max: 15 } as const;
 
 /**
  * What an overlay is (2026-09-29, brand kit 2026-10-02): the hook title, a
- * brand logo in a corner, and an end card over the last seconds.
+ * brand logo in a corner, and an end card over the last seconds; and B-roll
+ * (2026-10-05), a picture cut away to over the words that name it.
  */
 export const OverlayKindSchema = z
-  .enum(["hook-title", "logo", "end-card"])
+  .enum(["hook-title", "logo", "end-card", "b-roll"])
   .meta({ id: "OverlayKind", title: "OverlayKind" });
 
 /**
@@ -261,11 +279,64 @@ export const EndCardOverlaySchema = z
   .meta({ id: "EndCardOverlay", title: "EndCardOverlay" });
 
 /**
- * Something drawn over the video that is not a caption: a hook title, a logo
- * or an end card, told apart by `kind`.
+ * Where a B-roll picture goes (2026-10-05): over the whole frame, covering the
+ * speaker, or in a box beside them (picture in picture). No registry `id`, for
+ * the reason `HexColourSchema` gives.
+ */
+export const BRollModeSchema = z.enum(["full", "pip"]).meta({ title: "BRollMode" });
+
+/**
+ * How a B-roll picture moves while it is up (2026-10-05): a slow push in or
+ * pull out, a slow pan (`pan-left`: the picture drifts left, so more of its
+ * right side comes into view), or still.
+ */
+export const BRollMotionSchema = z
+  .enum(["push-in", "pull-out", "pan-left", "pan-right", "none"])
+  .meta({ title: "BRollMotion" });
+
+/**
+ * A B-roll cutaway (2026-10-05): a still picture over the words that name it,
+ * full frame or picture in picture, with a slow push in or pan and short fades.
+ * The render cannot decode a second video yet, so a cutaway is a picture, never
+ * a clip.
+ *
+ * The picture is one of the workspace's own B-roll library
+ * (`ws/{workspaceId}/broll/{assetId}.{png|jpg|webp}`; the workspace comes from
+ * whoever renders, never from the document, as for a logo). On the source
+ * clock like every overlay. `startWordId`/`endWordId` and `label` are the
+ * editor's (which words it covers, and what it shows); nothing draws them.
+ *
+ * Captions always stay on top of it, and it gives way to a hook title (a series
+ * label is one) and an end card: `render-core` fades it out while one is up.
+ * Where a picture-in-picture box sits (off the faces and the captions) is
+ * worked out when it is drawn, like a hook title's place.
+ */
+export const BRollOverlaySchema = z
+  .object({
+    id: UlidSchema,
+    kind: z.literal("b-roll"),
+    startMs: MsSchema,
+    endMs: MsSchema,
+    image: OverlayImageSchema,
+    mode: BRollModeSchema,
+    motion: BRollMotionSchema,
+    startWordId: WordIdSchema.optional(),
+    endWordId: WordIdSchema.optional(),
+    label: z.string().max(BROLL_LABEL_MAX).optional(),
+  })
+  .meta({ id: "BRollOverlay", title: "BRollOverlay" });
+
+/**
+ * Something drawn over the video that is not a caption: a hook title, a logo,
+ * an end card or a B-roll cutaway, told apart by `kind`.
  */
 export const OverlaySchema = z
-  .discriminatedUnion("kind", [HookTitleOverlaySchema, LogoOverlaySchema, EndCardOverlaySchema])
+  .discriminatedUnion("kind", [
+    HookTitleOverlaySchema,
+    LogoOverlaySchema,
+    EndCardOverlaySchema,
+    BRollOverlaySchema,
+  ])
   .meta({ id: "Overlay", title: "Overlay" });
 
 /**
@@ -287,8 +358,9 @@ export const EdgHotSchema = z
     protected: z.array(ProtectedRangeSchema).optional(),
     /**
      * Title cards and the like, drawn over the captions (2026-09-29): the hook
-     * title, and a brand kit's logo and end card (2026-10-02). Absent on every
-     * document written before them, which renders exactly as before.
+     * title, and a brand kit's logo and end card (2026-10-02); and B-roll
+     * cutaways (2026-10-05), drawn under them. Absent on every document written
+     * before them, which renders exactly as before.
      */
     overlays: z.array(OverlaySchema).max(MAX_OVERLAYS).optional(),
   })
@@ -329,6 +401,9 @@ export type HookTitleAppearance = z.infer<typeof HookTitleAppearanceSchema>;
 export type HookTitleOverlay = z.infer<typeof HookTitleOverlaySchema>;
 export type LogoOverlay = z.infer<typeof LogoOverlaySchema>;
 export type EndCardOverlay = z.infer<typeof EndCardOverlaySchema>;
+export type BRollMode = z.infer<typeof BRollModeSchema>;
+export type BRollMotion = z.infer<typeof BRollMotionSchema>;
+export type BRollOverlay = z.infer<typeof BRollOverlaySchema>;
 export type Overlay = z.infer<typeof OverlaySchema>;
 export type EdgHot = z.infer<typeof EdgHotSchema>;
 export type EdgProjection = z.infer<typeof EdgProjectionSchema>;

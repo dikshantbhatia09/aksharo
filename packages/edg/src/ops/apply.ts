@@ -20,7 +20,13 @@ import {
   wordAfter,
 } from "./state.js";
 import { decodeKeyframes, encodeKeyframes } from "../passes/keyframes.js";
-import { MAX_OVERLAYS, type Overlay, type ProtectedRange } from "../schemas/document.js";
+import {
+  BROLL_DURATION_MS,
+  MAX_BROLL_OVERLAYS,
+  MAX_OVERLAYS,
+  type Overlay,
+  type ProtectedRange,
+} from "../schemas/document.js";
 import {
   type DecideItemsOp,
   type EdgOp,
@@ -930,26 +936,59 @@ function cleanOverlay(overlay: Overlay): Overlay {
         ...(handle === "" ? {} : { handle }),
       };
     }
+    case "b-roll": {
+      // A B-roll's label (2026-10-05) is the editor's; an empty one is left out.
+      const { label: rawLabel, ...rest } = overlay;
+      const label = rawLabel?.trim() ?? "";
+      return label === "" ? rest : { ...rest, label };
+    }
   }
+}
+
+/**
+ * A B-roll cutaway's window once clamped to the media (2026-10-05): refused
+ * when shorter than {@link BROLL_DURATION_MS}'s minimum (a flash reads as a
+ * glitch), cut to its maximum when longer.
+ */
+function brollWindow(
+  id: string,
+  startMs: number,
+  endMs: number,
+): { startMs: number; endMs: number } {
+  if (endMs - startMs < BROLL_DURATION_MS.min) {
+    fail(
+      "invalid-range",
+      `b-roll ${id} would last ${String(endMs - startMs)} ms, under ${String(BROLL_DURATION_MS.min)}`,
+    );
+  }
+  return { startMs, endMs: Math.min(endMs, startMs + BROLL_DURATION_MS.max) };
 }
 
 /**
  * Adds or replaces one overlay by id (2026-09-29). The window is clamped to the
  * media, like every other range the engine takes; one that is empty after that,
  * or text that is only spaces, is refused rather than stored as something that
- * would never draw.
+ * would never draw. A B-roll cutaway (2026-10-05) is also held to its length
+ * ({@link brollWindow}) and to {@link MAX_BROLL_OVERLAYS} per document.
  */
 function applySetOverlay(draft: EdgDraft, op: SetOverlayOp): void {
   const overlay = cleanOverlay(op.overlay);
   const durationMs = mediaDurationMs(draft);
-  const startMs = Math.max(0, overlay.startMs);
-  const endMs = durationMs === undefined ? overlay.endMs : Math.min(overlay.endMs, durationMs);
+  let startMs = Math.max(0, overlay.startMs);
+  let endMs = durationMs === undefined ? overlay.endMs : Math.min(overlay.endMs, durationMs);
   if (startMs >= endMs) {
     fail("invalid-range", `overlay ${overlay.id} would span ${String(startMs)}-${String(endMs)}`);
   }
+  if (overlay.kind === "b-roll") ({ startMs, endMs } = brollWindow(overlay.id, startMs, endMs));
   const rest = (draft.hot.overlays ?? []).filter((entry) => entry.id !== overlay.id);
   if (rest.length >= MAX_OVERLAYS) {
     fail("invariant", `a document carries at most ${String(MAX_OVERLAYS)} overlays`);
+  }
+  if (
+    overlay.kind === "b-roll" &&
+    rest.filter((entry) => entry.kind === "b-roll").length >= MAX_BROLL_OVERLAYS
+  ) {
+    fail("invariant", `a document carries at most ${String(MAX_BROLL_OVERLAYS)} b-roll cutaways`);
   }
   withOverlays(draft, [...rest, { ...overlay, startMs, endMs }]);
 }

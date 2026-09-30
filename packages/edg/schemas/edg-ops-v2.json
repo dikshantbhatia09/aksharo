@@ -1464,6 +1464,9 @@
         },
         {
           "$ref": "#/$defs/EndCardOverlay"
+        },
+        {
+          "$ref": "#/$defs/BRollOverlay"
         }
       ],
       "title": "Overlay"
@@ -1657,6 +1660,64 @@
       "required": ["id", "kind", "startMs", "endMs", "background"],
       "additionalProperties": false,
       "title": "EndCardOverlay"
+    },
+    "BRollOverlay": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/Ulid"
+        },
+        "kind": {
+          "type": "string",
+          "const": "b-roll"
+        },
+        "startMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "title": "Milliseconds"
+        },
+        "endMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "title": "Milliseconds"
+        },
+        "image": {
+          "$ref": "#/$defs/OverlayImage"
+        },
+        "mode": {
+          "type": "string",
+          "enum": ["full", "pip"],
+          "title": "BRollMode"
+        },
+        "motion": {
+          "type": "string",
+          "enum": ["push-in", "pull-out", "pan-left", "pan-right", "none"],
+          "title": "BRollMotion"
+        },
+        "startWordId": {
+          "type": "string",
+          "pattern": "^\\d+:\\d+$",
+          "title": "WordId",
+          "description": "Stable word id \"<chunkIdx>:<n>\", allocated once and never reused (D28)",
+          "examples": ["0:0", "3:1274"]
+        },
+        "endWordId": {
+          "type": "string",
+          "pattern": "^\\d+:\\d+$",
+          "title": "WordId",
+          "description": "Stable word id \"<chunkIdx>:<n>\", allocated once and never reused (D28)",
+          "examples": ["0:0", "3:1274"]
+        },
+        "label": {
+          "type": "string",
+          "maxLength": 80
+        }
+      },
+      "required": ["id", "kind", "startMs", "endMs", "image", "mode", "motion"],
+      "additionalProperties": false,
+      "title": "BRollOverlay"
     },
     "RemoveOverlay": {
       "type": "object",

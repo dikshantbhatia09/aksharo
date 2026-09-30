@@ -19,3 +19,5 @@ export * from "./passes/keyframes.js";
 export * from "./timeline-ops.js";
 // How a workspace's brand kit becomes style overrides and overlays (2026-10-02).
 export * from "./brand.js";
+// Where a B-roll cutaway goes, for Autopilot and the editor alike (2026-10-05).
+export * from "./broll.js";
