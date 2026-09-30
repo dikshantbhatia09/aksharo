@@ -120,6 +120,23 @@ def test_a_moment_like_a_hit_is_lifted_more_the_more_it_shares() -> None:
     assert four.shared == ("cricket", "gift", "grandfather", "village")
 
 
+def test_sharing_only_the_passing_words_of_what_was_said_is_not_being_alike() -> None:
+    track = record(
+        hits=[
+            {
+                "title": "Why my first SIP failed",
+                "excerpt": "we walked to the market after lunch and talked about plans",
+                "views": 10,
+                "platform": "youtube",
+            }
+        ]
+    )
+    # Only excerpt words: not lifted.
+    assert lift_for(track, frozenset({"market", "lunch", "plan"}), 20_000, "").value == 0
+    # A title word and an excerpt word: lifted.
+    assert lift_for(track, frozenset({"failed", "market"}), 20_000, "").value > 0
+
+
 def test_words_the_whole_video_says_do_not_count() -> None:
     sentences = [frozenset({"cricket", "match"})] * 6 + [frozenset({"weather"})] * 4
     track = TrackRecord.of(PerformanceSignal.model_validate(signal()), sentences)

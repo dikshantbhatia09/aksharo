@@ -7,9 +7,10 @@ when its numbers show a clear difference - the length band and the kind of
 opening that did best. This turns that into a lift on each moment's potential:
 
 - **like a hit** (:data:`HIT_LIFT` at most): the moment shares at least
-  :data:`MIN_SHARED` content words with one of the best clips - words that are
-  not everywhere in this video, since a word every moment of a finance podcast
-  says ("money") tells its moments apart from nothing;
+  :data:`MIN_SHARED` content words with one of the best clips, one of them from
+  its title or hook - words that are not everywhere in this video, since a word
+  every moment of a finance podcast says ("money") tells its moments apart
+  from nothing;
 - **the length that did best** (:data:`LENGTH_LIFT`);
 - **the opening that did best** (:data:`HOOK_LIFT`): a question, a number, the
   viewer addressed, or a plain statement, classified the way the API
@@ -215,6 +216,9 @@ def hook_style(text: str) -> str:
 class _Hit:
     index: int
     hit: PerformanceHit
+    #: Its title's and hook's words: what it was about, as it was posted.
+    headline: frozenset[str]
+    #: Those and the words of what was said in it.
     keywords: frozenset[str]
 
 
@@ -239,6 +243,7 @@ class TrackRecord:
             _Hit(
                 index=index,
                 hit=hit,
+                headline=keywords(" ".join(filter(None, (hit.title, hit.hook)))),
                 keywords=keywords(" ".join(filter(None, (hit.title, hit.hook, hit.excerpt)))),
             )
             for index, hit in enumerate(signal.hits)
@@ -287,6 +292,10 @@ def lift_for(
     usable = moment_keywords - record.common
     for entry in record.hits:
         shared = usable & entry.keywords
+        # At least one of the words is from its title or hook: sharing only
+        # the passing words of what was said in it is not being about the same.
+        if not shared & entry.headline:
+            continue
         # The first hit is the best one: a tie keeps it.
         if len(shared) >= MIN_SHARED and len(shared) > len(best_shared):
             best, best_shared = entry, shared
