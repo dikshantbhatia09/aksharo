@@ -47,9 +47,10 @@ export interface EdgProjection {
   /** Per-speaker caption colours, for the podcast styles. */
   readonly speakerColours?: Readonly<Record<string, string>>;
   /**
-   * `EdgHot.overlays` (2026-09-29): the hook title, and a brand kit's logo and
-   * end card (2026-10-02), drawn by `renderFrame`. Absent — every projection
-   * built before it — draws exactly what it drew before.
+   * `EdgHot.overlays` (2026-09-29): the hook title, a brand kit's logo and end
+   * card (2026-10-02), and B-roll cutaways (2026-10-05), drawn by
+   * `renderFrame`. Absent — every projection built before it — draws exactly
+   * what it drew before.
    */
   readonly overlays?: readonly OverlayTrack[];
 }

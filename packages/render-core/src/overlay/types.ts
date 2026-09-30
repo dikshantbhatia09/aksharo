@@ -4,7 +4,9 @@
  *
  * - the hook title (2026-09-29), a card over a clip's first seconds;
  * - a brand logo in a corner, and an end card over its last seconds (the brand
- *   kit, 2026-10-02).
+ *   kit, 2026-10-02);
+ * - a B-roll cutaway (2026-10-05): a still picture over the words that name it,
+ *   drawn under the captions.
  *
  * These mirror `@montaj/edg`'s `OverlaySchema` field for field; they are
  * restated here, readonly and structural, because the renderer runs in places
@@ -17,11 +19,14 @@ export const HOOK_TITLE_KIND = "hook-title";
 export const LOGO_KIND = "logo";
 /** A brand end card over the last seconds (2026-10-02). */
 export const END_CARD_KIND = "end-card";
+/** A B-roll cutaway (2026-10-05). */
+export const BROLL_KIND = "b-roll";
 
 /**
- * An image an overlay draws: a workspace's uploaded logo. `assetId` is the key
- * an `image` command names and the host resolves to bytes; `width`/`height` are
- * the file's own pixel size, so it can be sized without decoding it.
+ * An image an overlay draws: a workspace's uploaded logo, or a picture of its
+ * B-roll library (2026-10-05). `assetId` is the key an `image` command names
+ * and the host resolves to bytes; `width`/`height` are the file's own pixel
+ * size, so it can be sized without decoding it.
  */
 export interface OverlayImageRef {
   readonly assetId: string;
@@ -79,18 +84,38 @@ export interface EndCardTrack {
   readonly image?: OverlayImageRef;
 }
 
+/** Over the whole frame, or in a box beside the speaker. */
+export type BRollMode = "full" | "pip";
+
+/** A slow push in or pull out, a slow pan (`pan-left`: the picture drifts left), or still. */
+export type BRollMotion = "push-in" | "pull-out" | "pan-left" | "pan-right" | "none";
+
+export interface BRollTrack {
+  readonly id: string;
+  readonly kind: typeof BROLL_KIND;
+  readonly startMs: number;
+  readonly endMs: number;
+  readonly image: OverlayImageRef;
+  readonly mode: BRollMode;
+  readonly motion: BRollMotion;
+  /** The words it covers and what it shows: the editor's, never drawn. */
+  readonly startWordId?: string;
+  readonly endWordId?: string;
+  readonly label?: string;
+}
+
 /** Any overlay, told apart by `kind`. */
-export type OverlayTrack = HookTitleTrack | LogoTrack | EndCardTrack;
+export type OverlayTrack = HookTitleTrack | LogoTrack | EndCardTrack | BRollTrack;
 
 /**
- * Every image the overlays draw (a brand logo, in a corner or on an end card),
- * once each: what a host fetches and registers with its backend before
- * drawing, so an `image` command finds its bytes.
+ * Every image the overlays draw (a brand logo, in a corner or on an end card,
+ * and a B-roll picture), once each: what a host fetches and registers with its
+ * backend before drawing, so an `image` command finds its bytes.
  */
 export function overlayImageIds(overlays: readonly OverlayTrack[] | undefined): string[] {
   const ids = new Set<string>();
   for (const overlay of overlays ?? []) {
-    if (overlay.kind === LOGO_KIND) ids.add(overlay.image.assetId);
+    if (overlay.kind === LOGO_KIND || overlay.kind === BROLL_KIND) ids.add(overlay.image.assetId);
     if (overlay.kind === END_CARD_KIND && overlay.image !== undefined) {
       ids.add(overlay.image.assetId);
     }

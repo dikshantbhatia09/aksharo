@@ -150,6 +150,10 @@ export {
 
 // The overlay tracks, and the brand kit's logo and end card (2026-10-02).
 export {
+  BROLL_KIND,
+  type BRollMode,
+  type BRollMotion,
+  type BRollTrack,
   END_CARD_KIND,
   type EndCardTrack,
   HOOK_TITLE_KIND,
@@ -180,6 +184,22 @@ export {
   endCardProgress,
   layoutEndCard,
 } from "./overlay/end-card.js";
+// B-roll cutaways (2026-10-05).
+export {
+  BROLL_FADE_MS,
+  BROLL_PAN_TRAVEL,
+  BROLL_ZOOM,
+  type BRollLayout,
+  type BRollLayoutInput,
+  brollOpacity,
+  brollPictureRect,
+  drawBRoll,
+  layoutBRoll,
+  PIP_SLOTS,
+  PIP_WIDTH,
+  type PipSlot,
+  pipRect,
+} from "./overlay/b-roll.js";
 
 export { isRenderError, RenderError, type RenderErrorCode } from "./errors.js";
 

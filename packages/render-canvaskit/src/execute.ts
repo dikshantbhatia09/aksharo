@@ -260,10 +260,17 @@ export function executeCommands(context: ExecutionContext, commands: readonly Dr
         const paint = arena.keep(new ck.Paint());
         paint.setAntiAlias(true);
         paint.setAlphaf(command.opacity ?? 1);
-        canvas.drawImageRect(
+        // Bilinear, the way a Canvas2D `drawImage` in the cloud samples it
+        // (2026-10-05). Plain `drawImageRect` samples the nearest pixel, which a
+        // downscaled logo hid and a B-roll picture scaled up to cover the frame
+        // does not: its edges came out stepped, and 5 % of a frame's pixels
+        // away from the cloud render's.
+        canvas.drawImageRectOptions(
           image,
           ck.XYWHRect(0, 0, image.width(), image.height()),
           rect(ck, command.dest),
+          ck.FilterMode.Linear,
+          ck.MipmapMode.None,
           paint,
         );
         break;

@@ -19,6 +19,10 @@ import { hashCommands } from "../src/commands/hash.js";
 import { countCommands } from "../src/commands/types.js";
 import { layoutSegment } from "../src/layout/layout.js";
 import {
+  BROLL_CANVASES,
+  BROLL_FIXTURES,
+  BROLL_TIMESTAMPS_MS,
+  brollGoldenCommands,
   CAPTION_FIXTURES,
   createFixtureRenderer,
   GOLDEN_CANVAS,
@@ -119,8 +123,30 @@ async function main(): Promise<void> {
     `${JSON.stringify({ style: "punch-pop", entries: hookEntries }, null, 1)}\n`,
     "utf8",
   );
+  // B-roll cutaways (2026-10-05): their own file too. No style: a cutaway is
+  // a picture, and is drawn the same under any caption style.
+  const brollEntries: HookTitleEntry[] = [];
+  for (const overlay of BROLL_FIXTURES) {
+    for (const [shape, canvas] of Object.entries(BROLL_CANVASES)) {
+      for (const tMs of BROLL_TIMESTAMPS_MS) {
+        const commands = brollGoldenCommands(overlay, canvas, tMs);
+        brollEntries.push({
+          fixture: `${overlay.mode}-${overlay.motion}`,
+          shape,
+          tMs,
+          commands: countCommands(commands),
+          hash: hashCommands(commands),
+        });
+      }
+    }
+  }
+  writeFileSync(
+    join(GOLDEN_DIR, "b-roll.json"),
+    `${JSON.stringify({ entries: brollEntries }, null, 1)}\n`,
+    "utf8",
+  );
   console.log(
-    `wrote ${String(hashes.length)} golden hashes, ${String(CAPTION_FIXTURES.length)} snapshots and ${String(hookEntries.length)} hook-title hashes`,
+    `wrote ${String(hashes.length)} golden hashes, ${String(CAPTION_FIXTURES.length)} snapshots, ${String(hookEntries.length)} hook-title hashes and ${String(brollEntries.length)} b-roll hashes`,
   );
 }
 

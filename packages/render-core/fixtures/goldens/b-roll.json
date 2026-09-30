@@ -1,0 +1,130 @@
+{
+ "entries": [
+  {
+   "fixture": "full-push-in",
+   "shape": "portrait",
+   "tMs": 4100,
+   "commands": 2,
+   "hash": "ffa18282a3a263ed159a011698ed5d3c947d7fa928b68b0286a7d606df7fe914"
+  },
+  {
+   "fixture": "full-push-in",
+   "shape": "portrait",
+   "tMs": 5500,
+   "commands": 2,
+   "hash": "4511c356e19717bec64a8f2fc1ac272746d4596845f50817d19aa2277aeee571"
+  },
+  {
+   "fixture": "full-push-in",
+   "shape": "portrait",
+   "tMs": 6900,
+   "commands": 2,
+   "hash": "616b833326abbb42b9f7943755f18fec3fb4c78788b3070726deb89ba0759196"
+  },
+  {
+   "fixture": "full-push-in",
+   "shape": "landscape",
+   "tMs": 4100,
+   "commands": 2,
+   "hash": "14626b0a77f51b0c28dc845024abb1668c651504cc691b6f78cd6649ef5e56a4"
+  },
+  {
+   "fixture": "full-push-in",
+   "shape": "landscape",
+   "tMs": 5500,
+   "commands": 2,
+   "hash": "4ec92b1d657572f4ffdd4212f2ec3b9d13f1cc8f5f9ff0bf75b68c5ef7fdb5e5"
+  },
+  {
+   "fixture": "full-push-in",
+   "shape": "landscape",
+   "tMs": 6900,
+   "commands": 2,
+   "hash": "2eefcf4c68630f24d8941a8cb057ba7074d57b2865a312ad92f566b01222aa42"
+  },
+  {
+   "fixture": "full-pan-left",
+   "shape": "portrait",
+   "tMs": 4100,
+   "commands": 2,
+   "hash": "9f2e2949bc0d787e528228dd5d15895cb96e399cfb0bb2e7039c49c84446b337"
+  },
+  {
+   "fixture": "full-pan-left",
+   "shape": "portrait",
+   "tMs": 5500,
+   "commands": 2,
+   "hash": "16161e1cee1b258bd09312fdad25e76112497da6910b7d6816e1ef9dcdcd2ed2"
+  },
+  {
+   "fixture": "full-pan-left",
+   "shape": "portrait",
+   "tMs": 6900,
+   "commands": 2,
+   "hash": "c908f148f3f77e7a53dda113708891011aaf5f06d97fc14dedd9ba3c7d32e9ae"
+  },
+  {
+   "fixture": "full-pan-left",
+   "shape": "landscape",
+   "tMs": 4100,
+   "commands": 2,
+   "hash": "ecc34b56f7ee95a6c6257f7be8807b4ed50b116660073274bba155aed52e5df9"
+  },
+  {
+   "fixture": "full-pan-left",
+   "shape": "landscape",
+   "tMs": 5500,
+   "commands": 2,
+   "hash": "8fae62f18d5f8a84f1c74aba8b190eb0b37e9ee989b82aef068078008ce70eaf"
+  },
+  {
+   "fixture": "full-pan-left",
+   "shape": "landscape",
+   "tMs": 6900,
+   "commands": 2,
+   "hash": "3e6c52d59e882772747b894de76426d4773b407bcd604aaf24a87dab08abd8a3"
+  },
+  {
+   "fixture": "pip-pull-out",
+   "shape": "portrait",
+   "tMs": 4100,
+   "commands": 5,
+   "hash": "32d73f41a4f0cf11de71315c4cbea7f4f58de73c5cdcc860c93305276cf7ada5"
+  },
+  {
+   "fixture": "pip-pull-out",
+   "shape": "portrait",
+   "tMs": 5500,
+   "commands": 5,
+   "hash": "b142f530849de727005ce1782e7bc7201a58c28f29b3fff92bf65dcc370725c4"
+  },
+  {
+   "fixture": "pip-pull-out",
+   "shape": "portrait",
+   "tMs": 6900,
+   "commands": 5,
+   "hash": "f61f8fe6224ff7541b0db600e2069baa3847604dfa89524d61382ece1ae021d3"
+  },
+  {
+   "fixture": "pip-pull-out",
+   "shape": "landscape",
+   "tMs": 4100,
+   "commands": 5,
+   "hash": "e9f5ea209d94491ae470f2fa8f1b27adb819315c3fb51544462da42f431019a0"
+  },
+  {
+   "fixture": "pip-pull-out",
+   "shape": "landscape",
+   "tMs": 5500,
+   "commands": 5,
+   "hash": "a60998a7f768993f26fecd7ed1f1781f3e5c0107a97133179c6a3fc1e68c6e2a"
+  },
+  {
+   "fixture": "pip-pull-out",
+   "shape": "landscape",
+   "tMs": 6900,
+   "commands": 5,
+   "hash": "ad8a5c2c67a96c6366200fda381709b2c0a057a1c3a914e46d9350fde2b59423"
+  }
+ ]
+}
