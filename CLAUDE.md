@@ -1584,6 +1584,21 @@ worktrees (`wt/<name>`, branch `feat/<name>`), each merged and verified in
     filter and the 60 % bar, shown as a `track_record` reason. Past hits are
     never put in the model's prompt. An old worker-ai refuses the option, so
     worker-ai deploys before the api.
+- **Guest links, deployed as dc7976a7** (`deploy-20260930e.ps1`, undo
+  `rollback-20260930e.ps1`; DB backup `montaj_main-pre-20260930e.dump`;
+  migration `20261005130000_clip_guest_links`, one table): a run's clips for a
+  podcast's guest to download and repost, no account (`apps/api/src/repurpose/guest`,
+  `/share/guest/<token>`). Its own table, not a kind of review link (a review
+  link can approve, and an older api would read every guest link as one);
+  the token machinery is the review links' (SHA-256 stored, token only in the
+  `x-guest-token` header), 1-30 days (default 14), 20 live links a run, editors
+  and up. "Clips need approval before posting" applies: a guest only gets
+  approved videos. Every URL is signed per view for 20 minutes; downloads are
+  counted and audited. Uses `repurpose_flow` and `shares.public`, no new flag.
+  Verified live: 2 clips x 4 shapes, the Hindi dub, 11 images each, text for 7
+  platforms, the episode's LinkedIn post and X thread; a wrong token 404, a
+  turned-off link 410. **Open:** renders expire after 7 days (owner exempt)
+  while a link lasts 14 by default - after that a guest gets the clean cut only.
 - **Known, not fixed**: API unit tests and past dev sessions left ~40 MB of
   keys under test prefixes (`montaj-test-*`, `a23`, `montaj-s07`, ...) in the
   production Redis (`test/setup-env.ts` assigns `localhost:6379`).
