@@ -18,6 +18,7 @@ import {
 } from "./performance.constants.js";
 import {
   PLATFORM_LABELS,
+  POST_PLATFORMS,
   isPostPlatform,
   isRefusal,
   parsePostLink,
@@ -498,13 +499,32 @@ export class ClipPostsService {
       readonly enabled?: (workspaceId: string) => Promise<boolean>;
     } = {},
   ): Promise<number> {
+    const unadopted: Prisma.PublishTargetWhereInput = {
+      ...scope,
+      status: "published",
+      externalPostId: { not: null },
+      provider: { in: [...POST_PLATFORMS] },
+      clipPost: { is: null },
+    };
+    let where = unadopted;
+    if (options.enabled !== undefined) {
+      // Only workspaces with the feature on, asked BEFORE the batch is taken:
+      // a workspace with it off and hundreds of posts would otherwise fill
+      // every batch and keep the others' posts out for good.
+      const workspaces = await this.prisma.publishTarget.findMany({
+        where: unadopted,
+        distinct: ["workspaceId"],
+        select: { workspaceId: true },
+      });
+      const on: string[] = [];
+      for (const { workspaceId } of workspaces) {
+        if (await options.enabled(workspaceId).catch(() => false)) on.push(workspaceId);
+      }
+      if (on.length === 0) return 0;
+      where = { ...unadopted, workspaceId: { in: on } };
+    }
     const targets = await this.prisma.publishTarget.findMany({
-      where: {
-        ...scope,
-        status: "published",
-        externalPostId: { not: null },
-        clipPost: { is: null },
-      },
+      where,
       orderBy: [{ publishedAt: "asc" }, { id: "asc" }],
       take: options.limit ?? 200,
       select: {
@@ -520,18 +540,9 @@ export class ClipPostsService {
         variant: { select: { aspect: true } },
       },
     });
-    const allowed = new Map<string, boolean>();
     let adopted = 0;
     for (const target of targets) {
       if (!isPostPlatform(target.provider) || target.externalPostId === null) continue;
-      if (options.enabled !== undefined) {
-        let on = allowed.get(target.workspaceId);
-        if (on === undefined) {
-          on = await options.enabled(target.workspaceId).catch(() => false);
-          allowed.set(target.workspaceId, on);
-        }
-        if (!on) continue;
-      }
       const platform: PostPlatform = target.provider;
       const { key, url } = postizPostKey(platform, target.externalUrl, target.externalPostId);
       const now = this.now();

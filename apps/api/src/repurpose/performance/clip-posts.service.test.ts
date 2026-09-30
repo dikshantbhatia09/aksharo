@@ -212,6 +212,34 @@ describe("ClipPostsService.runPerformance", () => {
   });
 });
 
+describe("ClipPostsService.adoptPublished", () => {
+  it("asks which workspaces have the feature on before taking a batch", async () => {
+    const h = harness();
+    const other = "01JPS0WS000000000000000002";
+    h.prisma.publishTarget.findMany
+      .mockResolvedValueOnce([{ workspaceId: WS }, { workspaceId: other }] as never)
+      .mockResolvedValueOnce([] as never);
+    const enabled = vi.fn(async (workspaceId: string) => workspaceId === WS);
+    expect(await h.service.adoptPublished({}, { enabled })).toBe(0);
+    const calls = h.prisma.publishTarget.findMany.mock.calls as unknown as [
+      { where: Record<string, unknown>; distinct?: string[] },
+    ][];
+    expect(calls[0]?.[0].distinct).toEqual(["workspaceId"]);
+    expect(calls[1]?.[0].where).toMatchObject({
+      status: "published",
+      workspaceId: { in: [WS] },
+      clipPost: { is: null },
+    });
+  });
+
+  it("takes no batch at all when no workspace has it on", async () => {
+    const h = harness();
+    h.prisma.publishTarget.findMany.mockResolvedValueOnce([{ workspaceId: WS }] as never);
+    expect(await h.service.adoptPublished({}, { enabled: async () => false })).toBe(0);
+    expect(h.prisma.publishTarget.findMany).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("ClipPostsService.addLink", () => {
   it("follows a YouTube Short in a shape the clip has, read by itself from now", async () => {
     const h = harness();

@@ -293,6 +293,20 @@ describe.skipIf(!available)("learning what works against PostgreSQL", () => {
     // Asked again: nothing new.
     expect(await posts.adoptPublished({ workspaceId: WS })).toBe(0);
     expect(await prisma.clipPost.count({ where: { workspaceId: WS } })).toBe(3);
+
+    // The refresh task's way: only workspaces with the feature on are taken.
+    await published({
+      clipId: one.clipId,
+      variantId: one.variants["r9x16"] ?? "",
+      provider: "threads",
+      externalPostId: "pz-th-1",
+      externalUrl: "https://www.threads.net/@aksharo/post/C8xYz12AbCd",
+    });
+    expect(await posts.adoptPublished({}, { enabled: async () => false })).toBe(0);
+    expect(await posts.adoptPublished({}, { enabled: async (ws) => ws === WS })).toBe(1);
+    expect(
+      await prisma.clipPost.findFirstOrThrow({ where: { externalPostId: "pz-th-1" } }),
+    ).toMatchObject({ platform: "threads", postKey: "threads:C8xYz12AbCd" });
   });
 
   it("gives a Postiz post with no link the link pasted for it, not a second post", async () => {
