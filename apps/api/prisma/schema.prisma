@@ -914,6 +914,8 @@ model Workspace {
   publishBatches         PublishBatch[]
   publishTargets         PublishTarget[]
   sourceWatches          SourceWatch[]
+  /// Where its clips were posted, and how they did (2026-10-05).
+  clipPosts              ClipPost[]
 
   @@index([ownerId])
   @@index([billingCountry])
@@ -3743,6 +3745,8 @@ model RepurposeRun {
   series           RepurposeSeries[]
   /// Its clips dubbed into other languages (2026-10-04).
   dubs             ClipDub[]
+  /// Where its clips were posted, and how they did (2026-10-05).
+  clipPosts        ClipPost[]
 
   @@index([workspaceId])
   @@index([workspaceId, createdAt])
@@ -3976,6 +3980,8 @@ model RepurposeClip {
   /// The clip in other languages (2026-10-04). Nothing here writes the clip row:
   /// it is only ever written while its cut is open (`clip-state.ts`).
   dubs           ClipDub[]
+  /// Where the clip went and how it did (2026-10-05, `repurpose/performance`).
+  clipPosts      ClipPost[]
 
   @@index([runId])
   @@map("repurpose_clips")
@@ -4571,6 +4577,8 @@ model PublishTarget {
   variant           ClipVariant        @relation(fields: [variantId], references: [id], onDelete: Cascade)
   channelConnection ChannelConnection? @relation(fields: [channelConnectionId], references: [id], onDelete: SetNull)
   export            Export?            @relation(fields: [exportId], references: [id], onDelete: SetNull)
+  /// Its entry in "where the clip went" once it is out (2026-10-05, `repurpose/performance`).
+  clipPost          ClipPost?
 
   @@index([batchId])
   @@index([workspaceId])
@@ -4579,4 +4587,123 @@ model PublishTarget {
   @@index([status, retryAfter])
   @@index([provider, externalPostId])
   @@map("publish_targets")
+}
+
+// ---------------------------------------------------------------------------
+// Learn what works (2026-10-05, `apps/api/src/repurpose/performance`): where a
+// clip was posted, how each post did over its first month, and - once a
+// workspace has enough of it - what its best clips share, which nudges the next
+// run's picks.
+//
+// A post is ONE video on one platform: one shape of one clip (and, for a dubbed
+// version, one language). It comes from Postiz (a `publish_targets` row that
+// went out, adopted automatically) or from a link a person pasted ("I posted
+// this"). Its numbers are snapshots, never overwritten: each read or each set of
+// numbers typed in is a `clip_post_snapshots` row saying where it came from and
+// when, and the post caches the newest value of each number with its source.
+// ---------------------------------------------------------------------------
+
+/// How Aksharo knows about a post: it made it through Postiz, or a person pasted its link.
+enum ClipPostSource {
+  postiz
+  link
+}
+
+/// Where one set of numbers came from: measured (Postiz's analytics for the post,
+/// the public YouTube watch page) or entered by a person.
+enum ClipMetricSource {
+  postiz
+  youtube_page
+  person
+}
+
+/// One post of one clip shape on one platform (2026-10-05).
+///
+/// `post_key` is the platform's own id for the post (`youtube:dQw4w9WgXcQ`,
+/// `instagram:C8xYz12AbCd`), parsed from its link - or `postiz:<id>` for a post
+/// Postiz has not said the link of. It is unique per workspace: a video is one
+/// post however many times its link is pasted, and a link pasted before Aksharo
+/// adopted the same post from Postiz becomes that post rather than a second one.
+///
+/// Measured reads are scheduled on the row (`next_read_at`): often while a post
+/// is new, less often as it ages, and never after its first month; entered
+/// numbers never schedule anything. `latest` is a cache of the snapshots, per
+/// number: `{views: {value, source, at}, likes: ..., comments: ..., shares: ...}`
+/// (Zod: `latestSchema` in `performance/metrics.ts`).
+model ClipPost {
+  id              String         @id @db.Char(26)
+  workspaceId     String         @map("workspace_id") @db.Char(26)
+  runId           String         @map("run_id") @db.Char(26)
+  clipId          String         @map("clip_id") @db.Char(26)
+  /// The shape that was posted.
+  aspect          Aspect
+  /// A dubbed version's language (`hi-IN`, as the dub spells it); null: the clip's own words.
+  language        String?
+  /// `youtube` | `instagram` | `tiktok` | `linkedin` | `x` | `facebook` | `threads`.
+  platform        String
+  source          ClipPostSource
+  /// The Postiz post this row follows, for `postiz`.
+  publishTargetId String?        @unique @map("publish_target_id") @db.Char(26)
+  /// Postiz's id for the post: what its analytics are asked for by.
+  externalPostId  String?        @map("external_post_id")
+  postKey         String         @map("post_key")
+  /// The post's public link, rebuilt from the parsed id - never the text as pasted.
+  url             String?
+  /// When it went out: Postiz's publish time, the date a person gave, or what
+  /// the YouTube page says. Null until known; the first read's age counts from
+  /// `created_at` then.
+  postedAt        DateTime?      @map("posted_at") @db.Timestamptz(6)
+  latest          Json           @default("{}") @db.JsonB
+  /// When the next measured read is due; null: none (numbers are typed in, the
+  /// month is over, or reading gave up).
+  nextReadAt      DateTime?      @map("next_read_at") @db.Timestamptz(6)
+  lastReadAt      DateTime?      @map("last_read_at") @db.Timestamptz(6)
+  /// Measured reads that found numbers.
+  reads           Int            @default(0)
+  /// Reads in a row that failed or found nothing; past a few, reading stops.
+  readFailures    Int            @default(0) @map("read_failures")
+  /// Why the last read found nothing (`performance/read_*`); null after one that did.
+  lastReadError   String?        @map("last_read_error")
+  createdBy       String?        @map("created_by") @db.Char(26)
+  createdAt       DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  workspace     Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  run           RepurposeRun       @relation(fields: [runId], references: [id], onDelete: Cascade)
+  clip          RepurposeClip      @relation(fields: [clipId], references: [id], onDelete: Cascade)
+  publishTarget PublishTarget?     @relation(fields: [publishTargetId], references: [id], onDelete: SetNull)
+  snapshots     ClipPostSnapshot[]
+
+  @@unique([workspaceId, postKey])
+  @@index([runId])
+  @@index([clipId])
+  @@index([nextReadAt])
+  @@map("clip_posts")
+}
+
+/// One set of a post's numbers, as read or as typed (2026-10-05). Append-only:
+/// a later read is a new row, so a post's history is kept, not just its latest.
+/// Any of the four may be missing: a source that does not say it, or a person
+/// who typed only some.
+model ClipPostSnapshot {
+  id          String           @id @db.Char(26)
+  postId      String           @map("post_id") @db.Char(26)
+  workspaceId String           @map("workspace_id") @db.Char(26)
+  source      ClipMetricSource
+  views       Int?
+  likes       Int?
+  comments    Int?
+  shares      Int?
+  /// The source's other figures, by its own label (`{"Reach": 812}`); null for none.
+  extra       Json?            @db.JsonB
+  /// When the numbers were read (measured) or typed (entered).
+  readAt      DateTime         @map("read_at") @db.Timestamptz(6)
+  /// Who typed them, for `person`.
+  enteredBy   String?          @map("entered_by") @db.Char(26)
+  createdAt   DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  post ClipPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([postId, readAt])
+  @@map("clip_post_snapshots")
 }

@@ -378,6 +378,11 @@ export const FEATURE_FLAG_SEEDS: readonly FeatureFlagSeed[] = [
       "Dub a clip into other Indian languages in the speaker's own voice (Sarvam Dubbing, 2026-10-04). Off until the owner turns it on for a workspace; every dub costs real rupees per minute per language, capped by DUB_DAILY_BUDGET_INR.",
   },
   {
+    key: "repurpose_performance",
+    description:
+      "Learn what works (2026-10-05): where each clip was posted, how each post did, the What works view, and nudging the next run's picks toward what did well. Off until the owner turns it on; needs repurpose_flow too, and the repurpose.performance-refresh scheduled task to read numbers.",
+  },
+  {
     key: "highlight_discovery",
     description:
       "Multimodal highlight candidate discovery. Off until schema parity and multilingual quality benchmarks pass.",
