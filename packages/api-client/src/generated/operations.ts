@@ -54,6 +54,13 @@ export const API_OPERATIONS = [
     summary: "Comment on a clip, optionally at a moment in it",
   },
   {
+    operationId: "addRepurposeClipPost",
+    method: "POST",
+    path: "/repurpose/runs/{runId}/clips/{clipId}/performance/posts",
+    tags: ["repurpose"],
+    summary: "I posted this: follow a post of the clip by its link",
+  },
+  {
     operationId: "addShareComment",
     method: "POST",
     path: "/s/{token}/comments",
@@ -1069,6 +1076,13 @@ export const API_OPERATIONS = [
     summary: "Mark the What's-new modal seen for a changelog version",
   },
   {
+    operationId: "enterRepurposeClipPostNumbers",
+    method: "POST",
+    path: "/repurpose/runs/{runId}/performance/posts/{postId}/numbers",
+    tags: ["repurpose"],
+    summary: "Type in a post's numbers, as read off the platform",
+  },
+  {
     operationId: "exportProjectTranscript",
     method: "GET",
     path: "/projects/{projectId}/transcript/export",
@@ -1384,6 +1398,13 @@ export const API_OPERATIONS = [
     summary: "Read one repurposing run",
   },
   {
+    operationId: "getRepurposeRunPerformance",
+    method: "GET",
+    path: "/repurpose/runs/{runId}/performance",
+    tags: ["repurpose"],
+    summary: "Where the run's clips were posted, and how each post did",
+  },
+  {
     operationId: "getRepurposeRunReview",
     method: "GET",
     path: "/repurpose/runs/{runId}/review",
@@ -1396,6 +1417,13 @@ export const API_OPERATIONS = [
     path: "/repurpose/watches/{watchId}",
     tags: ["repurpose"],
     summary: "One channel automation",
+  },
+  {
+    operationId: "getRepurposeWhatWorks",
+    method: "GET",
+    path: "/repurpose/performance/what-works",
+    tags: ["repurpose"],
+    summary: "What works: the clips that did best, and what they share",
   },
   {
     operationId: "getStatusRss",
@@ -2145,6 +2173,13 @@ export const API_OPERATIONS = [
     path: "/repurpose/runs/{runId}/candidates/{candidateId}/remove",
     tags: ["repurpose"],
     summary: "Remove a moment and its clip",
+  },
+  {
+    operationId: "removeRepurposeClipPost",
+    method: "DELETE",
+    path: "/repurpose/runs/{runId}/performance/posts/{postId}",
+    tags: ["repurpose"],
+    summary: "Stop following a pasted post",
   },
   {
     operationId: "removeWorkspaceMember",
