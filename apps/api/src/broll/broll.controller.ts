@@ -16,6 +16,7 @@ import {
   ApiBody,
   ApiOkResponse,
   ApiOperation,
+  ApiQuery,
   ApiTags,
   ApiUnauthorizedResponse,
 } from "@nestjs/swagger";
@@ -218,6 +219,9 @@ export class BrollController {
       "`broll/stock_unavailable` when Pexels does not answer.",
     operationId: "searchBrollStock",
   })
+  @ApiQuery({ name: "query", required: true, description: "What to look for, 2 to 80 characters." })
+  @ApiQuery({ name: "orientation", required: false, enum: ["portrait", "landscape", "square"] })
+  @ApiQuery({ name: "page", required: false, type: Number, description: "1 to 20; 1 by default." })
   @ApiOkResponse(zodResponse(stockSearchViewSchema, "One page of photos."))
   async searchStock(@Query() query: StockSearchDto): Promise<StockSearchView> {
     return this.library.searchStock(query);

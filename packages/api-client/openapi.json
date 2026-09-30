@@ -9961,7 +9961,37 @@
       "get": {
         "description": "Photos from Pexels, when this deployment has a key (404 `broll/stock_disabled` otherwise). 429 `broll/stock_busy` when the hour's searches are used up, 502 `broll/stock_unavailable` when Pexels does not answer.",
         "operationId": "searchBrollStock",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "1 to 20; 1 by default.",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "orientation",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "portrait",
+                "landscape",
+                "square"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "query",
+            "required": true,
+            "in": "query",
+            "description": "What to look for, 2 to 80 characters.",
+            "schema": {}
+          }
+        ],
         "responses": {
           "200": {
             "description": "One page of photos.",
