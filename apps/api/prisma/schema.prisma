@@ -4653,6 +4653,10 @@ model ClipPost {
   /// the YouTube page says. Null until known; the first read's age counts from
   /// `created_at` then.
   postedAt        DateTime?      @map("posted_at") @db.Timestamptz(6)
+  /// Whether `posted_at` carries the time of day, not just the day: a day a
+  /// person typed is stored at noon UTC and says nothing about the hour, so
+  /// "What works" leaves it out of "Time posted".
+  postedTimeKnown Boolean        @default(false) @map("posted_time_known")
   latest          Json           @default("{}") @db.JsonB
   /// When the next measured read is due; null: none (numbers are typed in, the
   /// month is over, or reading gave up).

@@ -48,6 +48,7 @@ function row(input: Partial<ClipPost> = {}): ClipPost {
     postKey: `postiz:pz-${String(sequence)}`,
     url: null,
     postedAt: new Date(NOW.getTime() - 3 * HOUR),
+    postedTimeKnown: true,
     latest: {},
     nextReadAt: new Date(NOW.getTime() - 60_000),
     lastReadAt: null,
@@ -352,7 +353,7 @@ describe("PerformanceRefresher", () => {
       "youtube_page",
       "youtube_page",
     ]);
-    expect(h.posts[0]?.postedAt).toEqual(published);
+    expect(h.posts[0]).toMatchObject({ postedAt: published, postedTimeKnown: true });
   });
 
   it("stops reading YouTube the moment it refuses, and leaves those posts due", async () => {

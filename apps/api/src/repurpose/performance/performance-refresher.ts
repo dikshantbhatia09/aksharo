@@ -332,7 +332,7 @@ export class PerformanceRefresher implements OnModuleInit {
           readFailures: 0,
           lastReadError: null,
           nextReadAt: nextReadAfter(anchor, now),
-          ...(postedAt === null ? {} : { postedAt }),
+          ...(postedAt === null ? {} : { postedAt, postedTimeKnown: true }),
         },
       });
     });

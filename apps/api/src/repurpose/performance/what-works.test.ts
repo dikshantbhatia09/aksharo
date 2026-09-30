@@ -32,6 +32,7 @@ function post(input: PostInput = {}): PostFacts {
     shares: null,
     viewsMeasured: true,
     postedAt: new Date("2026-10-01T06:00:00Z"),
+    timeKnown: true,
     at: new Date("2026-10-01T06:00:00Z"),
     layout: "single",
     language: "hi-Latn",
@@ -177,6 +178,21 @@ describe("insightsOf", () => {
     expect(time?.finding).toMatchObject({ key: "evening", label: "Evening (16–21)" });
     const elsewhere = insightsOf(posts, "UTC").dimensions.find((entry) => entry.key === "time");
     expect(elsewhere?.finding).toMatchObject({ key: "afternoon" });
+  });
+
+  it("reads no hour from a day typed without a time, but still its weekday", () => {
+    const posts = [
+      // Typed as a day: stored at noon UTC, which is no hour anyone posted at.
+      ...many(5, { views: 3_000, timeKnown: false, postedAt: new Date("2026-10-03T12:00:00Z") }),
+      ...many(5, { views: 1_000, timeKnown: false, postedAt: new Date("2026-10-05T12:00:00Z") }),
+    ];
+    const insights = insightsOf(posts, IST);
+    const time = insights.dimensions.find((entry) => entry.key === "time");
+    expect(time?.groups).toEqual([]);
+    expect(time?.finding).toBeNull();
+    // 3 October 2026 is a Saturday, 5 October a Monday.
+    const days = insights.dimensions.find((entry) => entry.key === "day");
+    expect(days?.finding).toMatchObject({ key: "weekend", posts: 5, restPosts: 5 });
   });
 
   it("names the best clips by views across their posts, and by engagement over enough views", () => {

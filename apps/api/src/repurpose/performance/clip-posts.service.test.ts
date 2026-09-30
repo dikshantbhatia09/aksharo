@@ -40,6 +40,7 @@ function post(input: Partial<ClipPost> = {}): ClipPost {
     postKey: "youtube:dQw4w9WgXcQ",
     url: "https://www.youtube.com/shorts/dQw4w9WgXcQ",
     postedAt: null,
+    postedTimeKnown: false,
     latest: {},
     nextReadAt: NOW,
     lastReadAt: null,
@@ -182,6 +183,8 @@ describe("ClipPostsService.addLink", () => {
       postKey: "youtube:dQw4w9WgXcQ",
       url: "https://www.youtube.com/shorts/dQw4w9WgXcQ",
       postedAt: new Date("2026-10-04T12:00:00.000Z"),
+      // A day alone says nothing about the hour.
+      postedTimeKnown: false,
       nextReadAt: NOW,
       createdBy: USER,
     });
@@ -202,6 +205,21 @@ describe("ClipPostsService.addLink", () => {
         data: { runId: RUN, clipId: CLIP, platform: "youtube", shape: "1:1", language: null },
       }),
     );
+  });
+
+  it("keeps the hour a post went out when it is given one", async () => {
+    const h = harness();
+    await h.service.addLink(WS, USER, RUN, CLIP, {
+      url: "https://x.com/aksharo/status/1840000000000000001",
+      postedAt: "2026-10-04T19:30:00+05:30",
+    });
+    expect(h.created[0]).toMatchObject({
+      platform: "x",
+      postedAt: new Date("2026-10-04T14:00:00.000Z"),
+      postedTimeKnown: true,
+      // X links are not read by themselves: their numbers are typed in.
+      nextReadAt: null,
+    });
   });
 
   it("follows an Instagram reel of a dub, whose numbers are typed in", async () => {

@@ -46,6 +46,7 @@ CREATE TABLE "clip_posts" (
     "post_key" TEXT NOT NULL,
     "url" TEXT,
     "posted_at" TIMESTAMPTZ(6),
+    "posted_time_known" BOOLEAN NOT NULL DEFAULT false,
     "latest" JSONB NOT NULL DEFAULT '{}',
     "next_read_at" TIMESTAMPTZ(6),
     "last_read_at" TIMESTAMPTZ(6),

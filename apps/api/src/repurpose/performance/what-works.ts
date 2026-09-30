@@ -70,6 +70,8 @@ export interface PostFacts {
   readonly viewsMeasured: boolean | null;
   /** When it went out, when that is known: what "Time posted" and "Day posted" read. */
   readonly postedAt: Date | null;
+  /** Whether `postedAt` has the time of day, not just the day: only then is "Time posted" read. */
+  readonly timeKnown: boolean;
   /** When it went out, or was recorded when that is not known: what a window is cut by. */
   readonly at: Date;
   readonly layout: "single" | "stacked" | null;
@@ -294,7 +296,7 @@ function localTime(at: Date, timeZone: string): { hour: number; weekday: string 
 }
 
 function timeBucket(post: PostFacts, timeZone: string): Bucket | null {
-  if (post.postedAt === null) return null;
+  if (post.postedAt === null || !post.timeKnown) return null;
   const local = localTime(post.postedAt, timeZone);
   if (local === null) return null;
   const hour = local.hour < 5 ? local.hour + 24 : local.hour;

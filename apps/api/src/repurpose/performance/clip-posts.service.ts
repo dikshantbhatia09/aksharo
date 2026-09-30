@@ -321,6 +321,8 @@ export class ClipPostsService {
           postKey: link.key,
           url: link.url,
           postedAt,
+          // A day alone (`2026-10-04`) says nothing about the hour.
+          postedTimeKnown: postedAt !== null && (input.postedAt?.length ?? 0) > 10,
           nextReadAt: readsItself("link", link.platform, null) ? now : null,
           createdBy: userId,
         },
@@ -510,6 +512,7 @@ export class ClipPostsService {
         publishTargetId: target.id,
         externalPostId: target.externalPostId,
         postedAt: target.publishedAt,
+        postedTimeKnown: target.publishedAt !== null,
         nextReadAt: readable ? now : null,
       };
       try {
