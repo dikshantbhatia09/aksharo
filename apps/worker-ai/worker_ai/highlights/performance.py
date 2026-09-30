@@ -214,7 +214,6 @@ def hook_style(text: str) -> str:
 
 @dataclass(frozen=True, slots=True)
 class _Hit:
-    index: int
     hit: PerformanceHit
     #: Its title's and hook's words: what it was about, as it was posted.
     headline: frozenset[str]
@@ -241,12 +240,11 @@ class TrackRecord:
         """The signal, and the video's sentences' keywords to find its common words in."""
         hits = tuple(
             _Hit(
-                index=index,
                 hit=hit,
                 headline=keywords(" ".join(filter(None, (hit.title, hit.hook)))),
                 keywords=keywords(" ".join(filter(None, (hit.title, hit.hook, hit.excerpt)))),
             )
-            for index, hit in enumerate(signal.hits)
+            for hit in signal.hits
         )
         counts: Counter[str] = Counter()
         for keys in sentence_keywords:
