@@ -1805,6 +1805,92 @@ describe("discovery reasons in the language the transcript turned out to be", ()
     expect(HighlightsPayloadSchema.safeParse(calls[0]?.[0].params).success).toBe(true);
   });
 
+  describe("with the workspace's track record (2026-10-05)", () => {
+    /** Eight posts on four clips: one did ten times its platform's usual. */
+    function posts(): unknown[] {
+      return Array.from({ length: 8 }, (_, index) => ({
+        id: `01JTR0POST00000000000000${String(index).padStart(2, "0")}`,
+        platform: "youtube",
+        url: null,
+        latest: {
+          views: {
+            value: index === 0 ? 10_000 : 1_000,
+            source: "youtube_page",
+            at: "2026-10-05T10:00:00.000Z",
+          },
+        },
+        postedAt: new Date("2026-10-01T10:00:00.000Z"),
+        createdAt: new Date("2026-10-01T10:00:00.000Z"),
+        language: null,
+        aspect: "r9x16",
+        clip: {
+          id: `01JTR0CLIP00000000000000${String(index % 4).padStart(2, "0")}`,
+          runId: RUN,
+          title: index === 0 ? "Salary aate hi ye galti mat karna" : `Clip ${String(index)}`,
+          copy: {},
+          sourceStartMs: 0,
+          sourceEndMs: 30_000,
+          candidate: { transcriptExcerpt: "Salary aate hi pehle saving karo." },
+          variants: [{ aspect: "r9x16", layout: "single" }],
+        },
+        run: { config: { sourceLanguage: "hi-Latn" } },
+      }));
+    }
+
+    function steered(flag: boolean, rows: () => Promise<unknown[]>) {
+      const h = harness({
+        run: runRow({ status: "transcribing" }),
+        entitlements: { flags: { repurpose_performance: flag } },
+      });
+      const extra = h.prisma as unknown as Record<string, unknown>;
+      extra["clipPost"] = { findMany: vi.fn(rows) };
+      extra["publishBatch"] = { findFirst: vi.fn(async () => null) };
+      return h;
+    }
+
+    function sentOptions(h: ReturnType<typeof harness>): Record<string, unknown> | undefined {
+      const calls = h.jobs.enqueue.mock.calls as unknown as Array<
+        [{ params: { options: Record<string, unknown> } }]
+      >;
+      return calls[0]?.[0].params.options;
+    }
+
+    it("sends what did best once there is enough of it", async () => {
+      const h = steered(true, async () => posts());
+      await h.service.startHighlightDiscovery(h.current(), TRANSCRIPT);
+      expect(sentOptions(h)?.["performance"]).toMatchObject({
+        basis: 8,
+        hits: [
+          {
+            title: "Salary aate hi ye galti mat karna",
+            views: 10_000,
+            platform: "youtube",
+          },
+        ],
+      });
+      const calls = h.jobs.enqueue.mock.calls as unknown as Array<[{ params: unknown }]>;
+      expect(HighlightsPayloadSchema.safeParse(calls[0]?.[0].params).success).toBe(true);
+    });
+
+    it("sends nothing, and reads nothing, while the feature is off", async () => {
+      const h = steered(false, async () => posts());
+      await h.service.startHighlightDiscovery(h.current(), TRANSCRIPT);
+      expect(sentOptions(h)).not.toHaveProperty("performance");
+      const clipPost = (h.prisma as unknown as { clipPost: { findMany: ReturnType<typeof vi.fn> } })
+        .clipPost;
+      expect(clipPost.findMany).not.toHaveBeenCalled();
+    });
+
+    it("never holds discovery up: a read that fails sends no track record", async () => {
+      const h = steered(true, async () => {
+        throw new Error("database blinked");
+      });
+      const started = await h.service.startHighlightDiscovery(h.current(), TRANSCRIPT);
+      expect(started.outcome).toBe("queued");
+      expect(sentOptions(h)).not.toHaveProperty("performance");
+    });
+  });
+
   it("never hands 'auto' to discovery", () => {
     expect(discoveryLanguage("hi-Latn", "auto")).toBe("hi-Latn");
     expect(discoveryLanguage(undefined, "auto")).toBe("en");

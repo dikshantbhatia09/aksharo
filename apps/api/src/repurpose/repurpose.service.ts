@@ -5,6 +5,7 @@ import { ulid } from "ulid";
 import { TENTHS_PER_CREDIT, type Env } from "@montaj/config";
 import {
   type HighlightsPayload,
+  type PerformanceSignal,
   MediaAcquirePayloadSchema,
   REPURPOSE_SCHEMA_VERSION,
   highlightsJobKey,
@@ -14,6 +15,8 @@ import {
 import { coverAssetIdOf } from "./audiogram.js";
 import { failureDetailOf, runFailureCode } from "./failure-codes.js";
 import { discoveryModelOptionsFor } from "./highlights-options.js";
+import { PERFORMANCE_FLAG } from "./performance/performance.constants.js";
+import { performanceSignalFor } from "./performance/steering-signal.js";
 import {
   ACQUIRE_MAX_BYTES,
   ACQUIRE_MAX_DURATION_MS,
@@ -2281,6 +2284,9 @@ export class RepurposeService {
         // The language model's part (2026-09-29): the run's topic, the language
         // and script to write each clip's copy in, and who may read the words.
         ...(await discoveryModelOptionsFor(this.prisma, run, sourceLanguage)),
+        // Learn what works (2026-10-05): what the workspace's posted clips say
+        // did best, once it has enough of them; nothing otherwise.
+        ...(await this.performanceOption(run.workspaceId)),
       },
       promptVersion: "highlights-v1",
       featureVersion: "features-v1",
@@ -2316,6 +2322,28 @@ export class RepurposeService {
       this.logger.error({ runId: run.id, transcriptId, err: error }, "could not start discovery");
       await this.failRun({ ...run, ...analyzing }, "repurpose/highlights_failed", "finding_clips");
       return { outcome: "failed" };
+    }
+  }
+
+  /**
+   * The workspace's track record for `ai.highlights` (2026-10-05,
+   * `performance/steering-signal.ts`): only while `repurpose_performance` is
+   * on, and only once its posts say something. It never holds discovery up: a
+   * read that fails sends no track record, as a workspace without one gets.
+   */
+  private async performanceOption(
+    workspaceId: string,
+  ): Promise<{ readonly performance?: PerformanceSignal }> {
+    try {
+      if (!(await this.flagEnabled(workspaceId, PERFORMANCE_FLAG))) return {};
+      const signal = await performanceSignalFor(this.prisma, workspaceId, new Date());
+      return signal === null ? {} : { performance: signal };
+    } catch (error) {
+      this.logger.warn(
+        { workspaceId, err: error },
+        "track record unavailable; discovering without it",
+      );
+      return {};
     }
   }
 
