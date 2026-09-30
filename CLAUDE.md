@@ -1519,6 +1519,42 @@ worktrees (`wt/<name>`, branch `feat/<name>`), each merged and verified in
     `localhost:9000` - this machine's production Redis and MinIO. Run them as
     `DATABASE_URL=postgresql://x:x@127.0.0.1:1/x REDIS_URL=redis://127.0.0.1:1
     S3_ENDPOINT=http://127.0.0.1:1 R2_ENDPOINT=http://127.0.0.1:1 npx vitest run src prisma`.
+- **Wave 6a, deployed as f83dcb10: B-roll** (`deploy-20260930c.ps1`, undo
+  `rollback-20260930c.ps1`; DB backup `montaj_main-pre-20260930c.dump`;
+  migration `20261005110000_broll_library`, one new table):
+  - **A picture library per workspace** (`apps/api/src/broll`, Settings >
+    B-roll library): JPEG/PNG/WebP, 8 MB, 320-3840 px, 300 pictures, tags;
+    stored at `ws/{ws}/broll/{id}.{ext}`, which the render reads only under
+    the signed manifest's workspace. Stock photos from Pexels only once
+    `PEXELS_API_KEY` is set (it is not; `PEXELS_REQUESTS_PER_HOUR` default 150).
+  - **A `b-roll` overlay kind** (`packages/edg`, `render-core`
+    `overlay/b-roll.ts`): a still picture over a word range, full frame with a
+    slow push-in/pull-out/pan or in a box off faces, 250 ms fades, under the
+    captions and the end card, 1-15 s, at most 8 per document; **overlays per
+    document went from 8 to 16**. CanvasKit now samples every image linearly
+    (logos in the browser preview look slightly smoother).
+  - **Autopilot cuts away** when the run asks (`setup.broll`, offered with
+    Autopilot when the library has pictures): a new `ai.llm` kind `broll`
+    proposes moments, checked against the transcript and bounded (22 % of the
+    clip, 1.5-4 s each, 4 s apart, 5 per clip, none in the first or last 3 s);
+    library pictures whose tags are spoken are placed even without the model;
+    the other shapes copy the 9:16's cutaways. The editor has a B-roll tab.
+    Verified live 2026-09-30 on the synthetic talk with two generated
+    pictures: two cutaways placed ("episodes" matched the picture tagged
+    `episode`), drawn full-frame by the cloud render under the captions.
+  - **ROLLBACK HAZARD**: an api older than f83dcb10 rejects every document
+    holding a `b-roll` overlay or more than 8 overlays (`EdgHotSchema.parse` in
+    `edg.rows.ts`), so the project will not open. `rollback-20260930c.ps1`
+    first strips `b-roll` overlays from `edg_documents.doc` and
+    `edg_snapshots.snapshot.projection` (`_orchestration/tools/sql/strip-broll-20260930c.sql`,
+    tested on a scratch database and as a rolled-back dry run on production),
+    and once more after the api swap. `edg_revisions.ops` is left as it is.
+  - Dubbed versions get no B-roll (their documents are built fresh).
+- **Disk, 2026-09-30**: under a night of builds and test suites Windows grew
+  `pagefile.sys` from ~35 GB to 48 GB and C: fell to ~7 GiB free (below
+  `FORMATS_MIN_FREE_BYTES`); by midday it had shrunk back to 35 GB on its own
+  (no reboot) and C: was at 22 GiB. `hiberfil.sys` is 6.3 GB. Run one agent at
+  a time on this machine, and point API unit tests at closed ports.
 - **Known, not fixed**: API unit tests and past dev sessions left ~40 MB of
   keys under test prefixes (`montaj-test-*`, `a23`, `montaj-s07`, ...) in the
   production Redis (`test/setup-env.ts` assigns `localhost:6379`).
