@@ -1,6 +1,6 @@
 import { HttpStatus, Injectable, Logger } from "@nestjs/common";
-import { z } from "zod";
 
+import { EPISODE_PACK_KIND, parseEpisodePack, type EpisodePack } from "./episode-pack.schema.js";
 import { discoveryModelOptions } from "./highlights-options.js";
 import { REPURPOSE_ERRORS, REPURPOSE_FLAGS } from "./repurpose.constants.js";
 import { RepurposeService, discoveryLanguage } from "./repurpose.service.js";
@@ -21,26 +21,10 @@ import type { RepurposeRun } from "@prisma/client";
  * Part of the run: it costs the person nothing, and never holds up or fails
  * the run. An Autopilot run asks for it once its moments are found; any run's
  * page can ask for it (or ask again after a failure). One pack per source
- * video: once written, it is not written again.
+ * video: once written, it is not written again. Its stored shape is
+ * `episode-pack.schema.ts`'s.
  */
-export const EPISODE_PACK_KIND = "episode-pack";
-
 export type EpisodePackStatus = "none" | "writing" | "ready" | "failed";
-
-const EpisodePackSchema = z.object({
-  chapters: z
-    .array(z.object({ startMs: z.number().int().nonnegative(), title: z.string() }))
-    .max(50),
-  youtubeDescription: z.string(),
-  showNotes: z.string(),
-  linkedinPost: z.string(),
-  xThread: z.array(z.string()).max(20),
-  newsletter: z.string(),
-  locale: z.string().default(""),
-  source: z.enum(["model", "heuristic", "mixed"]).default("heuristic"),
-});
-
-export type EpisodePack = z.infer<typeof EpisodePackSchema>;
 
 export interface EpisodePackView {
   readonly runId: string;
@@ -142,9 +126,9 @@ export class RepurposeEpisodePackService {
   }> {
     const row = await this.outputs.latestOfKind(run.sourceProjectId, EPISODE_PACK_KIND);
     if (row !== null) {
-      const parsed = EpisodePackSchema.safeParse(row.output);
-      if (parsed.success) {
-        return { status: "ready", pack: parsed.data, createdAt: row.createdAt.toISOString() };
+      const pack = parseEpisodePack(row.output);
+      if (pack !== null) {
+        return { status: "ready", pack, createdAt: row.createdAt.toISOString() };
       }
       this.logger.warn({ runId: run.id, outputId: row.id }, "an episode pack that does not parse");
     }
