@@ -1879,8 +1879,7 @@ contact) and a don't-build list.
     (`--use-extractors`), no most-replayed windows, the YouTube gate only for
     YouTube; Try again/refetch/Autopilot retries also obey the flag; hosted
     fingerprints are redacted in audit rows (`redactedFingerprint`: a Dropbox
-    `rlkey` is a share secret). **Not yet fetched from the real sites**: one
-    test fetch per site before turning the flag on. **ROLLBACK HAZARD**: an
+    `rlkey` is a share secret). **ROLLBACK HAZARD**: an
     api older than 1f472610 cannot read a `hosted_url` run;
     `rollback-20261001d.ps1` runs `sql/rollback-hosted-20261001d.sql`
     (cancels unfetched hosted runs, turns the rest into upload runs) before
@@ -1906,8 +1905,30 @@ contact) and a don't-build list.
     `VOICEOVER_DAILY_BUDGET_INR` default 100, 2 credits plus the re-render
     of each finished shape): laid as an sfx cue on every shape's document
     (play-through, dialogue duck in the render), placed only once finishing
-    has settled; one held voice-over per clip under an advisory lock. The
-    Sarvam request shape and price are unconfirmed until the first live call.
+    has settled; one held voice-over per clip under an advisory lock.
   - Not built (owner decisions pending): AI upscaling, generated B-roll,
     eye-contact correction, a Labs opt-in page, another first shape for a
     hand-picked clip.
+- **Switched on for the owner, deployed as 9ee0da42** (`deploy-20261001e.ps1`,
+  undo `rollback-20261001e.ps1`; no migration, no env change; worker-ai
+  stopped first, worker-media, api swap, worker-ai; web and render untouched).
+  - **Each host fetched live first**: a public Drive file and a Dropbox file
+    fetched as built. **Vimeo did not**: yt-dlp 2026.08.19 needs a login for
+    `vimeo.com/<id>`, so the fetched URL is now
+    `player.vimeo.com/video/<id>` (`?h=<hash>` for an unlisted video), which
+    fetches; worker-media accepts only that shape.
+  - **Sarvam retired `bulbul:v2`** ("deprecated, use bulbul:v3", the first
+    live call). Voice-over is on `bulbul:v3`, whose voices differ: priya,
+    neha, kavya, shreya (labelled female), shubh, rahul, aditya (labelled
+    male); the labels are from the names, not from listening. All seven and
+    Marathi answered live. Published price now Rs 30 per 10,000 characters
+    (was 15); the flat 2 credits still covers it. worker-ai's language list
+    lacked `mr-IN` while the API offered Marathi; fixed.
+  - Flags `source_hosted_acquire` and `repurpose_voiceover` target the
+    owner's workspace only (`ops-flag.cjs ... owner`). Neither has run a
+    real end-to-end run yet (needs the owner signed in); widen with
+    `ops-flag.cjs <key> everyone|paid` after it does. A rollback should turn
+    `repurpose_voiceover` off first: the old worker-ai asks for `bulbul:v2`.
+  - `DEMO_RUN_ID` stays unset: the only finished run is the owner's podcast
+    of a third party's YouTube video, and showing it to every account is the
+    owner's call.
