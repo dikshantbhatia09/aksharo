@@ -28,6 +28,7 @@ const CONTRACT_QUEUES = [
   "ai.highlights",
   "ai.faces",
   "ai.dub",
+  "ai.voiceover",
   "render.video",
   "render.subtitle",
   "render.compilation",

@@ -75,6 +75,7 @@ export * from "./repurpose-copy.js";
 export * from "./repurpose-compilations.js";
 // A clip dubbed into other languages, in the speaker's own voice (2026-10-04).
 export * from "./repurpose-dubs.js";
+export * from "./repurpose-voiceovers.js";
 
 export {
   backoffDelayMs,

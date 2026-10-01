@@ -84,6 +84,7 @@ from worker_ai.processors import (
 from worker_ai.processors.context import JobSettledError
 from worker_ai.processors.dub import process_dub
 from worker_ai.processors.faces import process_faces
+from worker_ai.processors.voiceover import process_voiceover
 from worker_ai.providers.registry import build_registry
 from worker_ai.queues import AI_QUEUES, parse_envelope
 from worker_ai.routing import RoutingTable, load_overrides, load_routing_table
@@ -102,6 +103,7 @@ from worker_ai.transliterate import (
     TransliterationProvider,
 )
 from worker_ai.vad import load_vad
+from worker_ai.voiceover.sarvam import SARVAM_TTS_DEFAULT_BASE_URL, SarvamSpeechClient
 
 __all__ = [
     "PROCESSORS",
@@ -139,6 +141,7 @@ PROCESSORS: dict[str, Processor] = {
     "ai.highlights": process_highlights,
     "ai.faces": process_faces,
     "ai.dub": process_dub,
+    "ai.voiceover": process_voiceover,
 }
 
 
@@ -185,6 +188,7 @@ def build_services(settings: Settings, *, callbacks: CallbackClient | None = Non
         translation_providers=build_translation_providers(settings),
         llm_providers=build_llm_providers(settings),
         dubbing=build_dubbing_client(settings),
+        speech=build_speech_client(settings),
     )
 
 
@@ -199,6 +203,20 @@ def build_dubbing_client(settings: Settings) -> SarvamDubbingClient | None:
     return SarvamDubbingClient(
         settings.sarvam_api_key,
         base_url=settings.sarvam_base_url or SARVAM_DUBBING_DEFAULT_BASE_URL,
+    )
+
+
+def build_speech_client(settings: Settings) -> SarvamSpeechClient | None:
+    """Sarvam's text-to-speech for `ai.voiceover` (2026-10-01), keyed like every Sarvam adapter.
+
+    ``None`` without `SARVAM_API_KEY`: a voice-over then fails at once with
+    `voiceover/not_configured`, and nothing is spent.
+    """
+    if not settings.sarvam_api_key:
+        return None
+    return SarvamSpeechClient(
+        settings.sarvam_api_key,
+        base_url=settings.sarvam_base_url or SARVAM_TTS_DEFAULT_BASE_URL,
     )
 
 
@@ -475,6 +493,8 @@ async def close_services(services: Services) -> None:
         await provider.aclose()
     if services.dubbing is not None:
         await services.dubbing.aclose()
+    if services.speech is not None:
+        await services.speech.aclose()
 
 
 async def drain(workers: list[Any], timeout_s: float = 30.0) -> None:

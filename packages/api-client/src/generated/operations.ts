@@ -852,6 +852,13 @@ export const API_OPERATIONS = [
     summary: "Make a series: each clip says Part N of M, and but the last, Part N+1 next",
   },
   {
+    operationId: "createRepurposeVoiceover",
+    method: "POST",
+    path: "/repurpose/runs/{runId}/clips/{clipId}/voiceovers",
+    tags: ["repurpose"],
+    summary: "Add a spoken hook to the start of a clip",
+  },
+  {
     operationId: "createRepurposeWatch",
     method: "POST",
     path: "/repurpose/watches",
@@ -1944,6 +1951,13 @@ export const API_OPERATIONS = [
     summary: "The run's series: clips labelled Part 1, Part 2, ...",
   },
   {
+    operationId: "listRepurposeVoiceovers",
+    method: "GET",
+    path: "/repurpose/runs/{runId}/voiceovers",
+    tags: ["repurpose"],
+    summary: "The run's voice-over hooks, and what each clip would say",
+  },
+  {
     operationId: "listRepurposeWatches",
     method: "GET",
     path: "/repurpose/watches",
@@ -2252,6 +2266,13 @@ export const API_OPERATIONS = [
     summary: "Stop following a pasted post",
   },
   {
+    operationId: "removeRepurposeVoiceover",
+    method: "POST",
+    path: "/repurpose/runs/{runId}/voiceovers/{voiceoverId}/remove",
+    tags: ["repurpose"],
+    summary: "Take a voice-over off its clip",
+  },
+  {
     operationId: "removeWorkspaceMember",
     method: "DELETE",
     path: "/workspaces/{id}/members/{membershipId}",
@@ -2446,6 +2467,13 @@ export const API_OPERATIONS = [
     path: "/repurpose/runs/{runId}/retry",
     tags: ["repurpose"],
     summary: "Try a failed run again",
+  },
+  {
+    operationId: "retryRepurposeVoiceover",
+    method: "POST",
+    path: "/repurpose/runs/{runId}/voiceovers/{voiceoverId}/retry",
+    tags: ["repurpose"],
+    summary: "Make a voice-over again after a failure",
   },
   {
     operationId: "revokeApiKey",

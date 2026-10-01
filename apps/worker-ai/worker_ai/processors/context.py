@@ -46,6 +46,7 @@ from worker_ai.storage import ObjectStore
 from worker_ai.translate.providers.base import TranslationProvider
 from worker_ai.transliterate import RuleTableTransliterationProvider, TransliterationProvider
 from worker_ai.vad import VadBackend
+from worker_ai.voiceover.sarvam import SarvamSpeechClient
 
 __all__ = ["JobContext", "JobFailureError", "JobSettledError", "ProcessorOutcome", "Services"]
 
@@ -139,6 +140,9 @@ class Services:
     #: `ai.dub` (2026-10-04): Sarvam's Dubbing API, when `SARVAM_API_KEY` is set.
     #: ``None`` answers every dub with `dub/not_configured`.
     dubbing: SarvamDubbingClient | None = None
+    #: `ai.voiceover` (2026-10-01): Sarvam's text-to-speech, when `SARVAM_API_KEY` is set.
+    #: ``None`` answers every voice-over with `voiceover/not_configured`.
+    speech: SarvamSpeechClient | None = None
 
 
 @dataclass(slots=True)

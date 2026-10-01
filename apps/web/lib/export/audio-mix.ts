@@ -119,6 +119,10 @@ export interface SfxMixCue {
   readonly fadeOutMs: number;
   readonly duck: DuckTrack | null;
   readonly buffer: AudioBuffer;
+  /** The voice-over hook (2026-10-01): play whole through later cuts ({@link playedWindowOf}). */
+  readonly playThrough?: boolean;
+  /** The voice-over hook (2026-10-01): the clip's own sound under it ({@link applyDialogueDucks}). */
+  readonly dialogueDuck?: DuckTrack;
 }
 
 /** One accepted `music` cue (D05's `MusicPayload`, CONTRACTS §2). */
@@ -170,7 +174,19 @@ export function mixSfxCueIntoChunk(
   cue: SfxMixCue,
   timemap: TimeQuery | null,
   speechRanges: readonly SpeechRange[],
+  outputDurationMs: number = Number.POSITIVE_INFINITY,
 ): void {
+  if (cue.playThrough === true) {
+    mixPlayThroughCueIntoChunk(
+      chunk,
+      chunkOutputStartMs,
+      cue,
+      timemap,
+      speechRanges,
+      outputDurationMs,
+    );
+    return;
+  }
   const pieces = piecesFor(cue.startMs, cue.endMs, timemap);
   const cueDurationMs = cue.endMs - cue.startMs;
   const gainLinear = dbToLinear(cue.gainDb);
@@ -222,8 +238,145 @@ export function mixSfxCuesIntoChunk(
   cues: readonly SfxMixCue[],
   timemap: TimeQuery | null,
   speechRanges: readonly SpeechRange[],
+  outputDurationMs: number = Number.POSITIVE_INFINITY,
 ): void {
-  for (const cue of cues) mixSfxCueIntoChunk(chunk, chunkOutputStartMs, cue, timemap, speechRanges);
+  for (const cue of cues) {
+    mixSfxCueIntoChunk(chunk, chunkOutputStartMs, cue, timemap, speechRanges, outputDurationMs);
+  }
+}
+
+/**
+ * Where a play-through cue sounds on the finished video (2026-10-01, the
+ * voice-over hook) - the twin of `apps/render/src/ffmpeg/audio-mix.ts`'s
+ * `playedWindowOf`: from the output instant its first retained piece starts,
+ * for the rest of its asset (straight through any cut after that), never past
+ * the end of the video. `null` when nothing of it survives or fits.
+ */
+export function playedWindowOf(
+  cue: Pick<SfxMixCue, "startMs" | "endMs">,
+  timemap: TimeQuery | null,
+  outputDurationMs: number = Number.POSITIVE_INFINITY,
+): {
+  readonly outputStart: number;
+  readonly outputEnd: number;
+  readonly assetOffsetMs: number;
+} | null {
+  const first = piecesFor(cue.startMs, cue.endMs, timemap).find(
+    (piece) => piece.outputEnd > piece.outputStart,
+  );
+  if (first === undefined) return null;
+  const assetOffsetMs = Math.max(0, first.sourceStart - cue.startMs);
+  const remainingMs = cue.endMs - cue.startMs - assetOffsetMs;
+  const outputEnd = Math.min(first.outputStart + remainingMs, outputDurationMs);
+  if (!(outputEnd > first.outputStart)) return null;
+  return { outputStart: first.outputStart, outputEnd, assetOffsetMs };
+}
+
+/** A play-through cue ({@link playedWindowOf}): one span, faded at what plays of it. */
+function mixPlayThroughCueIntoChunk(
+  chunk: AudioBuffer,
+  chunkOutputStartMs: number,
+  cue: SfxMixCue,
+  timemap: TimeQuery | null,
+  speechRanges: readonly SpeechRange[],
+  outputDurationMs: number,
+): void {
+  const window = playedWindowOf(cue, timemap, outputDurationMs);
+  if (window === null) return;
+  const lengthMs = window.outputEnd - window.outputStart;
+  const gainLinear = dbToLinear(cue.gainDb);
+  const chunkMsPerSample = 1000 / chunk.sampleRate;
+  const chunkOutputEndMs = chunkOutputStartMs + chunk.length * chunkMsPerSample;
+  const overlapStartMs = Math.max(chunkOutputStartMs, window.outputStart);
+  const overlapEndMs = Math.min(chunkOutputEndMs, window.outputEnd);
+  if (overlapEndMs <= overlapStartMs) return;
+  const fadesIn = window.assetOffsetMs < 0.5 && cue.fadeInMs > 0;
+
+  for (let channel = 0; channel < chunk.numberOfChannels; channel += 1) {
+    const destination = chunk.getChannelData(channel);
+    for (let i = 0; i < chunk.length; i += 1) {
+      const sampleOutputMs = chunkOutputStartMs + i * chunkMsPerSample;
+      if (sampleOutputMs < overlapStartMs || sampleOutputMs >= overlapEndMs) continue;
+      const playedMs = sampleOutputMs - window.outputStart;
+      let gain = gainLinear;
+      if (fadesIn && playedMs < cue.fadeInMs) gain *= Math.max(0, playedMs / cue.fadeInMs);
+      if (cue.fadeOutMs > 0 && playedMs > lengthMs - cue.fadeOutMs) {
+        gain *= Math.max(0, (lengthMs - playedMs) / cue.fadeOutMs);
+      }
+      if (cue.duck !== null) {
+        gain *= duckGainAt(sampleOutputMs, speechRanges, cue.duck.depthDb, cue.duck.attackMs);
+      }
+      const assetMs = window.assetOffsetMs + playedMs;
+      const assetIndex = Math.round((assetMs / 1000) * cue.buffer.sampleRate);
+      // eslint-disable-next-line security/detect-object-injection -- bracket access on an internal, loop-bounded index, not attacker-controlled
+      destination[i] = (destination[i] ?? 0) + sampleAt(cue.buffer, channel, assetIndex) * gain;
+    }
+  }
+}
+
+/**
+ * The output-clock windows a cue's `dialogueDuck` covers: the one window a
+ * play-through cue plays in, or every retained piece of an ordinary cue (the
+ * twin of the cloud render's `dialogueDuckWindows`).
+ */
+export function dialogueDuckWindows(
+  cue: Pick<SfxMixCue, "startMs" | "endMs" | "playThrough">,
+  timemap: TimeQuery | null,
+  outputDurationMs: number = Number.POSITIVE_INFINITY,
+): SpeechRange[] {
+  if (cue.playThrough === true) {
+    const window = playedWindowOf(cue, timemap, outputDurationMs);
+    return window === null ? [] : [{ startMs: window.outputStart, endMs: window.outputEnd }];
+  }
+  return piecesFor(cue.startMs, cue.endMs, timemap)
+    .filter((piece) => piece.outputEnd > piece.outputStart)
+    .map((piece) => ({ startMs: piece.outputStart, endMs: piece.outputEnd }));
+}
+
+/**
+ * Pulls the clip's own sound in `chunk` down under every cue that asks for it
+ * (2026-10-01, the voice-over hook's `dialogueDuck`), in place, BEFORE the cues
+ * are added - so the duck lands on the dialogue alone, as the cloud render's
+ * `volume` on its dialogue bus does. The same trapezoid as every other duck
+ * (`duckGainAt`). A chunk no such cue touches is left exactly as it was.
+ */
+export function applyDialogueDucks(
+  chunk: AudioBuffer,
+  chunkOutputStartMs: number,
+  cues: readonly SfxMixCue[],
+  timemap: TimeQuery | null,
+  outputDurationMs: number = Number.POSITIVE_INFINITY,
+): void {
+  const ducks: { readonly windows: SpeechRange[]; readonly duck: DuckTrack }[] = [];
+  for (const cue of cues) {
+    if (cue.dialogueDuck === undefined) continue;
+    const windows = dialogueDuckWindows(cue, timemap, outputDurationMs);
+    if (windows.length > 0) ducks.push({ windows, duck: cue.dialogueDuck });
+  }
+  if (ducks.length === 0) return;
+  const chunkMsPerSample = 1000 / chunk.sampleRate;
+  const chunkOutputEndMs = chunkOutputStartMs + chunk.length * chunkMsPerSample;
+  const touches = ducks.some(({ windows, duck }) =>
+    windows.some(
+      (window) =>
+        window.startMs - duck.attackMs <= chunkOutputEndMs &&
+        window.endMs + duck.attackMs >= chunkOutputStartMs,
+    ),
+  );
+  if (!touches) return;
+  for (let i = 0; i < chunk.length; i += 1) {
+    const sampleOutputMs = chunkOutputStartMs + i * chunkMsPerSample;
+    let gain = 1;
+    for (const { windows, duck } of ducks) {
+      gain *= duckGainAt(sampleOutputMs, windows, duck.depthDb, duck.attackMs);
+    }
+    if (gain === 1) continue;
+    for (let channel = 0; channel < chunk.numberOfChannels; channel += 1) {
+      const destination = chunk.getChannelData(channel);
+      // eslint-disable-next-line security/detect-object-injection -- bracket access on an internal, loop-bounded index, not attacker-controlled
+      destination[i] = (destination[i] ?? 0) * gain;
+    }
+  }
 }
 
 /** D05's own fixed music-bed fade constants (`MusicTrackSchema`'s own doc

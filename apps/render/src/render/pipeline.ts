@@ -183,6 +183,9 @@ export async function renderVideo(
         fadeOutMs: track.fadeOutMs,
         duck: track.duck,
         localPath,
+        // The voice-over hook (2026-10-01): whole, and over a ducked clip.
+        ...(track.playThrough === true ? { playThrough: true } : {}),
+        ...(track.dialogueDuck === undefined ? {} : { dialogueDuck: track.dialogueDuck }),
       });
     }
     // D04e-4: every accepted `music` bed's pack asset, downloaded the same

@@ -74,6 +74,7 @@ import { tagsOf } from "@/components/repurpose/results/clip-analysis";
 import { ClipReview } from "@/components/repurpose/review/ClipReview";
 import { isRemovedCandidate } from "@/components/repurpose/steering";
 import { useStableUrl } from "@/components/repurpose/use-stable-url";
+import { ClipVoiceover } from "@/components/repurpose/voiceover/ClipVoiceover";
 
 const CLIP_STATES: ReadonlySet<string> = new Set(["waiting", "cutting", "ready", "failed"]);
 
@@ -653,6 +654,16 @@ export function CandidateCard({
           title={title}
           list={dubs}
           offerDub={!runStopped && state === "ready"}
+        />
+      )}
+
+      {/* A spoken hook at the start of the clip (2026-10-01): nothing while it is switched off. */}
+      {clip === undefined ? null : (
+        <ClipVoiceover
+          runId={runId}
+          clipId={clip.id}
+          title={title}
+          offerNew={!runStopped && state === "ready"}
         />
       )}
 

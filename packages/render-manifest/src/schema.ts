@@ -207,6 +207,20 @@ export const SfxTrackSchema = z.object({
   fadeInMs: WholeMs,
   fadeOutMs: WholeMs,
   duck: DuckTrackSchema.nullable(),
+  /**
+   * The voice-over hook (2026-10-01, `@montaj/edg` `voiceoverPass`): the cue
+   * plays from its first retained output instant for its whole length,
+   * straight through any cut after its start, instead of being cut with the
+   * video. Optional: every manifest before it, and every other cue, is cut.
+   * A renderer that predates it drops it (the schema strips unknown keys) and
+   * cuts the cue, which is the old behaviour, not a failure.
+   */
+  playThrough: z.boolean().optional(),
+  /**
+   * The voice-over hook (2026-10-01): pull the dialogue bus down this far over
+   * the cue's output window, ramped over `attackMs`. Optional, as above.
+   */
+  dialogueDuck: DuckTrackSchema.optional(),
 });
 export type SfxTrack = z.infer<typeof SfxTrackSchema>;
 

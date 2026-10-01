@@ -31,6 +31,10 @@ import { RunNotifier } from "./run-notifications.js";
 import { RepurposeSeriesService } from "./series.service.js";
 import { SourceGate } from "./source-gate.js";
 import { RepurposeStillsCompletionHandler } from "./stills-completion.handler.js";
+import { VoiceoverBudget } from "./voiceover/voiceover-budget.js";
+import { RepurposeVoiceoverCompletionHandler } from "./voiceover/voiceover-completion.handler.js";
+import { RepurposeVoiceoversController } from "./voiceover/voiceovers.controller.js";
+import { RepurposeVoiceoversService } from "./voiceover/voiceovers.service.js";
 import { BrandKitModule } from "../brand-kit/brand-kit.module.js";
 import { BrollModule } from "../broll/broll.module.js";
 import { EdgModule } from "../edg/index.js";
@@ -83,6 +87,8 @@ import { WorkspacesModule } from "../workspaces/workspaces.module.js";
     RepurposeCompilationsController,
     // A clip dubbed into other languages (2026-10-04).
     RepurposeDubsController,
+    // A spoken hook at the start of a clip (2026-10-01, behind `repurpose_voiceover`).
+    RepurposeVoiceoversController,
     // A run's cover, for the audiograms of a source with no picture (2026-10-04).
     RepurposeCoversController,
     // The results page: titles, hook titles, transcript, estimate (2026-10-01).
@@ -116,6 +122,11 @@ import { WorkspacesModule } from "../workspaces/workspaces.module.js";
     RepurposeDubCompletionHandler,
     RepurposeDubMuxCompletionHandler,
     DubBudget,
+    // A spoken hook at the start of a clip (2026-10-01): the vendor's call, then
+    // the voice laid on every shape's document, and the day's rupee budget.
+    RepurposeVoiceoversService,
+    RepurposeVoiceoverCompletionHandler,
+    VoiceoverBudget,
     // A second binding of a stateless class (`MediaModule` provides the first
     // and does not export it), as `TranscriptsModule` does with its guard.
     AutoTranscribeTrigger,

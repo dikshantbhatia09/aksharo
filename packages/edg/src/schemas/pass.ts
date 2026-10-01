@@ -143,6 +143,22 @@ export const SfxPayloadSchema = z
     licenceSnapshot: JsonObjectSchema,
     /** Why this cue fired (`sfx.py`'s cue reason, e.g. "energy-peak → impact"). */
     cueReason: z.string().min(1).max(500),
+    /**
+     * The voice-over hook (2026-10-01): play the cue straight through the
+     * finished video from where it starts, for its whole length, rather than
+     * cutting it with the video. A spoken line must not lose a syllable to an
+     * autocut silence after its start, the way a looped music bed already
+     * plays through (`MusicPayload.loopPolicy: "loop"`). Absent or false: the
+     * cue is cut with the video, as every sound effect always was.
+     */
+    playThrough: z.boolean().optional(),
+    /**
+     * The voice-over hook (2026-10-01): pull the clip's OWN sound down this far
+     * while the cue plays, ramping over `attackMs` either side - the opposite
+     * of `duck`, which quiets the cue under speech. Absent: the clip's sound is
+     * left alone, as it always was for a sound effect.
+     */
+    dialogueDuck: DuckSchema.optional(),
   })
   .meta({ id: "SfxPayload", title: "SfxPayload" });
 

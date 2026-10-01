@@ -21,3 +21,5 @@ export * from "./timeline-ops.js";
 export * from "./brand.js";
 // Where a B-roll cutaway goes, for Autopilot and the editor alike (2026-10-05).
 export * from "./broll.js";
+// The voice-over hook as an accepted `sfx` cue (2026-10-01).
+export * from "./voiceover.js";

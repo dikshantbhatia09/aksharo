@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "runId": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+  "clipId": "01JCDVA0000000000000000000",
+  "voiceoverId": "01JCDVC0000000000000000000",
+  "text": "Nobody tells you this about your first startup",
+  "language": "en-IN",
+  "speaker": "anushka",
+  "pace": 1,
+  "model": "bulbul:v2",
+  "destination": {
+    "key": "ws/01ARZ3NDEKTSV4RRFFQ69G5FB0/p/01ARZ3NDEKTSV4RRFFQ69G5FAX/repurpose/01ARZ3NDEKTSV4RRFFQ69G5FAV/voiceovers/01JCDVC0000000000000000000/hook.wav"
+  }
+}

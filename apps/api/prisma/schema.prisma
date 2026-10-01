@@ -3745,6 +3745,8 @@ model RepurposeRun {
   series           RepurposeSeries[]
   /// Its clips dubbed into other languages (2026-10-04).
   dubs             ClipDub[]
+  /// Its clips' voice-over hooks (2026-10-01, `repurpose/voiceover`).
+  voiceovers       ClipVoiceover[]
   /// Where its clips were posted, and how they did (2026-10-05).
   clipPosts        ClipPost[]
   /// The links a guest downloads its clips through (2026-10-05, `repurpose/guest`).
@@ -3982,6 +3984,8 @@ model RepurposeClip {
   /// The clip in other languages (2026-10-04). Nothing here writes the clip row:
   /// it is only ever written while its cut is open (`clip-state.ts`).
   dubs           ClipDub[]
+  /// Its voice-over hooks (2026-10-01): the newest live one is on its documents.
+  voiceovers     ClipVoiceover[]
   /// Where the clip went and how it did (2026-10-05, `repurpose/performance`).
   clipPosts      ClipPost[]
 
@@ -4752,4 +4756,70 @@ model ClipPostSnapshot {
 
   @@index([postId, readAt])
   @@map("clip_post_snapshots")
+}
+
+/// Where a voice-over hook stands (2026-10-01). `waiting`: asked for while the
+/// plan's lane was full, started by the reconcile once it frees; `speaking`: its
+/// `ai.voiceover` job (the vendor call) is queued or running; `ready`: the voice
+/// is stored and on the clip's documents; `failed`; `removed`: a person took it
+/// off the clip (its cues were rejected on every document).
+enum VoiceoverStatus {
+  waiting
+  speaking
+  ready
+  failed
+  removed
+}
+
+/// A short spoken hook at the start of a clip (2026-10-01,
+/// `repurpose/voiceover`, OpusClip parity wave 4): the clip's hook line read by
+/// a stock synthetic voice (Sarvam's text-to-speech), laid on every shape's
+/// editing document as an accepted `sfx` cue with the clip's own sound ducked
+/// under it - never baked into the clip's media.
+///
+/// Money: `cost_tenths` is held on the `ai.voiceover` job and settled when the
+/// voice comes back, released when it fails; `budget_paise` is what the request
+/// reserved of the day's rupee budget (`budget_day`, UTC), given back when the
+/// vendor was never asked. Stock voices only, so nobody's voice is cloned and no
+/// consent tick is needed; who asked is on the row and in `audit_log`.
+model ClipVoiceover {
+  id              String          @id @db.Char(26)
+  runId           String          @map("run_id") @db.Char(26)
+  clipId          String          @map("clip_id") @db.Char(26)
+  workspaceId     String          @map("workspace_id") @db.Char(26)
+  /// The words spoken (the clip's `copy.hook`, or what the person changed it to).
+  text            String
+  /// As the vendor spells it (`hi-IN`, `od-IN`, ...).
+  language        String
+  /// The stock voice (`anushka`, `abhilash`, ...).
+  speaker         String
+  status          VoiceoverStatus @default(waiting)
+  /// `voiceover/...` (`voiceover.constants.ts`); null unless failed.
+  failureCode     String?         @map("failure_code")
+  failureMessage  String?         @map("failure_message")
+  /// What the request holds, in tenths of a credit.
+  costTenths      Int             @map("cost_tenths")
+  /// The newest `ai.voiceover` job, and how many were asked for (the job key's attempt).
+  jobId           String?         @map("job_id") @db.Char(26)
+  attempts        Int             @default(0)
+  /// The stored WAV (derived store) and its measured length, once made.
+  audioKey        String?         @map("audio_key")
+  audioDurationMs Int?            @map("audio_duration_ms")
+  /// `{variantId: itemId}`: the cue this voice-over put on each shape's document.
+  placements      Json            @default("{}") @db.JsonB
+  /// The UTC day (`YYYY-MM-DD`) and the paise this request reserved of the daily budget.
+  budgetDay       String?         @map("budget_day")
+  budgetPaise     Int             @default(0) @map("budget_paise")
+  createdBy       String?         @map("created_by") @db.Char(26)
+  createdAt       DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  completedAt     DateTime?       @map("completed_at") @db.Timestamptz(6)
+
+  run  RepurposeRun  @relation(fields: [runId], references: [id], onDelete: Cascade)
+  clip RepurposeClip @relation(fields: [clipId], references: [id], onDelete: Cascade)
+
+  @@index([runId])
+  @@index([clipId])
+  @@index([status])
+  @@map("clip_voiceovers")
 }
