@@ -67,6 +67,12 @@ function makeService() {
     edgDocument: {
       findUnique: vi.fn(async () => ({ id: "EDG1" })),
     },
+    // No saved looks unless a test says so: the system catalogue answers.
+    stylePreset: {
+      findMany: vi.fn(
+        async (): Promise<{ key: string; workspaceId: string | null; doc: unknown }[]> => [],
+      ),
+    },
     shareReport: {
       create: vi.fn(async (args: { data: Record<string, unknown> }) => ({
         id: "01JBZ0Q4T7R8N4H1V0J9K2M3PC",
@@ -111,7 +117,7 @@ function makeService() {
     derivedStore as never,
   );
 
-  return { service, prisma, passwords, sessions, audit };
+  return { service, prisma, passwords, sessions, audit, edg };
 }
 
 describe("ShareLinksService", () => {
@@ -251,6 +257,42 @@ describe("ShareLinksService", () => {
         words: [],
       }),
     );
+  });
+
+  // 2026-10-01: the public viewer only knew the system catalogue, so a shared
+  // clip on a look its workspace saved itself drew in the default style.
+  it("preview() carries the shared document's own workspace look, and only that", async () => {
+    const { service, prisma, edg } = makeService();
+    edg.projectionOf.mockResolvedValueOnce({
+      meta: { edgId: "EDG1", projectId: PROJECT, revision: 1, schemaVersion: 2 },
+      media: [],
+      transcript: { transcriptId: "TR1", revision: 1, language: "en", scripts: ["roman"] },
+      canvas: { width: 1080, height: 1920 },
+      styles: { defaultStyleId: "my-look" },
+      segments: [],
+    });
+    prisma.stylePreset.findMany.mockResolvedValueOnce([
+      { key: "my-look", workspaceId: WORKSPACE, doc: { id: "my-look", name: "Studio yellow" } },
+    ]);
+
+    const result = await service.preview(TOKEN, undefined);
+
+    // Asked for this document's refs only, and only this workspace's rows or system rows.
+    expect(prisma.stylePreset.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          key: { in: ["my-look"] },
+          OR: [{ workspaceId: WORKSPACE }, { workspaceId: null }],
+        },
+      }),
+    );
+    expect(result.styles).toEqual({ "my-look": { id: "my-look", name: "Studio yellow" } });
+  });
+
+  it("preview() carries no styles for a document on system looks", async () => {
+    const { service } = makeService();
+    const result = await service.preview(TOKEN, undefined);
+    expect(result).not.toHaveProperty("styles");
   });
 
   it("preview() 404s a project whose media has not probed a proxy yet", async () => {

@@ -4,14 +4,29 @@ import { describe, expect, it, vi } from "vitest";
 
 import { ShareViewer } from "./share-viewer";
 
+import { SYSTEM_STYLE_MAP } from "@/components/editor/panels/system-styles";
 import { renderWithProviders } from "@/test/harness";
+
+// The catalogue the stage was last handed, so a test can see which looks the
+// viewer would draw with.
+const stage = vi.hoisted(() => ({
+  catalogue: undefined as ReadonlyMap<string, unknown> | undefined,
+}));
 
 // `CaptionStage` needs CanvasKit/wasm, which A15/A17 already test on their
 // own; this suite is about the surrounding viewer (gating, comments, report,
 // decision), so the stage is replaced with a marker.
 vi.mock("@/components/editor/canvas/CaptionStage", () => ({
-  CaptionStage: ({ src }: { src: string }) => <div data-testid="fake-caption-stage">{src}</div>,
+  CaptionStage: ({ src, catalogue }: { src: string; catalogue: ReadonlyMap<string, unknown> }) => {
+    stage.catalogue = catalogue;
+    return <div data-testid="fake-caption-stage">{src}</div>;
+  },
 }));
+
+/** Read through a call, so an assignment above does not narrow it to `undefined`. */
+function lastCatalogue(): ReadonlyMap<string, unknown> | undefined {
+  return stage.catalogue;
+}
 
 const TOKEN = "abc123def456ghi789jklmno";
 
@@ -53,6 +68,45 @@ describe("ShareViewer", () => {
     await screen.findByTestId("share-title");
     expect(screen.getByTestId("share-title")).toHaveTextContent("Diwali promo");
     await screen.findByTestId("fake-caption-stage");
+  });
+
+  it("draws with the system catalogue alone when the document uses no saved look", async () => {
+    stage.catalogue = undefined;
+    renderWithProviders(<ShareViewer token={TOKEN} />, {
+      accessToken: null,
+      routes: {
+        [`/s/${TOKEN}`]: RESOLVE_VIEW,
+        [`/s/${TOKEN}/preview`]: PREVIEW,
+        [`/s/${TOKEN}/comments`]: [],
+      },
+    });
+    await screen.findByTestId("fake-caption-stage");
+    expect(lastCatalogue()).toBe(SYSTEM_STYLE_MAP);
+  });
+
+  // 2026-10-01: a clip on a look its workspace saved itself drew in the default
+  // style here, because the viewer only knew the system catalogue.
+  it("adds the workspace's own looks the preview carries to the catalogue", async () => {
+    stage.catalogue = undefined;
+    const look = { id: "stale-id", name: "Studio yellow", category: "custom" };
+    renderWithProviders(<ShareViewer token={TOKEN} />, {
+      accessToken: null,
+      routes: {
+        [`/s/${TOKEN}`]: RESOLVE_VIEW,
+        [`/s/${TOKEN}/preview`]: {
+          ...PREVIEW,
+          projection: { ...PREVIEW.projection, styles: { defaultStyleId: "my-look" } },
+          styles: { "my-look": look },
+        },
+        [`/s/${TOKEN}/comments`]: [],
+      },
+    });
+    await screen.findByTestId("fake-caption-stage");
+    await waitFor(() => expect(lastCatalogue()?.has("my-look")).toBe(true));
+    // Keyed and identified by the ref the document uses.
+    expect(lastCatalogue()?.get("my-look")).toMatchObject({ id: "my-look", name: "Studio yellow" });
+    // ...and the system looks are all still there.
+    for (const id of SYSTEM_STYLE_MAP.keys()) expect(lastCatalogue()?.has(id)).toBe(true);
   });
 
   it("shows a password gate and unlocks with the right password", async () => {

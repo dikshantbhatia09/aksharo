@@ -171,6 +171,11 @@ export class PublicViewerController {
     projection: unknown;
     /** Signed URLs for the brand logos the projection draws, by asset id (2026-10-02). */
     images?: Readonly<Record<string, string>>;
+    /**
+     * The shared document's own workspace caption looks, by ref (2026-10-01):
+     * only the ones it references. The viewer adds them to its catalogue.
+     */
+    styles?: Readonly<Record<string, unknown>>;
   }> {
     this.assertSurfaceEnabled();
     return this.shareLinks.preview(token, session);

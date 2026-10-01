@@ -1676,6 +1676,12 @@ export interface ProjectRenderPreview {
    * (2026-10-02); absent when it draws none. Pass to `CaptionStage`'s `images`.
    */
   images?: Readonly<Record<string, string>>;
+  /**
+   * The workspace's own caption looks the projection references, as full
+   * `StyleDoc`s keyed by ref (2026-10-01); absent when it uses system styles
+   * only. Merge over the system catalogue before passing it to `CaptionStage`.
+   */
+  styles?: Readonly<Record<string, unknown>>;
 }
 
 /** `details` on a 409 `repurpose/source_already_running`. */

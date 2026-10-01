@@ -15,6 +15,7 @@ const STYLE_SNAPSHOT: StyleSnapshotResolution = {
   defaultStyleId: "vertical-clean",
   catalogueSnapshotIds: ["vertical-clean@abcd1234"],
   styles: { "vertical-clean": { id: "vertical-clean" } },
+  workspaceStyleIds: [],
 };
 
 const NOW = Date.parse("2026-09-02T09:00:00.000Z");

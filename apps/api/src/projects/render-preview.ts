@@ -8,7 +8,12 @@ import { BrollLibraryService } from "../broll/broll.service.js";
 import { AppException, PrismaService } from "../common/index.js";
 import { DERIVED_STORE, DOWNLOAD_URL_TTL_SECONDS } from "../common/storage/index.js";
 import { EdgRepository } from "../edg/index.js";
-import { brollImageIds, buildRenderProjection, overlayImageIds } from "../exports/projection.js";
+import {
+  brollImageIds,
+  buildRenderProjection,
+  overlayImageIds,
+  resolveStyleSnapshot,
+} from "../exports/projection.js";
 import { FacesTrigger } from "../media/faces.js";
 
 import type { ObjectStore } from "../common/index.js";
@@ -31,6 +36,19 @@ export interface RenderPreview {
    * `CaptionStage` fetches and registers them. Absent when it draws none.
    */
   readonly images?: Readonly<Record<string, string>>;
+  /**
+   * The workspace's own caption looks the projection references, as full
+   * `StyleDoc`s keyed by the ref the document uses (2026-10-01). A browser
+   * draws captions from its bundled system catalogue, which cannot know a look
+   * a workspace saved itself ("My templates"), so without these the public
+   * share viewer drew a clip made on a saved look in the default style while
+   * the export drew it correctly. Only styles THIS document references, and
+   * only those that resolved to the project's own workspace's preset row
+   * (`resolveStyleSnapshot`, the same resolution an export makes): never
+   * another workspace's, never the rest of the workspace's catalogue, and
+   * nothing a system style already answers. Absent when there are none.
+   */
+  readonly styles?: Readonly<Record<string, unknown>>;
 }
 
 /**
@@ -95,6 +113,7 @@ export async function buildRenderPreview(
   const proxyUrl = await deps.derived.presignGet(media.proxyKey, ttlSeconds);
   let projection: EdgProjection | null = null;
   let images: Record<string, string> = {};
+  let styles: Record<string, unknown> = {};
   if (edgDocument !== null) {
     const edg = await deps.edg.projectionOf(edgDocument.id);
     const chunks = await deps.edg.loadChunks(edg.transcript.transcriptId);
@@ -118,6 +137,11 @@ export async function buildRenderPreview(
       ...(brollIds.length > 0 ? { brollImages: new Set(Object.keys(brollImages)) } : {}),
     });
     images = { ...images, ...brollImages };
+    // The workspace's own looks (2026-10-01), resolved exactly as an export
+    // resolves them and filtered to the project's own workspace's rows.
+    if (project.workspaceId !== undefined) {
+      styles = workspaceStylesOf(await resolveStyleSnapshot(deps.prisma, project.workspaceId, edg));
+    }
     projection = {
       canvas: built.canvas,
       styles: edg.styles as EdgProjection["styles"],
@@ -140,7 +164,29 @@ export async function buildRenderPreview(
     aspect: project.aspect,
     projection,
     ...(Object.keys(images).length === 0 ? {} : { images }),
+    ...(Object.keys(styles).length === 0 ? {} : { styles }),
   };
+}
+
+/**
+ * The workspace-owned docs out of a style resolution, each stamped with the ref
+ * the document uses as its `id` — the row's `key` is authoritative for identity
+ * (`StylesService.toEntry` does the same), and the browser's catalogue is keyed
+ * by it.
+ */
+function workspaceStylesOf(resolution: {
+  readonly styles: Record<string, unknown>;
+  readonly workspaceStyleIds: readonly string[];
+}): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const ref of resolution.workspaceStyleIds) {
+    // eslint-disable-next-line security/detect-object-injection -- keys are the document's own style refs, read from our database
+    const doc = resolution.styles[ref];
+    if (doc === null || typeof doc !== "object" || Array.isArray(doc)) continue;
+    // eslint-disable-next-line security/detect-object-injection -- as above
+    out[ref] = { ...(doc as Record<string, unknown>), id: ref };
+  }
+  return out;
 }
 
 /**
