@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   CONTRACT_ENV_VARS,
+  DEMO_RUN_ENV,
   EnvValidationError,
   MAIL_PROVIDERS,
   PRODUCTION_GATE_FLAGS,
@@ -13,6 +14,7 @@ import {
   SERVICE_REQUIRED_ENV_VARS,
   loadServiceEnv,
   crossFieldProblems,
+  demoRunIdFrom,
   envSchema,
   loadEnv,
   safeLoadEnv,
@@ -562,5 +564,29 @@ describe("loadServiceEnv", () => {
         expect(SERVICE_REQUIRED_ENV_VARS[service], `${service}/${name}`).not.toContain(name);
       }
     }
+  });
+});
+
+describe("DEMO_RUN_ID (the example run, an operator switch)", () => {
+  it("is null when unset or blank", () => {
+    expect(demoRunIdFrom({})).toBeNull();
+    expect(demoRunIdFrom({ DEMO_RUN_ID: "" })).toBeNull();
+    expect(demoRunIdFrom({ DEMO_RUN_ID: "   " })).toBeNull();
+  });
+
+  it("reads a run id, trimmed and upper-cased", () => {
+    expect(demoRunIdFrom({ DEMO_RUN_ID: " 01m3s65nvapg5x53s8cq88fm5r " })).toBe(
+      "01M3S65NVAPG5X53S8CQ88FM5R",
+    );
+  });
+
+  it("treats anything that is not a run id as no example, never as a crash", () => {
+    expect(demoRunIdFrom({ DEMO_RUN_ID: "not-a-run" })).toBeNull();
+    expect(demoRunIdFrom({ DEMO_RUN_ID: "01M3S65NVAPG5X53S8CQ88FM5" })).toBeNull();
+    expect(demoRunIdFrom({ DEMO_RUN_ID: "' OR 1=1 --" })).toBeNull();
+  });
+
+  it("stays out of the frozen contract list", () => {
+    expect((CONTRACT_ENV_VARS as readonly string[]).includes(DEMO_RUN_ENV)).toBe(false);
   });
 });

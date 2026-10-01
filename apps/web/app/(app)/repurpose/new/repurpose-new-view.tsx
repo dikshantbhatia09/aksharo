@@ -30,6 +30,10 @@
  * before any run is created, so every run it is for can name it
  * (`setup.audiogram.coverAssetId`); a cover the API refuses stops the start
  * with its reason, and nothing is created.
+ *
+ * "See a finished example" (2026-10-01) sits under the title while the owner
+ * has set an example run (`ExampleRunLink`; nothing renders otherwise), for
+ * the person who wants to see what a run makes before starting one.
  */
 import { useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
@@ -47,6 +51,7 @@ import { useBrandKit } from "@/components/brand-kit/use-brand-kit";
 import { brollOfferOf, useBrollLibrary } from "@/components/broll/use-broll-library";
 import { rememberLanguage } from "@/components/projects/language-picker";
 import { AUTOMATIONS_FLAG, useBulkRuns } from "@/components/repurpose/automations/use-automations";
+import { ExampleRunLink } from "@/components/repurpose/example/ExampleRunLink";
 import { SOURCE_CEILING_MS } from "@/components/repurpose/failure-detail";
 import { describeRefusal } from "@/components/repurpose/refusal";
 import { useRunDefaults } from "@/components/repurpose/results/use-results";
@@ -460,6 +465,7 @@ export function RepurposeNewView(): React.JSX.Element {
         title="Create from a long video"
         description="One long video becomes short, captioned videos you review before anything is posted."
       />
+      <ExampleRunLink withHint className="-mt-4" />
 
       <div className="flex flex-col gap-6">
         <SourceStartForm

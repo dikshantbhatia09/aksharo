@@ -349,23 +349,8 @@ export class RepurposeResultsService {
         HttpStatus.NOT_FOUND,
       );
     }
-    const transcript = await this.prisma.transcript.findFirst({
-      where: { projectId: run.sourceProjectId },
-      orderBy: { createdAt: "desc" },
-      select: { id: true },
-    });
-    const offsetMs = run.windowStartMs ?? 0;
-    if (transcript === null) return { offsetMs, lines: [] };
-    const words = (await newestChunkRows(this.prisma, transcript.id))
-      .flatMap((chunk) => (chunk.words as unknown as SnapWord[] | null) ?? [])
-      .filter(
-        (word) =>
-          word.deleted !== true &&
-          typeof word.t === "string" &&
-          word.s >= candidate.startMs - 50 &&
-          word.e <= candidate.endMs + 50,
-      );
-    return { offsetMs, lines: linesOf(words, offsetMs) };
+    const lines = await runTranscriptLines(this.prisma, run, [{ id: candidateId, ...candidate }]);
+    return { offsetMs: run.windowStartMs ?? 0, lines: lines.get(candidateId) ?? [] };
   }
 
   /** 404 unless the run is the workspace's and the clips surface is on for it. */
@@ -431,6 +416,38 @@ function retitledCopy(copy: unknown, title: string): { copy?: Prisma.InputJsonVa
   const parsed = ClipCopySchema.safeParse(copy);
   if (!parsed.success) return {};
   return { copy: { ...parsed.data, title, source: "person" } as unknown as Prisma.InputJsonValue };
+}
+
+/**
+ * Several moments' words as lines on the original video's clock, from one read
+ * of the run's newest transcript (2026-10-01): the clip view asks for one, the
+ * example run (`example/example-run.service.ts`) for every clip at once. A
+ * moment with no words, or a run with no transcript, has no lines.
+ */
+export async function runTranscriptLines(
+  prisma: PrismaService,
+  run: Pick<RepurposeRun, "sourceProjectId" | "windowStartMs">,
+  moments: readonly { readonly id: string; readonly startMs: number; readonly endMs: number }[],
+): Promise<Map<string, TranscriptLine[]>> {
+  const byMoment = new Map<string, TranscriptLine[]>();
+  if (moments.length === 0) return byMoment;
+  const transcript = await prisma.transcript.findFirst({
+    where: { projectId: run.sourceProjectId },
+    orderBy: { createdAt: "desc" },
+    select: { id: true },
+  });
+  if (transcript === null) return byMoment;
+  const offsetMs = run.windowStartMs ?? 0;
+  const words = (await newestChunkRows(prisma, transcript.id))
+    .flatMap((chunk) => (chunk.words as unknown as SnapWord[] | null) ?? [])
+    .filter((word) => word.deleted !== true && typeof word.t === "string");
+  for (const moment of moments) {
+    const inside = words.filter(
+      (word) => word.s >= moment.startMs - 50 && word.e <= moment.endMs + 50,
+    );
+    byMoment.set(moment.id, linesOf(inside, offsetMs));
+  }
+  return byMoment;
 }
 
 /** Words into lines (see {@link RepurposeResultsService.transcript}). */

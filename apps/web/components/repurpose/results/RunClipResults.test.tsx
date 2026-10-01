@@ -96,6 +96,35 @@ describe("RunClipResults", () => {
     window.location.hash = "";
   });
 
+  it("read only (the example run): no Select, no rename, no editor links, its words from the page", async () => {
+    const { fetchMock } = results({
+      canEdit: true,
+      readOnly: {
+        transcriptOf: (candidateId) =>
+          candidateId === "CAND4"
+            ? { offsetMs: 0, lines: [{ startMs: 240_000, endMs: 243_000, text: "Given line." }] }
+            : undefined,
+      },
+    });
+    expect(screen.queryByTestId("clip-results-select")).toBeNull();
+    // A search by words still works; one by meaning is never asked for.
+    await userEvent.type(screen.getByTestId("clip-results-search"), "wealth");
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    expect(screen.getByTestId("clip-results-count")).toHaveTextContent("No clip matches");
+    await userEvent.clear(screen.getByTestId("clip-results-search"));
+    await userEvent.click(
+      within(screen.getByTestId("clip-grid")).getAllByRole("button")[0] as HTMLElement,
+    );
+    const detail = await screen.findByTestId("clip-detail");
+    expect(within(detail).getByTestId("clip-transcript")).toHaveTextContent("Given line.");
+    expect(within(detail).queryByTestId("clip-detail-rename")).toBeNull();
+    expect(within(detail).queryByTestId("clip-detail-edit")).toBeNull();
+    expect(within(detail).queryByTestId("clip-detail-broll")).toBeNull();
+    // Nothing of the run's own routes is asked for: no search, no transcript.
+    const asked = fetchMock.mock.calls.map((call) => String(call[0]));
+    expect(asked.filter((url) => url.includes("/repurpose/runs/"))).toEqual([]);
+  });
+
   it("opens on a grid of tiles, best first, once several clips are made", () => {
     results();
     const grid = screen.getByTestId("clip-grid");

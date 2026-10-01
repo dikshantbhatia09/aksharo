@@ -443,7 +443,6 @@ export function loadServiceEnv<S extends ServiceName>(
   return result.data as ServiceEnv<S>;
 }
 
-
 /** Thrown by {@link loadEnv}; carries one line per offending variable. */
 export class EnvValidationError extends Error {
   public override readonly name = "EnvValidationError";
@@ -576,10 +575,7 @@ export const PRODUCTION_GATE_FLAGS = {
  * `source` rather than `env` wherever "unset" and "set to the default" must be
  * told apart, for the reason {@link crossFieldProblems} explains.
  */
-function productionProblems(
-  env: PartialEnv,
-  source: Record<string, string | undefined>,
-): string[] {
+function productionProblems(env: PartialEnv, source: Record<string, string | undefined>): string[] {
   if (source["NODE_ENV"] !== "production") return [];
   const problems: string[] = [];
   const flags = env.FEATURE_FLAGS_JSON ?? {};
@@ -678,4 +674,48 @@ export function safeLoadEnv(
     if (error instanceof EnvValidationError) return { success: false, error };
     throw error;
   }
+}
+
+// ---------------------------------------------------------------------------
+// Operator switches outside the frozen contract
+// ---------------------------------------------------------------------------
+
+/**
+ * `DEMO_RUN_ID` (2026-10-01, OpusClip's "try a sample project"): the one
+ * finished repurposing run every signed-in person may open, read only, at
+ * `/repurpose/example` - so someone new sees scored clips, their analysis,
+ * every size and the images before spending a credit.
+ *
+ * Not in {@link envSchema}: that schema is CONTRACTS §1, a frozen list that
+ * `.env.example`, worker-ai's settings and their tests all hold equal, and
+ * this is an operator's switch for one deployment (like
+ * `INTERNAL_UNLIMITED_WORKSPACE_IDS` or `REPURPOSE_RECONCILE_INTERVAL_MS`),
+ * not product configuration. It is validated here so every reader agrees on
+ * what a usable value is, and read on every call so changing it needs a
+ * restart of nothing but the API.
+ *
+ * Optional: unset, empty, or not a run id (26 letters and digits,
+ * the shape of every id in the product) means there is no example, and the
+ * product says nothing about one. The owner chooses the run; the run's
+ * workspace is never shown to anyone who opens it.
+ */
+export const DEMO_RUN_ENV = "DEMO_RUN_ID";
+
+/** A run id: a ULID, as `repurpose_runs.id` holds it (`@db.Char(26)`). */
+export const demoRunIdSchema = z
+  .string()
+  .trim()
+  .toUpperCase()
+  .regex(/^[0-9A-Z]{26}$/, "DEMO_RUN_ID must be a run id (26 characters)")
+  .optional()
+  .catch(undefined);
+
+/** The example run's id from {@link DEMO_RUN_ENV}, or null when there is none (or it is malformed). */
+export function demoRunIdFrom(
+  source: Readonly<Record<string, string | undefined>> = process.env,
+): string | null {
+  // eslint-disable-next-line security/detect-object-injection -- a module constant, not input
+  const raw = source[DEMO_RUN_ENV];
+  if (raw === undefined || raw.trim() === "") return null;
+  return demoRunIdSchema.parse(raw) ?? null;
 }

@@ -9,6 +9,10 @@
  * limited (dubbing on paid plans, posting once an account is connected). Open
  * on the Clips page for a workspace with few runs, folded away for one that
  * knows them, and the choice is remembered per browser.
+ *
+ * Opened, it ends with "See a finished example" (2026-10-01) while the owner
+ * has set one (`ExampleRunLink` renders nothing otherwise): the tiles say what
+ * a run makes, the example shows it.
  */
 import {
   BarChart3,
@@ -38,6 +42,7 @@ import {
   cn,
 } from "@montaj/ui";
 
+import { ExampleRunLink } from "@/components/repurpose/example/ExampleRunLink";
 import { stylePreviewUrl } from "@/lib/style-previews";
 
 export interface Feature {
@@ -269,6 +274,7 @@ export function FeatureGallery({ openByDefault }: FeatureGalleryProps): React.JS
           })}
         </ul>
       ) : null}
+      {open ? <ExampleRunLink withHint /> : null}
 
       <Dialog
         open={shown !== null}
