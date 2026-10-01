@@ -1806,3 +1806,54 @@ contact) and a don't-build list.
   is build 1243 while `montaj-release`'s Playwright wants 1234: pass
   `executablePath` to `ms-playwright\chromium_headless_shell-1243\...`
   rather than installing anything.
+- **Wave 2, deployed as c298aea6** (`deploy-20261001c.ps1`, undo
+  `rollback-20261001c.ps1`; no migration, no env change; api and web
+  `.next-live-20261001c`, build `A7EOJ1EJQdYIgAIQjnas5`):
+  - **Search a run's clips by meaning** (`GET /repurpose/runs/:id/search?q=`,
+    `results/run-search.ts`): `bge-m3` on this machine's Ollama (pulled
+    2026-10-01: 1.16 GB on disk, 664 MB of GPU memory while loaded,
+    `keep_alive` 30 min; cold load ~30 s, warm 40 moments < 1 s), reached
+    through `LLM_BASE_URL` minus `/v1` and **only if that is a loopback
+    host** (what is said in a video never goes to a hosted provider for a
+    search). Vectors cached in Redis 30 days by text
+    (`montaj:repurpose:embed:v1:bge-m3:<sha256>`). Calibrated on the owner's
+    40-moment podcast run: no fixed line works (relevant 0.48-0.65,
+    unrelated up to 0.52), so a question is answered only when its best
+    moment is >= 0.47 and >= 0.10 above the median, then every moment within
+    0.08 of the best (`matchesOf`). The page shows word matches at once and
+    the meaning matches after (debounced 350 ms); `semantic: false` (no
+    model, Ollama down) keeps the word match.
+  - **Pick clips and download those**: "Select" on the grid (made clips
+    only) and a bar -> `RunDownloadDialog` with `clipIds` (POST, and GET's
+    `?clipIds=a,b` summary). A selection leaves out the compilations and the
+    episode text and names the ZIP "<title> (N clips).zip".
+  - **"Save as my default"** for the start form: `GET/PUT/DELETE
+    /repurpose/defaults` (viewers read, editors write), stored as
+    `workspaces.settings.runDefaults` `{setup, savedAt, savedBy}` (merged,
+    audited `repurpose.defaults.saved|cleared`; a run's setup minus window
+    and cover). The form opens on it unless the URL carries a failed run's
+    own setup (`carriesSetup`) or the person already changed something.
+  - **The workspace's own caption looks** ("My templates"): the editor's
+    "Save as template" now creates a workspace preset through the route that
+    already existed (`POST /workspaces/:id/style-presets`, editors; delete is
+    admins) instead of `localStorage`; old browser-local presets still load.
+    They are offered on the start form ("Your look" cards) and as a saved
+    default. Three places only knew system styles and now take the merged
+    catalogue: `clipDocumentStyle` (a run started on a saved look made every
+    clip in the default style), the editor's canvas and browser export (a
+    saved look never drew there), and the run page's `ClipPreview`
+    (`use-style-catalogue.ts`). **Open:** the public share viewer still draws
+    system styles only (it cannot read `/styles`), so a shared clip on a
+    saved look shows default captions there.
+  - **Pickers list styles in `PICKABLE_STYLE_IDS` order** (Punch Pop first,
+    "Recommended"); `PICKABLE_STYLES` used to filter the alphabetical
+    catalogue, which put Hype Bold first on the start form and the editor.
+  - **"What one video gives you"** on `/repurpose`: ten tiles (only what is
+    built and live), each opening what it is and how to get it; open for a
+    workspace with under 3 runs, folded otherwise
+    (`aksharo.repurpose.gallery`).
+  - Not built: choosing another first shape for a hand-picked clip (the
+    other shapes exist only inside Autopilot's pipeline, and Autopilot makes
+    all four); a shared demo run for new users (needs the owner to choose a
+    video the product may show everyone). Home's "Paste a YouTube link"
+    already hands the link to the start form (now on the saved defaults).
