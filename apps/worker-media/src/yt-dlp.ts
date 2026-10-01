@@ -149,6 +149,24 @@ export const REQUIRED_ARGS = [
   "--no-plugin-dirs",
 ] as const;
 
+/**
+ * The yt-dlp extractors a `hosted_url` (2026-10-01) is held to with
+ * `--use-extractors`, by site: Vimeo, Google Drive and Dropbox. yt-dlp matches
+ * these against its extractors' lower-cased names in full, so `vimeo` is the
+ * one video extractor and never `vimeo:album` or `vimeo:channel`. A YouTube
+ * link carries none, exactly as before: its URL check is the boundary there.
+ */
+export const HOSTED_EXTRACTORS = ["vimeo", "googledrive", "dropbox"] as const;
+export type HostedExtractor = (typeof HOSTED_EXTRACTORS)[number];
+
+/**
+ * A format id `chooseFormat` may pick and `buildArgs` may pass. YouTube's are
+ * a few digits; Vimeo's name the CDN and run longer
+ * (`hls-fastly_skyfire-1080p`), so the bound is 64. Nothing outside
+ * `[A-Za-z0-9_-]` either way: the id reaches argv as part of one entry.
+ */
+const FORMAT_ID = /^[\w-]{1,64}$/;
+
 /** The one runtime flag a list may carry, and only after `--no-js-runtimes`. */
 const JS_RUNTIMES_FLAG = "--js-runtimes";
 
@@ -388,7 +406,8 @@ function pickAudio(formats: readonly ProbeFormat[]): ProbeFormat | undefined {
     (typeof f.language_preference === "number" && f.language_preference >= 10)
       ? 1
       : 0;
-  const aac = (f: ProbeFormat): number => (f.ext === "m4a" || acodecOf(f).startsWith("mp4a") ? 1 : 0);
+  const aac = (f: ProbeFormat): number =>
+    f.ext === "m4a" || acodecOf(f).startsWith("mp4a") ? 1 : 0;
   const drc = (f: ProbeFormat): number => (String(f.format_id).includes("drc") ? 1 : 0);
   const abr = (f: ProbeFormat): number => (typeof f.abr === "number" ? f.abr : 0);
   const size = (f: ProbeFormat): number => sizeOf(f, null) ?? 0;
@@ -446,8 +465,13 @@ export function chooseFormat(
   const share = Number.isFinite(fraction) && fraction > 0 && fraction < 1 ? fraction : 1;
   const scaled = (bytes: number | null): number | null =>
     bytes === null ? null : Math.round(bytes * share);
+  // An id `buildArgs` would refuse is never chosen: the download would fail
+  // as "unusable" for a source with a perfectly good format beside it.
   const usable = formats.filter(
-    (format) => typeof format.format_id === "string" && format.has_drm !== true,
+    (format) =>
+      typeof format.format_id === "string" &&
+      FORMAT_ID.test(format.format_id) &&
+      format.has_drm !== true,
   );
   const audio = pickAudio(usable);
 
@@ -660,13 +684,15 @@ export function buildArgs(input: {
   readonly jsRuntime?: string;
   /** Only this part of the source (see {@link planSection}). */
   readonly section?: Pick<SectionPlan, "startMs" | "endMs"> | null;
+  /** A hosted link's one extractor (see {@link HOSTED_EXTRACTORS}). */
+  readonly extractor?: HostedExtractor;
 }): string[] {
   const format = input.format ?? FALLBACK_FORMAT;
   const fallback = format === FALLBACK_FORMAT;
   // The selector reaches argv as one entry either way; this keeps it to what
   // `chooseFormat` produces (format ids joined by `+`) or the fixed fallback.
   const ids = format.split("+");
-  if (!fallback && (ids.length > 2 || !ids.every((id) => /^[\w-]{1,32}$/.test(id)))) {
+  if (!fallback && (ids.length > 2 || !ids.every((id) => FORMAT_ID.test(id)))) {
     throw new DownloaderUnusableError(
       `refusing an unexpected format selector ${JSON.stringify(format)}`,
     );
@@ -689,6 +715,7 @@ export function buildArgs(input: {
     "--ignore-config",
     "--no-cache-dir",
     ...runtimeArgs(input.jsRuntime),
+    ...extractorArgs(input.extractor),
     // Refuse a live stream rather than downloading an unbounded segment feed.
     "--no-live-from-start",
     // A hard byte ceiling the downloader applies itself; the caller checks the
@@ -739,6 +766,23 @@ export function runtimeArgs(jsRuntime: string | undefined): string[] {
   ];
 }
 
+/**
+ * `--use-extractors <name>` for a hosted link, and nothing for YouTube.
+ *
+ * The point is what it leaves out: yt-dlp's generic extractor, which reads
+ * any page it is given and follows wherever that page points. With only the
+ * site's own extractor allowed, a link it does not claim is an "unsupported
+ * URL" and nothing is fetched. The name is checked against the closed list
+ * here as well as by the type, because the list is the invariant.
+ */
+export function extractorArgs(extractor: HostedExtractor | undefined): string[] {
+  if (extractor === undefined) return [];
+  if (!(HOSTED_EXTRACTORS as readonly string[]).includes(extractor)) {
+    throw new DownloaderUnusableError(`refusing the extractor ${JSON.stringify(extractor)}`);
+  }
+  return ["--use-extractors", extractor];
+}
+
 function sectionArgs(section: Pick<SectionPlan, "startMs" | "endMs"> | null): string[] {
   if (section === null) return [];
   if (!(section.endMs > section.startMs)) {
@@ -767,7 +811,7 @@ function ffmpegLocationArgs(ffmpegPath: string | undefined): string[] {
 /** The metadata-only argument list: no bytes are fetched. */
 export function buildProbeArgs(
   url: string,
-  options: { readonly jsRuntime?: string } = {},
+  options: { readonly jsRuntime?: string; readonly extractor?: HostedExtractor } = {},
 ): string[] {
   const args = [
     // Warnings are kept for the operator log; see `buildArgs`.
@@ -779,6 +823,7 @@ export function buildProbeArgs(
     // The metadata step is where YouTube's challenges are solved, so it needs
     // the runtime at least as much as the download does.
     ...runtimeArgs(options.jsRuntime),
+    ...extractorArgs(options.extractor),
     "--skip-download",
     "--dump-single-json",
     "--socket-timeout",
@@ -1187,11 +1232,13 @@ async function captureOutput(
     timer.unref();
     child.stdout.setEncoding("utf8");
     child.stdout.on("data", (chunk: string) => {
-      if (stdout.length < CAPTURE_MAX_CHARS) stdout += chunk.slice(0, CAPTURE_MAX_CHARS - stdout.length);
+      if (stdout.length < CAPTURE_MAX_CHARS)
+        stdout += chunk.slice(0, CAPTURE_MAX_CHARS - stdout.length);
     });
     child.stderr.setEncoding("utf8");
     child.stderr.on("data", (chunk: string) => {
-      if (stderr.length < CAPTURE_MAX_CHARS) stderr += chunk.slice(0, CAPTURE_MAX_CHARS - stderr.length);
+      if (stderr.length < CAPTURE_MAX_CHARS)
+        stderr += chunk.slice(0, CAPTURE_MAX_CHARS - stderr.length);
     });
     child.on("error", (error) => {
       if (done) return;
@@ -1260,10 +1307,15 @@ export async function probeSource(input: {
   readonly signal?: AbortSignal;
   readonly jsRuntime?: string;
   readonly window?: AcquireWindow;
+  /** A hosted link's one extractor; absent for YouTube. */
+  readonly extractor?: HostedExtractor;
 }): Promise<SourceMetadata> {
   const result = await run(
     input.binary,
-    buildProbeArgs(input.url, input.jsRuntime === undefined ? {} : { jsRuntime: input.jsRuntime }),
+    buildProbeArgs(input.url, {
+      ...(input.jsRuntime === undefined ? {} : { jsRuntime: input.jsRuntime }),
+      ...(input.extractor === undefined ? {} : { extractor: input.extractor }),
+    }),
     {
       timeoutMs: Math.min(input.limits.timeoutMs, 120_000),
       ...(input.signal === undefined ? {} : { signal: input.signal }),
@@ -1300,7 +1352,10 @@ export async function probeSource(input: {
       : null;
   const durationMs = durationSeconds === null ? null : Math.round(durationSeconds * 1000);
   const liveStatus = parsed["live_status"];
-  const replayedPeakMs = mostReplayedPeakMs(parsed["heatmap"], durationMs);
+  // Only YouTube publishes a most-replayed heatmap; on another site
+  // (2026-10-01) a field of that name is not one.
+  const replayedPeakMs =
+    input.extractor === undefined ? mostReplayedPeakMs(parsed["heatmap"], durationMs) : null;
   const section =
     input.window === undefined || durationMs === null
       ? null
@@ -1615,6 +1670,8 @@ export async function download(input: {
   readonly jsRuntime?: string;
   /** Only this part of the source. */
   readonly section?: Pick<SectionPlan, "startMs" | "endMs"> | null;
+  /** A hosted link's one extractor (see {@link extractorArgs}); absent for YouTube. */
+  readonly extractor?: HostedExtractor;
   /** Kill a download that runs slower than this; see {@link isTooSlow}. */
   readonly pace?: DownloadPace;
   readonly onProgress?: (percent: number) => void;
@@ -1636,6 +1693,7 @@ export async function download(input: {
       ...(input.ffmpegPath === undefined ? {} : { ffmpegPath: input.ffmpegPath }),
       ...(input.jsRuntime === undefined ? {} : { jsRuntime: input.jsRuntime }),
       ...(input.section === undefined ? {} : { section: input.section }),
+      ...(input.extractor === undefined ? {} : { extractor: input.extractor }),
     }),
     {
       timeoutMs: input.limits.timeoutMs,
@@ -1909,10 +1967,14 @@ export async function runDownloader(
       if (code === null) {
         finish(() =>
           reject(
-            transientFailure("media/tool_signal", `${binary} was killed by ${signal ?? "a signal"}`, {
-              detail: tail,
-              reason: "media/source_failed",
-            }),
+            transientFailure(
+              "media/tool_signal",
+              `${binary} was killed by ${signal ?? "a signal"}`,
+              {
+                detail: tail,
+                reason: "media/source_failed",
+              },
+            ),
           ),
         );
         return;
@@ -2104,6 +2166,14 @@ const REFUSALS: readonly {
       "requires payment",
       "sign in to view",
       "login required",
+      // Vimeo, Google Drive and Dropbox (2026-10-01): a password, or a file
+      // shared only with named people.
+      "password protected",
+      "protected by a password",
+      "video password",
+      "you need access",
+      "do not have permission",
+      "don't have permission",
     ],
   },
   {

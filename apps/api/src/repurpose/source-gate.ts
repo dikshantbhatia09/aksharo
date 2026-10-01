@@ -41,6 +41,17 @@ export const MAX_BLOCKED_FETCHES = 3;
 /** The job and media reason a refusal by YouTube is reported with. */
 export const SOURCE_BLOCKED_REASON = "media/source_blocked";
 
+/**
+ * Whether a run of this source kind is held by the gate (2026-10-01): YouTube
+ * links only. The gate is a breaker on YouTube's view of this machine; a
+ * Vimeo, Google Drive or Dropbox refusal says nothing about it, so such a
+ * refusal never trips it, a fetch from those sites never waits on it, and one
+ * that lands never closes it.
+ */
+export function usesSourceGate(kind: string): boolean {
+  return kind === "youtube_url";
+}
+
 /** The wait before a fetch is tried again, after `trips` refusals in a row. */
 export function gateDelayMs(trips: number): number {
   return Math.min(SOURCE_GATE_MAX_MS, SOURCE_GATE_BASE_MS * 2 ** Math.max(0, trips - 1));

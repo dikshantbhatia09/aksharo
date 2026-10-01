@@ -17,6 +17,7 @@ import {
   discoveryLanguage,
   pendingQuoteTenths,
   runWindowMs,
+  windowForSource,
 } from "./repurpose.service.js";
 import { AppException } from "../common/errors/error-codes.js";
 import { quoteTranscription } from "../transcripts/transcripts.quote.js";
@@ -84,6 +85,8 @@ interface Options {
   region?: string;
   /** Ids of the covers this workspace keeps (`brand_assets` of kind `cover`, 2026-10-04). */
   covers?: readonly string[];
+  /** Flag overrides on top of `repurpose_flow` and `source_youtube_acquire` (both on). */
+  flags?: Record<string, boolean>;
 }
 
 /** A RepurposeService over fakes, with the run held in memory like the table. */
@@ -210,7 +213,11 @@ function harness(options: Options = {}) {
     })),
   };
   const env = {
-    FEATURE_FLAGS_JSON: { [REPURPOSE_FLAGS.flow]: true, [REPURPOSE_FLAGS.youtubeAcquire]: true },
+    FEATURE_FLAGS_JSON: {
+      [REPURPOSE_FLAGS.flow]: true,
+      [REPURPOSE_FLAGS.youtubeAcquire]: true,
+      ...options.flags,
+    },
   };
 
   const service = new RepurposeService(
@@ -1516,7 +1523,7 @@ describe("nextWindow — process the next part of a long video", () => {
   });
 
   it.each([
-    ["an upload", { sourceKind: "upload", sourceFingerprint: null }, /YouTube link/],
+    ["an upload", { sourceKind: "upload", sourceFingerprint: null }, /video link/],
     [
       "a window that has not landed",
       { status: "draft", windowStartMs: null, windowEndMs: null, sourceDurationMs: null },
@@ -2202,5 +2209,103 @@ describe("reconcileRunSoon — a completion does not wait for its run's reconcil
     const h = harness();
     h.reconciler.reconcile.mockRejectedValueOnce(new Error("database gone"));
     await expect(h.service.reconcileRunSoon(RUN)).resolves.toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Vimeo, Google Drive and Dropbox links (2026-10-01).
+// ---------------------------------------------------------------------------
+
+describe("create — a Vimeo, Google Drive or Dropbox link", () => {
+  function hostedRun(url: string, setup: Record<string, unknown> = {}): never {
+    return {
+      source: { kind: "url", url, rightsAttested: true },
+      setup: {
+        sourceLanguage: "auto",
+        caption: { styleId: "punch-pop" },
+        discovery: { mode: "ai", requestedCandidates: 5 },
+        ...setup,
+      },
+    } as never;
+  }
+
+  it("is refused in plain words while the site is off for the workspace", async () => {
+    const h = harness();
+    const refused = (await h.service
+      .create(WS, USER, hostedRun("https://vimeo.com/76979871"))
+      .catch((error: unknown) => error)) as AppException;
+    expect(refused.code).toBe("repurpose/source_unsupported");
+    expect(refused.message).toMatch(/not available yet/);
+    expect(h.projects.create).not.toHaveBeenCalled();
+    expect(h.jobs.enqueue).not.toHaveBeenCalled();
+  });
+
+  it("names only YouTube for an unknown site while the others are off", async () => {
+    const off = harness();
+    const refused = (await off.service
+      .create(WS, USER, hostedRun("https://www.dailymotion.com/video/x7tgad0"))
+      .catch((error: unknown) => error)) as AppException;
+    expect(refused.message).not.toMatch(/Vimeo/);
+
+    const on = harness({ flags: { [REPURPOSE_FLAGS.hostedAcquire]: true } });
+    const named = (await on.service
+      .create(WS, USER, hostedRun("https://www.dailymotion.com/video/x7tgad0"))
+      .catch((error: unknown) => error)) as AppException;
+    expect(named.message).toMatch(/Vimeo, Google Drive or Dropbox/);
+  });
+
+  it("starts a run that fetches the rebuilt address, from the start of the video", async () => {
+    const h = harness({ flags: { [REPURPOSE_FLAGS.hostedAcquire]: true } });
+    await h.service.create(
+      WS,
+      USER,
+      hostedRun("https://player.vimeo.com/video/76979871?autoplay=1"),
+    );
+
+    expect(createdRunData(h)).toMatchObject({
+      sourceKind: "hosted_url",
+      sourceFingerprint: "vimeo:76979871",
+      // Only YouTube has a most-replayed part; anywhere else it is the start.
+      windowPolicy: "first",
+    });
+    const job = enqueued(h) as unknown as EnqueuedAcquire & {
+      params: { source: { kind: string; normalizedUrl: string; sourceId: string } };
+    };
+    expect(job.type).toBe("media.acquire");
+    expect(job.params.source).toEqual({
+      kind: "hosted_url",
+      normalizedUrl: "https://vimeo.com/76979871",
+      sourceId: "vimeo:76979871",
+    });
+    expect(job.params.window).toEqual({ maxMs: 20 * MINUTE, policy: "first" });
+  });
+
+  it("keeps a start the person picked", async () => {
+    const h = harness({ flags: { [REPURPOSE_FLAGS.hostedAcquire]: true } });
+    await h.service.create(
+      WS,
+      USER,
+      hostedRun("https://www.dropbox.com/s/abc123xyz/talk.mp4?dl=0", {
+        window: { startMs: 600_000 },
+      }),
+    );
+    expect(enqueued(h).params.window).toEqual({
+      maxMs: 20 * MINUTE,
+      startMs: 600_000,
+      policy: "range",
+    });
+  });
+});
+
+describe("windowForSource", () => {
+  it("turns most-replayed into the start everywhere but YouTube, and leaves the rest", () => {
+    const replayed = { maxMs: 20 * MINUTE, policy: "most_replayed" } as const;
+    expect(windowForSource("hosted_url", replayed)).toEqual({
+      maxMs: 20 * MINUTE,
+      policy: "first",
+    });
+    expect(windowForSource("youtube_url", replayed)).toBe(replayed);
+    const picked = { maxMs: 20 * MINUTE, startMs: 60_000, policy: "range" } as const;
+    expect(windowForSource("hosted_url", picked)).toBe(picked);
   });
 });

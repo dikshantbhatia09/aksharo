@@ -151,6 +151,13 @@ describe("linkFromSourceDisplay", () => {
     );
   });
 
+  it("rebuilds a public Vimeo video's link, and never an unlisted one's (2026-10-01)", () => {
+    expect(linkFromSourceDisplay("vimeo.com · 76979871")).toBe("https://vimeo.com/76979871");
+    expect(linkFromSourceDisplay("vimeo.com · 76979871 (unlisted)")).toBeUndefined();
+    expect(linkFromSourceDisplay("Google Drive · 1AbCdE…")).toBeUndefined();
+    expect(linkFromSourceDisplay("Dropbox · talk.mp4")).toBeUndefined();
+  });
+
   it("gives no link for anything else, rather than a guess", () => {
     for (const display of [
       null,

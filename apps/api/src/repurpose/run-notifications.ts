@@ -14,7 +14,7 @@ import {
 import { cleanSourceTitle } from "./repurpose.projection.js";
 import { RepurposeService, isUniqueViolation } from "./repurpose.service.js";
 import { RunActivityReader } from "./run-activity.reader.js";
-import { SourceGate } from "./source-gate.js";
+import { SourceGate, usesSourceGate } from "./source-gate.js";
 import { PrismaService } from "../common/prisma/prisma.service.js";
 import { ENV } from "../config/config.module.js";
 import { NotifyService } from "../notify/notify.service.js";
@@ -286,7 +286,7 @@ export class RunNotifier {
               sent.has(kind),
             )
           : early
-            ? gateOpen && run.sourceKind !== "upload" && !sent.has("run-needs-you:upload")
+            ? gateOpen && usesSourceGate(run.sourceKind) && !sent.has("run-needs-you:upload")
             : !sent.has("clips-ready") ||
               (auto && !sent.has("run-complete")) ||
               (run.status === "candidates_ready" && !sent.has("run-needs-you:moments"));
@@ -311,7 +311,7 @@ export class RunNotifier {
           clips:
             run.status === "failed" || early ? null : await this.activity.clipsProgress(run, now),
           sourceKeepsRefusing:
-            early && gateOpen && run.sourceKind !== "upload"
+            early && gateOpen && usesSourceGate(run.sourceKind)
               ? (await this.runs.blockedFetches(run)) >= REFUSALS_BEFORE_UPLOAD_NOTICE
               : false,
         };

@@ -229,7 +229,7 @@ export const runViewSchema = z.object({
   id: ulid,
   workspaceId: ulid,
   sourceProjectId: ulid,
-  sourceKind: z.enum(["upload", "youtube_url", "direct_media_url"]),
+  sourceKind: z.enum(["upload", "youtube_url", "hosted_url", "direct_media_url"]),
   sourceDisplay: z.string().nullable(),
   mode: z.enum(["ai", "manual", "mixed"]),
   status: z.string(),

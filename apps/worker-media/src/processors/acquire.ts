@@ -26,6 +26,7 @@ import {
   ytDlpVersion,
   type AcquireLimits,
   type AcquireWindow,
+  type HostedExtractor,
   type SectionPlan,
   type SourceMetadata,
   type WindowPolicy,
@@ -104,13 +105,27 @@ import type { Workspace } from "../workspace.js";
  *
  * Unreachable in production while `source_youtube_acquire` is disabled: the API
  * refuses to create a link-sourced run at all, so nothing enqueues this.
+ *
+ * ## Vimeo, Google Drive and Dropbox (2026-10-01)
+ *
+ * A `hosted_url` job is the same fetch for a public link on one of those
+ * sites. Three things differ, and only three: the address must be exactly one
+ * the API rebuilds from the run's fingerprint ({@link assertHostedUrl}), yt-dlp
+ * is held to that site's own extractor (`--use-extractors`, so its generic
+ * extractor never reads a page), and a most-replayed window is the start
+ * ({@link windowForSite}), since only YouTube publishes a heatmap. The API
+ * keeps its YouTube source gate for YouTube; nothing here knows about it.
+ * **Deploy this worker before an api that sends `hosted_url`**: an older one
+ * refuses the kind as `media/unsupported`, which fails the run rather than
+ * fetching it.
  */
 export interface AcquirePayload {
   readonly runId: string;
   readonly projectId: string;
   readonly mediaId: string;
   readonly source: {
-    readonly kind: "youtube_url" | "direct_media_url";
+    /** `hosted_url` (2026-10-01): a public Vimeo, Google Drive or Dropbox link. */
+    readonly kind: "youtube_url" | "hosted_url" | "direct_media_url";
     readonly normalizedUrl: string;
     readonly sourceId: string | null;
   };
@@ -172,12 +187,15 @@ export async function processAcquire(context: JobContext): Promise<ProcessorOutc
   // The API refuses a direct media URL at creation, because nothing yet stops
   // a downloader on this machine from being pointed at an address only this
   // machine can reach. A replayed or hand-built job must not get round that.
-  if (payload.source.kind !== "youtube_url") {
+  //
+  // A `hosted_url` (2026-10-01) is a Vimeo, Google Drive or Dropbox link: the
+  // same fetch, with yt-dlp held to that one site's extractor.
+  if (payload.source.kind !== "youtube_url" && payload.source.kind !== "hosted_url") {
     throw unreadableMedia("that kind of link cannot be fetched yet", "media/unsupported");
   }
-  assertAcquirableUrl(payload.source.normalizedUrl);
+  const { extractor } = acquirableSource(payload.source.kind, payload.source.normalizedUrl);
   const limits = payload.limits;
-  const window = readWindow(payload.window);
+  const window = windowForSite(readWindow(payload.window), extractor);
   // One limit for the whole job, however many downloads it takes: the API
   // counts an acquire running past `timeoutMs` (+10 min) as stalled.
   const deadline = Date.now() + limits.timeoutMs;
@@ -193,6 +211,7 @@ export async function processAcquire(context: JobContext): Promise<ProcessorOutc
       signal: context.signal,
       ...(jsRuntime === undefined ? {} : { jsRuntime }),
       ...(window === undefined ? {} : { window }),
+      ...(extractor === null ? {} : { extractor }),
     });
 
     // Now that the video's size is known: room for it, with the floor still
@@ -214,6 +233,7 @@ export async function processAcquire(context: JobContext): Promise<ProcessorOutc
       payload,
       metadata,
       deadline,
+      extractor,
       onProgress: (percent, bytes) => {
         // A split download counts 0-100% for the picture and again for the
         // sound, and a fallback starts again from 0; the rail only ever moves
@@ -472,10 +492,14 @@ async function assertRoomToDownload(
     requiredBytes: verdict.requiredBytes,
     path: verdict.path,
   });
-  throw transientFailure("media/disk_full", "there is not enough free disk to fetch that video now", {
-    reason: "media/source_failed",
-    detail: `free ${String(verdict.freeBytes)} bytes, needs ${String(verdict.requiredBytes)}`,
-  });
+  throw transientFailure(
+    "media/disk_full",
+    "there is not enough free disk to fetch that video now",
+    {
+      reason: "media/source_failed",
+      detail: `free ${String(verdict.freeBytes)} bytes, needs ${String(verdict.requiredBytes)}`,
+    },
+  );
 }
 
 /** The result's `section`: exactly the contract's four fields. */
@@ -500,6 +524,8 @@ async function fetchSource(input: {
   readonly payload: AcquirePayload;
   readonly metadata: SourceMetadata;
   readonly deadline: number;
+  /** The one yt-dlp extractor a hosted link may use; `null` for YouTube. */
+  readonly extractor: HostedExtractor | null;
   /** `bytes` when the download counts them itself (a section's bytes on disk). */
   readonly onProgress: (percent: number, bytes?: number) => void;
 }): Promise<{
@@ -520,6 +546,7 @@ async function fetchSource(input: {
     signal: context.signal,
     onProgress: input.onProgress,
     ...(settings.ytDlpJsRuntime === undefined ? {} : { jsRuntime: settings.ytDlpJsRuntime }),
+    ...(input.extractor === null ? {} : { extractor: input.extractor }),
     // Every download stops before the volume it shares with the database
     // falls below the reserve, whatever its own size.
     ...(disk === undefined ? {} : { lowDisk: async () => disk.belowReserve() }),
@@ -800,6 +827,116 @@ function isOneVideo(url: URL, shape: VideoPath): boolean {
     url.pathname.startsWith(prefix) &&
     VIDEO_ID.test(url.pathname.slice(prefix.length))
   );
+}
+
+/**
+ * The link a job may fetch, for its kind, and the one yt-dlp extractor it is
+ * held to (`null`: YouTube, whose path has never pinned one).
+ *
+ * A `youtube_url` is {@link assertAcquirableUrl}'s; a `hosted_url`
+ * (2026-10-01) is {@link assertHostedUrl}'s. Neither kind is let through on
+ * the other's hosts: a replayed job that says `hosted_url` about a YouTube
+ * link would otherwise skip the source gate the API keeps for YouTube.
+ */
+export function acquirableSource(
+  kind: "youtube_url" | "hosted_url",
+  value: string,
+): { readonly url: URL; readonly extractor: HostedExtractor | null } {
+  if (kind === "youtube_url") return { url: assertAcquirableUrl(value), extractor: null };
+  return assertHostedUrl(value);
+}
+
+/** A Vimeo video id, and an unlisted video's hash (as the API's `VIMEO_ID`, `VIMEO_HASH`). */
+const VIMEO_PATH = /^\/\d{1,15}$/;
+const VIMEO_UNLISTED_PATH = /^\/\d{1,15}\/[0-9a-f]{10}$/;
+/** `/file/d/{id}/view`: the only Drive address the API writes. */
+const DRIVE_PATH = /^\/file\/d\/[A-Za-z0-9_-]{28,100}\/view$/;
+/** `/s/{key}/{name}` and `/scl/fi/{id}/{name}`, the name as `encodeURIComponent` leaves it. */
+const DROPBOX_S_PATH = /^\/s\/[A-Za-z0-9_-]{5,40}\/[A-Za-z0-9_.!~*'()%-]{1,95}$/;
+const DROPBOX_SCL_PATH = /^\/scl\/fi\/[A-Za-z0-9_-]{5,40}\/[A-Za-z0-9_.!~*'()%-]{1,95}$/;
+const DROPBOX_RLKEY = /^[A-Za-z0-9]{5,40}$/;
+
+/** The canonical host of each site, and the extractor its links are held to. */
+const HOSTED_HOSTS: ReadonlyMap<string, HostedExtractor> = new Map<string, HostedExtractor>([
+  ["vimeo.com", "vimeo"],
+  ["drive.google.com", "googledrive"],
+  ["www.dropbox.com", "dropbox"],
+]);
+
+/**
+ * The worker's own check of a `hosted_url` (2026-10-01): exactly one of the
+ * addresses the API's `hostedUrlOf` (`apps/api/src/repurpose/source-url.ts`)
+ * rebuilds from a fingerprint, and nothing else - one host each, one path
+ * shape each, no port, no credentials, no fragment, and no query but a
+ * Dropbox file link's `rlkey`. The hosts are deliberately the canonical ones
+ * the API writes (`vimeo.com`, `drive.google.com`, `www.dropbox.com`), not
+ * every spelling it accepts from a person.
+ *
+ * The extractor matters as much as the host. yt-dlp's generic extractor
+ * follows a page anywhere it points, and Vimeo, Drive and Dropbox all serve
+ * pages; held to `--use-extractors` with the site's own extractor, a page
+ * that is not that site's video is an "unsupported URL", never a fetch of
+ * whatever it links to.
+ */
+export function assertHostedUrl(value: string): {
+  readonly url: URL;
+  readonly extractor: HostedExtractor;
+} {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw unreadableMedia("that link is not a valid address", "media/unsupported");
+  }
+  if (url.protocol !== "https:") {
+    throw unreadableMedia("that link does not use a secure connection", "media/unsupported");
+  }
+  if (url.username !== "" || url.password !== "") {
+    throw unreadableMedia("that link carries a username or password", "media/unsupported");
+  }
+  const extractor = HOSTED_HOSTS.get(url.hostname);
+  if (url.port !== "" || extractor === undefined) {
+    throw unreadableMedia("that link is not on a site we can fetch from", "media/unsupported");
+  }
+  if (!isOneHostedFile(url, extractor)) {
+    throw unreadableMedia("that link is not a single video", "media/unsupported");
+  }
+  return { url, extractor };
+}
+
+function isOneHostedFile(url: URL, extractor: HostedExtractor): boolean {
+  if (url.hash !== "") return false;
+  if (extractor === "vimeo") {
+    return (
+      url.search === "" && (VIMEO_PATH.test(url.pathname) || VIMEO_UNLISTED_PATH.test(url.pathname))
+    );
+  }
+  if (extractor === "googledrive") return url.search === "" && DRIVE_PATH.test(url.pathname);
+  if (DROPBOX_S_PATH.test(url.pathname)) return url.search === "";
+  if (!DROPBOX_SCL_PATH.test(url.pathname)) return false;
+  const params = [...url.searchParams.keys()];
+  return (
+    params.length === 1 &&
+    params[0] === "rlkey" &&
+    DROPBOX_RLKEY.test(url.searchParams.get("rlkey") ?? "")
+  );
+}
+
+/**
+ * A window as the link's site can honour it: only YouTube publishes a
+ * most-replayed heatmap, so on Vimeo, Google Drive or Dropbox the window is
+ * the start (2026-10-01). The API already asks for `first` there; this is the
+ * boundary not trusting that (§8.2), and it keeps a stray heatmap-shaped
+ * field in another site's metadata from placing the window.
+ */
+export function windowForSite(
+  window: AcquireWindow | undefined,
+  extractor: HostedExtractor | null,
+): AcquireWindow | undefined {
+  if (window === undefined || extractor === null || window.policy !== "most_replayed") {
+    return window;
+  }
+  return { ...window, policy: "first" };
 }
 
 /**

@@ -10,7 +10,7 @@ import { STAGE_OF_FAILURE, failureDetailOf, runFailureCode } from "./failure-cod
 import { ACQUIRE_MAX_DURATION_MS, PRE_CANDIDATE_STATUSES } from "./repurpose.constants.js";
 import { cleanSourceTitle, sourceProjectTitle } from "./repurpose.projection.js";
 import { RepurposeService, isUniqueViolation } from "./repurpose.service.js";
-import { MAX_BLOCKED_FETCHES, SourceGate } from "./source-gate.js";
+import { MAX_BLOCKED_FETCHES, SourceGate, usesSourceGate } from "./source-gate.js";
 import { PrismaService } from "../common/prisma/prisma.service.js";
 import { JobCompletionRegistry } from "../jobs/completion-handlers.js";
 import { MEDIA_FAILURE_REASONS } from "../media/media.constants.js";
@@ -104,14 +104,15 @@ export class RepurposeAcquireCompletionHandler implements JobCompletionHandler, 
       );
     }
     const result = parsed.data;
-    // A download got through: YouTube is answering this machine again.
-    await this.gate?.passed();
+    // A YouTube download got through: YouTube is answering this machine
+    // again. Another video site landing (2026-10-01) says nothing about that.
+    const payload = MediaAcquirePayloadSchema.safeParse(context.job.params);
+    if (!payload.success || usesSourceGate(payload.data.source.kind)) await this.gate?.passed();
 
     // The row written is the one the API queued this job for, never one the
     // worker names: a worker that mixed up two concurrent downloads would
     // otherwise complete another run's media — possibly another workspace's —
     // with these bytes. Same answer as a body that does not parse.
-    const payload = MediaAcquirePayloadSchema.safeParse(context.job.params);
     if (payload.success && payload.data.mediaId !== result.mediaId) {
       throw new Error(
         `media.acquire returned a result for media ${result.mediaId}, but job ${context.job.id} fetches into ${payload.data.mediaId}`,
@@ -334,7 +335,7 @@ export class RepurposeAcquireCompletionHandler implements JobCompletionHandler, 
     });
     if (
       code === "repurpose/source_blocked" &&
-      run.sourceKind !== "upload" &&
+      usesSourceGate(run.sourceKind) &&
       this.gate !== undefined
     ) {
       // YouTube refused this machine (its bot check, a 429): every download

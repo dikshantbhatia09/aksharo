@@ -14,7 +14,8 @@ import type { BulkRunResult, BulkRunsInput, BulkRunsResponse } from "./source-wa
 import type { SourceRejectionCode } from "../source-url.js";
 
 /**
- * "Several links" (2026-10-02): up to twenty YouTube links, one run each, with
+ * "Several links" (2026-10-02): up to twenty YouTube links (and, since
+ * 2026-10-01, Vimeo, Google Drive and Dropbox links), one run each, with
  * one setup - line by line, so one bad link never costs the others.
  *
  * Each link is exactly a start-form run: `parseSourceUrl` (a direct file link
@@ -52,7 +53,7 @@ export class BulkRunsService {
     if (input.links.every((link) => link.trim() === "")) {
       throw new AppException(
         AUTOMATION_ERRORS.noLinks,
-        "Paste at least one YouTube link, one per line.",
+        "Paste at least one video link, one per line.",
         HttpStatus.BAD_REQUEST,
       );
     }
@@ -75,10 +76,13 @@ export class BulkRunsService {
         refuse(sourceCode(parsed.code), SOURCE_REJECTION_MESSAGES[parsed.code]);
         continue;
       }
-      if (parsed.source.kind !== "youtube_url") {
+      // A Vimeo, Google Drive or Dropbox link (2026-10-01) starts like a
+      // YouTube one; `create` refuses it while that site is off for the
+      // workspace, on its own line. A direct file link is still refused.
+      if (parsed.source.kind === "direct_media_url") {
         refuse(
           REPURPOSE_ERRORS.sourceUnsupported,
-          "Only YouTube links can be started together. Upload other videos as files.",
+          "Only video site links can be started together. Upload other videos as files.",
         );
         continue;
       }

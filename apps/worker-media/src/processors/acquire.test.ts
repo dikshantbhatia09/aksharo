@@ -135,7 +135,13 @@ const DUMP = {
   duration: 1078,
   formats: [
     { format_id: "140", vcodec: "none", acodec: "mp4a.40.2", ext: "m4a", filesize: 17_452_022 },
-    { format_id: "137", vcodec: "avc1.640028", acodec: "none", height: 1080, filesize: 170_219_237 },
+    {
+      format_id: "137",
+      vcodec: "avc1.640028",
+      acodec: "none",
+      height: 1080,
+      filesize: 170_219_237,
+    },
   ],
 };
 
@@ -619,6 +625,64 @@ describe("processAcquire with a window", () => {
     expect(outcome.mediaPatch).toMatchObject({ durationMs: 600_000 });
   });
 
+  it("fetches a Vimeo link through Vimeo's own extractor, from the start (2026-10-01)", async () => {
+    // A heatmap-shaped field in another site's metadata never places the
+    // window: only YouTube publishes one, so most-replayed is the start there.
+    const { downloads, probes } = fakeTools({
+      dump: {
+        ...DUMP,
+        id: "76979871",
+        extractor_key: "Vimeo",
+        heatmap: [{ start_time: 900, end_time: 910, value: 1 }],
+        formats: [
+          {
+            format_id: "http-1080p",
+            vcodec: "avc1.640028",
+            acodec: "mp4a.40.2",
+            height: 1080,
+            width: 1920,
+            filesize: 170_219_237,
+          },
+        ],
+      },
+      onDownload: landFile,
+      durationOf,
+    });
+    const { raw } = uploaded();
+    const outcome = await processAcquire({
+      ...context(
+        {
+          kind: "hosted_url",
+          normalizedUrl: "https://vimeo.com/76979871",
+          sourceId: "vimeo:76979871",
+        },
+        {},
+        { limits: LIMITS, window: { maxMs: 600_000, policy: "most_replayed" } },
+      ),
+      raw,
+    });
+    for (const args of [...probes, ...downloads]) {
+      expect(args[args.indexOf("--use-extractors") + 1]).toBe("vimeo");
+      expect(args.at(-1)).toBe("https://vimeo.com/76979871");
+    }
+    const args = downloads[0] ?? [];
+    expect(args[args.indexOf("--download-sections") + 1]).toBe("*0.000-600.000");
+    expect(outcome.result["section"]).toMatchObject({ startMs: 0, policy: "first" });
+  });
+
+  it("refuses a hosted link that is not one the API writes, before running anything", async () => {
+    fakeTools({ onDownload: landFile, durationOf });
+    for (const normalizedUrl of [
+      "https://vimeo.com.evil.test/76979871",
+      "https://www.youtube.com/watch?v=5eW6Eagr9XA",
+      "https://drive.google.com/uc?id=1AbCdEfGhIjKlMnOpQrStUvWxYz012345&export=download",
+    ]) {
+      const error = await failure(processAcquire(context({ kind: "hosted_url", normalizedUrl })));
+      expect(error.reason, normalizedUrl).toBe("media/unsupported");
+    }
+    expect(spawnMock).not.toHaveBeenCalled();
+  });
+
   it("refuses a malformed window before running anything", async () => {
     fakeTools({ onDownload: landFile, durationOf });
     const error = await failure(
@@ -867,7 +931,9 @@ describe("processAcquire and the disk", () => {
     });
   }
 
-  function tools(onDownload: (child: FakeChild, args: readonly string[], index: number) => Promise<void>): {
+  function tools(
+    onDownload: (child: FakeChild, args: readonly string[], index: number) => Promise<void>,
+  ): {
     readonly downloads: (readonly string[])[];
   } {
     const downloads: (readonly string[])[] = [];
@@ -879,7 +945,8 @@ describe("processAcquire and the disk", () => {
           void child.exit(0);
         } else if (args.includes("-show_streams")) {
           const path = args.at(-1) ?? "";
-          const seconds = path.includes(`${sep}section${sep}`) || path.endsWith("window.mp4") ? 600 : 1078;
+          const seconds =
+            path.includes(`${sep}section${sep}`) || path.endsWith("window.mp4") ? 600 : 1078;
           child.stdout.write(
             JSON.stringify({ ...PROBED, format: { ...PROBED.format, duration: String(seconds) } }),
           );
@@ -950,11 +1017,22 @@ describe("processAcquire and the disk", () => {
 
 describe("placeLanded", () => {
   const WINDOW = { maxMs: 600_000, policy: "first" } as const;
-  const PLAN = { startMs: 0, endMs: 600_000, sourceDurationMs: 1_078_000, policy: "first" } as const;
+  const PLAN = {
+    startMs: 0,
+    endMs: 600_000,
+    sourceDurationMs: 1_078_000,
+    policy: "first",
+  } as const;
 
   it("keeps a whole source within the window's tolerance whole, and says so", () => {
     expect(
-      placeLanded({ window: WINDOW, planned: PLAN, whole: true, landedMs: 612_000, replayedPeakMs: null }),
+      placeLanded({
+        window: WINDOW,
+        planned: PLAN,
+        whole: true,
+        landedMs: 612_000,
+        replayedPeakMs: null,
+      }),
     ).toEqual({ cut: null, section: null });
   });
 
@@ -973,7 +1051,13 @@ describe("placeLanded", () => {
 
   it("has nothing to place without a window", () => {
     expect(
-      placeLanded({ window: undefined, planned: null, whole: true, landedMs: 9e6, replayedPeakMs: null }),
+      placeLanded({
+        window: undefined,
+        planned: null,
+        whole: true,
+        landedMs: 9e6,
+        replayedPeakMs: null,
+      }),
     ).toEqual({ cut: null, section: null });
   });
 });

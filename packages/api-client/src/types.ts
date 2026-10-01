@@ -1290,7 +1290,8 @@ export interface RepurposeRunView {
   id: string;
   workspaceId: string;
   sourceProjectId: string;
-  sourceKind: "upload" | "youtube_url" | "direct_media_url";
+  /** `hosted_url`: a Vimeo, Google Drive or Dropbox link (2026-10-01). */
+  sourceKind: "upload" | "youtube_url" | "hosted_url" | "direct_media_url";
   /** Safe display form: a host and, for a link, the video id. Never a token. */
   sourceDisplay: string | null;
   mode: "ai" | "manual" | "mixed";
