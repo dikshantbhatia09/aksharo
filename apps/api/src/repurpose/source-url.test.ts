@@ -243,7 +243,9 @@ describe("Vimeo, Google Drive and Dropbox links (2026-10-01)", () => {
     ]) {
       const source = accepted(url);
       expect(source.sourceFingerprint, url).toBe("vimeo:76979871/0123456789");
-      expect(source.normalizedUrl, url).toBe("https://player.vimeo.com/video/76979871?h=0123456789");
+      expect(source.normalizedUrl, url).toBe(
+        "https://player.vimeo.com/video/76979871?h=0123456789",
+      );
       expect(source.display, url).toBe("vimeo.com · 76979871 (unlisted)");
     }
   });
