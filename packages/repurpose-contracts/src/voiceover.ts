@@ -34,7 +34,7 @@ import { REPURPOSE_SCHEMA_VERSION, UlidSchema } from "./schema.js";
 
 /**
  * The languages Sarvam's text-to-speech speaks, as its API spells them
- * (`bulbul:v2`). Odia is `od-IN` here, where the dubbing API says `or-IN`.
+ * (`bulbul:v3`). Odia is `od-IN` here, where the dubbing API says `or-IN`.
  */
 export const VOICEOVER_LANGUAGES = [
   "en-IN",
@@ -68,35 +68,35 @@ export const VOICEOVER_LANGUAGE_NAMES: Readonly<Record<VoiceoverLanguage, string
 });
 
 /**
- * The model's stock voices (`bulbul:v2`, checked 2026-10-01 against Sarvam's
+ * The model's stock voices (`bulbul:v3`, checked 2026-10-01 against Sarvam's
  * published docs, not against the account). Stock voices only: nobody's own
  * voice is cloned, so a voice-over needs no consent tick the way a dub does.
  */
 export const VOICEOVER_SPEAKERS = [
-  "anushka",
-  "manisha",
-  "vidya",
-  "arya",
-  "abhilash",
-  "karun",
-  "hitesh",
+  "priya",
+  "neha",
+  "kavya",
+  "shreya",
+  "shubh",
+  "rahul",
+  "aditya",
 ] as const;
 export type VoiceoverSpeaker = (typeof VOICEOVER_SPEAKERS)[number];
 export const VoiceoverSpeakerSchema = z.enum(VOICEOVER_SPEAKERS);
 
 /** What a person reads for each voice. */
 export const VOICEOVER_SPEAKER_NAMES: Readonly<Record<VoiceoverSpeaker, string>> = Object.freeze({
-  anushka: "Anushka (female)",
-  manisha: "Manisha (female)",
-  vidya: "Vidya (female)",
-  arya: "Arya (female)",
-  abhilash: "Abhilash (male)",
-  karun: "Karun (male)",
-  hitesh: "Hitesh (male)",
+  priya: "Priya (female)",
+  neha: "Neha (female)",
+  kavya: "Kavya (female)",
+  shreya: "Shreya (female)",
+  shubh: "Shubh (male)",
+  rahul: "Rahul (male)",
+  aditya: "Aditya (male)",
 });
 
 /** The model every voice-over is made with; a new model is a new contract field. */
-export const VOICEOVER_MODEL = "bulbul:v2";
+export const VOICEOVER_MODEL = "bulbul:v3";
 
 /** The bounds one voice-over is held to, whatever the request says. */
 export const VOICEOVER_LIMITS = Object.freeze({

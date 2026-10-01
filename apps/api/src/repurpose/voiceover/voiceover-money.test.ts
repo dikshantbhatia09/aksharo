@@ -36,10 +36,10 @@ function fakeRedis(options: { broken?: boolean } = {}) {
 }
 
 describe("voice-over pricing (2026-10-01)", () => {
-  it("is a flat 2 credits, and the vendor's ₹15 per 10,000 characters rounded up", () => {
+  it("is a flat 2 credits, and the vendor's ₹30 per 10,000 characters rounded up", () => {
     expect(VOICEOVER_TENTHS).toBe(20);
-    expect(voiceoverVendorPaise(46)).toBe(7);
-    expect(voiceoverVendorPaise(300)).toBe(45);
+    expect(voiceoverVendorPaise(46)).toBe(14);
+    expect(voiceoverVendorPaise(300)).toBe(90);
     expect(voiceoverVendorPaise(0)).toBe(0);
     expect(voiceoverVendorPaise(Number.NaN)).toBe(0);
   });

@@ -460,9 +460,15 @@ const DROPBOX_SCL_FINGERPRINT =
  */
 export function hostedUrlOf(fingerprint: string): string | null {
   const vimeo = VIMEO_FINGERPRINT.exec(fingerprint);
-  if (vimeo !== null) return `https://vimeo.com/${vimeo[1] ?? ""}`;
+  // The embedded player's address (2026-10-01): yt-dlp's Vimeo "web" client
+  // now needs a signed-in account for `vimeo.com/{id}` and its "android"
+  // client only cached tokens, while `player.vimeo.com/video/{id}` (plus
+  // `?h=` for an unlisted video) is fetched without one - checked live.
+  if (vimeo !== null) return `https://player.vimeo.com/video/${vimeo[1] ?? ""}`;
   const unlisted = VIMEO_UNLISTED_FINGERPRINT.exec(fingerprint);
-  if (unlisted !== null) return `https://vimeo.com/${unlisted[1] ?? ""}/${unlisted[2] ?? ""}`;
+  if (unlisted !== null) {
+    return `https://player.vimeo.com/video/${unlisted[1] ?? ""}?h=${unlisted[2] ?? ""}`;
+  }
   const drive = DRIVE_FINGERPRINT.exec(fingerprint);
   if (drive !== null) return `https://drive.google.com/file/d/${drive[1] ?? ""}/view`;
   const shared = DROPBOX_S_FINGERPRINT.exec(fingerprint);

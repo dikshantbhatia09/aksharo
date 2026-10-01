@@ -152,7 +152,7 @@ function VoiceoverDialog({
   const create = useCreateRepurposeVoiceover();
   const [text, setText] = React.useState(offer.text);
   const [speaker, setSpeaker] = React.useState<RepurposeVoiceoverSpeakerId>(
-    list.speakers[0]?.id ?? "anushka",
+    list.speakers[0]?.id ?? "priya",
   );
   const trimmed = text.replace(/\s+/gu, " ").trim();
   const tooShort = trimmed.length < 2;

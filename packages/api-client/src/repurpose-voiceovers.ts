@@ -38,7 +38,7 @@ export type RepurposeVoiceoverLanguageCode =
 
 /** The stock voices. */
 export type RepurposeVoiceoverSpeakerId =
-  "anushka" | "manisha" | "vidya" | "arya" | "abhilash" | "karun" | "hitesh";
+  "priya" | "neha" | "kavya" | "shreya" | "shubh" | "rahul" | "aditya";
 
 export interface RepurposeVoiceoverLanguage {
   code: RepurposeVoiceoverLanguageCode;

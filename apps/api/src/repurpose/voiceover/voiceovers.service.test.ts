@@ -308,7 +308,7 @@ describe("RepurposeVoiceoversService.create (2026-10-01)", () => {
     expect(voiceover.status).toBe("speaking");
     expect(voiceover.text).toBe("Nobody tells you this about turbulence");
     expect(voiceover.language.code).toBe("en-IN");
-    expect(voiceover.speaker.id).toBe("anushka");
+    expect(voiceover.speaker.id).toBe("priya");
     const call = h.jobs.enqueue.mock.calls[0]?.[0] as Row;
     expect(call["type"]).toBe("ai.voiceover");
     expect(call["worstCaseTenths"]).toBe(VOICEOVER_TENTHS);

@@ -31472,13 +31472,13 @@
                   "speaker": {
                     "type": "string",
                     "enum": [
-                      "anushka",
-                      "manisha",
-                      "vidya",
-                      "arya",
-                      "abhilash",
-                      "karun",
-                      "hitesh"
+                      "priya",
+                      "neha",
+                      "kavya",
+                      "shreya",
+                      "shubh",
+                      "rahul",
+                      "aditya"
                     ]
                   }
                 },

@@ -35,7 +35,7 @@ __all__ = [
 
 SCHEMA_VERSION: Final[int] = 1
 
-#: Sarvam's text-to-speech languages (``bulbul:v2``); Odia is ``od-IN`` here.
+#: Sarvam's text-to-speech languages (``bulbul:v3``); Odia is ``od-IN`` here.
 VOICEOVER_LANGUAGES: Final[tuple[str, ...]] = (
     "en-IN",
     "hi-IN",
@@ -65,17 +65,17 @@ VoiceoverLanguage = Literal[
 
 #: The stock voices, never a person's own (so nobody's voice is cloned).
 VOICEOVER_SPEAKERS: Final[tuple[str, ...]] = (
-    "anushka",
-    "manisha",
-    "vidya",
-    "arya",
-    "abhilash",
-    "karun",
-    "hitesh",
+    "priya",
+    "neha",
+    "kavya",
+    "shreya",
+    "shubh",
+    "rahul",
+    "aditya",
 )
-VoiceoverSpeaker = Literal["anushka", "manisha", "vidya", "arya", "abhilash", "karun", "hitesh"]
+VoiceoverSpeaker = Literal["priya", "neha", "kavya", "shreya", "shubh", "rahul", "aditya"]
 
-VOICEOVER_MODEL: Final[str] = "bulbul:v2"
+VOICEOVER_MODEL: Final[str] = "bulbul:v3"
 
 #: ``VOICEOVER_LIMITS`` in ``voiceover.ts``.
 MAX_TEXT_CHARS: Final[int] = 300
@@ -122,7 +122,7 @@ class VoiceoverPayload(_Strict):
     language: VoiceoverLanguage
     speaker: VoiceoverSpeaker
     pace: float = Field(ge=MIN_PACE, le=MAX_PACE)
-    model: Literal["bulbul:v2"]
+    model: Literal["bulbul:v3"]
     destination: VoiceoverDestination
 
     @field_validator("text")

@@ -653,7 +653,7 @@ describe("processAcquire with a window", () => {
       ...context(
         {
           kind: "hosted_url",
-          normalizedUrl: "https://vimeo.com/76979871",
+          normalizedUrl: "https://player.vimeo.com/video/76979871",
           sourceId: "vimeo:76979871",
         },
         {},
@@ -663,7 +663,7 @@ describe("processAcquire with a window", () => {
     });
     for (const args of [...probes, ...downloads]) {
       expect(args[args.indexOf("--use-extractors") + 1]).toBe("vimeo");
-      expect(args.at(-1)).toBe("https://vimeo.com/76979871");
+      expect(args.at(-1)).toBe("https://player.vimeo.com/video/76979871");
     }
     const args = downloads[0] ?? [];
     expect(args[args.indexOf("--download-sections") + 1]).toBe("*0.000-600.000");

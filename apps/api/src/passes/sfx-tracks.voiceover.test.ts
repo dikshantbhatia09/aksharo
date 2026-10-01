@@ -18,7 +18,7 @@ const voice = voiceoverPass({
   durationMs: 2_000,
   text: "Wait for it",
   language: "en-IN",
-  speaker: "anushka",
+  speaker: "priya",
   passId: stableOverlayId("v:pass"),
   itemId: stableOverlayId("v:item"),
 });

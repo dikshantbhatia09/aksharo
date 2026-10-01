@@ -224,9 +224,9 @@ async def test_sends_the_hook_with_the_key_and_decodes_the_wav() -> None:
     speech = await speech_client(vendor).synthesise(
         text="Nobody tells you this",
         language="hi-IN",
-        speaker="anushka",
+        speaker="priya",
         pace=1.0,
-        model="bulbul:v2",
+        model="bulbul:v3",
         sample_rate=22_050,
     )
     assert speech.audio == vendor.audio
@@ -235,9 +235,9 @@ async def test_sends_the_hook_with_the_key_and_decodes_the_wav() -> None:
     assert vendor.calls[0] == {
         "text": "Nobody tells you this",
         "target_language_code": "hi-IN",
-        "speaker": "anushka",
+        "speaker": "priya",
         "pace": 1.0,
-        "model": "bulbul:v2",
+        "model": "bulbul:v3",
         "speech_sample_rate": 22_050,
         "enable_preprocessing": True,
     }
@@ -249,9 +249,9 @@ async def test_a_refusal_is_the_vendors_words_and_not_retried() -> None:
         await speech_client(vendor).synthesise(
             text="x" * 10,
             language="hi-IN",
-            speaker="anushka",
+            speaker="priya",
             pace=1.0,
-            model="bulbul:v2",
+            model="bulbul:v3",
             sample_rate=22_050,
         )
     assert caught.value.code == "voiceover/vendor_refused"
@@ -270,9 +270,9 @@ async def test_a_bad_key_and_an_outage_are_told_apart() -> None:
             await speech_client(vendor).synthesise(
                 text="hello there",
                 language="en-IN",
-                speaker="karun",
+                speaker="rahul",
                 pace=1.0,
-                model="bulbul:v2",
+                model="bulbul:v3",
                 sample_rate=22_050,
             )
         assert (caught.value.code, caught.value.retryable, len(vendor.calls)) == (
@@ -284,9 +284,9 @@ async def test_a_bad_key_and_an_outage_are_told_apart() -> None:
 
 
 def test_prices_a_hook_in_paise_rounded_up() -> None:
-    # ₹15 per 10,000 characters.
-    assert vendor_paise(46) == 7
-    assert vendor_paise(300) == 45
+    # ₹30 per 10,000 characters.
+    assert vendor_paise(46) == 14
+    assert vendor_paise(300) == 90
     assert vendor_paise(0) == 0
 
 

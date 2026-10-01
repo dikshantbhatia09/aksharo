@@ -18,7 +18,7 @@ function pass(overrides: Partial<Parameters<typeof voiceoverPass>[0]> = {}) {
     durationMs: 2_810.2,
     text: "Nobody tells you this",
     language: "en-IN",
-    speaker: "anushka",
+    speaker: "priya",
     passId: stableOverlayId("variant:voiceover-pass"),
     itemId: stableOverlayId("variant:voiceover"),
     ...overrides,

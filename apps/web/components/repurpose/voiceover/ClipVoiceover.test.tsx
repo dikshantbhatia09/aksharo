@@ -26,8 +26,8 @@ function list(overrides: Partial<RepurposeVoiceoverList> = {}): RepurposeVoiceov
     tenthsPerVoiceover: 20,
     maxTextChars: 300,
     speakers: [
-      { id: "anushka", name: "Anushka (female)" },
-      { id: "karun", name: "Karun (male)" },
+      { id: "priya", name: "Priya (female)" },
+      { id: "rahul", name: "Rahul (male)" },
     ],
     clips: [
       {
@@ -55,7 +55,7 @@ function voiceover(overrides: Partial<RepurposeVoiceover> = {}): RepurposeVoiceo
     failureMessage: null,
     text: "Nobody tells you this",
     language: { code: "en-IN", name: "English" },
-    speaker: { id: "anushka", name: "Anushka (female)" },
+    speaker: { id: "priya", name: "Priya (female)" },
     durationMs: null,
     costTenths: 20,
     audioUrl: null,
@@ -110,14 +110,14 @@ describe("<ClipVoiceoverView /> (2026-10-01)", () => {
     expect(dialog).toHaveTextContent("in English");
 
     fireEvent.change(within(dialog).getByTestId("voiceover-speaker"), {
-      target: { value: "karun" },
+      target: { value: "rahul" },
     });
     fireEvent.click(within(dialog).getByTestId("voiceover-confirm"));
     await waitFor(() => {
       expect(callTo(fetchMock, CREATE_ROUTE)).toBeDefined();
     });
     expect(JSON.parse(String(callTo(fetchMock, CREATE_ROUTE)?.body))).toEqual({
-      speaker: "karun",
+      speaker: "rahul",
     });
   });
 
@@ -170,7 +170,7 @@ describe("<ClipVoiceoverView /> (2026-10-01)", () => {
     });
     expect(JSON.parse(String(callTo(fetchMock, CREATE_ROUTE)?.body))).toEqual({
       text: "Wait for it",
-      speaker: "anushka",
+      speaker: "priya",
     });
   });
 

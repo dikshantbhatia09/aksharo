@@ -232,7 +232,7 @@ describe("Vimeo, Google Drive and Dropbox links (2026-10-01)", () => {
       const source = accepted(url);
       expect(source.kind, url).toBe("hosted_url");
       expect(source.sourceFingerprint, url).toBe("vimeo:76979871");
-      expect(source.normalizedUrl, url).toBe("https://vimeo.com/76979871");
+      expect(source.normalizedUrl, url).toBe("https://player.vimeo.com/video/76979871");
     }
   });
 
@@ -243,7 +243,7 @@ describe("Vimeo, Google Drive and Dropbox links (2026-10-01)", () => {
     ]) {
       const source = accepted(url);
       expect(source.sourceFingerprint, url).toBe("vimeo:76979871/0123456789");
-      expect(source.normalizedUrl, url).toBe("https://vimeo.com/76979871/0123456789");
+      expect(source.normalizedUrl, url).toBe("https://player.vimeo.com/video/76979871?h=0123456789");
       expect(source.display, url).toBe("vimeo.com · 76979871 (unlisted)");
     }
   });
@@ -333,7 +333,7 @@ describe("Vimeo, Google Drive and Dropbox links (2026-10-01)", () => {
   it("rebuilds the canonical address from the host's own parts, never the pasted string", () => {
     // A port, a fragment, extra query parameters: none of them survive.
     const source = accepted("https://vimeo.com:8443/76979871?redirect=https://evil.test#x");
-    expect(source.normalizedUrl).toBe("https://vimeo.com/76979871");
+    expect(source.normalizedUrl).toBe("https://player.vimeo.com/video/76979871");
   });
 
   it("refuses a Dropbox name too long to rebuild, with a sentence that says what to do", () => {

@@ -13,9 +13,9 @@ Every call carries ``api-subscription-key``. It is ONE synchronous call: there
 is no vendor job to resume or cancel, which is why the processor's only
 idempotency guard is its own checkpoint (``processors/voiceover.py``).
 
-Price (published, 2026-10-01): ₹15 per 10,000 characters for ``bulbul:v2``,
+Price (published, 2026-10-01): ₹30 per 10,000 characters for ``bulbul:v3``,
 billed on the characters sent. A hook is at most 300 characters, so one
-voice-over is under half a rupee; the API's daily budget still counts it.
+voice-over is under a rupee; the API's daily budget still counts it.
 
 Errors map onto what a retry can change, as the dubbing client's do: 429, 5xx
 and a broken connection are retried here with backoff and then reported
@@ -53,8 +53,8 @@ _log = get_logger(__name__)
 
 SARVAM_TTS_DEFAULT_BASE_URL: Final[str] = "https://api.sarvam.ai"
 
-#: ₹15 per 10,000 characters (``bulbul:v2``, published 2026-10-01), in paise.
-VENDOR_PAISE_PER_10K_CHARACTERS: Final[int] = 1_500
+#: ₹30 per 10,000 characters (``bulbul:v3``, published 2026-10-01), in paise.
+VENDOR_PAISE_PER_10K_CHARACTERS: Final[int] = 3_000
 
 _MAX_RETRY_AFTER_S: Final[float] = 30.0
 _MESSAGE_MAX: Final[int] = 300

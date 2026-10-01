@@ -2501,7 +2501,7 @@ describe("create — a Vimeo, Google Drive or Dropbox link", () => {
     expect(job.type).toBe("media.acquire");
     expect(job.params.source).toEqual({
       kind: "hosted_url",
-      normalizedUrl: "https://vimeo.com/76979871",
+      normalizedUrl: "https://player.vimeo.com/video/76979871",
       sourceId: "vimeo:76979871",
     });
     expect(job.params.window).toEqual({ maxMs: 20 * MINUTE, policy: "first" });

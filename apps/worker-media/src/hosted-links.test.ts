@@ -32,8 +32,8 @@ const DRIVE_ID = "1AbCdEfGhIjKlMnOpQrStUvWxYz012345";
 describe("the worker's check of a hosted link", () => {
   it("accepts every address the API rebuilds from a fingerprint, with its site's extractor", () => {
     const cases: readonly (readonly [string, HostedExtractor])[] = [
-      ["https://vimeo.com/76979871", "vimeo"],
-      ["https://vimeo.com/76979871/0123456789", "vimeo"],
+      ["https://player.vimeo.com/video/76979871", "vimeo"],
+      ["https://player.vimeo.com/video/76979871?h=0123456789", "vimeo"],
       [`https://drive.google.com/file/d/${DRIVE_ID}/view`, "googledrive"],
       ["https://www.dropbox.com/s/abc123xyz/talk.mp4", "dropbox"],
       ["https://www.dropbox.com/s/abc123xyz/My%20talk%20(final).mp4", "dropbox"],
@@ -45,11 +45,15 @@ describe("the worker's check of a hosted link", () => {
   });
 
   it("refuses insecure links, credentials, ports and anything that is not an address", () => {
-    expect(() => assertHostedUrl("http://vimeo.com/76979871")).toThrow(/secure connection/);
-    expect(() => assertHostedUrl("https://user:pass@vimeo.com/76979871")).toThrow(
+    expect(() => assertHostedUrl("http://player.vimeo.com/video/76979871")).toThrow(
+      /secure connection/,
+    );
+    expect(() => assertHostedUrl("https://user:pass@player.vimeo.com/video/76979871")).toThrow(
       /username or password/,
     );
-    expect(() => assertHostedUrl("https://vimeo.com:8443/76979871")).toThrow(/not on a site/);
+    expect(() => assertHostedUrl("https://player.vimeo.com:8443/video/76979871")).toThrow(
+      /not on a site/,
+    );
     expect(() => assertHostedUrl("not a url")).toThrow(/not a valid address/);
   });
 
@@ -67,7 +71,7 @@ describe("the worker's check of a hosted link", () => {
       // The API accepts these from a person and rewrites them; a payload
       // carrying them was not written by the API.
       "https://www.vimeo.com/76979871",
-      "https://player.vimeo.com/video/76979871",
+      "https://vimeo.com/76979871",
       "https://dropbox.com/s/abc123xyz/talk.mp4",
       // A YouTube link is a youtube_url's, never a hosted one's.
       "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
@@ -78,11 +82,12 @@ describe("the worker's check of a hosted link", () => {
 
   it("refuses anything on an allowed host that is not exactly one file", () => {
     for (const url of [
-      "https://vimeo.com/76979871?autoplay=1",
-      "https://vimeo.com/76979871#t=30",
-      "https://vimeo.com/channels/staffpicks",
-      "https://vimeo.com/76979871/NOTAHASH",
-      "https://vimeo.com/user12345",
+      "https://player.vimeo.com/video/76979871?autoplay=1",
+      "https://player.vimeo.com/video/76979871#t=30",
+      "https://player.vimeo.com/video/76979871?h=NOTAHASH",
+      "https://player.vimeo.com/video/76979871?h=0123456789&autoplay=1",
+      "https://player.vimeo.com/76979871",
+      "https://player.vimeo.com/video/user12345",
       `https://drive.google.com/file/d/${DRIVE_ID}/view?usp=sharing`,
       `https://drive.google.com/open?id=${DRIVE_ID}`,
       "https://drive.google.com/drive/folders/1AbCdEfGhIjKlMnOpQrStUvWxYz0",
@@ -99,16 +104,18 @@ describe("the worker's check of a hosted link", () => {
   });
 
   it("keeps each kind on its own hosts", () => {
-    expect(() => acquirableSource("youtube_url", "https://vimeo.com/76979871")).toThrow(
-      /not on a site we can fetch from/,
-    );
+    expect(() =>
+      acquirableSource("youtube_url", "https://player.vimeo.com/video/76979871"),
+    ).toThrow(/not on a site we can fetch from/);
     expect(() =>
       acquirableSource("hosted_url", "https://www.youtube.com/watch?v=dQw4w9WgXcQ"),
     ).toThrow(/not on a site we can fetch from/);
     expect(
       acquirableSource("youtube_url", "https://www.youtube.com/watch?v=dQw4w9WgXcQ").extractor,
     ).toBeNull();
-    expect(acquirableSource("hosted_url", "https://vimeo.com/76979871").extractor).toBe("vimeo");
+    expect(
+      acquirableSource("hosted_url", "https://player.vimeo.com/video/76979871").extractor,
+    ).toBe("vimeo");
   });
 });
 

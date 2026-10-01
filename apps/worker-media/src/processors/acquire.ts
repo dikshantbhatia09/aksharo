@@ -847,8 +847,8 @@ export function acquirableSource(
 }
 
 /** A Vimeo video id, and an unlisted video's hash (as the API's `VIMEO_ID`, `VIMEO_HASH`). */
-const VIMEO_PATH = /^\/\d{1,15}$/;
-const VIMEO_UNLISTED_PATH = /^\/\d{1,15}\/[0-9a-f]{10}$/;
+const VIMEO_PATH = /^\/video\/\d{1,15}$/;
+const VIMEO_HASH = /^[0-9a-f]{10}$/;
 /** `/file/d/{id}/view`: the only Drive address the API writes. */
 const DRIVE_PATH = /^\/file\/d\/[A-Za-z0-9_-]{28,100}\/view$/;
 /** `/s/{key}/{name}` and `/scl/fi/{id}/{name}`, the name as `encodeURIComponent` leaves it. */
@@ -858,7 +858,7 @@ const DROPBOX_RLKEY = /^[A-Za-z0-9]{5,40}$/;
 
 /** The canonical host of each site, and the extractor its links are held to. */
 const HOSTED_HOSTS: ReadonlyMap<string, HostedExtractor> = new Map<string, HostedExtractor>([
-  ["vimeo.com", "vimeo"],
+  ["player.vimeo.com", "vimeo"],
   ["drive.google.com", "googledrive"],
   ["www.dropbox.com", "dropbox"],
 ]);
@@ -869,7 +869,7 @@ const HOSTED_HOSTS: ReadonlyMap<string, HostedExtractor> = new Map<string, Hoste
  * rebuilds from a fingerprint, and nothing else - one host each, one path
  * shape each, no port, no credentials, no fragment, and no query but a
  * Dropbox file link's `rlkey`. The hosts are deliberately the canonical ones
- * the API writes (`vimeo.com`, `drive.google.com`, `www.dropbox.com`), not
+ * the API writes (`player.vimeo.com`, `drive.google.com`, `www.dropbox.com`), not
  * every spelling it accepts from a person.
  *
  * The extractor matters as much as the host. yt-dlp's generic extractor
@@ -907,9 +907,11 @@ export function assertHostedUrl(value: string): {
 function isOneHostedFile(url: URL, extractor: HostedExtractor): boolean {
   if (url.hash !== "") return false;
   if (extractor === "vimeo") {
-    return (
-      url.search === "" && (VIMEO_PATH.test(url.pathname) || VIMEO_UNLISTED_PATH.test(url.pathname))
-    );
+    // `player.vimeo.com/video/{id}`, with `?h={hash}` alone for an unlisted one.
+    if (!VIMEO_PATH.test(url.pathname)) return false;
+    if (url.search === "") return true;
+    const keys = [...url.searchParams.keys()];
+    return keys.length === 1 && keys[0] === "h" && VIMEO_HASH.test(url.searchParams.get("h") ?? "");
   }
   if (extractor === "googledrive") return url.search === "" && DRIVE_PATH.test(url.pathname);
   if (DROPBOX_S_PATH.test(url.pathname)) return url.search === "";

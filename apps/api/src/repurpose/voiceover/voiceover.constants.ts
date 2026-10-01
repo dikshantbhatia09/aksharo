@@ -78,7 +78,7 @@ export const VOICEOVER_PLACE_WINDOW_MS = 6 * 60 * 60 * 1000;
 export const VOICEOVER_PACE = 1;
 
 /** The voice a request without one gets. */
-export const DEFAULT_VOICEOVER_SPEAKER = "anushka";
+export const DEFAULT_VOICEOVER_SPEAKER = "priya";
 
 /** Signed URLs on the list: long enough to listen, refetched far more often. */
 export const VOICEOVER_URL_TTL_SECONDS = 3_600;
