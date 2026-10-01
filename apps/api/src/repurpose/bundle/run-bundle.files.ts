@@ -73,7 +73,13 @@ export function safeSegment(name: string, max = 60, fallback = "Untitled"): stri
     .replace(/[\u0000-\u001f\u007f<>:"/\\|?*]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
-  let cut = [...cleaned].slice(0, max).join("").trim();
+  const chars = [...cleaned];
+  let cut = chars.slice(0, max).join("").trim();
+  // A name that had to be shortened ends at a word, not part way through one.
+  if (chars.length > max) {
+    const space = cut.lastIndexOf(" ");
+    if (space >= Math.floor(cut.length / 2)) cut = cut.slice(0, space);
+  }
   cut = cut.replace(/[. ]+$/g, "");
   if (cut === "") cut = fallback;
   if (RESERVED.test(cut.split(".")[0] ?? "")) cut = `${cut}_`;

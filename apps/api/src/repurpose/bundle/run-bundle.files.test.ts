@@ -28,6 +28,13 @@ describe("safeSegment", () => {
     expect(safeSegment("   ")).toBe("Untitled");
     expect(safeSegment("हिंदी शीर्षक")).toBe("हिंदी शीर्षक");
     expect([...safeSegment("x".repeat(200))]).toHaveLength(60);
+    // Shortened at a word (2026-10-01: "... Robert Greene FO5.zip").
+    expect(
+      safeSegment(
+        "The Psychology Of Seduction: How To Become Impossible To Ignore | Robert Greene | FO565 Raj Shamani",
+        80,
+      ),
+    ).toBe("The Psychology Of Seduction How To Become Impossible To Ignore Robert Greene");
   });
 });
 
