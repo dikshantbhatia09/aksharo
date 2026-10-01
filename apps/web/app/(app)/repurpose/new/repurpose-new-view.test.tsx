@@ -105,6 +105,29 @@ describe("<RepurposeNewView />", () => {
     expect(recallRunSetup(RUN_ID)?.link).toBe("https://youtube.com/watch?v=dQw4w9WgXcQ");
   });
 
+  it("offers a finished example only while one is set (2026-10-01)", async () => {
+    const none = renderWithProviders(<RepurposeNewView />, {
+      routes: { "/repurpose/example": { available: false } },
+    });
+    await waitFor(() => {
+      expect(
+        none.fetchMock.mock.calls.some(
+          ([input]) => new URL(String(input)).pathname === "/repurpose/example",
+        ),
+      ).toBe(true);
+    });
+    expect(screen.queryByTestId("example-run-link")).toBeNull();
+    none.unmount();
+
+    renderWithProviders(<RepurposeNewView />, {
+      routes: { "/repurpose/example": { available: true } },
+    });
+    expect(await screen.findByTestId("example-run-link")).toHaveAttribute(
+      "href",
+      "/repurpose/example",
+    );
+  });
+
   it("offers the run already working on this link instead of a dead end", async () => {
     renderWithProviders(<RepurposeNewView />, {
       routes: {

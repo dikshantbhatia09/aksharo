@@ -19,6 +19,11 @@
  *     review, posting - by rendering the run page's own card for it.
  *
  * ← and → step through the clips in the order the page shows them; Esc closes.
+ *
+ * Read only (`readOnly`, 2026-10-01, the example run anyone may open): no
+ * rename, no editor links (none of its projects is the reader's), and its
+ * words come with the page rather than from the run's own transcript route,
+ * which another workspace's reader may not call.
  */
 import {
   AudioLines,
@@ -51,7 +56,7 @@ import {
 } from "@montaj/ui";
 
 import { analysisOf, type AnalysisPart } from "./clip-analysis";
-import { useClipTranscript, useRetitleClip } from "./use-results";
+import { useClipTranscript, useRetitleClip, type TranscriptLine } from "./use-results";
 
 import { ClipEditingDownload } from "@/components/repurpose/download/ClipEditingDownload";
 import { formatClock } from "@/components/repurpose/moment-time";
@@ -61,6 +66,16 @@ export interface ClipEntry {
   readonly clip: RepurposeClipItem | undefined;
   /** Its place by score, 1 for the best. */
   readonly rank: number;
+}
+
+/**
+ * A run shown read only (the example run, 2026-10-01): nothing can be renamed
+ * or opened in the editor, and each clip's words are already on the page.
+ */
+export interface ReadOnlyClips {
+  readonly transcriptOf: (
+    candidateId: string,
+  ) => { readonly offsetMs: number; readonly lines: readonly TranscriptLine[] } | undefined;
 }
 
 export interface ClipDetailDialogProps {
@@ -74,6 +89,8 @@ export interface ClipDetailDialogProps {
   readonly canEdit: boolean;
   /** The run page's own card for a clip: its videos and every action it has. */
   readonly renderCard: (entry: ClipEntry) => React.ReactNode;
+  /** Present for a run the reader may only look at. */
+  readonly readOnly?: ReadOnlyClips;
 }
 
 const SOURCE_WORDS: Readonly<Record<NonNullable<AnalysisPart["source"]>, string>> = {
@@ -95,6 +112,7 @@ export function ClipDetailDialog({
   onIndexChange,
   canEdit,
   renderCard,
+  readOnly,
 }: ClipDetailDialogProps): React.JSX.Element {
   const entry = index === null ? undefined : entries.at(index);
   const open = entry !== undefined;
@@ -148,9 +166,10 @@ export function ClipDetailDialog({
             entry={entry}
             position={(index ?? 0) + 1}
             total={total}
-            canEdit={canEdit}
+            canEdit={canEdit && readOnly === undefined}
             onStep={step}
             card={renderCard(entry)}
+            {...(readOnly === undefined ? {} : { readOnly })}
           />
         )}
       </DialogContent>
@@ -166,6 +185,7 @@ function DetailBody({
   canEdit,
   onStep,
   card,
+  readOnly,
 }: {
   readonly runId: string;
   readonly entry: ClipEntry;
@@ -174,6 +194,7 @@ function DetailBody({
   readonly canEdit: boolean;
   readonly onStep: (delta: number) => void;
   readonly card: React.ReactNode;
+  readonly readOnly?: ReadOnlyClips;
 }): React.JSX.Element {
   const { candidate, clip, rank } = entry;
   const copy = clipCopyOf(clip?.copy) ?? clipCopyOf(candidate.copy);
@@ -296,7 +317,7 @@ function DetailBody({
             )}
           </section>
 
-          {projectId === undefined || !ready ? null : (
+          {projectId === undefined || !ready || readOnly !== undefined ? null : (
             <section className="flex flex-col gap-1.5" aria-label="Edit this clip">
               <span className="text-xs text-fg-2">Edit this clip</span>
               <QuickAction
@@ -326,9 +347,15 @@ function DetailBody({
             </section>
           )}
 
-          <ClipEditingDownload runId={runId} clip={clip} />
+{readOnly === undefined ? <ClipEditingDownload runId={runId} clip={clip} /> : null}
 
-          <ClipTranscript runId={runId} candidateId={candidate.id} />
+          <ClipTranscript
+            runId={runId}
+            candidateId={candidate.id}
+            {...(readOnly === undefined
+              ? {}
+              : { given: readOnly.transcriptOf(candidate.id) ?? { offsetMs: 0, lines: [] } })}
+          />
 
           <p className="m-0 hidden items-center gap-1.5 text-2xs text-fg-2 lg:flex">
             <Kbd>←</Kbd>
@@ -476,13 +503,16 @@ function TitleEditor({
 function ClipTranscript({
   runId,
   candidateId,
+  given,
 }: {
   readonly runId: string;
   readonly candidateId: string;
+  /** The words, already on the page (the example run): nothing is fetched. */
+  readonly given?: { readonly offsetMs: number; readonly lines: readonly TranscriptLine[] };
 }): React.JSX.Element | null {
-  const transcript = useClipTranscript(runId, candidateId, true);
-  const lines = transcript.data?.lines ?? [];
-  if (transcript.isPending) {
+  const transcript = useClipTranscript(runId, candidateId, given === undefined);
+  const lines = given?.lines ?? transcript.data?.lines ?? [];
+  if (given === undefined && transcript.isPending) {
     return <p className="m-0 text-xs text-fg-2">Loading its words…</p>;
   }
   if (lines.length === 0) return null;

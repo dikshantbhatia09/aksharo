@@ -13,6 +13,8 @@ import { RepurposeDubsController } from "./dubbing/dubs.controller.js";
 import { RepurposeDubsService } from "./dubbing/dubs.service.js";
 import { RepurposeEpisodePackController } from "./episode-pack.controller.js";
 import { RepurposeEpisodePackService } from "./episode-pack.service.js";
+import { RepurposeExampleController } from "./example/example-run.controller.js";
+import { ExampleRunService } from "./example/example-run.service.js";
 import { RepurposeHighlightsCompletionHandler } from "./highlights-completion.handler.js";
 import { RepurposeTranscriptCompletedListener } from "./listeners/transcript-completed.listener.js";
 import { RepurposeReconciler } from "./reconciler.js";
@@ -87,6 +89,8 @@ import { WorkspacesModule } from "../workspaces/workspaces.module.js";
     RepurposeCoversController,
     // The results page: titles, hook titles, transcript, estimate (2026-10-01).
     RepurposeResultsController,
+    // The finished example run any signed-in person may open, read only (2026-10-01).
+    RepurposeExampleController,
   ],
   providers: [
     RepurposeService,
@@ -121,6 +125,7 @@ import { WorkspacesModule } from "../workspaces/workspaces.module.js";
     AutoTranscribeTrigger,
     RepurposeResultsService,
     RunSearch,
+    ExampleRunService,
   ],
   exports: [RepurposeService, RepurposeClipsService, RepurposeResultsService, RunSearch],
 })

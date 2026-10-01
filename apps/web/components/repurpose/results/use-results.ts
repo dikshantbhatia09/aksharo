@@ -245,14 +245,20 @@ export function useSaveRunDefaults(): UseMutationResult<
 /**
  * A run's moments by what they are about (`GET .../search?q=`), for a
  * question of at least 3 characters. The caller debounces the typing.
+ * `enabled` false never asks (the read-only example run, 2026-10-01: it is
+ * another workspace's run, which the search route would refuse).
  */
-export function useRunSearch(runId: string, question: string): UseQueryResult<RunSearchResult> {
+export function useRunSearch(
+  runId: string,
+  question: string,
+  enabled = true,
+): UseQueryResult<RunSearchResult> {
   const client = useApiClient();
   const workspaceId = useWorkspaceId();
   const q = question.trim();
   return useQuery({
     queryKey: ["run-search", workspaceId ?? "none", runId, q.toLowerCase()],
-    enabled: workspaceId !== null && q.length >= 3,
+    enabled: enabled && workspaceId !== null && q.length >= 3,
     staleTime: 5 * 60_000,
     retry: false,
     queryFn: () => client.call(searchEndpoint, { params: { runId }, query: { q } }),

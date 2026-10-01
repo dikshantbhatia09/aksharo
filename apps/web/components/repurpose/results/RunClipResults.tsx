@@ -21,6 +21,12 @@
  * "Select" (2026-10-01, OpusClip's multi-select): the grid's tiles tick
  * instead of opening, and a bar below them downloads the clips picked as one
  * ZIP (`RunDownloadDialog` with their ids). Only made clips can be picked.
+ *
+ * Read only (`readOnly`, 2026-10-01: the example run any signed-in person may
+ * open, `/repurpose/example`): the same grid, search by words, order and clip
+ * view, but no "Select" and no ZIP, no search by meaning, no rename and no
+ * editor links - every one of those is a route of the run's own workspace.
+ * Each clip still downloads on its own from its card.
  */
 import { CheckSquare, Download, LayoutGrid, List, Search, X } from "lucide-react";
 import * as React from "react";
@@ -29,7 +35,7 @@ import type { RepurposeCandidateItem, RepurposeClipItem } from "@montaj/api-clie
 import { Button, Input, cn } from "@montaj/ui";
 
 import { matchesSearch } from "./clip-analysis";
-import { ClipDetailDialog, type ClipEntry } from "./ClipDetailDialog";
+import { ClipDetailDialog, type ClipEntry, type ReadOnlyClips } from "./ClipDetailDialog";
 import { ClipTile } from "./ClipTile";
 import { useRunSearch } from "./use-results";
 
@@ -76,6 +82,8 @@ export interface RunClipResultsProps {
     candidate: RepurposeCandidateItem,
     options: { readonly onOpenDetails?: () => void },
   ) => React.ReactNode;
+  /** A run the reader may only look at (the example run): see the file's comment. */
+  readonly readOnly?: ReadOnlyClips;
 }
 
 export function RunClipResults({
@@ -85,7 +93,9 @@ export function RunClipResults({
   picking,
   canEdit,
   renderCard,
+  readOnly,
 }: RunClipResultsProps): React.JSX.Element {
+  const viewOnly = readOnly !== undefined;
   const clipOf = React.useCallback(
     (candidateId: string) => clips.find((clip) => clip.candidateId === candidateId),
     [clips],
@@ -137,7 +147,7 @@ export function RunClipResults({
       window.clearTimeout(timer);
     };
   }, [query]);
-  const byMeaning = useRunSearch(runId, searching ? settled : "");
+  const byMeaning = useRunSearch(runId, searching ? settled : "", !viewOnly);
   const meaningOf = new Map(
     byMeaning.data?.semantic === true && settled === query.trim()
       ? byMeaning.data.matches.map((match) => [match.candidateId, match.score] as const)
@@ -214,7 +224,7 @@ export function RunClipResults({
             <option value="best">Best first</option>
             <option value="time">In video order</option>
           </select>
-          {picking || readyCount === 0 ? null : (
+          {picking || viewOnly || readyCount === 0 ? null : (
             <Button
               variant={selecting ? "secondary" : "ghost"}
               size="sm"
@@ -399,20 +409,23 @@ export function RunClipResults({
         </div>
       ) : null}
 
-      <RunDownloadDialog
-        runId={runId}
-        clipIds={selected}
-        open={downloading}
-        onOpenChange={setDownloading}
-      />
+      {viewOnly ? null : (
+        <RunDownloadDialog
+          runId={runId}
+          clipIds={selected}
+          open={downloading}
+          onOpenChange={setDownloading}
+        />
+      )}
 
       <ClipDetailDialog
         runId={runId}
         entries={entries}
         index={openIndex}
         onIndexChange={setOpenIndex}
-        canEdit={canEdit}
+        canEdit={canEdit && !viewOnly}
         renderCard={(entry) => renderCard(entry.candidate, {})}
+        {...(readOnly === undefined ? {} : { readOnly })}
       />
     </div>
   );

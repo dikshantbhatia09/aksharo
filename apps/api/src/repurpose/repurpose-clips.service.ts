@@ -354,6 +354,17 @@ export class RepurposeClipsService {
       });
     }
 
+    return { runId: run.id, clips: await this.readClips(run) };
+  }
+
+  /**
+   * A run's clips as the list shows them, and nothing else: no flag check, no
+   * reconcile, no write of any kind (2026-10-01). {@link listClips} calls it
+   * after its own checks; the read-only example run (`example/example-run.service.ts`)
+   * calls it for a run in another workspace, where a reader's visit must never
+   * move that workspace's work on.
+   */
+  async readClips(run: RepurposeRun): Promise<RepurposeClipItemView[]> {
     // A removed moment's clip is kept, so "Restore" brings it back as it was,
     // but it is not listed (steering, 2026-09-29).
     const clips = (
@@ -370,14 +381,11 @@ export class RepurposeClipsService {
     const sourceGone = await this.sourceGoneFor(run, clips, latest);
     const autopilot = automationOf(run) === "auto";
     const lowDisk = autopilot && (await this.lowDisk());
-    return {
-      runId: run.id,
-      clips: await Promise.all(
-        clips.map((clip) =>
-          this.toItem(clip, latest.get(clip.candidateId), sourceGone, autopilot, lowDisk),
-        ),
+    return Promise.all(
+      clips.map((clip) =>
+        this.toItem(clip, latest.get(clip.candidateId), sourceGone, autopilot, lowDisk),
       ),
-    };
+    );
   }
 
   // -------------------------------------------------------------------------
