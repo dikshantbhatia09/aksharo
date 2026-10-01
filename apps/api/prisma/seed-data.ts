@@ -370,6 +370,11 @@ export const FEATURE_FLAG_SEEDS: readonly FeatureFlagSeed[] = [
       "Authorized YouTube source acquisition. Off until the downloader, limits, rights, and security gates pass.",
   },
   {
+    key: "source_hosted_acquire",
+    description:
+      "Vimeo, Google Drive and Dropbox links for clips runs (2026-10-01), on top of source_youtube_acquire. Off until the acquire worker that fetches them is deployed and the owner turns it on.",
+  },
+  {
     key: "repurpose_automations",
     description:
       "Channel automations and several links at once (2026-10-02). Off until the owner turns it on; needs repurpose_flow and source_youtube_acquire too, and the repurpose.source-watch scheduled task to read feeds.",

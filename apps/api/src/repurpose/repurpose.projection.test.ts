@@ -85,7 +85,10 @@ describe("the stage rail", () => {
   it("always draws the five stages, in order, whatever the status", () => {
     for (const status of ALL_STATUSES) {
       const view = run({ status });
-      expect(view.stages.map((stage) => stage.stage), status).toEqual([...STAGES]);
+      expect(
+        view.stages.map((stage) => stage.stage),
+        status,
+      ).toEqual([...STAGES]);
     }
   });
 
@@ -137,15 +140,15 @@ describe("the stage rail", () => {
       // status moves. Reading that 0 literally pinned the bar at the very start
       // through acquiring, preparing and transcribing, next to a rail that was
       // visibly advancing — two things on one screen disagreeing about one run.
-      expect(run({ status: "acquiring", currentStage: "getting_video", progress: 0 }).progress).toBe(
-        5,
-      );
+      expect(
+        run({ status: "acquiring", currentStage: "getting_video", progress: 0 }).progress,
+      ).toBe(5);
       expect(
         run({ status: "transcribing", currentStage: "finding_clips", progress: 0 }).progress,
       ).toBe(30);
-      expect(run({ status: "analyzing", currentStage: "finding_clips", progress: 0 }).progress).toBe(
-        45,
-      );
+      expect(
+        run({ status: "analyzing", currentStage: "finding_clips", progress: 0 }).progress,
+      ).toBe(45);
     });
 
     it("prefers a real reported number over the status's coarse one", () => {
@@ -249,7 +252,17 @@ describe("windows of a long source (2026-09-27)", () => {
     expect(nextWindowAvailable({ ...link })).toBe(false);
     expect(nextWindowAvailable({ sourceKind: "upload", sourceFingerprint: null, ...LANDED })).toBe(
       false,
-    );
+    ); // 2026-10-01: another video site's link is rebuilt from its fingerprint too.
+    expect(
+      nextWindowAvailable({
+        sourceKind: "hosted_url",
+        sourceFingerprint: "vimeo:76979871",
+        ...LANDED,
+      }),
+    ).toBe(true);
+    expect(
+      nextWindowAvailable({ sourceKind: "hosted_url", sourceFingerprint: "vimeo:nope", ...LANDED }),
+    ).toBe(false);
   });
 
   it("writes times the way the page does", () => {

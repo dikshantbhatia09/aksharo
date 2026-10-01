@@ -3528,10 +3528,15 @@ model RoutingFreeze {
 
 /// §6.1. `direct_media_url` goes through the existing SSRF-safe fetch path; only
 /// `youtube_url` needs the Wave 3 acquisition worker.
+/// `hosted_url` (2026-10-01, migration 20261006100000_hosted_source_kind): a
+/// public Vimeo, Google Drive or Dropbox link, fetched by the same worker.
+/// ROLLBACK HAZARD: an api older than this reads such a row as an unknown enum
+/// value and Prisma throws - run prisma/rollback-notes/20261006100000_hosted_source_kind.sql first.
 enum RepurposeSourceKind {
   upload
   youtube_url
   direct_media_url
+  hosted_url
 }
 
 enum RepurposeMode {

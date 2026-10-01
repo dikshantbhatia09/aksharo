@@ -14,6 +14,12 @@ export const REPURPOSE_FLAGS = {
   flow: "repurpose_flow",
   /** External YouTube acquisition. Off means only uploads may start a run. */
   youtubeAcquire: "source_youtube_acquire",
+  /**
+   * Vimeo, Google Drive and Dropbox links (2026-10-01), on top of
+   * `youtubeAcquire`. Off means those links are refused with a plain sentence;
+   * turn it on only once the acquire worker that fetches them is deployed.
+   */
+  hostedAcquire: "source_hosted_acquire",
   /** AI candidate discovery. Off means manual mode only. */
   highlightDiscovery: "highlight_discovery",
 } as const;

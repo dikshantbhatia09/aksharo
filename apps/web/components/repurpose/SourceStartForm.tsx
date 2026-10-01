@@ -51,6 +51,12 @@
  * one video - a single link or a single file - an optional SRT or VTT file, or
  * a link to one. The run aligns those captions to the audio instead of
  * transcribing it, so finding its clips costs no credits (`run-captions.ts`).
+ *
+ * Other video sites (2026-10-01, while `source_hosted_acquire` is on): the
+ * link may be a public Vimeo video, Google Drive file or Dropbox file as well
+ * as YouTube (`otherSites`). The copy names the sites the workspace can use,
+ * and a link on one of the other sites while they are off is answered here, in
+ * the API's words, rather than after a round trip.
  */
 import NextLink from "next/link";
 import * as React from "react";
@@ -83,7 +89,12 @@ import {
   linksToSend,
   severalLinksProblem,
 } from "@/components/repurpose/several-links";
-import { isPlausibleLink, normaliseSourceLink } from "@/components/repurpose/source-link";
+import {
+  isPlausibleLink,
+  linkSite,
+  linkSitesPhrase,
+  normaliseSourceLink,
+} from "@/components/repurpose/source-link";
 import {
   COVER_CONTENT_TYPES,
   COVER_MAX_BYTES,
@@ -211,7 +222,12 @@ export interface KnownLength {
  */
 export function validateStartForm(
   value: StartFormValue,
-  limits: { readonly maxFileBytes?: number; readonly knownLength?: KnownLength } = {},
+  limits: {
+    readonly maxFileBytes?: number;
+    readonly knownLength?: KnownLength;
+    /** Vimeo, Google Drive and Dropbox links are on for this workspace (2026-10-01). */
+    readonly otherSites?: boolean;
+  } = {},
 ): StartFormProblems {
   const problems: { -readonly [K in keyof StartFormProblems]: string } = {};
   const cap = limits.maxFileBytes;
@@ -222,7 +238,14 @@ export function validateStartForm(
     const url = normaliseSourceLink(value.url);
     if (url === "") problems.url = "Paste a link to your video.";
     else if (!isPlausibleLink(url)) {
-      problems.url = "Paste the link to one YouTube video, like youtube.com/watch?v=…";
+      problems.url =
+        limits.otherSites === true
+          ? "Paste the link to one video, like youtube.com/watch?v=… or vimeo.com/…"
+          : "Paste the link to one YouTube video, like youtube.com/watch?v=…";
+    } else if (limits.otherSites !== true && (linkSite(url) ?? "youtube") !== "youtube") {
+      // The API's own sentence for a site that is not on for the workspace.
+      problems.url =
+        "Links from that site are not available yet. Paste a YouTube link, or upload the video file.";
     }
     if (value.startAt.trim() !== "") {
       const start = parseClock(value.startAt);
@@ -314,6 +337,12 @@ export interface SourceStartFormProps {
    * form is exactly the one-video form it always was.
    */
   readonly allowSeveralLinks?: boolean;
+  /**
+   * Vimeo, Google Drive and Dropbox links are on for this workspace
+   * (`source_hosted_acquire`, 2026-10-01): the copy names them, and they pass
+   * the form's own check.
+   */
+  readonly otherSites?: boolean;
   /** Let the upload tab take several files, one run each. */
   readonly allowSeveralFiles?: boolean;
   /** Replaces the submit button's label (the page says how many runs it starts). */
@@ -357,6 +386,7 @@ export function SourceStartForm({
   knownLength,
   focusStartAt = false,
   allowSeveralLinks = false,
+  otherSites = false,
   allowSeveralFiles = false,
   submitLabel,
   brandKit = false,
@@ -373,8 +403,13 @@ export function SourceStartForm({
   const problems = validateStartForm(processesWholeVideos ? { ...value, startAt: "" } : value, {
     ...(maxFileBytes === undefined ? {} : { maxFileBytes }),
     ...(knownLength === undefined ? {} : { knownLength }),
+    otherSites,
   });
   const visible: StartFormProblems = showProblems ? problems : {};
+  // Only YouTube has a most-replayed part; a link on another site is
+  // processed from its start unless a start is picked.
+  const fromStart =
+    ((value.tab === "link" && linkSite(normaliseSourceLink(value.url))) || "youtube") !== "youtube";
   const lines = value.tab === "links" ? linkLinesOf(value.links) : [];
   const files = filesOf(value);
 
@@ -520,7 +555,7 @@ export function SourceStartForm({
             <Field
               label="Video link"
               htmlFor="repurpose-url"
-              hint="A YouTube link. To use a file from somewhere else, upload it."
+              hint={`${linkSitesPhrase(otherSites)}. To use a file from somewhere else, upload it.`}
               {...(visible.url === undefined ? {} : { error: visible.url })}
             >
               <Input
@@ -551,6 +586,7 @@ export function SourceStartForm({
                 htmlFor="repurpose-start-at"
                 hint={DETAIL_COPY.windowLine(
                   planWindowMs === undefined ? undefined : spanPhrase(planWindowMs),
+                  fromStart,
                 )}
                 {...(visible.startAt === undefined ? {} : { error: visible.startAt })}
               >
@@ -599,7 +635,7 @@ export function SourceStartForm({
             <Field
               label="Video links"
               htmlFor="repurpose-links"
-              hint={`One YouTube link per line, up to ${String(MAX_LINKS)}. Each becomes its own run with the settings below.`}
+              hint={`One ${otherSites ? "video" : "YouTube"} link per line, up to ${String(MAX_LINKS)}. Each becomes its own run with the settings below.`}
               {...(visible.links === undefined ? {} : { error: visible.links })}
             >
               <Textarea

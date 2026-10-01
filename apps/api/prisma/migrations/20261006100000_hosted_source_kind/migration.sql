@@ -1,0 +1,31 @@
+-- Clips from a Vimeo, Google Drive or Dropbox link (2026-10-01, OpusClip
+-- parity: "drop a video link from many platforms").
+--
+--   * `RepurposeSourceKind` gains `hosted_url`: a run whose source is a PUBLIC
+--     Vimeo video, Google Drive file or Dropbox file, fetched by the same
+--     `media.acquire` worker as a YouTube link (yt-dlp, held to that site's own
+--     extractor). Its `source_fingerprint` is `vimeo:...`, `gdrive:...` or
+--     `dropbox:...` (`apps/api/src/repurpose/source-url.ts`), and the address
+--     is rebuilt from it, never kept.
+--
+-- Additive: one enum value; no row is changed, and no existing value moves.
+-- `ALTER TYPE ... ADD VALUE` cannot run inside a transaction block on older
+-- Postgres and the new value cannot be used in the same transaction; nothing
+-- here uses it.
+--
+-- DEPLOY ORDER: this migration, then worker-media (which knows the kind),
+-- then the api. The links stay refused until the `source_hosted_acquire` flag
+-- is turned on for a workspace, so the api can ship dark.
+--
+-- ROLLBACK HAZARD: an api older than this one cannot read a run whose
+-- `source_kind` is `hosted_url` - Prisma throws on the unknown enum value, so
+-- the run's page AND every list it appears in (the runs list, Home) fail for
+-- that workspace. Before rolling the api back, run
+-- `apps/api/prisma/rollback-notes/20261006100000_hosted_source_kind.sql`: it
+-- stops the hosted runs whose video never arrived and turns every hosted run
+-- into an upload run (whose video, once it has arrived, is all any later step
+-- reads). The enum value itself is left in place; Postgres cannot drop one, and
+-- an unused value is harmless to older code.
+
+-- AlterEnum
+ALTER TYPE "RepurposeSourceKind" ADD VALUE IF NOT EXISTS 'hosted_url';

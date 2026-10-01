@@ -7,7 +7,8 @@ export const REPURPOSE_CONFIG_VERSION = 1 as const;
 export const UlidSchema = z.string().regex(/^[0-9A-HJKMNP-TV-Z]{26}$/);
 export const MillisecondsSchema = z.int().nonnegative();
 
-export const SOURCE_KINDS = ["upload", "youtube_url", "direct_media_url"] as const;
+/** `hosted_url` (2026-10-01): a public Vimeo, Google Drive or Dropbox link. */
+export const SOURCE_KINDS = ["upload", "youtube_url", "hosted_url", "direct_media_url"] as const;
 export const SourceKindSchema = z.enum(SOURCE_KINDS);
 export const RUN_MODES = ["ai", "manual", "mixed"] as const;
 export const RunModeSchema = z.enum(RUN_MODES);
@@ -460,6 +461,11 @@ const HttpsUrlSchema = z
 export const CreateRunSourceSchema = z.discriminatedUnion("kind", [
   z.strictObject({
     kind: z.literal("youtube_url"),
+    url: HttpsUrlSchema,
+    rightsAttested: z.literal(true),
+  }),
+  z.strictObject({
+    kind: z.literal("hosted_url"),
     url: HttpsUrlSchema,
     rightsAttested: z.literal(true),
   }),

@@ -183,7 +183,9 @@ export const SAFE_ERROR_COPY: Readonly<Record<string, SafeErrorCopy>> = Object.f
     actionLabel: "Choose another video",
   },
   "repurpose/source_removed": {
-    title: "That video is no longer on YouTube",
+    // Not "on YouTube" since 2026-10-01: a Vimeo, Drive or Dropbox video can
+    // be taken down too.
+    title: "That video is no longer available",
     reassurance: `${NOTHING_SPENT} It may have been deleted or taken down.`,
     action: "choose_another",
     actionLabel: "Choose another video",
@@ -819,10 +821,14 @@ export const DETAIL_COPY = Object.freeze({
    * to the end (the downloader cuts from the start it is given), and only that
    * part is processed and charged.
    */
-  windowLine: (perRun: string | undefined): string =>
-    perRun === undefined
-      ? "Long videos are processed a part at a time: the most-replayed part, unless you choose where to start."
-      : `Videos are processed up to ${perRun} at a time: the most-replayed part, unless you choose where to start.`,
+  windowLine: (perRun: string | undefined, fromStart = false): string => {
+    // Only YouTube says which part is most replayed (2026-10-01): a Vimeo,
+    // Google Drive or Dropbox video is taken from its start.
+    const part = fromStart ? "from the start" : "the most-replayed part";
+    return perRun === undefined
+      ? `Long videos are processed a part at a time: ${part}, unless you choose where to start.`
+      : `Videos are processed up to ${perRun} at a time: ${part}, unless you choose where to start.`;
+  },
   /** A start at or past the longest video anyone can send (the 12-hour ceiling). */
   startPastCeiling: (ceiling: string): string =>
     `Start within the first ${ceiling}. No video can be longer than that.`,

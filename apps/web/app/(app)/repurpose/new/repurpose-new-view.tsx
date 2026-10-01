@@ -78,7 +78,7 @@ import {
   linesOfBulk,
   type SeveralLine,
 } from "@/components/repurpose/SeveralResults";
-import { normaliseSourceLink } from "@/components/repurpose/source-link";
+import { HOSTED_SITES_FLAG, normaliseSourceLink } from "@/components/repurpose/source-link";
 import {
   DETECT_LANGUAGE,
   RECOMMENDED_STYLES,
@@ -155,7 +155,11 @@ export function RepurposeNewView(): React.JSX.Element {
   // Several files while the feature is on for this workspace; several links
   // when YouTube links are on too (the bulk route answers 404 otherwise).
   const allowSeveralFiles = useFeatureFlag(AUTOMATIONS_FLAG);
-  const allowSeveralLinks = useFeatureFlag(YOUTUBE_FLAG) && allowSeveralFiles;
+  const linksOn = useFeatureFlag(YOUTUBE_FLAG);
+  const allowSeveralLinks = linksOn && allowSeveralFiles;
+  // Vimeo, Google Drive and Dropbox links (2026-10-01), on top of YouTube's.
+  const hostedOn = useFeatureFlag(HOSTED_SITES_FLAG);
+  const otherSites = linksOn && hostedOn;
   // The plan's upload cap, so an over-cap file is refused before a run exists.
   // Unknown until the entitlement loads, and never blocking on that.
   const entitlement = useEntitlement();
@@ -498,6 +502,7 @@ export function RepurposeNewView(): React.JSX.Element {
           seeCredits={seeCredits}
           focusStartAt={startContext.focusStartAt}
           allowSeveralLinks={allowSeveralLinks}
+          otherSites={otherSites}
           allowSeveralFiles={allowSeveralFiles}
           {...(submitLabel === undefined ? {} : { submitLabel })}
           {...(maxFileBytes === undefined ? {} : { maxFileBytes })}

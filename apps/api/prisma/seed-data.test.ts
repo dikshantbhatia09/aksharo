@@ -158,6 +158,7 @@ describe("FEATURE_FLAG_SEEDS", () => {
       "repurpose_dubbing",
       "repurpose_flow",
       "repurpose_performance",
+      "source_hosted_acquire",
       "source_youtube_acquire",
       "streak_experiment",
     ]);

@@ -160,6 +160,7 @@ function harness(
           sourceProjectId: PROJECT,
           workspaceId: WS,
           sourceDisplay: DISPLAY,
+          sourceKind: "youtube_url",
         }
       : options.run;
 
@@ -417,6 +418,30 @@ describe("RepurposeAcquireCompletionHandler", () => {
       h = harness({ withGate: true, blockedBefore: 2 });
       await h.handler.handleFailure(failure("media/source_blocked"));
       expect(h.gate.trip).toHaveBeenCalledTimes(1);
+      expect(h.failRun).toHaveBeenCalledWith(
+        expect.anything(),
+        "repurpose/source_blocked",
+        "getting_video",
+        null,
+      );
+    });
+
+    it("fails a Vimeo, Drive or Dropbox refusal at once, never touching YouTube's gate", async () => {
+      // 2026-10-01: the gate is a breaker on YouTube's view of this machine.
+      h = harness({
+        withGate: true,
+        blockedBefore: 0,
+        run: {
+          id: RUN,
+          status: "draft",
+          sourceProjectId: PROJECT,
+          workspaceId: WS,
+          sourceDisplay: DISPLAY,
+          sourceKind: "hosted_url",
+        },
+      });
+      await h.handler.handleFailure(failure("media/source_blocked"));
+      expect(h.gate.trip).not.toHaveBeenCalled();
       expect(h.failRun).toHaveBeenCalledWith(
         expect.anything(),
         "repurpose/source_blocked",

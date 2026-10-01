@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import {
   SOURCE_REJECTION_MESSAGES,
+  hostedUrlOf,
   parseSourceUrl,
+  sourceUrlOf,
   type SourceRejectionCode,
 } from "./source-url.js";
 
@@ -61,9 +63,9 @@ describe("YouTube forms", () => {
 
   it("imports one explicit video out of a playlist URL, and refuses the playlist", () => {
     // `watch?v=…&list=…` names a video; `/playlist?list=…` names only a list.
-    expect(accepted("https://www.youtube.com/watch?v=dQw4w9WgXcQ&list=PL123").sourceFingerprint).toBe(
-      "youtube:dQw4w9WgXcQ",
-    );
+    expect(
+      accepted("https://www.youtube.com/watch?v=dQw4w9WgXcQ&list=PL123").sourceFingerprint,
+    ).toBe("youtube:dQw4w9WgXcQ");
     expect(rejectedWith("https://www.youtube.com/playlist?list=PL123")).toBe(
       "playlist_not_supported",
     );
@@ -119,7 +121,8 @@ describe("direct media links", () => {
     for (const url of [
       "https://example.test/article",
       "https://example.test/video.html",
-      "https://vimeo.com/123456",
+      // Vimeo is a video site we fetch from since 2026-10-01; these are not.
+      "https://www.dailymotion.com/video/x7tgad0",
       "https://www.instagram.com/reel/abc/",
     ]) {
       expect(rejectedWith(url), url).toBe("unsupported_source");
@@ -209,5 +212,165 @@ describe("rejection messages", () => {
         expect(message.toLowerCase(), code).not.toContain(word);
       }
     }
+  });
+});
+
+describe("Vimeo, Google Drive and Dropbox links (2026-10-01)", () => {
+  const DRIVE_ID = "1AbCdEfGhIjKlMnOpQrStUvWxYz012345";
+
+  it("accepts a public Vimeo video in every form a person copies, as one identity", () => {
+    for (const url of [
+      "https://vimeo.com/76979871",
+      "https://www.vimeo.com/76979871",
+      "https://VIMEO.com/76979871?share=copy",
+      "https://vimeo.com/76979871#t=30s",
+      "https://player.vimeo.com/video/76979871",
+      "https://vimeo.com/channels/staffpicks/76979871",
+      "https://vimeo.com/groups/motion/videos/76979871",
+    ]) {
+      const source = accepted(url);
+      expect(source.kind, url).toBe("hosted_url");
+      expect(source.sourceFingerprint, url).toBe("vimeo:76979871");
+      expect(source.normalizedUrl, url).toBe("https://vimeo.com/76979871");
+    }
+  });
+
+  it("keeps an unlisted Vimeo video's hash, which its link does not open without", () => {
+    for (const url of [
+      "https://vimeo.com/76979871/0123456789",
+      "https://player.vimeo.com/video/76979871?h=0123456789",
+    ]) {
+      const source = accepted(url);
+      expect(source.sourceFingerprint, url).toBe("vimeo:76979871/0123456789");
+      expect(source.normalizedUrl, url).toBe("https://vimeo.com/76979871/0123456789");
+      expect(source.display, url).toBe("vimeo.com · 76979871 (unlisted)");
+    }
+  });
+
+  it("accepts a Google Drive file and shows only the start of its id", () => {
+    for (const url of [
+      `https://drive.google.com/file/d/${DRIVE_ID}/view?usp=sharing`,
+      `https://drive.google.com/file/d/${DRIVE_ID}`,
+      `https://drive.google.com/open?id=${DRIVE_ID}`,
+      `https://drive.google.com/uc?id=${DRIVE_ID}&export=download`,
+    ]) {
+      const source = accepted(url);
+      expect(source.kind, url).toBe("hosted_url");
+      expect(source.sourceFingerprint, url).toBe(`gdrive:${DRIVE_ID}`);
+      expect(source.normalizedUrl, url).toBe(`https://drive.google.com/file/d/${DRIVE_ID}/view`);
+      expect(source.display, url).not.toContain(DRIVE_ID);
+    }
+  });
+
+  it("accepts a Dropbox file, keeping an scl link's key in the address but out of the display", () => {
+    const old = accepted("https://www.dropbox.com/s/abc123xyz/My%20talk.mp4?dl=0");
+    expect(old.sourceFingerprint).toBe("dropbox:s/abc123xyz/My%20talk.mp4");
+    expect(old.normalizedUrl).toBe("https://www.dropbox.com/s/abc123xyz/My%20talk.mp4");
+    expect(old.display).toBe("Dropbox · My talk.mp4");
+
+    const now = accepted(
+      "https://dropbox.com/scl/fi/a1b2c3d4e5/talk.mp4?rlkey=k1k2k3k4k5&st=tracking&dl=0",
+    );
+    expect(now.sourceFingerprint).toBe("dropbox:scl/fi/a1b2c3d4e5/talk.mp4?rlkey=k1k2k3k4k5");
+    expect(now.normalizedUrl).toBe(
+      "https://www.dropbox.com/scl/fi/a1b2c3d4e5/talk.mp4?rlkey=k1k2k3k4k5",
+    );
+    expect(now.display).not.toContain("k1k2k3k4k5");
+  });
+
+  it("refuses folders, showcases and channels the way a playlist is refused", () => {
+    for (const url of [
+      "https://vimeo.com/showcase/123456",
+      "https://vimeo.com/album/123456",
+      "https://vimeo.com/channels/staffpicks",
+      "https://drive.google.com/drive/folders/1AbCdEfGhIjKlMnOpQrStUvWxYz0",
+      "https://www.dropbox.com/sh/abc123xyz/AAAbbb?dl=0",
+      "https://www.dropbox.com/scl/fo/a1b2c3d4e5/folder?rlkey=k1k2k3k4k5",
+    ]) {
+      expect(rejectedWith(url), url).toBe("playlist_not_supported");
+    }
+  });
+
+  it("refuses a page on those sites that is not one video", () => {
+    for (const url of [
+      "https://vimeo.com/",
+      "https://vimeo.com/user12345",
+      "https://vimeo.com/76979871/NOTAHASH",
+      "https://player.vimeo.com/video/76979871?h=not-hex",
+      "https://drive.google.com/file/d/short/view",
+      "https://drive.google.com/open?id=",
+      "https://drive.google.com/",
+      "https://www.dropbox.com/scl/fi/a1b2c3d4e5/talk.mp4",
+      "https://www.dropbox.com/home",
+      "https://www.dropbox.com/s/abc123xyz/%2e%2e",
+      "https://www.dropbox.com/s/abc123xyz/a%2Fb.mp4",
+      "https://www.dropbox.com/s/abc123xyz/bad%ZZ.mp4",
+    ]) {
+      expect(rejectedWith(url), url).toBe("missing_video_id");
+    }
+  });
+
+  it("is not fooled by lookalike hosts, other Google or Dropbox hosts, or plain http", () => {
+    for (const url of [
+      "https://vimeo.com.evil.test/76979871",
+      "https://evil.test/vimeo.com/76979871",
+      "https://notvimeo.com/76979871",
+      "https://drive.google.com.evil.test/file/d/x/view",
+      "https://docs.google.com/document/d/1AbCdEfGhIjKlMnOpQrStUvWxYz012345/edit",
+      "https://dropbox.com.evil.test/s/abc123xyz/talk",
+      "https://dl.dropboxusercontent.com/s/abc123xyz/talk",
+    ]) {
+      expect(rejectedWith(url), url).toBe("unsupported_source");
+    }
+    expect(rejectedWith("http://vimeo.com/76979871")).toBe("not_https");
+    expect(rejectedWith("https://user:pass@vimeo.com/76979871")).toBe("credentials_in_url");
+    expect(rejectedWith(`https://me@drive.google.com/file/d/${DRIVE_ID}/view`)).toBe(
+      "credentials_in_url",
+    );
+  });
+
+  it("rebuilds the canonical address from the host's own parts, never the pasted string", () => {
+    // A port, a fragment, extra query parameters: none of them survive.
+    const source = accepted("https://vimeo.com:8443/76979871?redirect=https://evil.test#x");
+    expect(source.normalizedUrl).toBe("https://vimeo.com/76979871");
+  });
+
+  it("refuses a Dropbox name too long to rebuild, with a sentence that says what to do", () => {
+    const name = `${"a".repeat(120)}.mp4`;
+    expect(rejectedWith(`https://www.dropbox.com/s/abc123xyz/${name}`)).toBe("link_too_long");
+  });
+
+  it("rebuilds a link from its fingerprint exactly as it was parsed, for a retry", () => {
+    for (const url of [
+      "https://vimeo.com/76979871",
+      "https://vimeo.com/76979871/0123456789",
+      `https://drive.google.com/file/d/${DRIVE_ID}/view`,
+      "https://www.dropbox.com/s/abc123xyz/My%20talk.mp4",
+      "https://www.dropbox.com/scl/fi/a1b2c3d4e5/talk.mp4?rlkey=k1k2k3k4k5",
+    ]) {
+      const source = accepted(url);
+      expect(hostedUrlOf(source.sourceFingerprint), url).toBe(source.normalizedUrl);
+      expect(sourceUrlOf("hosted_url", source.sourceFingerprint), url).toBe(source.normalizedUrl);
+    }
+  });
+
+  it("rebuilds nothing from a fingerprint it did not write, or for the wrong kind", () => {
+    for (const fingerprint of [
+      "vimeo:abc",
+      "vimeo:1/../../x",
+      "gdrive:short",
+      "dropbox:s/abc123xyz/a/b.mp4",
+      "dropbox:scl/fi/a1b2c3d4e5/talk.mp4?rlkey=k1&dl=1",
+      "youtube:dQw4w9WgXcQ",
+      "url:https://cdn.example.test/v.mp4",
+    ]) {
+      expect(hostedUrlOf(fingerprint), fingerprint).toBeNull();
+    }
+    expect(sourceUrlOf("youtube_url", "vimeo:76979871")).toBeNull();
+    expect(sourceUrlOf("hosted_url", "youtube:dQw4w9WgXcQ")).toBeNull();
+    expect(sourceUrlOf("upload", null)).toBeNull();
+    expect(sourceUrlOf("youtube_url", "youtube:dQw4w9WgXcQ")).toBe(
+      "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+    );
   });
 });

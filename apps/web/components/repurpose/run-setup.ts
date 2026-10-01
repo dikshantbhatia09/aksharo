@@ -151,7 +151,12 @@ export function recallRunSetup(runId: string): RunSetup | undefined {
 export function linkFromSourceDisplay(display: string | null | undefined): string | undefined {
   if (display === null || display === undefined) return undefined;
   const id = /^youtube\.com · ([A-Za-z0-9_-]{11})$/.exec(display.trim())?.[1];
-  return id === undefined ? undefined : `https://www.youtube.com/watch?v=${id}`;
+  if (id !== undefined) return `https://www.youtube.com/watch?v=${id}`;
+  // A public Vimeo video (2026-10-01). An unlisted one's hash, a Drive file's
+  // id and a Dropbox link's key are never in the display, so those links are
+  // not recoverable from it - only from the setup this browser remembered.
+  const vimeo = /^vimeo\.com · (\d{1,15})$/.exec(display.trim())?.[1];
+  return vimeo === undefined ? undefined : `https://vimeo.com/${vimeo}`;
 }
 
 /**

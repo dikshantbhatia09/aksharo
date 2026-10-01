@@ -54,8 +54,13 @@ import {
 } from "./repurpose.projection.js";
 import { RunActivityReader } from "./run-activity.reader.js";
 import { RUN_CAPTION_KINDS, captionsLanguageOf, runCaptionsOf } from "./run-captions.js";
-import { MAX_BLOCKED_FETCHES, SOURCE_BLOCKED_REASON, SourceGate } from "./source-gate.js";
-import { SOURCE_REJECTION_MESSAGES, parseSourceUrl } from "./source-url.js";
+import {
+  MAX_BLOCKED_FETCHES,
+  SOURCE_BLOCKED_REASON,
+  SourceGate,
+  usesSourceGate,
+} from "./source-gate.js";
+import { SOURCE_REJECTION_MESSAGES, parseSourceUrl, sourceUrlOf } from "./source-url.js";
 import {
   autopilotAskCount,
   discoveryBoundsOf,
@@ -290,15 +295,20 @@ function noNextWindow(message: string): AppException {
   return new AppException(REPURPOSE_ERRORS.noNextWindow, message, HttpStatus.CONFLICT);
 }
 
+/** An unknown site's refusal while Vimeo, Drive and Dropbox are off for the workspace. */
+const YOUTUBE_ONLY_MESSAGE = "We can use a YouTube link. For anything else, upload the video.";
+
 /**
- * The canonical watch URL for a YouTube run's `youtube:{videoId}` fingerprint:
- * the reconciler's `youtubeUrlOf`, which cannot be imported from here (the
- * reconciler imports this module, and its DI metadata needs this class defined).
+ * What a run asks the downloader for, on its source's site (2026-10-01): only
+ * YouTube publishes a most-replayed heatmap, so on Vimeo, Google Drive or
+ * Dropbox an automatic window is the start of the video. The worker would fall
+ * back to the start by itself; asking for it outright keeps the run row and
+ * the run page honest about which part was taken.
  */
-function youtubeWatchUrl(kind: string, fingerprint: string | null): string | null {
-  if (kind !== "youtube_url" || fingerprint === null) return null;
-  const match = /^youtube:([\w-]{11})$/.exec(fingerprint);
-  return match === null ? null : `https://www.youtube.com/watch?v=${match[1] ?? ""}`;
+export function windowForSource(kind: string, window: WindowRequest): WindowRequest {
+  return window.policy === "most_replayed" && kind !== "youtube_url"
+    ? { ...window, policy: "first" }
+    : window;
 }
 
 /**
@@ -994,12 +1004,12 @@ export class RepurposeService {
     } = {},
   ): Promise<CreateRunResponse> {
     const runId = ulid();
-    const window: WindowRequest = {
+    const window: WindowRequest = windowForSource(source.kind, {
       ...windowRequestOf(input.setup.window),
       ...(origin.sourceDurationMs === undefined
         ? {}
         : { sourceDurationMs: origin.sourceDurationMs }),
-    };
+    });
 
     const project = await this.projects.create(workspaceId, userId, {
       title: input.title ?? source.title,
@@ -1235,7 +1245,11 @@ export class RepurposeService {
         parsed.code === "unsupported_source"
           ? REPURPOSE_ERRORS.sourceUnsupported
           : REPURPOSE_ERRORS.sourceInvalidUrl,
-        SOURCE_REJECTION_MESSAGES[parsed.code],
+        // The sites named are the ones this workspace can actually use.
+        parsed.code === "unsupported_source" &&
+          !(await this.flagEnabled(workspaceId, REPURPOSE_FLAGS.hostedAcquire))
+          ? YOUTUBE_ONLY_MESSAGE
+          : SOURCE_REJECTION_MESSAGES[parsed.code],
         HttpStatus.BAD_REQUEST,
       );
     }
@@ -1247,6 +1261,20 @@ export class RepurposeService {
       throw new AppException(
         REPURPOSE_ERRORS.sourceUnsupported,
         "Links are not available yet. Upload the video file instead.",
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    if (
+      parsed.source.kind === "hosted_url" &&
+      !(await this.flagEnabled(workspaceId, REPURPOSE_FLAGS.hostedAcquire))
+    ) {
+      // Vimeo, Google Drive and Dropbox (2026-10-01) are switched on per
+      // workspace, separately from YouTube: the acquire worker that fetches
+      // them must be deployed first, and the owner decides who gets them.
+      throw new AppException(
+        REPURPOSE_ERRORS.sourceUnsupported,
+        "Links from that site are not available yet. Paste a YouTube link, or upload the video file.",
         HttpStatus.BAD_REQUEST,
       );
     }
@@ -1414,7 +1442,10 @@ export class RepurposeService {
       projectId: project.id,
       mediaId: target.id,
       source: {
-        kind: source.kind === "youtube_url" ? "youtube_url" : "direct_media_url",
+        kind:
+          source.kind === "youtube_url" || source.kind === "hosted_url"
+            ? source.kind
+            : "direct_media_url",
         normalizedUrl: source.normalizedUrl,
         sourceId: source.fingerprint,
       },
@@ -1434,7 +1465,7 @@ export class RepurposeService {
     // YouTube refused this machine a moment ago (`SourceGate`): the row is
     // reserved and waits, nothing is queued, and the reconciler fetches into it
     // once the gate lets a fetch through. Not a refusal of the run.
-    if (source.kind === "youtube_url" && this.gate !== undefined && !(await this.gate.mayFetch())) {
+    if (usesSourceGate(source.kind) && this.gate !== undefined && !(await this.gate.mayFetch())) {
       this.logger.log(
         { runId: run.id, mediaId: target.id },
         "YouTube is refusing downloads; this fetch waits for the source gate",
@@ -1528,7 +1559,7 @@ export class RepurposeService {
       run,
       { kind: run.sourceKind, fingerprint: run.sourceFingerprint, normalizedUrl },
       budget,
-      windowRequestOfRun(run),
+      windowForSource(run.sourceKind, windowRequestOfRun(run)),
       into === undefined ? {} : { into },
     );
   }
@@ -1555,9 +1586,11 @@ export class RepurposeService {
     await this.assertAvailable(workspaceId);
     const run = await this.require(workspaceId, runId);
 
-    const url = youtubeWatchUrl(run.sourceKind, run.sourceFingerprint);
+    // Any link whose address its fingerprint rebuilds: YouTube, and since
+    // 2026-10-01 Vimeo, Google Drive and Dropbox (`sourceUrlOf`).
+    const url = sourceUrlOf(run.sourceKind, run.sourceFingerprint);
     if (url === null) {
-      throw noNextWindow("Only a YouTube link can be processed a part at a time.");
+      throw noNextWindow("Only a video link can be processed a part at a time.");
     }
     const window = windowView(run);
     if (window === null) {
@@ -1764,7 +1797,8 @@ export class RepurposeService {
     observed: Observation | null,
   ): Promise<RunView["waitingFor"]> {
     const status = observed?.status ?? run.status;
-    if (run.sourceKind === "upload" || this.gate === undefined) return null;
+    // YouTube's gate holds YouTube runs only (2026-10-01).
+    if (!usesSourceGate(run.sourceKind) || this.gate === undefined) return null;
     if (status !== "draft" && status !== "acquiring") return null;
     const { openUntil } = await this.gate.state();
     return openUntil === null

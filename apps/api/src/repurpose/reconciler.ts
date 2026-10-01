@@ -45,7 +45,13 @@ import { progressForStatus, stageForStatus } from "./repurpose.projection.js";
 import { RepurposeService, isRefusal, isUniqueViolation } from "./repurpose.service.js";
 import { runCaptionsOf } from "./run-captions.js";
 import { RunNotifier } from "./run-notifications.js";
-import { MAX_BLOCKED_FETCHES, SOURCE_BLOCKED_REASON, SourceGate } from "./source-gate.js";
+import {
+  MAX_BLOCKED_FETCHES,
+  SOURCE_BLOCKED_REASON,
+  SourceGate,
+  usesSourceGate,
+} from "./source-gate.js";
+import { sourceUrlOf } from "./source-url.js";
 import { AppException, ERROR_CODES } from "../common/errors/error-codes.js";
 import { PrismaService } from "../common/prisma/prisma.service.js";
 import { queuePolicyFor } from "../jobs/jobs.config.js";
@@ -422,6 +428,11 @@ function blockedFetchAction(
   jobErrorCode: string | null,
 ): RunAction | null {
   if (mediaReason !== SOURCE_BLOCKED_REASON && jobErrorCode !== SOURCE_BLOCKED_REASON) return null;
+  // Only YouTube's refusals are waited out (2026-10-01). Another video site
+  // refusing is not YouTube's gate to hold, and fetching again at once would
+  // only ask it again: the refusal is the run's failure, and Try again is the
+  // person's (or Autopilot's, minutes later).
+  if (!usesSourceGate(snapshot.sourceKind)) return null;
   if ((snapshot.blockedFetches ?? 0) >= MAX_BLOCKED_FETCHES || !snapshot.canRefetch) return null;
   return gateOpen(snapshot) ? WAIT : { kind: "refetch" };
 }
@@ -1531,10 +1542,11 @@ export class RepurposeReconciler
       }
     }
     // With no earlier job to read it from (job rows are pruned; a download
-    // whose enqueue was refused never had one), a YouTube link is rebuilt from
-    // its fingerprint - exactly the canonical form `parseSourceUrl` produces,
-    // so nothing the person pasted is needed or stored.
-    refetchUrl ??= youtubeUrlOf(run.sourceKind, run.sourceFingerprint);
+    // whose enqueue was refused never had one), a YouTube link - or another
+    // video site's (2026-10-01) - is rebuilt from its fingerprint: exactly the
+    // canonical form `parseSourceUrl` produces, so nothing the person pasted
+    // is needed or stored.
+    refetchUrl ??= sourceUrlOf(run.sourceKind, run.sourceFingerprint);
 
     const forMedia = (jobs: readonly JobRow[]) =>
       media === null ? undefined : jobs.find((job) => paramOf(job, "mediaId") === media.id);
@@ -1566,8 +1578,10 @@ export class RepurposeReconciler
         transcribeJob: unansweredFactsOf(forMedia(transcribeJobs), run.updatedAt),
         highlightsJob: unansweredFactsOf(highlightsJobs[0], run.updatedAt),
         candidateCount,
+        // YouTube's gate holds YouTube runs only (2026-10-01): a Vimeo, Drive
+        // or Dropbox download never waits on it.
         sourceGateUntil:
-          run.sourceKind === "upload" || this.gate === undefined
+          !usesSourceGate(run.sourceKind) || this.gate === undefined
             ? null
             : (await this.gate.state(now)).openUntil,
         blockedFetches: acquireJobs.filter(
@@ -1691,9 +1705,11 @@ function isPreCandidate(status: $Enums.RepurposeRunStatus): boolean {
   return (PRE_CANDIDATE_STATUSES as readonly string[]).includes(status);
 }
 
-/** The canonical watch URL for a YouTube run's `youtube:{videoId}` fingerprint. */
+/**
+ * The canonical watch URL for a YouTube run's `youtube:{videoId}` fingerprint;
+ * null for any other kind. The refetch reads {@link sourceUrlOf}, which also
+ * rebuilds another video site's link (2026-10-01).
+ */
 export function youtubeUrlOf(kind: string, fingerprint: string | null): string | null {
-  if (kind !== "youtube_url" || fingerprint === null) return null;
-  const match = /^youtube:([\w-]{11})$/.exec(fingerprint);
-  return match === null ? null : `https://www.youtube.com/watch?v=${match[1] ?? ""}`;
+  return kind === "youtube_url" ? sourceUrlOf(kind, fingerprint) : null;
 }

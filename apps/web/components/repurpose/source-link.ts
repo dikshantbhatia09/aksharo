@@ -66,3 +66,55 @@ export function isPlausibleLink(normalised: string): boolean {
     return false;
   }
 }
+
+/**
+ * The feature flag that lets a workspace start clips from a Vimeo, Google
+ * Drive or Dropbox link (2026-10-01), on top of `source_youtube_acquire`.
+ */
+export const HOSTED_SITES_FLAG = "source_hosted_acquire";
+
+/** The video sites a clips run may start from a link on. */
+export type LinkSite = "youtube" | "vimeo" | "gdrive" | "dropbox";
+
+/**
+ * The hosts each site is recognised on: the API's lists in
+ * `apps/api/src/repurpose/source-url.ts`, matched exactly after lower-casing,
+ * so `vimeo.com.example.test` is not Vimeo.
+ */
+const SITE_HOSTS: ReadonlyMap<string, LinkSite> = new Map<string, LinkSite>([
+  ["youtube.com", "youtube"],
+  ["www.youtube.com", "youtube"],
+  ["m.youtube.com", "youtube"],
+  ["music.youtube.com", "youtube"],
+  ["youtube-nocookie.com", "youtube"],
+  ["www.youtube-nocookie.com", "youtube"],
+  ["youtu.be", "youtube"],
+  ["www.youtu.be", "youtube"],
+  ["vimeo.com", "vimeo"],
+  ["www.vimeo.com", "vimeo"],
+  ["player.vimeo.com", "vimeo"],
+  ["drive.google.com", "gdrive"],
+  ["dropbox.com", "dropbox"],
+  ["www.dropbox.com", "dropbox"],
+]);
+
+/**
+ * Which video site a normalised link is on, by its host alone; null for any
+ * other host or for something that is not a link. Like the rest of this file
+ * it is a courtesy: the API still decides whether the path is one video.
+ */
+export function linkSite(normalised: string): LinkSite | null {
+  let url: URL;
+  try {
+    url = new URL(normalised);
+  } catch {
+    return null;
+  }
+  if (url.protocol !== "https:") return null;
+  return SITE_HOSTS.get(url.hostname.toLowerCase()) ?? null;
+}
+
+/** The plain words for which links this workspace can use. */
+export function linkSitesPhrase(otherSites: boolean): string {
+  return otherSites ? "A YouTube, Vimeo, Google Drive or Dropbox link" : "A YouTube link";
+}

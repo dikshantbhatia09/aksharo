@@ -1,4 +1,5 @@
 import { NEXT_WINDOW_MIN_MS, PROJECT_TITLE_MAX, WINDOW_POLICIES } from "./repurpose.constants.js";
+import { sourceUrlOf } from "./source-url.js";
 
 import type { WindowPolicy } from "./repurpose.constants.js";
 import type { $Enums } from "@prisma/client";
@@ -180,26 +181,27 @@ function stageIndex(stage: Stage): number {
   return STAGES.indexOf(stage);
 }
 
-const STAGE_LABELS: Readonly<Record<Stage, { running: string; complete: string; waiting: string }>> =
-  Object.freeze({
-    getting_video: {
-      waiting: "Add video",
-      running: "Getting your video",
-      complete: "Video added",
-    },
-    finding_clips: {
-      waiting: "Find clips",
-      running: "Finding clips",
-      complete: "Clips found",
-    },
-    styles_formats: {
-      waiting: "Style formats",
-      running: "Preparing your formats",
-      complete: "Formats ready",
-    },
-    review: { waiting: "Review", running: "Ready to review", complete: "Reviewed" },
-    publish: { waiting: "Publish", running: "Publishing", complete: "Published" },
-  });
+const STAGE_LABELS: Readonly<
+  Record<Stage, { running: string; complete: string; waiting: string }>
+> = Object.freeze({
+  getting_video: {
+    waiting: "Add video",
+    running: "Getting your video",
+    complete: "Video added",
+  },
+  finding_clips: {
+    waiting: "Find clips",
+    running: "Finding clips",
+    complete: "Clips found",
+  },
+  styles_formats: {
+    waiting: "Style formats",
+    running: "Preparing your formats",
+    complete: "Formats ready",
+  },
+  review: { waiting: "Review", running: "Ready to review", complete: "Reviewed" },
+  publish: { waiting: "Publish", running: "Publishing", complete: "Published" },
+});
 
 /**
  * Build the whole view a stage rail renders.
@@ -221,7 +223,9 @@ export function projectRun(input: {
     ? (input.currentStage as Stage)
     : stageForStatus(input.status);
   const current =
-    input.status === "failed" || input.status === "cancelled" ? stored : stageForStatus(input.status);
+    input.status === "failed" || input.status === "cancelled"
+      ? stored
+      : stageForStatus(input.status);
   const currentIndex = stageIndex(current);
   const failed = input.status === "failed";
 
@@ -310,8 +314,9 @@ export function windowView(run: WindowColumns): RunWindowView | null {
 /**
  * Whether "process the next window" has anything to process: a link run whose
  * section landed with at least {@link NEXT_WINDOW_MIN_MS} of the source after
- * it. Only a YouTube link can be fetched again from its fingerprint alone (the
- * run never keeps the URL, §17.4).
+ * it. Only a link whose address its fingerprint rebuilds can be fetched again
+ * (the run never keeps the URL, §17.4): YouTube, and since 2026-10-01 Vimeo,
+ * Google Drive and Dropbox (`sourceUrlOf`).
  */
 export function nextWindowAvailable(
   run: WindowColumns & {
@@ -319,7 +324,7 @@ export function nextWindowAvailable(
     readonly sourceFingerprint: string | null;
   },
 ): boolean {
-  if (run.sourceKind !== "youtube_url" || run.sourceFingerprint === null) return false;
+  if (sourceUrlOf(run.sourceKind, run.sourceFingerprint) === null) return false;
   const window = windowView(run);
   return window !== null && window.sourceDurationMs - window.endMs >= NEXT_WINDOW_MIN_MS;
 }

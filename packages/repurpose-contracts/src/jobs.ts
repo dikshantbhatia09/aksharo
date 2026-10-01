@@ -62,10 +62,20 @@ export const MediaAcquirePayloadSchema = z.strictObject({
   projectId: UlidSchema,
   mediaId: UlidSchema,
   source: z.strictObject({
-    kind: z.enum(["youtube_url", "direct_media_url"]),
+    /**
+     * `hosted_url` (2026-10-01): a Vimeo, Google Drive or Dropbox link, rebuilt
+     * from its fingerprint. **Deploy worker-media before an api that sends
+     * it**: an older worker refuses the kind (`media/unsupported`), so the
+     * run fails with "that kind of link cannot be fetched yet" rather than
+     * being fetched.
+     */
+    kind: z.enum(["youtube_url", "hosted_url", "direct_media_url"]),
     /** HTTPS, host-normalised, credentials stripped (§9.2). */
     normalizedUrl: z.url().refine((url) => url.startsWith("https://"), "Source must be HTTPS."),
-    /** `youtube:{videoId}` — the dedupe identity, without tracking parameters. */
+    /**
+     * `youtube:{videoId}` — the dedupe identity, without tracking parameters;
+     * `vimeo:`, `gdrive:` or `dropbox:` for a `hosted_url` (`source-url.ts`).
+     */
     sourceId: z.union([z.string().trim().min(1).max(200), z.null()]),
   }),
   destination: StorageObjectSchema,
