@@ -1718,3 +1718,91 @@ worktrees (`wt/<name>`, branch `feat/<name>`), each merged and verified in
 - **Known, not fixed (keys removed 2026-09-30, cause remains)**: API unit tests and past dev sessions left ~40 MB of
   keys under test prefixes (`montaj-test-*`, `a23`, `montaj-s07`, ...) in the
   production Redis (`test/setup-env.ts` assigns `localhost:6379`).
+
+---
+
+## 21. 2026-10-01 — OpusClip parity (owner goal: "every functionality that is there in the Opus Clip ... the kind of seamlessness")
+
+Source: the owner's screen recording `C:\Dikshant\opus clip\2026-10-01 09-39-47.mp4`.
+Its 535 de-duplicated frames, one OCR note per frame (Haiku) and the analysis
+(Sonnet) live beside it, outside the repo: `frames\`, `ocr\frames\*.md`,
+`analysis\opus-feature-inventory.md` and **`analysis\gap-analysis.md`**, which
+holds the build order: wave 1 (the core flow and its seamlessness, no new
+vendor), wave 2 (search, bulk actions, demo run, saved setups), wave 3
+(integrations: Drive, more hosts, MCP, Labs, SRT, metadata preview, NLE),
+wave 4 (new models/vendors: upscaling, TTS hook, generated B-roll, eye
+contact) and a don't-build list.
+
+- **Wave 1, deployed as 603ed71f** (`deploy-20261001b.ps1`, undo
+  `rollback-20261001b.ps1`; no migration, no env change; api, then worker-ai,
+  then web `.next-live-20261001b`, build `f8OgdZtTnIdRFZtXTJffA`):
+  - **A run's clips as a library** (`apps/web/components/repurpose/results/`):
+    from 4 finished clips the run opens on a grid of tiles (poster, `#rank` by
+    score, score, length, grade, two tags), else the list of full cards; a
+    search over words, title, topics and names; best first or video order;
+    grid/list remembered in `aksharo.repurpose.view`. While clips are picked
+    for a compilation it is always the list (the cards carry the tick boxes).
+  - **A clip opened in place** (`ClipDetailDialog`, `#clip-<id>` opens one):
+    ←/→ through the clips, the title edited in place
+    (`PUT /repurpose/runs/:id/candidates/:cid/title`, editors and up: the
+    moment's, its clip's and its words-to-post title, audited
+    `repurpose.candidate.retitled`), the analysis (overall, and Hook / Flow /
+    Value / Trend graded A+..D, `clip-analysis.ts`: the AI editor's marks and
+    notes first, else the measured `scoreBreakdown`; Trend only from the model
+    or a `track_record` reason), people named, its words as lines on the
+    ORIGINAL video's clock (`GET .../candidates/:cid/transcript`, the run's
+    window start added back), and links straight into the editor's panels:
+    `/p/:id?panel=broll|audio|style|look|anim` (`editorPanelOf`).
+  - **The AI editor also marks the hook and the trend** (0-10), writes one
+    note per part and names people (`worker_ai/highlights/rerank.py`); all
+    optional in `repurpose-contracts` (`judgement.hook/trend/notes/people`) and
+    the worker's pydantic contract. Order matters: an api older than 603ed71f
+    refuses a highlights result carrying them (strict schema), so the api
+    deploys before worker-ai, and a rollback stops worker-ai first.
+  - **Hook titles off/on for a whole run** (`PUT .../hook-titles`, editors;
+    409 `repurpose/hook_titles_manual` on a manual run): `config.hookTitles`;
+    off removes Autopilot's own hook-title overlay (id == the variant's id) from
+    every shape and keeps new clips from getting one; on puts it back on
+    variants whose finishing is `done`. A person's own hook title is never
+    touched. Each changed clip is captioned again after the usual quiet minute.
+  - **The start form says what the run will cost, live**
+    (`GET /repurpose/estimate?automation&durationMs&clipLength`, viewers):
+    minutes processed at 1 credit (`quote("transcription")`) plus, with
+    Autopilot, ~`autopilotClipCount` clips x 4 shapes at the cloud render rate.
+    "About N" for a known length (an upload's, read in the browser from the
+    file's header, `use-media-duration.ts`; or a link the page came back to),
+    "up to N" for a link (its length is never looked up: one more YouTube
+    request per keystroke). A file longer than the plan's upload
+    `maxDurationMs` is said before it is sent (the probe would refuse it).
+    A render the credits cannot pay for is NOT held: it is refused (4xx) and
+    the variant marked failed until its captions change, which the line says.
+  - **Caption looks as picture cards.** `pnpm --filter
+    @montaj/render-canvaskit previews:build` was re-run: every still shows
+    today's renderer (the 2026-09-29 word spacing; the old ones read
+    "HOWYOUR") on Shirorekha's `bg-2` instead of Nocturne's blue-grey, and the
+    **36** catalogue styles that never had a still got one (the commit message
+    says 41; it is 36 — 66 stills now). After a checkout run `assets:render`.
+    Known, not changed: the start form's first ("Recommended") card is
+    whichever pickable style sorts first (Hype Bold), while new projects
+    default to Punch Pop (`DEFAULT_STYLE_REF`).
+  - **Nudges**: a low-credits card (balance under 15 % of the monthly grant;
+    "Not now" lasts until the grant resets, `aksharo.low-credits.dismissed`);
+    "Get clips from every new video" on a link run's page while the workspace
+    follows no channel (`ChannelPitch`, `aksharo.automations.pitch`); the Clips
+    nav entry counts videos in progress (Home's `serverIsWorking` rule, so an
+    Autopilot run past "moments found" is not counted); a workspace's first
+    "clips ready" email/push has its own words (`first: "yes"` when no other
+    run of the workspace was ever sent one).
+  - Not built in wave 1: a "post now" banner (posting is idle until Postiz is
+    set up, so it would point at nothing).
+- **Checking a signed-in screen without a backend** (used for wave 1): start
+  the release's production build on a scratch port with
+  `BROWSER_API_ORIGIN=API_ORIGIN=http://localhost:3001` (the build's CSP
+  allows that origin; nothing needs to listen there) and no env file, add an
+  `aksharo_rt` cookie so the middleware lets you in, and answer
+  `/api/session/refresh` (an unsigned JWT with `ws`) and every
+  `http://localhost:3001/**` call from Playwright routes. The script used is
+  kept at `_orchestration/tools/visual-mocked-api.mjs`. The installed browser
+  is build 1243 while `montaj-release`'s Playwright wants 1234: pass
+  `executablePath` to `ms-playwright\chromium_headless_shell-1243\...`
+  rather than installing anything.
