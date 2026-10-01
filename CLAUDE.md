@@ -1690,6 +1690,27 @@ worktrees (`wt/<name>`, branch `feat/<name>`), each merged and verified in
   test suites on the same machine, the API ran out of Prisma pool connections
   for ~4 minutes (22:24-22:28); two queued jobs were lost and settled as
   `jobs/stalled`, and Autopilot re-rendered the clip. Build and test off-peak.
+- **"Download all", deployed 2026-10-01 as 65a604c0 then API-only a41846bd**
+  (`deploy-20261001a.ps1`, undo `rollback-20261001a.ps1`; then
+  `deploy-api-swap.ps1 -Sha a41846bd -PreviousSha 65a604c0 [-Rollback]`).
+  A button beside "Share with a guest" gives one ZIP of a run: every clip in
+  every shape with captions, its images, "Words to post.txt", its dubbed
+  versions, the run's compilations and "Episode text.txt"; optionally every
+  clean cut. `apps/api/src/repurpose/bundle/`: the ZIP is **streamed from the
+  derived store through the API, never written to disk** (`zip-writer.ts`:
+  STORE, CRC in data descriptors, ZIP64 only past 4 GiB, exact
+  `Content-Length` from HEADs). `POST /repurpose/runs/:id/download` (viewers
+  and up) returns a single-use 5-minute URL `GET /repurpose/downloads/:token`
+  (only its SHA-256 in Redis, GETDEL); a spent link shows an HTML page back to
+  the app; at most 2 downloads per workspace at once (in memory, per API
+  process). The guest page and the bundle share `guest/clip-files.reader.ts`.
+  Verified live: the owner's 35-clip run, 4.08 GB, 701 files (140 videos, 525
+  images, 36 texts), every CRC checked by Python, 69 s over 127.0.0.1; a
+  second use 404s; aborted downloads free their place. Windows Explorer and
+  Expand-Archive extract UTF-8 (Hindi) names and ZIP64; Windows `tar.exe`
+  skips non-ASCII names (its own limit). The test downloads were made with
+  tokens put in Redis by hand, so four `repurpose.run.downloaded` audit rows
+  on the owner's account are from that check.
 - **Trap: PowerShell strips double quotes from a native command's arguments.**
   `docker exec ... psql -c 'select count(*) from "User"'` ran as `from User`,
   which Postgres reads as the `user` function and always counts 1. Pipe SQL to
