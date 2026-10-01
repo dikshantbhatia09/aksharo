@@ -46,6 +46,11 @@
  * which the file picker had narrowed to video) - and each of its clips is
  * drawn a picture: an optional cover image, offered once a sound-only file is
  * picked, above a live waveform (an audiogram).
+ *
+ * Captions the person already has (2026-10-01, OpusClip's "upload SRT"): for
+ * one video - a single link or a single file - an optional SRT or VTT file, or
+ * a link to one. The run aligns those captions to the audio instead of
+ * transcribing it, so finding its clips costs no credits (`run-captions.ts`).
  */
 import NextLink from "next/link";
 import * as React from "react";
@@ -58,6 +63,13 @@ import type { BrollOffer } from "@/components/broll/use-broll-library";
 import { DETAIL_COPY } from "@/components/repurpose/copy";
 import { SOURCE_CEILING_MS, formatBytes, spanPhrase } from "@/components/repurpose/failure-detail";
 import { formatClock, parseClock } from "@/components/repurpose/moment-time";
+import {
+  CAPTIONS_ACCEPT,
+  CAPTIONS_MAX_BYTES,
+  captionsFileProblem,
+  captionsLinkProblem,
+  offersCaptions,
+} from "@/components/repurpose/run-captions";
 import {
   EMPTY_RUN_SETUP,
   RunSetupFields,
@@ -109,6 +121,12 @@ export interface StartFormValue extends RunSetupValue {
    * yet uploaded; offered only while a sound-only file is picked.
    */
   readonly cover: File | null;
+  /**
+   * Captions the person already has for this one video (2026-10-01): a picked
+   * SRT or VTT file, or a link to one. A file wins over a link.
+   */
+  readonly captionsFile: File | null;
+  readonly captionsUrl: string;
   readonly rightsAttested: boolean;
 }
 
@@ -121,6 +139,8 @@ export const EMPTY_START_FORM: StartFormValue = Object.freeze({
   file: null,
   files: [],
   cover: null,
+  captionsFile: null,
+  captionsUrl: "",
   rightsAttested: false,
 });
 
@@ -130,6 +150,7 @@ export interface StartFormProblems extends RunSetupProblems {
   readonly startAt?: string;
   readonly file?: string;
   readonly cover?: string;
+  readonly captions?: string;
   readonly rights?: string;
 }
 
@@ -247,6 +268,14 @@ export function validateStartForm(
   if (cover !== null) {
     const problem = coverFileProblem(cover);
     if (problem !== null) problems.cover = problem;
+  }
+
+  if (offersCaptions(value)) {
+    const problem =
+      value.captionsFile === null
+        ? captionsLinkProblem(value.captionsUrl)
+        : captionsFileProblem(value.captionsFile);
+    if (problem !== null) problems.captions = problem;
   }
 
   return { ...problems, ...validateRunSetup(value) };
@@ -547,6 +576,17 @@ export function SourceStartForm({
               </Field>
             )}
 
+            {offersCaptions(value) ? (
+              <CaptionsField
+                file={value.captionsFile}
+                link={value.captionsUrl}
+                error={visible.captions}
+                onChange={(captionsFile, captionsUrl) => {
+                  onChange({ ...value, captionsFile, captionsUrl });
+                }}
+              />
+            ) : null}
+
             {rights}
           </div>
         ) : value.tab === "links" ? (
@@ -666,6 +706,17 @@ export function SourceStartForm({
                 error={visible.cover}
                 onChange={(cover) => {
                   set("cover", cover);
+                }}
+              />
+            ) : null}
+
+            {offersCaptions(value) ? (
+              <CaptionsField
+                file={value.captionsFile}
+                link={value.captionsUrl}
+                error={visible.captions}
+                onChange={(captionsFile, captionsUrl) => {
+                  onChange({ ...value, captionsFile, captionsUrl });
                 }}
               />
             ) : null}
@@ -813,6 +864,100 @@ function CoverField({
             </Button>
           </>
         )}
+      </div>
+    </Field>
+  );
+}
+
+/**
+ * Captions the person already has for the video (2026-10-01): an SRT or VTT
+ * file picked from the device, or - while none is picked - a link to one. The
+ * file's name is shown back once picked, and Remove takes it off again. It is
+ * read and sent with the run, not before.
+ */
+function CaptionsField({
+  file,
+  link,
+  error,
+  onChange,
+}: {
+  readonly file: File | null;
+  readonly link: string;
+  readonly error: string | undefined;
+  readonly onChange: (file: File | null, link: string) => void;
+}): React.JSX.Element {
+  const inputRef = React.useRef<HTMLInputElement | null>(null);
+  return (
+    <Field
+      label="Captions you already have (optional)"
+      htmlFor="repurpose-captions"
+      hint={`An SRT or VTT file for this video, up to ${String(CAPTIONS_MAX_BYTES / (1024 * 1024))} MB. We match it to the audio instead of transcribing, so finding clips costs no credits.`}
+      {...(error === undefined ? {} : { error })}
+    >
+      <div className="space-y-2" data-testid="source-captions">
+        <div className="flex flex-wrap items-center gap-3">
+          <input
+            ref={inputRef}
+            id="repurpose-captions"
+            type="file"
+            accept={CAPTIONS_ACCEPT}
+            className="sr-only"
+            data-testid="source-captions-input"
+            aria-describedby={
+              error === undefined ? "repurpose-captions-hint" : "repurpose-captions-error"
+            }
+            onChange={(event) => {
+              const picked = event.target.files?.[0];
+              event.target.value = "";
+              if (picked !== undefined) onChange(picked, "");
+            }}
+          />
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={() => inputRef.current?.click()}
+            data-testid="source-captions-choose"
+          >
+            {file === null ? "Choose a caption file" : "Replace"}
+          </Button>
+          {file === null ? null : (
+            <>
+              <span
+                className="min-w-0 max-w-full truncate text-xs text-fg-1"
+                data-testid="source-captions-name"
+              >
+                {file.name}
+              </span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  onChange(null, "");
+                }}
+                data-testid="source-captions-remove"
+              >
+                Remove
+              </Button>
+            </>
+          )}
+        </div>
+        {file === null ? (
+          <Input
+            type="url"
+            inputMode="url"
+            className="bg-sunken"
+            placeholder="Or paste a link to the file: https://…/captions.srt"
+            aria-label="Link to a caption file"
+            value={link}
+            data-testid="source-captions-url"
+            aria-invalid={error !== undefined}
+            onChange={(event) => {
+              onChange(null, event.target.value);
+            }}
+          />
+        ) : null}
       </div>
     </Field>
   );

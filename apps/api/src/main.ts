@@ -12,6 +12,7 @@ import { HttpExceptionFilter } from "./common/errors/http-exception.filter.js";
 import { startTelemetry } from "./common/telemetry/otel.js";
 import { ENV } from "./config/config.module.js";
 import { applyInternalBodyLimit } from "./internal/internal-body-limit.js";
+import { applyImportBodyLimit } from "./media/import/import-body-limit.js";
 import { setupOpenApi } from "./openapi.js";
 import { parseRole } from "./role.js";
 import { APP_VERSION } from "./version.js";
@@ -53,6 +54,8 @@ export async function bootstrap(): Promise<INestApplication> {
   // Before the adapter registers its own 100 kB parser (`app.listen()` → `init()`):
   // an `ai.transcribe` completion carries a whole transcript. A11.
   applyInternalBodyLimit(app);
+  // Same reason, two public routes: a caption file sent inline may be 2 MB.
+  applyImportBodyLimit(app);
 
   const env = app.get<Env>(ENV);
 

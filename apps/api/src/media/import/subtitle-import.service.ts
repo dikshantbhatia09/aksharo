@@ -1,6 +1,7 @@
 import { HttpStatus, Inject, Injectable, Logger } from "@nestjs/common";
 import { ulid } from "ulid";
 
+import { importAlignParams, SUBTITLE_SIDECAR_VERSION } from "./import-align-params.js";
 import { isSubtitleKind, parseSubtitles, SubtitleParseError } from "./subtitle-parsers.js";
 import { AppException, PrismaService } from "../../common/index.js";
 import { SafeFetchError, safeFetch } from "../../common/net/index.js";
@@ -17,7 +18,8 @@ import { ProjectsService } from "../../projects/projects.service.js";
 import { EntitlementService } from "../../workspaces/entitlement.service.js";
 import { MEDIA_JOB_KEYS, MEDIA_JOB_QUOTES } from "../media.constants.js";
 
-import type { SubtitleKind } from "./subtitle-parsers.js";
+import type { SubtitleSidecar } from "./import-align-params.js";
+import type { ParsedSubtitles, SubtitleKind } from "./subtitle-parsers.js";
 import type { ObjectStore } from "../../common/storage/index.js";
 
 export interface ImportSubtitlesInput {
@@ -45,8 +47,27 @@ export interface ImportResult {
   readonly jobId: string;
 }
 
-/** Version stamp on the stored sidecar, so a later reader knows the shape. */
-export const SUBTITLE_SIDECAR_VERSION = 1;
+export { SUBTITLE_SIDECAR_VERSION } from "./import-align-params.js";
+
+/**
+ * A caption file read and parsed, not yet stored anywhere (2026-10-01): what a
+ * clips run started with its own captions checks BEFORE its project exists, so
+ * a file that cannot be read refuses the run and leaves nothing behind.
+ */
+export interface PreparedSubtitles {
+  readonly parsed: ParsedSubtitles;
+  /** The address it was fetched from, for a linked file; null for one sent inline. */
+  readonly sourceUrl: string | null;
+}
+
+/** A sidecar written for a project, with no align asked for yet. */
+export interface StashedSubtitles {
+  readonly mediaId: string;
+  readonly key: string;
+  readonly cueCount: number;
+  readonly kind: SubtitleKind;
+  readonly language: string | null;
+}
 
 /**
  * `POST /projects/{id}/import` and `/import-url`.
@@ -79,7 +100,30 @@ export class SubtitleImportService {
     projectId: string,
     input: ImportSubtitlesInput,
   ): Promise<ImportResult> {
-    const bytes = Buffer.byteLength(input.content, "utf8");
+    const project = await this.projects.requireProject(workspaceId, projectId);
+    const prepared = this.prepareInline(input.kind, input.content);
+    return this.store(workspaceId, project, prepared, input);
+  }
+
+  /** Import from a URL the caller supplied; see {@link prepareFromUrl}. */
+  async importFromUrl(
+    workspaceId: string,
+    projectId: string,
+    input: ImportUrlInput,
+  ): Promise<ImportResult> {
+    const project = await this.projects.requireProject(workspaceId, projectId);
+    const prepared = await this.prepareFromUrl(input.url, input.kind);
+    return this.store(workspaceId, project, prepared, input);
+  }
+
+  /**
+   * Check and parse a file sent inline: the size cap first, then the parser.
+   * Stores nothing.
+   *
+   * @throws AppException 413 `import/too_large`, 422 `import/unparsable`.
+   */
+  prepareInline(kind: SubtitleKind, content: string): PreparedSubtitles {
+    const bytes = Buffer.byteLength(content, "utf8");
     if (bytes > IMPORT_MAX_BYTES) {
       throw new AppException(
         IMPORT_ERRORS.tooLarge,
@@ -88,34 +132,31 @@ export class SubtitleImportService {
         { bytes, maxBytes: IMPORT_MAX_BYTES },
       );
     }
-    return this.store(workspaceId, projectId, input.kind, input.content, input, null);
+    return { parsed: parseOrRefuse(kind, content), sourceUrl: null };
   }
 
   /**
-   * Import from a URL the caller supplied (THREAT-MODEL **T6**).
+   * Fetch and parse a file the caller linked to (THREAT-MODEL **T6**). Stores
+   * nothing.
    *
    * Every rule lives in `safeFetch`; this method's only job is to turn its
    * refusals into API error codes, which it does by *code* rather than by
    * message, so nothing about the internal network reaches the client.
    */
-  async importFromUrl(
-    workspaceId: string,
-    projectId: string,
-    input: ImportUrlInput,
-  ): Promise<ImportResult> {
-    const kind = input.kind ?? kindFromUrl(input.url);
+  async prepareFromUrl(url: string, declared?: SubtitleKind): Promise<PreparedSubtitles> {
+    const kind = declared ?? kindFromUrl(url);
     if (kind === undefined) {
       throw new AppException(
         IMPORT_ERRORS.unsupportedKind,
         "Say which subtitle format that URL holds.",
         HttpStatus.BAD_REQUEST,
-        { url: input.url },
+        { url },
       );
     }
 
     let body: Buffer;
     try {
-      const fetched = await safeFetch(input.url, {
+      const fetched = await safeFetch(url, {
         maxBytes: IMPORT_MAX_BYTES,
         timeoutMs: IMPORT_FETCH_TIMEOUT_MS,
       });
@@ -132,33 +173,42 @@ export class SubtitleImportService {
       if (error instanceof AppException) throw error;
       throw importFetchError(error);
     }
+    return { parsed: parseOrRefuse(kind, body.toString("utf8")), sourceUrl: url };
+  }
 
-    return this.store(workspaceId, projectId, kind, body.toString("utf8"), input, input.url);
+  /**
+   * Write a prepared file's sidecar and its `subtitle` media row for a project,
+   * and ask for nothing (2026-10-01). A clips run started with its own captions
+   * does this as it is created; the align is asked for once its video can be
+   * heard (`RunCaptionsAligner`), because the aligner reads the audio.
+   */
+  async stash(
+    workspaceId: string,
+    projectId: string,
+    prepared: PreparedSubtitles,
+    language: string | null,
+  ): Promise<StashedSubtitles> {
+    const project = await this.projects.requireProject(workspaceId, projectId);
+    const written = await this.writeSidecar(workspaceId, project, prepared, {
+      language,
+      alignsMediaId: null,
+    });
+    return {
+      mediaId: written.asset.id,
+      key: written.key,
+      cueCount: prepared.parsed.cues.length,
+      kind: prepared.parsed.kind,
+      language: written.document.language,
+    };
   }
 
   private async store(
     workspaceId: string,
-    projectId: string,
-    kind: SubtitleKind,
-    content: string,
+    project: { readonly id: string; readonly sourceLanguage: string | null },
+    prepared: PreparedSubtitles,
     input: { readonly language?: string; readonly mediaId?: string },
-    sourceUrl: string | null,
   ): Promise<ImportResult> {
-    const project = await this.projects.requireProject(workspaceId, projectId);
-
-    let parsed;
-    try {
-      parsed = parseSubtitles(kind, content);
-    } catch (error) {
-      throw new AppException(
-        IMPORT_ERRORS.unparsable,
-        error instanceof SubtitleParseError
-          ? `That file could not be read as ${kind.toUpperCase()}: ${error.message}.`
-          : `That file could not be read as ${kind.toUpperCase()}.`,
-        HttpStatus.UNPROCESSABLE_ENTITY,
-        { kind },
-      );
-    }
+    const parsed = prepared.parsed;
 
     // Naming the media it belongs to is optional; when it is given it must be in
     // this project, which `MediaService.require` would also enforce — done here
@@ -178,17 +228,68 @@ export class SubtitleImportService {
       }
     }
 
+    const { asset, key, document } = await this.writeSidecar(workspaceId, project, prepared, {
+      language: input.language ?? null,
+      alignsMediaId: input.mediaId ?? null,
+    });
+
+    const alignTarget = input.mediaId ?? (await this.primaryMediaId(project.id));
+    const job = await this.jobs.enqueue({
+      type: "ai.align",
+      workspaceId,
+      projectId: project.id,
+      params: importAlignParams({
+        transcriptId: ulid(),
+        subtitleMediaId: asset.id,
+        subtitleKey: key,
+        subtitleBucket: this.derived.kind,
+        mediaId: alignTarget,
+        kind: parsed.kind,
+        timed: parsed.timed,
+        language: document.language,
+        cues: parsed.cues,
+      }),
+      jobKey: MEDIA_JOB_KEYS.align(asset.id),
+      worstCaseTenths: MEDIA_JOB_QUOTES.alignTenths,
+      reason: `ai.align · imported ${parsed.kind} · ${String(parsed.cues.length)} cues`,
+    });
+    if (parsed.warnings.length > 0) {
+      this.logger.debug(
+        { projectId: project.id, mediaId: asset.id, warnings: parsed.warnings.length },
+        "subtitle import had warnings",
+      );
+    }
+
+    return {
+      mediaId: asset.id,
+      kind: parsed.kind,
+      key,
+      cueCount: parsed.cues.length,
+      timed: parsed.timed,
+      warnings: parsed.warnings,
+      jobId: job.job.id,
+    };
+  }
+
+  /** The sidecar in the derived bucket and its `subtitle` media row. */
+  private async writeSidecar(
+    workspaceId: string,
+    project: { readonly id: string; readonly sourceLanguage: string | null },
+    prepared: PreparedSubtitles,
+    options: { readonly language: string | null; readonly alignsMediaId: string | null },
+  ): Promise<{ asset: { id: string }; key: string; document: SubtitleSidecar }> {
+    const { parsed, sourceUrl } = prepared;
     const limits = mediaLimitsFor(await this.entitlements.forWorkspace(workspaceId));
     const mediaId = ulid();
     const key = subtitleKey(workspaceId, project.id, mediaId);
     const now = new Date();
 
-    const document = {
+    const document: SubtitleSidecar = {
       version: SUBTITLE_SIDECAR_VERSION,
       kind: parsed.kind,
       timed: parsed.timed,
-      language: input.language ?? project.sourceLanguage ?? null,
-      alignsMediaId: input.mediaId ?? null,
+      language: options.language ?? project.sourceLanguage ?? null,
+      alignsMediaId: options.alignsMediaId,
       sourceUrl,
       importedAt: now.toISOString(),
       cues: parsed.cues,
@@ -221,56 +322,7 @@ export class SubtitleImportService {
     });
 
     await this.projects.touch(project.id, now);
-
-    const alignTarget = input.mediaId ?? (await this.primaryMediaId(project.id));
-    const transcriptId = ulid();
-    const job = await this.jobs.enqueue({
-      type: "ai.align",
-      workspaceId,
-      projectId: project.id,
-      params: {
-        // B15 §6: the worker's own contract (`ai.align`) needs
-        // `segments: [{startMs, endMs, text}]` built from the cues, not a
-        // reference to the sidecar it cannot read on its own.
-        mode: "import",
-        transcriptId,
-        subtitleMediaId: asset.id,
-        subtitleKey: key,
-        subtitleBucket: this.derived.kind,
-        mediaId: alignTarget,
-        kind: parsed.kind,
-        timed: parsed.timed,
-        cueCount: parsed.cues.length,
-        language: document.language,
-        segments: parsed.cues.map((cue) => ({
-          startMs: cue.startMs,
-          endMs: cue.endMs,
-          text: cue.text.replace(/\s+/g, " ").trim(),
-        })),
-        cueWordCounts: parsed.cues.map(
-          (cue) => cue.text.replace(/\s+/g, " ").trim().split(" ").filter(Boolean).length,
-        ),
-      },
-      jobKey: MEDIA_JOB_KEYS.align(asset.id),
-      worstCaseTenths: MEDIA_JOB_QUOTES.alignTenths,
-      reason: `ai.align · imported ${parsed.kind} · ${String(parsed.cues.length)} cues`,
-    });
-    if (parsed.warnings.length > 0) {
-      this.logger.debug(
-        { projectId: project.id, mediaId: asset.id, warnings: parsed.warnings.length },
-        "subtitle import had warnings",
-      );
-    }
-
-    return {
-      mediaId: asset.id,
-      kind: parsed.kind,
-      key,
-      cueCount: parsed.cues.length,
-      timed: parsed.timed,
-      warnings: parsed.warnings,
-      jobId: job.job.id,
-    };
+    return { asset, key, document };
   }
 
   /** The media the cues most likely belong to: the project's first primary item. */
@@ -281,6 +333,22 @@ export class SubtitleImportService {
       select: { id: true },
     });
     return media?.id ?? null;
+  }
+}
+
+/** Parse, or refuse with `import/unparsable` (422) in the person's terms. */
+function parseOrRefuse(kind: SubtitleKind, content: string): ParsedSubtitles {
+  try {
+    return parseSubtitles(kind, content);
+  } catch (error) {
+    throw new AppException(
+      IMPORT_ERRORS.unparsable,
+      error instanceof SubtitleParseError
+        ? `That file could not be read as ${kind.toUpperCase()}: ${error.message}.`
+        : `That file could not be read as ${kind.toUpperCase()}.`,
+      HttpStatus.UNPROCESSABLE_ENTITY,
+      { kind },
+    );
   }
 }
 

@@ -31,6 +31,11 @@ export const estimateQuerySchema = z
       .optional(),
     automation: z.enum(AUTOMATION_MODES).default("auto"),
     clipLength: z.enum(["short", "medium", "long"]).optional(),
+    /**
+     * "1" when the run starts with the person's own captions (2026-10-01):
+     * they are aligned instead of transcribed, so finding moments is free.
+     */
+    captions: z.literal("1").optional(),
   })
   .strict();
 export class EstimateQueryDto extends zodDto(estimateQuerySchema) {}
@@ -39,11 +44,12 @@ export type EstimateQuery = z.infer<typeof estimateQuerySchema>;
 /**
  * A workspace's default setup for new runs (2026-10-01, OpusClip's "Save
  * settings above as default"): a run's `setup` without what belongs to one
- * video (its window, an audio file's cover).
+ * video (its window, an audio file's cover, captions written for it).
  */
 export const runDefaultsSetupSchema = createRunSchema.shape.setup.omit({
   window: true,
   audiogram: true,
+  captions: true,
 });
 export type RunDefaultsSetup = z.infer<typeof runDefaultsSetupSchema>;
 

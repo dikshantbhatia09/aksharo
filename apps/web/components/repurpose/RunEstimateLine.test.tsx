@@ -151,3 +151,77 @@ describe("RunEstimateLine", () => {
     expect(url).not.toContain("clipLength");
   });
 });
+
+describe("with captions the person already has (2026-10-01)", () => {
+  const SRT = new File(["1\n00:00:00,000 --> 00:00:01,000\nhi\n"], "talk.srt");
+
+  it("says finding clips is free, and prices only Autopilot's videos", () => {
+    expect(
+      estimateText(
+        { ...ESTIMATE, captionsGiven: true, processCredits: 0, totalCredits: 15 },
+        { known: true, runs: 1 },
+      ),
+    ).toEqual({
+      headline: "about 15 credits",
+      detail:
+        "Finding clips is free: your captions are matched to the audio instead of transcribed. Autopilot's 40 finished videos (10 clips in 4 sizes, captions burned in) cost about 15 credits.",
+    });
+    expect(
+      estimateText(
+        {
+          ...ESTIMATE,
+          captionsGiven: true,
+          processCredits: 0,
+          finishedVideos: null,
+          totalCredits: 0,
+        },
+        { known: false, runs: 1 },
+      ).headline,
+    ).toBe("free to find clips");
+  });
+
+  it("asks for the estimate with captions, and shows no credit refusal", async () => {
+    const { fetchMock } = renderWithProviders(
+      <RunEstimateLine value={{ ...LINK, captionsFile: SRT }} />,
+      {
+        routes: {
+          "/repurpose/estimate": {
+            ...ESTIMATE,
+            captionsGiven: true,
+            processCredits: 0,
+            finishedVideos: null,
+            totalCredits: 0,
+            creditsLeft: 0,
+          },
+        },
+      },
+    );
+    expect(await screen.findByTestId("run-estimate-headline")).toHaveTextContent(
+      "Free to find clips",
+    );
+    expect(screen.getByTestId("run-estimate")).not.toHaveAttribute("data-state", "no-credits");
+    const url = String(
+      fetchMock.mock.calls.find(([u]) => String(u).includes("/repurpose/estimate"))?.[0],
+    );
+    expect(url).toContain("captions=1");
+  });
+
+  it("does not ask with captions for several links, where none are offered", async () => {
+    const { fetchMock } = renderWithProviders(
+      <RunEstimateLine
+        value={{
+          ...EMPTY_START_FORM,
+          tab: "links",
+          links: "https://youtu.be/abc123def45",
+          captionsUrl: "https://example.com/a.srt",
+        }}
+      />,
+      { routes: { "/repurpose/estimate": ESTIMATE } },
+    );
+    await screen.findByTestId("run-estimate");
+    const url = String(
+      fetchMock.mock.calls.find(([u]) => String(u).includes("/repurpose/estimate"))?.[0],
+    );
+    expect(url).not.toContain("captions");
+  });
+});
