@@ -85,6 +85,7 @@ export function DevelopersView(): React.JSX.Element {
         cover endpoints, scopes and quick-starts in curl, Node and Python.
       </p>
       <ApiKeysCard />
+      <AssistantCard />
       <WebhooksCard />
     </SettingsSection>
   );
@@ -307,6 +308,82 @@ function CreateApiKeyDialog({
 // -----------------------------------------------------------------------------
 // Webhooks
 // -----------------------------------------------------------------------------
+
+/** The MCP server's settings for an assistant, with the key left for the person to paste. */
+export const MCP_CONFIG = `{
+  "mcpServers": {
+    "aksharo": {
+      "command": "node",
+      "args": ["/path/to/aksharo-mcp.mjs"],
+      "env": { "AKSHARO_API_KEY": "ak_live_..." }
+    }
+  }
+}`;
+
+/**
+ * "Use Aksharo from an AI assistant" (2026-10-01, OpusClip's MCP): the
+ * Model Context Protocol server as one file to download, and the lines that
+ * tell an assistant (Claude, Cursor, ...) to run it with one of the keys
+ * above. It drives `/v1/runs`: find clips from a link, follow the run, list
+ * the clips with their files, search them by meaning.
+ */
+function AssistantCard(): React.JSX.Element {
+  const [copied, setCopied] = React.useState(false);
+  return (
+    <SettingsGroup
+      title="Use Aksharo from an AI assistant"
+      description="Let Claude, Cursor or any assistant that supports MCP find clips in your videos, follow them and fetch the files, with one of your API keys."
+      testId="mcp-card"
+    >
+      <Card className="flex flex-col gap-3 p-4">
+        <ol className="m-0 flex list-decimal flex-col gap-1 pl-5 text-sm text-fg-1">
+          <li>
+            Download the{" "}
+            <a
+              href="/downloads/aksharo-mcp.mjs"
+              download="aksharo-mcp.mjs"
+              className={INLINE_LINK_CLASS}
+              data-testid="mcp-download"
+            >
+              Aksharo MCP server
+            </a>{" "}
+            (one file; needs Node 18 or newer).
+          </li>
+          <li>
+            Create a key above with <span className="font-mono text-xs">projects_read</span>, and{" "}
+            <span className="font-mono text-xs">projects_write</span> to let it start videos.
+          </li>
+          <li>
+            Add this to your assistant&apos;s MCP settings, with the file&apos;s path and your key:
+          </li>
+        </ol>
+        <pre
+          className="m-0 overflow-x-auto rounded-sm border border-border bg-sunken p-3 font-mono text-xs text-fg-0"
+          data-testid="mcp-config"
+        >
+          {MCP_CONFIG}
+        </pre>
+        <div>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => {
+              void navigator.clipboard.writeText(MCP_CONFIG).then(() => {
+                setCopied(true);
+              });
+            }}
+            data-testid="mcp-copy"
+          >
+            {copied ? "Copied" : "Copy settings"}
+          </Button>
+        </div>
+        <p className="m-0 text-xs text-fg-2">
+          Starting a video spends credits as it does here. The assistant sees only what the key can.
+        </p>
+      </Card>
+    </SettingsGroup>
+  );
+}
 
 function WebhooksCard(): React.JSX.Element {
   const endpoints = useWebhookEndpoints();

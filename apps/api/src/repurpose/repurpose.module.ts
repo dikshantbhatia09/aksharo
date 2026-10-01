@@ -122,6 +122,6 @@ import { WorkspacesModule } from "../workspaces/workspaces.module.js";
     RepurposeResultsService,
     RunSearch,
   ],
-  exports: [RepurposeService, RepurposeClipsService],
+  exports: [RepurposeService, RepurposeClipsService, RepurposeResultsService, RunSearch],
 })
 export class RepurposeModule {}

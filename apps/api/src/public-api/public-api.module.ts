@@ -8,10 +8,12 @@ import { SourceUrlIngestService } from "./v1/source-url-ingest.service.js";
 import { V1ExportsController } from "./v1/v1-exports.controller.js";
 import { V1JobsController } from "./v1/v1-jobs.controller.js";
 import { V1ProjectsController } from "./v1/v1-projects.controller.js";
+import { V1RunsController } from "./v1/v1-runs.controller.js";
 import { V1TranscriptsController } from "./v1/v1-transcripts.controller.js";
 import { ExportsModule } from "../exports/exports.module.js";
 import { JobsModule } from "../jobs/jobs.module.js";
 import { ProjectsModule } from "../projects/projects.module.js";
+import { RepurposeModule } from "../repurpose/repurpose.module.js";
 import { TranscriptsModule } from "../transcripts/transcripts.module.js";
 import { WorkspacesModule } from "../workspaces/workspaces.module.js";
 
@@ -24,10 +26,18 @@ import { WorkspacesModule } from "../workspaces/workspaces.module.js";
  * via `CommonModule`.
  */
 @Module({
-  imports: [ProjectsModule, TranscriptsModule, ExportsModule, JobsModule, WorkspacesModule],
+  imports: [
+    ProjectsModule,
+    TranscriptsModule,
+    ExportsModule,
+    JobsModule,
+    WorkspacesModule,
+    RepurposeModule,
+  ],
   controllers: [
     ApiKeysController,
     V1ProjectsController,
+    V1RunsController,
     V1TranscriptsController,
     V1ExportsController,
     V1JobsController,

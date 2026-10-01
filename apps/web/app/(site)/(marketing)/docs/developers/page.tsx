@@ -15,8 +15,15 @@ export const metadata: Metadata = {
 };
 
 const SCOPES = [
-  { scope: "projects_read", grants: "GET /v1/projects/{id}" },
-  { scope: "projects_write", grants: "POST /v1/projects, POST /v1/projects/{id}/transcribe" },
+  {
+    scope: "projects_read",
+    grants:
+      "GET /v1/projects/{id}, GET /v1/runs, GET /v1/runs/{id}, GET /v1/runs/{id}/clips, GET /v1/runs/{id}/search",
+  },
+  {
+    scope: "projects_write",
+    grants: "POST /v1/projects, POST /v1/projects/{id}/transcribe, POST /v1/runs",
+  },
   { scope: "transcripts_read", grants: "GET /v1/projects/{id}/transcript" },
   { scope: "exports_write", grants: "POST /v1/projects/{id}/exports, GET /v1/exports/{id}" },
   { scope: "webhooks_manage", grants: "Webhook endpoint management (via the app, not yet /v1)" },
@@ -137,6 +144,21 @@ export default function DocsDevelopersPage(): React.JSX.Element {
         <p className="text-fg-2 text-sm">
           Pass an <code>Idempotency-Key</code> header on any <code>POST</code>. The same key replays
           the first response for 24 hours; the same key with a different body is refused.
+        </p>
+      </section>
+
+      <section className="flex flex-col gap-4">
+        <h2 className="text-fg-0 text-lg">Clips from a link, and AI assistants</h2>
+        <p className="text-fg-2 text-sm">
+          <code>POST /v1/runs</code> with a <code>url</code> and <code>rightsAttested: true</code>{" "}
+          starts finding clips in a video, on the workspace&apos;s saved setup (or Autopilot) with
+          any of <code>sourceLanguage</code>, <code>styleId</code>, <code>autopilot</code>,{" "}
+          <code>clipLength</code>, <code>topic</code> and <code>startAtMs</code> changed. Follow it
+          with <code>GET /v1/runs/{"{id}"}</code>, then <code>GET /v1/runs/{"{id}"}/clips</code> for
+          every size&apos;s files (signed links that expire within the hour), and{" "}
+          <code>GET /v1/runs/{"{id}"}/search?q=</code> to find clips by what they are about. The
+          same calls are behind the Aksharo MCP server, which lets an AI assistant use them: see
+          Settings &gt; Developers.
         </p>
       </section>
 

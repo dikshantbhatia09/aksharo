@@ -579,6 +579,13 @@ export const API_OPERATIONS = [
     summary: "Clear every memory entry for the workspace",
   },
   {
+    operationId: "clearRepurposeDefaults",
+    method: "DELETE",
+    path: "/repurpose/defaults",
+    tags: ["repurpose"],
+    summary: "Go back to the product's own defaults for new runs",
+  },
+  {
     operationId: "commentReviewLinkClip",
     method: "POST",
     path: "/review/clips/{clipId}/comments",
@@ -822,6 +829,13 @@ export const API_OPERATIONS = [
     path: "/repurpose/runs",
     tags: ["repurpose"],
     summary: "Start a repurposing run from a link or an upload",
+  },
+  {
+    operationId: "createRepurposeRunDownload",
+    method: "POST",
+    path: "/repurpose/runs/{runId}/download",
+    tags: ["repurpose"],
+    summary: "A single-use link to a run's \"Download all\" ZIP",
   },
   {
     operationId: "createRepurposeRunsBulk",
@@ -1097,6 +1111,13 @@ export const API_OPERATIONS = [
     summary: "Type in a post's numbers, as read off the platform",
   },
   {
+    operationId: "estimateRepurposeRun",
+    method: "GET",
+    path: "/repurpose/estimate",
+    tags: ["repurpose"],
+    summary: "What a new run would cost",
+  },
+  {
     operationId: "exportProjectTranscript",
     method: "GET",
     path: "/projects/{projectId}/transcript/export",
@@ -1370,6 +1391,13 @@ export const API_OPERATIONS = [
     summary: "This workspace's referral code and reward counts",
   },
   {
+    operationId: "getRepurposeCandidateTranscript",
+    method: "GET",
+    path: "/repurpose/runs/{runId}/candidates/{candidateId}/transcript",
+    tags: ["repurpose"],
+    summary: "A clip's words, on the original video's clock",
+  },
+  {
     operationId: "getRepurposeClipReview",
     method: "GET",
     path: "/repurpose/runs/{runId}/clips/{clipId}/review",
@@ -1382,6 +1410,13 @@ export const API_OPERATIONS = [
     path: "/repurpose/runs/{runId}/compilations/{compilationId}",
     tags: ["repurpose"],
     summary: "One compilation",
+  },
+  {
+    operationId: "getRepurposeDefaults",
+    method: "GET",
+    path: "/repurpose/defaults",
+    tags: ["repurpose"],
+    summary: "The workspace's default setup for new runs",
   },
   {
     operationId: "getRepurposeEpisodePack",
@@ -1410,6 +1445,13 @@ export const API_OPERATIONS = [
     path: "/repurpose/runs/{runId}",
     tags: ["repurpose"],
     summary: "Read one repurposing run",
+  },
+  {
+    operationId: "getRepurposeRunDownload",
+    method: "GET",
+    path: "/repurpose/runs/{runId}/download",
+    tags: ["repurpose"],
+    summary: "What a run's \"Download all\" ZIP holds, and its size",
   },
   {
     operationId: "getRepurposeRunPerformance",
@@ -2350,6 +2392,13 @@ export const API_OPERATIONS = [
     summary: "Undo a pending cancellation, or unpause",
   },
   {
+    operationId: "retitleRepurposeCandidate",
+    method: "PUT",
+    path: "/repurpose/runs/{runId}/candidates/{candidateId}/title",
+    tags: ["repurpose"],
+    summary: "Rename a clip",
+  },
+  {
     operationId: "retranscribeProject",
     method: "POST",
     path: "/projects/{projectId}/transcript/retranscribe",
@@ -2497,6 +2546,13 @@ export const API_OPERATIONS = [
     summary: "Turn on device notifications in this browser",
   },
   {
+    operationId: "saveRepurposeDefaults",
+    method: "PUT",
+    path: "/repurpose/defaults",
+    tags: ["repurpose"],
+    summary: "Save the workspace's default setup for new runs",
+  },
+  {
     operationId: "scheduleRepurposeDailyPosts",
     method: "POST",
     path: "/repurpose/runs/{runId}/posts/daily",
@@ -2516,6 +2572,13 @@ export const API_OPERATIONS = [
     path: "/partner-catalogue/search",
     tags: ["partner-catalogue"],
     summary: "Search the partner catalogue (SFX/music), 404 while assets.partnerCatalogue is off",
+  },
+  {
+    operationId: "searchRepurposeRun",
+    method: "GET",
+    path: "/repurpose/runs/{runId}/search",
+    tags: ["repurpose"],
+    summary: "A run's moments closest in meaning to a question",
   },
   {
     operationId: "sendWebhookTestEvent",
@@ -2551,6 +2614,13 @@ export const API_OPERATIONS = [
     path: "/repurpose/runs/{runId}/clips/{clipId}/layout",
     tags: ["repurpose"],
     summary: "Choose a clip's layout: auto, one speaker, or both speakers stacked",
+  },
+  {
+    operationId: "setRepurposeHookTitles",
+    method: "PUT",
+    path: "/repurpose/runs/{runId}/hook-titles",
+    tags: ["repurpose"],
+    summary: "Switch Autopilot's hook titles off or on for a run",
   },
   {
     operationId: "setWorkspaceTaxProfile",
@@ -2819,11 +2889,46 @@ export const API_OPERATIONS = [
     summary: "Fetch a project",
   },
   {
+    operationId: "v1GetRun",
+    method: "GET",
+    path: "/v1/runs/{runId}",
+    tags: ["public"],
+    summary: "Where a run is",
+  },
+  {
     operationId: "v1GetTranscript",
     method: "GET",
     path: "/v1/projects/{projectId}/transcript",
     tags: ["public"],
     summary: "Download the transcript as json, srt or vtt",
+  },
+  {
+    operationId: "v1ListRunClips",
+    method: "GET",
+    path: "/v1/runs/{runId}/clips",
+    tags: ["public"],
+    summary: "A run's clips and their files",
+  },
+  {
+    operationId: "v1ListRuns",
+    method: "GET",
+    path: "/v1/runs",
+    tags: ["public"],
+    summary: "The workspace's runs, newest first",
+  },
+  {
+    operationId: "v1SearchRun",
+    method: "GET",
+    path: "/v1/runs/{runId}/search",
+    tags: ["public"],
+    summary: "A run's moments closest in meaning to a question",
+  },
+  {
+    operationId: "v1StartRun",
+    method: "POST",
+    path: "/v1/runs",
+    tags: ["public"],
+    summary: "Find clips in a video from a link",
   },
   {
     operationId: "v1Transcribe",
