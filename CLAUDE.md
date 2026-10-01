@@ -1857,3 +1857,57 @@ contact) and a don't-build list.
     all four); a shared demo run for new users (needs the owner to choose a
     video the product may show everyone). Home's "Paste a YouTube link"
     already hands the link to the start form (now on the saved defaults).
+- **Waves 3 and 4, deployed as 1f472610** (`deploy-20261001d.ps1`, undo
+  `rollback-20261001d.ps1`; DB backup `montaj_main-pre-20261001d.dump`;
+  migrations `20261006100000_hosted_source_kind` (an enum value) and
+  `20261006110000_clip_voiceovers` (an enum and a table); every service
+  restarted: workers stopped first, worker-media, render, api, worker-ai,
+  web `.next-live-20261001d`, build `RCBGUUIJPMRv8Ta5NwN06`). Built by six
+  Opus agents in parallel worktrees, each adversarially reviewed and fixed,
+  merged and fully tested in `montaj-verify` (api 4308, web 2219,
+  worker-media 581, render 365, worker-ai 1604, packages all green).
+  - **Clips on the public API + an MCP server** (96e845a2): `POST /v1/runs`
+    (link + `rightsAttested`, on the saved default setup), `GET /v1/runs`,
+    `/:id`, `/:id/clips` (signed files per size), `/:id/search`; scopes
+    `projects_read`/`projects_write`. `public/downloads/aksharo-mcp.mjs` is a
+    dependency-free stdio MCP server over them; Settings > Developers offers
+    it with the assistant settings.
+  - **Vimeo, Google Drive and Dropbox links** (source kind `hosted_url`,
+    flag `source_hosted_acquire`, **no row = OFF**; needs
+    `source_youtube_acquire` too): a fixed host allow-list, the fetched URL
+    rebuilt from ids, yt-dlp held to the site's extractor
+    (`--use-extractors`), no most-replayed windows, the YouTube gate only for
+    YouTube; Try again/refetch/Autopilot retries also obey the flag; hosted
+    fingerprints are redacted in audit rows (`redactedFingerprint`: a Dropbox
+    `rlkey` is a share secret). **Not yet fetched from the real sites**: one
+    test fetch per site before turning the flag on. **ROLLBACK HAZARD**: an
+    api older than 1f472610 cannot read a `hosted_url` run;
+    `rollback-20261001d.ps1` runs `sql/rollback-hosted-20261001d.sql`
+    (cancels unfetched hosted runs, turns the rest into upload runs) before
+    and after the api swap (dry-run on production in a rolled-back
+    transaction: clean).
+  - **Captions the person already has** (`setup.captions`, SRT/VTT up to
+    2 MB, the JSON body limit raised for that route): the run aligns them
+    (`ai.align` import mode, the editor import's own path) instead of paying
+    for transcription; the cost line says so.
+  - **"For your editing app"** (`POST .../clips/:clipId/nle-download`,
+    single-use `GET /repurpose/nle-downloads/:token`): one ZIP per clip and
+    shape with the clean cut, captions `.srt`, FCPXML 1.9 (Final Cut,
+    Resolve) and xmeml (Premiere) with frame-exact times, and a read-me with
+    each app's import and relink steps. Not yet opened in the real apps.
+  - **Shared pages draw saved looks**: the public share response carries the
+    resolved style documents the shared document uses (only those).
+  - **Example run** (`GET /repurpose/example`, page `/repurpose/example`):
+    inert until `DEMO_RUN_ID` is set in `.env.local-run` (in place, hard
+    link) and the api restarted; read-only, no workspace ids beyond those in
+    signed URLs, no model name; owner chooses the run.
+  - **Voice-over hook** (Sarvam TTS `bulbul`, queue `ai.voiceover` on
+    worker-ai, flag `repurpose_voiceover`, **no row = OFF**,
+    `VOICEOVER_DAILY_BUDGET_INR` default 100, 2 credits plus the re-render
+    of each finished shape): laid as an sfx cue on every shape's document
+    (play-through, dialogue duck in the render), placed only once finishing
+    has settled; one held voice-over per clip under an advisory lock. The
+    Sarvam request shape and price are unconfirmed until the first live call.
+  - Not built (owner decisions pending): AI upscaling, generated B-roll,
+    eye-contact correction, a Labs opt-in page, another first shape for a
+    hand-picked clip.
