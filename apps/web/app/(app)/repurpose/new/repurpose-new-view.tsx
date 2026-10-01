@@ -38,6 +38,7 @@ import {
   useCreateRepurposeRun,
   useEntitlement,
   useFeatureFlag,
+  useStyles,
   type CreateRepurposeRunRequest,
 } from "@montaj/api-client";
 import { PageHeader } from "@montaj/ui";
@@ -48,7 +49,9 @@ import { rememberLanguage } from "@/components/projects/language-picker";
 import { AUTOMATIONS_FLAG, useBulkRuns } from "@/components/repurpose/automations/use-automations";
 import { SOURCE_CEILING_MS } from "@/components/repurpose/failure-detail";
 import { describeRefusal } from "@/components/repurpose/refusal";
+import { useRunDefaults } from "@/components/repurpose/results/use-results";
 import {
+  carriesSetup,
   recallAutopilot,
   rememberAutopilot,
   rememberRunSetup,
@@ -56,8 +59,9 @@ import {
   startContextFromParams,
   startFormFromParams,
 } from "@/components/repurpose/run-setup";
+import { RunDefaultsControl } from "@/components/repurpose/RunDefaultsControl";
 import { RunEstimateLine } from "@/components/repurpose/RunEstimateLine";
-import { runSetupRequest } from "@/components/repurpose/RunSetupFields";
+import { runSetupRequest, runSetupValueOf } from "@/components/repurpose/RunSetupFields";
 import { linkLinesOf, linksToSend } from "@/components/repurpose/several-links";
 import {
   SeveralResults,
@@ -67,6 +71,7 @@ import {
 import { normaliseSourceLink } from "@/components/repurpose/source-link";
 import {
   DETECT_LANGUAGE,
+  RECOMMENDED_STYLES,
   SourceStartForm,
   coverToSend,
   filesOf,
@@ -185,6 +190,42 @@ export function RepurposeNewView(): React.JSX.Element {
   React.useEffect(() => {
     const on = recallAutopilot();
     setValue((current) => (current.autopilot === on ? current : { ...current, autopilot: on }));
+  }, []);
+  // The workspace's saved default setup (2026-10-01), once it arrives: the
+  // form opens on it, unless the URL brought a setup of its own (a failed
+  // run's) or the person has already changed something.
+  const runDefaults = useRunDefaults();
+  // The workspace's own caption looks (2026-10-01), saved from the editor.
+  const stylesQuery = useStyles();
+  const presets = React.useMemo(
+    () =>
+      (stylesQuery.data ?? [])
+        .filter((entry) => entry.source === "custom")
+        .map((entry) => ({ id: entry.id, name: entry.name })),
+    [stylesQuery.data],
+  );
+  const touched = React.useRef(false);
+  const defaultsApplied = React.useRef(carriesSetup(searchParams));
+  React.useEffect(() => {
+    const saved = runDefaults.data?.setup;
+    if (defaultsApplied.current || touched.current || saved === undefined) return;
+    const next = saved === null ? null : runSetupValueOf(saved);
+    const system = next !== null && RECOMMENDED_STYLES.some((style) => style.id === next.styleId);
+    // A saved look of the workspace's own is known once its looks have loaded.
+    if (next !== null && !system && stylesQuery.isPending) return;
+    defaultsApplied.current = true;
+    if (next === null) return;
+    const known = system || presets.some((preset) => preset.id === next.styleId);
+    setValue((current) => ({
+      ...current,
+      ...next,
+      // A look no longer offered is not shown as chosen: the form keeps its own.
+      styleId: known ? next.styleId : current.styleId,
+    }));
+  }, [runDefaults.data, stylesQuery.isPending, presets]);
+  const change = React.useCallback((next: StartFormValue) => {
+    touched.current = true;
+    setValue(next);
   }, []);
   const [serverError, setServerError] = React.useState<string | null>(null);
   const [existingRunId, setExistingRunId] = React.useState<string | null>(null);
@@ -423,7 +464,7 @@ export function RepurposeNewView(): React.JSX.Element {
       <div className="flex flex-col gap-6">
         <SourceStartForm
           value={value}
-          onChange={setValue}
+          onChange={change}
           onSubmit={submit}
           submitting={create.isPending || bulk.isPending || startingFiles}
           serverError={serverError}
@@ -443,6 +484,14 @@ export function RepurposeNewView(): React.JSX.Element {
           {...(startContext.knownLength === undefined
             ? {}
             : { knownLength: startContext.knownLength })}
+          presets={presets}
+          defaultsControl={
+            <RunDefaultsControl
+              value={value}
+              brandKit={hasBrandKit}
+              {...(broll === undefined ? {} : { broll })}
+            />
+          }
           estimate={
             <RunEstimateLine
               value={value}

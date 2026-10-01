@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { zodDto } from "../../common/index.js";
 import { AUTOMATION_MODES } from "../repurpose.constants.js";
+import { createRunSchema } from "../repurpose.dto.js";
 
 /**
  * Requests for a run's results page (2026-10-01, the OpusClip parity work):
@@ -34,3 +35,22 @@ export const estimateQuerySchema = z
   .strict();
 export class EstimateQueryDto extends zodDto(estimateQuerySchema) {}
 export type EstimateQuery = z.infer<typeof estimateQuerySchema>;
+
+/**
+ * A workspace's default setup for new runs (2026-10-01, OpusClip's "Save
+ * settings above as default"): a run's `setup` without what belongs to one
+ * video (its window, an audio file's cover).
+ */
+export const runDefaultsSetupSchema = createRunSchema.shape.setup.omit({
+  window: true,
+  audiogram: true,
+});
+export type RunDefaultsSetup = z.infer<typeof runDefaultsSetupSchema>;
+
+/** `PUT /repurpose/defaults`. */
+export const runDefaultsSchema = z.object({ setup: runDefaultsSetupSchema }).strict();
+export class RunDefaultsDto extends zodDto(runDefaultsSchema) {}
+
+/** `GET /repurpose/runs/{id}/search?q=`: a question about the run's moments. */
+export const runSearchQuerySchema = z.object({ q: z.string().trim().min(1).max(200) }).strict();
+export class RunSearchQueryDto extends zodDto(runSearchQuerySchema) {}

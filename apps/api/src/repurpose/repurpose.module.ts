@@ -25,6 +25,7 @@ import { RepurposeController } from "./repurpose.controller.js";
 import { RepurposeService } from "./repurpose.service.js";
 import { RepurposeResultsController } from "./results/run-results.controller.js";
 import { RepurposeResultsService } from "./results/run-results.service.js";
+import { RunSearch } from "./results/run-search.js";
 import { RunActivityReader } from "./run-activity.reader.js";
 import { RunNotifier } from "./run-notifications.js";
 import { RepurposeSeriesService } from "./series.service.js";
@@ -119,6 +120,7 @@ import { WorkspacesModule } from "../workspaces/workspaces.module.js";
     // and does not export it), as `TranscriptsModule` does with its guard.
     AutoTranscribeTrigger,
     RepurposeResultsService,
+    RunSearch,
   ],
   exports: [RepurposeService, RepurposeClipsService],
 })

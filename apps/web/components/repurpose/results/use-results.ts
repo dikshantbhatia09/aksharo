@@ -16,7 +16,13 @@ import {
   type UseQueryResult,
 } from "@tanstack/react-query";
 
-import { defineEndpoint, queryKeys, useApiClient, useWorkspaceId } from "@montaj/api-client";
+import {
+  defineEndpoint,
+  queryKeys,
+  useApiClient,
+  useWorkspaceId,
+  type CreateRepurposeRunRequest,
+} from "@montaj/api-client";
 
 export interface TranscriptLine {
   readonly startMs: number;
@@ -64,6 +70,46 @@ const transcriptEndpoint = defineEndpoint<
 >({
   method: "GET",
   path: "/repurpose/runs/{runId}/candidates/{candidateId}/transcript",
+  auth: "bearer",
+});
+
+/** The workspace's default setup for new runs (2026-10-01); nulls while none is saved. */
+export interface RunDefaults {
+  readonly setup: CreateRepurposeRunRequest["setup"] | null;
+  readonly savedAt: string | null;
+}
+
+const defaultsEndpoint = defineEndpoint<void, RunDefaults>({
+  method: "GET",
+  path: "/repurpose/defaults",
+  auth: "bearer",
+});
+
+const saveDefaultsEndpoint = defineEndpoint<
+  { readonly setup: CreateRepurposeRunRequest["setup"] },
+  RunDefaults
+>({
+  method: "PUT",
+  path: "/repurpose/defaults",
+  auth: "bearer",
+});
+
+const clearDefaultsEndpoint = defineEndpoint<void, RunDefaults>({
+  method: "DELETE",
+  path: "/repurpose/defaults",
+  auth: "bearer",
+});
+
+/** The run's moments closest in meaning to a question (2026-10-01). */
+export interface RunSearchResult {
+  /** False when the meaning could not be read: the page keeps its word match. */
+  readonly semantic: boolean;
+  readonly matches: readonly { readonly candidateId: string; readonly score: number }[];
+}
+
+const searchEndpoint = defineEndpoint<void, RunSearchResult>({
+  method: "GET",
+  path: "/repurpose/runs/{runId}/search",
   auth: "bearer",
 });
 
@@ -156,5 +202,59 @@ export function useRunEstimate(input: {
     staleTime: 30_000,
     retry: false,
     queryFn: () => client.call(estimateEndpoint, { query }),
+  });
+}
+
+function defaultsKey(workspaceId: string | null): readonly unknown[] {
+  return ["run-defaults", workspaceId ?? "none"];
+}
+
+/** What the start form opens on, when the workspace saved a default setup. */
+export function useRunDefaults(enabled = true): UseQueryResult<RunDefaults> {
+  const client = useApiClient();
+  const workspaceId = useWorkspaceId();
+  return useQuery({
+    queryKey: defaultsKey(workspaceId),
+    enabled: enabled && workspaceId !== null,
+    staleTime: 60_000,
+    retry: false,
+    queryFn: () => client.call(defaultsEndpoint),
+  });
+}
+
+/** Saves a setup as the default (`setup`), or goes back to the product's own (`null`). */
+export function useSaveRunDefaults(): UseMutationResult<
+  RunDefaults,
+  Error,
+  CreateRepurposeRunRequest["setup"] | null
+> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  const workspaceId = useWorkspaceId();
+  return useMutation({
+    mutationFn: (setup) =>
+      setup === null
+        ? client.call(clearDefaultsEndpoint)
+        : client.call(saveDefaultsEndpoint, { body: { setup } }),
+    onSuccess: (saved) => {
+      queryClient.setQueryData(defaultsKey(workspaceId), saved);
+    },
+  });
+}
+
+/**
+ * A run's moments by what they are about (`GET .../search?q=`), for a
+ * question of at least 3 characters. The caller debounces the typing.
+ */
+export function useRunSearch(runId: string, question: string): UseQueryResult<RunSearchResult> {
+  const client = useApiClient();
+  const workspaceId = useWorkspaceId();
+  const q = question.trim();
+  return useQuery({
+    queryKey: ["run-search", workspaceId ?? "none", runId, q.toLowerCase()],
+    enabled: workspaceId !== null && q.length >= 3,
+    staleTime: 5 * 60_000,
+    retry: false,
+    queryFn: () => client.call(searchEndpoint, { params: { runId }, query: { q } }),
   });
 }

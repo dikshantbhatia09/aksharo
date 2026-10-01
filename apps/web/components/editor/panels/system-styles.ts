@@ -12,7 +12,7 @@
  */
 
 import type { StyleDoc } from "@montaj/caption-styles";
-import { isPickableStyle } from "@montaj/caption-styles/browser";
+import { PICKABLE_STYLE_IDS, isPickableStyle } from "@montaj/caption-styles/browser";
 import arcadePixel from "@montaj/caption-styles/styles/arcade-pixel.json";
 import bengaliNative from "@montaj/caption-styles/styles/bengali-native.json";
 import boldDrop from "@montaj/caption-styles/styles/bold-drop.json";
@@ -164,12 +164,15 @@ export const SYSTEM_STYLES: readonly StyleDoc[] = DOCUMENTS as readonly StyleDoc
 
 /**
  * The styles a person can pick (`PICKABLE_STYLE_IDS`): what every picker
- * lists. `SYSTEM_STYLES` and `SYSTEM_STYLE_MAP` stay complete so a project made
- * on a style that is no longer offered still renders.
+ * lists, in that list's order (its first, the default, is listed first; a
+ * filter over the alphabetical catalogue put Hype Bold first until
+ * 2026-10-01). `SYSTEM_STYLES` and `SYSTEM_STYLE_MAP` stay complete so a
+ * project made on a style that is no longer offered still renders.
  */
-export const PICKABLE_STYLES: readonly StyleDoc[] = SYSTEM_STYLES.filter((style) =>
-  isPickableStyle(style.id),
-);
+export const PICKABLE_STYLES: readonly StyleDoc[] = PICKABLE_STYLE_IDS.flatMap((id) => {
+  const style = SYSTEM_STYLES.find((doc) => doc.id === id && isPickableStyle(doc.id));
+  return style === undefined ? [] : [style];
+});
 
 /** The catalogue keyed by id, the shape `renderFrame` wants. */
 export const SYSTEM_STYLE_MAP: ReadonlyMap<string, StyleDoc> = new Map(

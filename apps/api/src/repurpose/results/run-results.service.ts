@@ -3,10 +3,12 @@ import { HttpStatus, Inject, Injectable } from "@nestjs/common";
 import { quote, type Env } from "@montaj/config";
 import { CLIP_LENGTH_PRESETS, ClipCopySchema } from "@montaj/repurpose-contracts";
 
+import { runDefaultsSetupSchema } from "./run-results.dto.js";
 import { CommonAuditService } from "../../common/audit/audit.service.js";
 import { AppException, PrismaService } from "../../common/index.js";
 import { ENV } from "../../config/config.module.js";
 import { newestChunkRows } from "../../edg/chunk-rows.js";
+import { StylesService } from "../../styles/styles.service.js";
 import { EntitlementService } from "../../workspaces/entitlement.service.js";
 import { ClipFinishing, finishingRecordOf } from "../clip-finishing.js";
 import {
@@ -17,7 +19,7 @@ import {
 } from "../repurpose.constants.js";
 import { RepurposeService } from "../repurpose.service.js";
 
-import type { EstimateQuery } from "./run-results.dto.js";
+import type { EstimateQuery, RunDefaultsSetup } from "./run-results.dto.js";
 import type { SnapWord } from "../steering.js";
 import type { Prisma, RepurposeRun } from "@prisma/client";
 
@@ -60,6 +62,15 @@ export interface RunEstimate {
   readonly totalCredits: number;
 }
 
+/** A workspace's saved setup for new runs, and when it was saved; nulls when none is. */
+export interface RunDefaultsView {
+  readonly setup: RunDefaultsSetup | null;
+  readonly savedAt: string | null;
+}
+
+/** The `workspaces.settings` key the default setup is kept under. */
+export const RUN_DEFAULTS_KEY = "runDefaults";
+
 /** One line of a clip's transcript, on the original video's clock. */
 export interface TranscriptLine {
   readonly startMs: number;
@@ -86,7 +97,89 @@ export class RepurposeResultsService {
     private readonly entitlements: EntitlementService,
     private readonly audit: CommonAuditService,
     @Inject(ENV) private readonly env: Env,
+    private readonly styles: StylesService,
   ) {}
+
+  /**
+   * The workspace's default setup for new runs (2026-10-01), as the start form
+   * opens on it. A saved setup that no longer passes (a field renamed, say)
+   * reads as none rather than failing the form.
+   */
+  async defaults(workspaceId: string): Promise<RunDefaultsView> {
+    await this.assertAvailable(workspaceId);
+    const settings = await this.settingsOf(workspaceId);
+    const saved = settings["runDefaults"];
+    if (typeof saved !== "object" || saved === null) return { setup: null, savedAt: null };
+    const record = saved as Record<string, unknown>;
+    const setup = runDefaultsSetupSchema.safeParse(record["setup"]);
+    if (!setup.success) return { setup: null, savedAt: null };
+    return {
+      setup: setup.data,
+      savedAt: typeof record["savedAt"] === "string" ? record["savedAt"] : null,
+    };
+  }
+
+  /**
+   * Saves `setup` as the workspace's default for new runs (editors and up). Its
+   * caption look must be one the workspace can use, as a run's must; other
+   * settings are kept (`workspaces.settings` is merged, never replaced).
+   */
+  async saveDefaults(
+    workspaceId: string,
+    userId: string,
+    setup: RunDefaultsSetup,
+  ): Promise<RunDefaultsView> {
+    await this.assertAvailable(workspaceId);
+    const catalogue = await this.styles.list(workspaceId);
+    if (!catalogue.some((style) => style.id === setup.caption.styleId)) {
+      throw new AppException(
+        REPURPOSE_ERRORS.styleUnknown,
+        "That caption look is not available. Choose another one.",
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+    const savedAt = new Date().toISOString();
+    const settings = await this.settingsOf(workspaceId);
+    await this.prisma.workspace.update({
+      where: { id: workspaceId },
+      data: {
+        settings: {
+          ...settings,
+          [RUN_DEFAULTS_KEY]: { setup, savedAt, savedBy: userId },
+        } as Prisma.InputJsonObject,
+      },
+    });
+    await this.audit.record({
+      action: "repurpose.defaults.saved",
+      resource: "workspace",
+      resourceId: workspaceId,
+      actorId: userId,
+      workspaceId,
+      data: { styleId: setup.caption.styleId, automation: setup.automation ?? "manual" },
+    });
+    return { setup, savedAt };
+  }
+
+  /** Back to the product's own defaults for new runs. */
+  async clearDefaults(workspaceId: string, userId: string): Promise<RunDefaultsView> {
+    await this.assertAvailable(workspaceId);
+    const settings = await this.settingsOf(workspaceId);
+    if (RUN_DEFAULTS_KEY in settings) {
+      const { [RUN_DEFAULTS_KEY]: _dropped, ...rest } = settings;
+      await this.prisma.workspace.update({
+        where: { id: workspaceId },
+        data: { settings: rest as Prisma.InputJsonObject },
+      });
+      await this.audit.record({
+        action: "repurpose.defaults.cleared",
+        resource: "workspace",
+        resourceId: workspaceId,
+        actorId: userId,
+        workspaceId,
+      });
+    }
+    return { setup: null, savedAt: null };
+  }
 
   /**
    * A moment's title, as a person wrote it: the moment's own, its clip's, and
@@ -275,7 +368,24 @@ export class RepurposeResultsService {
     return { offsetMs, lines: linesOf(words, offsetMs) };
   }
 
+  /** 404 unless the run is the workspace's and the clips surface is on for it. */
+  async assertRun(workspaceId: string, runId: string): Promise<void> {
+    await this.assertAvailable(workspaceId);
+    await this.requireRun(workspaceId, runId);
+  }
+
   // -------------------------------------------------------------------------
+
+  private async settingsOf(workspaceId: string): Promise<Record<string, unknown>> {
+    const workspace = await this.prisma.workspace.findFirst({
+      where: { id: workspaceId },
+      select: { settings: true },
+    });
+    const settings = workspace?.settings;
+    return typeof settings === "object" && settings !== null && !Array.isArray(settings)
+      ? (settings as Record<string, unknown>)
+      : {};
+  }
 
   private async requireRun(workspaceId: string, runId: string): Promise<RepurposeRun> {
     const run = await this.prisma.repurposeRun.findFirst({ where: { id: runId, workspaceId } });

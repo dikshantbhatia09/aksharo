@@ -45,39 +45,56 @@ const summaryEndpoint = defineEndpoint<void, RunDownloadSummary>({
   auth: "bearer",
 });
 
-const createEndpoint = defineEndpoint<{ readonly includeClean: boolean }, RunDownloadLink>({
+const createEndpoint = defineEndpoint<
+  { readonly includeClean: boolean; readonly clipIds?: readonly string[] },
+  RunDownloadLink
+>({
   method: "POST",
   path: "/repurpose/runs/{runId}/download",
   auth: "bearer",
 });
 
+/** The run's ZIP, or (with `clipIds`, 2026-10-01) the ZIP of the clips picked. */
 export function useRunDownloadSummary(
   runId: string,
   enabled: boolean,
+  clipIds?: readonly string[],
 ): UseQueryResult<RunDownloadSummary> {
   const client = useApiClient();
   const workspaceId = useWorkspaceId();
+  const picked = clipIds === undefined ? "" : clipIds.join(",");
   return useQuery({
-    queryKey: ["run-download", workspaceId ?? "none", runId],
+    queryKey: ["run-download", workspaceId ?? "none", runId, picked],
     enabled: enabled && workspaceId !== null,
     // Sizes change as clips are made: asked again each time the dialog opens.
     staleTime: 0,
     retry: false,
-    queryFn: () => client.call(summaryEndpoint, { params: { runId } }),
+    queryFn: () =>
+      client.call(summaryEndpoint, {
+        params: { runId },
+        ...(picked === "" ? {} : { query: { clipIds: picked } }),
+      }),
   });
 }
 
 export function useCreateRunDownload(): UseMutationResult<
   RunDownloadLink,
   Error,
-  { readonly runId: string; readonly includeClean: boolean }
+  {
+    readonly runId: string;
+    readonly includeClean: boolean;
+    readonly clipIds?: readonly string[];
+  }
 > {
   const client = useApiClient();
   return useMutation({
     mutationFn: (input) =>
       client.call(createEndpoint, {
         params: { runId: input.runId },
-        body: { includeClean: input.includeClean },
+        body: {
+          includeClean: input.includeClean,
+          ...(input.clipIds === undefined ? {} : { clipIds: input.clipIds }),
+        },
       }),
   });
 }

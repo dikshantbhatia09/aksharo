@@ -298,6 +298,13 @@ export interface SourceStartFormProps {
    * start button. The page passes it in: the form itself makes no requests.
    */
   readonly estimate?: React.ReactNode;
+  /**
+   * "Save as my default" (`RunDefaultsControl`, 2026-10-01), shown under the
+   * setup panel. The page passes it in, as it does the estimate.
+   */
+  readonly defaultsControl?: React.ReactNode;
+  /** The workspace's own caption looks (2026-10-01), offered after the system ones. */
+  readonly presets?: readonly { readonly id: string; readonly name: string }[];
   readonly className?: string;
 }
 
@@ -326,6 +333,8 @@ export function SourceStartForm({
   brandKit = false,
   broll,
   estimate,
+  defaultsControl,
+  presets,
   className,
 }: SourceStartFormProps): React.JSX.Element {
   const [showProblems, setShowProblems] = React.useState(false);
@@ -671,7 +680,9 @@ export function SourceStartForm({
         problems={visible}
         brandKit={brandKit}
         {...(broll === undefined ? {} : { broll })}
+        {...(presets === undefined ? {} : { presets })}
       />
+      {defaultsControl}
 
       {serverError !== null && (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">

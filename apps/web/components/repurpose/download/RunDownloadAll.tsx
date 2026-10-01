@@ -12,6 +12,11 @@
  * the browser shows its progress and time left; the page stays where it is.
  *
  * Anyone who can see the run's clips can download them all.
+ *
+ * The same dialog downloads the clips picked on the run's grid
+ * (`RunDownloadDialog` with `clipIds`, 2026-10-01, OpusClip's multi-select
+ * download): only those clips, without the video's compilations and episode
+ * text.
  */
 import { Download, HardDriveDownload } from "lucide-react";
 import * as React from "react";
@@ -35,6 +40,51 @@ export interface RunDownloadAllProps {
   readonly runId: string;
 }
 
+export interface RunDownloadDialogProps {
+  readonly runId: string;
+  /** Only these clips; every clip when absent. */
+  readonly clipIds?: readonly string[];
+  readonly open: boolean;
+  readonly onOpenChange: (open: boolean) => void;
+}
+
+/** The download dialog on its own, for a selection made elsewhere. */
+export function RunDownloadDialog({
+  runId,
+  clipIds,
+  open,
+  onOpenChange,
+}: RunDownloadDialogProps): React.JSX.Element {
+  const picked = clipIds?.length;
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md" data-testid="download-all-dialog">
+        <DialogHeader>
+          <DialogTitle>
+            {picked === undefined
+              ? DOWNLOAD_ALL_COPY.title
+              : DOWNLOAD_ALL_COPY.selectedTitle(picked)}
+          </DialogTitle>
+          <DialogDescription>
+            {picked === undefined
+              ? DOWNLOAD_ALL_COPY.description
+              : DOWNLOAD_ALL_COPY.selectedDescription}
+          </DialogDescription>
+        </DialogHeader>
+        {open ? (
+          <DownloadBody
+            runId={runId}
+            {...(clipIds === undefined ? {} : { clipIds })}
+            onClose={() => {
+              onOpenChange(false);
+            }}
+          />
+        ) : null}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export function RunDownloadAll({ runId }: RunDownloadAllProps): React.JSX.Element {
   const [open, setOpen] = React.useState(false);
   return (
@@ -51,34 +101,21 @@ export function RunDownloadAll({ runId }: RunDownloadAllProps): React.JSX.Elemen
         <Download strokeWidth={1.75} aria-hidden="true" />
         {DOWNLOAD_ALL_COPY.button}
       </Button>
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-md" data-testid="download-all-dialog">
-          <DialogHeader>
-            <DialogTitle>{DOWNLOAD_ALL_COPY.title}</DialogTitle>
-            <DialogDescription>{DOWNLOAD_ALL_COPY.description}</DialogDescription>
-          </DialogHeader>
-          {open ? (
-            <DownloadBody
-              runId={runId}
-              onClose={() => {
-                setOpen(false);
-              }}
-            />
-          ) : null}
-        </DialogContent>
-      </Dialog>
+      <RunDownloadDialog runId={runId} open={open} onOpenChange={setOpen} />
     </div>
   );
 }
 
 function DownloadBody({
   runId,
+  clipIds,
   onClose,
 }: {
   readonly runId: string;
+  readonly clipIds?: readonly string[];
   readonly onClose: () => void;
 }): React.JSX.Element {
-  const summary = useRunDownloadSummary(runId, true);
+  const summary = useRunDownloadSummary(runId, true, clipIds);
   const create = useCreateRunDownload();
   const [includeClean, setIncludeClean] = React.useState(false);
   const [started, setStarted] = React.useState(false);
@@ -137,14 +174,22 @@ function DownloadBody({
             </p>
 
             {started ? (
-              <p className="m-0 text-sm text-accepted" role="status" data-testid="download-all-started">
+              <p
+                className="m-0 text-sm text-accepted"
+                role="status"
+                data-testid="download-all-started"
+              >
                 {DOWNLOAD_ALL_COPY.started}
               </p>
             ) : (
               <p className="m-0 text-xs text-fg-2">{DOWNLOAD_ALL_COPY.progressNote}</p>
             )}
             {create.isError ? (
-              <p className="m-0 text-sm text-rejected" role="alert" data-testid="download-all-failed">
+              <p
+                className="m-0 text-sm text-rejected"
+                role="alert"
+                data-testid="download-all-failed"
+              >
                 {describeDownloadError(create.error)}
               </p>
             ) : null}
@@ -160,7 +205,7 @@ function DownloadBody({
           disabled={data === undefined || data.clips === 0 || create.isPending}
           onClick={() => {
             create.mutate(
-              { runId, includeClean },
+              { runId, includeClean, ...(clipIds === undefined ? {} : { clipIds }) },
               {
                 onSuccess: (link) => {
                   setStarted(true);

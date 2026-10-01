@@ -16,7 +16,10 @@ describe("clipDocumentStyle", () => {
     // Two of the three live clips were made from runs that froze a retired id
     // (then `vertical-clean`, offered again since 2026-09-29).
     expect(clipDocumentStyle({ styleId: "box-block" })).toBeUndefined();
-    expect(clipDocumentStyle({ styleId: "preset:01JCPRESET0000000000000000" })).toBeUndefined();
+  });
+
+  it("honours a look the workspace saved itself, which is never a system style's id", () => {
+    expect(clipDocumentStyle({ styleId: "my-brand-yellow-k3x9" })).toBe("my-brand-yellow-k3x9");
   });
 
   it("keeps the default when the setup carries no style at all", () => {

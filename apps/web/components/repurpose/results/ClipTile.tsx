@@ -9,8 +9,12 @@
  * takes with the captions on it) when it has one, else a frame of its
  * captioned video, else what the clip is waiting for. Hovering a tile with a
  * video plays it silently, as a preview.
+ *
+ * While clips are being picked (`selection`, 2026-10-01: "Download selected")
+ * a click ticks the tile instead of opening it; a clip not made yet cannot be
+ * ticked.
  */
-import { AlertTriangle, Clock, Loader2, Play } from "lucide-react";
+import { AlertTriangle, Check, Clock, Loader2, Play } from "lucide-react";
 import * as React from "react";
 
 import {
@@ -31,6 +35,13 @@ export interface ClipTileProps {
   /** Its place by score, 1 for the best. */
   readonly rank: number;
   readonly onOpen: () => void;
+  /** Present while clips are being picked. */
+  readonly selection?: {
+    readonly selected: boolean;
+    /** The clip is made, so it can be picked. */
+    readonly selectable: boolean;
+    readonly onToggle: () => void;
+  };
 }
 
 function posterOf(clip: RepurposeClipItem | undefined): string | undefined {
@@ -48,7 +59,13 @@ function scoreTone(score: number): string {
   return "text-fg-1";
 }
 
-export function ClipTile({ candidate, clip, rank, onOpen }: ClipTileProps): React.JSX.Element {
+export function ClipTile({
+  candidate,
+  clip,
+  rank,
+  onOpen,
+  selection,
+}: ClipTileProps): React.JSX.Element {
   const [hovered, setHovered] = React.useState(false);
   const state = clip === undefined ? undefined : clipStateOf(clip);
   const copy = clipCopyOf(clip?.copy) ?? clipCopyOf(candidate.copy);
@@ -58,12 +75,16 @@ export function ClipTile({ candidate, clip, rank, onOpen }: ClipTileProps): Reac
   const poster = posterOf(clip);
   const playUrl = clip?.captioned?.playUrl ?? clip?.mezzanineUrl ?? undefined;
   const tags = tagsOf(candidate);
+  const selected = selection?.selected === true;
+  const named = `#${String(rank)} ${title}${score === undefined || score === null ? "" : `, score ${String(score)}`}`;
 
   return (
     <li className="min-w-0" data-testid={`clip-tile-${candidate.id}`}>
       <button
         type="button"
-        onClick={onOpen}
+        onClick={selection === undefined ? onOpen : selection.onToggle}
+        disabled={selection !== undefined && !selection.selectable}
+        aria-pressed={selection === undefined ? undefined : selected}
         onMouseEnter={() => {
           setHovered(true);
         }}
@@ -76,8 +97,19 @@ export function ClipTile({ candidate, clip, rank, onOpen }: ClipTileProps): Reac
         onBlur={() => {
           setHovered(false);
         }}
-        className="group flex w-full flex-col gap-2 rounded-md border border-border bg-bg-0 p-2 text-left transition-colors hover:border-border-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
-        aria-label={`#${String(rank)} ${title}${score === undefined || score === null ? "" : `, score ${String(score)}`}. Open the clip.`}
+        className={cn(
+          "group flex w-full flex-col gap-2 rounded-md border bg-bg-0 p-2 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-50",
+          selected
+            ? "border-transparent ring-2 ring-accent"
+            : "border-border hover:border-border-hover",
+        )}
+        aria-label={
+          selection === undefined
+            ? `${named}. Open the clip.`
+            : selection.selectable
+              ? `${named}. Pick for the download.`
+              : `${named}. Not made yet.`
+        }
       >
         <div className="relative aspect-[9/16] w-full overflow-hidden rounded-sm border border-border bg-ink">
           {state === "ready" && hovered && playUrl !== undefined ? (
@@ -136,9 +168,22 @@ export function ClipTile({ candidate, clip, rank, onOpen }: ClipTileProps): Reac
               </span>
             </div>
           )}
-          <span className="absolute left-1.5 top-1.5 rounded-sm bg-ink/80 px-1.5 py-0.5 font-mono text-2xs text-fg-1">
-            #{String(rank)}
-          </span>
+          {selection === undefined ? (
+            <span className="absolute left-1.5 top-1.5 rounded-sm bg-ink/80 px-1.5 py-0.5 font-mono text-2xs text-fg-1">
+              #{String(rank)}
+            </span>
+          ) : (
+            <span
+              className={cn(
+                "absolute left-1.5 top-1.5 flex size-6 items-center justify-center rounded-sm border",
+                selected ? "border-accent bg-accent text-ink" : "border-fg-1 bg-ink/80",
+              )}
+              aria-hidden="true"
+              data-testid={`clip-tile-check-${candidate.id}`}
+            >
+              {selected ? <Check className="size-4" strokeWidth={2.5} /> : null}
+            </span>
+          )}
           {score === undefined || score === null ? null : (
             <span
               className={cn(

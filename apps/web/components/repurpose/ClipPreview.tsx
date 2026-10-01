@@ -8,7 +8,7 @@ import type { EdgProjection } from "@montaj/render-core";
 
 import { CaptionStage } from "@/components/editor/canvas/CaptionStage";
 import { aspectRatioOf } from "@/components/editor/canvas/stage-fit";
-import { SYSTEM_STYLE_MAP } from "@/components/editor/panels/system-styles";
+import { useStyleCatalogue } from "@/components/editor/panels/use-style-catalogue";
 import { signedLifetimeMs, useStableUrl } from "@/components/repurpose/use-stable-url";
 import { useFaceTrack } from "@/lib/edg/use-face-track";
 
@@ -104,6 +104,7 @@ export function ClipPreview({
 
   // Only the clip being played waits for its face track (see the hook).
   const preview = useProjectRenderPreview(projectId, { wantFaces: isActive });
+  const catalogue = useStyleCatalogue(projectId !== undefined);
   const projection = (preview.data?.projection ?? null) as EdgProjection | null;
   // Play was pressed on data too old to trust its URLs; a fresh copy is on its way.
   const awaitingFresh =
@@ -178,7 +179,7 @@ export function ClipPreview({
           {...(faces === undefined ? {} : { faces })}
           // A brand kit's logo (2026-10-02), signed by the render preview.
           {...(preview.data?.images === undefined ? {} : { images: preview.data.images })}
-          catalogue={SYSTEM_STYLE_MAP}
+          catalogue={catalogue}
           showSafeZones={false}
           // Pressing play on the poster is what mounted this stage.
           playing

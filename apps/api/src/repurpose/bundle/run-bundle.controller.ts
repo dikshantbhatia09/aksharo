@@ -11,20 +11,20 @@ import {
   Logger,
   Param,
   Post,
+  Query,
   Res,
   UseGuards,
 } from "@nestjs/common";
-import {
-  ApiBearerAuth,
-  ApiBody,
-  ApiExcludeEndpoint,
-  ApiOperation,
-  ApiTags,
-} from "@nestjs/swagger";
+import { ApiBearerAuth, ApiBody, ApiExcludeEndpoint, ApiOperation, ApiTags } from "@nestjs/swagger";
 
 import { type Env } from "@montaj/config";
 
-import { RunDownloadDto, runDownloadSchema } from "./run-bundle.dto.js";
+import {
+  RunDownloadDto,
+  RunDownloadQueryDto,
+  runDownloadSchema,
+  selectedClipIds,
+} from "./run-bundle.dto.js";
 import {
   RunBundleService,
   type OpenedRunBundle,
@@ -63,27 +63,30 @@ export class RunBundleController {
   @Get(":runId/download")
   @Roles("viewer")
   @ApiOperation({
-    summary: "What a run's \"Download all\" ZIP holds, and its size",
+    summary: 'What a run\'s "Download all" ZIP holds, and its size',
     description:
       "Clips in it and still coming, videos, dubbed videos, images and text files, and the ZIP's " +
-      "size with and without every shape's clean cut.",
+      "size with and without every shape's clean cut. `clipIds` (comma-separated) sums up only " +
+      "those clips.",
     operationId: "getRepurposeRunDownload",
   })
   async summary(
     @CurrentWorkspace() workspaceId: string,
     @Param("runId") runId: string,
+    @Query() query: RunDownloadQueryDto,
   ): Promise<RunBundleSummary> {
-    return this.bundles.summary(workspaceId, runId);
+    return this.bundles.summary(workspaceId, runId, selectedClipIds(query.clipIds));
   }
 
   @Post(":runId/download")
   @Roles("viewer")
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
-    summary: "A single-use link to a run's \"Download all\" ZIP",
+    summary: 'A single-use link to a run\'s "Download all" ZIP',
     description:
       "`url` streams the ZIP once, within five minutes; `includeClean` adds every shape's " +
-      "version without captions. 409 `repurpose/nothing_to_download` while no clip is finished.",
+      "version without captions; `clipIds` takes only those clips. 409 " +
+      "`repurpose/nothing_to_download` while no clip (of those) is finished.",
     operationId: "createRepurposeRunDownload",
   })
   @ApiBody(zodBody(runDownloadSchema))
@@ -119,11 +122,15 @@ export class PublicRunDownloadController {
     try {
       bundle = await this.bundles.open(token);
     } catch (error) {
-      const status = error instanceof AppException ? error.httpStatus : HttpStatus.INTERNAL_SERVER_ERROR;
+      const status =
+        error instanceof AppException ? error.httpStatus : HttpStatus.INTERNAL_SERVER_ERROR;
       const message =
         error instanceof AppException ? error.message : "The download could not start. Try again.";
       if (!(error instanceof AppException)) {
-        this.logger.error({ err: error instanceof Error ? error.message : String(error) }, "a run download failed to start");
+        this.logger.error(
+          { err: error instanceof Error ? error.message : String(error) },
+          "a run download failed to start",
+        );
       }
       response
         .status(status)

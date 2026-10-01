@@ -277,6 +277,11 @@ export interface RunSetupFieldsProps<V extends RunSetupValue> {
   readonly brandKit?: boolean;
   /** What could fill a B-roll cutaway here (2026-10-05); no switch without it. */
   readonly broll?: BrollOffer;
+  /**
+   * The workspace's own caption looks (2026-10-01, "My templates": saved from
+   * the editor), offered after the system ones.
+   */
+  readonly presets?: readonly { readonly id: string; readonly name: string }[];
 }
 
 export function RunSetupFields<V extends RunSetupValue>({
@@ -287,6 +292,7 @@ export function RunSetupFields<V extends RunSetupValue>({
   idPrefix = "repurpose",
   brandKit = false,
   broll,
+  presets = [],
 }: RunSetupFieldsProps<V>): React.JSX.Element {
   const [advancedOpen, setAdvancedOpen] = React.useState(false);
   // The last language picked by hand, so "I'll choose it" after a detour to
@@ -465,6 +471,46 @@ export function RunSetupFields<V extends RunSetupValue>({
                     {style.name}
                   </span>
                   {index === 0 && <span className="text-2xs text-fg-2">Recommended</span>}
+                </span>
+              </button>
+            );
+          })}
+          {presets.map((preset) => {
+            const selected = value.styleId === preset.id;
+            return (
+              <button
+                key={preset.id}
+                type="button"
+                data-testid={`style-${preset.id}`}
+                aria-pressed={selected}
+                onClick={() => {
+                  set("styleId", preset.id);
+                }}
+                className={cn(
+                  "flex min-w-0 flex-col overflow-hidden rounded-sm border text-left",
+                  "transition-colors duration-[160ms]",
+                  selected
+                    ? "border-transparent bg-bg-2 ring-2 ring-accent"
+                    : "border-border hover:border-neutral-600",
+                )}
+              >
+                {/* No still is rendered for a look a person saved: its name stands in. */}
+                <span
+                  className="flex aspect-[9/16] w-full items-center justify-center bg-bg-2 p-2 text-center font-display text-lg leading-tight text-fg-0"
+                  aria-hidden="true"
+                >
+                  Aa
+                </span>
+                <span className="flex min-w-0 flex-col px-2 py-1.5">
+                  <span
+                    className={cn(
+                      "truncate text-xs font-medium",
+                      selected ? "text-fg-0" : "text-fg-1",
+                    )}
+                  >
+                    {preset.name}
+                  </span>
+                  <span className="text-2xs text-fg-2">Your look</span>
                 </span>
               </button>
             );

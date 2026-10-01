@@ -2,10 +2,12 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { Env } from "@montaj/config";
 
+import { runDefaultsSetupSchema } from "./run-results.dto.js";
 import { RepurposeResultsService, linesOf } from "./run-results.service.js";
 
 import type { CommonAuditService } from "../../common/audit/audit.service.js";
 import type { PrismaService } from "../../common/index.js";
+import type { StylesService } from "../../styles/styles.service.js";
 import type { EntitlementService } from "../../workspaces/entitlement.service.js";
 import type { ClipFinishing } from "../clip-finishing.js";
 import type { RepurposeService } from "../repurpose.service.js";
@@ -29,6 +31,7 @@ interface Harness {
   readonly audits: unknown[];
   readonly removed: string[];
   readonly restored: string[];
+  readonly workspace: { settings: Record<string, unknown> };
 }
 
 function harness(
@@ -79,6 +82,7 @@ function harness(
     },
   ];
   const audits: unknown[] = [];
+  const workspace = { settings: { clipsNeedApproval: true } as Record<string, unknown> };
   const removed: string[] = [];
   const restored: string[] = [];
   const prisma = {
@@ -99,6 +103,13 @@ function harness(
     clipVariant: { findMany: async () => variants },
     transcript: { findFirst: async () => ({ id: "T" }) },
     transcriptChunk: { findMany: async () => [] },
+    workspace: {
+      findFirst: async () => workspace,
+      update: async ({ data }: { data: { settings: Record<string, unknown> } }) => {
+        workspace.settings = data.settings;
+        return workspace;
+      },
+    },
     $transaction: async (work: (tx: unknown) => Promise<unknown>) => work(prisma),
   };
   const finishing = {
@@ -130,6 +141,9 @@ function harness(
     record: async (event: unknown) => audits.push(event),
   } as unknown as CommonAuditService;
   const env = { FEATURE_FLAGS_JSON: {} } as unknown as Env;
+  const styles = {
+    list: async () => [{ id: "punch-pop" }, { id: "karaoke-fill" }],
+  } as unknown as StylesService;
   const service = new RepurposeResultsService(
     prisma as unknown as PrismaService,
     runs,
@@ -137,8 +151,9 @@ function harness(
     entitlements,
     audit,
     env,
+    styles,
   );
-  return { service, run, candidate, clip, audits, removed, restored };
+  return { service, run, candidate, clip, audits, removed, restored, workspace };
 }
 
 describe("retitle", () => {
@@ -262,5 +277,51 @@ describe("linesOf", () => {
       word(`w${String(index)}`, index * 100, index * 100 + 90),
     );
     expect(linesOf(long).map((line) => line.text.split(" ").length)).toEqual([14, 6]);
+  });
+});
+
+describe("RepurposeResultsService: the default setup for new runs", () => {
+  const SETUP = runDefaultsSetupSchema.parse({
+    sourceLanguage: "hi-Latn",
+    caption: { outputLanguage: "same", scriptMode: "roman", styleId: "karaoke-fill" },
+    discovery: { mode: "ai", requestedCandidates: 5, clipLength: "short" },
+    automation: "auto",
+    brand: true,
+  });
+
+  it("has none until one is saved, then opens on it, keeping the other settings", async () => {
+    const h = harness();
+    expect(await h.service.defaults(WS)).toEqual({ setup: null, savedAt: null });
+
+    const saved = await h.service.saveDefaults(WS, "USER", SETUP);
+    expect(saved.setup).toEqual(SETUP);
+    expect(h.workspace.settings["clipsNeedApproval"]).toBe(true);
+    expect(await h.service.defaults(WS)).toMatchObject({ setup: SETUP });
+    expect(h.audits.at(-1)).toMatchObject({
+      action: "repurpose.defaults.saved",
+      data: { styleId: "karaoke-fill", automation: "auto" },
+    });
+  });
+
+  it("refuses a caption look the workspace cannot use", async () => {
+    const h = harness();
+    await expect(
+      h.service.saveDefaults(WS, "USER", {
+        ...SETUP,
+        caption: { ...SETUP.caption, styleId: "gone-style" },
+      }),
+    ).rejects.toMatchObject({ code: "repurpose/style_unknown" });
+    expect(h.workspace.settings["runDefaults"]).toBeUndefined();
+  });
+
+  it("goes back to the product's own, and reads a setup that no longer passes as none", async () => {
+    const h = harness();
+    await h.service.saveDefaults(WS, "USER", SETUP);
+    expect(await h.service.clearDefaults(WS, "USER")).toEqual({ setup: null, savedAt: null });
+    expect(h.workspace.settings).toEqual({ clipsNeedApproval: true });
+    expect(h.audits.at(-1)).toMatchObject({ action: "repurpose.defaults.cleared" });
+
+    h.workspace.settings["runDefaults"] = { setup: { caption: "nonsense" }, savedAt: "x" };
+    expect(await h.service.defaults(WS)).toEqual({ setup: null, savedAt: null });
   });
 });

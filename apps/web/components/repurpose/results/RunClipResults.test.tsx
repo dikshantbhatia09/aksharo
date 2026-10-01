@@ -1,6 +1,6 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { RepurposeCandidateItem, RepurposeClipItem } from "@montaj/api-client";
 
@@ -83,6 +83,13 @@ function results(
   );
 }
 
+const started: string[] = [];
+vi.mock("@/components/repurpose/download/start-download", () => ({
+  startDownload: (url: string) => {
+    started.push(url);
+  },
+}));
+
 describe("RunClipResults", () => {
   beforeEach(() => {
     window.localStorage.clear();
@@ -109,6 +116,32 @@ describe("RunClipResults", () => {
     await userEvent.type(screen.getByTestId("clip-results-search"), "compound");
     expect(screen.getByTestId("clip-results-count")).toHaveTextContent("1 clip matches “compound”");
     expect(within(screen.getByTestId("clip-grid")).getAllByRole("button")).toHaveLength(1);
+  });
+
+  it("also finds clips by what they are about, after the ones that say the words", async () => {
+    results(
+      {},
+      {
+        [`/repurpose/runs/${RUN}/search`]: {
+          semantic: true,
+          matches: [
+            { candidateId: "CAND2", score: 0.71 },
+            { candidateId: "CAND3", score: 0.58 },
+          ],
+        },
+      },
+    );
+    await userEvent.type(screen.getByTestId("clip-results-search"), "wealth");
+    expect(
+      await screen.findByText("2 clips match “wealth” by what it is about", undefined, {
+        timeout: 3000,
+      }),
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByTestId("clip-grid"))
+        .getAllByRole("button")
+        .map((tile) => tile.getAttribute("aria-label")?.split(",")[0]),
+    ).toEqual(["#3 Clip 2", "#2 Clip 3"]);
   });
 
   it("orders by the video too, and remembers the list when asked for it", async () => {
@@ -203,6 +236,71 @@ describe("RunClipResults", () => {
     );
     await screen.findByTestId("clip-detail");
     expect(screen.queryByTestId("clip-detail-rename")).not.toBeInTheDocument();
+  });
+});
+
+describe("RunClipResults: picking clips to download", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+    window.location.hash = "";
+  });
+
+  it("ticks made clips instead of opening them, and downloads just those", async () => {
+    const coming = { ...made(2), state: "cutting" } as RepurposeClipItem;
+    const { fetchMock } = results(
+      { clips: [made(1), coming, made(3), made(4)] },
+      {
+        [`/repurpose/runs/${RUN}/download`]: {
+          clips: 2,
+          clipsComing: 0,
+          videos: 8,
+          dubbedVideos: 0,
+          images: 22,
+          texts: 2,
+          bytes: 50 * 1024 * 1024,
+          cleanVideos: 8,
+          bytesWithClean: 90 * 1024 * 1024,
+          filename: "Talk (2 clips).zip",
+        },
+      },
+    );
+    await userEvent.click(screen.getByTestId("clip-results-select"));
+    expect(screen.getByTestId("clip-selection-count")).toHaveTextContent(
+      "Pick the clips to download.",
+    );
+
+    // Clip 2 is still being made: it cannot be picked.
+    expect(within(screen.getByTestId("clip-tile-CAND2")).getByRole("button")).toBeDisabled();
+    await userEvent.click(within(screen.getByTestId("clip-tile-CAND4")).getByRole("button"));
+    await userEvent.click(within(screen.getByTestId("clip-tile-CAND1")).getByRole("button"));
+    expect(screen.queryByTestId("clip-detail")).not.toBeInTheDocument();
+    expect(screen.getByTestId("clip-selection-count")).toHaveTextContent("2 clips picked");
+    expect(within(screen.getByTestId("clip-tile-CAND4")).getByRole("button")).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+
+    await userEvent.click(screen.getByTestId("clip-selection-download"));
+    const dialog = await screen.findByTestId("download-all-dialog");
+    expect(dialog).toHaveTextContent("Download 2 clips");
+    expect(await within(dialog).findByTestId("download-all-contents")).toHaveTextContent("2 clips");
+    const summaryUrl = String(
+      fetchMock.mock.calls.find(([url]) => String(url).includes("/download"))?.[0],
+    );
+    expect(new URL(summaryUrl).searchParams.get("clipIds")).toBe("CLIP4,CLIP1");
+  });
+
+  it("picks every made clip at once, and lets go of them on Done", async () => {
+    results({ clips: [made(1), made(2), made(3), made(4)] });
+    await userEvent.click(screen.getByTestId("clip-results-select"));
+    await userEvent.click(screen.getByTestId("clip-selection-all"));
+    expect(screen.getByTestId("clip-selection-count")).toHaveTextContent("4 clips picked");
+    await userEvent.click(screen.getByTestId("clip-results-select"));
+    expect(screen.queryByTestId("clip-selection-bar")).not.toBeInTheDocument();
+    await userEvent.click(
+      within(screen.getByTestId("clip-grid")).getAllByRole("button")[0] as HTMLElement,
+    );
+    expect(await screen.findByTestId("clip-detail")).toBeInTheDocument();
   });
 });
 

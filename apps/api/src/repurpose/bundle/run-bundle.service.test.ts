@@ -224,7 +224,9 @@ describe("RunBundleService", () => {
     // A shape with only its clean cut has it, even unasked.
     expect(names).toContain(`${root}/02 Clip 2/Without captions/Clip 2 1x1 no captions.mp4`);
     // Not asked for: clip 1's clean cuts. Never: the removed clip, the one still coming.
-    expect(names.some((name) => name.startsWith(`${root}/01 Clip 1/Without captions/`))).toBe(false);
+    expect(names.some((name) => name.startsWith(`${root}/01 Clip 1/Without captions/`))).toBe(
+      false,
+    );
     expect(names.some((name) => name.includes("Clip 3") || name.includes("Clip 4"))).toBe(false);
 
     // The file is the stored object, byte for byte.
@@ -254,6 +256,54 @@ describe("RunBundleService", () => {
     });
   });
 
+  it("takes only the clips picked, without the video's own files, and says how many", async () => {
+    const b = bundle();
+    const { first, second } = seedRun(b);
+    fill(b);
+
+    const summary = await b.service.summary(IDS.ws, IDS.run, [second, "01JNOTOFTHISRUN0000000000"]);
+    expect(summary).toMatchObject({
+      clips: 1,
+      clipsComing: 0,
+      videos: 1,
+      dubbedVideos: 0,
+      // Clip 2 has no words to post, and the episode text is the video's, not a clip's.
+      texts: 0,
+      filename: "Diwali vlog (1 clip).zip",
+    });
+
+    const created = await b.service.createDownload(IDS.ws, IDS.viewer, IDS.run, {
+      includeClean: false,
+      clipIds: [first],
+    });
+    const opened = await b.service.open(created.url.split("/").at(-1) ?? "");
+    expect(opened.filename).toBe("Diwali vlog (1 clip).zip");
+    const names = [...entriesOf(await bytesOf(opened.stream)).keys()];
+    expect(names).toContain("Diwali vlog/01 Clip 1/Clip 1 9x16.mp4");
+    expect(names).toContain("Diwali vlog/01 Clip 1/Dubbed Hindi/Clip 1 9x16 Hindi.mp4");
+    expect(names.some((name) => name.includes("Clip 2"))).toBe(false);
+    expect(names).not.toContain("Diwali vlog/Episode text.txt");
+    expect(b.harness.audits.at(-1)).toMatchObject({
+      action: "repurpose.run.downloaded",
+      data: { clips: 1 },
+    });
+  });
+
+  it("says nothing is finished when no clip picked is", async () => {
+    const b = bundle();
+    seedRun(b);
+    fill(b);
+    const coming = String(
+      b.harness.db.tables.repurposeClip.find((row) => row["title"] === "Clip 3")?.["id"],
+    );
+    await expect(
+      b.service.createDownload(IDS.ws, IDS.viewer, IDS.run, {
+        includeClean: false,
+        clipIds: [coming],
+      }),
+    ).rejects.toMatchObject({ code: "repurpose/nothing_to_download" });
+  });
+
   it("adds every clean cut when asked", async () => {
     const b = bundle();
     seedRun(b);
@@ -263,9 +313,7 @@ describe("RunBundleService", () => {
     });
     const opened = await b.service.open(created.url.split("/").at(-1) ?? "");
     const names = [...entriesOf(await bytesOf(opened.stream)).keys()];
-    expect(names).toContain(
-      "Diwali vlog/01 Clip 1/Without captions/Clip 1 4x5 no captions.mp4",
-    );
+    expect(names).toContain("Diwali vlog/01 Clip 1/Without captions/Clip 1 4x5 no captions.mp4");
     expect(names).toContain(
       "Diwali vlog/01 Clip 1/Dubbed Hindi/Without captions/Clip 1 9x16 Hindi no captions.mp4",
     );
@@ -353,7 +401,14 @@ describe("RunBundleService", () => {
     if (clip === undefined) throw new Error("no clip");
     clip["images"] = {
       fingerprint: "9:16:EXP",
-      images: [{ name: "thumbnail-1", key: `ws/${IDS.otherWs}/p/x/images/thumbnail-1.jpg`, width: 1, height: 1 }],
+      images: [
+        {
+          name: "thumbnail-1",
+          key: `ws/${IDS.otherWs}/p/x/images/thumbnail-1.jpg`,
+          width: 1,
+          height: 1,
+        },
+      ],
     };
     b.objects.set(`ws/${IDS.otherWs}/p/x/images/thumbnail-1.jpg`, Buffer.from("theirs"));
     const summary = await b.service.summary(IDS.ws, IDS.run);

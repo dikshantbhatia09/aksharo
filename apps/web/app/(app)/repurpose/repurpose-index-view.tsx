@@ -28,6 +28,7 @@ import { REPURPOSE_FLOW_FLAG } from "@/components/home/pipeline-banner";
 import { formatRelative } from "@/components/projects/project-table";
 import { AUTOMATIONS_FLAG } from "@/components/repurpose/automations/use-automations";
 import { safeErrorCopy } from "@/components/repurpose/copy";
+import { FeatureGallery } from "@/components/repurpose/FeatureGallery";
 import { PERFORMANCE_FLAG } from "@/components/repurpose/performance/use-performance";
 import { runActivity, serverIsWorking } from "@/components/repurpose/run-activity";
 import { runPartLabel, runTitle } from "@/components/repurpose/run-window";
@@ -172,6 +173,9 @@ export function RepurposeIndexView(): React.JSX.Element {
           </Button>
         </form>
       </section>
+
+      {/* What one video gives you (2026-10-01): open while the workspace is new to it. */}
+      <FeatureGallery openByDefault={!runs.isPending && items.length < 3} />
 
       {live === undefined ? null : (
         <NextLink

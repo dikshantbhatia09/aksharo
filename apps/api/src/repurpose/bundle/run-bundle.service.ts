@@ -21,12 +21,7 @@ import {
   type ObjectStore,
 } from "../../common/storage/index.js";
 import { ENV } from "../../config/config.module.js";
-import {
-  cleanCutsOf,
-  dubFilesOf,
-  episodePackOf,
-  runClipsOf,
-} from "../guest/clip-files.reader.js";
+import { cleanCutsOf, dubFilesOf, episodePackOf, runClipsOf } from "../guest/clip-files.reader.js";
 import { planGuestClip } from "../guest/guest-files.js";
 import { REPURPOSE_ERRORS, SHAPE_OF_ASPECT } from "../repurpose.constants.js";
 import { cleanSourceTitle } from "../repurpose.projection.js";
@@ -111,6 +106,8 @@ interface TokenClaims {
   readonly runId: string;
   readonly userId: string;
   readonly includeClean: boolean;
+  /** Only these clips (2026-10-01); absent for every clip. */
+  readonly clipIds?: readonly string[];
 }
 
 interface SizedFile {
@@ -138,10 +135,17 @@ export class RunBundleService {
     @Inject(ENV) private readonly env: Env,
   ) {}
 
-  /** What the ZIP would hold, with and without the clean cuts, and how big it is. */
-  async summary(workspaceId: string, runId: string): Promise<RunBundleSummary> {
+  /**
+   * What the ZIP would hold, with and without the clean cuts, and how big it
+   * is: of every clip, or of the clips picked.
+   */
+  async summary(
+    workspaceId: string,
+    runId: string,
+    clipIds?: readonly string[],
+  ): Promise<RunBundleSummary> {
     await this.reviews.assertAvailable(workspaceId);
-    const content = await this.contentOf(workspaceId, runId, true);
+    const content = await this.contentOf(workspaceId, runId, true, clipIds);
     const sized = await this.sized(workspaceId, content.files);
     const offered = sized.filter((entry) => !entry.file.optional);
     const count = (kind: BundleFile["kind"]): number =>
@@ -165,10 +169,10 @@ export class RunBundleService {
     workspaceId: string,
     userId: string,
     runId: string,
-    input: { readonly includeClean: boolean },
+    input: { readonly includeClean: boolean; readonly clipIds?: readonly string[] | undefined },
   ): Promise<RunBundleDownload> {
     await this.reviews.assertAvailable(workspaceId);
-    const content = await this.contentOf(workspaceId, runId, input.includeClean);
+    const content = await this.contentOf(workspaceId, runId, input.includeClean, input.clipIds);
     if (content.files.length === 0) {
       throw new AppException(
         REPURPOSE_ERRORS.nothingToDownload,
@@ -177,7 +181,13 @@ export class RunBundleService {
       );
     }
     const token = randomBytes(32).toString("base64url");
-    const claims: TokenClaims = { workspaceId, runId, userId, includeClean: input.includeClean };
+    const claims: TokenClaims = {
+      workspaceId,
+      runId,
+      userId,
+      includeClean: input.includeClean,
+      ...(input.clipIds === undefined ? {} : { clipIds: [...input.clipIds] }),
+    };
     await this.redis.client.set(
       tokenKey(token),
       JSON.stringify(claims),
@@ -205,7 +215,12 @@ export class RunBundleService {
       );
     }
     await this.reviews.assertAvailable(claims.workspaceId);
-    const content = await this.contentOf(claims.workspaceId, claims.runId, claims.includeClean);
+    const content = await this.contentOf(
+      claims.workspaceId,
+      claims.runId,
+      claims.includeClean,
+      claims.clipIds,
+    );
     const sized = await this.sized(claims.workspaceId, content.files);
     if (sized.length === 0) {
       throw new AppException(
@@ -252,6 +267,7 @@ export class RunBundleService {
         files: entries.length,
         bytes: totalBytes,
         includeClean: claims.includeClean,
+        ...(claims.clipIds === undefined ? {} : { clips: content.clips }),
       },
     });
 
@@ -282,7 +298,10 @@ export class RunBundleService {
       return typeof parsed.workspaceId === "string" &&
         typeof parsed.runId === "string" &&
         typeof parsed.userId === "string" &&
-        typeof parsed.includeClean === "boolean"
+        typeof parsed.includeClean === "boolean" &&
+        (parsed.clipIds === undefined ||
+          (Array.isArray(parsed.clipIds) &&
+            parsed.clipIds.every((id: unknown) => typeof id === "string")))
         ? (parsed as TokenClaims)
         : null;
     } catch {
@@ -290,11 +309,17 @@ export class RunBundleService {
     }
   }
 
-  /** Every file of the run's ZIP, and its clips counted. */
+  /**
+   * Every file of the run's ZIP, and its clips counted. With `clipIds`, only
+   * those clips (ids not of this run are ignored), and nothing that belongs to
+   * the whole video rather than to a clip (compilations, episode text); the
+   * ZIP's name says how many clips it holds.
+   */
   private async contentOf(
     workspaceId: string,
     runId: string,
     includeClean: boolean,
+    clipIds?: readonly string[],
   ): Promise<{
     readonly files: BundleFile[];
     readonly clips: number;
@@ -320,14 +345,17 @@ export class RunBundleService {
     const title =
       cleanSourceTitle(run.sourceTitle) ?? cleanSourceTitle(run.sourceProject.title) ?? "Clips";
 
-    const clips = await runClipsOf(this.prisma, { workspaceId, runId });
+    const picked = clipIds === undefined ? null : new Set(clipIds);
+    const clips = (await runClipsOf(this.prisma, { workspaceId, runId })).filter(
+      (clip) => picked === null || picked.has(clip.id),
+    );
     const ids = clips.map((clip) => clip.id);
     const [captioned, clean, dubs, episode, compilations] = await Promise.all([
       reviewVideosOf(this.prisma, ids),
       cleanCutsOf(this.prisma, ids),
       dubFilesOf(this.prisma, { workspaceId, runId }, ids),
-      episodePackOf(this.prisma, workspaceId, run.sourceProjectId),
-      this.compilationsOf(workspaceId, runId),
+      picked === null ? episodePackOf(this.prisma, workspaceId, run.sourceProjectId) : null,
+      picked === null ? this.compilationsOf(workspaceId, runId) : [],
     ]);
     const plans = clips.map((clip) =>
       planGuestClip({
@@ -355,7 +383,10 @@ export class RunBundleService {
       files,
       clips: ready.length,
       clipsComing: plans.length - ready.length,
-      filename: `${safeSegment(title, 80, "Clips")}.zip`,
+      filename:
+        picked === null
+          ? `${safeSegment(title, 80, "Clips")}.zip`
+          : `${safeSegment(title, 66, "Clips")} (${String(ready.length)} ${ready.length === 1 ? "clip" : "clips"}).zip`,
     };
   }
 
@@ -388,7 +419,11 @@ export class RunBundleService {
         const file = files.at(index);
         if (file === undefined) return;
         if (file.source.kind === "text") {
-          results.set(index, { file, size: Buffer.byteLength(file.source.text, "utf8"), modified: at });
+          results.set(index, {
+            file,
+            size: Buffer.byteLength(file.source.text, "utf8"),
+            modified: at,
+          });
           continue;
         }
         if (!keyBelongsToWorkspace(file.source.key, workspaceId)) {
@@ -419,9 +454,8 @@ async function* once(chunk: Uint8Array): AsyncGenerator<Uint8Array> {
 }
 
 function layoutBytes(files: readonly SizedFile[]): number {
-  return zipLayout(
-    files.map(({ file, size, modified }) => ({ name: file.path, size, modified })),
-  ).totalBytes;
+  return zipLayout(files.map(({ file, size, modified }) => ({ name: file.path, size, modified })))
+    .totalBytes;
 }
 
 function tokenKey(token: string): string {

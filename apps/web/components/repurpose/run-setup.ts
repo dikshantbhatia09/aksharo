@@ -243,6 +243,28 @@ function isLanguageTag(value: string): boolean {
   );
 }
 
+/** The setup keys a failed run's "Choose another video" carries in the URL. */
+const SETUP_PARAMS = [
+  "lang",
+  "out",
+  "script",
+  "style",
+  "method",
+  "n",
+  "about",
+  "clip",
+  "skipStart",
+  "skipEnd",
+] as const;
+
+/**
+ * Whether the URL carries a setup of its own (a failed run's), which the
+ * workspace's saved default must not replace (2026-10-01).
+ */
+export function carriesSetup(params: Pick<URLSearchParams, "get">): boolean {
+  return SETUP_PARAMS.some((key) => params.get(key) !== null);
+}
+
 /**
  * The first form state for `/repurpose/new`, from its query string.
  *

@@ -4,13 +4,17 @@ import type { RunDownloadSummary } from "./use-run-download";
 
 import { formatBytes } from "@/components/repurpose/failure-detail";
 
-
 /** "Download all" (2026-10-01): every word the button and its dialog say. */
 export const DOWNLOAD_ALL_COPY = Object.freeze({
   button: "Download all",
   title: "Download all",
   description:
     "Every clip in every size with captions, its images and the words to post, in one ZIP file.",
+  // A selection (2026-10-01).
+  selectedTitle: (count: number): string =>
+    count === 1 ? "Download 1 clip" : `Download ${String(count)} clips`,
+  selectedDescription:
+    "Each clip you picked in every size with captions, its images and the words to post, in one ZIP file.",
   counting: "Counting what is ready…",
   withoutCaptions: "Also include every size without captions",
   size: (bytes: number): string => `Size: ${formatBytes(bytes)}`,

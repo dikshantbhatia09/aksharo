@@ -12,8 +12,17 @@
  * carry the tick boxes), shows the list. The choice is remembered per browser.
  *
  * A link to one clip (`#clip-<id>`, a review notification's) opens that clip.
+ *
+ * The search finds a clip by its words at once, and by what it is about a
+ * moment later (`useRunSearch`, a local embedding model): "how to get rich"
+ * finds the compound-interest clip that never says "rich". Word matches come
+ * first, then the ones found by meaning, closest first.
+ *
+ * "Select" (2026-10-01, OpusClip's multi-select): the grid's tiles tick
+ * instead of opening, and a bar below them downloads the clips picked as one
+ * ZIP (`RunDownloadDialog` with their ids). Only made clips can be picked.
  */
-import { LayoutGrid, List, Search, X } from "lucide-react";
+import { CheckSquare, Download, LayoutGrid, List, Search, X } from "lucide-react";
 import * as React from "react";
 
 import type { RepurposeCandidateItem, RepurposeClipItem } from "@montaj/api-client";
@@ -22,7 +31,9 @@ import { Button, Input, cn } from "@montaj/ui";
 import { matchesSearch } from "./clip-analysis";
 import { ClipDetailDialog, type ClipEntry } from "./ClipDetailDialog";
 import { ClipTile } from "./ClipTile";
+import { useRunSearch } from "./use-results";
 
+import { RunDownloadDialog } from "@/components/repurpose/download/RunDownloadAll";
 import { isRemovedCandidate } from "@/components/repurpose/steering";
 
 export type ResultsView = "grid" | "list";
@@ -85,9 +96,24 @@ export function RunClipResults({
   React.useEffect(() => {
     setChosenView(recallView());
   }, []);
+  const [selecting, setSelecting] = React.useState(false);
+  const [selected, setSelected] = React.useState<readonly string[]>([]);
+  const [downloading, setDownloading] = React.useState(false);
   const view: ResultsView = picking
     ? "list"
-    : (chosenView ?? (readyCount >= GRID_FROM_READY ? "grid" : "list"));
+    : selecting
+      ? "grid"
+      : (chosenView ?? (readyCount >= GRID_FROM_READY ? "grid" : "list"));
+  const readyIds = clips.filter((clip) => clip.state === "ready").map((clip) => clip.id);
+  const toggle = (clipId: string): void => {
+    setSelected((current) =>
+      current.includes(clipId) ? current.filter((id) => id !== clipId) : [...current, clipId],
+    );
+  };
+  const stopSelecting = (): void => {
+    setSelecting(false);
+    setSelected([]);
+  };
   const [order, setOrder] = React.useState<ResultsOrder>("best");
   const [query, setQuery] = React.useState("");
   const [openIndex, setOpenIndex] = React.useState<number | null>(null);
@@ -101,11 +127,34 @@ export function RunClipResults({
   }, [kept]);
 
   const searching = query.trim() !== "";
-  const shown = kept
+  // The question as it settles: one search by meaning per pause in the typing.
+  const [settled, setSettled] = React.useState("");
+  React.useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setSettled(query.trim());
+    }, 350);
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [query]);
+  const byMeaning = useRunSearch(runId, searching ? settled : "");
+  const meaningOf = new Map(
+    byMeaning.data?.semantic === true && settled === query.trim()
+      ? byMeaning.data.matches.map((match) => [match.candidateId, match.score] as const)
+      : [],
+  );
+  const byWords = kept
     .filter((candidate) => matchesSearch(candidate, query))
     .sort((a, b) =>
       order === "time" ? a.startMs - b.startMs : (rankOf.get(a.id) ?? 0) - (rankOf.get(b.id) ?? 0),
     );
+  const wordIds = new Set(byWords.map((candidate) => candidate.id));
+  const related = searching
+    ? kept
+        .filter((candidate) => !wordIds.has(candidate.id) && meaningOf.has(candidate.id))
+        .sort((a, b) => (meaningOf.get(b.id) ?? 0) - (meaningOf.get(a.id) ?? 0))
+    : [];
+  const shown = [...byWords, ...related];
   const entries: ClipEntry[] = shown.map((candidate) => ({
     candidate,
     clip: clipOf(candidate.id),
@@ -165,7 +214,23 @@ export function RunClipResults({
             <option value="best">Best first</option>
             <option value="time">In video order</option>
           </select>
-          {picking ? null : (
+          {picking || readyCount === 0 ? null : (
+            <Button
+              variant={selecting ? "secondary" : "ghost"}
+              size="sm"
+              className="h-11 sm:h-9"
+              aria-pressed={selecting}
+              onClick={() => {
+                if (selecting) stopSelecting();
+                else setSelecting(true);
+              }}
+              data-testid="clip-results-select"
+            >
+              <CheckSquare strokeWidth={1.75} aria-hidden="true" />
+              {selecting ? "Done" : "Select"}
+            </Button>
+          )}
+          {picking || selecting ? null : (
             <div
               className="flex overflow-hidden rounded-sm border border-border"
               role="group"
@@ -207,8 +272,16 @@ export function RunClipResults({
           data-testid="clip-results-count"
         >
           {shown.length === 0
-            ? `No clip matches “${query.trim()}”.`
-            : `${String(shown.length)} ${shown.length === 1 ? "clip matches" : "clips match"} “${query.trim()}”`}
+            ? byMeaning.isFetching
+              ? `Looking for clips about “${query.trim()}”…`
+              : `No clip matches “${query.trim()}”.`
+            : `${String(shown.length)} ${shown.length === 1 ? "clip matches" : "clips match"} “${query.trim()}”${
+                related.length === 0
+                  ? ""
+                  : byWords.length === 0
+                    ? " by what it is about"
+                    : ` (${String(related.length)} by what ${related.length === 1 ? "it is" : "they are"} about)`
+              }`}
           <Button
             variant="ghost"
             size="sm"
@@ -236,6 +309,17 @@ export function RunClipResults({
               onOpen={() => {
                 setOpenIndex(index);
               }}
+              {...(selecting
+                ? {
+                    selection: {
+                      selected: entry.clip !== undefined && selected.includes(entry.clip.id),
+                      selectable: entry.clip?.state === "ready",
+                      onToggle: () => {
+                        if (entry.clip !== undefined) toggle(entry.clip.id);
+                      },
+                    },
+                  }
+                : {})}
             />
           ))}
         </ul>
@@ -260,6 +344,67 @@ export function RunClipResults({
           })}
         </ul>
       )}
+
+      {selecting ? (
+        <div
+          role="region"
+          aria-label="Clips picked"
+          className="sticky bottom-3 z-20 flex flex-wrap items-center gap-2 rounded-md border border-border bg-bg-2 px-3 py-2 shadow-lg"
+          data-testid="clip-selection-bar"
+        >
+          <span
+            className="mr-auto text-sm text-fg-0"
+            role="status"
+            data-testid="clip-selection-count"
+          >
+            {selected.length === 0
+              ? "Pick the clips to download."
+              : selected.length === 1
+                ? "1 clip picked"
+                : `${String(selected.length)} clips picked`}
+          </span>
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={selected.length === readyIds.length}
+            onClick={() => {
+              setSelected(readyIds);
+            }}
+            data-testid="clip-selection-all"
+          >
+            Pick all {String(readyIds.length)}
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={selected.length === 0}
+            onClick={() => {
+              setSelected([]);
+            }}
+          >
+            Clear
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={selected.length === 0}
+            onClick={() => {
+              setDownloading(true);
+            }}
+            data-testid="clip-selection-download"
+          >
+            <Download strokeWidth={1.75} aria-hidden="true" />
+            Download
+          </Button>
+        </div>
+      ) : null}
+
+      <RunDownloadDialog
+        runId={runId}
+        clipIds={selected}
+        open={downloading}
+        onOpenChange={setDownloading}
+      />
 
       <ClipDetailDialog
         runId={runId}

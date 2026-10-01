@@ -598,3 +598,126 @@ describe("<RepurposeNewView /> an audio file's cover (2026-10-04)", () => {
     expect(paths).not.toContain("/repurpose/covers");
   });
 });
+
+describe("<RepurposeNewView /> the workspace's default setup (2026-10-01)", () => {
+  const SAVED = {
+    setup: {
+      sourceLanguage: "hi-Latn",
+      caption: { outputLanguage: "same", scriptMode: "roman", styleId: "karaoke-fill" },
+      discovery: { mode: "ai", requestedCandidates: 5, clipLength: "short" },
+      automation: "auto",
+    },
+    savedAt: "2026-10-01T10:00:00.000Z",
+  };
+
+  beforeEach(() => {
+    routerMock.push.mockClear();
+  });
+
+  it("opens on the saved setup for a pasted link, and says these are the defaults", async () => {
+    searchParamsMock.value = new URLSearchParams({ url: "youtube.com/watch?v=dQw4w9WgXcQ" });
+    renderWithProviders(<RepurposeNewView />, { routes: { "/repurpose/defaults": SAVED } });
+    await waitFor(() => {
+      expect(screen.getByTestId("style-karaoke-fill")).toHaveAttribute("aria-pressed", "true");
+    });
+    expect(screen.getByTestId("clip-length-short")).toBeChecked();
+    expect(await screen.findByTestId("run-defaults")).toHaveAttribute("data-state", "saved");
+  });
+
+  it("keeps a failed run's own setup rather than the saved one", async () => {
+    searchParamsMock.value = new URLSearchParams({
+      url: "youtube.com/watch?v=dQw4w9WgXcQ",
+      style: "word-pop",
+    });
+    renderWithProviders(<RepurposeNewView />, { routes: { "/repurpose/defaults": SAVED } });
+    expect(await screen.findByTestId("run-defaults")).toHaveAttribute("data-state", "differs");
+    expect(screen.getByTestId("style-word-pop")).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("saves what the form holds as the default, and goes back to Aksharo's own", async () => {
+    searchParamsMock.value = new URLSearchParams({});
+    const { fetchMock } = renderWithProviders(<RepurposeNewView />, {
+      routes: { "/repurpose/defaults": { setup: null, savedAt: null } },
+    });
+    const user = userEvent.setup();
+    await user.click(await screen.findByTestId("style-word-pop"));
+    expect(screen.getByTestId("run-defaults")).toHaveAttribute("data-state", "none");
+    await user.click(screen.getByTestId("run-defaults-save"));
+    await waitFor(() => {
+      expect(
+        fetchMock.mock.calls.some(
+          ([url, init]) =>
+            String(url).endsWith("/repurpose/defaults") && (init as RequestInit).method === "PUT",
+        ),
+      ).toBe(true);
+    });
+    const put = fetchMock.mock.calls.find(
+      ([url, init]) =>
+        String(url).endsWith("/repurpose/defaults") && (init as RequestInit).method === "PUT",
+    );
+    const body = JSON.parse(String((put?.[1] as RequestInit).body)) as {
+      setup: { caption: { styleId: string } };
+    };
+    expect(body.setup.caption.styleId).toBe("word-pop");
+  });
+});
+
+describe("<RepurposeNewView /> the workspace's own caption looks (2026-10-01)", () => {
+  const LOOK = {
+    id: "my-brand-yellow-k3x9",
+    name: "Brand yellow",
+    version: 2,
+    category: "general",
+    minPlan: "free",
+    presetId: "01JPRESET00000000000000000",
+    source: "custom",
+    workspaceId: "01JWORKSPACE",
+    previewKey: null,
+  };
+
+  it("offers them after Aksharo's, and sends the one picked", async () => {
+    searchParamsMock.value = new URLSearchParams({ url: "youtube.com/watch?v=dQw4w9WgXcQ" });
+    const { fetchMock } = renderWithProviders(<RepurposeNewView />, {
+      routes: {
+        "/styles": [LOOK],
+        [RUNS]: json(201, {
+          run: { id: RUN_ID },
+          projectId: "01JPROJECT",
+          upload: null,
+          next: { rel: "run", href: `/repurpose/runs/${RUN_ID}` },
+        }),
+      },
+    });
+    const user = userEvent.setup();
+    const card = await screen.findByTestId(`style-${LOOK.id}`);
+    expect(card).toHaveTextContent("Brand yellow");
+    await user.click(card);
+    await startWithPrefilledLink();
+    await waitFor(() => {
+      expect(createBodies(fetchMock)).toHaveLength(1);
+    });
+    const [body] = createBodies(fetchMock) as [{ setup: { caption: { styleId: string } } }];
+    expect(body.setup.caption.styleId).toBe(LOOK.id);
+  });
+
+  it("opens on a saved default that is one of them", async () => {
+    searchParamsMock.value = new URLSearchParams({});
+    renderWithProviders(<RepurposeNewView />, {
+      routes: {
+        "/styles": [LOOK],
+        "/repurpose/defaults": {
+          setup: {
+            sourceLanguage: "auto",
+            caption: { outputLanguage: "same", scriptMode: "auto", styleId: LOOK.id },
+            discovery: { mode: "ai", requestedCandidates: 5 },
+            automation: "auto",
+          },
+          savedAt: "2026-10-01T10:00:00.000Z",
+        },
+      },
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId(`style-${LOOK.id}`)).toHaveAttribute("aria-pressed", "true");
+    });
+  });
+});

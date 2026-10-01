@@ -14,7 +14,16 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
-import { ApiError, useProject, useRecordSpellingFixMemory, useSession } from "@montaj/api-client";
+import {
+  ApiError,
+  isApiError,
+  useCreateStylePreset,
+  useDeleteStylePreset,
+  useProject,
+  useRecordSpellingFixMemory,
+  useSession,
+  useStyles,
+} from "@montaj/api-client";
 import type { StyleDoc } from "@montaj/caption-styles";
 import {
   blockedBrollSpans,
@@ -78,7 +87,6 @@ import {
   buildPresetDoc,
   deleteMyPreset,
   loadMyPresets,
-  saveMyPreset,
 } from "@/components/editor/panels/my-presets";
 import { type PanelOp, type PanelScope } from "@/components/editor/panels/ops";
 import { RightPanel, type PanelTab } from "@/components/editor/panels/RightPanel";
@@ -539,10 +547,28 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
   // (`my-presets.ts`'s own doc comment explains why, not per workspace —
   // `projectId` is the only stable id already in scope here), read once on
   // mount/project-switch and kept in state so a save is reflected immediately.
-  const [myPresets, setMyPresets] = useState<StyleDoc[]>([]);
+  //
+  // 2026-10-01 (OpusClip's "My templates"): a look saved now is the
+  // WORKSPACE's (`POST /workspaces/{id}/style-presets`, a route that already
+  // existed), so it is offered in every project, on the clips start form, and
+  // the cloud render resolves it (`exports/projection.ts` reads workspace
+  // presets by key). A browser-local preset could do none of those: a project
+  // on one rendered its captions in the cloud with a placeholder style. Looks
+  // saved here before stay readable from this browser.
+  const [localPresets, setLocalPresets] = useState<StyleDoc[]>([]);
   useEffect(() => {
-    setMyPresets(loadMyPresets(projectId));
+    setLocalPresets(loadMyPresets(projectId));
   }, [projectId]);
+  const stylesQuery = useStyles();
+  const createPreset = useCreateStylePreset();
+  const deletePresetMutation = useDeleteStylePreset();
+  const myPresets = useMemo(() => {
+    const shared = (stylesQuery.data ?? [])
+      .filter((entry) => entry.source === "custom")
+      .map((entry) => entry as unknown as StyleDoc);
+    const sharedIds = new Set(shared.map((doc) => doc.id));
+    return [...shared, ...localPresets.filter((doc) => !sharedIds.has(doc.id))];
+  }, [stylesQuery.data, localPresets]);
 
   const scope: PanelScope =
     selectedSegmentId === undefined
@@ -645,11 +671,35 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
       window.alert(result.error ?? "Could not save that preset.");
       return;
     }
-    setMyPresets(saveMyPreset(projectId, result.doc));
+    createPreset.mutate(
+      { doc: result.doc as unknown as Record<string, unknown> },
+      {
+        onError: (error) => {
+          window.alert(
+            isApiError(error) && error.status === 403
+              ? "Only editors and owners can save a look for the workspace."
+              : "That look could not be saved. Try again.",
+          );
+        },
+      },
+    );
   }
 
   function onDeletePreset(id: string): void {
-    setMyPresets(deleteMyPreset(projectId, id));
+    const shared = stylesQuery.data?.find((entry) => entry.source === "custom" && entry.id === id);
+    if (shared === undefined) {
+      setLocalPresets(deleteMyPreset(projectId, id));
+      return;
+    }
+    deletePresetMutation.mutate(shared.presetId, {
+      onError: (error) => {
+        window.alert(
+          isApiError(error) && error.status === 403
+            ? "Only an owner or admin can delete a look the whole workspace uses."
+            : "That look could not be deleted. Try again.",
+        );
+      },
+    });
   }
 
   // --- Audio (B10b) -------------------------------------------------------
@@ -1586,7 +1636,7 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
                       projection={projection}
                       {...(faceTrack === undefined ? {} : { faces: faceTrack })}
                       {...(stageImages === undefined ? {} : { images: stageImages })}
-                      catalogue={SYSTEM_STYLE_MAP}
+                      catalogue={catalogue}
                       script={script}
                       showSafeZones={safeZonesOn}
                       {...(selectedSegmentId === undefined ? {} : { selectedSegmentId })}
@@ -1705,7 +1755,7 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
                     projection={toRenderProjection(state)}
                     {...(faceTrack === undefined ? {} : { faces: faceTrack })}
                     {...(stageImages === undefined ? {} : { images: stageImages })}
-                    catalogue={SYSTEM_STYLE_MAP}
+                    catalogue={catalogue}
                     registry={registry}
                     shaper={shaper}
                   />
