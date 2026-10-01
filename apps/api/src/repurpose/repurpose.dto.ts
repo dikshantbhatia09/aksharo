@@ -14,8 +14,10 @@ import {
 } from "./repurpose.constants.js";
 import { STAGES } from "./repurpose.projection.js";
 import { ACTIVITY_STEPS } from "./run-activity.js";
+import { RUN_CAPTION_KINDS } from "./run-captions.js";
 import { MAX_SKIP_MS } from "./steering.js";
 import { zodDto } from "../common/index.js";
+import { IMPORT_MAX_BYTES } from "../projects/projects.constants.js";
 
 /**
  * Request and response shapes for `/repurpose/runs` (REP-006).
@@ -139,6 +141,37 @@ export const windowSetupSchema = z
     }
   });
 
+/**
+ * Captions the person already has for the video (2026-10-01, OpusClip's
+ * "upload SRT"): an SRT or WebVTT file picked on the form and sent as its text,
+ * or a link to one. The run then aligns them to the audio instead of paying
+ * for a transcription (`repurpose/run-captions.ts`). At most 2 MB, as the
+ * editor's subtitle import; whether the text really is SRT or VTT is the
+ * parser's call, at create, before anything is written.
+ */
+export const runCaptionsSetupSchema = z.discriminatedUnion("from", [
+  z
+    .object({
+      from: z.literal("file"),
+      kind: z.enum(RUN_CAPTION_KINDS),
+      content: z.string().min(1).max(IMPORT_MAX_BYTES),
+    })
+    .strict(),
+  z
+    .object({
+      from: z.literal("url"),
+      url: z
+        .string()
+        .trim()
+        .min(1)
+        .max(2_048)
+        .regex(/^https?:\/\//i, "A link to a caption file starts with https://."),
+      /** Left out, the link's own extension says (`.srt`, `.vtt`). */
+      kind: z.enum(RUN_CAPTION_KINDS).optional(),
+    })
+    .strict(),
+]);
+
 export const createRunSchema = z.object({
   source: createRunSourceSchema,
   setup: z.object({
@@ -176,6 +209,13 @@ export const createRunSchema = z.object({
      * or nothing is the artwork; a source with a picture never uses it.
      */
     audiogram: z.object({ coverAssetId: ulid }).strict().optional(),
+    /**
+     * Captions for the video the person already has (2026-10-01): aligned to
+     * the audio instead of transcribed, so finding the moments costs no
+     * credits. One video's own file, so never part of a saved default or a
+     * channel automation's setup.
+     */
+    captions: runCaptionsSetupSchema.optional(),
   }),
   /** Optional title; defaults to the source's safe display form. */
   title: shortLabel.optional(),
@@ -356,3 +396,4 @@ export type RunPage = z.infer<typeof runPageSchema>;
 export type CreateRunResponse = z.infer<typeof createRunResponseSchema>;
 export type NextWindowResponse = z.infer<typeof nextWindowResponseSchema>;
 export type WindowSetup = z.infer<typeof windowSetupSchema>;
+export type RunCaptionsSetup = z.infer<typeof runCaptionsSetupSchema>;

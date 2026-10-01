@@ -721,3 +721,100 @@ describe("<RepurposeNewView /> the workspace's own caption looks (2026-10-01)", 
     });
   });
 });
+
+describe("<RepurposeNewView /> with captions the person already has (2026-10-01)", () => {
+  const created = (): Response =>
+    json(201, {
+      run: { id: RUN_ID },
+      projectId: "01JPROJECT",
+      upload: null,
+      next: { rel: "run", href: `/repurpose/runs/${RUN_ID}` },
+    });
+  const SRT_TEXT = "1\n00:00:00,000 --> 00:00:02,000\nhello there\n";
+
+  beforeEach(() => {
+    routerMock.push.mockClear();
+    searchParamsMock.value = new URLSearchParams({
+      url: "youtube.com/watch?v=dQw4w9WgXcQ",
+      lang: "en",
+    });
+  });
+
+  it("sends the picked caption file's text with the run", async () => {
+    const user = userEvent.setup();
+    const { fetchMock } = renderWithProviders(<RepurposeNewView />, {
+      routes: { [RUNS]: created() },
+    });
+    await user.upload(
+      await screen.findByTestId("source-captions-input"),
+      new File([SRT_TEXT], "talk.srt"),
+    );
+    await startWithPrefilledLink();
+
+    await waitFor(() => {
+      expect(routerMock.push).toHaveBeenCalledWith(`/repurpose/${RUN_ID}`);
+    });
+    const [body] = createBodies(fetchMock) as [{ setup: Record<string, unknown> }];
+    expect(body.setup["captions"]).toEqual({ from: "file", kind: "srt", content: SRT_TEXT });
+  });
+
+  it("sends a link to a caption file", async () => {
+    const user = userEvent.setup();
+    const { fetchMock } = renderWithProviders(<RepurposeNewView />, {
+      routes: { [RUNS]: created() },
+    });
+    await user.type(
+      await screen.findByTestId("source-captions-url"),
+      "https://example.com/talk.vtt",
+    );
+    await startWithPrefilledLink();
+
+    await waitFor(() => {
+      expect(routerMock.push).toHaveBeenCalledWith(`/repurpose/${RUN_ID}`);
+    });
+    const [body] = createBodies(fetchMock) as [{ setup: Record<string, unknown> }];
+    expect(body.setup["captions"]).toEqual({
+      from: "url",
+      url: "https://example.com/talk.vtt",
+      kind: "vtt",
+    });
+  });
+
+  it("never lets the upload queue ask for a paid transcript of a captioned upload", async () => {
+    addFilesToProjects.mockClear();
+    const user = userEvent.setup();
+    searchParamsMock.value = new URLSearchParams({ source: "upload", lang: "en" });
+    const { fetchMock } = renderWithProviders(<RepurposeNewView />, {
+      routes: { [RUNS]: created() },
+    });
+    await user.upload(
+      screen.getByTestId("source-file"),
+      new File(["x"], "talk.mp4", { type: "video/mp4" }),
+    );
+    await user.upload(
+      screen.getByTestId("source-captions-input"),
+      new File([SRT_TEXT], "talk.srt"),
+    );
+    await user.click(screen.getByTestId("start-run"));
+
+    await waitFor(() => {
+      expect(addFilesToProjects).toHaveBeenCalledOnce();
+    });
+    const [, pick] = addFilesToProjects.mock.calls[0] as [unknown, Record<string, unknown>];
+    expect(pick).not.toHaveProperty("language");
+    const [body] = createBodies(fetchMock) as [{ setup: Record<string, unknown> }];
+    expect(body.setup["captions"]).toMatchObject({ from: "file", kind: "srt" });
+  });
+
+  it("sends no captions when none were given", async () => {
+    const { fetchMock } = renderWithProviders(<RepurposeNewView />, {
+      routes: { [RUNS]: created() },
+    });
+    await startWithPrefilledLink();
+    await waitFor(() => {
+      expect(routerMock.push).toHaveBeenCalledWith(`/repurpose/${RUN_ID}`);
+    });
+    const [body] = createBodies(fetchMock) as [{ setup: Record<string, unknown> }];
+    expect(body.setup).not.toHaveProperty("captions");
+  });
+});

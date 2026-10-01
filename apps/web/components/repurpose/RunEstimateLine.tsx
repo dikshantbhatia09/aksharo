@@ -18,6 +18,10 @@
  *
  * It never blocks the form: while the estimate loads, or if it fails, there
  * is no line, and the API checks the balance again when the run starts.
+ *
+ * With captions the person already has (2026-10-01) finding the clips is free:
+ * the captions are matched to the audio, not transcribed. The line says so,
+ * and only Autopilot's finished videos are priced.
  */
 import { Coins } from "lucide-react";
 import NextLink from "next/link";
@@ -26,6 +30,7 @@ import * as React from "react";
 import { spanPhrase } from "@/components/repurpose/failure-detail";
 import { formatClock } from "@/components/repurpose/moment-time";
 import { useRunEstimate, type RunEstimate } from "@/components/repurpose/results/use-results";
+import { givesCaptions } from "@/components/repurpose/run-captions";
 import { linkLinesOf, linksToSend } from "@/components/repurpose/several-links";
 import { normaliseSourceLink } from "@/components/repurpose/source-link";
 import {
@@ -78,6 +83,19 @@ export function estimateText(
       ? ""
       : `, then about ${String(finished.videos)} finished videos (${String(finished.clips)} clips in 4 sizes, captions burned in) for ${creditsText(finished.credits)}`;
   const minutes = spanPhrase(estimate.processMs);
+  if (estimate.captionsGiven === true) {
+    const then =
+      finished === null
+        ? "."
+        : `. Autopilot's ${String(finished.videos)} finished videos (${String(finished.clips)} clips in 4 sizes, captions burned in) cost ${input.known ? "about" : "up to"} ${creditsText(finished.credits)}.`;
+    return {
+      headline:
+        finished === null
+          ? `${each}free to find clips`
+          : `${each}${input.known ? "about" : "up to"} ${creditsText(estimate.totalCredits)}`,
+      detail: `Finding clips is free: your captions are matched to the audio instead of transcribed${then}`,
+    };
+  }
   if (input.known) {
     return {
       headline: `${each}about ${creditsText(estimate.totalCredits)}`,
@@ -115,6 +133,7 @@ export function RunEstimateLine({
     ...(durationMs === undefined ? {} : { durationMs }),
     automation: value.autopilot ? "auto" : "manual",
     ...(value.method === "ai" ? { clipLength: value.clipLength } : {}),
+    ...(givesCaptions(value) ? { captions: true } : {}),
     enabled: true,
   });
 
@@ -149,7 +168,7 @@ export function RunEstimateLine({
   const data = estimate.data;
   if (data === undefined) return null;
 
-  if (data.windowMs <= 0) {
+  if (data.windowMs <= 0 && data.captionsGiven !== true) {
     return (
       <p
         className="m-0 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-sm border border-border bg-surface px-3 py-2 text-sm text-fg-1"

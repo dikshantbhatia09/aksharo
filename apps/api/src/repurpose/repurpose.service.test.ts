@@ -84,6 +84,8 @@ interface Options {
   region?: string;
   /** Ids of the covers this workspace keeps (`brand_assets` of kind `cover`, 2026-10-04). */
   covers?: readonly string[];
+  /** The editor's subtitle import, which reads and stores a run's own captions (2026-10-01). */
+  captionImports?: unknown;
 }
 
 /** A RepurposeService over fakes, with the run held in memory like the table. */
@@ -227,6 +229,7 @@ function harness(options: Options = {}) {
     undefined,
     undefined,
     options.activity as never,
+    options.captionImports as never,
   );
 
   const reconciler = {
@@ -2202,5 +2205,175 @@ describe("reconcileRunSoon — a completion does not wait for its run's reconcil
     const h = harness();
     h.reconciler.reconcile.mockRejectedValueOnce(new Error("database gone"));
     await expect(h.service.reconcileRunSoon(RUN)).resolves.toBeUndefined();
+  });
+});
+
+describe("create — captions the person already has (2026-10-01)", () => {
+  const SUBTITLE = "01JCSUBT1TLE00000000000000";
+  const CUES = [
+    { index: 1, startMs: 0, endMs: 2_000, text: "hello there" },
+    { index: 2, startMs: 2_000, endMs: 4_000, text: "and welcome" },
+  ];
+  const upload = (setup: Record<string, unknown> = {}): never =>
+    ({
+      source: {
+        kind: "upload",
+        filename: "episode-12.mp4",
+        mime: "video/mp4",
+        sizeBytes: 1_000,
+        issueUploadTicket: false,
+      },
+      setup: {
+        sourceLanguage: "auto",
+        caption: { styleId: "punch-pop" },
+        discovery: { mode: "ai", requestedCandidates: 5 },
+        ...setup,
+      },
+    }) as never;
+
+  function imports(
+    cues: ReadonlyArray<{ index: number; startMs: number; endMs: number; text: string }> = CUES,
+  ) {
+    const parsed = { kind: "srt", timed: true, cues, warnings: [] };
+    return {
+      prepareInline: vi.fn(() => ({ parsed, sourceUrl: null })),
+      prepareFromUrl: vi.fn(async (url: string) => ({
+        parsed: { ...parsed, kind: "vtt" },
+        sourceUrl: url,
+      })),
+      stash: vi.fn(async () => ({
+        mediaId: SUBTITLE,
+        key: "k",
+        cueCount: cues.length,
+        kind: "srt",
+        language: "en",
+      })),
+    };
+  }
+
+  it("stores the file on the source project and names it on the run, asking for no transcription", async () => {
+    const captionImports = imports();
+    const h = harness({ captionImports });
+    await h.service.create(
+      WS,
+      USER,
+      upload({
+        captions: {
+          from: "file",
+          kind: "srt",
+          content: "1\n00:00:00,000 --> 00:00:02,000\nhello there\n",
+        },
+      }),
+    );
+
+    expect(captionImports.prepareInline).toHaveBeenCalledWith("srt", expect.any(String));
+    // A run asked to detect its language takes the captions' own: these are English.
+    expect(captionImports.stash).toHaveBeenCalledWith(WS, PROJECT, expect.anything(), "en");
+    expect(createdRunData(h)["config"]).toMatchObject({
+      captions: { subtitleMediaId: SUBTITLE, kind: "srt", cueCount: 2, from: "file" },
+    });
+    // The run's create starts nothing: the align waits for the audio, and no
+    // transcription is ever asked for here.
+    expect(h.jobs.enqueue).not.toHaveBeenCalled();
+  });
+
+  it("gives Devanagari captions Hindi, and keeps a language the person picked", async () => {
+    const hindi = imports([{ index: 1, startMs: 0, endMs: 2_000, text: "नमस्ते दोस्तों" }]);
+    await harness({ captionImports: hindi }).service.create(
+      WS,
+      USER,
+      upload({ captions: { from: "file", kind: "srt", content: "x" } }),
+    );
+    expect(hindi.stash).toHaveBeenCalledWith(WS, PROJECT, expect.anything(), "hi");
+
+    const picked = imports();
+    await harness({ captionImports: picked }).service.create(
+      WS,
+      USER,
+      upload({ sourceLanguage: "hi-Latn", captions: { from: "file", kind: "srt", content: "x" } }),
+    );
+    expect(picked.stash).toHaveBeenCalledWith(WS, PROJECT, expect.anything(), "hi-Latn");
+  });
+
+  it("fetches a linked file through the import, before the project exists", async () => {
+    const captionImports = imports();
+    const h = harness({ captionImports });
+    await h.service.create(
+      WS,
+      USER,
+      upload({ captions: { from: "url", url: "https://example.com/talk.vtt" } }),
+    );
+    expect(captionImports.prepareFromUrl).toHaveBeenCalledWith(
+      "https://example.com/talk.vtt",
+      undefined,
+    );
+    expect(createdRunData(h)["config"]).toMatchObject({ captions: { from: "url" } });
+  });
+
+  it("refuses a file with no words in it before anything is made", async () => {
+    const captionImports = imports([{ index: 1, startMs: 0, endMs: 2_000, text: "   " }]);
+    const h = harness({ captionImports });
+    await expect(
+      h.service.create(WS, USER, upload({ captions: { from: "file", kind: "srt", content: "x" } })),
+    ).rejects.toMatchObject({ code: "import/unparsable", httpStatus: 422 });
+    expect(h.projects.create).not.toHaveBeenCalled();
+    expect(captionImports.stash).not.toHaveBeenCalled();
+  });
+
+  it("refuses an unreadable file before anything is made", async () => {
+    const captionImports = imports();
+    captionImports.prepareInline.mockImplementation(() => {
+      throw new AppException(
+        "import/unparsable",
+        "That file could not be read as SRT.",
+        HttpStatus.UNPROCESSABLE_ENTITY,
+      );
+    });
+    const h = harness({ captionImports });
+    await expect(
+      h.service.create(WS, USER, upload({ captions: { from: "file", kind: "srt", content: "x" } })),
+    ).rejects.toMatchObject({ code: "import/unparsable" });
+    expect(h.projects.create).not.toHaveBeenCalled();
+  });
+
+  it("removes the project when storing the file fails", async () => {
+    const captionImports = imports();
+    captionImports.stash.mockRejectedValue(new Error("store down"));
+    const h = harness({ captionImports });
+    await expect(
+      h.service.create(WS, USER, upload({ captions: { from: "file", kind: "srt", content: "x" } })),
+    ).rejects.toThrow("store down");
+    expect(h.projects.softDelete).toHaveBeenCalledWith(WS, PROJECT);
+    expect(h.prisma.repurposeRun.create).not.toHaveBeenCalled();
+  });
+
+  it("downloads a link's whole plan window even when the balance would not pay for a transcription", async () => {
+    const h = harness({
+      captionImports: imports(),
+      balanceTenths: 0,
+      entitlements: { clipsWindowMs: 20 * MINUTE },
+    });
+    await h.service.create(
+      WS,
+      USER,
+      linkRun({ captions: { from: "file", kind: "srt", content: "x" } }),
+    );
+    expect(enqueued(h).type).toBe("media.acquire");
+    expect(enqueued(h).params.window).toEqual({ maxMs: 20 * MINUTE, policy: "most_replayed" });
+  });
+
+  it("still refuses a link without captions on the same balance", async () => {
+    const h = harness({ balanceTenths: 0 });
+    await expect(h.service.create(WS, USER, linkRun())).rejects.toMatchObject({
+      code: REPURPOSE_ERRORS.noCredits,
+    });
+  });
+
+  it("refuses captions where the import is not wired, rather than ignoring them", async () => {
+    const h = harness();
+    await expect(
+      h.service.create(WS, USER, upload({ captions: { from: "file", kind: "srt", content: "x" } })),
+    ).rejects.toBeInstanceOf(AppException);
+    expect(h.projects.create).not.toHaveBeenCalled();
   });
 });

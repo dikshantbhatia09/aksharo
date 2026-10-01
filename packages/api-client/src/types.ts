@@ -1512,6 +1512,16 @@ export interface CreateRepurposeRunRequest {
      * or nothing is the artwork.
      */
     audiogram?: { coverAssetId: string };
+    /**
+     * Captions the person already has for this video (2026-10-01, OpusClip's
+     * "upload SRT"): an SRT or WebVTT file sent as its text (at most 2 MB), or
+     * a link to one. The run aligns them to the audio instead of transcribing,
+     * so finding its moments costs no credits. One video's own: refused for a
+     * channel automation or several links.
+     */
+    captions?:
+      | { from: "file"; kind: "srt" | "vtt"; content: string }
+      | { from: "url"; url: string; kind?: "srt" | "vtt" };
   };
   title?: string;
 }

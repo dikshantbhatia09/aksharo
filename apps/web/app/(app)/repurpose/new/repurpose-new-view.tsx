@@ -30,6 +30,10 @@
  * before any run is created, so every run it is for can name it
  * (`setup.audiogram.coverAssetId`); a cover the API refuses stops the start
  * with its reason, and nothing is created.
+ *
+ * Captions the person already has (2026-10-01): for one video, the picked SRT
+ * or VTT file is read here and sent with the run as its text (or the link to
+ * one is sent), and the run aligns them instead of transcribing.
  */
 import { useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
@@ -50,6 +54,7 @@ import { AUTOMATIONS_FLAG, useBulkRuns } from "@/components/repurpose/automation
 import { SOURCE_CEILING_MS } from "@/components/repurpose/failure-detail";
 import { describeRefusal } from "@/components/repurpose/refusal";
 import { useRunDefaults } from "@/components/repurpose/results/use-results";
+import { captionsToSend, givesCaptions } from "@/components/repurpose/run-captions";
 import {
   carriesSetup,
   recallAutopilot,
@@ -255,8 +260,12 @@ export function RepurposeNewView(): React.JSX.Element {
 
   /** The queue's quick pick for uploads started here. */
   const quickPick = (): Parameters<typeof uploads.addFilesToProjects>[1] => {
+    // A run with its own captions (2026-10-01) is never transcribed: the queue
+    // is not given a language, so it asks for no paid transcript either.
     const pickedLanguage =
-      value.sourceLanguage === DETECT_LANGUAGE ? undefined : value.sourceLanguage;
+      value.sourceLanguage === DETECT_LANGUAGE || givesCaptions(value)
+        ? undefined
+        : value.sourceLanguage;
     return {
       aspect: "9:16",
       // A picked language lets the queue ask for the transcript the moment
@@ -401,17 +410,28 @@ export function RepurposeNewView(): React.JSX.Element {
       // Only with a start: no window leaves the choice to the server.
       ...(startMs === undefined ? {} : { window: { startMs, policy: "range" as const } }),
     };
-    // An audio file's cover goes up first (2026-10-04); none, and this is the
-    // same start as ever.
-    if (value.tab === "upload" && coverToSend(value) !== null) {
-      setStartingFiles(true);
-      void coverFirst().then((cover) => {
+    // The person's own captions (2026-10-01) are read from the file first; a
+    // file that cannot be read stops the start with a plain reason.
+    setStartingFiles(true);
+    void captionsToSend(sent)
+      .then((captions) => {
+        const captioned = captions === undefined ? setup : { ...setup, captions };
+        // An audio file's cover goes up first (2026-10-04); none, and this is
+        // the same start as ever.
+        if (value.tab === "upload" && coverToSend(value) !== null) {
+          void coverFirst().then((cover) => {
+            setStartingFiles(false);
+            if (cover !== null) startOne(source, withCover(captioned, cover), sent);
+          });
+          return;
+        }
         setStartingFiles(false);
-        if (cover !== null) startOne(source, withCover(setup, cover), sent);
+        startOne(source, captioned, sent);
+      })
+      .catch(() => {
+        setStartingFiles(false);
+        setServerError("That caption file could not be read. Choose it again, or remove it.");
       });
-      return;
-    }
-    startOne(source, setup, sent);
   };
 
   /** Creates the one run the form describes, and goes to it. */

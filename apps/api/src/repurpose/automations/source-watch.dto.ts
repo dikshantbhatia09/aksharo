@@ -57,6 +57,16 @@ export const watchSetupSchema = runSetupSchema.superRefine((setup, context) => {
       message: "A channel's videos have pictures of their own. A cover is for an audio file.",
     });
   }
+  // 2026-10-01: a caption file is written for one video, never for a channel's
+  // next upload.
+  if (setup.captions !== undefined) {
+    context.addIssue({
+      code: "custom",
+      path: ["captions"],
+      message:
+        "A caption file belongs to one video. A channel's videos are each captioned for you.",
+    });
+  }
 });
 export type WatchSetup = z.infer<typeof watchSetupSchema>;
 
@@ -164,6 +174,14 @@ export const bulkRunsSchema = z.object({
         code: "custom",
         path: ["window", "startMs"],
         message: "A start time belongs to one video. Start the runs without one.",
+      });
+    }
+    // 2026-10-01: so is a caption file.
+    if (setup.captions !== undefined) {
+      context.addIssue({
+        code: "custom",
+        path: ["captions"],
+        message: "A caption file belongs to one video. Start the runs without one.",
       });
     }
   }),

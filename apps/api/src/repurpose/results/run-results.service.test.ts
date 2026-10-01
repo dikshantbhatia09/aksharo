@@ -249,6 +249,26 @@ describe("estimate", () => {
     expect(estimate).toMatchObject({ processMs: 20 * 60_000, processCredits: 20, trimmed: false });
   });
 
+  // 2026-10-01: the person's own captions are aligned, not transcribed.
+  it("prices finding moments at nothing when the run brings its own captions", async () => {
+    const h = harness({ budget: { windowMs: 0, availableTenths: 0 } });
+    const estimate = await h.service.estimate(WS, {
+      durationMs: 10 * 60_000,
+      automation: "manual",
+      captions: "1",
+    });
+    expect(estimate).toMatchObject({
+      captionsGiven: true,
+      processMs: 10 * 60_000,
+      processCredits: 0,
+      totalCredits: 0,
+      // The balance does not cut the window when the minutes are free.
+      windowMs: 20 * 60_000,
+    });
+    const without = await h.service.estimate(WS, { durationMs: 10 * 60_000, automation: "manual" });
+    expect(without).toMatchObject({ captionsGiven: false, windowMs: 0 });
+  });
+
   it("is not there while the clips surface is off", async () => {
     const h = harness({ flow: false });
     await expect(h.service.estimate(WS, { automation: "auto" })).rejects.toMatchObject({

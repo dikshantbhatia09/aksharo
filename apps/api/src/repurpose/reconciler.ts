@@ -43,6 +43,7 @@ import {
 } from "./repurpose.constants.js";
 import { progressForStatus, stageForStatus } from "./repurpose.projection.js";
 import { RepurposeService, isRefusal, isUniqueViolation } from "./repurpose.service.js";
+import { runCaptionsOf } from "./run-captions.js";
 import { RunNotifier } from "./run-notifications.js";
 import { MAX_BLOCKED_FETCHES, SOURCE_BLOCKED_REASON, SourceGate } from "./source-gate.js";
 import { AppException, ERROR_CODES } from "../common/errors/error-codes.js";
@@ -155,7 +156,8 @@ export interface RunSnapshot {
   readonly canRefetch: boolean;
   readonly transcriptId: string | null;
   /**
-   * The newest `ai.transcribe` for that media row — unless it ended before the
+   * The newest `ai.transcribe` for that media row (or `ai.align`, for a run
+   * started with its own captions) — unless it ended before the
    * run was last written, which means the run has already answered for it
    * (it failed the run, and a retry has reopened it since).
    */
@@ -1381,6 +1383,10 @@ export class RepurposeReconciler
 
     const attemptedAt = new Date();
     if ((await this.autoTranscribe.maybeEnqueue(media.id)) !== undefined) return "queued";
+    // A run started with its own captions (2026-10-01) spends no credits on
+    // this step: nothing queued means the align is waiting for a lane slot or
+    // a queue that is back, never that the balance is short.
+    if (runCaptionsOf(run) !== null) return "deferred";
 
     // `finished_at`, not `queued_at`: the enqueue's failure path stamps it from
     // this process's clock, the same one `attemptedAt` came from.
@@ -1491,9 +1497,12 @@ export class RepurposeReconciler
             type: { in: ["media.probe", "media.proxy"] },
             jobKey: { in: [MEDIA_JOB_KEYS.probe(media.id), MEDIA_JOB_KEYS.proxy(media.id)] },
           }),
+      // `ai.align` too (2026-10-01): a run started with its own captions has
+      // them aligned to the audio instead of transcribed, and that job is its
+      // transcription step - running, failed or stalled on the same terms.
       media === null || transcript !== null
         ? none()
-        : newest({ projectId: run.sourceProjectId, type: "ai.transcribe" }),
+        : newest({ projectId: run.sourceProjectId, type: { in: ["ai.transcribe", "ai.align"] } }),
       transcript === null
         ? none()
         : newest({

@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 
 import { MemoryGlossarySource } from "./postprocess/index.js";
+import { RunCaptionsAligner } from "./run-captions.aligner.js";
 import { TranscribeCompletionHandler } from "./transcribe.handler.js";
 import { TranscriptDocumentService } from "./transcript-document.service.js";
 import { TranscriptsController } from "./transcripts.controller.js";
@@ -45,6 +46,7 @@ import { WorkspaceMemberGuard } from "../workspaces/workspace-member.guard.js";
     TranscribeCompletionHandler,
     TranscriptDocumentService,
     MediaProbeRestart,
+    RunCaptionsAligner,
     MemoryGlossarySource,
     WorkspaceMemberGuard,
     { provide: CAPTION_RENDER_CONTEXT, useFactory: captionRenderContext },
@@ -55,6 +57,9 @@ import { WorkspaceMemberGuard } from "../workspaces/workspace-member.guard.js";
     TranscriptDocumentService,
     // For Autopilot's shapes whose media broke off mid-pipeline (2026-09-29).
     MediaProbeRestart,
+    // For every binding of `AutoTranscribeTrigger`: a clips run started with
+    // its own captions aligns them instead of transcribing (2026-10-01).
+    RunCaptionsAligner,
   ],
 })
 export class TranscriptsModule {}

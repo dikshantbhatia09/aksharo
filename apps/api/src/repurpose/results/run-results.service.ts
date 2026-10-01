@@ -46,8 +46,13 @@ export interface RunEstimate {
   readonly processMs: number;
   /** The video is longer than what would be processed (only known for an upload). */
   readonly trimmed: boolean;
-  /** Finding moments: transcription of what is processed, 1 credit a minute. */
+  /** Finding moments: transcription of what is processed, 1 credit a minute; 0 with captions. */
   readonly processCredits: number;
+  /**
+   * The run starts with the person's own captions (2026-10-01), so finding its
+   * moments costs nothing: they are aligned to the audio, not transcribed.
+   */
+  readonly captionsGiven: boolean;
   /**
    * Autopilot's finished videos, roughly: about one clip per two minutes, each
    * in four shapes with captions burned in, at the cloud render rate. Null on
@@ -299,8 +304,15 @@ export class RepurposeResultsService {
     await this.assertAvailable(workspaceId);
     const budget = await this.runs.budgetView(workspaceId);
     const wanted = input.durationMs ?? budget.planWindowMs;
-    const processMs = Math.min(wanted, budget.windowMs);
-    const processCredits = creditsOf(quote("transcription", processMs / 60_000).costTenths);
+    // With the person's own captions the minutes are not paid for, so the
+    // balance does not cut the window: the plan's is the run's, as a create
+    // with captions sizes it (`RepurposeService.acquisitionBudget`).
+    const captionsGiven = input.captions === "1";
+    const windowMs = captionsGiven ? budget.planWindowMs : budget.windowMs;
+    const processMs = Math.min(wanted, windowMs);
+    const processCredits = captionsGiven
+      ? 0
+      : creditsOf(quote("transcription", processMs / 60_000).costTenths);
     let finishedVideos: RunEstimate["finishedVideos"] = null;
     if (input.automation === "auto" && processMs > 0) {
       const clips = autopilotClipCount(processMs);
@@ -315,11 +327,12 @@ export class RepurposeResultsService {
     return {
       creditsLeft: creditsOf(Math.max(0, budget.availableTenths)),
       planWindowMs: budget.planWindowMs,
-      windowMs: budget.windowMs,
+      windowMs,
       maxSourceDurationMs: budget.maxSourceDurationMs,
       processMs,
       trimmed: input.durationMs !== undefined && input.durationMs > processMs,
       processCredits,
+      captionsGiven,
       finishedVideos,
       totalCredits: Math.ceil(processCredits + (finishedVideos?.credits ?? 0)),
     };

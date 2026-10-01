@@ -38,6 +38,8 @@ export interface RunEstimate {
   readonly processMs: number;
   readonly trimmed: boolean;
   readonly processCredits: number;
+  /** The run brings its own captions (2026-10-01): finding moments is free. */
+  readonly captionsGiven?: boolean;
   readonly finishedVideos: {
     readonly clips: number;
     readonly videos: number;
@@ -187,6 +189,8 @@ export function useRunEstimate(input: {
   readonly durationMs?: number;
   readonly automation: "auto" | "manual";
   readonly clipLength?: "short" | "medium" | "long";
+  /** The run brings its own captions (2026-10-01), so its minutes are not paid for. */
+  readonly captions?: boolean;
   readonly enabled: boolean;
 }): UseQueryResult<RunEstimate> {
   const client = useApiClient();
@@ -196,6 +200,7 @@ export function useRunEstimate(input: {
     query["durationMs"] = String(Math.round(input.durationMs));
   }
   if (input.clipLength !== undefined) query["clipLength"] = input.clipLength;
+  if (input.captions === true) query["captions"] = "1";
   return useQuery({
     queryKey: ["run-estimate", workspaceId ?? "none", query],
     enabled: input.enabled && workspaceId !== null,

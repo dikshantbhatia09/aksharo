@@ -1,6 +1,7 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { Injectable, Logger, Optional } from "@nestjs/common";
 
 import { firstTranscriptionCanStart, firstTranscriptionJobKey } from "./first-transcription.js";
+import { RunCaptionsAligner } from "./run-captions.aligner.js";
 import { TranscriptDocumentService } from "./transcript-document.service.js";
 import { TranscriptsService } from "./transcripts.service.js";
 import { PrismaService } from "../common/prisma/prisma.service.js";
@@ -91,6 +92,14 @@ const TRANSCRIPT_PRODUCERS = ["ai.transcribe", "ai.align"] as const;
  * - A start that finds the media `failed` just after its job was written stops
  *   that job again ({@link stopIfMediaFailed}): the proxy's failure handler
  *   stops what it can see, and this closes the moment it cannot.
+ * - A clips run started with captions the person already has (2026-10-01,
+ *   `repurpose/run-captions.ts`) is not transcribed at all: the same moment
+ *   asks `RunCaptionsAligner` to align those captions to the audio instead,
+ *   free, under the same early-start and first-attempt rules. Only captions
+ *   that turn out unusable (gone, unreadable, or none inside the part of the
+ *   video the run processes) fall through to the paid start below, so the run
+ *   still finds its moments - and that is logged, because the start form said
+ *   it would be free.
  * - Nothing here can fail the proxy job or the write-back. A workspace out of
  *   credits, or one that never chose a language, simply gets no automatic start;
  *   the failure is logged and the editor still offers to start transcription by
@@ -105,6 +114,8 @@ export class AutoTranscribeTrigger {
     private readonly transcripts: TranscriptsService,
     private readonly documents: TranscriptDocumentService,
     private readonly jobs: JobsService,
+    /** Absent in hand-built harnesses: every project is then transcribed as before. */
+    @Optional() private readonly captions?: RunCaptionsAligner,
   ) {}
 
   /**
@@ -164,6 +175,25 @@ export class AutoTranscribeTrigger {
       return undefined;
     }
 
+    const early = media.status !== "ready";
+    if (this.captions !== undefined) {
+      const seeded = await this.captions.maybeEnqueue(project, media.id, {
+        early,
+        ...(options.firstAttemptOnly === undefined
+          ? {}
+          : { firstAttemptOnly: options.firstAttemptOnly }),
+        laneHasRoomToSpare: () => this.laneHasRoomToSpare(project.workspaceId),
+      });
+      if (seeded.kind === "queued") return { jobId: seeded.jobId };
+      if (seeded.kind === "waiting") return undefined;
+      if (seeded.kind === "unusable") {
+        this.logger.warn(
+          { projectId: project.id, mediaId: media.id, reason: seeded.reason },
+          "the run's own captions cannot be used; transcribing the video instead",
+        );
+      }
+    }
+
     // `createdBy` is nullable, and the credit hold has to be attributable to a
     // person; without one there is nobody to charge, so leave it to the editor.
     if (project.createdBy === null) return undefined;
@@ -179,7 +209,6 @@ export class AutoTranscribeTrigger {
       return undefined;
     }
 
-    const early = media.status !== "ready";
     if (options.firstAttemptOnly === true || early) {
       const earlier = await this.firstTranscriptions(project.workspaceId, project.id, media.id);
       // Asked again while the first ask's job is open: that job is the answer.

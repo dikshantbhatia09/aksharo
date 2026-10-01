@@ -53,6 +53,7 @@ import {
   windowView,
 } from "./repurpose.projection.js";
 import { RunActivityReader } from "./run-activity.reader.js";
+import { captionsLanguageOf, runCaptionsOf } from "./run-captions.js";
 import { MAX_BLOCKED_FETCHES, SOURCE_BLOCKED_REASON, SourceGate } from "./source-gate.js";
 import { SOURCE_REJECTION_MESSAGES, parseSourceUrl } from "./source-url.js";
 import {
@@ -71,8 +72,10 @@ import { CREDITS_FACADE, type CreditsFacade } from "../credits/credits.facade.js
 import { PLAN_ENQUEUED_CAP_TENTHS } from "../jobs/jobs.config.js";
 import { JobsService } from "../jobs/jobs.service.js";
 import { resolveWorkspacePlan } from "../jobs/plan.js";
+import { SubtitleImportService } from "../media/import/subtitle-import.service.js";
 import { MediaService } from "../media/media.service.js";
 import { clipsLimitsFor } from "../projects/plan-limits.js";
+import { IMPORT_ERRORS } from "../projects/projects.constants.js";
 import { ProjectsService } from "../projects/projects.service.js";
 import { workspaceRoom } from "../realtime/realtime.protocol.js";
 import { RealtimePublisher } from "../realtime/realtime.publisher.js";
@@ -93,6 +96,8 @@ import type {
 } from "./repurpose.dto.js";
 import type { Stage } from "./repurpose.projection.js";
 import type { ActivityResult } from "./run-activity.js";
+import type { RunCaptions } from "./run-captions.js";
+import type { PreparedSubtitles } from "../media/import/subtitle-import.service.js";
 import type { AcquisitionProject } from "../media/media.service.js";
 import type { PlanClipsLimits } from "../projects/plan-limits.js";
 import type { $Enums, RepurposeRun } from "@prisma/client";
@@ -463,6 +468,11 @@ export class RepurposeService {
     @Optional() private readonly gate?: SourceGate,
     /** The step a run is on and its real progress (`run-activity.ts`); absent in harnesses. */
     @Optional() private readonly activity?: RunActivityReader,
+    /**
+     * Reads and stores the captions a run is started with (2026-10-01); absent
+     * in hand-built harnesses, where a run asking for captions is refused.
+     */
+    @Optional() private readonly captionImports?: SubtitleImportService,
   ) {}
 
   /** Called once, at boot, by `RepurposeReconciler` (see {@link RunReconciler}). */
@@ -655,13 +665,97 @@ export class RepurposeService {
     const source = await this.resolveSource(workspaceId, input);
     await this.assertStyleExists(workspaceId, input.setup.caption.styleId);
     await this.assertCoverExists(workspaceId, input.setup.audiogram?.coverAssetId);
+    // Captions the person already has (2026-10-01): read and parsed - fetched,
+    // for a link - here, so a file that cannot be read refuses the run before
+    // anything exists. Only the parsed cues travel on; nothing is stored yet.
+    const captions = await this.prepareCaptions(input);
     // A link starts downloading the moment the run exists, so how much of it to
     // process - and whether the balance pays for a minute of it - is settled
     // here too. An upload's length is only known once its probe has run, and
-    // its transcription is refused for credits then, as any upload's is.
-    const budget = source.normalizedUrl === null ? null : await this.acquisitionBudget(workspaceId);
+    // its transcription is refused for credits then, as any upload's is. A run
+    // with its own captions pays nothing for that step, so its window is the
+    // plan's and the balance does not cut it.
+    const budget =
+      source.normalizedUrl === null
+        ? null
+        : await this.acquisitionBudget(workspaceId, { freeTranscription: captions !== null });
 
-    return this.startRun(workspaceId, userId, input, source, budget, origin);
+    return this.startRun(workspaceId, userId, input, source, budget, {
+      ...origin,
+      ...(captions === null ? {} : { captions }),
+    });
+  }
+
+  /**
+   * The run's own captions read and checked, or `null` when it has none
+   * (2026-10-01, OpusClip's "upload SRT").
+   *
+   * Through the editor's subtitle import (S-03) so the rules are one set: the
+   * 2 MB cap, the parser, and for a link `safeFetch` (THREAT-MODEL **T6**) with
+   * its refusals in the import's own codes. Only SRT and WebVTT get here (the
+   * schema), and a file whose cues carry no words at all is refused now rather
+   * than aligned to nothing later.
+   *
+   * @throws AppException 413 `import/too_large`, 422 `import/unparsable`, and
+   *   the import's fetch refusals for a link.
+   */
+  private async prepareCaptions(input: CreateRunInput): Promise<PreparedSubtitles | null> {
+    const wanted = input.setup.captions;
+    if (wanted === undefined) return null;
+    if (this.captionImports === undefined) {
+      throw new AppException(
+        REPURPOSE_ERRORS.sourceUnsupported,
+        "Starting with your own captions is not available here.",
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+    const prepared =
+      wanted.from === "file"
+        ? this.captionImports.prepareInline(wanted.kind, wanted.content)
+        : await this.captionImports.prepareFromUrl(wanted.url, wanted.kind);
+    if (!prepared.parsed.cues.some((cue) => cue.text.trim() !== "")) {
+      throw new AppException(
+        IMPORT_ERRORS.unparsable,
+        "That caption file has no words in it.",
+        HttpStatus.UNPROCESSABLE_ENTITY,
+        { kind: prepared.parsed.kind },
+      );
+    }
+    return prepared;
+  }
+
+  /**
+   * Store prepared captions for the run's source project, as the editor's
+   * import stores a file (a sidecar and a `subtitle` media row), and return
+   * what the run's frozen config keeps about them (`RunCaptions`). The
+   * language the cues are written in is settled here: a run asked to detect
+   * its language gives the transcript the captions' own (`captionsLanguageOf`).
+   */
+  private async stashCaptions(
+    workspaceId: string,
+    projectId: string,
+    prepared: PreparedSubtitles,
+    input: CreateRunInput,
+  ): Promise<RunCaptions> {
+    if (this.captionImports === undefined) {
+      throw new Error("captions were prepared without a subtitle import service");
+    }
+    const kind = prepared.parsed.kind;
+    if (kind !== "srt" && kind !== "vtt") {
+      throw new Error(`a run cannot start with ${kind} captions`);
+    }
+    const stashed = await this.captionImports.stash(
+      workspaceId,
+      projectId,
+      prepared,
+      captionsLanguageOf(input.setup.sourceLanguage, prepared.parsed.cues),
+    );
+    return {
+      subtitleMediaId: stashed.mediaId,
+      kind,
+      cueCount: stashed.cueCount,
+      from: prepared.sourceUrl === null ? "file" : "url",
+    };
   }
 
   /**
@@ -729,8 +823,17 @@ export class RepurposeService {
 
   private async acquisitionBudget(
     workspaceId: string,
-    exceptRunId?: string,
+    options: {
+      readonly exceptRunId?: string;
+      /**
+       * The run aligns its own captions instead of transcribing (2026-10-01):
+       * the step this budget pays for is free, so the window is the plan's and
+       * nothing is refused for credits.
+       */
+      readonly freeTranscription?: boolean;
+    } = {},
   ): Promise<AcquisitionBudget> {
+    const exceptRunId = options.exceptRunId;
     const [entitlement, plan, account, pendingTenths] = await Promise.all([
       this.entitlements.forWorkspace(workspaceId),
       resolveWorkspacePlan(this.prisma, workspaceId),
@@ -741,6 +844,7 @@ export class RepurposeService {
       this.pendingTranscriptionTenths(workspaceId, exceptRunId),
     ]);
     const limits = clipsLimitsFor(entitlement);
+    if (options.freeTranscription === true) return { windowMs: limits.clipsWindowMs, limits };
     const balanceTenths = account?.balanceTenths ?? 0;
     const availableTenths = balanceTenths - pendingTenths;
     const windowMs = runWindowMs({
@@ -783,10 +887,12 @@ export class RepurposeService {
         status: { in: [...PRE_CANDIDATE_STATUSES] },
         ...(exceptRunId === undefined ? {} : { id: { not: exceptRunId } }),
       },
-      select: { sourceProjectId: true },
+      select: { sourceProjectId: true, config: true },
     });
-    if (runs.length === 0) return 0;
-    const projectIds = [...new Set(runs.map((run) => run.sourceProjectId))];
+    // A run aligning its own captions (2026-10-01) will take nothing for it.
+    const paying = runs.filter((run) => runCaptionsOf(run) === null);
+    if (paying.length === 0) return 0;
+    const projectIds = [...new Set(paying.map((run) => run.sourceProjectId))];
 
     const [transcripts, transcriptions, media, downloads] = await Promise.all([
       this.prisma.transcript.findMany({
@@ -871,6 +977,8 @@ export class RepurposeService {
       readonly nextWindowOf?: string;
       /** The source's length, when an earlier run of it measured it. */
       readonly sourceDurationMs?: number;
+      /** The run's own captions, read and checked by `create` (2026-10-01). */
+      readonly captions?: PreparedSubtitles;
     } = {},
   ): Promise<CreateRunResponse> {
     const runId = ulid();
@@ -905,6 +1013,14 @@ export class RepurposeService {
                 : { contentHash: input.source.contentHash }),
             })
           : null;
+
+      // The captions are stored as the editor's import stores a file - a
+      // sidecar and a `subtitle` media row of this project - so the project's
+      // cascade and retention cover them; the run names only that row.
+      const captions =
+        origin.captions === undefined
+          ? null
+          : await this.stashCaptions(workspaceId, project.id, origin.captions, input);
 
       run = await this.prisma.repurposeRun.create({
         data: {
@@ -954,6 +1070,9 @@ export class RepurposeService {
             ...(input.setup.audiogram === undefined
               ? {}
               : { audiogram: { coverAssetId: input.setup.audiogram.coverAssetId } }),
+            // The person's own captions (`runCaptionsOf`, 2026-10-01): only when
+            // given. Aligned to the audio instead of a paid transcription.
+            ...(captions === null ? {} : { captions: { ...captions } }),
             // Formats and enhancements are chosen at Stage 3; the snapshot records
             // the defaults the run started from so a later change to those defaults
             // cannot reinterpret this run (§6.9).
@@ -1387,7 +1506,10 @@ export class RepurposeService {
     }
     // This run's own earlier window is not a claim on the balance: this fetch
     // replaces it.
-    const budget = await this.acquisitionBudget(run.workspaceId, run.id);
+    const budget = await this.acquisitionBudget(run.workspaceId, {
+      exceptRunId: run.id,
+      freeTranscription: runCaptionsOf(run) !== null,
+    });
     return this.startAcquisition(
       run.workspaceId,
       project,
