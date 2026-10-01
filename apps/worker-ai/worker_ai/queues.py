@@ -47,6 +47,7 @@ QUEUE_NAMES: Final[tuple[str, ...]] = (
     "ai.highlights",
     "ai.faces",
     "ai.dub",
+    "ai.voiceover",
     "render.video",
     "render.subtitle",
     "render.compilation",
@@ -80,6 +81,7 @@ IMPLEMENTED_AI_QUEUES: Final[tuple[str, ...]] = (
     "ai.highlights",
     "ai.faces",
     "ai.dub",
+    "ai.voiceover",
 )
 
 AI_TRANSCRIBE_QUEUE: Final[str] = "ai.transcribe"

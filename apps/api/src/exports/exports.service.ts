@@ -50,7 +50,11 @@ import {
   acceptedWorkspaceMusicAssetIds,
   resolveMusicTracks,
 } from "../passes/music-tracks.js";
-import { acceptedSfxAssetIds, resolveSfxTracks } from "../passes/sfx-tracks.js";
+import {
+  acceptedSfxAssetIds,
+  acceptedVoiceoverAssetIds,
+  resolveSfxTracks,
+} from "../passes/sfx-tracks.js";
 import { EXPORT_COMPLETED_EVENT } from "../referrals/export-completed.event.js";
 import { EntitlementService } from "../workspaces/entitlement.service.js";
 
@@ -287,7 +291,13 @@ export class ExportsService {
     const sfxStorageKeys = await this.audioAssets.findStorageKeysByIds(
       acceptedSfxAssetIds(allItems),
     );
-    const sfxTracks = resolveSfxTracks(allItems, sfxStorageKeys);
+    // A voice-over hook (2026-10-01) is a cue whose asset is the workspace's own
+    // made voice-over, looked up there and only there.
+    const voiceoverKeys = await this.voiceoverStorageKeys(
+      input.workspaceId,
+      acceptedVoiceoverAssetIds(allItems),
+    );
+    const sfxTracks = resolveSfxTracks(allItems, sfxStorageKeys, voiceoverKeys);
 
     // D05: same split as sfx above, one kind lower — a storage-key lookup
     // then a pure projection into the manifest's `timemap.audio.music`
@@ -784,6 +794,27 @@ export class ExportsService {
       ...(cleanedAudioUrl === undefined ? {} : { cleanedAudioUrl }),
       ...(Object.keys(cueUrls).length === 0 ? {} : { cueUrls }),
     };
+  }
+
+  /**
+   * The stored file of each voice-over hook (2026-10-01, `repurpose/voiceover`)
+   * a document's cues name, by its id: only the workspace's own, and only one
+   * that was made and not taken off. A cue whose voice-over is anything else
+   * resolves to nothing and is left out of the manifest, as an unknown
+   * catalogue asset already is.
+   */
+  private async voiceoverStorageKeys(
+    workspaceId: string,
+    ids: readonly string[],
+  ): Promise<Map<string, string>> {
+    if (ids.length === 0) return new Map();
+    const rows = await this.prisma.clipVoiceover.findMany({
+      where: { id: { in: [...ids] }, workspaceId, status: "ready", audioKey: { not: null } },
+      select: { id: true, audioKey: true },
+    });
+    const keys = new Map<string, string>();
+    for (const row of rows) if (row.audioKey !== null) keys.set(row.id, row.audioKey);
+    return keys;
   }
 
   /**

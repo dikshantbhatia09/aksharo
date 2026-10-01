@@ -31336,6 +31336,180 @@
         ]
       }
     },
+    "/repurpose/runs/{runId}/voiceovers": {
+      "get": {
+        "description": "`enabled` says whether voice-overs are on for this workspace. Each clip offers its hook line and language; each voice-over its words, voice, status and a link to listen.",
+        "operationId": "listRepurposeVoiceovers",
+        "parameters": [
+          {
+            "name": "runId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "`{runId, enabled, tenthsPerVoiceover, maxTextChars, speakers, clips, voiceovers}`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "The run's voice-over hooks, and what each clip would say",
+        "tags": [
+          "repurpose"
+        ]
+      }
+    },
+    "/repurpose/runs/{runId}/clips/{clipId}/voiceovers": {
+      "post": {
+        "description": "The clip's hook line (or `text`) read by a stock voice in the clip's language, laid at the start of every shape with the clip's own sound turned down under it. 201 with the new voice-over, 200 with the one the clip already has for the same words. Holds 2 credits. Refusals: 403 `voiceover/not_enabled`, 400 `voiceover/no_text`, 409 `voiceover/clip_not_ready` / `voiceover/language_unsupported` / `voiceover/already_has`, 402 `voiceover/no_credits`, 429 `voiceover/too_many` / `voiceover/budget_reached`, 503 `voiceover/budget_unavailable`.",
+        "operationId": "createRepurposeVoiceover",
+        "parameters": [
+          {
+            "name": "runId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "clipId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "text": {
+                    "type": "string",
+                    "minLength": 2,
+                    "maxLength": 300
+                  },
+                  "speaker": {
+                    "type": "string",
+                    "enum": [
+                      "anushka",
+                      "manisha",
+                      "vidya",
+                      "arya",
+                      "abhilash",
+                      "karun",
+                      "hitesh"
+                    ]
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Add a spoken hook to the start of a clip",
+        "tags": [
+          "repurpose"
+        ]
+      }
+    },
+    "/repurpose/runs/{runId}/voiceovers/{voiceoverId}/retry": {
+      "post": {
+        "description": "409 `voiceover/not_retryable` for one that did not fail, or that the voice service refused.",
+        "operationId": "retryRepurposeVoiceover",
+        "parameters": [
+          {
+            "name": "runId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "voiceoverId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Make a voice-over again after a failure",
+        "tags": [
+          "repurpose"
+        ]
+      }
+    },
+    "/repurpose/runs/{runId}/voiceovers/{voiceoverId}/remove": {
+      "post": {
+        "description": "Its sound is taken off every shape (the captioned videos are made again without it); one still being made is stopped and its credits come back.",
+        "operationId": "removeRepurposeVoiceover",
+        "parameters": [
+          {
+            "name": "runId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "voiceoverId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Take a voice-over off its clip",
+        "tags": [
+          "repurpose"
+        ]
+      }
+    },
     "/repurpose/covers": {
       "post": {
         "description": "For a run started from an audio file: its clips are drawn with this as their artwork. A presigned PUT; upload the bytes with the same `Content-Type`, then call `complete`. 413 `repurpose/cover_too_large`.",
@@ -37965,6 +38139,7 @@
               "ai.highlights",
               "ai.faces",
               "ai.dub",
+              "ai.voiceover",
               "render.video",
               "render.subtitle",
               "render.compilation",
@@ -39029,6 +39204,7 @@
               "ai.highlights",
               "ai.faces",
               "ai.dub",
+              "ai.voiceover",
               "render.video",
               "render.subtitle",
               "render.compilation",
@@ -39149,6 +39325,7 @@
               "ai.highlights",
               "ai.faces",
               "ai.dub",
+              "ai.voiceover",
               "render.video",
               "render.subtitle",
               "render.compilation",
@@ -39323,6 +39500,7 @@
               "ai.highlights",
               "ai.faces",
               "ai.dub",
+              "ai.voiceover",
               "render.video",
               "render.subtitle",
               "render.compilation",
@@ -39374,6 +39552,7 @@
               "ai.highlights",
               "ai.faces",
               "ai.dub",
+              "ai.voiceover",
               "render.video",
               "render.subtitle",
               "render.compilation",

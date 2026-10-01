@@ -36,9 +36,10 @@ def test_the_worker_owns_every_ai_queue_and_nothing_else() -> None:
     settings = load_settings(VALID_ENV)
     assert queues_for(settings) == AI_QUEUES
     assert all(name.startswith("ai.") for name in AI_QUEUES)
-    # Twelve since `ai.dub` (2026-10-04). The worker consumes every one; a queue
-    # without its processor yet answers `worker/not_implemented`.
-    assert len(AI_QUEUES) == 12
+    # Thirteen since `ai.voiceover` (2026-10-01; twelve with `ai.dub`). The worker
+    # consumes every one; a queue without its processor yet answers
+    # `worker/not_implemented`.
+    assert len(AI_QUEUES) == 13
 
 
 def test_every_implemented_queue_has_a_processor() -> None:

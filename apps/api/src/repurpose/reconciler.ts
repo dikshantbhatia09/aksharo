@@ -61,6 +61,7 @@ import { FREE_PLAN_CLIPS_LIMITS } from "../projects/plan-limits.js";
 import { AutoTranscribeTrigger } from "../transcripts/auto-transcribe.trigger.js";
 import { audioReadyEarly } from "../transcripts/first-transcription.js";
 import { quoteTranscription } from "../transcripts/transcripts.quote.js";
+import { RepurposeVoiceoversService } from "./voiceover/voiceovers.service.js";
 
 import type { FailedAt, RunFailureCode } from "./failure-codes.js";
 import type { ReconcileReadOptions, RunReconciler } from "./repurpose.service.js";
@@ -900,6 +901,8 @@ export class RepurposeReconciler
     @Optional() private readonly compilations?: RepurposeCompilationsService,
     /** Dubs in motion on any run, settled or not (2026-10-04). */
     @Optional() private readonly dubs?: RepurposeDubsService,
+    /** Voice-overs being made, and fresh ones still to lay on later shapes (2026-10-01). */
+    @Optional() private readonly voiceovers?: RepurposeVoiceoversService,
   ) {}
 
   /**
@@ -986,6 +989,7 @@ export class RepurposeReconciler
       await this.notices?.sweep(now ?? Date.now());
       await this.compilations?.sweep();
       await this.dubs?.sweep();
+      await this.voiceovers?.sweep();
     } catch (error) {
       this.logger.warn({ err: error }, "run reconcile watchdog pass failed; the next one retries");
     }

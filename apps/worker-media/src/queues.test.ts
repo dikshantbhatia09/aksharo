@@ -30,8 +30,8 @@ const validEnvelope = {
 };
 
 describe("queue contract (CONTRACTS §3)", () => {
-  it("lists all twenty-four frozen queue names", () => {
-    expect(QUEUE_NAMES).toHaveLength(24);
+  it("lists all twenty-five frozen queue names", () => {
+    expect(QUEUE_NAMES).toHaveLength(25);
     expect(new Set(QUEUE_NAMES).size).toBe(QUEUE_NAMES.length);
   });
 

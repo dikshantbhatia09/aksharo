@@ -93,6 +93,7 @@ import { coverScaleCrop, type RenderManifest } from "@montaj/render-manifest";
 import type { TimeMap } from "@montaj/timemap";
 
 import {
+  applyDialogueDucks,
   mixMusicCuesIntoChunk,
   mixSfxCuesIntoChunk,
   outputSpeechRanges,
@@ -408,6 +409,9 @@ export async function decodeSfxCues(
       fadeOutMs: track.fadeOutMs,
       duck: track.duck,
       buffer: await bufferFor(track.assetId),
+      // The voice-over hook (2026-10-01): whole, and over a ducked clip.
+      ...(track.playThrough === true ? { playThrough: true } : {}),
+      ...(track.dialogueDuck === undefined ? {} : { dialogueDuck: track.dialogueDuck }),
     })),
   );
 }
@@ -719,7 +723,16 @@ export async function runExport(options: RunExportOptions): Promise<EngineResult
             const buffer = sample.toAudioBuffer();
             applySpliceFades(buffer, elapsedMs, rangeDurationMs, fadeInMs, fadeOutMs);
             if (sfxCues.length > 0) {
-              mixSfxCuesIntoChunk(buffer, outputClockMs, sfxCues, timemap, speechRanges);
+              // The clip's own sound first, then the cues on top of it (2026-10-01).
+              applyDialogueDucks(buffer, outputClockMs, sfxCues, timemap, outputDurationMs);
+              mixSfxCuesIntoChunk(
+                buffer,
+                outputClockMs,
+                sfxCues,
+                timemap,
+                speechRanges,
+                outputDurationMs,
+              );
             }
             if (musicCues.length > 0) {
               mixMusicCuesIntoChunk(buffer, outputClockMs, musicCues, timemap, speechRanges);

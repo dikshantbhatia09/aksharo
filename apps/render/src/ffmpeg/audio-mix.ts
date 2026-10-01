@@ -143,6 +143,18 @@ export interface SfxMixCue {
   readonly fadeOutMs: number;
   readonly duck: DuckTrack | null;
   readonly localPath: string;
+  /**
+   * The voice-over hook (2026-10-01, `SfxTrack.playThrough`): play the cue
+   * from its first retained output instant for its whole length, straight
+   * through any cut after its start ({@link playedWindowOf}).
+   */
+  readonly playThrough?: boolean;
+  /**
+   * The voice-over hook (2026-10-01, `SfxTrack.dialogueDuck`): the dialogue
+   * bus is pulled down this far over the cue's output window
+   * ({@link buildDialogueDuckFilters}).
+   */
+  readonly dialogueDuck?: DuckTrack;
 }
 
 /** One accepted `music` cue (D05's `MusicPayload`, CONTRACTS §2), ready to mix. */
@@ -182,7 +194,11 @@ export function buildCueFilters(
   inputIndex: number,
   timemap: TimeQuery | null,
   speechRanges: readonly SpeechRange[],
+  outputDurationMs: number = Number.POSITIVE_INFINITY,
 ): { readonly filters: string[]; readonly labels: string[] } {
+  if (cue.playThrough === true) {
+    return buildPlayThroughFilters(cue, inputIndex, timemap, speechRanges, outputDurationMs);
+  }
   const pieces = piecesFor(cue.startMs, cue.endMs, timemap);
   const filters: string[] = [];
   const labels: string[] = [];
@@ -241,6 +257,138 @@ export function buildCueFilters(
   });
 
   return { filters, labels };
+}
+
+/**
+ * Where a play-through cue sounds on the finished video (2026-10-01, the
+ * voice-over hook): from the output instant its first retained piece starts,
+ * for the rest of its asset - straight through any cut after that - and never
+ * past the end of the video. `assetOffsetMs` is how far into the asset that
+ * first instant is (more than 0 only when a cut removed the cue's own start).
+ * `null` when no part of the cue survives the cuts, or none of it fits.
+ *
+ * Shared by the cue's own chain and the dialogue duck under it, so the two can
+ * never disagree about where the voice is. `apps/web/lib/export/audio-mix.ts`
+ * has the same function, for the browser export.
+ */
+export function playedWindowOf(
+  cue: Pick<SfxMixCue, "startMs" | "endMs">,
+  timemap: TimeQuery | null,
+  outputDurationMs: number = Number.POSITIVE_INFINITY,
+): {
+  readonly outputStart: number;
+  readonly outputEnd: number;
+  readonly assetOffsetMs: number;
+} | null {
+  const first = piecesFor(cue.startMs, cue.endMs, timemap).find(
+    (piece) => piece.outputEnd > piece.outputStart,
+  );
+  if (first === undefined) return null;
+  const assetOffsetMs = Math.max(0, first.sourceStart - cue.startMs);
+  const remainingMs = cue.endMs - cue.startMs - assetOffsetMs;
+  const outputEnd = Math.min(first.outputStart + remainingMs, outputDurationMs);
+  if (!(outputEnd > first.outputStart)) return null;
+  return { outputStart: first.outputStart, outputEnd, assetOffsetMs };
+}
+
+/**
+ * A play-through cue's one chain ({@link playedWindowOf}): trimmed to the part
+ * of its asset that plays, gained, faded in at its own start (only when that
+ * start survived the cuts) and out at the end of what plays, then delayed to
+ * its output start. A spoken line cut wherever autocut removed a pause would
+ * drop syllables; this keeps it whole.
+ */
+function buildPlayThroughFilters(
+  cue: SfxMixCue,
+  inputIndex: number,
+  timemap: TimeQuery | null,
+  speechRanges: readonly SpeechRange[],
+  outputDurationMs: number,
+): { readonly filters: string[]; readonly labels: string[] } {
+  const window = playedWindowOf(cue, timemap, outputDurationMs);
+  if (window === null) return { filters: [], labels: [] };
+  const lengthMs = window.outputEnd - window.outputStart;
+  const label = `sfx${String(inputIndex)}_0`;
+  const steps: string[] = [
+    `atrim=start=${seconds(window.assetOffsetMs)}:end=${seconds(window.assetOffsetMs + lengthMs)}`,
+    "asetpts=PTS-STARTPTS",
+  ];
+  const gainLinear = dbToLinear(cue.gainDb);
+  if (gainLinear !== 1) steps.push(`volume=${gainLinear.toFixed(6)}`);
+  if (window.assetOffsetMs < 0.5 && cue.fadeInMs > 0) {
+    steps.push(`afade=type=in:start_time=0:duration=${seconds(cue.fadeInMs)}`);
+  }
+  if (cue.fadeOutMs > 0) {
+    steps.push(
+      `afade=type=out:start_time=${seconds(Math.max(0, lengthMs - cue.fadeOutMs))}:duration=${seconds(cue.fadeOutMs)}`,
+    );
+  }
+  const delayMs = Math.max(0, Math.round(window.outputStart));
+  steps.push(`adelay=${String(delayMs)}|${String(delayMs)}`);
+  if (cue.duck !== null && speechRanges.length > 0) {
+    steps.push(`asetnsamples=n=${String(DUCK_FRAME_SAMPLES)}:p=0`);
+    steps.push(
+      buildSfxDuckAudioFilter(speechRanges, {
+        duckDb: cue.duck.depthDb,
+        rampMs: cue.duck.attackMs,
+      }),
+    );
+  }
+  return { filters: [`[${String(inputIndex)}:a]${steps.join(",")}[${label}]`], labels: [label] };
+}
+
+/**
+ * The output-clock windows a cue's `dialogueDuck` covers: the one window a
+ * play-through cue plays in, or every retained piece of an ordinary cue.
+ */
+export function dialogueDuckWindows(
+  cue: Pick<SfxMixCue, "startMs" | "endMs" | "playThrough">,
+  timemap: TimeQuery | null,
+  outputDurationMs: number = Number.POSITIVE_INFINITY,
+): SpeechRange[] {
+  if (cue.playThrough === true) {
+    const window = playedWindowOf(cue, timemap, outputDurationMs);
+    return window === null ? [] : [{ startMs: window.outputStart, endMs: window.outputEnd }];
+  }
+  return piecesFor(cue.startMs, cue.endMs, timemap)
+    .filter((piece) => piece.outputEnd > piece.outputStart)
+    .map((piece) => ({ startMs: piece.outputStart, endMs: piece.outputEnd }));
+}
+
+/**
+ * The dialogue bus under every cue that asks for it (2026-10-01, the
+ * voice-over hook's `dialogueDuck`): one `volume` per such cue, the same
+ * closed-form trapezoid a cue's own `duck` uses ({@link buildSfxDuckAudioFilter}),
+ * over the window the cue actually plays in. Returns the filter and the label
+ * the ducked bus ends on, or `null` when no cue asks - the bus is then left
+ * exactly as it was, so every render before this one is unchanged.
+ */
+export function buildDialogueDuckFilters(input: {
+  readonly dialogueRef: string;
+  readonly sfxCues: readonly SfxMixCue[];
+  readonly timemap: TimeQuery | null;
+  readonly outputDurationMs: number;
+}): { readonly filters: string[]; readonly outLabel: string } | null {
+  const steps: string[] = [];
+  for (const cue of input.sfxCues) {
+    if (cue.dialogueDuck === undefined) continue;
+    const windows = dialogueDuckWindows(cue, input.timemap, input.outputDurationMs);
+    if (windows.length === 0) continue;
+    steps.push(
+      buildSfxDuckAudioFilter(windows, {
+        duckDb: cue.dialogueDuck.depthDb,
+        rampMs: cue.dialogueDuck.attackMs,
+      }),
+    );
+  }
+  if (steps.length === 0) return null;
+  const outLabel = "dialogueducked";
+  return {
+    filters: [
+      `${input.dialogueRef}asetnsamples=n=${String(DUCK_FRAME_SAMPLES)}:p=0,${steps.join(",")}[${outLabel}]`,
+    ],
+    outLabel,
+  };
 }
 
 /** D05's own fixed music-bed fade constants (`MusicTrackSchema`'s own doc
@@ -430,7 +578,7 @@ export function buildAudioMixPlan(input: {
 
   for (const cue of input.sfxCues) {
     extraInputArgs.push("-i", cue.localPath);
-    const built = buildCueFilters(cue, inputIndex, input.timemap, speech);
+    const built = buildCueFilters(cue, inputIndex, input.timemap, speech, input.outputDurationMs);
     filters.push(...built.filters);
     mixLabels.push(...built.labels);
     inputIndex += 1;
@@ -444,7 +592,20 @@ export function buildAudioMixPlan(input: {
     inputIndex += 1;
   }
 
-  const dialogueRef = input.dialogueLabel === null ? null : `[${input.dialogueLabel}]`;
+  let dialogueRef = input.dialogueLabel === null ? null : `[${input.dialogueLabel}]`;
+  // The voice-over hook (2026-10-01): the clip's own sound pulled down under it.
+  if (dialogueRef !== null) {
+    const ducked = buildDialogueDuckFilters({
+      dialogueRef,
+      sfxCues: input.sfxCues,
+      timemap: input.timemap,
+      outputDurationMs: input.outputDurationMs,
+    });
+    if (ducked !== null) {
+      filters.push(...ducked.filters);
+      dialogueRef = `[${ducked.outLabel}]`;
+    }
+  }
 
   const busInputs: string[] = [];
   if (dialogueRef !== null) busInputs.push(dialogueRef);
