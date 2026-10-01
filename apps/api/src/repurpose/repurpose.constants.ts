@@ -55,6 +55,11 @@ export const REPURPOSE_ERRORS = {
   downloadExpired: "repurpose/download_expired",
   /** 429 on "Download all": the workspace already has its most downloads running. */
   downloadsBusy: "repurpose/downloads_busy",
+  /**
+   * 409 on "For your editing app" (2026-10-01): the shape has no clean cut,
+   * captions document or probed length yet.
+   */
+  nleNotReady: "repurpose/nle_not_ready",
   /** 409 on the hook-title switch: a run whose person makes the clips has no Autopilot hook titles. */
   hookTitlesManual: "repurpose/hook_titles_manual",
 } as const;

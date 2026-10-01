@@ -56,3 +56,30 @@ export function describeDownloadError(error: unknown): string {
   }
   return "That did not work. Try again.";
 }
+
+/**
+ * "For your editing app" (2026-10-01, OpusClip's "Export XML"): one clip's
+ * clean cut, captions and a timeline for a desktop editor. Plain words: the
+ * person knows their editing app by name, not by its file format.
+ */
+export const EDITING_DOWNLOAD_COPY = Object.freeze({
+  heading: "For your editing app",
+  hint: "The clip without captions, its captions, and a timeline that opens in Premiere Pro, Final Cut Pro or DaVinci Resolve.",
+  sizeLegend: "Size",
+  shape: Object.freeze({
+    "9:16": "9:16 tall",
+    "4:5": "4:5",
+    "1:1": "1:1 square",
+    "16:9": "16:9 wide",
+  }),
+  download: "Download for editing",
+  starting: "Starting…",
+  started: "Your download has started. Unzip it and open the timeline in your editing app.",
+});
+
+export function describeEditingDownloadError(error: unknown): string {
+  if (isApiError(error) && error.code === "repurpose/nle_not_ready") {
+    return "This size is not ready yet. Try again when it is made.";
+  }
+  return describeDownloadError(error);
+}

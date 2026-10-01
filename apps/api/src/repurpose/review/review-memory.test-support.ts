@@ -203,6 +203,12 @@ export class ReviewMemory {
       out["candidate"] =
         this.tables.clipCandidate.find((entry) => entry["id"] === row["candidateId"]) ?? null;
     }
+    // "For your editing app" (2026-10-01) reads the run's titles through the clip.
+    if (model === "repurposeClip" && select["run"] !== undefined) {
+      const run = this.tables.repurposeRun.find((entry) => entry["id"] === row["runId"]);
+      const runSelect = (select["run"] as Row)["select"] as Row | undefined;
+      out["run"] = run === undefined ? null : this.shape("repurposeRun", run, runSelect);
+    }
     if (model === "repurposeRun" && select["sourceProject"] !== undefined) {
       out["sourceProject"] =
         this.tables.project.find((entry) => entry["id"] === row["sourceProjectId"]) ?? null;
@@ -394,6 +400,8 @@ export class ReviewMemory {
   readonly clipDubVariant = this.model("clipDubVariant");
   readonly llmOutput = this.model("llmOutput");
   readonly repurposeCompilation = this.model("repurposeCompilation");
+  /** "For your editing app" reads a shape project's editing document id (a field on the row here). */
+  readonly project = this.model("project");
 
   /**
    * A transaction over copies of every table: a throw discards what it wrote,

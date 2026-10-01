@@ -166,7 +166,7 @@ function escapeHtml(text: string): string {
   return text.replace(/[&<>"']/g, (char) => `&#${String(char.charCodeAt(0))};`);
 }
 
-function errorPage(message: string, backUrl: string): string {
+export function errorPage(message: string, backUrl: string): string {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Download</title>
 <style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#141217;color:#f1ece6;font:16px/1.5 system-ui,sans-serif}main{max-width:28rem;padding:24px}a{color:#f0508a}</style></head>
 <body><main><h1 style="font-size:20px">The download did not start</h1><p>${escapeHtml(message)}</p><p><a href="${escapeHtml(backUrl)}">Back to your videos</a></p></main></body></html>`;
