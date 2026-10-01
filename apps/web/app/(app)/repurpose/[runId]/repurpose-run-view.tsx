@@ -70,6 +70,7 @@ import {
 } from "@/components/repurpose/compilations";
 import { CompilationsPanel } from "@/components/repurpose/CompilationsPanel";
 import { AUTOPILOT_COPY, CLIP_STATE_COPY } from "@/components/repurpose/copy";
+import { RunDownloadAll } from "@/components/repurpose/download/RunDownloadAll";
 import { EpisodePackPanel } from "@/components/repurpose/EpisodePackPanel";
 import { ShareWithGuest } from "@/components/repurpose/guest/ShareWithGuest";
 import { RunPublishing } from "@/components/repurpose/publishing/RunPublishing";
@@ -663,6 +664,10 @@ export function RepurposeRunView({ runId }: { readonly runId: string }): React.J
                     {clips.length === 0 ? null : (
                       <ShareForReview runId={runId} permissions={reviewQuery.data?.permissions} />
                     )}
+                    {/* "Download all" (2026-10-01): every finished clip, every size, one ZIP. */}
+                    {clips.some((clip) => clip.state === "ready") ? (
+                      <RunDownloadAll runId={runId} />
+                    ) : null}
                     {guestChoices.length === 0 ? null : (
                       <ShareWithGuest
                         runId={runId}

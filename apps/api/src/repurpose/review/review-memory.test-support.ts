@@ -53,6 +53,8 @@ export interface ReviewTables {
   clipDub: Row[];
   clipDubVariant: Row[];
   llmOutput: Row[];
+  /** "Download all" (2026-10-01, `repurpose/bundle`) reads a run's compilations. */
+  repurposeCompilation: Row[];
 }
 
 function compare(value: unknown, other: unknown): number {
@@ -137,6 +139,7 @@ export class ReviewMemory {
     clipDub: [],
     clipDubVariant: [],
     llmOutput: [],
+    repurposeCompilation: [],
   };
 
   now: () => number = () => Date.now();
@@ -203,6 +206,9 @@ export class ReviewMemory {
     if (model === "repurposeRun" && select["sourceProject"] !== undefined) {
       out["sourceProject"] =
         this.tables.project.find((entry) => entry["id"] === row["sourceProjectId"]) ?? null;
+    }
+    if (model === "repurposeCompilation" && select["export"] !== undefined) {
+      out["export"] = this.tables.export.find((entry) => entry["id"] === row["exportId"]) ?? null;
     }
     if (model === "workspace" && select["owner"] !== undefined) {
       out["owner"] = this.tables.user.find((entry) => entry["id"] === row["ownerId"]) ?? null;
@@ -387,6 +393,7 @@ export class ReviewMemory {
   readonly clipDub = this.model("clipDub");
   readonly clipDubVariant = this.model("clipDubVariant");
   readonly llmOutput = this.model("llmOutput");
+  readonly repurposeCompilation = this.model("repurposeCompilation");
 
   /**
    * A transaction over copies of every table: a throw discards what it wrote,

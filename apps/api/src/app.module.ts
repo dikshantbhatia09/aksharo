@@ -48,6 +48,7 @@ import { PublishingModule } from "./publishing/publishing.module.js";
 import { RealtimeModule } from "./realtime/realtime.module.js";
 import { ReferralsModule } from "./referrals/referrals.module.js";
 import { RepurposeAutomationsModule } from "./repurpose/automations/automations.module.js";
+import { RepurposeBundleModule } from "./repurpose/bundle/run-bundle.module.js";
 import { RepurposeGuestModule } from "./repurpose/guest/guest.module.js";
 import { RepurposePerformanceModule } from "./repurpose/performance/performance.module.js";
 import { RepurposeModule } from "./repurpose/repurpose.module.js";
@@ -241,6 +242,8 @@ import { WorkspacesModule } from "./workspaces/workspaces.module.js";
     // The team's routes answer 404 while `repurpose_flow` is off, the guest's
     // while `shares.public` is.
     RepurposeGuestModule,
+    // "Download all": a run's clips as one streamed ZIP (2026-10-01).
+    RepurposeBundleModule,
   ],
 })
 export class AppModule {}

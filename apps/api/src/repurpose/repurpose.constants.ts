@@ -49,6 +49,12 @@ export const REPURPOSE_ERRORS = {
   sourceNotReplaceable: "repurpose/source_not_replaceable",
   /** 400 at create: `setup.audiogram.coverAssetId` is not a cover this workspace keeps. */
   coverUnknown: "repurpose/cover_not_found",
+  /** 409 on "Download all": no clip of the run has a finished file yet. */
+  nothingToDownload: "repurpose/nothing_to_download",
+  /** 404 on a "Download all" link that is unknown, already used or past its five minutes. */
+  downloadExpired: "repurpose/download_expired",
+  /** 429 on "Download all": the workspace already has its most downloads running. */
+  downloadsBusy: "repurpose/downloads_busy",
 } as const;
 
 /**
