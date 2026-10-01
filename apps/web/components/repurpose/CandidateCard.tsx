@@ -31,7 +31,15 @@
  * a moment picked partly for being like the workspace's best clips says so,
  * under its words (its `track_record` reason).
  */
-import { AlertTriangle, CircleSlash, Clock, Download, Loader2, TrendingUp } from "lucide-react";
+import {
+  AlertTriangle,
+  BarChart3,
+  CircleSlash,
+  Clock,
+  Download,
+  Loader2,
+  TrendingUp,
+} from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
 
@@ -62,6 +70,7 @@ import { formatClock } from "@/components/repurpose/moment-time";
 import { ClipPerformance } from "@/components/repurpose/performance/ClipPerformance";
 import { ClipPosts } from "@/components/repurpose/publishing/ClipPosts";
 import { describeRefusal } from "@/components/repurpose/refusal";
+import { tagsOf } from "@/components/repurpose/results/clip-analysis";
 import { ClipReview } from "@/components/repurpose/review/ClipReview";
 import { isRemovedCandidate } from "@/components/repurpose/steering";
 import { useStableUrl } from "@/components/repurpose/use-stable-url";
@@ -191,6 +200,11 @@ export interface CandidateCardProps {
    * Undefined while they load, or where dubbing is not offered.
    */
   readonly dubs?: RepurposeDubList;
+  /**
+   * Opens the clip's detail view (2026-10-01): its analysis, words and every
+   * tool in one place. Absent inside that view itself.
+   */
+  readonly onOpenDetails?: () => void;
 }
 
 export function CandidateCard({
@@ -209,6 +223,7 @@ export function CandidateCard({
   select,
   seriesPart,
   dubs,
+  onOpenDetails,
 }: CandidateCardProps): React.JSX.Element {
   const createClip = useCreateRepurposeClip();
   const retryClip = useRetryRepurposeClip();
@@ -257,6 +272,8 @@ export function CandidateCard({
   const trackRecord =
     candidate.reasons?.find((reason) => reason.label === "track_record")?.explanation ?? null;
   const picked = candidate["source"] === "manual";
+  // What it is about and what makes it work, in two or three words each (2026-10-01).
+  const tags = tagsOf(candidate);
   // The clip's own project: where its captions live and are exported. The
   // 9:16 one: an Autopilot clip has a project per shape (2026-09-29).
   const clipProjectId = (
@@ -313,8 +330,33 @@ export function CandidateCard({
               {formatClock(candidate.startMs)} – {formatClock(candidate.endMs)} (
               {String(Math.round((candidate.endMs - candidate.startMs) / 1000))}s)
             </span>
+            {onOpenDetails === undefined ? null : (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2 text-xs"
+                onClick={onOpenDetails}
+                aria-label={`Why it scored, its words and every tool: ${title}`}
+                data-testid={`open-details-${candidate.id}`}
+              >
+                <BarChart3 strokeWidth={1.75} aria-hidden="true" />
+                Details
+              </Button>
+            )}
           </div>
           <h3 className="mt-1.5 text-sm font-semibold text-fg-0">{title}</h3>
+          {tags.length === 0 ? null : (
+            <span className="mt-1 flex flex-wrap gap-1" data-testid={`clip-tags-${candidate.id}`}>
+              {tags.map((tag) => (
+                <span
+                  key={tag}
+                  className="rounded-sm border border-border bg-bg-2 px-1.5 py-0.5 text-2xs text-fg-1"
+                >
+                  {tag}
+                </span>
+              ))}
+            </span>
+          )}
           {(candidate.transcriptExcerpt || candidate.reason) && (
             <p className="mt-1 line-clamp-2 text-sm text-fg-2">
               {candidate.transcriptExcerpt ?? candidate.reason}

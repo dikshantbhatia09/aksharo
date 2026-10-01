@@ -28,8 +28,8 @@ const require = createRequire(__filename);
 /** Tile size: the 9:16 master divided by four, which is what the picker shows. */
 const PREVIEW_CANVAS = { width: 270, height: 480 } as const;
 
-/** A neutral ground so a light style and a dark style both read. */
-const PREVIEW_BACKGROUND = "#242430ff";
+/** A neutral ground so a light style and a dark style both read: Shirorekha's raised surface (`bg-2`). */
+const PREVIEW_BACKGROUND = "#2a262fff";
 
 async function main(): Promise<void> {
   const previewDir = resolve(

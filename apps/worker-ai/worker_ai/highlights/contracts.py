@@ -316,13 +316,31 @@ class ClipCopy(_Strict):
     source: Literal["model", "heuristic", "person"] | None = None
 
 
+class JudgementNotes(_Strict):
+    """One sentence each on a moment's hook, flow, value and trend (2026-10-01)."""
+
+    hook: Annotated[str, _trimmed(1, 240)] | None = None
+    flow: Annotated[str, _trimmed(1, 240)] | None = None
+    value: Annotated[str, _trimmed(1, 240)] | None = None
+    trend: Annotated[str, _trimmed(1, 240)] | None = None
+
+
 class Judgement(_Strict):
-    """The language model's reading of a moment, 0-10 each."""
+    """The language model's reading of a moment, 0-10 each.
+
+    ``hook``, ``trend``, ``notes`` and ``people`` (2026-10-01) are the clip
+    analysis its page shows (OpusClip's Hook / Flow / Value / Trend and
+    "Relevant people"); optional, because a model may leave them out.
+    """
 
     standalone: int = Field(ge=0, le=10)
     payoff: int = Field(ge=0, le=10)
     humour: int = Field(ge=0, le=10)
     topic_fit: int | None = Field(default=None, alias="topicFit", ge=0, le=10)
+    hook: int | None = Field(default=None, ge=0, le=10)
+    trend: int | None = Field(default=None, ge=0, le=10)
+    notes: JudgementNotes | None = None
+    people: tuple[Annotated[str, _trimmed(1, 60)], ...] | None = Field(default=None, max_length=5)
     model: Annotated[str, _trimmed(1, 100)]
 
 

@@ -224,6 +224,14 @@ function harness(options: {
         claims.add(key);
         return args.data;
       }),
+      // Every run here is one workspace's.
+      count: vi.fn(
+        async (args: { where: { kind: string; runId: { not: string } } }) =>
+          [...claims].filter((key) => {
+            const [runId, kind] = key.split("|");
+            return kind === args.where.kind && runId !== args.where.runId.not;
+          }).length,
+      ),
     },
     user: {
       findFirst: vi.fn(async () =>
@@ -298,6 +306,23 @@ const COMPLETE = clips({
   captioned: { ready: 3, settled: 3 },
   formats: { total: 9, settled: 9 },
   images: { total: 3, settled: 3 },
+});
+
+describe("RunNotifier: a workspace's first clips", () => {
+  it("gives the first run's 'clips ready' its own words, and not the next run's", async () => {
+    const h = harness({
+      runs: [
+        runRow({ config: { automation: "manual" } }),
+        runRow({ id: "01JRUNSECOND00000000000000", config: { automation: "manual" } }),
+      ],
+      clips: clips({ total: 1, ready: 1, usable: 1 }),
+    });
+    await h.make().sweep(NOW);
+    expect(h.sent.map((input) => [input.kind, input.data?.["first"]])).toEqual([
+      ["clips-ready", "yes"],
+      ["clips-ready", undefined],
+    ]);
+  });
 });
 
 describe("RunNotifier: once per run and kind", () => {

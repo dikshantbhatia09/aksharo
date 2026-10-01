@@ -418,6 +418,22 @@ describe("device text (the push strings)", () => {
     expect(many?.body).toBe("3 clips from Diwali vlog ready to watch.");
   });
 
+  it("gives a workspace's first clips their own words, in both languages", () => {
+    const data = { ...DATA["clips-ready"], first: "yes" };
+    const en = renderNotification({ kind: "clips-ready", locale: "en-IN", data });
+    expect(en.subject).toBe("Your first clips are ready: Diwali vlog");
+    expect(en.text).toContain("Each one is cut on the speaker, captioned and scored.");
+    expect(renderDeviceText({ kind: "clips-ready", data })?.title).toBe(
+      "Your first clips are ready",
+    );
+    const hi = renderNotification({ kind: "clips-ready", locale: "hi-IN", data });
+    expect(hi.subject).toBe("आपकी पहली क्लिप तैयार हैं: Diwali vlog");
+    expect(
+      renderNotification({ kind: "clips-ready", locale: "en-IN", data: DATA["clips-ready"] })
+        .subject,
+    ).toBe("Your first clips from Diwali vlog are ready");
+  });
+
   it("falls back to 'your video' in each language when the title is not known", () => {
     const { video: _video, ...untitled } = DATA["run-failed"];
     expect(renderDeviceText({ kind: "run-failed", data: untitled })?.body).toContain("your video");

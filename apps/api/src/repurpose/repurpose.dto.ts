@@ -282,6 +282,12 @@ export const runViewSchema = z.object({
   /** Whether the run asked for B-roll (`setup.broll`, 2026-10-05); optional for the same reason. */
   broll: z.boolean().optional(),
   /**
+   * Whether Autopilot puts its hook title on this run's clips (2026-10-01):
+   * on unless the run page's switch turned it off. Optional for the same
+   * reason; only meaningful with `automation: "auto"`.
+   */
+  hookTitles: z.boolean().optional(),
+  /**
    * Why a run that is not failed is not moving, and until when: YouTube is
    * refusing this server's downloads, and the run continues by itself after
    * `until` (`SourceGate`). Null when nothing is holding it.

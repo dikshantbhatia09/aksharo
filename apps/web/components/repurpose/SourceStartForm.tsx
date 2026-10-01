@@ -293,6 +293,11 @@ export interface SourceStartFormProps {
   readonly brandKit?: boolean;
   /** What could fill a B-roll cutaway here (2026-10-05): the B-roll switch is offered. */
   readonly broll?: BrollOffer;
+  /**
+   * What the run will cost (`RunEstimateLine`, 2026-10-01), shown just above the
+   * start button. The page passes it in: the form itself makes no requests.
+   */
+  readonly estimate?: React.ReactNode;
   readonly className?: string;
 }
 
@@ -320,6 +325,7 @@ export function SourceStartForm({
   submitLabel,
   brandKit = false,
   broll,
+  estimate,
   className,
 }: SourceStartFormProps): React.JSX.Element {
   const [showProblems, setShowProblems] = React.useState(false);
@@ -694,6 +700,8 @@ export function SourceStartForm({
           ) : null}
         </div>
       )}
+
+      {estimate}
 
       <Button type="submit" variant="primary" disabled={submitting} data-testid="start-run">
         {submitting ? "Starting…" : (submitLabel ?? "Start finding clips")}

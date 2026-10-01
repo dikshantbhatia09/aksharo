@@ -345,6 +345,8 @@ export class RunNotifier {
       );
       return;
     }
+    // A workspace's very first clips get their own words: what was made and what to do next.
+    const first = notice.notice === "clips-ready" && (await this.firstClipsReady(run));
     const video = cleanSourceTitle(run.sourceTitle) ?? cleanSourceTitle(run.sourceProject?.title);
     const link = new URL(`/repurpose/${run.id}`, this.env.WEB_ORIGIN).toString();
     const kind = notice.notice.startsWith("run-needs-you")
@@ -359,6 +361,7 @@ export class RunNotifier {
         workspaceId: run.workspaceId,
         data: {
           ...notice.data,
+          ...(first ? { first: "yes" } : {}),
           // Absent, each language's own "there" / "your video" is used.
           ...(recipient.name === null || recipient.name.trim() === ""
             ? {}
@@ -376,6 +379,30 @@ export class RunNotifier {
         { runId: run.id, notice: notice.notice, err: error },
         "run notification not sent",
       );
+    }
+  }
+
+  /**
+   * Whether no other run of this workspace was ever told its clips were ready
+   * (2026-10-01, OpusClip's first-project messages). Runs from before notices
+   * existed were marked as told by their migration, so only a new workspace's
+   * first run reads as first. A failed read is "not first": the ordinary words.
+   */
+  private async firstClipsReady(run: {
+    readonly id: string;
+    readonly workspaceId: string;
+  }): Promise<boolean> {
+    try {
+      const earlier = await this.prisma.repurposeRunNotice.count({
+        where: {
+          kind: "clips-ready",
+          runId: { not: run.id },
+          run: { workspaceId: run.workspaceId },
+        },
+      });
+      return earlier === 0;
+    } catch {
+      return false;
     }
   }
 

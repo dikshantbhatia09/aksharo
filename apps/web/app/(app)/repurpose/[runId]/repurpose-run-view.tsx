@@ -60,6 +60,7 @@ import { Button, PageHeader, Skeleton } from "@montaj/ui";
 import type { StageKey } from "@/components/repurpose/copy";
 
 import { AddMomentForm } from "@/components/repurpose/AddMomentForm";
+import { ChannelPitch } from "@/components/repurpose/automations/ChannelPitch";
 import { CandidateCard } from "@/components/repurpose/CandidateCard";
 import { CompilationBuilder, type BuilderMode } from "@/components/repurpose/CompilationBuilder";
 import {
@@ -75,6 +76,8 @@ import { EpisodePackPanel } from "@/components/repurpose/EpisodePackPanel";
 import { ShareWithGuest } from "@/components/repurpose/guest/ShareWithGuest";
 import { RunPublishing } from "@/components/repurpose/publishing/RunPublishing";
 import { describeRefusal, type Refusal } from "@/components/repurpose/refusal";
+import { HookTitlesSwitch } from "@/components/repurpose/results/HookTitlesSwitch";
+import { RunClipResults } from "@/components/repurpose/results/RunClipResults";
 import { ShareForReview } from "@/components/repurpose/review/ShareForReview";
 import { useRunReview } from "@/components/repurpose/review/use-review";
 import { canAddMoments, runActivity, serverIsWorking } from "@/components/repurpose/run-activity";
@@ -286,6 +289,68 @@ export function RepurposeRunView({ runId }: { readonly runId: string }): React.J
       seriesPartOf.set(part.clipId, `Part ${String(part.part)} of ${String(entry.parts.length)}`);
     }
   }
+  // The run page's full card for a moment: in the list, and inside a clip's
+  // detail view (2026-10-01), where it brings every action it has.
+  const cardFor = (
+    cand: RepurposeCandidateItem,
+    options: { readonly onOpenDetails?: () => void },
+  ): React.ReactNode => {
+    const clip = clips.find((entry: RepurposeClipItem) => entry.candidateId === cand.id);
+    const canPick = clip !== undefined && pickable?.has(clip.id) === true;
+    const isPicked = clip !== undefined && picked.includes(clip.id);
+    const part = clip === undefined ? undefined : seriesPartOf.get(clip.id);
+    return (
+      <CandidateCard
+        {...(options.onOpenDetails === undefined ? {} : { onOpenDetails: options.onOpenDetails })}
+        key={cand.id}
+        runId={runId}
+        candidate={cand}
+        clip={clip}
+        previewActive={clip !== undefined && activePreview === clip.id}
+        onActivatePreview={() => {
+          if (clip !== undefined) setActivePreview(clip.id);
+        }}
+        runStopped={activity === "stopped"}
+        autopilot={run.automation === "auto"}
+        {...(reviewQuery.data === undefined || reviewQuery.data === null
+          ? {}
+          : {
+              reviewPermissions: reviewQuery.data.permissions,
+              needsApproval: reviewQuery.data.needsApproval,
+              ...(clip === undefined
+                ? {}
+                : {
+                    review: reviewQuery.data.clips.find((entry) => entry.clipId === clip.id),
+                  }),
+            })}
+        {...(clipStartAgain === undefined ? {} : { startAgain: clipStartAgain })}
+        {...(clipStartAgainNote === undefined ? {} : { startAgainNote: clipStartAgainNote })}
+        {...(pickable === null || clip === undefined
+          ? {}
+          : {
+              select: {
+                checked: isPicked,
+                disabled: !canPick && !isPicked,
+                // Only a made clip that cannot be picked needs saying why.
+                ...(canPick || clip.state !== "ready"
+                  ? {}
+                  : {
+                      note:
+                        builderMode === "series"
+                          ? "This clip cannot be part of a series."
+                          : `No captioned ${shape} video of this clip yet.`,
+                    }),
+                onToggle: () => {
+                  togglePick(clip.id);
+                },
+              },
+            })}
+        {...(part === undefined ? {} : { seriesPart: part })}
+        {...(dubsQuery.data === undefined ? {} : { dubs: dubsQuery.data })}
+      />
+    );
+  };
+
   // The run's own count says moments exist that the (separately polled) list
   // does not hold yet. For those few seconds the list is behind, not empty:
   // "we did not find a moment" under "your moments are ready" was wrong.
@@ -708,72 +773,28 @@ export function RepurposeRunView({ runId }: { readonly runId: string }): React.J
                     </div>
                   ) : null}
 
-                  <ul
-                    className="m-0 flex list-none flex-col gap-3 p-0"
-                    data-testid="candidates-list"
-                  >
-                    {candidates.map((cand: RepurposeCandidateItem) => {
-                      const clip = clips.find(
-                        (entry: RepurposeClipItem) => entry.candidateId === cand.id,
-                      );
-                      const canPick = clip !== undefined && pickable?.has(clip.id) === true;
-                      const isPicked = clip !== undefined && picked.includes(clip.id);
-                      const part = clip === undefined ? undefined : seriesPartOf.get(clip.id);
-                      return (
-                        <CandidateCard
-                          key={cand.id}
-                          runId={runId}
-                          candidate={cand}
-                          clip={clip}
-                          previewActive={clip !== undefined && activePreview === clip.id}
-                          onActivatePreview={() => {
-                            if (clip !== undefined) setActivePreview(clip.id);
-                          }}
-                          runStopped={activity === "stopped"}
-                          autopilot={run.automation === "auto"}
-                          {...(reviewQuery.data === undefined || reviewQuery.data === null
-                            ? {}
-                            : {
-                                reviewPermissions: reviewQuery.data.permissions,
-                                needsApproval: reviewQuery.data.needsApproval,
-                                ...(clip === undefined
-                                  ? {}
-                                  : {
-                                      review: reviewQuery.data.clips.find(
-                                        (entry) => entry.clipId === clip.id,
-                                      ),
-                                    }),
-                              })}
-                          {...(clipStartAgain === undefined ? {} : { startAgain: clipStartAgain })}
-                          {...(clipStartAgainNote === undefined
-                            ? {}
-                            : { startAgainNote: clipStartAgainNote })}
-                          {...(pickable === null || clip === undefined
-                            ? {}
-                            : {
-                                select: {
-                                  checked: isPicked,
-                                  disabled: !canPick && !isPicked,
-                                  // Only a made clip that cannot be picked needs saying why.
-                                  ...(canPick || clip.state !== "ready"
-                                    ? {}
-                                    : {
-                                        note:
-                                          builderMode === "series"
-                                            ? "This clip cannot be part of a series."
-                                            : `No captioned ${shape} video of this clip yet.`,
-                                      }),
-                                  onToggle: () => {
-                                    togglePick(clip.id);
-                                  },
-                                },
-                              })}
-                          {...(part === undefined ? {} : { seriesPart: part })}
-                          {...(dubsQuery.data === undefined ? {} : { dubs: dubsQuery.data })}
-                        />
-                      );
-                    })}
-                  </ul>
+                  {/* "Do this for every new video" (2026-10-01): once, on a link run. */}
+                  <ChannelPitch
+                    sourceKind={run.sourceKind}
+                    hasReadyClips={clips.some((clip) => clip.state === "ready")}
+                  />
+
+                  {run.automation === "auto" && clips.length > 0 ? (
+                    <HookTitlesSwitch
+                      runId={run.id}
+                      enabled={run.hookTitles !== false}
+                      canChange={reviewQuery.data?.permissions.revokeLinks === true}
+                    />
+                  ) : null}
+
+                  <RunClipResults
+                    runId={runId}
+                    candidates={candidates}
+                    clips={clips}
+                    picking={pickable !== null}
+                    canEdit={reviewQuery.data?.permissions.revokeLinks === true}
+                    renderCard={cardFor}
+                  />
                 </div>
               ) : emptyNote === null ? (
                 <p className="m-0 text-sm text-fg-2" data-testid={`stage-note-${expanded}`}>

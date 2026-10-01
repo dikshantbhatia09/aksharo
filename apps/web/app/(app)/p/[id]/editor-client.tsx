@@ -420,6 +420,10 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
   const searchParams = useSearchParams();
   const openExportOnMount = searchParams.get("export") === "1";
   const openShareOnMount = searchParams.get("share") === "1";
+  // 2026-10-01: a clip's one-click tools on the run page land on their panel
+  // (`?panel=broll`, `?panel=audio`, `?panel=style`) rather than leaving the
+  // person to look for it.
+  const panelOnMount = editorPanelOf(searchParams.get("panel"));
   const {
     projectId,
     store,
@@ -469,8 +473,10 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
   // K04: the left rail's active tab, and the player's Safe Zone toggle —
   // `true` matches `CaptionStage`'s own previous hardcoded default, so a
   // freshly opened editor looks exactly as it did before this toggle existed.
-  const [railTab, setRailTab] = useState<EditorRailTab>("captions");
-  const [inspectorTabRequest, setInspectorTabRequest] = useState<{ tab: PanelTab }>();
+  const [railTab, setRailTab] = useState<EditorRailTab>(panelOnMount?.rail ?? "captions");
+  const [inspectorTabRequest, setInspectorTabRequest] = useState<{ tab: PanelTab } | undefined>(
+    panelOnMount?.inspector === undefined ? undefined : { tab: panelOnMount.inspector },
+  );
   const [safeZonesOn, setSafeZonesOn] = useState(true);
   const [playerMuted, setPlayerMuted] = useState(false);
   const stageBoxRef = useRef<HTMLDivElement | null>(null);
@@ -1788,4 +1794,25 @@ function ShortcutsDialog({
       </DialogContent>
     </Dialog>
   );
+}
+
+/**
+ * Where `?panel=` opens the editor (2026-10-01): a rail tab (B-roll) or an
+ * inspector tab (audio, style, look, animation). Anything else opens it as
+ * usual.
+ */
+export function editorPanelOf(
+  value: string | null,
+): { readonly rail?: EditorRailTab; readonly inspector?: PanelTab } | null {
+  switch (value) {
+    case "broll":
+      return { rail: "broll" };
+    case "audio":
+    case "style":
+    case "look":
+    case "anim":
+      return { inspector: value };
+    default:
+      return null;
+  }
 }

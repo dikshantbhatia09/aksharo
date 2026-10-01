@@ -36,7 +36,7 @@ import {
   proposalsFrom,
 } from "./clip-broll.js";
 import { chooseEmphasis, normaliseWord } from "./keyword-emphasis.js";
-import { brandOf, brollOf } from "./repurpose.constants.js";
+import { brandOf, brollOf, hookTitlesOf } from "./repurpose.constants.js";
 import { BrandKitService } from "../brand-kit/brand-kit.service.js";
 import { spokenTags, type LibraryPicture } from "../broll/broll-match.js";
 import { BrollLibraryService } from "../broll/broll.service.js";
@@ -464,6 +464,54 @@ export class ClipFinishing {
     }
   }
 
+  /**
+   * The run page's "hook titles" switch (2026-10-01): takes Autopilot's own
+   * hook title (the overlay whose id is the shape's) out of one shape's
+   * document. A hook title a person added has another id and stays. Whether
+   * one was taken out; never throws.
+   */
+  async removeAutopilotHook(variant: {
+    readonly id: string;
+    readonly projectId: string;
+  }): Promise<boolean> {
+    try {
+      const document = await this.documentOf(variant.projectId);
+      if (document === undefined) return false;
+      const hook = (document.projection.overlays ?? []).find(
+        (overlay) => overlay.id === variant.id && overlay.kind === "hook-title",
+      );
+      if (hook === undefined) return false;
+      const applied = await this.apply(variant.projectId, document.revision, [
+        { opId: newId(), type: "RemoveOverlay", overlayId: hook.id },
+      ]);
+      return applied > 0;
+    } catch (error) {
+      this.logger.warn({ variantId: variant.id, err: error }, "could not take a hook title out");
+      return false;
+    }
+  }
+
+  /**
+   * The switch turned back on: puts Autopilot's hook title back on one shape
+   * whose edit is finished (one still being finished gets it from its own pass,
+   * now that the run says on). Whether one was added; never throws.
+   */
+  async restoreAutopilotHook(run: RepurposeRun, variant: FinishingVariant): Promise<boolean> {
+    try {
+      const result = await this.hook({
+        run,
+        variant,
+        now: new Date(),
+        previous: undefined,
+        overdue: false,
+      });
+      return result !== "wait" && result.state === "done" && (result.applied ?? 0) > 0;
+    } catch (error) {
+      this.logger.warn({ variantId: variant.id, err: error }, "could not put a hook title back");
+      return false;
+    }
+  }
+
   // -------------------------------------------------------------------------
   // Steps
   // -------------------------------------------------------------------------
@@ -539,6 +587,8 @@ export class ClipFinishing {
   /** The hook title, unless the document already has one (a person's, kept). */
   private async hook(context: ShapeContext): Promise<StepResult> {
     const { variant, now } = context;
+    // Switched off for the run from its page (2026-10-01).
+    if (!hookTitlesOf(context.run)) return skipped(now, "off");
     const document = await this.documentOf(variant.projectId);
     if (document === undefined) return skipped(now, "no-document");
     const overlays = document.projection.overlays ?? [];

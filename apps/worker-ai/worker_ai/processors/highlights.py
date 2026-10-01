@@ -461,6 +461,11 @@ def _proposal(
             "payoff": judged.payoff,
             "humour": judged.humour,
             **({} if judged.topic_fit is None else {"topicFit": judged.topic_fit}),
+            # The clip analysis its page shows (2026-10-01): each only when given.
+            **({} if judged.hook is None else {"hook": judged.hook}),
+            **({} if judged.trend is None else {"trend": judged.trend}),
+            **({"notes": dict(judged.notes)} if judged.notes else {}),
+            **({"people": list(judged.people)} if judged.people else {}),
             "model": judged.model[:100] or "unknown",
         }
     if copy is not None:

@@ -39,6 +39,7 @@ import {
   autopilotClipCount,
   brandOf,
   brollOf,
+  hookTitlesOf,
 } from "./repurpose.constants.js";
 import { createRunSchema } from "./repurpose.dto.js";
 import {
@@ -687,6 +688,45 @@ export class RepurposeService {
    *   and then failed at transcription. `creditsLeft` is what is left for THIS
    *   run once the others are counted.
    */
+  /**
+   * What a new run could process now, without refusing (2026-10-01, the start
+   * form's live estimate): the same reads and arithmetic as
+   * {@link acquisitionBudget}. `windowMs` is 0 when not even a minute is
+   * affordable - what a create would answer 402 to.
+   */
+  async budgetView(workspaceId: string): Promise<{
+    readonly windowMs: number;
+    readonly planWindowMs: number;
+    readonly maxSourceDurationMs: number;
+    readonly availableTenths: number;
+    readonly pendingTenths: number;
+  }> {
+    const [entitlement, plan, account, pendingTenths] = await Promise.all([
+      this.entitlements.forWorkspace(workspaceId),
+      resolveWorkspacePlan(this.prisma, workspaceId),
+      this.prisma.creditAccount.findUnique({
+        where: { workspaceId },
+        select: { balanceTenths: true },
+      }),
+      this.pendingTranscriptionTenths(workspaceId),
+    ]);
+    const limits = clipsLimitsFor(entitlement);
+    const availableTenths = (account?.balanceTenths ?? 0) - pendingTenths;
+    const windowMs = runWindowMs({
+      clipsWindowMs: limits.clipsWindowMs,
+      balanceTenths: availableTenths,
+      // eslint-disable-next-line security/detect-object-injection -- a PlanKey enum value from the database
+      enqueuedCapTenths: PLAN_ENQUEUED_CAP_TENTHS[plan],
+    });
+    return {
+      windowMs: windowMs < MIN_WINDOW_MS ? 0 : windowMs,
+      planWindowMs: limits.clipsWindowMs,
+      maxSourceDurationMs: limits.maxSourceDurationMs,
+      availableTenths,
+      pendingTenths,
+    };
+  }
+
   private async acquisitionBudget(
     workspaceId: string,
     exceptRunId?: string,
@@ -2178,6 +2218,7 @@ export class RepurposeService {
       automation: automationOf(run),
       brand: brandOf(run),
       broll: brollOf(run),
+      hookTitles: hookTitlesOf(run),
       waitingFor,
       steering: steeringOf(run.config),
       activity: activity?.activity ?? null,

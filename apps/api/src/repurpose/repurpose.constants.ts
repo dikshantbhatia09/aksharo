@@ -55,6 +55,8 @@ export const REPURPOSE_ERRORS = {
   downloadExpired: "repurpose/download_expired",
   /** 429 on "Download all": the workspace already has its most downloads running. */
   downloadsBusy: "repurpose/downloads_busy",
+  /** 409 on the hook-title switch: a run whose person makes the clips has no Autopilot hook titles. */
+  hookTitlesManual: "repurpose/hook_titles_manual",
 } as const;
 
 /**
@@ -243,6 +245,19 @@ export function brollOf(run: { readonly config: unknown }): boolean {
   const config = run.config;
   if (typeof config !== "object" || config === null || Array.isArray(config)) return false;
   return (config as Record<string, unknown>)["broll"] === true;
+}
+
+/**
+ * Whether Autopilot puts its hook title over the first seconds of this run's
+ * clips (`config.hookTitles`, 2026-10-01, OpusClip's "Auto headline ...
+ * Disable it"). Absent reads as on, as every run before the switch was; off,
+ * the finishing pass skips it and the run page's switch has taken Autopilot's
+ * own titles back out (a person's own hook title is never touched).
+ */
+export function hookTitlesOf(run: { readonly config: unknown }): boolean {
+  const config = run.config;
+  if (typeof config !== "object" || config === null || Array.isArray(config)) return true;
+  return (config as Record<string, unknown>)["hookTitles"] !== false;
 }
 
 /**

@@ -1,0 +1,142 @@
+import { describe, expect, it } from "vitest";
+
+import type { RepurposeCandidateItem } from "@montaj/api-client";
+
+import { analysisOf, gradeOf, matchesSearch, tagsOf } from "./clip-analysis";
+
+const COPY = {
+  summary: "Why insecurity fades",
+  hook: "Stop trying to impress",
+  cta: "",
+  hashtags: ["#seduction", "#confidence", "#mindset"],
+  locale: "en-IN",
+  title: "How to overcome insecurity",
+};
+
+function candidate(over: Partial<RepurposeCandidateItem> = {}): RepurposeCandidateItem {
+  return {
+    id: "C1",
+    startMs: 94_000,
+    endMs: 124_000,
+    potentialScore: 85,
+    title: "Raw title",
+    copy: COPY,
+    transcriptExcerpt: "Insecure people focus on themselves; confident people focus on you.",
+    reasons: [
+      {
+        label: "standalone",
+        explanation: "AI editor: A clear point. (stands on its own 7/10, lands its point 6/10).",
+      },
+      { label: "hook", explanation: "Opens with 'how', a hook in the first seconds." },
+      {
+        label: "standalone",
+        explanation: "Starts and ends on complete sentences, so it stands on its own.",
+      },
+      {
+        label: "clear_point",
+        explanation: "Dense, fluent speech: 105 words in 36 s with no fillers.",
+      },
+    ],
+    scoreBreakdown: { hook: 70, clarity: 100, standaloneValue: 77, novelty: 0, emotion: 0 },
+    ...over,
+  };
+}
+
+describe("gradeOf", () => {
+  it("grades like a report card", () => {
+    expect([95, 88, 82, 76, 70, 61, 55, 46, 20].map(gradeOf)).toEqual([
+      "A+",
+      "A",
+      "A-",
+      "B+",
+      "B",
+      "B-",
+      "C+",
+      "C",
+      "D",
+    ]);
+  });
+});
+
+describe("analysisOf", () => {
+  it("prefers the AI editor's marks and notes, part by part", () => {
+    const analysis = analysisOf(
+      candidate({
+        judgement: {
+          standalone: 7,
+          payoff: 9,
+          humour: 1,
+          hook: 8,
+          trend: 6,
+          notes: { hook: "Opens on a sharp question.", trend: "Dating advice is widely shared." },
+          people: ["Robert Greene", "Raj Shamani"],
+          model: "m",
+        },
+      }),
+    );
+    expect(analysis.overall).toBe(85);
+    expect(analysis.parts.map((part) => [part.key, part.score, part.grade, part.source])).toEqual([
+      ["hook", 80, "A-", "ai"],
+      ["flow", 70, "B", "ai"],
+      ["value", 90, "A", "ai"],
+      ["trend", 60, "B-", "ai"],
+    ]);
+    expect(analysis.parts[0]?.note).toBe("Opens on a sharp question.");
+    // No AI note for flow: the moment's own reason of that kind, never the summary line.
+    expect(analysis.parts[1]?.note).toBe(
+      "Starts and ends on complete sentences, so it stands on its own.",
+    );
+    expect(analysis.people).toEqual(["Robert Greene", "Raj Shamani"]);
+  });
+
+  it("falls back to the measured figures, and shows no Trend it has nothing for", () => {
+    const analysis = analysisOf(candidate());
+    expect(analysis.parts.map((part) => [part.key, part.score, part.source])).toEqual([
+      ["hook", 70, "measured"],
+      ["flow", 77, "measured"],
+      ["value", 100, "measured"],
+    ]);
+    expect(analysis.people).toEqual([]);
+  });
+
+  it("keeps an ungraded Trend when the moment has a reason for it", () => {
+    const analysis = analysisOf(
+      candidate({
+        reasons: [{ label: "track_record", explanation: "Like your clips that did best." }],
+      }),
+    );
+    expect(analysis.parts.find((part) => part.key === "trend")).toMatchObject({
+      score: null,
+      grade: null,
+      note: "Like your clips that did best.",
+    });
+  });
+});
+
+describe("tagsOf", () => {
+  it("names what it is about, then what makes it work", () => {
+    expect(tagsOf(candidate())).toEqual(["Seduction", "Confidence", "Strong hook"]);
+  });
+
+  it("calls a funny one funny", () => {
+    expect(
+      tagsOf(
+        candidate({ copy: {}, judgement: { standalone: 5, payoff: 5, humour: 8, model: "m" } }),
+      ),
+    ).toEqual(["Funny"]);
+  });
+});
+
+describe("matchesSearch", () => {
+  it("finds a clip by its words, its title, its topics or a name", () => {
+    const one = candidate({
+      judgement: { standalone: 5, payoff: 5, humour: 0, people: ["Robert Greene"], model: "m" },
+    });
+    expect(matchesSearch(one, "confident")).toBe(true);
+    expect(matchesSearch(one, "overcome insecurity")).toBe(true);
+    expect(matchesSearch(one, "#mindset")).toBe(true);
+    expect(matchesSearch(one, "greene")).toBe(true);
+    expect(matchesSearch(one, "cooking")).toBe(false);
+    expect(matchesSearch(one, "  ")).toBe(true);
+  });
+});

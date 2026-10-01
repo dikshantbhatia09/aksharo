@@ -44,6 +44,7 @@ import {
   topicProblem,
   type ClipLength,
 } from "@/components/repurpose/steering";
+import { stylePreviewUrl } from "@/lib/style-previews";
 
 /**
  * The spoken language when the person leaves it to us: the API detects it
@@ -421,7 +422,10 @@ export function RunSetupFields<V extends RunSetupValue>({
         aria-describedby={problems.style === undefined ? undefined : id("style-error")}
       >
         <legend className="text-sm font-medium text-fg-1">Caption look</legend>
-        <div className="mt-2 flex flex-wrap gap-2" data-testid="style-picker">
+        {/* Cards with each look's own picture (2026-10-01, OpusClip's caption
+            templates): the still the catalogue renders from the same preview
+            the editor animates, so the card shows what the clips will get. */}
+        <div className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-5" data-testid="style-picker">
           {RECOMMENDED_STYLES.map((style, index) => {
             const selected = value.styleId === style.id;
             return (
@@ -434,16 +438,34 @@ export function RunSetupFields<V extends RunSetupValue>({
                   set("styleId", style.id);
                 }}
                 className={cn(
-                  "inline-flex h-9 items-center gap-1.5 rounded-sm border px-3 text-sm",
+                  "flex min-w-0 flex-col overflow-hidden rounded-sm border text-left",
                   "transition-colors duration-[160ms]",
                   // Selected = the system's selection ring, not a tinted fill.
                   selected
-                    ? "border-transparent bg-bg-2 text-fg-0 ring-1 ring-accent"
-                    : "border-border text-fg-1 hover:bg-neutral-100/7 hover:text-fg-0",
+                    ? "border-transparent bg-bg-2 ring-2 ring-accent"
+                    : "border-border hover:border-neutral-600",
                 )}
               >
-                {style.name}
-                {index === 0 && <span className="text-2xs text-fg-2">Recommended</span>}
+                <img
+                  src={stylePreviewUrl(`${style.id}.png`)}
+                  alt=""
+                  loading="lazy"
+                  width={270}
+                  height={480}
+                  className="aspect-[9/16] h-auto w-full bg-bg-2 object-cover"
+                  data-testid={`style-preview-${style.id}`}
+                />
+                <span className="flex min-w-0 flex-col px-2 py-1.5">
+                  <span
+                    className={cn(
+                      "truncate text-xs font-medium",
+                      selected ? "text-fg-0" : "text-fg-1",
+                    )}
+                  >
+                    {style.name}
+                  </span>
+                  {index === 0 && <span className="text-2xs text-fg-2">Recommended</span>}
+                </span>
               </button>
             );
           })}

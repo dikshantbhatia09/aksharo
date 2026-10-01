@@ -10,6 +10,7 @@ import { cn, Tooltip, TooltipContent, TooltipTrigger } from "@montaj/ui";
 import { BrandMark } from "./brand-mark";
 import { ProfileMenu } from "./profile-menu";
 import { useNavItems } from "./use-nav-targets";
+import { inProgressLabel, useRunsInProgress } from "./use-runs-in-progress";
 
 import { StreakChip } from "@/components/streak/streak-chip";
 import { isActivePath } from "@/lib/nav";
@@ -31,6 +32,7 @@ import { isActivePath } from "@/lib/nav";
 export function NavRail(): React.JSX.Element {
   const pathname = usePathname() ?? "/";
   const { primary } = useNavItems();
+  const inProgress = useRunsInProgress();
   const credits = useWorkspaceCredits();
   const entitlement = useEntitlement();
   const balance =
@@ -95,11 +97,30 @@ export function NavRail(): React.JSX.Element {
                   aria-current={active ? "page" : undefined}
                   data-testid={`nav-${item.key}`}
                 >
-                  <Icon className="size-5 shrink-0" strokeWidth={1.75} aria-hidden="true" />
+                  <span className="relative">
+                    <Icon className="size-5 shrink-0" strokeWidth={1.75} aria-hidden="true" />
+                    {/* Work going on: a neutral count, never the accent (a
+                        second accent mark in the rail would read as active). */}
+                    {item.key === "repurpose" && inProgress > 0 ? (
+                      <span
+                        className="absolute -top-1.5 -right-2.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-fg-1 px-1 text-[10px] font-semibold leading-none text-bg-0 tabular-nums motion-safe:animate-pulse"
+                        data-testid="nav-repurpose-in-progress"
+                      >
+                        {inProgress}
+                      </span>
+                    ) : null}
+                  </span>
                   <span className="text-2xs">{item.short}</span>
+                  {item.key === "repurpose" && inProgress > 0 ? (
+                    <span className="sr-only">, {inProgressLabel(inProgress)}</span>
+                  ) : null}
                 </Link>
               </TooltipTrigger>
-              <TooltipContent side="right">{item.label}</TooltipContent>
+              <TooltipContent side="right">
+                {item.key === "repurpose" && inProgress > 0
+                  ? `${item.label}: ${inProgressLabel(inProgress)}`
+                  : item.label}
+              </TooltipContent>
             </Tooltip>
           );
         })}

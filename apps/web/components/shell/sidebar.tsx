@@ -21,6 +21,7 @@ import { BrandMark } from "./brand-mark";
 import { CreditsCard } from "./credits-card";
 import { ProfileMenu } from "./profile-menu";
 import { useNavItems } from "./use-nav-targets";
+import { useRunsInProgress } from "./use-runs-in-progress";
 import { WorkspaceSwitcher } from "./workspace-switcher";
 import { fontEndpoints, type WorkspaceFontView } from "../editor/rail/fonts-endpoints";
 
@@ -194,6 +195,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }): React.JSX.
   const config = useRuntimeConfig();
   const { primary, secondary } = useNavItems();
   const projects = useProjects({ limit: 8 });
+  const inProgress = useRunsInProgress();
   /*
    * The canvas puts a count on the Projects row. `ProjectPage` carries items
    * and a cursor but no total, so the only count this can state truthfully is
@@ -243,7 +245,9 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }): React.JSX.
             badge={
               item.key === "projects" && projectCount !== undefined
                 ? String(projectCount)
-                : undefined
+                : item.key === "repurpose" && inProgress > 0
+                  ? `${String(inProgress)} in progress`
+                  : undefined
             }
             onNavigate={onNavigate}
           />

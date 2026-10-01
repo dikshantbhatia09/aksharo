@@ -56,6 +56,7 @@ import {
   startContextFromParams,
   startFormFromParams,
 } from "@/components/repurpose/run-setup";
+import { RunEstimateLine } from "@/components/repurpose/RunEstimateLine";
 import { runSetupRequest } from "@/components/repurpose/RunSetupFields";
 import { linkLinesOf, linksToSend } from "@/components/repurpose/several-links";
 import {
@@ -156,6 +157,12 @@ export function RepurposeNewView(): React.JSX.Element {
     entitlement.data?.entitlements["internalUnlimited"] === true ||
     (clipsWindowMs !== undefined && clipsWindowMs >= ceilingMs);
   const planWindowMs = processesWholeVideos ? undefined : clipsWindowMs;
+  // The longest file an upload may be (the probe refuses a longer one), for
+  // the cost line's warning; none for the internal unlimited workspace.
+  const maxUploadMs =
+    entitlement.data?.entitlements["internalUnlimited"] === true
+      ? undefined
+      : positiveEntitlement(entitlement.data?.entitlements["maxDurationMs"]);
   // The SAME queue the home drop zone uses. It hashes, initialises, PUTs every
   // part, completes, and lets the existing probe/proxy/transcribe chain take
   // over — so a repurposing upload is an ordinary upload that happens to have a
@@ -436,6 +443,15 @@ export function RepurposeNewView(): React.JSX.Element {
           {...(startContext.knownLength === undefined
             ? {}
             : { knownLength: startContext.knownLength })}
+          estimate={
+            <RunEstimateLine
+              value={value}
+              {...(startContext.knownLength === undefined
+                ? {}
+                : { knownLength: startContext.knownLength })}
+              {...(maxUploadMs === undefined ? {} : { maxUploadMs })}
+            />
+          }
         />
         {severalLines === null ? null : <SeveralResults lines={severalLines} />}
       </div>

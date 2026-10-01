@@ -598,6 +598,26 @@ export const HighlightProposalSchema = z
         payoff: z.int().min(0).max(10),
         humour: z.int().min(0).max(10),
         topicFit: z.int().min(0).max(10).optional(),
+        /**
+         * The clip's analysis as its page shows it (2026-10-01, OpusClip's
+         * Hook / Flow / Value / Trend): how hard its first seconds grab, and
+         * how much its subject is one people are talking about now. Flow and
+         * Value are `standalone` and `payoff`. Optional: a model may leave
+         * them out, and moments judged before them have none.
+         */
+        hook: z.int().min(0).max(10).optional(),
+        trend: z.int().min(0).max(10).optional(),
+        /** One sentence on each of the four, in the clip's own terms. */
+        notes: z
+          .strictObject({
+            hook: z.string().trim().min(1).max(240).optional(),
+            flow: z.string().trim().min(1).max(240).optional(),
+            value: z.string().trim().min(1).max(240).optional(),
+            trend: z.string().trim().min(1).max(240).optional(),
+          })
+          .optional(),
+        /** People the moment names or features, as said in it ("Relevant people"). */
+        people: z.array(z.string().trim().min(1).max(60)).max(5).optional(),
         model: z.string().trim().min(1).max(100),
       })
       .optional(),

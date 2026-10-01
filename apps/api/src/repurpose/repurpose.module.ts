@@ -23,6 +23,8 @@ import { RepurposeSteeringService } from "./repurpose-steering.service.js";
 import { RepurposeStuckRunsSweepTask } from "./repurpose-stuck-runs-sweep.task.js";
 import { RepurposeController } from "./repurpose.controller.js";
 import { RepurposeService } from "./repurpose.service.js";
+import { RepurposeResultsController } from "./results/run-results.controller.js";
+import { RepurposeResultsService } from "./results/run-results.service.js";
 import { RunActivityReader } from "./run-activity.reader.js";
 import { RunNotifier } from "./run-notifications.js";
 import { RepurposeSeriesService } from "./series.service.js";
@@ -82,6 +84,8 @@ import { WorkspacesModule } from "../workspaces/workspaces.module.js";
     RepurposeDubsController,
     // A run's cover, for the audiograms of a source with no picture (2026-10-04).
     RepurposeCoversController,
+    // The results page: titles, hook titles, transcript, estimate (2026-10-01).
+    RepurposeResultsController,
   ],
   providers: [
     RepurposeService,
@@ -114,6 +118,7 @@ import { WorkspacesModule } from "../workspaces/workspaces.module.js";
     // A second binding of a stateless class (`MediaModule` provides the first
     // and does not export it), as `TranscriptsModule` does with its guard.
     AutoTranscribeTrigger,
+    RepurposeResultsService,
   ],
   exports: [RepurposeService, RepurposeClipsService],
 })

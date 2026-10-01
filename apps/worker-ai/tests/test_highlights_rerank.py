@@ -436,3 +436,109 @@ def test_a_topic_run_needs_topic_fit() -> None:
 def test_ids_as_keys_are_read_too() -> None:
     value = {"w-00001": {"standalone": 7, "payoff": 8, "humour": 2}}
     assert "w-00001" in parse_judgements(value, ["w-00001"], with_topic=False, model="m")
+
+
+def test_the_clip_analysis_is_read_when_given_and_never_required() -> None:
+    """Hook, trend, the four notes and the names (2026-10-01): optional extras."""
+    value = {
+        "moments": [
+            {
+                "id": "w-1",
+                "standalone": 7,
+                "payoff": 6,
+                "humour": 1,
+                "hook": 9,
+                "trend": "4",
+                "why": "Asks a question and answers it.",
+                "notes": {
+                    "hook": "Opens with a direct question.",
+                    "flow": "A complete thought.",
+                    "value": "...",
+                    "trend": 7,
+                    "other": "ignored entirely here",
+                },
+                "people": [
+                    "Warren Buffett",
+                    "",
+                    42,
+                    "Warren Buffett",
+                    "Raj Shamani",
+                    "A",
+                    "Elon Musk",
+                    "Fourth Person",
+                ],
+            },
+            {"id": "w-2", "standalone": 5, "payoff": 5, "humour": 0, "hook": 11, "notes": "no"},
+        ]
+    }
+    judged = parse_judgements(value, ["w-1", "w-2"], with_topic=False, model="m")
+    first = judged["w-1"]
+    assert (first.hook, first.trend) == (9, 4)
+    # A placeholder note and a non-string one are left out, like a "why".
+    assert dict(first.notes) == {
+        "hook": "Opens with a direct question.",
+        "flow": "A complete thought.",
+    }
+    assert first.people == ("Warren Buffett", "Raj Shamani", "Elon Musk")
+    # Out of range or malformed: no hook, no notes - and still a judgement.
+    second = judged["w-2"]
+    assert (second.hook, second.trend, second.notes, second.people) == (None, None, (), ())
+
+
+def test_a_strong_hook_lifts_a_moment_a_little() -> None:
+    plain = parse_judgements(
+        {"moments": [{"id": "w-1", "standalone": 6, "payoff": 6, "humour": 0}]},
+        ["w-1"],
+        with_topic=False,
+        model="m",
+    )["w-1"]
+    hooked = parse_judgements(
+        {"moments": [{"id": "w-1", "standalone": 6, "payoff": 6, "humour": 0, "hook": 10}]},
+        ["w-1"],
+        with_topic=False,
+        model="m",
+    )["w-1"]
+    assert model_quality(hooked, "reach", with_topic=False) > model_quality(
+        plain, "reach", with_topic=False
+    )
+
+
+async def test_the_clip_analysis_reaches_the_proposal() -> None:
+    """2026-10-01: what the model said of hook, flow, value and trend goes out with the moment."""
+    words = transcript(STRONG_AT_12, PUNCHLINE)
+
+    def answer(request: LlmRequest) -> Any:
+        if not is_judging(request):
+            return LlmError("not asked to judge", provider="fake", retryable=False)
+        return {
+            "moments": [
+                {
+                    "id": window_id,
+                    "standalone": 8,
+                    "payoff": 8,
+                    "humour": 2,
+                    "hook": 9,
+                    "trend": 6,
+                    "why": "Lands a clear punchline.",
+                    "notes": {
+                        "hook": "Opens on a surprising question.",
+                        "value": "One clear takeaway.",
+                    },
+                    "people": ["Raj Shamani"],
+                }
+                for window_id in moment_blocks(request)
+            ]
+        }
+
+    outcome = await run_with((FakeLlm(answer),), words, count=1)
+    (proposal,) = outcome.result["proposals"]
+    assert proposal["judgement"] == {
+        "standalone": 8,
+        "payoff": 8,
+        "humour": 2,
+        "hook": 9,
+        "trend": 6,
+        "notes": {"hook": "Opens on a surprising question.", "value": "One clear takeaway."},
+        "people": ["Raj Shamani"],
+        "model": "fake-model",
+    }

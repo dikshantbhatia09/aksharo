@@ -54,6 +54,14 @@ export interface RepurposeJudgement {
   payoff: number;
   humour: number;
   topicFit?: number;
+  /** How hard the first seconds grab, 0-10 (2026-10-01; absent on older moments). */
+  hook?: number;
+  /** How much the subject is one people are talking about now, 0-10 (2026-10-01). */
+  trend?: number;
+  /** One sentence each on hook, flow (`standalone`), value (`payoff`) and trend. */
+  notes?: { hook?: string; flow?: string; value?: string; trend?: string };
+  /** People the moment names or features ("Relevant people"). */
+  people?: string[];
   model: string;
 }
 

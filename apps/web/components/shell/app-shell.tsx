@@ -17,6 +17,7 @@ import type { RealtimeEvent } from "@montaj/api-client";
 import { toast } from "@montaj/ui";
 
 import { CommandPalette, useCommandPalette } from "./command-palette";
+import { LowCreditsNudge } from "./low-credits-nudge";
 import { useNavModel } from "./nav-model";
 import { NavRail } from "./nav-rail";
 import { Sidebar } from "./sidebar";
@@ -341,6 +342,10 @@ export function AppShell({ children }: { children: React.ReactNode }): React.JSX
       )}
 
       <CommandPalette open={open} onOpenChange={setOpen} recentProjects={recentProjects} />
+
+      {/* Told before a run is refused for credits, not by the refusal. Not over
+          the editor, whose bottom edge is the timeline. */}
+      {bootstrapped && session !== null && !isEditorRoute ? <LowCreditsNudge /> : null}
 
       {/* B07b: the give-get sheet is a global growth prompt, not scoped to one
           screen — see `components/referrals/README.md`'s "Mount points". Waits

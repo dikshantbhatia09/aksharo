@@ -530,6 +530,25 @@ describe("ClipFinishing on a 9:16 shape", () => {
     });
   });
 
+  // 2026-10-01: the run page's "hook titles" switch.
+  it("adds no hook title to a run whose hook titles are off, and puts Autopilot's back and takes it out on request", async () => {
+    plan = { autocut: false, reframeZoom: false };
+    const off = { ...RUN, config: { ...(RUN.config as object), hookTitles: false } };
+    expect(await finishing.advance(off, vertical())).toBe("just-finished");
+    expect(recordOf(VERTICAL)?.steps.hook).toMatchObject({ state: "skipped", reason: "off" });
+    expect(projection(PROJECT_9X16).overlays ?? []).toEqual([]);
+
+    // Back on: Autopilot's title goes on the finished shape, under the shape's own id.
+    expect(await finishing.restoreAutopilotHook(RUN, vertical())).toBe(true);
+    expect(projection(PROJECT_9X16).overlays).toEqual([
+      expect.objectContaining({ id: VERTICAL, kind: "hook-title" }),
+    ]);
+    // And off again: taken out; asking twice finds nothing to take.
+    expect(await finishing.removeAutopilotHook(vertical())).toBe(true);
+    expect(projection(PROJECT_9X16).overlays ?? []).toEqual([]);
+    expect(await finishing.removeAutopilotHook(vertical())).toBe(false);
+  });
+
   it("keeps a hook title and emphasis a person already set", async () => {
     plan = { autocut: false, reframeZoom: false };
     const doc = docFor(PROJECT_9X16);

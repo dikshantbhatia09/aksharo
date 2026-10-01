@@ -24,6 +24,8 @@ export const EN_MESSAGES: MessageCatalogue = {
     plan: "your plan",
     video: "your video",
     clip: "your clip",
+    // "yes" on a workspace's first ever "clips ready" (2026-10-01); read by a `select`.
+    first: "no",
   },
 
   kinds: {
@@ -198,16 +200,17 @@ export const EN_MESSAGES: MessageCatalogue = {
     },
 
     "clips-ready": {
-      subject: "Your first clips from {video} are ready",
-      heading: "Your clips are ready",
+      subject:
+        "{first, select, yes {Your first clips are ready: {video}} other {Your first clips from {video} are ready}}",
+      heading: "{first, select, yes {Your first clips are ready} other {Your clips are ready}}",
       paragraphs: [
         "Hi {name}, {count, plural, one {# clip from {video} is} other {# clips from {video} are}} ready to watch.",
-        "Open the run to watch, edit or download them. Any still being made appear there as they finish.",
+        "{first, select, yes {Each one is cut on the speaker, captioned and scored. Open the run to watch them best first: open any one in the editor to change its words or look, download them all in one go, or share them with your guest. Any still being made appear there as they finish.} other {Open the run to watch, edit or download them. Any still being made appear there as they finish.}}",
       ],
       cta: "Open your clips",
       footnotes: ["You get this once for each video."],
       push: {
-        title: "Your clips are ready",
+        title: "{first, select, yes {Your first clips are ready} other {Your clips are ready}}",
         body: "{count, plural, one {# clip} other {# clips}} from {video} ready to watch.",
       },
     },

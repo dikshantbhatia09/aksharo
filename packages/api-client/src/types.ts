@@ -1341,6 +1341,11 @@ export interface RepurposeRunView {
   /** Whether the run asked for B-roll (2026-10-05); absent from an older API (read as off). */
   broll?: boolean;
   /**
+   * Whether Autopilot puts its hook title on the run's clips (2026-10-01): on
+   * unless the run page's switch turned it off; absent from an older API (on).
+   */
+  hookTitles?: boolean;
+  /**
    * What the run was steered with at the start (2026-09-29): null when it was
    * not, absent from an API older than steering.
    */
