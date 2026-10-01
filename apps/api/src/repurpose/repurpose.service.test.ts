@@ -2310,6 +2310,26 @@ describe("create — captions the person already has (2026-10-01)", () => {
     expect(createdRunData(h)["config"]).toMatchObject({ captions: { from: "url" } });
   });
 
+  it("refuses a linked .ass or .txt file with a 400 before anything is made", async () => {
+    for (const kind of ["ass", "txt"]) {
+      const captionImports = imports();
+      captionImports.prepareFromUrl.mockImplementation(async (url: string) => ({
+        parsed: { kind, timed: kind === "ass", cues: CUES, warnings: [] },
+        sourceUrl: url,
+      }));
+      const h = harness({ captionImports });
+      await expect(
+        h.service.create(
+          WS,
+          USER,
+          upload({ captions: { from: "url", url: `https://example.com/talk.${kind}` } }),
+        ),
+      ).rejects.toMatchObject({ code: "import/unsupported_kind", httpStatus: 400 });
+      expect(h.projects.create).not.toHaveBeenCalled();
+      expect(captionImports.stash).not.toHaveBeenCalled();
+    }
+  });
+
   it("refuses a file with no words in it before anything is made", async () => {
     const captionImports = imports([{ index: 1, startMs: 0, endMs: 2_000, text: "   " }]);
     const h = harness({ captionImports });

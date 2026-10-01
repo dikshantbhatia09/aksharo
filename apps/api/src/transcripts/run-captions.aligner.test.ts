@@ -306,4 +306,31 @@ describe("AutoTranscribeTrigger with a run's own captions", () => {
     const unusable = trigger({ kind: "unusable", reason: "gone" });
     await expect(unusable.subject.maybeEnqueue(MEDIA)).resolves.toEqual({ jobId: "01PAID" });
   });
+
+  it("tells the reconciler what the captions said, so a refused fallback is not a wait", async () => {
+    const waiting = trigger({ kind: "waiting" });
+    await expect(waiting.subject.startFirstTranscription(MEDIA)).resolves.toEqual({
+      jobId: undefined,
+      captions: "waiting",
+    });
+
+    const unusable = trigger({ kind: "unusable", reason: "gone" });
+    unusable.transcribe.mockRejectedValueOnce(new Error("credits/insufficient"));
+    await expect(unusable.subject.startFirstTranscription(MEDIA)).resolves.toEqual({
+      jobId: undefined,
+      captions: "unusable",
+    });
+
+    const queued = trigger({ kind: "queued", jobId: "01ALIGN" });
+    await expect(queued.subject.startFirstTranscription(MEDIA)).resolves.toEqual({
+      jobId: "01ALIGN",
+      captions: "queued",
+    });
+
+    const plain = trigger({ kind: "not_captions" });
+    await expect(plain.subject.startFirstTranscription(MEDIA)).resolves.toEqual({
+      jobId: "01PAID",
+      captions: "none",
+    });
+  });
 });

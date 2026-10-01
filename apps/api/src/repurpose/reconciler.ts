@@ -1382,11 +1382,18 @@ export class RepurposeReconciler
     }
 
     const attemptedAt = new Date();
-    if ((await this.autoTranscribe.maybeEnqueue(media.id)) !== undefined) return "queued";
+    const started = await this.autoTranscribe.startFirstTranscription(media.id);
+    if (started.jobId !== undefined) return "queued";
     // A run started with its own captions (2026-10-01) spends no credits on
-    // this step: nothing queued means the align is waiting for a lane slot or
-    // a queue that is back, never that the balance is short.
-    if (runCaptionsOf(run) !== null) return "deferred";
+    // this step while its captions can be used: the align waiting for a lane
+    // slot or a queue that is back is a wait, never a short balance. But when
+    // the trigger found them unusable (the file gone, or no cue inside the
+    // window) it fell back to the paid transcription, and that fallback not
+    // starting is read exactly as any run's: a short balance is `no_credits`,
+    // not a wait for ever (2026-10-01 review). Only an explicit `unusable`
+    // falls through: a trigger that stopped before asking the captions (the
+    // audio not ready yet, say) is still a captions run that costs nothing.
+    if (runCaptionsOf(run) !== null && started.captions !== "unusable") return "deferred";
 
     // `finished_at`, not `queued_at`: the enqueue's failure path stamps it from
     // this process's clock, the same one `attemptedAt` came from.

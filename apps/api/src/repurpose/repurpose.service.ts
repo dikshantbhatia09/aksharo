@@ -53,7 +53,7 @@ import {
   windowView,
 } from "./repurpose.projection.js";
 import { RunActivityReader } from "./run-activity.reader.js";
-import { captionsLanguageOf, runCaptionsOf } from "./run-captions.js";
+import { RUN_CAPTION_KINDS, captionsLanguageOf, runCaptionsOf } from "./run-captions.js";
 import { MAX_BLOCKED_FETCHES, SOURCE_BLOCKED_REASON, SourceGate } from "./source-gate.js";
 import { SOURCE_REJECTION_MESSAGES, parseSourceUrl } from "./source-url.js";
 import {
@@ -713,6 +713,18 @@ export class RepurposeService {
       wanted.from === "file"
         ? this.captionImports.prepareInline(wanted.kind, wanted.content)
         : await this.captionImports.prepareFromUrl(wanted.url, wanted.kind);
+    // A link sent without `kind` is read by its extension, and the import
+    // knows `.ass` and `.txt` too (2026-10-01 review): those carry no timings
+    // a run can trust, so they are refused here as a 400, before anything is
+    // created — not as a 500 from `stashCaptions` inside the run's own block.
+    if (!(RUN_CAPTION_KINDS as readonly string[]).includes(prepared.parsed.kind)) {
+      throw new AppException(
+        IMPORT_ERRORS.unsupportedKind,
+        "A run can start with SRT or WebVTT captions only.",
+        HttpStatus.BAD_REQUEST,
+        { kind: prepared.parsed.kind, allowed: RUN_CAPTION_KINDS },
+      );
+    }
     if (!prepared.parsed.cues.some((cue) => cue.text.trim() !== "")) {
       throw new AppException(
         IMPORT_ERRORS.unparsable,

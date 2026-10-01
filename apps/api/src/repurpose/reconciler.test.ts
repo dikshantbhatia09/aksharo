@@ -1190,8 +1190,17 @@ function harness(w: World) {
       }
     }),
   };
+  const maybeEnqueue = vi.fn(async (_mediaId: string): Promise<{ jobId: string } | undefined> => ({
+    jobId: "j",
+  }));
   const autoTranscribe = {
-    maybeEnqueue: vi.fn(async (): Promise<{ jobId: string } | undefined> => ({ jobId: "j" })),
+    maybeEnqueue,
+    /** What the run's own captions said; `"none"` unless a test sets it. */
+    captions: "none" as "none" | "queued" | "waiting" | "unusable",
+    startFirstTranscription: vi.fn(async (mediaId: string) => {
+      const started = await maybeEnqueue(mediaId);
+      return { jobId: started?.jobId, captions: autoTranscribe.captions };
+    }),
   };
   const clips = { reconcileClips: vi.fn(async () => ({ enqueued: [] })) };
   const jobs = { diskHeldSince: vi.fn(async (): Promise<number | null> => null) };
@@ -1535,6 +1544,43 @@ describe("RepurposeReconciler — moving a run from durable state", () => {
       const out = await h.reconciler.reconcile(w.run);
       expect(h.runs.failRun).not.toHaveBeenCalled();
       expect(out.status).toBe("draft");
+    });
+
+    describe("a run started with its own captions (2026-10-01)", () => {
+      const captionsConfig = {
+        captions: { subtitleMediaId: "01JCSUBT1TLE00000000000000", kind: "srt", cueCount: 2 },
+      };
+
+      it.each(["waiting", "none"] as const)(
+        "waits, free, when the captions said %s and nothing started, even on a 0 balance",
+        async (said) => {
+          w.run = { ...w.run, config: captionsConfig } as RepurposeRun;
+          w.balanceTenths = 0;
+          const h = harness(w);
+          h.autoTranscribe.captions = said;
+          h.autoTranscribe.maybeEnqueue.mockResolvedValueOnce(undefined);
+
+          const out = await h.reconciler.reconcile(w.run);
+          expect(h.runs.failRun).not.toHaveBeenCalled();
+          expect(out.status).toBe("draft");
+        },
+      );
+
+      it("fails with no_credits when the captions were unusable and the paid fallback could not start", async () => {
+        // Before the review fix this read "deferred" on every pass, for ever.
+        w.run = { ...w.run, config: captionsConfig } as RepurposeRun;
+        w.balanceTenths = 0;
+        const h = harness(w);
+        h.autoTranscribe.captions = "unusable";
+        h.autoTranscribe.maybeEnqueue.mockResolvedValueOnce(undefined);
+
+        await h.reconciler.reconcile(w.run);
+        expect(h.runs.failRun).toHaveBeenCalledWith(
+          expect.anything(),
+          "repurpose/no_credits",
+          "finding_clips",
+        );
+      });
     });
 
     it.each([

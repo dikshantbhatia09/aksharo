@@ -19,6 +19,16 @@ const ATTEMPT_LOOKBACK = 10;
  */
 const EARLY_START_SLOTS = 2;
 
+/**
+ * What {@link AutoTranscribeTrigger.startFirstTranscription} did: the job it
+ * started or found (`undefined` for none), and what the run's own captions
+ * said when they were asked (`"none"` when they were not).
+ */
+export interface FirstTranscriptionStart {
+  readonly jobId: string | undefined;
+  readonly captions: "none" | "queued" | "waiting" | "unusable";
+}
+
 /** The job types whose open rows mean a producer is writing a transcript right now. */
 const TRANSCRIPT_PRODUCERS = ["ai.transcribe", "ai.align"] as const;
 
@@ -128,6 +138,33 @@ export class AutoTranscribeTrigger {
     mediaId: string,
     options: { readonly firstAttemptOnly?: boolean } = {},
   ): Promise<{ jobId: string } | undefined> {
+    const started = await this.start(mediaId, options);
+    return started.jobId === undefined ? undefined : { jobId: started.jobId };
+  }
+
+  /**
+   * {@link maybeEnqueue}, saying also what the run's own captions did
+   * (2026-10-01 review). The clips reconciler needs to tell "the captions'
+   * align is waiting for a slot" (a wait, free) from "the captions could not
+   * be used and the paid fallback did not start" (which may be a balance that
+   * is short, and must not read as waiting for ever).
+   *
+   * `captions` is `"none"` when no captions were consulted: no aligner wired,
+   * not a captions run, or the trigger stopped before asking.
+   */
+  async startFirstTranscription(
+    mediaId: string,
+    options: { readonly firstAttemptOnly?: boolean } = {},
+  ): Promise<FirstTranscriptionStart> {
+    return this.start(mediaId, options);
+  }
+
+  private async start(
+    mediaId: string,
+    options: { readonly firstAttemptOnly?: boolean },
+  ): Promise<FirstTranscriptionStart> {
+    let captions: FirstTranscriptionStart["captions"] = "none";
+    const nothing = (): FirstTranscriptionStart => ({ jobId: undefined, captions });
     const media = await this.prisma.mediaAsset.findUnique({
       where: { id: mediaId },
       select: {
@@ -141,7 +178,7 @@ export class AutoTranscribeTrigger {
       },
     });
     if (media === null || media.role !== "primary" || !firstTranscriptionCanStart(media)) {
-      return undefined;
+      return nothing();
     }
 
     const project = await this.prisma.project.findFirst({
@@ -154,7 +191,7 @@ export class AutoTranscribeTrigger {
         edgDocument: { select: { id: true } },
       },
     });
-    if (project === null || project.edgDocument !== null) return undefined;
+    if (project === null || project.edgDocument !== null) return nothing();
 
     // A clips run cancelled after its download finished still reaches here when
     // the proxy completes. Starting a paid transcription for it is spending the
@@ -164,15 +201,15 @@ export class AutoTranscribeTrigger {
       where: { sourceProjectId: project.id, status: { in: ["cancelled", "failed"] } },
       select: { id: true },
     });
-    if (settledRun !== null) return undefined;
+    if (settledRun !== null) return nothing();
 
     const transcripts = await this.prisma.transcript.count({ where: { projectId: project.id } });
     if (transcripts > 0) {
       // A producer mid-write — its transcript is stored and its document is
       // next — gets to finish; the read model makes the same call.
-      if (await this.transcriptionOpen(project.id)) return undefined;
+      if (await this.transcriptionOpen(project.id)) return nothing();
       await this.buildDocument(project.id, media.id);
-      return undefined;
+      return nothing();
     }
 
     const early = media.status !== "ready";
@@ -184,8 +221,9 @@ export class AutoTranscribeTrigger {
           : { firstAttemptOnly: options.firstAttemptOnly }),
         laneHasRoomToSpare: () => this.laneHasRoomToSpare(project.workspaceId),
       });
-      if (seeded.kind === "queued") return { jobId: seeded.jobId };
-      if (seeded.kind === "waiting") return undefined;
+      if (seeded.kind !== "not_captions") captions = seeded.kind;
+      if (seeded.kind === "queued") return { jobId: seeded.jobId, captions };
+      if (seeded.kind === "waiting") return nothing();
       if (seeded.kind === "unusable") {
         this.logger.warn(
           { projectId: project.id, mediaId: media.id, reason: seeded.reason },
@@ -196,7 +234,7 @@ export class AutoTranscribeTrigger {
 
     // `createdBy` is nullable, and the credit hold has to be attributable to a
     // person; without one there is nobody to charge, so leave it to the editor.
-    if (project.createdBy === null) return undefined;
+    if (project.createdBy === null) return nothing();
 
     // No language means the project never went through a quick pick, so there is
     // no defensible guess to spend credits on: leave it to the editor to ask.
@@ -206,22 +244,22 @@ export class AutoTranscribeTrigger {
         { projectId: project.id, mediaId: media.id },
         "media is ready but the project has no source language; not auto-transcribing",
       );
-      return undefined;
+      return nothing();
     }
 
     if (options.firstAttemptOnly === true || early) {
       const earlier = await this.firstTranscriptions(project.workspaceId, project.id, media.id);
       // Asked again while the first ask's job is open: that job is the answer.
       const open = earlier.find((job) => job.status === "queued" || job.status === "running");
-      if (open !== undefined) return { jobId: open.id };
-      if (options.firstAttemptOnly === true && earlier.some(ranOnWorker)) return undefined;
+      if (open !== undefined) return { jobId: open.id, captions };
+      if (options.firstAttemptOnly === true && earlier.some(ranOnWorker)) return nothing();
     }
     if (early && !(await this.laneHasRoomToSpare(project.workspaceId))) {
       this.logger.debug(
         { projectId: project.id, mediaId: media.id },
         "not starting the transcription on the early audio: it would take the plan's last free slot",
       );
-      return undefined;
+      return nothing();
     }
 
     try {
@@ -239,10 +277,10 @@ export class AutoTranscribeTrigger {
             : "auto-started the first transcription now that the media is ready",
         );
         if (await this.stopIfMediaFailed(media.id, accepted.jobId, project.workspaceId)) {
-          return undefined;
+          return nothing();
         }
       }
-      return { jobId: accepted.jobId };
+      return { jobId: accepted.jobId, captions };
     } catch (error) {
       // Deliberately swallowed: the proxy genuinely succeeded, and failing its
       // completion would retry the whole proxy rather than the transcription.
@@ -254,7 +292,7 @@ export class AutoTranscribeTrigger {
         },
         "could not auto-start transcription; the project opens without one",
       );
-      return undefined;
+      return nothing();
     }
   }
 
