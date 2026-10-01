@@ -27,6 +27,14 @@ import type { ClipCandidate, RepurposeRun } from "@prisma/client";
  */
 export const EXAMPLE_CACHE_MS = 60_000;
 
+/**
+ * How long an answer that is not the example is served: the run not set up
+ * yet, or a read that threw. Brief, so a passing failure (the database or the
+ * store blinking) hides the example for seconds, not a minute; long enough
+ * that a burst of visits during it still costs one read.
+ */
+export const EXAMPLE_FAILURE_CACHE_MS = 5_000;
+
 /** The shortest life a signed URL in this answer has (the clips' own: one hour). */
 const URL_TTL_MS = 60 * 60 * 1000;
 
@@ -131,7 +139,10 @@ const UNAVAILABLE: ExampleRunUnavailable = Object.freeze({ available: false });
  *
  * **Cached** for {@link EXAMPLE_CACHE_MS} in this process, one entry, with
  * concurrent first reads sharing one build: every signed-in person who opens
- * the page gets the same answer, so there is no reason to read it twice.
+ * the page gets the same answer, so there is no reason to read it twice. Only
+ * a whole example is kept that long: "no example" (a read that threw, a run
+ * not ready) for {@link EXAMPLE_FAILURE_CACHE_MS}, and an answer in which a
+ * finished video could not be signed not at all.
  */
 @Injectable()
 export class ExampleRunService {
@@ -144,7 +155,7 @@ export class ExampleRunService {
 
   private cached: {
     readonly runId: string | null;
-    readonly at: number;
+    readonly until: number;
     readonly value: ExampleRunResponse;
   } | null = null;
   private building: {
@@ -163,18 +174,20 @@ export class ExampleRunService {
     if (runId === null) return UNAVAILABLE;
     const now = this.now();
     const cached = this.cached;
-    if (cached !== null && cached.runId === runId && now - cached.at < EXAMPLE_CACHE_MS) {
+    if (cached !== null && cached.runId === runId && now < cached.until) {
       return cached.value;
     }
     if (this.building !== null && this.building.runId === runId) return this.building.value;
 
     const value = this.build(runId)
-      .catch((error: unknown) => {
+      .catch((error: unknown): Built => {
         this.logger.warn({ runId, err: error }, "could not read the example run");
-        return UNAVAILABLE;
+        return { value: UNAVAILABLE, cacheMs: EXAMPLE_FAILURE_CACHE_MS };
       })
-      .then((result) => {
-        this.cached = { runId, at: this.now(), value: result };
+      .then(({ value: result, cacheMs }) => {
+        // Nothing is kept for an answer a signing failure cut short: the next
+        // visit reads again rather than serve the gap.
+        this.cached = cacheMs > 0 ? { runId, until: this.now() + cacheMs, value: result } : null;
         return result;
       })
       .finally(() => {
@@ -184,7 +197,7 @@ export class ExampleRunService {
     return value;
   }
 
-  private async build(runId: string): Promise<ExampleRunResponse> {
+  private async build(runId: string): Promise<Built> {
     const run = await this.prisma.repurposeRun.findFirst({
       where: {
         id: runId,
@@ -195,16 +208,20 @@ export class ExampleRunService {
     });
     if (run === null) {
       this.logger.warn({ runId }, "DEMO_RUN_ID names no run that can be shown");
-      return UNAVAILABLE;
+      return { value: UNAVAILABLE, cacheMs: EXAMPLE_FAILURE_CACHE_MS };
     }
 
     const items = await this.clips.readClips(run);
+    // A finished video whose URL could not be signed is a passing failure of
+    // the store, not a clip that is missing: whatever this read shows, it is
+    // not kept, so the next visit signs again.
+    const cacheMs = items.some(signingFailed) ? 0 : EXAMPLE_CACHE_MS;
     const clips = items
       .map((item) => exampleClipOf(item))
       .filter((clip): clip is ExampleClip => clip !== null);
     if (clips.length === 0) {
       this.logger.warn({ runId }, "the example run has no finished clip to show");
-      return UNAVAILABLE;
+      return { value: UNAVAILABLE, cacheMs: Math.min(cacheMs, EXAMPLE_FAILURE_CACHE_MS) };
     }
 
     const shown = new Set(clips.map((clip) => clip.candidateId));
@@ -217,7 +234,9 @@ export class ExampleRunService {
       .map((row) => exampleCandidateOf(row));
     const kept = new Set(candidates.map((candidate) => candidate.id));
     const listed = clips.filter((clip) => kept.has(clip.candidateId));
-    if (listed.length === 0) return UNAVAILABLE;
+    if (listed.length === 0) {
+      return { value: UNAVAILABLE, cacheMs: Math.min(cacheMs, EXAMPLE_FAILURE_CACHE_MS) };
+    }
 
     const lines = await runTranscriptLines(this.prisma, run, candidates);
     const offsetMs = run.windowStartMs ?? 0;
@@ -226,7 +245,7 @@ export class ExampleRunService {
       transcripts[candidate.id] = { offsetMs, lines: lines.get(candidate.id) ?? [] };
     }
 
-    return {
+    const value: ExampleRunView = {
       available: true,
       run: {
         title:
@@ -243,7 +262,29 @@ export class ExampleRunService {
       transcripts,
       urlsExpireAt: new Date(this.now() + URL_TTL_MS).toISOString(),
     };
+    return { value, cacheMs };
   }
+}
+
+/** One build's answer, and how long it may be served (0: not kept at all). */
+interface Built {
+  readonly value: ExampleRunResponse;
+  readonly cacheMs: number;
+}
+
+/**
+ * True when a finished video of the clip (any size) has a render but no URL:
+ * `captionedOfVariant` answers exactly that when signing throws (the length
+ * read from the render, no play URL).
+ */
+function signingFailed(item: RepurposeClipItemView): boolean {
+  const unsigned = (view: CaptionedClipView | null | undefined): boolean =>
+    view !== null &&
+    view !== undefined &&
+    view.playUrl === null &&
+    view.durationMs !== null &&
+    view.durationMs !== undefined;
+  return unsigned(item.captioned) || item.formats.some((format) => unsigned(format.captioned));
 }
 
 function processedMsOf(run: RepurposeRun): number | null {
@@ -316,7 +357,11 @@ function copyOf(value: unknown): unknown {
   return parsed.success ? parsed.data : {};
 }
 
-/** The language model's marks and notes, by the keys the page reads; nothing else. */
+/**
+ * The language model's marks and notes, by the keys the page reads; nothing
+ * else. Not which model judged (`model`): that is how the product is built,
+ * not something a reader of the example needs.
+ */
 const JUDGEMENT_KEYS = [
   "standalone",
   "payoff",
@@ -324,7 +369,6 @@ const JUDGEMENT_KEYS = [
   "topicFit",
   "hook",
   "trend",
-  "model",
   "notes",
   "people",
 ] as const;

@@ -60,7 +60,12 @@ import {
   SourceGate,
   usesSourceGate,
 } from "./source-gate.js";
-import { SOURCE_REJECTION_MESSAGES, parseSourceUrl, sourceUrlOf } from "./source-url.js";
+import {
+  SOURCE_REJECTION_MESSAGES,
+  parseSourceUrl,
+  redactedFingerprint,
+  sourceUrlOf,
+} from "./source-url.js";
 import {
   autopilotAskCount,
   discoveryBoundsOf,
@@ -297,6 +302,14 @@ function noNextWindow(message: string): AppException {
 
 /** An unknown site's refusal while Vimeo, Drive and Dropbox are off for the workspace. */
 const YOUTUBE_ONLY_MESSAGE = "We can use a YouTube link. For anything else, upload the video.";
+
+/**
+ * The refusal for a Vimeo, Google Drive or Dropbox link while
+ * `source_hosted_acquire` is off for the workspace: at creation, and on every
+ * later fetch of such a run (`reacquire`), so the flag is a real kill switch.
+ */
+const HOSTED_OFF_MESSAGE =
+  "Links from that site are not available yet. Paste a YouTube link, or upload the video file.";
 
 /**
  * What a run asks the downloader for, on its source's site (2026-10-01): only
@@ -1165,10 +1178,12 @@ export class RepurposeService {
       resourceId: run.id,
       actorId: userId,
       workspaceId,
-      // Safe fields only: never the full external URL, never the file's bytes.
+      // Safe fields only: never the full external URL, never the file's bytes,
+      // and never a hosted link's fingerprint as it is (a Dropbox one carries
+      // the link's `rlkey`): the site and a short hash instead.
       data: {
         sourceKind: run.sourceKind,
-        sourceFingerprint: run.sourceFingerprint,
+        sourceFingerprint: redactedFingerprint(run.sourceFingerprint),
         mode: run.mode,
         duplicateUpload: upload?.duplicate ?? false,
         acquireJobId,
@@ -1274,7 +1289,7 @@ export class RepurposeService {
       // them must be deployed first, and the owner decides who gets them.
       throw new AppException(
         REPURPOSE_ERRORS.sourceUnsupported,
-        "Links from that site are not available yet. Paste a YouTube link, or upload the video file.",
+        HOSTED_OFF_MESSAGE,
         HttpStatus.BAD_REQUEST,
       );
     }
@@ -1517,8 +1532,12 @@ export class RepurposeService {
    *   row is reserved and becomes the source's newest media.
    * @returns the job id, or null when YouTube is refusing downloads and the
    *   fetch waits for the source gate (the row is reserved all the same).
-   * @throws when links are switched off for the workspace, when the balance no
-   *   longer pays for a minute (402 `repurpose/no_credits`), or the enqueue is refused.
+   * @throws when links are switched off for the workspace (and, for a Vimeo,
+   *   Google Drive or Dropbox run, when `source_hosted_acquire` is off: Try
+   *   again, the reconciler's refetch and Autopilot's retries all come through
+   *   here, so turning the flag off stops every fetch, not only new runs), when
+   *   the balance no longer pays for a minute (402 `repurpose/no_credits`), or
+   *   the enqueue is refused.
    */
   async reacquire(
     run: RepurposeRun,
@@ -1533,6 +1552,18 @@ export class RepurposeService {
       throw new AppException(
         REPURPOSE_ERRORS.sourceUnsupported,
         "Links are not available yet. Upload the video file instead.",
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+    if (
+      run.sourceKind === "hosted_url" &&
+      !(await this.flagEnabled(run.workspaceId, REPURPOSE_FLAGS.hostedAcquire))
+    ) {
+      // A 400, not a 429/503: the reconciler reads it as refused for good and
+      // fails the run as `source_unavailable` instead of retrying it forever.
+      throw new AppException(
+        REPURPOSE_ERRORS.sourceUnsupported,
+        HOSTED_OFF_MESSAGE,
         HttpStatus.BAD_REQUEST,
       );
     }

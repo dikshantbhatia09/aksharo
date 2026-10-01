@@ -7,7 +7,8 @@
  *
  * The dialog shows the line the voice will say (the clip's hook, which the
  * person may change), the voice, and what it costs, before anything is asked
- * for. The row says where the voice-over stands - waiting for a free slot,
+ * for - the voice, and making the clip's finished videos again with it, which
+ * is charged as any video is. The row says where the voice-over stands - waiting for a free slot,
  * being made, added (with a player for the voice on its own and how many of
  * the clip's sizes carry it), or what went wrong with "Try again" - and offers
  * "Take it off" behind a confirmation, since adding one again costs again.
@@ -44,10 +45,21 @@ import {
 
 import {
   VOICEOVER_COPY,
-  creditsText,
+  voiceoverCostText,
   voiceoverFailureCopy,
   voiceoverRefusalCopy,
 } from "@/components/repurpose/voiceover/copy";
+
+/**
+ * What the server also says about the cost (2026-10-01): the clip's existing
+ * captioned videos that adding the voice makes again, and the render rate.
+ * Optional, so an older server's answer still reads.
+ */
+type CostedOffer = RepurposeVoiceoverOffer & {
+  readonly rerenderVideos?: number;
+  readonly rerenderTenths?: number;
+};
+type CostedList = RepurposeVoiceoverList & { readonly renderTenthsPerMinute?: number };
 
 const SELECT_CLASSNAME =
   "bg-sunken border-neutral-600 text-fg-0 h-9 w-full rounded-sm border px-3 text-sm " +
@@ -206,7 +218,12 @@ function VoiceoverDialog({
         </Field>
 
         <p className="m-0 text-sm text-fg-1" data-testid="voiceover-cost">
-          {VOICEOVER_COPY.cost(creditsText(list.tenthsPerVoiceover))}
+          {voiceoverCostText({
+            tenths: list.tenthsPerVoiceover,
+            rerenderVideos: (offer as CostedOffer).rerenderVideos,
+            rerenderTenths: (offer as CostedOffer).rerenderTenths,
+            renderTenthsPerMinute: (list as CostedList).renderTenthsPerMinute,
+          })}
         </p>
 
         {refusal === null ? null : (

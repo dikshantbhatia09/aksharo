@@ -14,7 +14,6 @@ export const VOICEOVER_COPY = Object.freeze({
   textHint: (left: number): string =>
     left === 1 ? "1 character left" : `${String(left)} characters left`,
   speakerLabel: "Voice",
-  cost: (credits: string): string => `Costs ${credits} credits.`,
   confirm: "Add voice-over",
   confirming: "Starting…",
   cancel: "Cancel",
@@ -42,6 +41,39 @@ export const VOICEOVER_COPY = Object.freeze({
 /** Tenths of a credit as a person reads them: 20 -> "2", 15 -> "1.5". */
 export function creditsText(tenths: number): string {
   return (Math.max(0, tenths) / 10).toFixed(1).replace(/\.0$/, "");
+}
+
+/**
+ * What adding a voice-over costs, in full: the voice itself, plus making the
+ * clip's finished (captioned) videos again with the voice in them, which is
+ * charged as any video is. A size whose video is not made yet gets the voice
+ * in its first one at no extra cost, so only existing videos count.
+ *
+ * `rerenderVideos`/`rerenderTenths` come from the server's offer; an older
+ * server that does not send them gets the rate instead of a number, never
+ * silence about the videos.
+ */
+export function voiceoverCostText(input: {
+  readonly tenths: number;
+  readonly rerenderVideos?: number;
+  readonly rerenderTenths?: number;
+  readonly renderTenthsPerMinute?: number;
+}): string {
+  const voice = creditsText(input.tenths);
+  if (input.rerenderVideos === undefined || input.rerenderTenths === undefined) {
+    const rate =
+      input.renderTenthsPerMinute === undefined
+        ? "the usual price of a video"
+        : `${creditsText(input.renderTenthsPerMinute)} credits a minute`;
+    return `Costs ${voice} credits, plus ${rate} for each of this clip's finished videos that is made again with the voice in it.`;
+  }
+  if (input.rerenderVideos <= 0) return `Costs ${voice} credits.`;
+  const total = creditsText(input.tenths + input.rerenderTenths);
+  const videos =
+    input.rerenderVideos === 1
+      ? "this clip's finished video"
+      : `this clip's ${String(input.rerenderVideos)} finished videos`;
+  return `Costs ${voice} credits for the voice, plus about ${creditsText(input.rerenderTenths)} to make ${videos} again with the voice in ${input.rerenderVideos === 1 ? "it" : "them"}: about ${total} credits in all.`;
 }
 
 /** Why a voice-over ended where it did, in one sentence. */

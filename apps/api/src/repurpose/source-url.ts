@@ -47,9 +47,29 @@
  * {@link NormalisedSource.display}. A Drive `resourcekey` (files shared before
  * 2021) is not carried, so such a file reads as private.
  *
+ * Because a hosted fingerprint can carry a share secret (the `rlkey`, an
+ * unlisted Vimeo hash, a Drive file id), it is never written to the audit log
+ * or a log line as it is: {@link redactedFingerprint} gives the site and a
+ * short hash instead.
+ *
+ * Known limit: one unlisted Vimeo video can have two fingerprints. Its share
+ * link gives `vimeo:{id}/{hash}`, while the same video reached through a
+ * channel or group page (`/channels/{name}/{id}`, which carries no hash) gives
+ * `vimeo:{id}`. They are not folded into one: the hash is the only thing that
+ * opens an unlisted video, so dropping it from the fingerprint would leave a
+ * retry with no address that works, and keeping it on `vimeo:{id}` is not
+ * possible from a link that never had it. The cost is that the duplicate
+ * check (`repurpose_runs_live_source_idx`) does not see the two as one video:
+ * pasting both starts two runs and two downloads. A channel link to an
+ * unlisted video is rare (the video has to be added to a channel), and the
+ * worst outcome is a second download, not a wrong one.
+ *
  * These are only accepted while the `source_hosted_acquire` flag is on too
- * (`RepurposeService.resolveSource`).
+ * (`RepurposeService.resolveSource`, and `RepurposeService.reacquire` for
+ * every later fetch).
  */
+
+import { createHash } from "node:crypto";
 
 /** Hosts we recognise as YouTube. Matched exactly, after lower-casing. */
 const YOUTUBE_HOSTS: ReadonlySet<string> = new Set([
@@ -470,6 +490,25 @@ export function sourceUrlOf(kind: string, fingerprint: string | null): string | 
     return match === null ? null : `https://www.youtube.com/watch?v=${match[1] ?? ""}`;
   }
   return kind === "hosted_url" ? hostedUrlOf(fingerprint) : null;
+}
+
+/** Fingerprint prefixes that may carry a share secret, or a caller's whole path. */
+const SECRET_BEARING_PREFIXES = ["vimeo:", "gdrive:", "dropbox:", "url:"] as const;
+
+/**
+ * A fingerprint as it may be written to the audit log or a log line: a
+ * YouTube one (a public video id) and an upload's as they are; a hosted
+ * site's or a direct link's as `{site}:#{12 hex}`, the first 12 hex digits
+ * of the fingerprint's SHA-256. The same video always gives the same form,
+ * so two events about it can still be matched, but a Dropbox `rlkey`, an
+ * unlisted Vimeo hash or a Drive file id never leaves the run row.
+ */
+export function redactedFingerprint(fingerprint: string | null): string | null {
+  if (fingerprint === null) return null;
+  const prefix = SECRET_BEARING_PREFIXES.find((candidate) => fingerprint.startsWith(candidate));
+  if (prefix === undefined) return fingerprint;
+  const digest = createHash("sha256").update(fingerprint).digest("hex").slice(0, 12);
+  return `${prefix}#${digest}`;
 }
 
 /** The plain sentence each rejection maps to (§13.4: never a raw parser error). */

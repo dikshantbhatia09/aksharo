@@ -40,7 +40,9 @@ const EXAMPLE_RUN_KEY = "example";
 export function ExampleRunViewPage(): React.JSX.Element {
   const example = useExampleRun();
 
-  if (example.isPending) {
+  // `isLoading`, not `isPending`: with no workspace the query never runs and
+  // stays pending for good, which is "no example", not a page still loading.
+  if (example.isLoading) {
     return (
       <div className="flex w-full flex-col gap-6" aria-busy="true">
         <PageHeader eyebrow={EXAMPLE_COPY.eyebrow} title="A finished example" />

@@ -9,8 +9,8 @@ import {
   frameAtMs,
   frameRateOf,
   msAtFrame,
+  mediaFileUrl,
   readMeText,
-  relativeUrl,
   timelineSrt,
   toFcpxml,
   toXmeml,
@@ -224,7 +224,9 @@ describe("toFcpxml", () => {
     assertWellFormed(xml);
     expect(xml).toContain('<fcpxml version="1.9">');
     expect(xml).toContain('frameDuration="1/30s" width="1080" height="1920"');
-    expect(xml).toContain('src="./Wait%20for%20the%20lights%209x16.mp4"');
+    // An absolute file URL (a relative one is legal only inside a bundle).
+    expect(xml).toContain('src="file:///Wait%20for%20the%20lights%209x16.mp4"');
+    expect(xml).not.toContain('src="./');
     expect(xml).toContain('<sequence format="r1" duration="9s"');
     // The two kept stretches, back to back.
     expect(xml).toContain('offset="0s" start="0s" duration="2s"');
@@ -274,7 +276,9 @@ describe("toXmeml", () => {
     // The file is described once and referred to after that.
     expect(xml.match(/<file id="file-1">/g)).toHaveLength(1);
     expect(xml.match(/<file id="file-1"\/>/g)).toHaveLength(3);
-    expect(xml).toContain("<pathurl>./Wait%20for%20the%20lights%209x16.mp4</pathurl>");
+    expect(xml).toContain(
+      "<pathurl>file://localhost/Wait%20for%20the%20lights%209x16.mp4</pathurl>",
+    );
   });
 
   it("marks NTSC with a rounded timebase, and has no audio track without sound", () => {
@@ -314,9 +318,13 @@ describe("text helpers", () => {
     expect(xmlText("हिंदी")).toBe("हिंदी");
   });
 
-  it("makes a relative URL of a file name", () => {
-    expect(relativeUrl("Clip 9x16.mp4")).toBe("./Clip%209x16.mp4");
-    expect(relativeUrl("दीवाली.mp4")).toBe(`./${encodeURIComponent("दीवाली")}.mp4`);
+  it("makes an absolute file URL of a file name, in each format's own form", () => {
+    expect(mediaFileUrl("Clip 9x16.mp4", "fcpxml")).toBe("file:///Clip%209x16.mp4");
+    expect(mediaFileUrl("Clip 9x16.mp4", "xmeml")).toBe("file://localhost/Clip%209x16.mp4");
+    expect(mediaFileUrl("दीवाली #1?.mp4", "fcpxml")).toBe(
+      `file:///${encodeURIComponent("दीवाली #1?")}.mp4`,
+    );
+    expect(new URL(mediaFileUrl("a b.mp4", "fcpxml")).protocol).toBe("file:");
   });
 
   it("names every file in the read-me", () => {
@@ -324,5 +332,19 @@ describe("text helpers", () => {
     for (const name of [NAMES.mediaFile, "a.fcpxml", "a Premiere.xml", "a.srt"]) {
       expect(text).toContain(name);
     }
+  });
+
+  it("gives each app's own import menu and how to relink the video", () => {
+    const text = readMeText(NAMES, { fcpxml: "a.fcpxml", xmeml: "a Premiere.xml", srt: "a.srt" });
+    expect(text).toContain("File > Import > XML..., then choose a.fcpxml");
+    // Resolve imports a timeline file through Import > Timeline, not Import > XML.
+    expect(text).toContain("File > Import > Timeline..., then choose a.fcpxml");
+    expect(text).toContain("File > Import..., then choose a Premiere.xml");
+    expect(text).toContain("File > Relink Files...");
+    expect(text).toContain("Relink Selected Clips...");
+    expect(text).toContain("Link Media window");
+    expect(text).not.toMatch(/Resolve: File > Import > XML/);
+    // Windows line endings, so Notepad on any version shows the lines.
+    expect(text.split("\r\n").length).toBeGreaterThan(20);
   });
 });

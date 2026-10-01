@@ -1,12 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { Env } from "@montaj/config";
+import { quote, type Env } from "@montaj/config";
 import { VOICEOVER_PACK_ID, stableOverlayId } from "@montaj/edg";
 import { AiVoiceoverPayloadSchema, voiceoverAudioKey } from "@montaj/repurpose-contracts";
 
 import { VOICEOVER_TENTHS, voiceoverVendorPaise } from "./voiceover-pricing.js";
 import { VOICEOVER_ERRORS } from "./voiceover.constants.js";
-import { RepurposeVoiceoversService, defaultHookOf } from "./voiceovers.service.js";
+import {
+  RepurposeVoiceoversService,
+  defaultHookOf,
+  settledForVoice,
+} from "./voiceovers.service.js";
 import { AppException } from "../../common/index.js";
 import { JOB_ERROR_CODES } from "../../jobs/jobs.errors.js";
 
@@ -99,12 +103,20 @@ function table(rows: Row[], defaults: Row = {}) {
   };
 }
 
-function shape(id: string, aspect: string, project: string, doc: string | null, finishing?: Row) {
+function shape(
+  id: string,
+  aspect: string,
+  project: string,
+  doc: string | null,
+  finishing?: Row,
+  latestExportId: string | null = null,
+) {
   return {
     id,
     aspect,
     projectId: project,
     finishing: finishing ?? null,
+    latestExportId,
     project: {
       edgDocument: doc === null ? null : { id: doc, revision: 3 },
       transcripts: [{ language: "en" }],
@@ -119,6 +131,9 @@ function readyClip(overrides: Row = {}): Row {
     title: "The turbulence story",
     copy: { hook: "Nobody tells you this about turbulence" },
     mezzanineKey: `ws/${WS}/p/${SOURCE}/repurpose/${RUN}/clips/X/master.mp4`,
+    mezzanineDurationMs: 30_000,
+    sourceStartMs: 60_000,
+    sourceEndMs: 90_000,
     candidate: { state: "selected" },
     variants: [shape(V916, "r9x16", P916, DOC916), shape(V45, "r4x5", P45, DOC45)],
     ...overrides,
@@ -134,6 +149,11 @@ interface Harness {
   edg: { applyWorkerOps: ReturnType<typeof vi.fn> };
   /** Items each document holds, by document id. */
   items: Map<string, Row[]>;
+  prisma: {
+    clipVoiceover: ReturnType<typeof table>;
+    $transaction: ReturnType<typeof vi.fn>;
+    $executeRaw: ReturnType<typeof vi.fn>;
+  };
 }
 
 let seq = 0;
@@ -214,7 +234,17 @@ function harness(
     })),
   };
   const clipsTable = table(t.clips);
+  // Interactive transactions run one at a time, as the clip's advisory lock
+  // makes them in Postgres; the fake hands itself to the callback as `tx`.
+  let lock: Promise<unknown> = Promise.resolve();
+  const $executeRaw = vi.fn(async () => 1);
   const prisma = {
+    $executeRaw,
+    $transaction: vi.fn(async (callback: (tx: unknown) => Promise<unknown>) => {
+      const turn = lock.then(() => callback(prisma));
+      lock = turn.catch(() => undefined);
+      return turn;
+    }),
     repurposeRun: table(t.runs),
     repurposeClip: clipsTable,
     clipVoiceover: table(t.voiceovers, {
@@ -250,7 +280,7 @@ function harness(
     { FEATURE_FLAGS_JSON: {} } as unknown as Env,
     derived as unknown as ObjectStore,
   );
-  return { service, t, jobs, budget, audit, edg, items };
+  return { service, t, jobs, budget, audit, edg, items, prisma };
 }
 
 async function refusal(promise: Promise<unknown>): Promise<AppException> {
@@ -340,6 +370,38 @@ describe("RepurposeVoiceoversService.create (2026-10-01)", () => {
     expect(voiceover.status).toBe("waiting");
   });
 
+  it("makes one voice-over for two different asks at once, and refuses the other", async () => {
+    const results = await Promise.allSettled([
+      h.service.create(WS, USER, RUN, CLIP, {}),
+      h.service.create(WS, USER, RUN, CLIP, { text: "Something else entirely" }),
+    ]);
+    const made = results.filter((result) => result.status === "fulfilled");
+    const refused = results.filter((result) => result.status === "rejected");
+    expect(made).toHaveLength(1);
+    expect(refused).toHaveLength(1);
+    expect(((refused[0] as PromiseRejectedResult).reason as AppException).code).toBe(
+      VOICEOVER_ERRORS.alreadyHas,
+    );
+    expect(h.t.voiceovers).toHaveLength(1);
+    expect(h.jobs.enqueue).toHaveBeenCalledTimes(1);
+    // Both reserved before the lock; the loser gave its rupees back.
+    expect(h.budget.reserve).toHaveBeenCalledTimes(2);
+    expect(h.budget.release).toHaveBeenCalledTimes(1);
+    expect(h.prisma.$executeRaw).toHaveBeenCalledTimes(2);
+  });
+
+  it("answers the same ask made twice at once with one voice-over", async () => {
+    const [first, second] = await Promise.all([
+      h.service.create(WS, USER, RUN, CLIP, {}),
+      h.service.create(WS, USER, RUN, CLIP, {}),
+    ]);
+    expect(first.voiceover.id).toBe(second.voiceover.id);
+    expect([first.created, second.created].sort()).toEqual([false, true]);
+    expect(h.t.voiceovers).toHaveLength(1);
+    expect(h.jobs.enqueue).toHaveBeenCalledTimes(1);
+    expect(h.budget.release).toHaveBeenCalledTimes(1);
+  });
+
   it("gives the rupees back and leaves nothing when the queue refuses", async () => {
     h.jobs.enqueue.mockRejectedValueOnce(new Error("redis down"));
     await refusal(h.service.create(WS, USER, RUN, CLIP, {}));
@@ -418,6 +480,61 @@ describe("applySpoken: the voice on every shape's document", () => {
   });
 });
 
+describe("Autopilot: the voice waits for the edit to be finished", () => {
+  function autopilot(): void {
+    (h.t.runs[0] as Row)["config"] = { sourceLanguage: "auto", automation: "auto" };
+  }
+
+  it("never lays the voice on a shape whose finishing has not started yet", async () => {
+    autopilot();
+    const clip = readyClip();
+    h.t.clips[0] = clip;
+    const { voiceover } = await h.service.create(WS, USER, RUN, CLIP, {});
+    const jobId = (h.t.voiceovers[0] as Row)["jobId"] as string;
+    await h.service.applySpoken(voiceover.id, jobId, { key: KEY(voiceover.id), durationMs: 2_000 });
+    expect(h.items.get(DOC916)).toHaveLength(0);
+    expect(h.items.get(DOC45)).toHaveLength(0);
+    expect((h.t.voiceovers[0] as Row)["placements"]).toEqual({});
+
+    // Finishing runs, then is done: now the voice goes on.
+    const running = { v: 1, state: "running", startedAt: "2026-10-01T10:00:00Z", steps: {} };
+    clip["variants"] = [
+      shape(V916, "r9x16", P916, DOC916, running),
+      shape(V45, "r4x5", P45, DOC45, running),
+    ];
+    await h.service.reconcileRun(RUN, { placeAll: true });
+    expect(h.items.get(DOC916)).toHaveLength(0);
+
+    const done = { ...running, state: "done", finishedAt: "2026-10-01T10:05:00Z" };
+    clip["variants"] = [shape(V916, "r9x16", P916, DOC916, done), shape(V45, "r4x5", P45, DOC45)];
+    await h.service.reconcileRun(RUN, { placeAll: true });
+    expect(h.items.get(DOC916)).toHaveLength(1);
+    // The 4:5 still has no record and no video: it waits.
+    expect(h.items.get(DOC45)).toHaveLength(0);
+  });
+
+  it("lays it on an Autopilot shape made before finishing existed (a video, no record)", async () => {
+    autopilot();
+    h.t.clips[0] = readyClip({
+      variants: [shape(V916, "r9x16", P916, DOC916, undefined, "01JCEXP0RT916000000000000A")],
+    });
+    const { voiceover } = await h.service.create(WS, USER, RUN, CLIP, {});
+    const jobId = (h.t.voiceovers[0] as Row)["jobId"] as string;
+    await h.service.applySpoken(voiceover.id, jobId, { key: KEY(voiceover.id), durationMs: 2_000 });
+    expect(h.items.get(DOC916)).toHaveLength(1);
+  });
+
+  it("settledForVoice: running never, done always, no record only when nothing will finish it", () => {
+    const running = { v: 1, state: "running", startedAt: "2026-10-01T10:00:00Z", steps: {} };
+    const done = { ...running, state: "done" };
+    expect(settledForVoice({ finishing: running, latestExportId: "x" }, false)).toBe(false);
+    expect(settledForVoice({ finishing: done, latestExportId: null }, true)).toBe(true);
+    expect(settledForVoice({ finishing: null, latestExportId: null }, false)).toBe(true);
+    expect(settledForVoice({ finishing: null, latestExportId: null }, true)).toBe(false);
+    expect(settledForVoice({ finishing: null, latestExportId: "x" }, true)).toBe(true);
+  });
+});
+
 describe("failures, retries and taking it off", () => {
   it("gives the rupees back when the vendor refused the words, and offers no retry", async () => {
     const { voiceover } = await h.service.create(WS, USER, RUN, CLIP, {});
@@ -462,6 +579,46 @@ describe("failures, retries and taking it off", () => {
     expect(next.created).toBe(true);
   });
 
+  it("undoes the cues it laid when the voice-over is taken off while it is being laid", async () => {
+    const { voiceover } = await h.service.create(WS, USER, RUN, CLIP, {});
+    const jobId = (h.t.voiceovers[0] as Row)["jobId"] as string;
+    const apply = h.edg.applyWorkerOps.getMockImplementation();
+    if (apply === undefined) throw new Error("no fake");
+    // The removal lands just as the first shape's cue is laid.
+    h.edg.applyWorkerOps.mockImplementationOnce(
+      async (input: { projectId: string; ops: Row[] }) => {
+        const answer: unknown = await apply(input);
+        await h.service.remove(WS, USER, RUN, voiceover.id);
+        return answer;
+      },
+    );
+
+    await h.service.applySpoken(voiceover.id, jobId, { key: KEY(voiceover.id), durationMs: 2_000 });
+
+    const row = h.t.voiceovers[0] as Row;
+    expect(row["status"]).toBe("removed");
+    expect(row["placements"]).toEqual({});
+    const laid = [...(h.items.get(DOC916) ?? []), ...(h.items.get(DOC45) ?? [])];
+    expect(laid).toHaveLength(2);
+    for (const item of laid) expect(item["state"]).toBe("rejected");
+  });
+
+  it("takes off cues recorded after its own read of the voice-over", async () => {
+    const { voiceover } = await h.service.create(WS, USER, RUN, CLIP, {});
+    const jobId = (h.t.voiceovers[0] as Row)["jobId"] as string;
+    await h.service.applySpoken(voiceover.id, jobId, { key: KEY(voiceover.id), durationMs: 2_000 });
+    // A read made before the placement was recorded.
+    h.prisma.clipVoiceover.findFirst.mockResolvedValueOnce({
+      ...(h.t.voiceovers[0] as Row),
+      placements: {},
+    });
+
+    await h.service.remove(WS, USER, RUN, voiceover.id);
+
+    expect(((h.items.get(DOC916) ?? [])[0] as Row)["state"]).toBe("rejected");
+    expect(((h.items.get(DOC45) ?? [])[0] as Row)["state"]).toBe("rejected");
+  });
+
   it("stops one still being made, cancelling its job", async () => {
     const { voiceover } = await h.service.create(WS, USER, RUN, CLIP, {});
     await h.service.remove(WS, USER, RUN, voiceover.id);
@@ -481,8 +638,25 @@ describe("list", () => {
         text: "Nobody tells you this about turbulence",
         language: { code: "en-IN", name: "English" },
         voiceoverId: null,
+        rerenderVideos: 0,
+        rerenderTenths: 0,
       },
     ]);
+    expect(view.renderTenthsPerMinute).toBe(quote("cloudRender", 1).costTenths);
+  });
+
+  it("says what making the clip's existing captioned videos again costs", async () => {
+    h.t.clips[0] = readyClip({
+      variants: [
+        shape(V916, "r9x16", P916, DOC916, undefined, "01JCEXP0RT916000000000000A"),
+        shape(V45, "r4x5", P45, DOC45, undefined, "01JCEXP0RT450000000000000A"),
+      ],
+    });
+    const [offer] = (await h.service.list(WS, RUN)).clips;
+    expect(offer?.rerenderVideos).toBe(2);
+    // Each video is billed on its own, on the clip's 30 s.
+    expect(offer?.rerenderTenths).toBe(2 * quote("cloudRender", 0.5).costTenths);
+    expect(offer?.rerenderTenths).toBeGreaterThan(0);
   });
 
   it("reads off while the flag is", async () => {

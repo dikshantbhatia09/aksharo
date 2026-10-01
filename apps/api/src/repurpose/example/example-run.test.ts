@@ -2,7 +2,12 @@ import { Reflector } from "@nestjs/core";
 import { describe, expect, it, vi } from "vitest";
 
 import { EXAMPLE_RATE_LIMIT, RepurposeExampleController } from "./example-run.controller.js";
-import { EXAMPLE_CACHE_MS, ExampleRunService, exampleClipOf } from "./example-run.service.js";
+import {
+  EXAMPLE_CACHE_MS,
+  EXAMPLE_FAILURE_CACHE_MS,
+  ExampleRunService,
+  exampleClipOf,
+} from "./example-run.service.js";
 import { RATE_LIMIT_KEY } from "../../common/guards/rate-limit.guard.js";
 import { ROLES_KEY } from "../../common/guards/roles.guard.js";
 import { AppException } from "../../common/index.js";
@@ -258,8 +263,23 @@ describe("ExampleRunService", () => {
   });
 
   it("carries no workspace, project, storage key, member or model-run detail", async () => {
-    const h = harness();
-    const text = JSON.stringify(await h.service.view());
+    const h = harness({
+      candidates: [
+        candidateRow("C1", {
+          judgement: {
+            standalone: 8,
+            model: "sarvam-105b-conversations",
+            reviewer: MEMBER,
+          },
+        }),
+        candidateRow("C2"),
+      ],
+    });
+    const view = await h.service.view();
+    if (!view.available) throw new Error("expected the example");
+    expect(view.candidates[0]?.judgement).toEqual({ standalone: 8 });
+    expect(view.candidates[1]?.judgement).not.toHaveProperty("model");
+    const text = JSON.stringify(view);
     for (const secret of [
       OWNER_WS,
       MEMBER,
@@ -276,6 +296,8 @@ describe("ExampleRunService", () => {
       "signals",
       "workspaceId",
       "runId",
+      "sarvam",
+      '"model"',
     ]) {
       expect(text, secret).not.toContain(secret);
     }
@@ -302,6 +324,93 @@ describe("ExampleRunService", () => {
     h.advance(2);
     await h.service.view();
     expect(h.clips.readClips).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps a read that threw for a few seconds only, then reads again", async () => {
+    const h = harness();
+    h.clips.readClips.mockRejectedValueOnce(new Error("db down"));
+    expect(await h.service.view()).toEqual({ available: false });
+    h.advance(EXAMPLE_FAILURE_CACHE_MS - 1);
+    expect(await h.service.view()).toEqual({ available: false });
+    expect(h.clips.readClips).toHaveBeenCalledTimes(1);
+    h.advance(2);
+    const view = await h.service.view();
+    expect(view.available).toBe(true);
+    expect(h.clips.readClips).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps no answer whose videos could not be signed, and shows the example once they can", async () => {
+    const unsigned = {
+      status: "ready" as const,
+      playUrl: null,
+      downloadUrl: null,
+      durationMs: 30_000,
+    };
+    const h = harness();
+    h.clips.readClips.mockResolvedValueOnce([
+      readyItem("K1", "C1", { captioned: unsigned, formats: [] }),
+      readyItem("K2", "C2", { captioned: unsigned, formats: [] }),
+    ]);
+    expect(await h.service.view()).toEqual({ available: false });
+    // Read again on the very next visit, not a minute later.
+    const view = await h.service.view();
+    expect(view.available).toBe(true);
+    expect(h.clips.readClips).toHaveBeenCalledTimes(2);
+  });
+
+  it("serves an example missing one unsigned size, but reads it again on the next visit", async () => {
+    const h = harness();
+    const partial = readyItem("K1", "C1");
+    h.clips.readClips.mockResolvedValueOnce([
+      {
+        ...partial,
+        formats: [
+          ...partial.formats,
+          {
+            shape: "16:9",
+            status: "ready",
+            projectId: null,
+            captioned: { status: "ready", playUrl: null, downloadUrl: null, durationMs: 30_000 },
+            cleanUrl: null,
+          },
+        ],
+      },
+      readyItem("K2", "C2"),
+    ]);
+    const first = await h.service.view();
+    expect(first.available).toBe(true);
+    await h.service.view();
+    expect(h.clips.readClips).toHaveBeenCalledTimes(2);
+    // A whole answer is kept for the minute again.
+    await h.service.view();
+    expect(h.clips.readClips).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not take a video that is not made yet for a signing failure", async () => {
+    const h = harness({
+      items: [
+        readyItem("K1", "C1"),
+        readyItem("K2", "C2", {
+          formats: [
+            {
+              shape: "1:1",
+              status: "ready",
+              projectId: null,
+              captioned: {
+                status: "rendering",
+                playUrl: null,
+                downloadUrl: null,
+                durationMs: null,
+              },
+              cleanUrl: null,
+            },
+          ],
+        }),
+      ],
+    });
+    await h.service.view();
+    await h.service.view();
+    expect(h.clips.readClips).toHaveBeenCalledTimes(1);
   });
 
   it("reads again at once when the owner names another run", async () => {

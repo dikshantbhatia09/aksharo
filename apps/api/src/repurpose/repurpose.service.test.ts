@@ -1223,6 +1223,40 @@ describe("reacquire — a fetch after the first gets a window too", () => {
     });
   });
 
+  it("refuses a Vimeo, Drive or Dropbox run's fetch once the site is switched off", async () => {
+    // Try again, the reconciler's refetch and Autopilot's retries all come
+    // through here: with the flag off, nothing is fetched from the site.
+    const hosted = runRow({
+      sourceKind: "hosted_url",
+      sourceDisplay: "vimeo.com · 76979871",
+      sourceFingerprint: "vimeo:76979871",
+    });
+    const off = harness();
+    withProject(off);
+    const refused = (await off.service
+      .reacquire(hosted, "https://vimeo.com/76979871")
+      .catch((error: unknown) => error)) as AppException;
+    expect(refused).toBeInstanceOf(AppException);
+    expect(refused.code).toBe(REPURPOSE_ERRORS.sourceUnsupported);
+    expect(refused.httpStatus).toBe(HttpStatus.BAD_REQUEST);
+    expect(refused.message).toBe(
+      "Links from that site are not available yet. Paste a YouTube link, or upload the video file.",
+    );
+    expect(off.jobs.enqueue).not.toHaveBeenCalled();
+
+    const on = harness({ flags: { [REPURPOSE_FLAGS.hostedAcquire]: true } });
+    withProject(on);
+    await on.service.reacquire(hosted, "https://vimeo.com/76979871");
+    expect(enqueued(on).type).toBe("media.acquire");
+  });
+
+  it("does not ask for the hosted flag to fetch a YouTube video again", async () => {
+    const h = harness();
+    withProject(h);
+    await h.service.reacquire(runRow(), "https://www.youtube.com/watch?v=dQw4w9WgXcQ");
+    expect(h.jobs.enqueue).toHaveBeenCalledTimes(1);
+  });
+
   it("does not count its own earlier window against the balance", async () => {
     const h = harness();
     withProject(h);
@@ -2471,6 +2505,24 @@ describe("create — a Vimeo, Google Drive or Dropbox link", () => {
       sourceId: "vimeo:76979871",
     });
     expect(job.params.window).toEqual({ maxMs: 20 * MINUTE, policy: "first" });
+  });
+
+  it("audits a Dropbox link without its rlkey", async () => {
+    const h = harness({ flags: { [REPURPOSE_FLAGS.hostedAcquire]: true } });
+    await h.service.create(
+      WS,
+      USER,
+      hostedRun("https://www.dropbox.com/scl/fi/a1b2c3d4e5/talk.mp4?rlkey=k1k2k3k4k5&dl=0"),
+    );
+    // The run row keeps the whole fingerprint: a retry rebuilds the link from it.
+    expect(createdRunData(h)).toMatchObject({
+      sourceFingerprint: "dropbox:scl/fi/a1b2c3d4e5/talk.mp4?rlkey=k1k2k3k4k5",
+    });
+    const created = h.audit.record.mock.calls
+      .map((call) => (call as unknown as [{ action: string; data: Record<string, unknown> }])[0])
+      .find((event) => event.action === "repurpose.run.created");
+    expect(created?.data["sourceFingerprint"]).toMatch(/^dropbox:#[0-9a-f]{12}$/);
+    expect(JSON.stringify(h.audit.record.mock.calls)).not.toContain("k1k2k3k4k5");
   });
 
   it("keeps a start the person picked", async () => {

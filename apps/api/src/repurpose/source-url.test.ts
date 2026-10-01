@@ -4,6 +4,7 @@ import {
   SOURCE_REJECTION_MESSAGES,
   hostedUrlOf,
   parseSourceUrl,
+  redactedFingerprint,
   sourceUrlOf,
   type SourceRejectionCode,
 } from "./source-url.js";
@@ -371,6 +372,57 @@ describe("Vimeo, Google Drive and Dropbox links (2026-10-01)", () => {
     expect(sourceUrlOf("upload", null)).toBeNull();
     expect(sourceUrlOf("youtube_url", "youtube:dQw4w9WgXcQ")).toBe(
       "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+    );
+  });
+});
+
+describe("redactedFingerprint — what the audit log may keep of a link", () => {
+  const DRIVE_ID = "1AbCdEfGhIjKlMnOpQrStUvWxYz0123456";
+  it("never carries a Dropbox rlkey, an unlisted Vimeo hash or a Drive file id", () => {
+    for (const url of [
+      "https://www.dropbox.com/scl/fi/a1b2c3d4e5/talk.mp4?rlkey=k1k2k3k4k5",
+      "https://www.dropbox.com/s/abc123xyz/talk.mp4",
+      "https://vimeo.com/76979871/0123456789",
+      `https://drive.google.com/file/d/${DRIVE_ID}/view`,
+    ]) {
+      const { sourceFingerprint } = accepted(url);
+      const redacted = redactedFingerprint(sourceFingerprint) ?? "";
+      expect(redacted, url).toMatch(/^(dropbox|vimeo|gdrive):#[0-9a-f]{12}$/);
+      expect(redacted, url).not.toContain("k1k2k3k4k5");
+      expect(redacted, url).not.toContain("0123456789");
+      expect(redacted, url).not.toContain(DRIVE_ID);
+      expect(redacted, url).not.toContain("abc123xyz");
+    }
+  });
+
+  it("is the same for the same video, so two events about it still match", () => {
+    const a = accepted("https://www.dropbox.com/scl/fi/a1b2c3d4e5/talk.mp4?rlkey=k1k2k3k4k5&dl=0");
+    const b = accepted("https://dropbox.com/scl/fi/a1b2c3d4e5/talk.mp4?rlkey=k1k2k3k4k5");
+    expect(redactedFingerprint(a.sourceFingerprint)).toBe(redactedFingerprint(b.sourceFingerprint));
+    const other = accepted("https://www.dropbox.com/scl/fi/a1b2c3d4e5/talk.mp4?rlkey=zzzzzzzzzz");
+    expect(redactedFingerprint(other.sourceFingerprint)).not.toBe(
+      redactedFingerprint(a.sourceFingerprint),
+    );
+  });
+
+  it("hides a direct link's path, and leaves a YouTube id, an upload's and null alone", () => {
+    expect(redactedFingerprint("url:https://cdn.example.test/secret/v.mp4")).toMatch(
+      /^url:#[0-9a-f]{12}$/,
+    );
+    expect(redactedFingerprint("youtube:dQw4w9WgXcQ")).toBe("youtube:dQw4w9WgXcQ");
+    expect(redactedFingerprint(null)).toBeNull();
+  });
+});
+
+describe("an unlisted Vimeo video's two fingerprints (a documented limit)", () => {
+  it("keeps the hash a share link carries, and cannot invent one for a channel link", () => {
+    // The hash is the only thing that opens an unlisted video, so the two are
+    // not folded into one; the duplicate check sees them as two videos.
+    expect(accepted("https://vimeo.com/76979871/0123456789").sourceFingerprint).toBe(
+      "vimeo:76979871/0123456789",
+    );
+    expect(accepted("https://vimeo.com/channels/staffpicks/76979871").sourceFingerprint).toBe(
+      "vimeo:76979871",
     );
   });
 });

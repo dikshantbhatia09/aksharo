@@ -3,7 +3,6 @@ import { fromAcceptedItems, type PassItemTimes } from "@montaj/timemap";
 
 import { toCues, toSrt, type Cue } from "../../transcripts/transcript-export.js";
 
-
 /**
  * "For your editing app" (2026-10-01, OpusClip parity wave 3): a clip's edit as
  * timeline files a desktop editor opens, written from the clip's own editing
@@ -31,8 +30,8 @@ import { toCues, toSrt, type Cue } from "../../transcripts/transcript-export.js"
  *
  * **Two timeline files, one per family of editor:**
  *
- * - **FCPXML 1.9** (`.fcpxml`): Final Cut Pro 10.5+ and DaVinci Resolve 17+
- *   import it. The kept stretches are `asset-clip`s on the primary storyline;
+ * - **FCPXML 1.9** (`.fcpxml`): Final Cut Pro 10.5+ (File > Import > XML) and
+ *   DaVinci Resolve 17+ (File > Import > Timeline) import it. The kept stretches are `asset-clip`s on the primary storyline;
  *   each caption is a Basic Title connected above the stretch it starts in
  *   (lane 1), so it moves with that stretch if the person trims.
  * - **Final Cut Pro 7 XML** (`xmeml` version 4, `.xml`): what Premiere Pro's
@@ -40,10 +39,25 @@ import { toCues, toSrt, type Cue } from "../../transcripts/transcript-export.js"
  *   in through the `.srt` (Premiere's own caption track), because xmeml titles
  *   import into Premiere as legacy titles nobody can edit any more.
  *
- * The media is referenced by a relative path (`./<name>.mp4`), the file next
- * to the timeline in the ZIP: Resolve and Premiere find it there; an editor that
- * wants an absolute path asks the person to locate it once ("Read me.txt" says
- * so). The XML is UTF-8 with every caption escaped (`& < > " '`) and stripped
+ * **Where the video is.** The clean cut sits in the same folder as the
+ * timelines, but neither format can say "the file next to me" in a way every
+ * editor reads, and Aksharo cannot know the folder the person unzips to. So
+ * each timeline names the file by an absolute `file:` URL with the clip's own
+ * file name at the root of the disk (`mediaFileUrl`), which every editor reads
+ * as "a file that has moved" and offers to relink:
+ *
+ * - FCPXML: Apple's reference allows a relative `src` only inside an `.fcpxmld`
+ *   bundle (FCPXML 1.10+); outside one Final Cut Pro wants an absolute URL and
+ *   may refuse the whole import over a relative one. An absolute URL to a
+ *   missing file imports as an offline clip, relinked with File > Relink
+ *   Files. Resolve reads the same file and asks for the folder of a clip it
+ *   cannot find. (No bundle: Resolve does not open `.fcpxmld`, and a ZIP
+ *   unpacked on Windows loses the bundle anyway.)
+ * - xmeml: Final Cut Pro 7 wrote `file://localhost/...`, the form Premiere's
+ *   importer expects; a missing file opens its Link Media window.
+ *
+ * "Read me.txt" walks through the import and the relink in each app, menu by
+ * menu. The XML is UTF-8 with every caption escaped (`& < > " '`) and stripped
  * of characters XML 1.0 cannot carry, so Hindi and Hinglish captions arrive as
  * they were typed.
  */
@@ -293,9 +307,17 @@ export function xmlText(text: string): string {
   );
 }
 
-/** A file name as a relative URL (`./My%20clip%209x16.mp4`). */
-export function relativeUrl(filename: string): string {
-  return `./${encodeURIComponent(filename)}`;
+/**
+ * The clean cut as an absolute `file:` URL at the root of the disk, its name
+ * percent-encoded: `file:///My%20clip%209x16.mp4` for FCPXML,
+ * `file://localhost/My%20clip%209x16.mp4` (Final Cut Pro 7's own form) for
+ * xmeml. Deliberately a path that does not exist: every editor then imports
+ * the timeline with the clip offline and relinks it, where a relative URL can
+ * fail the import outright (see the module comment).
+ */
+export function mediaFileUrl(filename: string, form: "fcpxml" | "xmeml"): string {
+  const path = encodeURIComponent(filename);
+  return form === "xmeml" ? `file://localhost/${path}` : `file:///${path}`;
 }
 
 /** The captions as SubRip on the timeline's clock (the subtitle export's writer). */
@@ -345,7 +367,7 @@ export function toFcpxml(timeline: NleTimeline, names: NleNames): string {
     "  <resources>",
     `    <format id="r1" frameDuration="${t(1)}" width="${String(timeline.width)}" height="${String(timeline.height)}" colorSpace="1-1-1 (Rec. 709)"/>`,
     `    <asset id="r2" name="${xmlText(names.mediaFile)}" start="0s" duration="${t(timeline.sourceFrames)}" hasVideo="1" format="r1"${audio}>`,
-    `      <media-rep kind="original-media" src="${xmlText(relativeUrl(names.mediaFile))}"/>`,
+    `      <media-rep kind="original-media" src="${xmlText(mediaFileUrl(names.mediaFile, "fcpxml"))}"/>`,
     "    </asset>",
     `    <effect id="r3" name="Basic Title" uid="${BASIC_TITLE_UID}"/>`,
     "  </resources>",
@@ -422,7 +444,7 @@ export function toXmeml(timeline: NleTimeline, names: NleNames): string {
     return [
       `${indent}<file id="file-1">`,
       `${indent}  <name>${xmlText(names.mediaFile)}</name>`,
-      `${indent}  <pathurl>${xmlText(relativeUrl(names.mediaFile))}</pathurl>`,
+      `${indent}  <pathurl>${xmlText(mediaFileUrl(names.mediaFile, "xmeml"))}</pathurl>`,
       ...rateXml(`${indent}  `),
       `${indent}  <duration>${String(timeline.sourceFrames)}</duration>`,
       `${indent}  <media>`,
@@ -507,30 +529,58 @@ export function toXmeml(timeline: NleTimeline, names: NleNames): string {
   return lines.join("\n");
 }
 
-/** "Read me.txt": what each file is for, and what to do when an app asks for the video. */
+/**
+ * "Read me.txt": what each file is for, how each app opens it (in that app's
+ * own menu names), and how to point each app at the video, which every app
+ * asks for once because a timeline cannot know the folder it was unzipped to.
+ */
 export function readMeText(
   names: NleNames,
   files: { readonly fcpxml: string; readonly xmeml: string; readonly srt: string },
 ): string {
+  const video = names.mediaFile;
   return [
     names.project,
     "",
-    `${names.mediaFile}`,
-    "  The clip without captions. Keep it in the same folder as the files below.",
+    "Unzip this folder first, and keep every file in it together.",
     "",
-    `${files.fcpxml}`,
-    "  Final Cut Pro and DaVinci Resolve: File > Import > XML (Final Cut Pro: File > Import > XML...).",
-    "  The clip is on the timeline as Aksharo cut it, with every caption as a title above it.",
+    video,
+    "  The clip without captions: the video every timeline below uses.",
     "",
-    `${files.xmeml}`,
-    "  Premiere Pro: File > Import, then pick this file. The clip is on V1 as Aksharo cut it.",
-    `  For the captions, import ${files.srt} too and drag it onto the timeline.`,
+    files.fcpxml,
+    "  For Final Cut Pro and DaVinci Resolve. The clip is on the timeline as",
+    "  Aksharo cut it, with every caption as a title above it.",
     "",
-    `${files.srt}`,
-    "  The captions as subtitles, timed to the timeline above (not to the uncut video",
-    "  when Aksharo trimmed pauses out of it).",
+    files.xmeml,
+    "  For Premiere Pro. The clip is on V1 (its sound on A1) as Aksharo cut it.",
     "",
-    "If your app asks where the video is, point it at the video in this folder.",
+    files.srt,
+    "  The captions as subtitles, timed to the timelines above (not to the uncut",
+    "  video when Aksharo trimmed pauses out of it).",
+    "",
+    "Each app opens the timeline with the video shown as missing (offline) until",
+    "you point it at the video in this folder. That is expected: a timeline file",
+    "cannot know where you unzipped it.",
+    "",
+    "Final Cut Pro",
+    `  1. File > Import > XML..., then choose ${files.fcpxml}.`,
+    "  2. In the new event, select the clip marked missing.",
+    "  3. File > Relink Files..., choose Missing, then Locate All...",
+    `  4. Choose ${video} in this folder, then Relink Files.`,
+    "",
+    "DaVinci Resolve",
+    `  1. File > Import > Timeline..., then choose ${files.fcpxml}.`,
+    '  2. Leave "Automatically import source clips into media pool" ticked, then Ok.',
+    "  3. If Resolve says it cannot find the clip, choose this folder when it asks.",
+    "     If the clip still shows as offline: in the Media Pool, right-click it,",
+    "     choose Relink Selected Clips..., and choose this folder.",
+    "",
+    "Premiere Pro",
+    `  1. File > Import..., then choose ${files.xmeml}.`,
+    `  2. In the Link Media window, click Locate, choose ${video}`,
+    "     in this folder, then OK.",
+    `  3. For the captions: File > Import..., choose ${files.srt}, then drag it`,
+    "     from the Project panel onto the timeline. It becomes a caption track.",
     "",
   ].join("\r\n");
 }

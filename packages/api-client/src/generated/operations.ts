@@ -789,6 +789,13 @@ export const API_OPERATIONS = [
     summary: "Cut a 9:16 clip from one moment",
   },
   {
+    operationId: "createRepurposeClipNleDownload",
+    method: "POST",
+    path: "/repurpose/runs/{runId}/clips/{clipId}/nle-download",
+    tags: ["repurpose"],
+    summary: "A single-use link to a clip's files for an editing app",
+  },
+  {
     operationId: "createRepurposeCompilation",
     method: "POST",
     path: "/repurpose/runs/{runId}/compilations",
@@ -1431,6 +1438,13 @@ export const API_OPERATIONS = [
     path: "/repurpose/runs/{runId}/episode-pack",
     tags: ["repurpose"],
     summary: "The run's episode text: chapters, descriptions and posts for the whole video",
+  },
+  {
+    operationId: "getRepurposeExample",
+    method: "GET",
+    path: "/repurpose/example",
+    tags: ["repurpose"],
+    summary: "A finished example run, read only",
   },
   {
     operationId: "getRepurposePreview",

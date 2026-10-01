@@ -128,6 +128,25 @@ describe("<ExampleRunViewPage />", () => {
     expect(await screen.findByTestId("example-run-none")).toBeInTheDocument();
   });
 
+  it("says there is no example, rather than loading for good, with no workspace to ask for", async () => {
+    const { fetchMock } = renderWithProviders(<ExampleRunViewPage />, {
+      accessToken: null,
+      routes: { "/repurpose/example": VIEW },
+    });
+    expect(await screen.findByTestId("example-run-none")).toHaveTextContent(EXAMPLE_COPY.noneTitle);
+    expect(document.querySelector('[aria-busy="true"]')).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("shows it loading while the example is being read", async () => {
+    renderWithProviders(<ExampleRunViewPage />, {
+      routes: { "/repurpose/example": VIEW },
+    });
+    expect(document.querySelector('[aria-busy="true"]')).not.toBeNull();
+    expect(screen.queryByTestId("example-run-none")).toBeNull();
+    expect(await screen.findByTestId("example-run")).toBeInTheDocument();
+  });
+
   it("shows the clips with the banner, and nothing that changes them", async () => {
     const { fetchMock } = renderWithProviders(<ExampleRunViewPage />, {
       routes: { "/repurpose/example": VIEW },

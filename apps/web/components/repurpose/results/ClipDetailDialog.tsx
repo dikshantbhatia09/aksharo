@@ -347,7 +347,7 @@ function DetailBody({
             </section>
           )}
 
-{readOnly === undefined ? <ClipEditingDownload runId={runId} clip={clip} /> : null}
+          {readOnly === undefined ? <ClipEditingDownload runId={runId} clip={clip} /> : null}
 
           <ClipTranscript
             runId={runId}

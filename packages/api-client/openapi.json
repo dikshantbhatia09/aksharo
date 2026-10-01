@@ -27654,6 +27654,68 @@
                           "coverAssetId"
                         ],
                         "additionalProperties": false
+                      },
+                      "captions": {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "from": {
+                                "type": "string",
+                                "enum": [
+                                  "file"
+                                ]
+                              },
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "srt",
+                                  "vtt"
+                                ]
+                              },
+                              "content": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 2097152
+                              }
+                            },
+                            "required": [
+                              "from",
+                              "kind",
+                              "content"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "from": {
+                                "type": "string",
+                                "enum": [
+                                  "url"
+                                ]
+                              },
+                              "url": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 2048,
+                                "pattern": "^https?:\\/\\/"
+                              },
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "srt",
+                                  "vtt"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "from",
+                              "url"
+                            ],
+                            "additionalProperties": false
+                          }
+                        ]
                       }
                     },
                     "required": [
@@ -27704,6 +27766,7 @@
                           "enum": [
                             "upload",
                             "youtube_url",
+                            "hosted_url",
                             "direct_media_url"
                           ]
                         },
@@ -28161,6 +28224,7 @@
                             "enum": [
                               "upload",
                               "youtube_url",
+                              "hosted_url",
                               "direct_media_url"
                             ]
                           },
@@ -28539,6 +28603,7 @@
                       "enum": [
                         "upload",
                         "youtube_url",
+                        "hosted_url",
                         "direct_media_url"
                       ]
                     },
@@ -28907,6 +28972,7 @@
                       "enum": [
                         "upload",
                         "youtube_url",
+                        "hosted_url",
                         "direct_media_url"
                       ]
                     },
@@ -29274,6 +29340,7 @@
                       "enum": [
                         "upload",
                         "youtube_url",
+                        "hosted_url",
                         "direct_media_url"
                       ]
                     },
@@ -29645,6 +29712,7 @@
                           "enum": [
                             "upload",
                             "youtube_url",
+                            "hosted_url",
                             "direct_media_url"
                           ]
                         },
@@ -30018,6 +30086,7 @@
                       "enum": [
                         "upload",
                         "youtube_url",
+                        "hosted_url",
                         "direct_media_url"
                       ]
                     },
@@ -32112,6 +32181,27 @@
         ]
       }
     },
+    "/repurpose/example": {
+      "get": {
+        "description": "`{available: false}` when no example is set. Otherwise the run's title, its finished clips (each size's captioned video and its images, signed for an hour), their moments and scores, and each clip's words. The same for every signed-in person; nothing of the workspace it came from.",
+        "operationId": "getRepurposeExample",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "A finished example run, read only",
+        "tags": [
+          "repurpose"
+        ]
+      }
+    },
     "/workspaces/{id}/webhooks": {
       "post": {
         "operationId": "createWebhookEndpoint",
@@ -34115,6 +34205,68 @@
                                   "coverAssetId"
                                 ],
                                 "additionalProperties": false
+                              },
+                              "captions": {
+                                "oneOf": [
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "from": {
+                                        "type": "string",
+                                        "enum": [
+                                          "file"
+                                        ]
+                                      },
+                                      "kind": {
+                                        "type": "string",
+                                        "enum": [
+                                          "srt",
+                                          "vtt"
+                                        ]
+                                      },
+                                      "content": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 2097152
+                                      }
+                                    },
+                                    "required": [
+                                      "from",
+                                      "kind",
+                                      "content"
+                                    ],
+                                    "additionalProperties": false
+                                  },
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "from": {
+                                        "type": "string",
+                                        "enum": [
+                                          "url"
+                                        ]
+                                      },
+                                      "url": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 2048,
+                                        "pattern": "^https?:\\/\\/"
+                                      },
+                                      "kind": {
+                                        "type": "string",
+                                        "enum": [
+                                          "srt",
+                                          "vtt"
+                                        ]
+                                      }
+                                    },
+                                    "required": [
+                                      "from",
+                                      "url"
+                                    ],
+                                    "additionalProperties": false
+                                  }
+                                ]
                               }
                             },
                             "required": [
@@ -34443,6 +34595,68 @@
                           "coverAssetId"
                         ],
                         "additionalProperties": false
+                      },
+                      "captions": {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "from": {
+                                "type": "string",
+                                "enum": [
+                                  "file"
+                                ]
+                              },
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "srt",
+                                  "vtt"
+                                ]
+                              },
+                              "content": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 2097152
+                              }
+                            },
+                            "required": [
+                              "from",
+                              "kind",
+                              "content"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "from": {
+                                "type": "string",
+                                "enum": [
+                                  "url"
+                                ]
+                              },
+                              "url": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 2048,
+                                "pattern": "^https?:\\/\\/"
+                              },
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "srt",
+                                  "vtt"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "from",
+                              "url"
+                            ],
+                            "additionalProperties": false
+                          }
+                        ]
                       }
                     },
                     "required": [
@@ -34694,6 +34908,68 @@
                             "coverAssetId"
                           ],
                           "additionalProperties": false
+                        },
+                        "captions": {
+                          "oneOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "from": {
+                                  "type": "string",
+                                  "enum": [
+                                    "file"
+                                  ]
+                                },
+                                "kind": {
+                                  "type": "string",
+                                  "enum": [
+                                    "srt",
+                                    "vtt"
+                                  ]
+                                },
+                                "content": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 2097152
+                                }
+                              },
+                              "required": [
+                                "from",
+                                "kind",
+                                "content"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "from": {
+                                  "type": "string",
+                                  "enum": [
+                                    "url"
+                                  ]
+                                },
+                                "url": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 2048,
+                                  "pattern": "^https?:\\/\\/"
+                                },
+                                "kind": {
+                                  "type": "string",
+                                  "enum": [
+                                    "srt",
+                                    "vtt"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "from",
+                                "url"
+                              ],
+                              "additionalProperties": false
+                            }
+                          ]
                         }
                       },
                       "required": [
@@ -35059,6 +35335,68 @@
                             "coverAssetId"
                           ],
                           "additionalProperties": false
+                        },
+                        "captions": {
+                          "oneOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "from": {
+                                  "type": "string",
+                                  "enum": [
+                                    "file"
+                                  ]
+                                },
+                                "kind": {
+                                  "type": "string",
+                                  "enum": [
+                                    "srt",
+                                    "vtt"
+                                  ]
+                                },
+                                "content": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 2097152
+                                }
+                              },
+                              "required": [
+                                "from",
+                                "kind",
+                                "content"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "from": {
+                                  "type": "string",
+                                  "enum": [
+                                    "url"
+                                  ]
+                                },
+                                "url": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 2048,
+                                  "pattern": "^https?:\\/\\/"
+                                },
+                                "kind": {
+                                  "type": "string",
+                                  "enum": [
+                                    "srt",
+                                    "vtt"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "from",
+                                "url"
+                              ],
+                              "additionalProperties": false
+                            }
+                          ]
                         }
                       },
                       "required": [
@@ -35375,6 +35713,68 @@
                           "coverAssetId"
                         ],
                         "additionalProperties": false
+                      },
+                      "captions": {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "from": {
+                                "type": "string",
+                                "enum": [
+                                  "file"
+                                ]
+                              },
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "srt",
+                                  "vtt"
+                                ]
+                              },
+                              "content": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 2097152
+                              }
+                            },
+                            "required": [
+                              "from",
+                              "kind",
+                              "content"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "from": {
+                                "type": "string",
+                                "enum": [
+                                  "url"
+                                ]
+                              },
+                              "url": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 2048,
+                                "pattern": "^https?:\\/\\/"
+                              },
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "srt",
+                                  "vtt"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "from",
+                              "url"
+                            ],
+                            "additionalProperties": false
+                          }
+                        ]
                       }
                     },
                     "required": [
@@ -35612,6 +36012,68 @@
                             "coverAssetId"
                           ],
                           "additionalProperties": false
+                        },
+                        "captions": {
+                          "oneOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "from": {
+                                  "type": "string",
+                                  "enum": [
+                                    "file"
+                                  ]
+                                },
+                                "kind": {
+                                  "type": "string",
+                                  "enum": [
+                                    "srt",
+                                    "vtt"
+                                  ]
+                                },
+                                "content": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 2097152
+                                }
+                              },
+                              "required": [
+                                "from",
+                                "kind",
+                                "content"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "from": {
+                                  "type": "string",
+                                  "enum": [
+                                    "url"
+                                  ]
+                                },
+                                "url": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 2048,
+                                  "pattern": "^https?:\\/\\/"
+                                },
+                                "kind": {
+                                  "type": "string",
+                                  "enum": [
+                                    "srt",
+                                    "vtt"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "from",
+                                "url"
+                              ],
+                              "additionalProperties": false
+                            }
+                          ]
                         }
                       },
                       "required": [
@@ -36005,6 +36467,68 @@
                             "coverAssetId"
                           ],
                           "additionalProperties": false
+                        },
+                        "captions": {
+                          "oneOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "from": {
+                                  "type": "string",
+                                  "enum": [
+                                    "file"
+                                  ]
+                                },
+                                "kind": {
+                                  "type": "string",
+                                  "enum": [
+                                    "srt",
+                                    "vtt"
+                                  ]
+                                },
+                                "content": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 2097152
+                                }
+                              },
+                              "required": [
+                                "from",
+                                "kind",
+                                "content"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "from": {
+                                  "type": "string",
+                                  "enum": [
+                                    "url"
+                                  ]
+                                },
+                                "url": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 2048,
+                                  "pattern": "^https?:\\/\\/"
+                                },
+                                "kind": {
+                                  "type": "string",
+                                  "enum": [
+                                    "srt",
+                                    "vtt"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "from",
+                                "url"
+                              ],
+                              "additionalProperties": false
+                            }
+                          ]
                         }
                       },
                       "required": [
@@ -36371,6 +36895,68 @@
                             "coverAssetId"
                           ],
                           "additionalProperties": false
+                        },
+                        "captions": {
+                          "oneOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "from": {
+                                  "type": "string",
+                                  "enum": [
+                                    "file"
+                                  ]
+                                },
+                                "kind": {
+                                  "type": "string",
+                                  "enum": [
+                                    "srt",
+                                    "vtt"
+                                  ]
+                                },
+                                "content": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 2097152
+                                }
+                              },
+                              "required": [
+                                "from",
+                                "kind",
+                                "content"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "from": {
+                                  "type": "string",
+                                  "enum": [
+                                    "url"
+                                  ]
+                                },
+                                "url": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 2048,
+                                  "pattern": "^https?:\\/\\/"
+                                },
+                                "kind": {
+                                  "type": "string",
+                                  "enum": [
+                                    "srt",
+                                    "vtt"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "from",
+                                "url"
+                              ],
+                              "additionalProperties": false
+                            }
+                          ]
                         }
                       },
                       "required": [
@@ -36689,6 +37275,68 @@
                           "coverAssetId"
                         ],
                         "additionalProperties": false
+                      },
+                      "captions": {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "from": {
+                                "type": "string",
+                                "enum": [
+                                  "file"
+                                ]
+                              },
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "srt",
+                                  "vtt"
+                                ]
+                              },
+                              "content": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 2097152
+                              }
+                            },
+                            "required": [
+                              "from",
+                              "kind",
+                              "content"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "from": {
+                                "type": "string",
+                                "enum": [
+                                  "url"
+                                ]
+                              },
+                              "url": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 2048,
+                                "pattern": "^https?:\\/\\/"
+                              },
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "srt",
+                                  "vtt"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "from",
+                              "url"
+                            ],
+                            "additionalProperties": false
+                          }
+                        ]
                       }
                     },
                     "required": [
@@ -37932,6 +38580,67 @@
           }
         ],
         "summary": "A single-use link to a run's \"Download all\" ZIP",
+        "tags": [
+          "repurpose"
+        ]
+      }
+    },
+    "/repurpose/runs/{runId}/clips/{clipId}/nle-download": {
+      "post": {
+        "description": "`url` streams one ZIP once, within five minutes: the clip's clean cut in `shape`, an FCPXML 1.9 timeline (Final Cut Pro, DaVinci Resolve) with every caption as a title, a Final Cut Pro 7 XML timeline (Premiere Pro) and the captions as SRT, all on the clip's own frame rate. 409 `repurpose/nle_not_ready` while that shape is not made yet.",
+        "operationId": "createRepurposeClipNleDownload",
+        "parameters": [
+          {
+            "name": "runId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "clipId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "shape": {
+                    "default": "9:16",
+                    "type": "string",
+                    "enum": [
+                      "9:16",
+                      "4:5",
+                      "1:1",
+                      "16:9"
+                    ]
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "A single-use link to a clip's files for an editing app",
         "tags": [
           "repurpose"
         ]

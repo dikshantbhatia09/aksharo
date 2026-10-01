@@ -81,6 +81,10 @@ export interface RepurposeVoiceoverOffer {
   language: RepurposeVoiceoverLanguage | null;
   /** The voice-over the clip has (being made or made), if any. */
   voiceoverId: string | null;
+  /** Finished videos of this clip that adding the voice makes again (2026-10-01). */
+  rerenderVideos?: number;
+  /** What making them again costs, at the cloud render rate. */
+  rerenderTenths?: number;
 }
 
 export interface RepurposeVoiceoverList {
@@ -89,6 +93,8 @@ export interface RepurposeVoiceoverList {
   enabled: boolean;
   /** Credits (tenths) one voice-over costs. */
   tenthsPerVoiceover: number;
+  /** The cloud render rate, for a clip the list has no number for. */
+  renderTenthsPerMinute?: number;
   maxTextChars: number;
   speakers: RepurposeVoiceoverSpeaker[];
   clips: RepurposeVoiceoverOffer[];

@@ -7,7 +7,6 @@ import type { RepurposeClipFormat, RepurposeClipItem } from "@montaj/api-client"
 import { ClipEditingDownload, editingShapesOf } from "./ClipEditingDownload";
 import { EDITING_DOWNLOAD_COPY } from "./download-copy";
 
-
 import { beginnerSafetyViolations } from "@/components/repurpose/copy";
 import { renderWithProviders } from "@/test/harness";
 
@@ -87,11 +86,12 @@ describe("ClipEditingDownload", () => {
     const { posted } = render(CLIP_ITEM);
     const section = screen.getByTestId("clip-editing-download");
     expect(section).toHaveTextContent(EDITING_DOWNLOAD_COPY.heading);
-    expect(screen.getByTestId("clip-editing-shape-9x16")).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByTestId("clip-editing-shape-9x16")).toBeChecked();
     expect(screen.queryByTestId("clip-editing-shape-4x5")).toBeNull();
 
-    await userEvent.click(screen.getByTestId("clip-editing-shape-16x9"));
-    expect(screen.getByTestId("clip-editing-shape-16x9")).toHaveAttribute("aria-checked", "true");
+    await userEvent.click(screen.getByRole("radio", { name: EDITING_DOWNLOAD_COPY.shape["16:9"] }));
+    expect(screen.getByTestId("clip-editing-shape-16x9")).toBeChecked();
+    expect(screen.getByTestId("clip-editing-shape-9x16")).not.toBeChecked();
     await userEvent.click(screen.getByTestId("clip-editing-download-start"));
 
     await waitFor(() => {
@@ -101,9 +101,30 @@ describe("ClipEditingDownload", () => {
     expect(await screen.findByTestId("clip-editing-download-started")).toBeInTheDocument();
   });
 
+  it("is a radio group the arrow keys move through, with one tab stop", async () => {
+    render(CLIP_ITEM);
+    const group = screen.getByRole("group", { name: EDITING_DOWNLOAD_COPY.sizeLegend });
+    const radios = screen.getAllByRole("radio");
+    expect(radios).toHaveLength(3);
+    for (const radio of radios) expect(group).toContainElement(radio);
+    // Native radios sharing one name: the browser gives them one tab stop and
+    // moves (and picks) with the arrow keys.
+    const names = new Set(radios.map((radio) => radio.getAttribute("name")));
+    expect(names.size).toBe(1);
+    expect([...names][0]).toBeTruthy();
+
+    await userEvent.tab();
+    expect(screen.getByTestId("clip-editing-shape-9x16")).toHaveFocus();
+    await userEvent.keyboard("{ArrowRight}");
+    expect(screen.getByTestId("clip-editing-shape-1x1")).toBeChecked();
+    expect(screen.getByTestId("clip-editing-shape-1x1")).toHaveFocus();
+    await userEvent.tab();
+    expect(screen.getByTestId("clip-editing-download-start")).toHaveFocus();
+  });
+
   it("shows no size choice when there is only one", () => {
     render({ ...CLIP_ITEM, formats: [format("9:16", true)] });
-    expect(screen.queryByRole("radiogroup")).toBeNull();
+    expect(screen.queryByRole("radio")).toBeNull();
     expect(screen.getByTestId("clip-editing-download-start")).toBeInTheDocument();
   });
 

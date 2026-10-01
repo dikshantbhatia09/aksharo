@@ -1,7 +1,7 @@
 import { HttpStatus, Inject, Injectable, Logger } from "@nestjs/common";
 import { ulid } from "ulid";
 
-import { formatCredits, type Env } from "@montaj/config";
+import { formatCredits, quote, type Env } from "@montaj/config";
 import { isVoiceoverItem, newId, stableOverlayId, voiceoverPass } from "@montaj/edg";
 import type { EdgOp, PassItem } from "@montaj/edg/schemas";
 import {
@@ -46,11 +46,12 @@ import { EdgRepository, EdgService } from "../../edg/index.js";
 import { JOB_ERROR_CODES } from "../../jobs/jobs.errors.js";
 import { JobsService } from "../../jobs/jobs.service.js";
 import { EntitlementService } from "../../workspaces/entitlement.service.js";
-import { finishingInProgress } from "../clip-finishing.js";
+import { finishingRecordOf } from "../clip-finishing.js";
 import {
   REPURPOSE_ERRORS,
   REPURPOSE_FLAGS,
   RECONCILE_INTERVAL_MS,
+  automationOf,
 } from "../repurpose.constants.js";
 import { isRemoved } from "../steering.js";
 
@@ -96,6 +97,14 @@ export interface VoiceoverOfferView {
   readonly text: string;
   readonly language: VoiceoverLanguageOption | null;
   readonly voiceoverId: string | null;
+  /**
+   * The clip's finished (captioned) videos that already exist: each is made
+   * again with the voice in it, at the cloud render rate. A size not made yet
+   * gets the voice in its first video, at no extra cost.
+   */
+  readonly rerenderVideos: number;
+  /** What making those videos again costs, in tenths (about: cuts may shorten them). */
+  readonly rerenderTenths: number;
 }
 
 export interface VoiceoverListView {
@@ -104,6 +113,8 @@ export interface VoiceoverListView {
   readonly enabled: boolean;
   /** Credits (tenths) one voice-over costs. */
   readonly tenthsPerVoiceover: number;
+  /** The cloud render rate, in tenths per minute of finished video. */
+  readonly renderTenthsPerMinute: number;
   readonly maxTextChars: number;
   readonly speakers: readonly VoiceoverSpeakerOption[];
   readonly clips: readonly VoiceoverOfferView[];
@@ -119,6 +130,7 @@ const CLIP_INCLUDE = {
       aspect: true,
       projectId: true,
       finishing: true,
+      latestExportId: true,
       project: {
         select: {
           edgDocument: { select: { id: true } },
@@ -218,6 +230,7 @@ export class RepurposeVoiceoversService {
       runId: run.id,
       enabled,
       tenthsPerVoiceover: VOICEOVER_TENTHS,
+      renderTenthsPerMinute: quote("cloudRender", 1).costTenths,
       maxTextChars: VOICEOVER_LIMITS.maxTextChars,
       speakers: VOICEOVER_SPEAKER_OPTIONS,
       clips: shown.map((clip) => offerOf(clip, run, visible)),
@@ -269,49 +282,59 @@ export class RepurposeVoiceoversService {
     }
     const speaker: VoiceoverSpeaker = input.speaker ?? DEFAULT_VOICEOVER_SPEAKER;
 
-    // The same request twice (a double click, a retried request) is one voice-over.
-    const held = await this.prisma.clipVoiceover.findFirst({
+    // The same request twice (a double click, a retried request) is one
+    // voice-over. Checked first without a lock, so a repeat never touches the
+    // day's budget, and again under the clip's lock below.
+    const seen = await this.prisma.clipVoiceover.findFirst({
       where: { clipId: clip.id, status: { in: [...HELD] } },
     });
-    if (held !== null) {
-      if (held.text === text && held.speaker === speaker) {
-        return { voiceover: await this.viewOf(held), created: false };
-      }
-      throw new AppException(
-        VOICEOVER_ERRORS.alreadyHas,
-        "This clip already has a voice-over. Take it off first to make a new one.",
-        HttpStatus.CONFLICT,
-        { voiceoverId: held.id },
-      );
-    }
+    if (seen !== null)
+      return { voiceover: await this.viewOf(sameOrRefuse(seen, text, speaker)), created: false };
 
     await this.assertAffordable(workspaceId, VOICEOVER_TENTHS);
     await this.assertRoomForAnother(workspaceId);
     const paise = voiceoverVendorPaise(text.length);
     const reserved = await this.reserveBudget(paise);
 
-    let row: ClipVoiceover;
+    // "One held voice-over per clip" is decided under a transaction-scoped
+    // advisory lock on the clip: two asks at once cannot both see none and
+    // both insert (and both pay the vendor).
+    let made: { readonly row: ClipVoiceover; readonly created: boolean };
     try {
-      row = await this.prisma.clipVoiceover.create({
-        data: {
-          id: ulid(),
-          runId: run.id,
-          clipId: clip.id,
-          workspaceId: run.workspaceId,
-          text,
-          language,
-          speaker,
-          status: "waiting",
-          costTenths: VOICEOVER_TENTHS,
-          budgetDay: reserved.day,
-          budgetPaise: paise,
-          createdBy: userId,
-        },
+      made = await this.prisma.$transaction(async (tx) => {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`clip_voiceover:${clip.id}`}))`;
+        const held = await tx.clipVoiceover.findFirst({
+          where: { clipId: clip.id, status: { in: [...HELD] } },
+        });
+        if (held !== null) return { row: sameOrRefuse(held, text, speaker), created: false };
+        const row = await tx.clipVoiceover.create({
+          data: {
+            id: ulid(),
+            runId: run.id,
+            clipId: clip.id,
+            workspaceId: run.workspaceId,
+            text,
+            language,
+            speaker,
+            status: "waiting",
+            costTenths: VOICEOVER_TENTHS,
+            budgetDay: reserved.day,
+            budgetPaise: paise,
+            createdBy: userId,
+          },
+        });
+        return { row, created: true };
       });
     } catch (error) {
       await this.budget.release(reserved.day, paise);
       throw error;
     }
+    if (!made.created) {
+      // Another ask won the lock: this one reserved for nothing.
+      await this.budget.release(reserved.day, paise);
+      return { voiceover: await this.viewOf(made.row), created: false };
+    }
+    const row = made.row;
 
     try {
       await this.start(row);
@@ -449,7 +472,10 @@ export class RepurposeVoiceoversService {
       });
     }
     if (from === "waiting") await this.giveBudgetBack(row);
-    const taken = await this.takeOff(row);
+    // Read again after the flip: a placement written before it is on the row
+    // now; one that loses the race to it is undone by `place` itself.
+    const current = await this.prisma.clipVoiceover.findUnique({ where: { id: row.id } });
+    const taken = await this.takeOff(current ?? row);
 
     await this.audit.record({
       action: "repurpose.voiceover.removed",
@@ -675,25 +701,34 @@ export class RepurposeVoiceoversService {
   /**
    * Lay a made voice-over on every shape of its clip that does not carry it:
    * one accepted `sfx` cue from where the finished video starts. A shape with
-   * no document yet, or still being finished, is left for a later pass. A
-   * shape a person already took it off (its cue rejected) keeps it off.
+   * no document yet, or whose edit is not finished ({@link settledForVoice}),
+   * is left for a later pass. A shape a person already took it off (its cue
+   * rejected) keeps it off.
+   *
+   * A removal that lands while this lays the cue (`remove` flips the status
+   * first, then takes off what the row records) is caught here: the record is
+   * written only while the voice-over is still `ready`, and when it is not,
+   * the cues this pass laid are taken off again.
    */
   private async place(row: ClipVoiceover): Promise<number> {
     if (row.status !== "ready" || row.audioDurationMs === null) return 0;
-    const clip = await this.prisma.repurposeClip.findUnique({
-      where: { id: row.clipId },
-      include: CLIP_INCLUDE,
-    });
-    if (clip === null) return 0;
+    const [clip, run] = await Promise.all([
+      this.prisma.repurposeClip.findUnique({ where: { id: row.clipId }, include: CLIP_INCLUDE }),
+      this.prisma.repurposeRun.findUnique({ where: { id: row.runId } }),
+    ]);
+    if (clip === null || run === null) return 0;
+    const autopilot = automationOf(run) === "auto";
     const placements = placementsOf(row.placements);
+    const laid: Record<string, string> = {};
     let added = 0;
     for (const shape of clip.variants) {
       if (Object.hasOwn(placements, shape.id)) continue;
-      if (shape.project.edgDocument === null || finishingInProgress(shape.finishing)) continue;
+      if (shape.project.edgDocument === null || !settledForVoice(shape, autopilot)) continue;
       try {
         const itemId = await this.placeOnShape(row, shape);
         if (itemId === undefined) continue;
         placements[shape.id] = itemId;
+        laid[shape.id] = itemId;
         added += 1;
       } catch (error) {
         this.logger.warn(
@@ -702,13 +737,21 @@ export class RepurposeVoiceoversService {
         );
       }
     }
-    if (added > 0) {
-      await this.prisma.clipVoiceover.updateMany({
-        where: { id: row.id, status: "ready" },
-        data: { placements: placements as unknown as Prisma.InputJsonValue },
-      });
-      this.logger.log({ voiceoverId: row.id, shapes: added }, "laid a voice-over on clip shapes");
+    if (added === 0) return 0;
+    const { count } = await this.prisma.clipVoiceover.updateMany({
+      where: { id: row.id, status: "ready" },
+      data: { placements: placements as unknown as Prisma.InputJsonValue },
+    });
+    if (count === 0) {
+      // Taken off (or gone) while the cues were being laid: undo this pass.
+      const taken = await this.takeOff({ ...row, placements: laid });
+      this.logger.log(
+        { voiceoverId: row.id, shapes: taken },
+        "a voice-over was taken off while it was being laid; undone",
+      );
+      return 0;
     }
+    this.logger.log({ voiceoverId: row.id, shapes: added }, "laid a voice-over on clip shapes");
     return added;
   }
 
@@ -1048,8 +1091,61 @@ export function clipLanguageOf(
   return voiceoverLanguageOf(tag);
 }
 
+/**
+ * The clip's held voice-over answers a repeated ask (same words, same voice);
+ * anything else is refused while it has one.
+ */
+function sameOrRefuse(held: ClipVoiceover, text: string, speaker: string): ClipVoiceover {
+  if (held.text === text && held.speaker === speaker) return held;
+  throw new AppException(
+    VOICEOVER_ERRORS.alreadyHas,
+    "This clip already has a voice-over. Take it off first to make a new one.",
+    HttpStatus.CONFLICT,
+    { voiceoverId: held.id },
+  );
+}
+
 function hasDocument(clip: ClipWithShapes): boolean {
   return clip.mezzanineKey !== null && clip.variants.some((v) => v.project.edgDocument !== null);
+}
+
+/**
+ * Whether a shape's edit is finished enough to take the voice: Autopilot's
+ * finishing (`clip-finishing.ts`) cuts the start of the clip and lays its own
+ * passes, so a cue laid before it would sit at the wrong place or be cut.
+ *
+ *   * finishing `running`: never.
+ *   * finishing `done`: yes.
+ *   * no record on a manual run: yes, nothing will finish it.
+ *   * no record on an Autopilot run: only once the shape already has a
+ *     captioned video (a shape made before finishing existed, which will
+ *     never be finished); otherwise its finishing has not started yet.
+ */
+export function settledForVoice(
+  shape: { readonly finishing: unknown; readonly latestExportId: string | null },
+  autopilot: boolean,
+): boolean {
+  const record = finishingRecordOf(shape.finishing);
+  if (record !== null) return record.state === "done";
+  return !autopilot || typeof shape.latestExportId === "string";
+}
+
+/**
+ * What adding a voice to this clip makes again: every shape that already has
+ * a captioned video, each priced on its own at the cloud render rate (as each
+ * render is billed), on the clip's length.
+ */
+export function rerenderCostOf(clip: ClipWithShapes): {
+  readonly videos: number;
+  readonly tenths: number;
+} {
+  const measured = clip.mezzanineDurationMs ?? clip.sourceEndMs - clip.sourceStartMs;
+  const lengthMs = Number.isFinite(measured) ? Math.max(0, measured) : 0;
+  const videos = clip.variants.filter(
+    (variant) => typeof variant.latestExportId === "string",
+  ).length;
+  const each = quote("cloudRender", lengthMs / 60_000).costTenths;
+  return { videos, tenths: videos * each };
 }
 
 function offerOf(
@@ -1059,12 +1155,15 @@ function offerOf(
 ): VoiceoverOfferView {
   const language = clipLanguageOf(clip, run);
   const held = rows.find((row) => row.clipId === clip.id && HELD.includes(row.status));
+  const rerender = rerenderCostOf(clip);
   return {
     clipId: clip.id,
     ready: hasDocument(clip) && language !== null,
     text: defaultHookOf(clip),
     language: language === null ? null : voiceoverLanguageOption(language),
     voiceoverId: held?.id ?? null,
+    rerenderVideos: rerender.videos,
+    rerenderTenths: rerender.tenths,
   };
 }
 

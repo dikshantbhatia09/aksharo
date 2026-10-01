@@ -76,39 +76,42 @@ export function ClipEditingDownload({
       </span>
       <p className="m-0 text-2xs text-fg-2">{EDITING_DOWNLOAD_COPY.hint}</p>
       {shapes.length < 2 ? null : (
-        <div
-          role="radiogroup"
-          aria-label={EDITING_DOWNLOAD_COPY.sizeLegend}
-          className="flex flex-wrap gap-1"
-        >
+        // Native radio buttons, one name: the browser gives the group one tab
+        // stop and moves (and picks) with the arrow keys, as a radio group must.
+        <fieldset className="m-0 flex flex-wrap gap-1 border-0 p-0">
+          <legend className="sr-only">{EDITING_DOWNLOAD_COPY.sizeLegend}</legend>
           {shapes.map((option) => {
             const selected = option === shape;
             return (
-              <button
+              <label
                 key={option}
-                type="button"
-                role="radio"
-                aria-checked={selected}
                 className={cn(
-                  "rounded-sm border px-2 py-1 text-xs",
+                  "cursor-pointer rounded-sm border px-2 py-1 text-xs has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-accent",
                   selected
                     ? "border-neutral-400 bg-bg-2 text-fg-0"
                     : "border-border bg-bg-0 text-fg-2 hover:text-fg-0",
                 )}
-                onClick={() => {
-                  setPicked(option);
-                  create.reset();
-                }}
-                data-testid={`clip-editing-shape-${option.replace(":", "x")}`}
               >
+                <input
+                  type="radio"
+                  name={`clip-editing-shape-${clip.id}`}
+                  value={option}
+                  checked={selected}
+                  className="sr-only"
+                  onChange={() => {
+                    setPicked(option);
+                    create.reset();
+                  }}
+                  data-testid={`clip-editing-shape-${option.replace(":", "x")}`}
+                />
                 {
                   // eslint-disable-next-line security/detect-object-injection -- `option` is one of VIDEO_SHAPES
                   EDITING_DOWNLOAD_COPY.shape[option]
                 }
-              </button>
+              </label>
             );
           })}
-        </div>
+        </fieldset>
       )}
       <Button
         variant="secondary"

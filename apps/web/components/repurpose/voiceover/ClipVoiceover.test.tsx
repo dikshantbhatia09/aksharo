@@ -1,10 +1,14 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import type { RepurposeVoiceover, RepurposeVoiceoverList } from "@montaj/api-client";
+import type {
+  RepurposeVoiceover,
+  RepurposeVoiceoverList,
+  RepurposeVoiceoverOffer,
+} from "@montaj/api-client";
 
 import { ClipVoiceoverView } from "./ClipVoiceover";
-import { allVoiceoverSentences, voiceoverFailureCopy } from "./copy";
+import { allVoiceoverSentences, voiceoverCostText, voiceoverFailureCopy } from "./copy";
 import { beginnerSafetyViolations } from "../copy";
 
 import { renderWithProviders } from "@/test/harness";
@@ -32,7 +36,9 @@ function list(overrides: Partial<RepurposeVoiceoverList> = {}): RepurposeVoiceov
         text: "Nobody tells you this",
         language: { code: "en-IN", name: "English" },
         voiceoverId: null,
-      },
+        rerenderVideos: 0,
+        rerenderTenths: 0,
+      } as RepurposeVoiceoverOffer,
     ],
     voiceovers: [],
     ...overrides,
@@ -100,7 +106,7 @@ describe("<ClipVoiceoverView /> (2026-10-01)", () => {
     fireEvent.click(screen.getByTestId(`voiceover-add-${CLIP}`));
     const dialog = screen.getByTestId(`voiceover-dialog-${CLIP}`);
     expect(within(dialog).getByTestId("voiceover-text")).toHaveValue("Nobody tells you this");
-    expect(within(dialog).getByTestId("voiceover-cost")).toHaveTextContent("Costs 2 credits.");
+    expect(within(dialog).getByTestId("voiceover-cost")).toHaveTextContent(/^Costs 2 credits\.$/u);
     expect(dialog).toHaveTextContent("in English");
 
     fireEvent.change(within(dialog).getByTestId("voiceover-speaker"), {
@@ -113,6 +119,38 @@ describe("<ClipVoiceoverView /> (2026-10-01)", () => {
     expect(JSON.parse(String(callTo(fetchMock, CREATE_ROUTE)?.body))).toEqual({
       speaker: "karun",
     });
+  });
+
+  it("says that the clip's finished videos are made again, and what that costs", () => {
+    const offer = {
+      clipId: CLIP,
+      ready: true,
+      text: "Nobody tells you this",
+      language: { code: "en-IN", name: "English" },
+      voiceoverId: null,
+      rerenderVideos: 4,
+      rerenderTenths: 20,
+    } as RepurposeVoiceoverOffer;
+    renderWithProviders(
+      <ClipVoiceoverView runId={RUN} clipId={CLIP} title="T" list={list({ clips: [offer] })} />,
+    );
+    fireEvent.click(screen.getByTestId(`voiceover-add-${CLIP}`));
+    expect(screen.getByTestId("voiceover-cost")).toHaveTextContent(
+      "Costs 2 credits for the voice, plus about 2 to make this clip's 4 finished videos again with the voice in them: about 4 credits in all.",
+    );
+  });
+
+  it("voiceoverCostText: one video, none, and an older server's answer", () => {
+    expect(voiceoverCostText({ tenths: 20, rerenderVideos: 1, rerenderTenths: 3 })).toBe(
+      "Costs 2 credits for the voice, plus about 0.3 to make this clip's finished video again with the voice in it: about 2.3 credits in all.",
+    );
+    expect(voiceoverCostText({ tenths: 20, rerenderVideos: 0, rerenderTenths: 0 })).toBe(
+      "Costs 2 credits.",
+    );
+    expect(voiceoverCostText({ tenths: 20, renderTenthsPerMinute: 5 })).toBe(
+      "Costs 2 credits, plus 0.5 credits a minute for each of this clip's finished videos that is made again with the voice in it.",
+    );
+    expect(voiceoverCostText({ tenths: 20 })).toContain("the usual price of a video");
   });
 
   it("sends the person's own line when they change it, and waits for words", async () => {

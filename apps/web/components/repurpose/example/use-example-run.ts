@@ -68,7 +68,11 @@ export function exampleQueryKey(workspaceId: string | null): readonly unknown[] 
   return ["repurpose-example", workspaceId ?? "none"];
 }
 
-/** The example run, or `{available: false}`; an error is treated as no example by callers. */
+/**
+ * The example run, or `{available: false}`; an error is treated as no example
+ * by callers. With no workspace (or `enabled` false) the query never runs and
+ * stays `isPending` for good: callers wait on `isLoading`, never `isPending`.
+ */
 export function useExampleRun(enabled = true): UseQueryResult<ExampleRunResponse> {
   const client = useApiClient();
   const workspaceId = useWorkspaceId();
