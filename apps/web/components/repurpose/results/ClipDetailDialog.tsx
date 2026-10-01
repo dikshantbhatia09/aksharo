@@ -10,6 +10,9 @@
  *     names.
  *   * One-click tools: open it in the editor, or straight on its B-roll or its
  *     audio clean-up (`/p/{id}?panel=broll|audio`).
+ *   * "For your editing app" (2026-10-01): its version without captions, its
+ *     captions and timelines for Premiere Pro, Final Cut Pro and DaVinci
+ *     Resolve, as one ZIP (`download/ClipEditingDownload.tsx`).
  *   * Its words, timed on the original video's clock ("[01:34 - 02:04]").
  *   * The clip itself, with every action it already had on the run page - its
  *     videos and downloads, every size, its dubs, its words to post, its
@@ -50,6 +53,7 @@ import {
 import { analysisOf, type AnalysisPart } from "./clip-analysis";
 import { useClipTranscript, useRetitleClip } from "./use-results";
 
+import { ClipEditingDownload } from "@/components/repurpose/download/ClipEditingDownload";
 import { formatClock } from "@/components/repurpose/moment-time";
 
 export interface ClipEntry {
@@ -321,6 +325,8 @@ function DetailBody({
               />
             </section>
           )}
+
+          <ClipEditingDownload runId={runId} clip={clip} />
 
           <ClipTranscript runId={runId} candidateId={candidate.id} />
 
