@@ -21,6 +21,8 @@ function deps(
     overlays?: readonly Record<string, unknown>[];
     keptLogos?: readonly string[];
     keptPictures?: readonly string[];
+    defaultStyleId?: string;
+    presets?: readonly { key: string; workspaceId: string | null; doc: unknown }[];
   } = {},
 ) {
   const media =
@@ -37,6 +39,8 @@ function deps(
     edgDocument: {
       findUnique: vi.fn(async () => (options.document === false ? null : { id: "EDG1" })),
     },
+    // Rows `resolveStyleSnapshot` reads; none means the system catalogue answers.
+    stylePreset: { findMany: vi.fn(async () => options.presets ?? []) },
   };
   const edg = {
     projectionOf: vi.fn(async () => ({
@@ -44,7 +48,7 @@ function deps(
       media: [],
       transcript: { transcriptId: "TR1", revision: 1, language: "en", scripts: ["roman"] },
       canvas: { width: 1080, height: 1920 },
-      styles: { defaultStyleId: "punch-pop" },
+      styles: { defaultStyleId: options.defaultStyleId ?? "punch-pop" },
       segments: [],
       ...(options.overlays === undefined ? {} : { overlays: options.overlays }),
     })),
@@ -130,6 +134,66 @@ describe("buildRenderPreview", () => {
       aspect: "r9x16",
     });
     expect(preview?.projection).toBeNull();
+  });
+
+  // 2026-10-01: the share viewer drew a saved look in the default style because
+  // the browser only knew the system catalogue.
+  it("carries the workspace's own look the document uses, keyed and identified by its ref", async () => {
+    const d = deps({
+      defaultStyleId: "my-look",
+      presets: [{ key: "my-look", workspaceId: WS, doc: { id: "stale", name: "Studio yellow" } }],
+    });
+    const preview = await buildRenderPreview(d as never, {
+      id: PROJECT,
+      aspect: "r9x16",
+      workspaceId: WS,
+    });
+    expect(d.prisma.stylePreset.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { key: { in: ["my-look"] }, OR: [{ workspaceId: WS }, { workspaceId: null }] },
+      }),
+    );
+    expect(preview?.styles).toEqual({ "my-look": { id: "my-look", name: "Studio yellow" } });
+  });
+
+  it("carries a workspace's override of a system key, but never a system row itself", async () => {
+    const system = deps({
+      presets: [{ key: "punch-pop", workspaceId: null, doc: { id: "punch-pop", name: "Sys" } }],
+    });
+    const plain = await buildRenderPreview(system as never, {
+      id: PROJECT,
+      aspect: "r9x16",
+      workspaceId: WS,
+    });
+    expect(plain).not.toHaveProperty("styles");
+
+    const overridden = deps({
+      presets: [
+        { key: "punch-pop", workspaceId: WS, doc: { id: "punch-pop", name: "Ours" } },
+        { key: "punch-pop", workspaceId: null, doc: { id: "punch-pop", name: "Sys" } },
+      ],
+    });
+    const preview = await buildRenderPreview(overridden as never, {
+      id: PROJECT,
+      aspect: "r9x16",
+      workspaceId: WS,
+    });
+    expect(preview?.styles).toEqual({ "punch-pop": { id: "punch-pop", name: "Ours" } });
+  });
+
+  it("looks up no styles without a workspace or without a document", async () => {
+    const noWorkspace = deps({ defaultStyleId: "my-look" });
+    await buildRenderPreview(noWorkspace as never, { id: PROJECT, aspect: "r9x16" });
+    expect(noWorkspace.prisma.stylePreset.findMany).not.toHaveBeenCalled();
+
+    const noDocument = deps({ document: false });
+    const preview = await buildRenderPreview(noDocument as never, {
+      id: PROJECT,
+      aspect: "r9x16",
+      workspaceId: WS,
+    });
+    expect(noDocument.prisma.stylePreset.findMany).not.toHaveBeenCalled();
+    expect(preview).not.toHaveProperty("styles");
   });
 
   it("is null while there is nothing to play", async () => {

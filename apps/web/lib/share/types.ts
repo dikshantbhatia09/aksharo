@@ -58,6 +58,11 @@ export interface SharePreviewResponse {
   readonly projection: unknown;
   /** Signed URLs for the brand logos the projection draws, by asset id (2026-10-02). */
   readonly images?: Readonly<Record<string, string>>;
+  /**
+   * The workspace's own caption looks the shared document references, as full
+   * `StyleDoc`s keyed by ref (2026-10-01). Absent when it uses system styles only.
+   */
+  readonly styles?: Readonly<Record<string, unknown>>;
 }
 
 export interface ReportAbuseRequest {

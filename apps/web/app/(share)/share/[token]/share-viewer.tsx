@@ -22,6 +22,7 @@ import type { ShareReportCategory } from "@/lib/share/types";
 
 import { CaptionStage } from "@/components/editor/canvas/CaptionStage";
 import { aspectRatioOf, containWidth } from "@/components/editor/canvas/stage-fit";
+import { mergeCatalogue } from "@/components/editor/panels/merge-catalogue";
 import { SYSTEM_STYLE_MAP } from "@/components/editor/panels/system-styles";
 import { ATTRIBUTION_LINE, GRIEVANCE_OFFICER } from "@/content/site/legal";
 import { useFaceTrack } from "@/lib/edg/use-face-track";
@@ -454,6 +455,13 @@ export function ShareViewer({ token }: { token: string }): React.JSX.Element {
     preview.data?.facesUrl,
     (preview.data?.projection as EdgProjection | null | undefined)?.canvas,
   );
+  // The system catalogue plus the workspace's own looks this document uses
+  // (2026-10-01): a clip on a saved look shows that look here, as it exports.
+  const previewStyles = preview.data?.styles;
+  const catalogue = React.useMemo(
+    () => mergeCatalogue(SYSTEM_STYLE_MAP, previewStyles),
+    [previewStyles],
+  );
 
   if (resolve.isPending) {
     return (
@@ -534,7 +542,7 @@ export function ShareViewer({ token }: { token: string }): React.JSX.Element {
             {...(faces === undefined ? {} : { faces })}
             // A brand kit's logo (2026-10-02), signed by the preview.
             {...(preview.data.images === undefined ? {} : { images: preview.data.images })}
-            catalogue={SYSTEM_STYLE_MAP}
+            catalogue={catalogue}
             showSafeZones={false}
           />
         )}

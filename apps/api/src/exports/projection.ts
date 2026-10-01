@@ -210,6 +210,16 @@ export interface StyleSnapshotResolution {
   readonly documentOverrides?: Record<string, unknown>;
   /** `styleRef -> StyleDoc`, for every style a segment (or the default) references. */
   readonly styles: Record<string, unknown>;
+  /**
+   * The refs in {@link styles} that resolved to the workspace's OWN preset row
+   * (a saved look, or a workspace override of a system key) rather than to the
+   * system catalogue (2026-10-01). A render needs none of this — it reads
+   * `styles` whole — but a public preview does: it sends the browser only the
+   * looks the browser's bundled system catalogue cannot know, and nothing a
+   * system style already answers. Not part of the manifest
+   * (`manifest-builder.ts` picks its fields one by one).
+   */
+  readonly workspaceStyleIds: readonly string[];
 }
 
 /**
@@ -235,19 +245,23 @@ export async function resolveStyleSnapshot(
     select: { key: true, workspaceId: true, doc: true },
   });
 
-  const byKey = new Map<string, { doc: unknown }>();
+  const byKey = new Map<string, { doc: unknown; own: boolean }>();
   for (const row of rows) {
     // A workspace row is visited after `null` is possible in either order from
     // Postgres, so an explicit preference keeps the workspace's own override
     // whichever way the rows came back.
     const existing = byKey.get(row.key);
-    if (existing === undefined || row.workspaceId !== null) byKey.set(row.key, { doc: row.doc });
+    if (existing === undefined || row.workspaceId !== null) {
+      byKey.set(row.key, { doc: row.doc, own: row.workspaceId !== null });
+    }
   }
 
   const styles: Record<string, unknown> = {};
   const catalogueSnapshotIds: string[] = [];
+  const workspaceStyleIds: string[] = [];
   for (const ref of refs) {
     const resolved = byKey.get(ref);
+    if (resolved?.own === true) workspaceStyleIds.push(ref);
     // A system style that has no `style_presets` row — an unseeded deployment,
     // or a suite database — is still a real style: take it from the same
     // catalogue the editor renders from. Without this the manifest carried a
@@ -271,6 +285,7 @@ export async function resolveStyleSnapshot(
     catalogueSnapshotIds,
     ...(inline?.doc === undefined ? {} : { documentOverrides: inline.doc }),
     styles,
+    workspaceStyleIds,
   };
 }
 
