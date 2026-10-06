@@ -114,7 +114,10 @@ class TribeClient:
         if not self.enabled:
             return False
         state = await self.health()
-        return state is not None and state.get("status") in {"ok", "ready"}
+        return state is not None and (
+            state.get("ok") is True
+            or state.get("status") in {"ok", "ready", "online"}
+        )
 
     async def predict_neural_attention(
         self, item: TribeWindowInput

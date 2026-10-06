@@ -81,6 +81,41 @@ async def test_tribe_client_health_check_success(monkeypatch: pytest.MonkeyPatch
 
 
 @pytest.mark.asyncio
+async def test_tribe_client_health_check_ok_format(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = TribeClient(
+        base_url="http://192.168.1.5:8765",
+        enabled=True,
+    )
+
+    class MockResponse:
+        status_code = 200
+
+        def json(self) -> dict[str, bool]:
+            return {"ok": True}
+
+    class MockAsyncClient:
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+        async def __aenter__(self) -> MockAsyncClient:
+            return self
+
+        async def __aexit__(self, *args) -> None:
+            pass
+
+        async def get(self, url: str) -> MockResponse:
+            assert url == "http://192.168.1.5:8765/health"
+            return MockResponse()
+
+    monkeypatch.setattr(httpx, "AsyncClient", MockAsyncClient)
+
+    health = await client.health()
+    assert health is not None
+    assert health == {"ok": True}
+    assert await client.is_available() is True
+
+
+@pytest.mark.asyncio
 async def test_tribe_client_health_check_offline(monkeypatch: pytest.MonkeyPatch) -> None:
     client = TribeClient(
         base_url="http://macbook-host:8095",
