@@ -452,6 +452,8 @@ def _proposal(
             for label, explanation in model_reasons(judged, topic)
         ] + reasons
     breakdown = dict(candidate.score.breakdown())
+    if judged is not None and judged.hook is not None:
+        breakdown["hook"] = _percent(0.2 * (breakdown["hook"] / 100.0) + 0.8 * (judged.hook / 10.0))
     neural = ranked.neural
     if neural is not None:
         # Refine visualActivity (immersion) and hook with measured neural signals
@@ -477,6 +479,26 @@ def _proposal(
                 ),
             })
         reasons = neural_reasons + reasons
+
+    hook_val = breakdown.get("hook", 0)
+    category_explanation = (
+        f"Viral Hook ({hook_val}%): Explosive opening that stops the scroll immediately."
+        if hook_val >= 90
+        else f"Strong Hook ({hook_val}%): Engaging opening question or statement."
+        if hook_val >= 70
+        else f"Needs Hook Intro ({hook_val}%): High-value content; add an intro hook or voiceover in the editor."
+    )
+    has_hook_reason = False
+    new_reasons = []
+    for r in reasons:
+        if r["label"] == "hook" and not has_hook_reason:
+            new_reasons.append({"label": "hook", "explanation": category_explanation})
+            has_hook_reason = True
+        else:
+            new_reasons.append(r)
+    if not has_hook_reason:
+        new_reasons.append({"label": "hook", "explanation": category_explanation})
+    reasons = new_reasons
 
     fields: dict[str, Any] = {
         "windowId": window.window_id,
@@ -548,31 +570,47 @@ def _moment_texts(scored: _Scored, shortlist: Sequence[_Candidate]) -> list[Mome
     return items
 
 
-def _is_hook_qualified(entry: _Ranked) -> bool:
-    """True if the entry qualifies under the hook-first standard."""
-    # 1. If judged by an LLM with an explicit hook score, reject anything below 5/10
+def _hook_score_of(entry: _Ranked) -> int:
+    """The 0-100 hook score of the ranked entry."""
     if entry.judged is not None and entry.judged.hook is not None:
-        return entry.judged.hook >= 5
+        return entry.judged.hook * 10
+    if entry.neural is not None and entry.neural.hook_score is not None:
+        return int(round(entry.neural.hook_score * 100))
+    return int(round(entry.candidate.score.hook * 100))
 
-    # 2. If judged by an LLM without an explicit hook score (e.g. test mocks), require reel viability
-    if entry.judged is not None and entry.judged.reel_viable:
-        return True
 
-    # 3. For unjudged moments, require opening hook signals or high hook score
+def _is_hook_qualified(entry: _Ranked) -> bool:
+    """True if the entry qualifies as one of the three hook categories:
+    1. Viral Hook (>90% hook)
+    2. Strong Hook (70-89% hook)
+    3. Good Content, Needs Hook Intro (<70% hook, but standalone >= 6 and payoff >= 5)
+    """
+    hook = _hook_score_of(entry)
+
+    # 1. If judged by an LLM:
+    if entry.judged is not None:
+        # Category 1 & 2: Viable hook (>= 50% / 5/10) with reel viability
+        if entry.judged.hook is not None and entry.judged.hook >= 5 and entry.judged.reel_viable:
+            return True
+        # Category 3: Great content (standalone >= 7, payoff >= 6), even if hook is lower,
+        # so editors have access to high-value content that needs an opening hook added.
+        if entry.judged.standalone >= 7 and entry.judged.payoff >= 6 and entry.judged.reel_viable:
+            return True
+        # Reel viable test mocks or legacy prompts without hook score
+        if entry.judged.hook is None and entry.judged.reel_viable:
+            return True
+        return False
+
+    # 2. Unjudged moments (heuristic mode):
     signals = entry.candidate.signals
     if signals is not None:
-        if signals.opener is not None:
+        if signals.opener is not None or signals.question_up_front:
             return True
-        if signals.question_up_front:
+        # Good content that needs a hook
+        if entry.candidate.score.standalone >= 0.70 and entry.candidate.score.clarity >= 0.60:
             return True
-    if entry.candidate.score.hook >= 0.45:
+    if hook >= 45:
         return True
-    if entry.neural is not None and (
-        entry.neural.hook_score >= 0.50 or entry.neural.neural_viral_index >= 60
-    ):
-        return True
-
-    # Unit test fixtures with synthetic candidates without signals or judged
     if signals is None and entry.judged is None:
         return True
 
@@ -640,8 +678,7 @@ def _rank_with_model(
             on_topic += rest[: minimum - len(on_topic)]
         entries = on_topic
 
-    # Step 2: Strict filter for reel viability and opening hook:
-    # Every clip must start from a hook. If unable to find a hook, it should not be classified as a clip.
+    # Step 2: Strict filter for reel viability and hook qualification:
     viable = [
         entry
         for entry in entries
@@ -655,8 +692,33 @@ def _rank_with_model(
             )
         )
     ]
-    # Keep strictly viable moments that start from a hook: never backfill with hookless cuts
-    entries = viable
+
+    # Partition into user's three categories:
+    # 1. Viral Hook (>90% hook): top 3 moments with hook >= 90%
+    # 2. Strong Hook (70-89% hook): moments with 70% <= hook < 90%
+    # 3. High-Value / Needs Hook Intro: moments with hook < 70% but strong content
+    viral_hooks: list[_Ranked] = []
+    strong_hooks: list[_Ranked] = []
+    needs_hook: list[_Ranked] = []
+
+    for entry in viable:
+        h = _hook_score_of(entry)
+        if h >= 90:
+            viral_hooks.append(entry)
+        elif h >= 70:
+            strong_hooks.append(entry)
+        else:
+            needs_hook.append(entry)
+
+    viral_hooks.sort(key=lambda e: -e.ranked_on)
+    strong_hooks.sort(key=lambda e: -e.ranked_on)
+    needs_hook.sort(key=lambda e: -e.ranked_on)
+
+    # Top 3 videos with hook >90% lead the presentation, followed by Strong Hooks,
+    # remaining viral hooks, and high-value moments needing hook editing.
+    top_viral = viral_hooks[:3]
+    remaining_viral = viral_hooks[3:]
+    entries = top_viral + strong_hooks + remaining_viral + needs_hook
 
     # `minPotential` is the bar for what the RANKING says a moment is worth,
     # so it applies to the blended score, after the model has had its say -
@@ -735,19 +797,20 @@ async def _discover_with_model(
     ranked: list[_Ranked] | None = None
 
     if chain:
-        # Prioritize candidates starting with a hook across the entire transcript
+        # Rigorously prioritize moments that score >90% viral hook across the entire transcript:
         def shortlist_score(candidate: _Candidate) -> float:
             base = candidate.score.potential + scored.lift_of(candidate).value
-            hook_bonus = (
-                0.15
-                if (
-                    candidate.signals.opener is not None
-                    or candidate.signals.question_up_front
-                    or candidate.score.hook >= 0.45
-                )
-                else 0.0
-            )
-            return base + hook_bonus
+            signals = candidate.signals
+            bonus = 0.0
+            if signals is not None:
+                # Elite viral hook potential (>90%): opener combined with punch or upfront question
+                if signals.opener is not None and (signals.punch_up_front or signals.question_up_front):
+                    bonus = 0.35
+                elif signals.opener is not None or signals.question_up_front:
+                    bonus = 0.20
+            elif candidate.score.hook >= 0.70:
+                bonus = 0.20
+            return base + bonus
 
         shortlist = await asyncio.to_thread(
             select,

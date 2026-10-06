@@ -271,6 +271,25 @@ HOOK_OPENERS: Final[tuple[tuple[str, ...], ...]] = tuple(
         "kyun",
         "kyon",
         "kaise",
+        "have you ever",
+        "do you know",
+        "do you think",
+        "can you believe",
+        "the real reason",
+        "if you want",
+        "if you think",
+        "the one thing",
+        "one thing",
+        "before you",
+        "watch this",
+        "check this out",
+        "have you noticed",
+        "wait until",
+        "kya aapko pata",
+        "kya aap jaante",
+        "ek baat",
+        "agar aap",
+        "sach yeh hai",
         "क्या आप",
         "क्या आपको",
         "क्या आपने",
@@ -632,7 +651,8 @@ def score(signals: WindowSignals, goal: str) -> Score:
     )
 
     opener = 1.0 if signals.opener else 0.6 if signals.question_up_front else 0.0
-    hook = 0.7 * opener + 0.3 * float(signals.punch_up_front)
+    punch = 0.3 if signals.punch_up_front else 0.2 if (signals.question_up_front and signals.opener) else 0.0
+    hook = min(1.0, 0.7 * opener + punch)
 
     # Talking for 85% of the window is dense; a third of it is mostly air.
     density = _unit((signals.speech_ms / max(1, signals.duration_ms) - 0.35) / 0.5)

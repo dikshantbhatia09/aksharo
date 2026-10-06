@@ -266,6 +266,42 @@ describe("RunClipResults", () => {
     await screen.findByTestId("clip-detail");
     expect(screen.queryByTestId("clip-detail-rename")).not.toBeInTheDocument();
   });
+
+  it("filters clips by hook categories: viral (>90%), strong (70-89%), and needs hook (<70%)", async () => {
+    const customMoments = [
+      moment(1, { scoreBreakdown: { hook: 95 } }),
+      moment(2, { scoreBreakdown: { hook: 92 } }),
+      moment(3, { scoreBreakdown: { hook: 75 } }),
+      moment(4, { scoreBreakdown: { hook: 50 } }),
+    ];
+    results({ candidates: customMoments });
+
+    // Category tabs exist
+    expect(screen.getByTestId("hook-category-tabs")).toBeInTheDocument();
+    expect(screen.getByTestId("hook-filter-all")).toHaveTextContent("All Moments");
+    expect(screen.getByTestId("hook-filter-viral")).toHaveTextContent("🔥 Viral Hook (>90%)2");
+    expect(screen.getByTestId("hook-filter-strong")).toHaveTextContent("⚡ Strong Hook (70-89%)1");
+    expect(screen.getByTestId("hook-filter-needs-hook")).toHaveTextContent("🛠️ Needs Hook Intro (<70%)1");
+
+    // Badges on tiles
+    expect(screen.getByTestId("clip-tile-hook-category-CAND1")).toHaveTextContent("🔥 Viral 95%");
+    expect(screen.getByTestId("clip-tile-hook-category-CAND3")).toHaveTextContent("⚡ Strong 75%");
+    expect(screen.getByTestId("clip-tile-hook-category-CAND4")).toHaveTextContent("🛠️ Needs hook");
+
+    // Click Viral tab: only 2 viral clips shown
+    await userEvent.click(screen.getByTestId("hook-filter-viral"));
+    const viralTiles = within(screen.getByTestId("clip-grid")).getAllByRole("button");
+    expect(viralTiles).toHaveLength(2);
+
+    // Click Needs Hook tab: only 1 clip shown
+    await userEvent.click(screen.getByTestId("hook-filter-needs-hook"));
+    const needsTiles = within(screen.getByTestId("clip-grid")).getAllByRole("button");
+    expect(needsTiles).toHaveLength(1);
+
+    // Click All tab: all 4 clips restored
+    await userEvent.click(screen.getByTestId("hook-filter-all"));
+    expect(within(screen.getByTestId("clip-grid")).getAllByRole("button")).toHaveLength(4);
+  });
 });
 
 describe("RunClipResults: picking clips to download", () => {

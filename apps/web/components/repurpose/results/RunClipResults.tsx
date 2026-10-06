@@ -34,7 +34,7 @@ import * as React from "react";
 import type { RepurposeCandidateItem, RepurposeClipItem } from "@montaj/api-client";
 import { Button, Input, cn } from "@montaj/ui";
 
-import { matchesSearch } from "./clip-analysis";
+import { type HookCategory, hookCategoryOf, matchesSearch } from "./clip-analysis";
 import { ClipDetailDialog, type ClipEntry, type ReadOnlyClips } from "./ClipDetailDialog";
 import { ClipTile } from "./ClipTile";
 import { useRunSearch } from "./use-results";
@@ -44,6 +44,7 @@ import { isRemovedCandidate } from "@/components/repurpose/steering";
 
 export type ResultsView = "grid" | "list";
 export type ResultsOrder = "best" | "time";
+export type HookFilter = "all" | HookCategory;
 
 const VIEW_KEY = "aksharo.repurpose.view";
 /** A run opens on the grid from this many finished clips. */
@@ -127,12 +128,35 @@ export function RunClipResults({
   const [order, setOrder] = React.useState<ResultsOrder>("best");
   const [query, setQuery] = React.useState("");
   const [openIndex, setOpenIndex] = React.useState<number | null>(null);
+  const [categoryFilter, setCategoryFilter] = React.useState<HookFilter>("all");
+
+  const categoryCounts = React.useMemo(() => {
+    const counts: Record<HookFilter, number> = {
+      all: kept.length,
+      viral: 0,
+      strong: 0,
+      needs_hook: 0,
+    };
+    for (const candidate of kept) {
+      const cat = hookCategoryOf(candidate).category;
+      counts[cat] = (counts[cat] ?? 0) + 1;
+    }
+    return counts;
+  }, [kept]);
+
+  const categoryFiltered = React.useMemo(() => {
+    if (categoryFilter === "all") return kept;
+    return kept.filter((candidate) => hookCategoryOf(candidate).category === categoryFilter);
+  }, [kept, categoryFilter]);
 
   // Rank by score, best first: "#1" is the strongest moment whatever the order shown.
   const rankOf = React.useMemo(() => {
-    const ranked = [...kept].sort(
-      (a, b) => (b.potentialScore ?? b.score ?? -1) - (a.potentialScore ?? a.score ?? -1),
-    );
+    const ranked = [...kept].sort((a, b) => {
+      if (a.rank !== undefined && a.rank !== null && b.rank !== undefined && b.rank !== null) {
+        return a.rank - b.rank;
+      }
+      return (b.potentialScore ?? b.score ?? -1) - (a.potentialScore ?? a.score ?? -1);
+    });
     return new Map(ranked.map((candidate, index) => [candidate.id, index + 1]));
   }, [kept]);
 
@@ -153,14 +177,14 @@ export function RunClipResults({
       ? byMeaning.data.matches.map((match) => [match.candidateId, match.score] as const)
       : [],
   );
-  const byWords = kept
+  const byWords = categoryFiltered
     .filter((candidate) => matchesSearch(candidate, query))
     .sort((a, b) =>
       order === "time" ? a.startMs - b.startMs : (rankOf.get(a.id) ?? 0) - (rankOf.get(b.id) ?? 0),
     );
   const wordIds = new Set(byWords.map((candidate) => candidate.id));
   const related = searching
-    ? kept
+    ? categoryFiltered
         .filter((candidate) => !wordIds.has(candidate.id) && meaningOf.has(candidate.id))
         .sort((a, b) => (meaningOf.get(b.id) ?? 0) - (meaningOf.get(a.id) ?? 0))
     : [];
@@ -187,13 +211,107 @@ export function RunClipResults({
   const listed = searching
     ? shown
     : order === "time"
-      ? [...candidates].sort((a, b) => a.startMs - b.startMs)
-      : [...shown, ...candidates.filter((candidate) => isRemovedCandidate(candidate))];
+      ? [...categoryFiltered].sort((a, b) => a.startMs - b.startMs)
+      : [
+          ...shown,
+          ...(categoryFilter === "all"
+            ? candidates.filter((candidate) => isRemovedCandidate(candidate))
+            : []),
+        ];
 
   return (
     <div className="flex flex-col gap-3" data-testid="clip-results">
       {kept.length < 2 ? null : (
-        <div className="flex flex-wrap items-center gap-2" data-testid="clip-results-toolbar">
+        <div className="flex flex-col gap-2.5">
+          <div
+            role="tablist"
+            aria-label="Filter clips by hook category"
+            className="flex flex-wrap items-center gap-1.5"
+            data-testid="hook-category-tabs"
+          >
+            <button
+              type="button"
+              role="tab"
+              aria-selected={categoryFilter === "all"}
+              onClick={() => {
+                setCategoryFilter("all");
+              }}
+              className={cn(
+                "flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+                categoryFilter === "all"
+                  ? "border-accent/40 bg-accent/15 text-accent-300"
+                  : "border-border bg-bg-1 text-fg-2 hover:border-border-hover hover:text-fg-0",
+              )}
+              data-testid="hook-filter-all"
+            >
+              <span>All Moments</span>
+              <span className="rounded-full bg-sunken px-1.5 py-0.2 font-mono text-2xs text-fg-2">
+                {String(categoryCounts.all)}
+              </span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={categoryFilter === "viral"}
+              onClick={() => {
+                setCategoryFilter("viral");
+              }}
+              className={cn(
+                "flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+                categoryFilter === "viral"
+                  ? "border-emerald-500/50 bg-emerald-500/20 text-emerald-200"
+                  : "border-emerald-500/20 bg-emerald-500/5 text-emerald-400/80 hover:border-emerald-500/40 hover:text-emerald-300",
+              )}
+              data-testid="hook-filter-viral"
+            >
+              <span>🔥 Viral Hook (&gt;90%)</span>
+              <span className="rounded-full bg-sunken px-1.5 py-0.2 font-mono text-2xs text-emerald-400">
+                {String(categoryCounts.viral)}
+              </span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={categoryFilter === "strong"}
+              onClick={() => {
+                setCategoryFilter("strong");
+              }}
+              className={cn(
+                "flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+                categoryFilter === "strong"
+                  ? "border-sky-500/50 bg-sky-500/20 text-sky-200"
+                  : "border-sky-500/20 bg-sky-500/5 text-sky-400/80 hover:border-sky-500/40 hover:text-sky-300",
+              )}
+              data-testid="hook-filter-strong"
+            >
+              <span>⚡ Strong Hook (70-89%)</span>
+              <span className="rounded-full bg-sunken px-1.5 py-0.2 font-mono text-2xs text-sky-400">
+                {String(categoryCounts.strong)}
+              </span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={categoryFilter === "needs_hook"}
+              onClick={() => {
+                setCategoryFilter("needs_hook");
+              }}
+              className={cn(
+                "flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+                categoryFilter === "needs_hook"
+                  ? "border-amber-500/50 bg-amber-500/20 text-amber-200"
+                  : "border-amber-500/20 bg-amber-500/5 text-amber-400/80 hover:border-amber-500/40 hover:text-amber-300",
+              )}
+              data-testid="hook-filter-needs-hook"
+            >
+              <span>🛠️ Needs Hook Intro (&lt;70%)</span>
+              <span className="rounded-full bg-sunken px-1.5 py-0.2 font-mono text-2xs text-amber-400">
+                {String(categoryCounts.needs_hook)}
+              </span>
+            </button>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2" data-testid="clip-results-toolbar">
           <div role="search" className="relative min-w-0 flex-[1_1_240px]">
             <Search
               className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-fg-2"
@@ -273,6 +391,7 @@ export function RunClipResults({
             </div>
           )}
         </div>
+      </div>
       )}
 
       {searching ? (
@@ -306,6 +425,26 @@ export function RunClipResults({
       ) : null}
 
       {view === "grid" ? (
+        entries.length === 0 && !searching ? (
+          <div
+            className="flex flex-col items-center justify-center rounded-md border border-border bg-bg-0 p-8 text-center"
+            data-testid="clip-results-empty"
+          >
+            <p className="m-0 text-sm text-fg-1">No moments in this category.</p>
+            {categoryFilter !== "all" ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="mt-3"
+                onClick={() => {
+                  setCategoryFilter("all");
+                }}
+              >
+                Show all moments
+              </Button>
+            ) : null}
+          </div>
+        ) : (
         <ul
           className="m-0 grid list-none grid-cols-2 gap-3 p-0 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"
           data-testid="clip-grid"
@@ -333,6 +472,26 @@ export function RunClipResults({
             />
           ))}
         </ul>
+      )
+    ) : listed.length === 0 && !searching ? (
+        <div
+          className="flex flex-col items-center justify-center rounded-md border border-border bg-bg-0 p-8 text-center"
+          data-testid="clip-results-empty"
+        >
+          <p className="m-0 text-sm text-fg-1">No moments in this category.</p>
+          {categoryFilter !== "all" ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="mt-3"
+              onClick={() => {
+                setCategoryFilter("all");
+              }}
+            >
+              Show all moments
+            </Button>
+          ) : null}
+        </div>
       ) : (
         <ul className="m-0 flex list-none flex-col gap-3 p-0" data-testid="candidates-list">
           {listed.map((candidate) => {

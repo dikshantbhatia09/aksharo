@@ -24,7 +24,7 @@ import {
 } from "@montaj/api-client";
 import { cn } from "@montaj/ui";
 
-import { tagsOf } from "./clip-analysis";
+import { hookCategoryOf, tagsOf } from "./clip-analysis";
 
 import { clipStateOf } from "@/components/repurpose/CandidateCard";
 import { formatClock } from "@/components/repurpose/moment-time";
@@ -75,6 +75,7 @@ export function ClipTile({
   const poster = posterOf(clip);
   const playUrl = clip?.captioned?.playUrl ?? clip?.mezzanineUrl ?? undefined;
   const tags = tagsOf(candidate);
+  const hookCat = hookCategoryOf(candidate);
   const selected = selection?.selected === true;
   const named = `#${String(rank)} ${title}${score === undefined || score === null ? "" : `, score ${String(score)}`}`;
 
@@ -195,6 +196,22 @@ export function ClipTile({
               {String(score)}
             </span>
           )}
+          <span
+            className={cn(
+              "absolute bottom-1.5 left-1.5 flex items-center gap-1 rounded-sm px-1.5 py-0.5 font-mono text-2xs font-medium backdrop-blur-xs",
+              hookCat.category === "viral" && "border border-emerald-500/40 bg-emerald-950/85 text-emerald-300",
+              hookCat.category === "strong" && "border border-sky-500/40 bg-sky-950/85 text-sky-300",
+              hookCat.category === "needs_hook" && "border border-amber-500/40 bg-amber-950/85 text-amber-300",
+            )}
+            title={`${hookCat.label}: ${hookCat.description}`}
+            data-testid={`clip-tile-hook-category-${candidate.id}`}
+          >
+            {hookCat.category === "viral"
+              ? `🔥 Viral ${String(hookCat.score)}%`
+              : hookCat.category === "strong"
+                ? `⚡ Strong ${String(hookCat.score)}%`
+                : "🛠️ Needs hook"}
+          </span>
           <span className="absolute bottom-1.5 right-1.5 rounded-sm bg-ink/80 px-1.5 py-0.5 font-mono text-2xs text-fg-1">
             {formatClock(durationS * 1000)}
           </span>

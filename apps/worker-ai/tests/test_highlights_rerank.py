@@ -632,7 +632,91 @@ async def test_moments_lacking_an_opening_hook_are_not_classified_as_clips() -> 
         return {"moments": moments}
 
     outcome = await run_with((FakeLlm(answer),), words, count=3)
-    # Since all moments have hook < 5, none qualify as clips
+    # Since all moments have hook < 5 and mediocre standalone < 7, none qualify as clips
     assert len(outcome.result["proposals"]) == 0
+
+
+async def test_clips_categorized_into_viral_strong_and_needs_hook_tiers() -> None:
+    """Clips are grouped: Viral Hook (>90%), Strong Hook (70-89%), and Needs Hook Intro (<70%)."""
+    block1 = ("Did you know that ninety percent of people fail this exact test?", "Most people never study the fundamentals and rush into advanced topics.")
+    block2 = ("Why do smart founders make the biggest mistake early on?", "They hire too fast before finding product market fit and run out of capital.")
+    block3 = ("The biggest challenge in system architecture is scaling nodes.", "When traffic spikes ten times you need decoupled queues and read replicas.")
+    block4 = ("We talked casually about general office supplies yesterday.", "It was just a normal afternoon meeting with nothing special happening.")
+
+    words = transcript(block1, block2, block3, block4, filler=8)
+
+    def answer(request: LlmRequest) -> Any:
+        blocks = moment_blocks(request)
+        moments = []
+        for window_id, text in blocks.items():
+            if "fail this exact test" in text:
+                # Tier 1: Viral hook (>90%)
+                moments.append({
+                    "id": window_id,
+                    "standalone": 8,
+                    "payoff": 8,
+                    "humour": 0,
+                    "hook": 9,
+                    "trend": 8,
+                    "reelViable": True,
+                    "why": "Explosive opening hook with clear payoff.",
+                })
+            elif "smart founders" in text:
+                # Tier 2: Strong hook (70-89%)
+                moments.append({
+                    "id": window_id,
+                    "standalone": 7,
+                    "payoff": 7,
+                    "humour": 0,
+                    "hook": 7,
+                    "trend": 6,
+                    "reelViable": True,
+                    "why": "Engaging question hook.",
+                })
+            elif "system architecture" in text:
+                # Tier 3: Good content (standalone 8, payoff 7), but weak hook (hook 3)
+                moments.append({
+                    "id": window_id,
+                    "standalone": 8,
+                    "payoff": 7,
+                    "humour": 0,
+                    "hook": 3,
+                    "trend": 5,
+                    "reelViable": True,
+                    "why": "High-value technical content, needs an intro hook.",
+                })
+            else:
+                # Mediocre / unviable content
+                moments.append({
+                    "id": window_id,
+                    "standalone": 4,
+                    "payoff": 4,
+                    "humour": 0,
+                    "hook": 2,
+                    "trend": 2,
+                    "reelViable": False,
+                    "why": "Boring talk with no hook.",
+                })
+        return {"moments": moments}
+
+    outcome = await run_with((FakeLlm(answer),), words, count=5)
+    proposals = outcome.result["proposals"]
+    assert len(proposals) == 3
+
+    # Proposal 1 is Tier 1 Viral Hook (>90%)
+    assert proposals[0]["scoreBreakdown"]["hook"] >= 90
+    hook_reason_0 = next(r for r in proposals[0]["reasons"] if r["label"] == "hook")
+    assert "Viral Hook" in hook_reason_0["explanation"]
+
+    # Proposal 2 is Tier 2 Strong Hook (70-89%)
+    assert 70 <= proposals[1]["scoreBreakdown"]["hook"] < 90
+    hook_reason_1 = next(r for r in proposals[1]["reasons"] if r["label"] == "hook")
+    assert "Strong Hook" in hook_reason_1["explanation"]
+
+    # Proposal 3 is Tier 3 Needs Hook Intro (<70%)
+    assert proposals[2]["scoreBreakdown"]["hook"] < 70
+    hook_reason_2 = next(r for r in proposals[2]["reasons"] if r["label"] == "hook")
+    assert "Needs Hook Intro" in hook_reason_2["explanation"]
+
 
 

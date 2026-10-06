@@ -224,3 +224,53 @@ export function matchesSearch(candidate: RepurposeCandidateItem, query: string):
   const haystack = searchTextOf(candidate);
   return words.every((word) => haystack.includes(word.replace(/^#/, "")));
 }
+
+export type HookCategory = "viral" | "strong" | "needs_hook";
+
+export interface HookCategoryInfo {
+  readonly category: HookCategory;
+  readonly label: string;
+  readonly shortLabel: string;
+  readonly description: string;
+  readonly score: number;
+}
+
+/**
+ * Categorise a candidate into the editor's three distinct hook tiers:
+ * 1. Viral Hook (>90%): Explosive opening that stops the scroll immediately.
+ * 2. Strong Hook (70-89%): Engaging opening question or statement.
+ * 3. Needs Hook Intro (<70%): High-value content, but requires an added hook in the editor.
+ */
+export function hookCategoryOf(candidate: RepurposeCandidateItem): HookCategoryInfo {
+  const analysis = analysisOf(candidate);
+  const hookPart = analysis.parts.find((p) => p.key === "hook");
+  const breakdown = record(candidate["scoreBreakdown"]);
+  const rawScore = hookPart?.score ?? percent(breakdown["hook"]) ?? 0;
+  const score = Math.round(rawScore);
+
+  if (score >= 90) {
+    return {
+      category: "viral",
+      label: "Viral Hook (>90%)",
+      shortLabel: "Viral Hook",
+      description: "Explosive opening that stops the scroll immediately.",
+      score,
+    };
+  }
+  if (score >= 70) {
+    return {
+      category: "strong",
+      label: "Strong Hook (70-89%)",
+      shortLabel: "Strong Hook",
+      description: "Engaging opening question or statement.",
+      score,
+    };
+  }
+  return {
+    category: "needs_hook",
+    label: "Needs Hook Intro (<70%)",
+    shortLabel: "Needs Hook",
+    description: "Great content, but needs an intro hook or voiceover in the editor.",
+    score,
+  };
+}

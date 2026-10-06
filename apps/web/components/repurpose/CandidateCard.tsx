@@ -70,7 +70,7 @@ import { formatClock } from "@/components/repurpose/moment-time";
 import { ClipPerformance } from "@/components/repurpose/performance/ClipPerformance";
 import { ClipPosts } from "@/components/repurpose/publishing/ClipPosts";
 import { describeRefusal } from "@/components/repurpose/refusal";
-import { tagsOf } from "@/components/repurpose/results/clip-analysis";
+import { hookCategoryOf, tagsOf } from "@/components/repurpose/results/clip-analysis";
 import { ClipReview } from "@/components/repurpose/review/ClipReview";
 import { isRemovedCandidate } from "@/components/repurpose/steering";
 import { useStableUrl } from "@/components/repurpose/use-stable-url";
@@ -275,6 +275,7 @@ export function CandidateCard({
   const picked = candidate["source"] === "manual";
   // What it is about and what makes it work, in two or three words each (2026-10-01).
   const tags = tagsOf(candidate);
+  const hookCat = hookCategoryOf(candidate);
   // The clip's own project: where its captions live and are exported. The
   // 9:16 one: an Autopilot clip has a project per shape (2026-09-29).
   const clipProjectId = (
@@ -321,6 +322,23 @@ export function CandidateCard({
             {score === undefined || score === null ? null : (
               <Badge tone="neutral">Potential {String(score)}%</Badge>
             )}
+            <Badge
+              tone={
+                hookCat.category === "viral"
+                  ? "accepted"
+                  : hookCat.category === "strong"
+                    ? "info"
+                    : "warning"
+              }
+              title={hookCat.description}
+              data-testid={`candidate-hook-badge-${candidate.id}`}
+            >
+              {hookCat.category === "viral"
+                ? `🔥 ${hookCat.shortLabel} ${String(hookCat.score)}%`
+                : hookCat.category === "strong"
+                  ? `⚡ ${hookCat.shortLabel} ${String(hookCat.score)}%`
+                  : `🛠️ ${hookCat.shortLabel}`}
+            </Badge>
             {picked ? <Badge tone="neutral">Your pick</Badge> : null}
             {seriesPart === undefined ? null : (
               <Badge tone="neutral" data-testid={`series-part-${candidate.id}`}>
