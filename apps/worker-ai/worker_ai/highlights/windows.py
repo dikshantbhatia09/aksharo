@@ -107,6 +107,26 @@ INTRO_TEASER_PATTERNS: Final = re.compile(
     re.IGNORECASE,
 )
 
+#: Sentence openers that continue earlier context or start with orphan pronouns.
+ORPHAN_START_PATTERNS: Final = re.compile(
+    r"^(?:"
+    r"(?:and|so|now|well|also|plus|still|basically|honestly|then)\s+)?"
+    r"(?:"
+    r"it\s+(?:also|is|was|can|has|turns|means|works|needs|takes|looks)|"
+    r"they\s+(?:also|are|were|can|have|released|used|found)|"
+    r"he\s+(?:also|is|was|can|has|fed|said)|"
+    r"she\s+(?:also|is|was|can|has|said)|"
+    r"here(?:'s|s)\s+(?:its|their|another|how|an\s+example|benchmark)|"
+    r"its\s+|their\s+|"
+    r"this\s+(?:is|takes|just|can|one)|"
+    r"these\s+|those\s+|"
+    r"still\s+(?:a\s+few|another)|"
+    r"apparently\s+(?:they|it|we)|"
+    r"if\s+you\s+(?:look\s+at|scroll\s+up)"
+    r")\b",
+    re.IGNORECASE,
+)
+
 #: A gap between words this long is a breath, not a word boundary.
 PAUSE_MS: Final[int] = 700
 #: The most windows one transcript has scored. An ordinary video is nowhere
@@ -150,6 +170,8 @@ class Unit:
     is_hard_break: bool = False
     is_sponsor: bool = False
     is_teaser: bool = False
+    starts_sentence: bool = True
+    is_orphan_start: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -317,11 +339,13 @@ def build_units(words: Sequence[Word], *, min_ms: int, max_ms: int) -> list[Unit
     ends = sentence_ends(words)
     units: list[Unit] = []
     for first, last in _sentence_spans(ends):
-        for low, high in _split_overlong(words, first, last, cap_ms):
+        pieces = _split_overlong(words, first, last, cap_ms)
+        for piece_idx, (low, high) in enumerate(pieces):
             unit_text = " ".join(words[k].text for k in range(low, high + 1))
             is_break = bool(HARD_BREAK_PATTERNS.search(unit_text))
             is_spon = bool(SPONSOR_PATTERNS.search(unit_text))
             is_teas = bool(words[low].start_ms <= 60_000 and INTRO_TEASER_PATTERNS.search(unit_text))
+            is_orphan = bool(low > 0 and ORPHAN_START_PATTERNS.search(unit_text))
             units.append(
                 Unit(
                     first=low,
@@ -332,6 +356,8 @@ def build_units(words: Sequence[Word], *, min_ms: int, max_ms: int) -> list[Unit
                     is_hard_break=is_break,
                     is_sponsor=is_spon,
                     is_teaser=is_teas,
+                    starts_sentence=(piece_idx == 0),
+                    is_orphan_start=is_orphan,
                 )
             )
     return units
@@ -377,10 +403,14 @@ def _end_ranges(units: Sequence[Unit], *, min_ms: int, max_ms: int) -> list[tupl
         if units[i].is_hard_break or units[i].is_sponsor:
             last_blocker = i
 
+    punctuated = sum(u.sentence_end for u in units) * _UNPUNCTUATED_WORDS_PER_MARK >= len(units)
     ranges: list[tuple[int, int]] = []
     lo = past = 0
     for a, head in enumerate(units):
         if head.is_sponsor or head.is_teaser:
+            ranges.append((1, 0))
+            continue
+        if punctuated and not head.starts_sentence:
             ranges.append((1, 0))
             continue
 

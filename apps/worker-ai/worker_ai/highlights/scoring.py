@@ -292,7 +292,7 @@ HOOK_OPENERS: Final[tuple[tuple[str, ...], ...]] = tuple(
 #: Connectives skipped before matching an opener: "So, here's the thing".
 _OPENER_SKIP: Final = frozenset({"so", "and", "but", "okay", "ok", "now", "well", "toh", "तो"})
 
-#: Sentence openings that start with an orphan pronoun without antecedent context.
+#: Sentence openings that start with an orphan pronoun or continuation marker without antecedent context.
 _ORPHAN_PRONOUNS: Final = (
     ("it", "also"),
     ("they", "also"),
@@ -302,7 +302,35 @@ _ORPHAN_PRONOUNS: Final = (
     ("its", "also"),
     ("here", "s", "its"),
     ("heres", "its"),
+    ("here", "s", "their"),
+    ("heres", "their"),
+    ("here", "s", "another"),
+    ("heres", "another"),
+    ("here", "s", "an"),
+    ("heres", "an"),
+    ("here", "s", "how"),
+    ("heres", "how"),
     ("it", "turns", "out"),
+    ("it", "basically"),
+    ("it", "is", "able"),
+    ("it", "can"),
+    ("it", "needs"),
+    ("they", "have"),
+    ("they", "released"),
+    ("they", "used"),
+    ("he", "fed"),
+    ("this", "is", "a", "bit"),
+    ("still", "a", "few"),
+    ("still", "another"),
+    ("apparently", "they"),
+    ("apparently", "it"),
+    ("if", "you", "look"),
+    ("if", "you", "scroll"),
+    ("as", "you", "can"),
+    ("and", "as", "you"),
+    ("and", "then", "here"),
+    ("now", "here", "s"),
+    ("now", "heres"),
 )
 
 #: Weights per `contentGoal`. Each row sums to 1. `question` is not a breakdown
@@ -453,6 +481,8 @@ class WordFeatures:
 
     def opener(self, first: int, last: int) -> str | None:
         """The hook phrase words ``first..last`` open with, if any."""
+        if self._has_orphan_pronoun(first):
+            return None
         # Only the opening words matter, and every window from the same start
         # shares them: a long transcript asks this thousands of times.
         stop = min(first + _OPENING_WORDS, last + 1)
@@ -485,6 +515,7 @@ class WordFeatures:
         ):
             opening_end += 1
         opening = range(first, opening_end + 1)
+        has_orphan = self._has_orphan_pronoun(first)
 
         return WindowSignals(
             words=stop - first,
@@ -494,9 +525,9 @@ class WordFeatures:
             closing=self.closing(last),
             pause_before=self.pause_before(first),
             pause_after=self.pause_after(last),
-            opener=self.opener(first, last),
-            question_up_front=any(self.question[i] for i in opening),
-            punch_up_front=any(self.emphatic[i] or self.number[i] for i in opening),
+            opener=None if has_orphan else self.opener(first, last),
+            question_up_front=False if has_orphan else any(self.question[i] for i in opening),
+            punch_up_front=False if has_orphan else any(self.emphatic[i] or self.number[i] for i in opening),
             questions=self._questions[stop] - self._questions[first],
             exclamations=self._exclamations[stop] - self._exclamations[first],
             fillers=self._fillers[stop] - self._fillers[first],

@@ -1011,3 +1011,19 @@ def test_orphan_pronoun_opening_is_penalized() -> None:
     units = build_units(words, min_ms=1000, max_ms=30_000)
     features = WordFeatures(words, units)
     assert features.opening(0) < 0.5
+
+
+def test_split_overlong_sentences_never_start_on_internal_fragments() -> None:
+    long_sentence = (
+        "we went to the marketplace early in the morning, and we bought several fresh vegetables "
+        "and fruits before coming back home to cook lunch for the entire family."
+    )
+    raw = talk([long_sentence, "after lunch everyone rested peacefully."], word_ms=800)
+    words = usable_words(raw)
+    units = build_units(words, min_ms=5_000, max_ms=20_000)
+    split_pieces = [u for u in units if not u.starts_sentence]
+    assert len(split_pieces) > 0
+    windows = enumerate_windows(units, min_ms=5_000, max_ms=20_000)
+    for piece in split_pieces:
+        assert all(w.start_ms != piece.start_ms for w in windows)
+

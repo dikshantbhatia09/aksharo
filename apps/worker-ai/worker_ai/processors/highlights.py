@@ -608,6 +608,24 @@ def _rank_with_model(
             on_topic += rest[: minimum - len(on_topic)]
         entries = on_topic
 
+    # Step 2: Filter for standalone reel viability so cuts that start from nowhere
+    # or stop mid-thought are eliminated whenever coherent standalone reels exist.
+    viable = [
+        entry
+        for entry in entries
+        if entry.judged is None
+        or (
+            entry.judged.reel_viable
+            and entry.judged.standalone >= 5
+            and entry.judged.payoff >= 4
+        )
+    ]
+    if len(viable) >= options.count:
+        entries = viable
+    elif viable:
+        rest = [e for e in entries if e not in viable]
+        entries = viable + rest
+
     # `minPotential` is the bar for what the RANKING says a moment is worth,
     # so it applies to the blended score, after the model has had its say -
     # and without the track record's lift, which only orders what cleared it.

@@ -141,6 +141,7 @@ class Judged:
     trend: int | None = None
     notes: tuple[tuple[str, str], ...] = ()
     people: tuple[str, ...] = ()
+    reel_viable: bool = True
 
 
 @dataclass(frozen=True, slots=True)
@@ -170,16 +171,17 @@ def system_prompt(*, with_topic: bool) -> str:
     )
     topic_example = '"topicFit":9,' if with_topic else ""
     return (
-        "You are a senior short-form video editor. From one long video's transcript you "
-        "get candidate moments, each a possible standalone clip for Instagram Reels, "
-        "YouTube Shorts or TikTok. Judge each moment only on its own words.\n\n"
+        "You are a senior short-form video editor and script validator. From one long video's transcript you "
+        "get candidate cuts, each a possible standalone clip for Instagram Reels, "
+        "YouTube Shorts or TikTok. Critically evaluate whether each cut works as a "
+        "standalone, high-retention reel for a viewer who has NEVER seen the rest of the video.\n\n"
         "The transcript may be Hinglish (Hindi written in Roman letters, mixed with "
         "English), Hindi, English or another Indian language, and it has transcription "
         "errors. Judge what is said, not spelling or grammar.\n\n"
         "Score each moment with whole numbers from 0 to 10:\n"
         "- standalone: would someone who has not seen the rest of the video follow it? "
-        "10 = a complete thought with its own setup. 0 = it leans on earlier context "
-        '("as I said", "that thing", people or things it never introduces).\n'
+        "10 = a complete thought with its own setup and premise. 0 = it leans on earlier context "
+        '("as I said", "that thing", people or models it never introduces, "still a few", "now if you look at").\n'
         "- payoff: does it land something before it ends: a point, an answer, a twist, "
         "a punchline, a clear takeaway? 10 = a strong payoff by the end. 0 = it stops "
         "mid-thought or before the point arrives.\n"
@@ -187,9 +189,10 @@ def system_prompt(*, with_topic: bool) -> str:
         "10 = genuinely funny.\n"
         f"{topic_line}"
         "- hook: do its first seconds make someone stop scrolling? 10 = a gripping "
-        "opening line. 0 = it opens on filler or mid-sentence.\n"
+        "opening line with context established. 0 = it opens on filler, mid-sentence, or orphan pronouns ('it', 'here is its').\n"
         "- trend: is its subject one many people are talking about right now? 10 = a "
         "hot, widely shared topic. 0 = niche or dated.\n"
+        "- reelViable: true if this cut works as a standalone reel; false if it starts from nowhere or stops mid-thought.\n"
         "- why: one short sentence in plain English (at most 15 words) on what makes it "
         "work or not.\n"
         "- notes: one short sentence each (at most 12 words) for hook, flow (does it "
@@ -202,12 +205,12 @@ def system_prompt(*, with_topic: bool) -> str:
         "Reply with JSON only, no prose, no Markdown, in this shape (the values here "
         "are only an example):\n"
         '{"moments":[{"id":"w-00012","standalone":7,"payoff":8,"humour":2,"hook":8,"trend":6,'
-        f'{topic_example}"why":"Asks a question and answers it by the end.",'
+        f'{topic_example}"reelViable":true,"why":"Asks a question and answers it by the end.",'
         '"notes":{"hook":"Opens with a direct question.","flow":"A complete thought, '
         'no setup needed.","value":"Gives one clear tip to use today.","trend":"Money '
         'habits are a popular topic."},"people":["Warren Buffett"]},'
         '{"id":"w-00015","standalone":3,"payoff":4,"humour":0,"hook":2,"trend":3,'
-        f'{topic_example}"why":"Starts mid-story and needs the part before it.",'
+        f'{topic_example}"reelViable":false,"why":"Starts mid-story and needs the part before it.",'
         '"notes":{"hook":"Opens mid-sentence.","flow":"Leans on earlier context.",'
         '"value":"The point never quite arrives.","trend":"A niche detail."},'
         '"people":[]}]}\n'
@@ -336,6 +339,13 @@ def parse_judgements(
             continue
         if with_topic and topic_fit is None:
             continue
+        raw_viable = row.get("reelViable", row.get("reel_viable", row.get("viable")))
+        hook_val = _score(row.get("hook"))
+        reel_viable = (
+            raw_viable
+            if isinstance(raw_viable, bool)
+            else (standalone >= 6 and (hook_val is None or hook_val >= 5) and payoff >= 5)
+        )
         judged[window_id] = Judged(
             standalone=standalone,
             payoff=payoff,
@@ -343,10 +353,11 @@ def parse_judgements(
             topic_fit=topic_fit,
             why=_why(row.get("why")),
             model=model,
-            hook=_score(row.get("hook")),
+            hook=hook_val,
             trend=_score(row.get("trend")),
             notes=_notes(row.get("notes")),
             people=_people(row.get("people")),
+            reel_viable=reel_viable,
         )
     return judged
 
@@ -472,6 +483,9 @@ def model_quality(judged: Judged, goal: str, *, with_topic: bool) -> float:
     quality = min(10.0, base + bonus) / 10
     if with_topic and judged.topic_fit is not None:
         quality = (1 - TOPIC_WEIGHT) * quality + TOPIC_WEIGHT * judged.topic_fit / 10
+    if not judged.reel_viable or judged.standalone < 5 or judged.payoff < 4:
+        # Step 2: heavily downweight moments failing standalone reel comprehension
+        quality = quality * 0.2
     return quality
 
 

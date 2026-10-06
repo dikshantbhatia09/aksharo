@@ -542,3 +542,69 @@ async def test_the_clip_analysis_reaches_the_proposal() -> None:
         "people": ["Raj Shamani"],
         "model": "fake-model",
     }
+
+
+async def test_step_two_script_analysis_rejects_cuts_starting_from_nowhere() -> None:
+    """Step 2 script validation rejects cuts starting from nowhere and picks complete reels."""
+    orphan_block = (
+        "so here is another one called phonon two which is a bit larger.",
+        "and as you can see here is the transcript without any earlier context.",
+    )
+    standalone_block = (
+        "google just announced gemini four with a massive new capability.",
+        "it can output ten million tokens in a single response cleanly.",
+        "this makes it the most cost efficient frontier model available today.",
+    )
+    words = transcript(orphan_block, standalone_block)
+
+    def answer(request: LlmRequest) -> Any:
+        moments = []
+        for window_id, text in moment_blocks(request).items():
+            if "gemini" in text:
+                moments.append({
+                    "id": window_id,
+                    "standalone": 9,
+                    "payoff": 9,
+                    "humour": 1,
+                    "hook": 9,
+                    "trend": 8,
+                    "reelViable": True,
+                    "why": "Complete standalone thought with hook and clear payoff.",
+                })
+            else:
+                moments.append({
+                    "id": window_id,
+                    "standalone": 3,
+                    "payoff": 4,
+                    "humour": 0,
+                    "hook": 2,
+                    "trend": 3,
+                    "reelViable": False,
+                    "why": "Starts from nowhere and lacks antecedent context.",
+                })
+        return {"moments": moments}
+
+    outcome = await run_with((FakeLlm(answer),), words, count=1)
+    (proposal,) = outcome.result["proposals"]
+    assert "gemini" in proposal["transcriptExcerpt"].lower()
+    assert proposal["judgement"]["standalone"] == 9
+    assert proposal["judgement"]["hook"] == 9
+
+
+def test_parse_judgements_infers_reel_viable() -> None:
+    judged_clean = parse_judgements(
+        {"moments": [{"id": "w-1", "standalone": 8, "payoff": 7, "humour": 0, "hook": 8}]},
+        ["w-1"],
+        with_topic=False,
+        model="m",
+    )["w-1"]
+    assert judged_clean.reel_viable is True
+
+    judged_nowhere = parse_judgements(
+        {"moments": [{"id": "w-2", "standalone": 3, "payoff": 4, "humour": 0, "hook": 2}]},
+        ["w-2"],
+        with_topic=False,
+        model="m",
+    )["w-2"]
+    assert judged_nowhere.reel_viable is False
+
