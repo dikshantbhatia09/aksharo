@@ -6,12 +6,38 @@ file, `packages/config/src/brand.ts` (`docs/CONTRACTS.md` section 0).
 
 ## Setup
 
-Requires **Node 22** (`.nvmrc`), **pnpm 9**, **Python 3.12**, **Docker** and
-**ffmpeg** on `PATH`.
+Requires **Node 22 LTS** (`.nvmrc`, `.node-version`), **pnpm 9.15.9**, **Python 3.12**, **Docker**, and **ffmpeg** on `PATH` (authoritative schema: `toolchain.json`).
+
+> [!IMPORTANT]
+> **Release Toolchain Policy (RLS-003):** Tests run under unpinned toolchains (e.g. Node 24, pnpm 11, Python 3.13) **cannot be accepted as release evidence**.
+> Do not mutate `pnpm-lock.yaml` to match a local host. To develop in an isolated, guaranteed toolchain, use the pre-configured [Devcontainer](docs/DEVCONTAINER.md) (`.devcontainer/`).
+
+### Quick Start with Bootstrap
 
 ```bash
+# Windows PowerShell (automated Node 22 / pnpm 9.15.9 / venv bootstrap):
+powershell -ExecutionPolicy Bypass -File scripts/bootstrap.ps1
+
+# POSIX / macOS / Linux:
+./scripts/bootstrap.sh
+
+# Cross-platform / existing Node:
+node scripts/bootstrap.mjs
+```
+
+### Manual Setup & Verification Gate
+
+```bash
+# 1. Enable Corepack & pinned pnpm 9.15.9
 corepack enable && corepack prepare pnpm@9.15.9 --activate
-pnpm install                       # also bootstraps apps/worker-ai/.venv on first test run
+
+# 2. Run the Toolchain Preflight Gate (fails fast with actionable remediation if mismatched)
+pnpm preflight
+
+# 3. Install dependencies from frozen lockfile
+pnpm install                       # bootstraps apps/worker-ai/.venv on first run
+
+# 4. Configure local environment and start backing services
 cp .env.example .env               # fill in secrets; defaults match the compose stack
 docker compose up -d               # postgres, redis, minio + both buckets
 pnpm db:migrate && pnpm db:seed    # no-ops until A03 lands the schema
@@ -24,18 +50,18 @@ Verify with `pnpm lint && pnpm typecheck && pnpm test && pnpm build`, then
 
 ## Layout
 
-| Path                          | What                                                                                                                                                           |
-| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `apps/web`                    | Next.js 15 studio + marketing site — route groups `(site)`, `(app)`, `(share)`, `(admin)`                                                                      |
-| `apps/api`                    | NestJS modular monolith + Prisma; OpenAPI at `/docs`                                                                                                           |
-| `apps/worker-media`           | Node BullMQ + ffmpeg: probe, audio, proxies, waveform, thumbs                                                                                                  |
-| `apps/worker-ai`              | Python 3.12 BullMQ worker: providers, VAD, alignment, passes, LLM                                                                                              |
-| `apps/render`                 | Skia (`@napi-rs/canvas`) frame renderer + ffmpeg encode                                                                                                        |
-| `apps/desktop`, `apps/bridge` | Electron shell and the local bridge (README only until C01/C02)                                                                                                |
-| `plugins/*`                   | Premiere UXP, After Effects CEP, DaVinci Resolve script (README only)                                                                                          |
-| `apps/engine`                 | native local engine sidecar (`montaj-engine`): HTTP/WS contract, model manager, backend/tier detection, `FakeBackend` (C03a); quality gate + benchmarks (C03b) |
-| `packages/*`                  | `edg`, `timemap`, `caption-styles`, `render-core`, `render-canvaskit`, `render-skia-node`, `ass-exporter`, `api-client`, `ui`, `prompts`, `config`             |
-| `docs/`                       | `PLAN.md` (waves and status), `CONTRACTS.md` (frozen interfaces), `THREAT-MODEL.md`, `adr/`                                                                    |
+| Path                          | What                                                                                                                                               |
+| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/web`                    | Next.js 15 studio + marketing site — route groups `(site)`, `(app)`, `(share)`, `(admin)`                                                          |
+| `apps/api`                    | NestJS modular monolith + Prisma; OpenAPI at `/docs`                                                                                               |
+| `apps/worker-media`           | Node BullMQ + ffmpeg: probe, audio, proxies, waveform, thumbs                                                                                      |
+| `apps/worker-ai`              | Python 3.12 BullMQ worker: providers, VAD, alignment, passes, LLM                                                                                  |
+| `apps/render`                 | Skia (`@napi-rs/canvas`) frame renderer + ffmpeg encode                                                                                            |
+| `apps/desktop`, `apps/bridge` | Electron shell and local bridge (deferred post-launch surfaces, absent from HEAD — see Wave C and docs/audit/RLS-004-DEAD-SURFACE-INVENTORY.md)    |
+| `plugins/*`                   | Premiere UXP, After Effects CEP, DaVinci Resolve script (deferred post-launch surfaces, absent from HEAD — see Wave C)                             |
+| `apps/engine`                 | Native local engine sidecar (`montaj-engine`) (deferred post-launch surface, absent from HEAD — see Wave C)                                        |
+| `packages/*`                  | `edg`, `timemap`, `caption-styles`, `render-core`, `render-canvaskit`, `render-skia-node`, `ass-exporter`, `api-client`, `ui`, `prompts`, `config` |
+| `docs/`                       | `PLAN.md` (waves and status), `CONTRACTS.md` (frozen interfaces), `THREAT-MODEL.md`, `adr/`                                                        |
 
 ## Working here
 
@@ -73,6 +99,8 @@ All four scripts run Prettier through `node --max-old-space-size=6144 …` (A18a
 
 | Command                                                | Does                                                                               |
 | ------------------------------------------------------ | ---------------------------------------------------------------------------------- |
+| `pnpm preflight`                                       | Validate supported build toolchain (Node 22, pnpm 9, Python 3.12, FFmpeg, Docker)  |
+| `pnpm bootstrap`                                       | Cross-platform bootstrap script to prepare pinned toolchain & .env                 |
 | `pnpm dev`                                             | every app in watch mode                                                            |
 | `pnpm build` / `lint` / `typecheck` / `test`           | across the workspace (Python included)                                             |
 | `pnpm test:e2e`                                        | Playwright (chromium + webkit) and the API e2e suite                               |

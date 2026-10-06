@@ -3,8 +3,12 @@
 Ship a release of the application to `staging` or `prod`. For infrastructure
 changes (Terraform), see the "Infrastructure changes" section at the end.
 
-**Prerequisites:** the release is green on CI, and you have said out loud which
-environment you are deploying to.
+**Prerequisites:**
+
+- The release candidate is green on CI and source manifest verified (`SOURCE-MANIFEST.json`).
+- You have said out loud which environment you are deploying to (`staging` or `prod`).
+- **Release Approvals Recorded**: Per [docs/release/RELEASE_APPROVAL_MATRIX.md](../release/RELEASE_APPROVAL_MATRIX.md), staging requires Release Manager signoff; production requires signed approvals from Release Manager (`ENG-001`), Platform Lead (`ENG-053`), and Security Lead (`ENG-087`).
+- **Separation of Duties Designated**: Name the **Deployer** and the **Independent Rollback Approver** before starting. Under the mandatory separation of duties rule, **the engineer who executes this deployment is strictly disqualified from approving or vetoing a rollback**. The Rollback Approver must be an independent engineer / Incident Commander.
 
 ---
 

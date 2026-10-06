@@ -26,7 +26,6 @@ ENV=prod
 NS=montaj
 
 # Stop writers. The API stays up so users get an error page rather than silence.
-kubectl -n "$NS" scale deploy/montaj-scheduler --replicas=0
 kubectl -n "$NS" scale deploy/montaj-worker-media deploy/montaj-worker-ai deploy/montaj-render --replicas=0
 
 # Stop KEDA scaling them back up.
@@ -141,7 +140,6 @@ kubectl -n "$NS" exec deploy/montaj-api -- node dist/scripts/queue-drain.js --al
 kubectl -n "$NS" patch scaledobject montaj-worker-ai    --type merge -p '{"spec":{"maxReplicaCount":20}}'
 kubectl -n "$NS" patch scaledobject montaj-worker-media --type merge -p '{"spec":{"maxReplicaCount":24}}'
 kubectl -n "$NS" patch scaledobject montaj-render       --type merge -p '{"spec":{"maxReplicaCount":24}}'
-kubectl -n "$NS" scale deploy/montaj-scheduler --replicas=1
 kubectl -n "$NS" rollout restart deploy -l app.kubernetes.io/instance=montaj
 ```
 

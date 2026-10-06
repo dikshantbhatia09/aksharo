@@ -6,14 +6,17 @@
   "license": "UNLICENSED",
   "packageManager": "pnpm@9.15.9",
   "engines": {
-    "node": ">=22",
-    "pnpm": ">=9 <10"
+    "node": ">=22.0.0 <23.0.0",
+    "pnpm": ">=9.0.0 <10.0.0"
   },
   "workspaces": [
     "apps/*",
     "packages/*"
   ],
   "scripts": {
+    "preflight": "node scripts/toolchain-preflight.mjs",
+    "preflight:json": "node scripts/toolchain-preflight.mjs --json",
+    "bootstrap": "node scripts/bootstrap.mjs",
     "build": "turbo run build",
     "dev": "turbo run dev",
     "lint": "turbo run lint",
@@ -21,9 +24,13 @@
     "test": "turbo run test",
     "test:e2e": "turbo run test:e2e",
     "test:scripts": "node --test scripts/*.test.mjs scripts/**/*.test.mjs",
+    "validate:workflows": "node scripts/validate-workflow-workspace.mjs",
     "e2e": "pnpm --filter @montaj/web test:e2e",
     "e2e:stack": "node scripts/e2e-stack.mjs",
     "verify-wave": "node scripts/verify-wave.mjs",
+    "verify:rls-009": "node scripts/verify-rls-009-artifacts-and-lockfile.mjs",
+    "verify:rls-010": "node scripts/verify-rls-010-codeowner-and-approvals.mjs",
+    "check:drift": "node scripts/ci/check-generated-drift.mjs",
     "db:migrate": "turbo run db:migrate",
     "gen:client": "pnpm --filter @montaj/api gen:client",
     "db:seed": "turbo run db:seed",

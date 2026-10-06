@@ -260,3 +260,110 @@ This document details every single bug, failed process, and broken function disc
 - **Recommended Engineering Fix:** Render Nocturne styled empty state card with 'No matching projects found. Clear filter'.
 
 ---
+
+### [HIGH] BUG-CAP-001: Split & Conflicting "Caption Tools" Menus Between Header and Timeline
+
+- **Category:** `Editor & UX Architecture`
+- **Subsystem:** `Caption Tools Menus`
+- **File / Endpoint:** `apps/web/app/(app)/p/[id]/editor-client.tsx` (L1037-1064) vs `apps/web/components/editor/timeline/Timeline.tsx` (L1920-2220)
+- **Observed Symptom:** Editors encounter two conflicting menus named "Caption Tools". The one in the Captions panel header (`[data-testid="captions-panel-tools-trigger"]`) contains menubar duplicates (`File`, `Edit`, `View`, `Help`), script tabs, and bulk action buttons (`Merge short`, `Split long`, `Auto-resegment`), but none of the actual caption cleanup tools. Meanwhile, the actual caption cleanup tools (Remove Punctuation, Remove Emphasis, Remove Gaps, Remove Emojis, Caption Delay slider) are hidden inside an unlabeled sliders icon on the timeline toolbar (`[data-testid="timeline-caption-tools-trigger"]`).
+- **Root Cause Analysis:** Architectural divergence during UI refactoring. `CaptionsPanelHeader` accepted `{children}` and wrapped the top application menubar inside a dropdown popover labeled "Caption Tools ⌄", while the timing and linguistic cleanup actions were implemented separately inside the timeline component.
+- **Reproduction:** 1. Open any project in editor (`/p/{id}`). 2. Click "Caption Tools ⌄" in the transcript panel header. Note that Remove Punctuation/Gaps/Delay are missing. 3. Look at timeline toolbar and click the slider icon to find the cleanup actions.
+- **Recommended Engineering Fix:** Unify caption tooling into a cohesive, consolidated menu or persistent toolbar. Expose cleanup tools (punctuation, gaps, delay, emojis) directly in the transcript panel header or RightPanel, and remove the redundant `EditorMenubar` wrapper from inside the header popover.
+
+---
+
+### [HIGH] BUG-CAP-002: ScriptTabs (Roman/Native/EN) Inaccessible and Hidden Inside Popover
+
+- **Category:** `Editor & Multilingual UI`
+- **Subsystem:** `Transcript Script Switching`
+- **File / Endpoint:** `apps/web/app/(app)/p/[id]/editor-client.tsx` (L1043)
+- **Observed Symptom:** Multilingual script tabs (Romanized, Native script e.g. Devanagari, English translation, and Add Translation) are completely invisible during regular caption editing. The editor cannot see or switch between scripts while reviewing and editing words without first clicking into the "Caption Tools" popover.
+- **Root Cause Analysis:** `<ScriptTabs />` was placed inside the popover children of `CaptionsPanelHeader` (`hidden={!open}` when popover is closed) rather than being rendered as a permanent subheader above `TranscriptList`.
+- **Reproduction:** Load editor with a multilingual transcript. Observe that the user cannot see which script is currently active, and cannot click between Roman/Native/EN without opening the popover.
+- **Recommended Engineering Fix:** Mount `<ScriptTabs />` directly underneath `CaptionsPanelHeader` as a sticky subheader in the transcript column, ensuring it is always visible and one click away for the editor.
+
+---
+
+### [MEDIUM] BUG-CAP-003: Hex Color Input Paste Truncation & 3-Character Shorthand Discard
+
+- **Category:** `Editor Controls & Inputs`
+- **Subsystem:** `ColorPicker / controls.tsx`
+- **File / Endpoint:** `apps/web/components/editor/panels/controls.tsx` (L345-351)
+- **Observed Symptom:** Pasting standard hex codes (e.g. `#10B981` or `#FF5500`) into the Hex input field results in the last character being truncated (`#10B98`), failing validation and silently discarding the user's color input back to the previous color. Additionally, standard 3-character hex shorthand (e.g. `FFF` or `#000`) is rejected.
+- **Root Cause Analysis:** The input element has `maxLength={6}` and validates on blur with `/^[0-9a-f]{6}$/i`. Pasting `#` takes up index 0, forcing the 6th hex digit to be dropped by HTML maxLength constraint.
+- **Reproduction:** 1. In RightPanel `Text` tab, click Text Color swatch. 2. Focus Hex input field and paste `#10B981`. 3. Press Tab or click outside. Observe input reverts to previous color.
+- **Recommended Engineering Fix:** Set `maxLength={7}` on the input. In the `onChange` and `onBlur` handlers, strip any leading `#` automatically: `val.replace(/^#/, '')`. Update validation regex to accept both 3-char and 6-char hex: `/^#?([0-9a-f]{3}|[0-9a-f]{6})$/i` and expand 3-character shorthand to 6-character hex.
+
+---
+
+### [MEDIUM] BUG-CAP-004: Find & Replace Overlay Clashes With RightPanel & Obscures Style Inspector Tabs
+
+- **Category:** `Editor Layout & Overlays`
+- **Subsystem:** `Transcript Search / FindReplaceDialog`
+- **File / Endpoint:** `apps/web/components/editor/transcript/FindReplaceDialog.tsx` & `apps/web/app/(app)/p/[id]/editor-client.tsx`
+- **Observed Symptom:** Clicking the search icon (`[data-testid="captions-panel-search"]`) in the transcript header mounts the Find & Replace overlay directly over the top of the **RightPanel**, completely obscuring the inspector tabs (`Text`, `Templates`, `Transitions`, `AI Audio`) and active styling controls.
+- **Root Cause Analysis:** `FindReplaceDialog` is rendered inside or docked to the right sidebar layout slot rather than being positioned as a floating bar above the transcript virtual list where the actual matches exist.
+- **Reproduction:** 1. In transcript header, click the magnifying glass search icon. 2. Observe the search box covers the inspector tabs on the right side of the screen.
+- **Recommended Engineering Fix:** Reposition `FindReplaceDialog` to dock cleanly atop the `TranscriptList` column or float as an anchored popover under `CaptionsPanelHeader`, leaving the RightPanel fully accessible.
+
+---
+
+### [MEDIUM] BUG-CAP-005: Font Search Autocomplete Display Reversion on Case Mismatch
+
+- **Category:** `Editor Controls & Typography`
+- **Subsystem:** `SearchSelectField / controls.tsx`
+- **File / Endpoint:** `apps/web/components/editor/panels/controls.tsx` (L808)
+- **Observed Symptom:** When an editor types a valid font name in lowercase (e.g. `montserrat` or `roboto`) and presses Enter or blurs the field, the input text reverts to the previously selected font name even though the font was matched in the dropdown list.
+- **Root Cause Analysis:** The onBlur handler tests `!options.some(opt => opt.value === event.target.value)` using strict case-sensitive equality (`===`), while the autocomplete filtering is case-insensitive. Because `"Montserrat" !== "montserrat"`, the blur logic treats it as an invalid value and calls `setText(value)`, reverting the display.
+- **Reproduction:** 1. Click the font family search field in RightPanel. 2. Type `montserrat` in all lowercase. 3. Click outside the input. Observe the text reverts to `Inter` (or previous font).
+- **Recommended Engineering Fix:** Change the blur comparison to case-insensitive matching: `!options.some(opt => opt.value.toLowerCase() === event.target.value.toLowerCase())` and normalize the matched option's canonical case into state.
+
+---
+
+### [MEDIUM] BUG-CAP-006: Timeline Caption Tools Menu Clipped by Viewport & Obscures Audio Waveform
+
+- **Category:** `Editor UI & Ergonomics`
+- **Subsystem:** `Timeline Toolbar / Timeline.tsx`
+- **File / Endpoint:** `apps/web/components/editor/timeline/Timeline.tsx` (L1935)
+- **Observed Symptom:** Clicking the caption tools button on the timeline toolbar opens a long popover (`max-h-[75vh]`) directly downwards, which completely covers the audio waveform and video tracks. On standard 768p/900p displays, the bottom action buttons (Structure / Bulk resegment) overflow below the browser viewport, requiring awkward nested scrolling.
+- **Root Cause Analysis:** The popover direction is hardcoded or defaults to opening downwards from the timeline toolbar, which is already situated near the bottom of the screen.
+- **Reproduction:** 1. In the timeline toolbar, click the sliders icon (`[data-testid="timeline-caption-tools-trigger"]`). 2. Observe the popover covers the waveform below and its bottom buttons are clipped offscreen.
+- **Recommended Engineering Fix:** Set popover `side="top"` or `align="start"` with automatic collision boundary detection so it expands upwards into the canvas/preview area with adequate headroom, and constrain its internal max-height.
+
+---
+
+### [LOW] BUG-CAP-007: Base Typography Underline Toggle Doesn't Reflect or Clear Emphasis Preset Underline State
+
+- **Category:** `Editor Styling & State`
+- **Subsystem:** `RightPanel Typography & Emphasis`
+- **File / Endpoint:** `apps/web/components/editor/panels/RightPanel.tsx` (L947)
+- **Observed Symptom:** When an emphasis preset with underline styling is applied to words, the base typography Underline toggle button in the Text tab shows unpressed state (`aria-pressed="false"`). Clicking it adds a redundant underline property to the base style rather than toggling or overriding the active word's underline styling.
+- **Root Cause Analysis:** Base typography state (`typography.underline`) and emphasis style state (`emphasis.style.underline`) are managed as independent style layers without a unified computed style inspector indicator.
+- **Reproduction:** 1. Apply a style preset that underlines active/emphasized words. 2. Inspect the Underline toggle button in RightPanel. Note it is inactive. 3. Toggle it on and off; active word underline remains unchanged.
+- **Recommended Engineering Fix:** Compute effective style state including active emphasis overrides, and display a partial/override state on the underline toggle button.
+
+---
+
+### [LOW] BUG-CAP-008: ASS Subtitle Export Option Hard-Disabled in Export Modal
+
+- **Category:** `Export & Interoperability`
+- **Subsystem:** `Export Dialog / SubtitlesTab.tsx`
+- **File / Endpoint:** `apps/web/components/editor/export/SubtitlesTab.tsx`
+- **Observed Symptom:** Subtitles tab in the Export dialog displays "Advanced SubStation Alpha (ASS)" as permanently disabled with copy "ASS export ships once @montaj/ass-exporter lands." Editors needing styled captions for VLC or Aegisub cannot export ASS format.
+- **Root Cause Analysis:** `@montaj/ass-exporter` package was stubbed or planned as a future work package and disabled in the UI pending library completion.
+- **Reproduction:** 1. Click Export in top bar. 2. Select Subtitles tab. 3. Note ASS radio button is disabled (`disabled={true}`).
+- **Recommended Engineering Fix:** Implement ASS generation using the existing `@montaj/render-core` styles projection or remove the placeholder until ready.
+
+---
+
+### [HIGH] BUG-CAP-009: Hardcoded Production Host aksharo-api.crestmondtechnologies.com Returning 401 in Dev/Local Environment
+
+- **Category:** `API & Environment Configuration`
+- **Subsystem:** `EDG Client & Network Layer`
+- **File / Endpoint:** `apps/web/lib/edg/client.ts` / `apps/web/lib/api.ts`
+- **Observed Symptom:** Network inspector in browser shows `GET https://aksharo-api.crestmondtechnologies.com/projects/01M2K1R52AANE4TH9RS5VH167D/edg` failing with HTTP 401 Unauthorized during editor session on `http://127.0.0.1:3914`.
+- **Root Cause Analysis:** The API client base URL is falling back to the production API domain `https://aksharo-api.crestmondtechnologies.com` instead of honoring `NEXT_PUBLIC_API_URL=http://127.0.0.1:3913` or local environment variables when making direct client-side fetch requests for EDG state. Because session tokens are minted locally on `127.0.0.1:3913`, sending them to production fails with 401 Unauthorized.
+- **Reproduction:** 1. Load `http://127.0.0.1:3914/p/{id}` with local session cookies. 2. Inspect Network console. Observe 401 error to `aksharo-api.crestmondtechnologies.com`.
+- **Recommended Engineering Fix:** Ensure all EDG endpoints use `process.env.NEXT_PUBLIC_API_URL` or a relative `/api/proxy` route so requests are correctly routed to the active local API server in development.
+

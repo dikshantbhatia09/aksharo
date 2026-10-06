@@ -6,6 +6,10 @@ The release is bad. Get back to the last good one.
 symptom started within an hour of a deploy, roll back first and diagnose from
 the logs afterwards.
 
+> [!IMPORTANT]
+> **Rollback Authority & Separation of Duties (RLS-010):**
+> Under the mandatory separation of duties policy ([docs/release/RELEASE_APPROVAL_MATRIX.md](../release/RELEASE_APPROVAL_MATRIX.md)), **the engineer who executed or triggered the release is strictly disqualified from approving or vetoing rollback**. Rollback must be authorized by the **Independent Rollback Approver** (designated Incident Commander, Release Manager `ENG-001`, or Platform Lead `ENG-053` if not the deployer). In an emergency outage, the Independent Rollback Approver has fast-rollback authority to order reversion immediately.
+
 ---
 
 ## 1. Roll back the application
@@ -28,7 +32,8 @@ helm -n "$NS" rollback montaj --wait --timeout 10m
 Verify:
 
 ```bash
-for c in api web realtime worker-media worker-ai render scheduler; do
+# realtime and scheduler are served by api; verify active runtime deployments:
+for c in api web worker-media worker-ai render; do
   kubectl -n "$NS" rollout status "deploy/montaj-$c" --timeout=5m
 done
 kubectl -n "$NS" get pods -l app.kubernetes.io/instance=montaj

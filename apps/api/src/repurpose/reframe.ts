@@ -439,7 +439,7 @@ export function reframeFromTrack(
 export function framingFromTrack(
   track: FaceTrackDocument | undefined,
   interval: { readonly fromMs: number; readonly toMs: number },
-  choice: ClipLayoutChoice,
+  choice: ClipLayoutChoice | "fit",
   shape: string = "9:16",
 ): ClipReframe {
   const reframe = reframeFromTrack(track, interval);

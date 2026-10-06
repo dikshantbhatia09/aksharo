@@ -235,12 +235,15 @@ services:
     build:
       context: .
       dockerfile: apps/worker-media/Dockerfile
+      args:
+        YT_DLP_SHA256: ${YT_DLP_SHA256:-58162f9bfdc27458ea47bfcb311cf47028f17d8154a8bf7d689861d46399230a}
     container_name: montaj-e2e-worker-media
     depends_on:
       api:
         condition: service_healthy
     environment:
       <<: *api-env
+      WORKER_MEDIA_QUEUES: "media.probe,media.proxy"
     restart: unless-stopped
 
   worker-ai:

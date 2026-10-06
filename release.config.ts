@@ -9,7 +9,23 @@
  */
 import { BRAND } from "./packages/config/src/brand";
 
-import type { ReleaseConfig } from "./tools/release/src/config";
+/**
+ * RLS-004 (2026-09-19): `tools/release/src/config` was removed in 0be69d36 and is deferred
+ * to post-launch Wave C (ticket C00-DEFER). The interface is preserved inline here so that
+ * root TypeScript compilation passes and the packaging schema remains documented.
+ */
+export interface ReleaseConfig {
+  appId: string;
+  productName: string;
+  desktopAppDir: string;
+  mac: { target: ("dmg" | "zip" | "pkg")[]; category: string };
+  win: { target: "nsis"; arch: "x64" };
+  ccx: { pluginDir: string; minPremiereVersion: string };
+  zxp: { pluginDir: string };
+  resolveBundle: { scriptDir: string; installPaths: Record<"win" | "mac" | "linux", string> };
+  resolvePanel?: { pluginDir: string; installPaths: Record<"win" | "mac" | "linux", string> };
+  channels: readonly ["alpha", "beta", "stable"];
+}
 
 const config: ReleaseConfig = {
   appId: "ai.aksharo.desktop",

@@ -51,15 +51,15 @@ variable "control_plane_log_retention_days" {
 # --- general node group ----------------------------------------------------
 
 variable "general_instance_types" {
-  description = "Instance types for the general node group. Graviton (m7g/c7g) is the default: roughly 20 percent cheaper per vCPU than the x86 equivalent, and every montaj image is built multi-arch."
+  description = "Instance types for the general node group. x86-64 (m7i/c7i) is the launch standard per ADR-0005: all montaj runtime images are built and validated for linux/amd64."
   type        = list(string)
-  default     = ["m7g.large"]
+  default     = ["m7i.large"]
 }
 
 variable "general_ami_type" {
-  description = "EKS AMI type for the general node group. AL2023_ARM_64_STANDARD matches the Graviton default above; use AL2023_x86_64_STANDARD with x86 instance types."
+  description = "EKS AMI type for the general node group. AL2023_x86_64_STANDARD matches the x86-64 launch baseline."
   type        = string
-  default     = "AL2023_ARM_64_STANDARD"
+  default     = "AL2023_x86_64_STANDARD"
 }
 
 variable "general_capacity_type" {

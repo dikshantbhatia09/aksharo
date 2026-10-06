@@ -5,9 +5,13 @@ name: Release desktop
 # reviewers configured on those environments in repo settings — not in this file) holding the
 # signing secrets. See docs/RELEASE.md for the full runbook and the 24h notarisation buffer.
 
+# RLS-004 (2026-09-19): `main` removed from push.branches because `apps/desktop` and
+# `tools/release` are absent from HEAD (deleted in 0be69d36, deferred to post-launch
+# Wave C). Release jobs pointing to absent directories must never trigger on main.
+# Main release is web-only via `.github/workflows/images.yml`.
 on:
   push:
-    branches: ["main", "wp/C00", "wp/C02"]
+    branches: ["wp/C00", "wp/C02"]
     tags: ["release/*"]
   pull_request:
     branches: ["main"]

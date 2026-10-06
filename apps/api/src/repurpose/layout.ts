@@ -33,8 +33,8 @@ import type { ClipLayout, StackedPerson } from "@montaj/repurpose-contracts";
  * the cut (its payload and its job key) is stable.
  */
 
-/** What a person picks for a clip: let the track decide, one speaker, both, or canvas fit. */
-export const CLIP_LAYOUT_CHOICES = ["auto", "single", "stacked", "fit"] as const;
+/** What a person picks for a clip: let the track decide, one speaker, or both. */
+export const CLIP_LAYOUT_CHOICES = ["auto", "single", "stacked"] as const;
 export type ClipLayoutChoice = (typeof CLIP_LAYOUT_CHOICES)[number];
 
 /**
@@ -42,14 +42,12 @@ export type ClipLayoutChoice = (typeof CLIP_LAYOUT_CHOICES)[number];
  * before the column existed) is `auto`, which is what the column defaults to.
  */
 export function layoutChoiceOf(value: unknown): ClipLayoutChoice {
-  return (CLIP_LAYOUT_CHOICES as readonly unknown[]).includes(value)
-    ? (value as ClipLayoutChoice)
-    : "auto";
+  return value === "single" || value === "stacked" ? value : "auto";
 }
 
-/** A shape's recorded `layout`: `stacked`, `fit`, or the one window every older shape is. */
+/** A shape's recorded `layout`: `stacked`, or the one window every older shape is. */
 export function shapeLayoutOf(value: unknown): ClipLayout {
-  return value === "stacked" ? "stacked" : value === "fit" ? "fit" : "single";
+  return value === "stacked" ? "stacked" : "single";
 }
 
 export interface LayoutDecision {
@@ -120,7 +118,7 @@ export function detectLayout(
   track: FaceTrackDocument,
   fromMs: number,
   toMs: number,
-  choice: ClipLayoutChoice,
+  choice: ClipLayoutChoice | "fit",
 ): LayoutDecision {
   if (choice === "single") return SINGLE_LAYOUT;
   if (choice === "fit") return FIT_LAYOUT;

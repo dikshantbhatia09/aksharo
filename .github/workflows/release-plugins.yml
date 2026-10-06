@@ -4,9 +4,12 @@ name: Release plugins
 # the DaVinci Resolve script bundle. Dry-run on every PR touching plugin code; signed .zxp
 # only on a `release/*` tag with the `release-zxp` environment's secrets.
 
+# RLS-004 (2026-09-19): `main` removed from push.branches because `plugins/**` and
+# `tools/release` are absent from HEAD (deleted in 0be69d36, deferred to post-launch
+# Wave C). Release jobs pointing to absent directories must never trigger on main.
 on:
   push:
-    branches: ["main"]
+    branches: ["wp/C05*", "wp/C08*", "wp/C09*", "wp/C10*"]
     tags: ["release/*"]
   pull_request:
     branches: ["main"]

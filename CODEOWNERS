@@ -1,45 +1,173 @@
-# Code owners — placeholder (A01).
-#
-# GitHub reads this from the repository root, .github/ or docs/. Replace the
-# placeholder handles once the org and teams exist (Wave 0, A00-09), and remember
-# that a CODEOWNERS entry only enforces review when branch protection requires it.
-#
-# Last matching pattern wins, so the frozen contracts sit at the bottom.
+# Aksharo / Montaj Code Owners Matrix
+# Mobilization Standard: 200 Engineers across 9 Squads (Day 1 Mobilization)
+# Task ID: RLS-010 (Harden Code-Owner and Release Approval Routing)
+# Last matching pattern wins. P0 boundary rules sit at the bottom.
+# Enforced via Branch Protection on candidate/main branches.
 
-# Default owner for anything not matched below.
-*                               @aksharo/maintainers
+# ==============================================================================
+# 0. DEFAULT ORG FALLBACK
+# ==============================================================================
+*                                                       @aksharo/release-dx
 
-# Applications
-/apps/web/                      @aksharo/frontend
-/apps/api/                      @aksharo/backend
-/apps/worker-media/             @aksharo/backend
-/apps/worker-ai/                @aksharo/ai
-/apps/render/                   @aksharo/backend
-/apps/desktop/                  @aksharo/desktop
-/apps/bridge/                   @aksharo/desktop
+# ==============================================================================
+# 1. SQUAD DEFINITIONS (9 AUTHORITATIVE WORKSTREAMS)
+# ==============================================================================
+# @aksharo/release-dx          Release Truth, DX & Governance (ENG-001..018)
+# @aksharo/quality-test        CI, Test Platform & Contracts (ENG-019..052)
+# @aksharo/platform-cloud      Runtime Platform, IaC & Deployment (ENG-053..086)
+# @aksharo/security-privacy    Security & Privacy Engineering (ENG-087..110)
+# @aksharo/core-pipelines      Core API, Media, AI & Render (ENG-111..140)
+# @aksharo/data-reliability    Performance, Data & Reliability (ENG-141..156)
+# @aksharo/sre-observability   Observability & SRE (ENG-157..168)
+# @aksharo/web-product         Web, Accessibility & Product Truth (ENG-169..184)
+# @aksharo/commerce-compliance Billing, Legal & Compliance Integration (ENG-185..200)
 
-# Host-application plugins
-/plugins/                       @aksharo/desktop
-/engine/                        @aksharo/desktop
+# ==============================================================================
+# 2. APPLICATIONS (Standard Feature Boundaries)
+# ==============================================================================
+/apps/web/                                              @aksharo/web-product
+/apps/api/                                              @aksharo/core-pipelines
+/apps/worker-media/                                     @aksharo/core-pipelines
+/apps/worker-ai/                                        @aksharo/core-pipelines
+/apps/render/                                           @aksharo/core-pipelines
+/apps/model-server/                                     @aksharo/core-pipelines
+/apps/desktop/                                          @aksharo/platform-cloud
+/apps/bridge/                                           @aksharo/platform-cloud
+/plugins/                                               @aksharo/platform-cloud
+/engine/                                                @aksharo/platform-cloud
 
-# Shared packages
-/packages/edg/                  @aksharo/backend
-/packages/caption-styles/       @aksharo/frontend
-/packages/render-core/          @aksharo/frontend
-/packages/render-canvaskit/     @aksharo/frontend
-/packages/render-skia-node/     @aksharo/backend
-/packages/ui/                   @aksharo/frontend
-/packages/prompts/              @aksharo/ai
+# ==============================================================================
+# 3. SHARED PACKAGES & APP BOUNDARIES
+# ==============================================================================
+/packages/api-client/                                   @aksharo/release-dx
+/packages/repurpose-contracts/                          @aksharo/core-pipelines
+/packages/publishing-contracts/                         @aksharo/core-pipelines
+/packages/render-manifest/                              @aksharo/core-pipelines
+/packages/caption-styles/                               @aksharo/core-pipelines
+/packages/edg/                                          @aksharo/core-pipelines
+/packages/render-core/                                  @aksharo/web-product
+/packages/render-canvaskit/                             @aksharo/web-product
+/packages/render-skia-node/                             @aksharo/core-pipelines
+/packages/ui/                                           @aksharo/web-product
+/packages/prompts/                                      @aksharo/core-pipelines
+/packages/config/                                       @aksharo/release-dx
+/packages/platform-profiles/                            @aksharo/platform-cloud
+/packages/fonts/                                        @aksharo/web-product
+/packages/db/                                           @aksharo/data-reliability @aksharo/core-pipelines
+/packages/engine-client/                                @aksharo/platform-cloud @aksharo/core-pipelines
+/packages/shared/                                       @aksharo/core-pipelines @aksharo/web-product
+/packages/timemap/                                      @aksharo/core-pipelines
+/packages/ass-exporter/                                 @aksharo/core-pipelines @aksharo/web-product
 
-# Toolchain, CI and infrastructure
-/packages/config/               @aksharo/maintainers
-/.github/                       @aksharo/maintainers
-/infra/                         @aksharo/maintainers
-/turbo.json                     @aksharo/maintainers
-/pnpm-workspace.yaml            @aksharo/maintainers
-/docker-compose.yml             @aksharo/maintainers
+# ==============================================================================
+# 4. INFRASTRUCTURE, CI/CD, SECURITY & GOVERNANCE
+# ==============================================================================
+/infra/                                                 @aksharo/platform-cloud
+/security/                                              @aksharo/security-privacy
+/.github/                                               @aksharo/release-dx @aksharo/quality-test
+/scripts/                                               @aksharo/quality-test @aksharo/release-dx
+/platform-audit-report/                                 @aksharo/release-dx @aksharo/quality-test
+/outputs/                                               @aksharo/release-dx
+/docs/                                                  @aksharo/release-dx
+/docs/compliance/                                       @aksharo/commerce-compliance @aksharo/security-privacy
+/docs/security/                                         @aksharo/security-privacy
 
-# Frozen interfaces: change only through an ADR approved by Fable.
-/docs/PLAN.md                   @aksharo/maintainers
-/docs/CONTRACTS.md              @aksharo/maintainers
-/docs/THREAT-MODEL.md           @aksharo/maintainers
+# ==============================================================================
+# 5. MONOREPO TOOLCHAIN & ROOT CONFIGURATION
+# ==============================================================================
+/turbo.json                                             @aksharo/release-dx
+/pnpm-workspace.yaml                                    @aksharo/release-dx
+/pnpm-lock.yaml                                         @aksharo/release-dx
+/package.json                                           @aksharo/release-dx
+/docker-compose*.yml                                    @aksharo/release-dx
+/.dockerignore                                          @aksharo/release-dx
+/toolchain.json                                         @aksharo/release-dx
+
+# ==============================================================================
+# 6. HIGH-CONFLICT BOUNDARY PROTECTION (BOUNDARY INTEGRATORS)
+# Guardrail: Small reviewed commits only. Single integrator per boundary.
+# ==============================================================================
+
+# Boundary 1: API Client Contracts & Barrel (Integrator: ENG-009 / RLS-009)
+/packages/api-client/src/endpoints.ts                   @aksharo/release-dx
+/packages/api-client/src/hooks.ts                       @aksharo/release-dx
+/packages/api-client/src/query-keys.ts                  @aksharo/release-dx
+/packages/api-client/src/types.ts                       @aksharo/release-dx
+/packages/api-client/src/index.ts                       @aksharo/release-dx
+
+# Boundary 2: Repurpose UI & Editor Surface (Integrator: ENG-173 / WEB-005)
+/apps/web/app/\(app\)/repurpose/                        @aksharo/web-product
+/apps/web/components/repurpose/                         @aksharo/web-product
+/apps/web/app/\(app\)/editor/                           @aksharo/web-product
+
+# Boundary 3: Environment Configuration (Integrator: ENG-003 / RLS-003)
+/packages/config/src/env.ts                             @aksharo/release-dx
+/packages/config/src/env.test.ts                        @aksharo/release-dx
+
+# Boundary 4: Schema & Database (Integrators: ENG-023 / QAT-005 & ENG-111 / CORE-001)
+/apps/api/prisma/schema.prisma                          @aksharo/data-reliability @aksharo/core-pipelines
+/apps/api/prisma/migrations/                            @aksharo/data-reliability @aksharo/quality-test
+/packages/repurpose-contracts/src/jobs.ts               @aksharo/core-pipelines
+
+# Boundary 5: Workflows & Pipelines (Integrator: ENG-005 / RLS-005)
+/.github/workflows/                                     @aksharo/release-dx @aksharo/quality-test
+
+# Boundary 6: Worker Runtimes & Queues (Integrators: ENG-114 / CORE-004 & ENG-111 / CORE-001)
+/apps/worker-media/src/queues.ts                        @aksharo/core-pipelines
+/apps/worker-media/src/runtime.ts                       @aksharo/core-pipelines
+/apps/worker-ai/worker_ai/runtime.py                    @aksharo/core-pipelines
+/apps/worker-ai/worker_ai/callbacks.py                  @aksharo/core-pipelines
+
+# ==============================================================================
+# 7. FROZEN INTERFACES & ARCHITECTURAL GATES (Requires ADR Approval)
+# ==============================================================================
+/docs/PLAN.md                                           @aksharo/release-dx
+/docs/CONTRACTS.md                                      @aksharo/release-dx
+/docs/THREAT-MODEL.md                                   @aksharo/security-privacy
+/ARCHITECTURE.md                                        @aksharo/release-dx
+/docs/PRODUCTION-LAUNCH-READINESS-2026-09-14.md         @aksharo/release-dx
+
+# ==============================================================================
+# 8. P0 PROTECTED BOUNDARIES & INDEPENDENT REVIEW ROUTING (RLS-010)
+# Mandate: Independent review required (minimum 2 distinct squads) for P0 paths.
+# Guardrail: High-risk boundaries only. Do not block general feature paths.
+# ==============================================================================
+
+# --- P0.1: Security Controls & API Auth ---
+# Primary: @aksharo/security-privacy | Independent Review: @aksharo/core-pipelines
+/apps/api/src/auth/                                     @aksharo/security-privacy @aksharo/core-pipelines
+/apps/api/src/common/guards/                            @aksharo/security-privacy @aksharo/core-pipelines
+/apps/api/src/admin/auth/                               @aksharo/security-privacy @aksharo/core-pipelines
+/apps/api/src/realtime/auth/                            @aksharo/security-privacy @aksharo/core-pipelines
+/apps/api/src/telemetry/redact.ts                       @aksharo/security-privacy @aksharo/core-pipelines
+/security/audit-exceptions.json                         @aksharo/security-privacy @aksharo/release-dx
+
+# --- P0.2: Prisma, Database DDL & Schema ---
+# Primary: @aksharo/data-reliability | Independent Review: @aksharo/core-pipelines / @aksharo/quality-test
+/apps/api/prisma/schema.prisma                          @aksharo/data-reliability @aksharo/core-pipelines
+/apps/api/prisma/migrations/                            @aksharo/data-reliability @aksharo/quality-test
+/apps/api/prisma/sql/                                   @aksharo/data-reliability @aksharo/core-pipelines
+/packages/db/prisma/                                    @aksharo/data-reliability @aksharo/core-pipelines
+
+# --- P0.3: Production Infrastructure & IaC ---
+# Primary: @aksharo/platform-cloud | Independent Review: @aksharo/release-dx
+/infra/terraform/envs/prod/                             @aksharo/platform-cloud @aksharo/release-dx
+/infra/k8s/montaj/values-prod.yaml                      @aksharo/platform-cloud @aksharo/release-dx
+/infra/observability/alerts/                            @aksharo/sre-observability @aksharo/platform-cloud
+
+# --- P0.4: Release Workflows, Promotion & Container Signing ---
+# Primary: @aksharo/release-dx | Independent Review: @aksharo/platform-cloud / @aksharo/security-privacy
+/.github/workflows/promote.yml                          @aksharo/release-dx @aksharo/platform-cloud
+/.github/workflows/images.yml                           @aksharo/release-dx @aksharo/platform-cloud @aksharo/security-privacy
+/.github/workflows/infra.yml                            @aksharo/platform-cloud @aksharo/release-dx
+/.github/workflows/ops-dpdp-records.yml                 @aksharo/release-dx @aksharo/commerce-compliance
+/.github/workflows/ops-restore-drill.yml                @aksharo/release-dx @aksharo/data-reliability
+/tools/release/                                         @aksharo/release-dx @aksharo/platform-cloud
+
+# --- P0.5: Legal, Privacy & Launch Truth Content ---
+# Primary: @aksharo/commerce-compliance | Independent Review: @aksharo/web-product / @aksharo/release-dx
+/apps/web/content/site/legal.ts                         @aksharo/commerce-compliance @aksharo/web-product
+/apps/web/content/site/launch-surfaces.ts               @aksharo/commerce-compliance @aksharo/release-dx
+/apps/web/content/sub-processors.json                   @aksharo/commerce-compliance @aksharo/security-privacy
+/apps/web/content/site/privacy-notice-mirror.ts         @aksharo/commerce-compliance @aksharo/web-product
+/docs/compliance/                                       @aksharo/commerce-compliance @aksharo/security-privacy

@@ -27,10 +27,42 @@ env:
 
 jobs:
   # ---------------------------------------------------------------------------
+  # Toolchain: preflight gate for Node 22, pnpm 9, Python 3.12, FFmpeg, Docker (RLS-003)
+  # ---------------------------------------------------------------------------
+  toolchain-preflight:
+    name: Toolchain Preflight (RLS-003)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install FFmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Run Toolchain Preflight Gate (RLS-003)
+        run: node scripts/toolchain-preflight.mjs
+
+      - name: Run Toolchain Preflight Test Suite (RLS-003)
+        run: node --test scripts/toolchain-preflight.test.mjs
+
+  # ---------------------------------------------------------------------------
   # TypeScript: lint, typecheck, unit tests and build for every workspace package
   # ---------------------------------------------------------------------------
   typescript:
     name: TypeScript (Node ${{ matrix.node }})
+    needs: [toolchain-preflight]
     runs-on: ubuntu-latest
     timeout-minutes: 25
     strategy:
@@ -48,8 +80,20 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: pnpm
 
+      - name: Toolchain preflight check (Node/pnpm)
+        run: node scripts/toolchain-preflight.mjs --skip python,ffmpeg,docker
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Validate workflow and workspace existence (RLS-005)
+        run: node scripts/validate-workflow-workspace.mjs
+
+      - name: Verify code-owner and release approval routing (RLS-010)
+        run: pnpm verify:rls-010
+
+      - name: Check generated artifacts and lockfile drift (RLS-009)
+        run: node scripts/ci/check-generated-drift.mjs
 
       - name: Lint
         run: pnpm lint
@@ -69,12 +113,13 @@ jobs:
       - name: Build
         run: pnpm build
 
-      # C06b: the committed placeholder .mogrt (no .aep, no After Effects on any
-      # CI runner) must still unzip and its definition.json must still match the
-      # frozen param table — this is the same check C06's start-up self-test
-      # runs against the real shipped .mogrt.
-      - name: MOGRT placeholder verifies
-        run: pnpm --filter @montaj/premiere-uxp verify:mogrt
+      # -----------------------------------------------------------------------
+      # REMOVED 2026-09-19 (RLS-004): `MOGRT placeholder verifies` step.
+      # It ran `pnpm --filter @montaj/premiere-uxp verify:mogrt` against a
+      # workspace absent from HEAD (plugins/premiere-uxp removed in 0be69d36;
+      # deferred to Wave C / post-launch ticket C06b-DEFER). Restore alongside
+      # the plugin source, not before it.
+      # -----------------------------------------------------------------------
 
   # ---------------------------------------------------------------------------
   # Python AI worker: ruff, mypy --strict, pytest

@@ -6,17 +6,14 @@ telling you which runbook to open next, match the alert name below.
 
 ---
 
-## Rotation (template — H-27 names the people)
+## Rotation & Incident Command Structure
 
-- One primary, one secondary, weekly handoff (Monday 09:00 IST).
-- Primary acknowledges a page within **5 minutes**; escalates to secondary if
-  unacknowledged at 10 minutes, then to the founder at 20 minutes.
-- Handoff is a written note, not a meeting: open incidents, anything flapping,
-  anything silenced and why, anything deployed in the last 24 hours.
-- **[DRAFT — H-27]** Names, phone numbers and the paging tool (PagerDuty /
-  Opsgenie / a WhatsApp group — not yet chosen) are pending; this runbook is
-  written so any of those can be filled in without changing the escalation
-  logic above.
+- **Authoritative Roster:** Governed by [docs/release/LAUNCH_INCIDENT_COMMAND_MODEL.md](../release/LAUNCH_INCIDENT_COMMAND_MODEL.md) (RLS-016).
+- **Primary On-Call:** `ENG-157` (SRE Lead). Acknowledges within **5 minutes**.
+- **Secondary On-Call:** `ENG-161` (SRE / Observability). Escalates if unacknowledged at 10 minutes.
+- **Incident Commander:** `ENG-016`. Leads severe/P0 response and directs mitigation streams.
+- **Rollback Approver:** `ENG-016` / `ENG-157`. Independent of the Deployer (`ENG-053`).
+- **Weekly Handoff:** Monday 09:00 IST via written log: open incidents, flapping alerts, silences, deploys in last 24h.
 
 ## Escalation by alert
 

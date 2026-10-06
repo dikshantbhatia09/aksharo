@@ -64,6 +64,9 @@ module "eks" {
   endpoint_public_access = true
   public_access_cidrs    = var.kubernetes_api_allowed_cidrs
 
+  general_instance_types = ["m7i.large"] # ADR-0005 / RLS-015: x86-64 required for linux/amd64 runtime images
+  general_ami_type       = "AL2023_x86_64_STANDARD"
+
   general_scaling = {
     min_size     = 2
     max_size     = 6
