@@ -368,6 +368,85 @@ export function stackedFilter(frame: StackedFrame): string {
   ].join(";");
 }
 
+export interface FitFrame {
+  /** The picture size the fit was computed for: the source as probed. */
+  readonly source: { readonly width: number; readonly height: number };
+  /** The fitted foreground video inside the canvas */
+  readonly fg: {
+    readonly width: number;
+    readonly height: number;
+    readonly x: number;
+    readonly y: number;
+  };
+  /** The canvas output size */
+  readonly output: { readonly width: number; readonly height: number };
+}
+
+export interface FitFrameOptions {
+  /** `profile.maxHeight`; capped at MAX_CLIP_HEIGHT. */
+  readonly maxHeight?: number;
+  /** The shape to cut; 9:16 when absent. */
+  readonly aspect?: ClipAspect;
+}
+
+/** The shapes a fit cut is made in. */
+export const FIT_ASPECTS: ReadonlySet<ClipAspect> = new Set<ClipAspect>(["9:16", "4:5"]);
+
+/**
+ * Fit a widescreen landscape source into a vertical/tall canvas (9:16 or 4:5)
+ * without cropping off the sides (e.g. for slides, charts, screencasts, robotics).
+ */
+export function fitFrame(
+  source: { readonly width: number; readonly height: number },
+  options: FitFrameOptions = {},
+): FitFrame | null {
+  const { width, height } = source;
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width < 2 || height < 2) return null;
+  const aspect = options.aspect ?? "9:16";
+  if (!FIT_ASPECTS.has(aspect) || width <= height) return null;
+
+  const shape = CLIP_ASPECTS[aspect];
+  const limit = floorEven(
+    Math.min(
+      typeof options.maxHeight === "number" && Number.isFinite(options.maxHeight)
+        ? options.maxHeight
+        : MAX_CLIP_HEIGHT,
+      MAX_CLIP_HEIGHT,
+    ),
+  );
+
+  const outHeight = limit;
+  const outWidth = even((limit * shape.width) / shape.height);
+
+  const fgWidth = outWidth;
+  const fgHeight = Math.min(even((fgWidth * height) / width), outHeight);
+  const fgX = 0;
+  const fgY = Math.floor((outHeight - fgHeight) / 4) * 2;
+
+  return {
+    source: { width, height },
+    fg: { width: fgWidth, height: fgHeight, x: fgX, y: fgY },
+    output: { width: outWidth, height: outHeight },
+  };
+}
+
+/**
+ * The -vf graph that renders a fit layout:
+ * The source is split into background and foreground.
+ * The background is scaled and blurred to fill the canvas.
+ * The foreground is scaled to fit and overlaid in the center.
+ */
+export function fitFilter(frame: FitFrame): string {
+  const { source, fg, output } = frame;
+  return [
+    `scale=${String(source.width)}:${String(source.height)},split=2[fg_in][bg_in]`,
+    `[bg_in]scale=${String(output.width)}:${String(output.height)}:flags=bicubic,boxblur=20:5[bg]`,
+    `[fg_in]scale=${String(fg.width)}:${String(fg.height)}:flags=bicubic[fg]`,
+    `[bg][fg]overlay=${String(fg.x)}:${String(fg.y)},setsar=1,format=yuv420p`,
+  ].join(";");
+}
+
+
 /** Round to an even number ≥ 2: H.264 4:2:0 cannot encode odd dimensions. */
 function even(value: number): number {
   return Math.max(2, Math.round(value / 2) * 2);

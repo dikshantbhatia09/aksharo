@@ -40,6 +40,7 @@ times them like speech, and a window of them was proposed as a moment.
 from __future__ import annotations
 
 import math
+import re
 from collections import Counter
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
@@ -49,7 +50,9 @@ from worker_ai.highlights.contracts import MIN_DURATION_MS, ExcludeRange
 from worker_ai.highlights.text import carries_break, ends_clause, ends_sentence_before, is_speech
 
 __all__ = [
+    "HARD_BREAK_PATTERNS",
     "PAUSE_MS",
+    "SPONSOR_PATTERNS",
     "WINDOW_BUDGET",
     "Unit",
     "Window",
@@ -63,6 +66,46 @@ __all__ = [
     "spoken_count",
     "usable_words",
 ]
+
+#: Explicit transition markers that start a new news item or segment.
+HARD_BREAK_PATTERNS: Final = re.compile(
+    r"\b("
+    r"also this week|"
+    r"our next model|"
+    r"moving on to|"
+    r"next up|"
+    r"in other news|"
+    r"in this next story|"
+    r"coming up next|"
+    r"here's another one"
+    r")\b",
+    re.IGNORECASE,
+)
+
+#: Commercial reads and sponsor promotions that must never bleed into clips.
+SPONSOR_PATTERNS: Final = re.compile(
+    r"\b("
+    r"the sponsor of this video|"
+    r"definitely check out .* sponsor|"
+    r"sponsored by|"
+    r"brought to you by|"
+    r"a word from our sponsor|"
+    r"thanks to .* for sponsoring"
+    r")\b",
+    re.IGNORECASE,
+)
+
+#: Fast intro recap hooks that rattle off multiple stories without substance.
+INTRO_TEASER_PATTERNS: Final = re.compile(
+    r"\b("
+    r"this week has been absolutely insane|"
+    r"this week has been crazy|"
+    r"ai never sleeps|"
+    r"in this video we'll cover|"
+    r"coming up in this episode"
+    r")\b",
+    re.IGNORECASE,
+)
 
 #: A gap between words this long is a breath, not a word boundary.
 PAUSE_MS: Final[int] = 700
@@ -104,6 +147,9 @@ class Unit:
     end_ms: int
     #: The unit's last word closes a sentence (the last piece of a split one does).
     sentence_end: bool = False
+    is_hard_break: bool = False
+    is_sponsor: bool = False
+    is_teaser: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -272,6 +318,10 @@ def build_units(words: Sequence[Word], *, min_ms: int, max_ms: int) -> list[Unit
     units: list[Unit] = []
     for first, last in _sentence_spans(ends):
         for low, high in _split_overlong(words, first, last, cap_ms):
+            unit_text = " ".join(words[k].text for k in range(low, high + 1))
+            is_break = bool(HARD_BREAK_PATTERNS.search(unit_text))
+            is_spon = bool(SPONSOR_PATTERNS.search(unit_text))
+            is_teas = bool(words[low].start_ms <= 60_000 and INTRO_TEASER_PATTERNS.search(unit_text))
             units.append(
                 Unit(
                     first=low,
@@ -279,6 +329,9 @@ def build_units(words: Sequence[Word], *, min_ms: int, max_ms: int) -> list[Unit
                     start_ms=words[low].start_ms,
                     end_ms=words[high].end_ms,
                     sentence_end=ends[high],
+                    is_hard_break=is_break,
+                    is_sponsor=is_spon,
+                    is_teaser=is_teas,
                 )
             )
     return units
@@ -313,17 +366,37 @@ def _end_ranges(units: Sequence[Unit], *, min_ms: int, max_ms: int) -> list[tupl
     ``lo`` is the first end that reaches ``min_ms`` and ``hi`` the last before
     one passes ``max_ms``; both only move forward as the start does, so this is
     one pass rather than one per start. ``lo > hi`` when nothing fits.
+
+    Transitions and sponsor cues block windows from crossing them, and sponsor
+    reads or intro teasers cannot start a window.
     """
+    next_blocker = [len(units)] * len(units)
+    last_blocker = len(units)
+    for i in range(len(units) - 1, -1, -1):
+        next_blocker[i] = last_blocker
+        if units[i].is_hard_break or units[i].is_sponsor:
+            last_blocker = i
+
     ranges: list[tuple[int, int]] = []
     lo = past = 0
     for a, head in enumerate(units):
+        if head.is_sponsor or head.is_teaser:
+            ranges.append((1, 0))
+            continue
+
         lo = max(lo, a)
         while lo < len(units) and units[lo].end_ms - head.start_ms < min_ms:
             lo += 1
         past = max(past, a)
         while past < len(units) and units[past].end_ms - head.start_ms <= max_ms:
             past += 1
-        ranges.append((lo, past - 1))
+
+        hi = past - 1
+        blocker = next_blocker[a]
+        if blocker < len(units):
+            hi = min(hi, blocker - 1)
+
+        ranges.append((lo, hi))
     return ranges
 
 
@@ -399,7 +472,13 @@ def enumerate_windows(
                     end_ms=tail.end_ms,
                 )
             )
-    return outside(windows, exclude)
+    auto_sponsor_excludes = [
+        ExcludeRange(start_ms=u.start_ms, end_ms=u.end_ms)
+        for u in units
+        if u.is_sponsor
+    ]
+    all_exclude = list(exclude or []) + auto_sponsor_excludes
+    return outside(windows, all_exclude)
 
 
 def padded_windows(
@@ -419,11 +498,23 @@ def padded_windows(
     left out: fifteen seconds of silence around one word is not a moment. So is
     one whose padded cut overlaps ``exclude`` (:func:`outside`).
     """
+    auto_sponsor_excludes = [
+        ExcludeRange(start_ms=u.start_ms, end_ms=u.end_ms)
+        for u in units
+        if u.is_sponsor
+    ]
+    all_exclude = list(exclude or []) + auto_sponsor_excludes
     min_speech_ms = max(MIN_DURATION_MS, min_ms // 3)
     windows: list[Window] = []
     for a, head in enumerate(units):
+        if head.is_sponsor or head.is_teaser:
+            continue
         b = a
-        while b + 1 < len(units) and units[b + 1].end_ms - head.start_ms <= max_ms:
+        while (
+            b + 1 < len(units)
+            and not (units[b + 1].is_hard_break or units[b + 1].is_sponsor)
+            and units[b + 1].end_ms - head.start_ms <= max_ms
+        ):
             b += 1
         tail = units[b]
         span = tail.end_ms - head.start_ms
@@ -448,7 +539,7 @@ def padded_windows(
                 end_ms=tail.end_ms + after,
             )
         )
-    return outside(windows, exclude)
+    return outside(windows, all_exclude)
 
 
 def select[T](

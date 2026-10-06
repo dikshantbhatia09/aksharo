@@ -196,3 +196,29 @@ def test_an_excerpt_fits_the_contract() -> None:
     assert len(excerpt) <= EXCERPT_MAX_CHARS + 1
     assert excerpt.endswith("…")
     assert make_excerpt(["a", "b."]) == "a b."
+
+
+def test_sanitize_numerals_removes_south_asian_commas() -> None:
+    from worker_ai.highlights.text import sanitize_numerals
+
+    assert sanitize_numerals("it cost 3,20,00,00,00,000 billion tokens") == "it cost 320 billion tokens"
+    assert sanitize_numerals("output 10,00,00,00 million tokens") == "output 10 million tokens"
+    assert sanitize_numerals("normal 1,000,000 count") == "normal 1,000,000 count"
+
+
+def test_sanitize_ai_terms_fixes_acoustic_hallucinations() -> None:
+    from worker_ai.highlights.text import sanitize_ai_terms
+
+    assert sanitize_ai_terms("new GPT 7 .1 Sol model") == "new GPT-6.1 Sol model"
+    assert sanitize_ai_terms("Gemini for Argon is beast") == "Gemini 4 Argon is beast"
+    assert sanitize_ai_terms("Anthropic clawed model") == "Anthropic Claude model"
+
+
+def test_sanitize_transcript_text_combines_normalizations() -> None:
+    from worker_ai.highlights.text import sanitize_transcript_text
+
+    raw = "Gemini for Argon can output 10,00,00,00 million tokens with GPT 7 .1."
+    clean = sanitize_transcript_text(raw)
+    assert "Gemini 4 Argon" in clean
+    assert "10 million" in clean
+    assert "GPT-6.1" in clean

@@ -51,8 +51,8 @@ describe("bundleFilesOf", () => {
       includeClean: false,
     });
     expect(files.map((file) => file.path)).toEqual([
-      "Talk/01 Same/Same 9x16.mp4",
-      "Talk/02 same/same 9x16.mp4",
+      "Talk/01 Same/9x16.mp4",
+      "Talk/02 same/9x16.mp4",
       "Talk/Compilations/Best 9x16.mp4",
       "Talk/Compilations/best 9x16 (2).mp4",
     ]);
@@ -76,9 +76,59 @@ describe("bundleFilesOf", () => {
       includeClean: true,
     });
     expect(files.filter((file) => file.kind === "clean").map((file) => [file.path, file.optional])).toEqual([
-      ["Talk/01 Clip/Without captions/Clip 9x16 no captions.mp4", true],
-      ["Talk/01 Clip/Without captions/Clip 1x1 no captions.mp4", false],
+      ["Talk/01 Clip/Without captions/9x16 no captions.mp4", true],
+      ["Talk/01 Clip/Without captions/1x1 no captions.mp4", false],
     ]);
+  });
+
+  it("guarantees every relative path stays strictly under MAX_PATH budget even with long titles", () => {
+    const veryLongRunTitle =
+      "Gemini 4, GPT 6.1, Dots, Claude Sonnet 5.5, Ideogram 4.5, Flux 3 AI NEWS and Deep Analysis of Every Frontier Release";
+    const veryLongClipTitle =
+      "A massive 320 billion parameter AI model breaks all benchmark records with MoE architecture";
+    const files = bundleFilesOf({
+      runTitle: veryLongRunTitle,
+      clips: [
+        {
+          plan: plan(veryLongClipTitle, {
+            videos: [
+              { shape: "9:16", captionedKey: "ws/w/v1.mp4", cleanKey: "ws/w/v1-clean.mp4" },
+            ],
+            images: [
+              {
+                id: "carousel",
+                name: "Carousel",
+                keys: [{ name: "carousel-slide-1", key: "ws/w/img1.jpg" }],
+              },
+            ],
+            dubs: [
+              {
+                language: "hi-IN",
+                name: "Hindi Dubbed Audio Track",
+                videos: [{ shape: "9:16", captionedKey: "ws/w/dub.mp4", cleanKey: null }],
+              },
+            ],
+          }),
+        },
+      ],
+      compilations: [
+        { title: "Long Compilation Title of All Major Breakthroughs", shape: "9:16", key: "ws/w/c.mp4" },
+      ],
+      episode: {
+        chapters: [{ startMs: 0, title: "Intro" }],
+        youtubeDescription: "Desc",
+        showNotes: "",
+        linkedinPost: "",
+        xThread: [],
+        newsletter: "",
+      },
+      includeClean: true,
+    });
+
+    // Check that every relative path in the archive is < 120 chars (leaving 140+ chars for user's download path)
+    for (const file of files) {
+      expect(file.path.length).toBeLessThan(120);
+    }
   });
 });
 

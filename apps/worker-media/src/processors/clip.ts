@@ -18,6 +18,8 @@ import {
   MAX_CLIP_HEIGHT,
   clipFilter,
   clipFrame,
+  fitFilter,
+  fitFrame,
   stackedFilter,
   stackedFrame,
   type ClipAspect,
@@ -53,7 +55,7 @@ export interface ClipPayload {
      * `stacked` (2026-10-01): each of `people` in half of the picture, the
      * first on top (`stackedFrame`). Absent or `single`: one window.
      */
-    readonly layout?: "single" | "stacked";
+    readonly layout?: "single" | "stacked" | "fit";
     readonly people?: readonly StackedPersonInput[];
   };
   /** The shape to cut (2026-09-29); 9:16 when absent. */
@@ -172,6 +174,7 @@ export async function processClip(context: JobContext): Promise<ProcessorOutcome
   // stack the source cannot make is cut on the dominant speaker
   // (`reframe.centerX`), never failed: the clip matters more than its layout.
   const wantsStack = payload.reframe?.layout === "stacked";
+  const wantsFit = payload.reframe?.layout === "fit";
   const stacked =
     source.video === null || !wantsStack
       ? null
@@ -187,8 +190,15 @@ export async function processClip(context: JobContext): Promise<ProcessorOutcome
       source: source.video,
     });
   }
+  const fitted =
+    source.video === null || !wantsFit || stacked !== null
+      ? null
+      : fitFrame(source.video, {
+          maxHeight,
+          ...(payload.aspect === undefined ? {} : { aspect: payload.aspect }),
+        });
   const frame =
-    source.video === null || stacked !== null
+    source.video === null || stacked !== null || fitted !== null
       ? null
       : clipFrame(source.video, {
           maxHeight,
@@ -196,11 +206,17 @@ export async function processClip(context: JobContext): Promise<ProcessorOutcome
           ...(payload.reframe === undefined ? {} : { centerX: payload.reframe.centerX }),
           ...(payload.reframe?.centerY === undefined ? {} : { centerY: payload.reframe.centerY }),
         });
-  if (source.video !== null && stacked === null && frame === null) {
+  if (source.video !== null && stacked === null && fitted === null && frame === null) {
     throw unreadableMedia("The source's picture size could not be read.", "media/probe_failed");
   }
   const videoFilter =
-    stacked !== null ? stackedFilter(stacked) : frame !== null ? clipFilter(frame) : null;
+    stacked !== null
+      ? stackedFilter(stacked)
+      : fitted !== null
+      ? fitFilter(fitted)
+      : frame !== null
+      ? clipFilter(frame)
+      : null;
 
   // An audiogram (2026-10-04): a source with no picture gets one drawn, when
   // the API asked for it (`audiogram.ts`). A source that turns out to have a
@@ -273,9 +289,9 @@ export async function processClip(context: JobContext): Promise<ProcessorOutcome
       effectiveStartMs,
       effectiveEndMs,
       framing: payload.reframe?.basis ?? "centre",
-      layout: stacked === null ? "single" : "stacked",
-      crop: stacked?.crops ?? frame?.crop,
-      output: stacked?.output ?? frame?.output,
+      layout: stacked !== null ? "stacked" : fitted !== null ? "fit" : "single",
+      crop: stacked?.crops ?? frame?.crop ?? fitted?.fg,
+      output: stacked?.output ?? frame?.output ?? fitted?.output,
       ...(picture === null
         ? {}
         : {

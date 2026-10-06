@@ -157,7 +157,7 @@ export function episodeText(runTitle: string, pack: EpisodePack): string | null 
 
 /** Every file of the ZIP, in the order it is written, with unique paths. */
 export function bundleFilesOf(input: BundleInput): BundleFile[] {
-  const root = safeSegment(input.runTitle, 80, "Clips");
+  const root = safeSegment(input.runTitle, 35, "Clips");
   const files: BundleFile[] = [];
   const add = (
     path: string,
@@ -174,7 +174,7 @@ export function bundleFilesOf(input: BundleInput): BundleFile[] {
   }
 
   input.clips.forEach(({ plan }, index) => {
-    const stem = safeSegment(plan.title);
+    const stem = safeSegment(plan.title, 30);
     const folder = `${root}/${pad(index, input.clips.length)} ${stem}`;
     const shapes = (
       videos: readonly ShapeFiles[],
@@ -185,14 +185,14 @@ export function bundleFilesOf(input: BundleInput): BundleFile[] {
       for (const files of videos) {
         const tag = shapeTag(files.shape);
         if (files.captionedKey !== null) {
-          add(`${dir}/${stem} ${tag}${suffix}.mp4`, kind, {
+          add(`${dir}/${tag}${suffix}.mp4`, kind, {
             kind: "object",
             key: files.captionedKey,
           });
         }
         if (files.cleanKey !== null && (input.includeClean || files.captionedKey === null)) {
           add(
-            `${dir}/Without captions/${stem} ${tag}${suffix} no captions.mp4`,
+            `${dir}/Without captions/${tag}${suffix} no captions.mp4`,
             "clean",
             { kind: "object", key: files.cleanKey },
             files.captionedKey !== null,
@@ -206,20 +206,20 @@ export function bundleFilesOf(input: BundleInput): BundleFile[] {
     if (words !== null) add(`${folder}/Words to post.txt`, "text", { kind: "text", text: words });
     for (const image of plan.images) {
       for (const entry of image.keys) {
-        add(`${folder}/Images/${stem} ${safeSegment(entry.name, 40, image.id)}.jpg`, "image", {
+        add(`${folder}/Images/${safeSegment(entry.name, 25, image.id)}.jpg`, "image", {
           kind: "object",
           key: entry.key,
         });
       }
     }
     for (const dub of plan.dubs) {
-      const language = safeSegment(dub.name, 30, dub.language);
+      const language = safeSegment(dub.name, 20, dub.language);
       shapes(dub.videos, `${folder}/Dubbed ${language}`, "dub", ` ${language}`);
     }
   });
 
   for (const compilation of input.compilations) {
-    const title = safeSegment(compilation.title ?? "Compilation");
+    const title = safeSegment(compilation.title ?? "Compilation", 30);
     add(`${root}/Compilations/${title} ${shapeTag(compilation.shape)}.mp4`, "compilation", {
       kind: "object",
       key: compilation.key,

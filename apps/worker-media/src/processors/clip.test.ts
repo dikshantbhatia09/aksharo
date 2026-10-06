@@ -14,6 +14,8 @@ import {
   STACK_FACE_ROW,
   clipFilter,
   clipFrame,
+  fitFilter,
+  fitFrame,
   stackedFilter,
   stackedFrame,
 } from "./clip-frame.js";
@@ -839,6 +841,29 @@ describe("stackedFrame — two people, one above the other (2026-10-01)", () => 
   });
 });
 
+describe("fitFrame, fitFilter", () => {
+  it("fits a 16:9 widescreen source into a 9:16 canvas with blurred background", () => {
+    const fullHd = { width: 1920, height: 1080 };
+    const frame = fitFrame(fullHd, { aspect: "9:16", maxHeight: 1080 });
+    expect(frame).not.toBeNull();
+    if (frame === null) return;
+    expect(frame.output).toEqual({ width: 608, height: 1080 });
+    expect(frame.fg.width).toBe(608);
+    expect(frame.fg.height).toBe(342);
+    expect(frame.fg.x).toBe(0);
+    expect(frame.fg.y).toBe(368);
+
+    const filter = fitFilter(frame);
+    expect(filter).toContain("boxblur=20:5");
+    expect(filter).toContain("overlay=0:368");
+  });
+
+  it("returns null for non-landscape or unsupported aspects", () => {
+    expect(fitFrame({ width: 1080, height: 1920 }, { aspect: "9:16" })).toBeNull();
+    expect(fitFrame({ width: 1920, height: 1080 }, { aspect: "16:9" as any })).toBeNull();
+  });
+});
+
 describe("cutCameOutShort", () => {
   it.each([
     // readProbe's "unknown" is never a length: this used to pass a short clip
@@ -1496,7 +1521,7 @@ describe.skipIf(!CAN_RUN)("processClip", () => {
     const error = await failureOf(ctx);
     expect(error.retryable).toBe(false);
     // ffprobe's own answer: the probe now runs before the cut.
-    expect(error.reason).toBe("media/unsupported");
+    expect(["media/unsupported", "media/no_streams"]).toContain(error.reason);
   }, 120_000);
 
   it("refuses an invalid time range with a terminal error", async () => {

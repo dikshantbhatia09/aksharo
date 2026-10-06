@@ -31,6 +31,9 @@ __all__ = [
     "make_excerpt",
     "make_title",
     "normalise",
+    "sanitize_ai_terms",
+    "sanitize_numerals",
+    "sanitize_transcript_text",
 ]
 
 #: Sentence-final marks: Latin, the ellipsis, the Devanagari danda and double
@@ -265,3 +268,86 @@ def make_excerpt(texts: Sequence[str]) -> str:
         return ""
     excerpt, trimmed = _cut_at_word_boundary(words, EXCERPT_MAX_CHARS)
     return excerpt + "\u2026" if trimmed else excerpt
+
+
+def sanitize_numerals(text: str) -> str:
+    """Normalize irregular South Asian comma groupings and redundant scale multipliers.
+
+    E.g.
+    '3,20,00,00,00,000 billion' -> '320 billion'
+    '10,00,00,00 million' -> '10 million'
+    '3,20,00,00,00,000' -> '320,000,000,000'
+    """
+    if not text:
+        return text
+
+    def _clean_scale(match: re.Match[str]) -> str:
+        digits = match.group(1).replace(",", "")
+        scale = match.group(2).lower()
+        if scale == "billion":
+            if digits.endswith("000000000"):
+                shortened = digits[:-9]
+                if shortened:
+                    return f"{shortened} {match.group(2)}"
+        elif scale == "million":
+            if digits.endswith("000000"):
+                shortened = digits[:-6]
+                if shortened:
+                    return f"{shortened} {match.group(2)}"
+        elif scale == "trillion":
+            if digits.endswith("000000000000"):
+                shortened = digits[:-12]
+                if shortened:
+                    return f"{shortened} {match.group(2)}"
+        return match.group(0)
+
+    # Match numbers with commas followed by billion/million/trillion
+    text = re.sub(
+        r"\b(\d{1,3}(?:,\d+)+)\s+(billion|million|trillion)\b",
+        _clean_scale,
+        text,
+        flags=re.IGNORECASE,
+    )
+
+    # Handle raw digit strings with South Asian commas: replace with standard 3-digit groups
+    def _normalize_commas(match: re.Match[str]) -> str:
+        s = match.group(0)
+        digits = s.replace(",", "")
+        reversed_parts = []
+        for i in range(len(digits), 0, -3):
+            reversed_parts.append(digits[max(0, i - 3) : i])
+        return ",".join(reversed(reversed_parts))
+
+    text = re.sub(r"\b\d{1,2}(?:,\d{2})+,\d{3}\b", _normalize_commas, text)
+    return text
+
+
+def sanitize_ai_terms(text: str) -> str:
+    """Correct frequent Whisper acoustic mishearings of frontier AI model names."""
+    if not text:
+        return text
+
+    # GPT 7 / 7.1 hallucination from fast-spoken "GPT 6.1" or "GPT-6.1 Sol"
+    text = re.sub(r"\bGPT\s*7\s*[\.]\s*1\b", "GPT-6.1", text, flags=re.IGNORECASE)
+    text = re.sub(r"\bGPT\s*7\.1\b", "GPT-6.1", text, flags=re.IGNORECASE)
+    text = re.sub(r"\bGPT\s*7\b", "GPT-6.1", text)
+
+    # Gemini 4 Argon misheard as Gemini for Argon
+    text = re.sub(r"\bGemini\s+for\s+Argon\b", "Gemini 4 Argon", text, flags=re.IGNORECASE)
+    text = re.sub(
+        r"\bGemini\s+for\b(?=\s+(?:being|is|has|models?))",
+        "Gemini 4",
+        text,
+        flags=re.IGNORECASE,
+    )
+
+    # Claude misheard as clawed
+    text = re.sub(r"\bclawed\s+model\b", "Claude model", text, flags=re.IGNORECASE)
+    text = re.sub(r"\blatest\s+clawed\b", "latest Claude", text, flags=re.IGNORECASE)
+    return text
+
+
+def sanitize_transcript_text(text: str) -> str:
+    """Combined numeral and domain term sanitization for transcripts and subtitles."""
+    return sanitize_ai_terms(sanitize_numerals(text))
+

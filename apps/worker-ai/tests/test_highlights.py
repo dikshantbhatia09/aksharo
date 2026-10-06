@@ -965,3 +965,49 @@ async def test_autopilot_returns_nothing_when_no_moment_clears_the_bar() -> None
 def test_the_contract_allows_forty_moments_and_a_bar() -> None:
     assert options(count=40, minPotential=0.6).min_potential == 0.6
     assert options().min_potential is None
+
+
+def test_windows_do_not_cross_hard_break_transitions() -> None:
+    raw = talk([
+        "first story is about speech to text models which are very fast.",
+        "also this week researchers cracked a coded letter from napoleon.",
+        "the whole process took about six hours to decode completely.",
+    ], word_ms=1000)
+    words = usable_words(raw)
+    units = build_units(words, min_ms=5_000, max_ms=30_000)
+    windows = enumerate_windows(units, min_ms=5_000, max_ms=30_000)
+    story1_start = words[0].start_ms
+    story2_units = [u for u in units if u.is_hard_break]
+    assert len(story2_units) > 0
+    story2_unit = story2_units[0]
+    for w in windows:
+        if w.start_ms == story1_start:
+            assert w.end_ms <= story2_unit.start_ms
+
+
+def test_sponsor_reads_are_excluded_from_windows() -> None:
+    raw = talk([
+        "this tool improves creative workflows dramatically for everyone.",
+        "definitely check out luma the sponsor of this video for more.",
+        "creating with ai means jumping between models all the time.",
+    ], word_ms=1000)
+    words = usable_words(raw)
+    units = build_units(words, min_ms=5_000, max_ms=30_000)
+    windows = enumerate_windows(units, min_ms=5_000, max_ms=30_000)
+    sponsor_units = [u for u in units if u.is_sponsor]
+    assert len(sponsor_units) > 0
+    sponsor_unit = sponsor_units[0]
+    for w in windows:
+        assert w.start_ms != sponsor_unit.start_ms
+        assert not (w.start_ms < sponsor_unit.end_ms and sponsor_unit.start_ms < w.end_ms)
+
+
+def test_orphan_pronoun_opening_is_penalized() -> None:
+    raw = talk([
+        "it also discovered that some letters actually represented words.",
+        "the whole process took around six hours to finish decoding.",
+    ])
+    words = usable_words(raw)
+    units = build_units(words, min_ms=1000, max_ms=30_000)
+    features = WordFeatures(words, units)
+    assert features.opening(0) < 0.5

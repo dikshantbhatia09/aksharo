@@ -33,8 +33,8 @@ import type { ClipLayout, StackedPerson } from "@montaj/repurpose-contracts";
  * the cut (its payload and its job key) is stable.
  */
 
-/** What a person picks for a clip: let the track decide, one speaker, or both. */
-export const CLIP_LAYOUT_CHOICES = ["auto", "single", "stacked"] as const;
+/** What a person picks for a clip: let the track decide, one speaker, both, or canvas fit. */
+export const CLIP_LAYOUT_CHOICES = ["auto", "single", "stacked", "fit"] as const;
 export type ClipLayoutChoice = (typeof CLIP_LAYOUT_CHOICES)[number];
 
 /**
@@ -47,9 +47,9 @@ export function layoutChoiceOf(value: unknown): ClipLayoutChoice {
     : "auto";
 }
 
-/** A shape's recorded `layout`: `stacked`, or the one window every older shape is. */
+/** A shape's recorded `layout`: `stacked`, `fit`, or the one window every older shape is. */
 export function shapeLayoutOf(value: unknown): ClipLayout {
-  return value === "stacked" ? "stacked" : "single";
+  return value === "stacked" ? "stacked" : value === "fit" ? "fit" : "single";
 }
 
 export interface LayoutDecision {
@@ -59,6 +59,7 @@ export interface LayoutDecision {
 }
 
 export const SINGLE_LAYOUT: LayoutDecision = Object.freeze({ layout: "single" });
+export const FIT_LAYOUT: LayoutDecision = Object.freeze({ layout: "fit" });
 
 /** Faces shorter than this share of the frame are background (as in `reframe.ts`). */
 const MIN_FACE_HEIGHT = 0.06;
@@ -122,6 +123,7 @@ export function detectLayout(
   choice: ClipLayoutChoice,
 ): LayoutDecision {
   if (choice === "single") return SINGLE_LAYOUT;
+  if (choice === "fit") return FIT_LAYOUT;
   if (!(track.source.width > track.source.height)) return SINGLE_LAYOUT;
   const forced = choice === "stacked";
 
@@ -134,8 +136,10 @@ export function detectLayout(
   const lefts: SampleFace[] = [];
   const rights: SampleFace[] = [];
   let crowded = 0;
+  let anyFaces = 0;
   for (const [, boxes] of samples) {
     const [a, b, third] = facesOf(boxes);
+    if (a !== undefined) anyFaces += 1;
     if (a === undefined || b === undefined) continue;
     const [left, right] = a.cx <= b.cx ? [a, b] : [b, a];
     const minGap = Math.max(
@@ -147,8 +151,11 @@ export function detectLayout(
     rights.push(right);
     if (third !== undefined && third.h >= CROWD_FACE_RATIO * Math.min(a.h, b.h)) crowded += 1;
   }
-  if (lefts.length === 0) return SINGLE_LAYOUT;
-  if (lefts.length / samples.length < (forced ? FORCED_TOGETHER_SHARE : AUTO_TOGETHER_SHARE)) {
+  if (lefts.length === 0 || lefts.length / samples.length < (forced ? FORCED_TOGETHER_SHARE : AUTO_TOGETHER_SHARE)) {
+    // If auto and no faces present in at least 15% of samples, it's presentation / screencast footage
+    if (choice === "auto" && anyFaces / samples.length < 0.15) {
+      return FIT_LAYOUT;
+    }
     return SINGLE_LAYOUT;
   }
 

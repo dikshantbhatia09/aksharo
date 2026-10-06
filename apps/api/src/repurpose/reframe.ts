@@ -447,17 +447,21 @@ export function framingFromTrack(
   if (!(STACKED_ASPECTS as readonly string[]).includes(shape)) return reframe;
   try {
     const decision = detectLayout(track, interval.fromMs, interval.toMs, choice);
-    return decision.layout === "stacked" && decision.people !== undefined
-      ? { ...reframe, layout: "stacked", people: decision.people }
-      : reframe;
+    if (decision.layout === "stacked" && decision.people !== undefined) {
+      return { ...reframe, layout: "stacked", people: decision.people };
+    }
+    if (decision.layout === "fit") {
+      return { ...reframe, layout: "fit" };
+    }
+    return reframe;
   } catch {
     return reframe;
   }
 }
 
-/** The layout a {@link ClipReframe} cuts: `single` unless it says `stacked`. */
+/** The layout a {@link ClipReframe} cuts: `single` unless it says `stacked` or `fit`. */
 export function layoutOfReframe(reframe: ClipReframe): ClipLayout {
-  return reframe.layout === "stacked" ? "stacked" : "single";
+  return reframe.layout === "stacked" ? "stacked" : reframe.layout === "fit" ? "fit" : "single";
 }
 
 /** The reframe for one clip of a source media: {@link loadFaceTrack}, then {@link reframeFromTrack}. */

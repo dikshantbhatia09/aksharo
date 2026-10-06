@@ -215,14 +215,14 @@ describe("RunBundleService", () => {
 
     const root = "Diwali vlog";
     expect(names).toContain(`${root}/Episode text.txt`);
-    expect(names).toContain(`${root}/01 Clip 1/Clip 1 9x16.mp4`);
-    expect(names).toContain(`${root}/01 Clip 1/Clip 1 16x9.mp4`);
+    expect(names).toContain(`${root}/01 Clip 1/9x16.mp4`);
+    expect(names).toContain(`${root}/01 Clip 1/16x9.mp4`);
     expect(names).toContain(`${root}/01 Clip 1/Words to post.txt`);
-    expect(names).toContain(`${root}/01 Clip 1/Images/Clip 1 carousel-2.jpg`);
-    expect(names).toContain(`${root}/01 Clip 1/Dubbed Hindi/Clip 1 9x16 Hindi.mp4`);
-    expect(names).toContain(`${root}/02 Clip 2/Clip 2 9x16.mp4`);
+    expect(names).toContain(`${root}/01 Clip 1/Images/carousel-2.jpg`);
+    expect(names).toContain(`${root}/01 Clip 1/Dubbed Hindi/9x16 Hindi.mp4`);
+    expect(names).toContain(`${root}/02 Clip 2/9x16.mp4`);
     // A shape with only its clean cut has it, even unasked.
-    expect(names).toContain(`${root}/02 Clip 2/Without captions/Clip 2 1x1 no captions.mp4`);
+    expect(names).toContain(`${root}/02 Clip 2/Without captions/1x1 no captions.mp4`);
     // Not asked for: clip 1's clean cuts. Never: the removed clip, the one still coming.
     expect(names.some((name) => name.startsWith(`${root}/01 Clip 1/Without captions/`))).toBe(
       false,
@@ -233,7 +233,7 @@ describe("RunBundleService", () => {
     const vertical = b.harness.db.tables.export.find(
       (row) => row["projectId"] === `PRJ-${"01JCLIP00000000000000000C1"}-r9x16`,
     );
-    expect(entries.get(`${root}/01 Clip 1/Clip 1 9x16.mp4`)?.toString()).toBe(
+    expect(entries.get(`${root}/01 Clip 1/9x16.mp4`)?.toString()).toBe(
       `bytes of ${String(vertical?.["storageKey"])}`,
     );
     const words = entries.get(`${root}/01 Clip 1/Words to post.txt`)?.toString() ?? "";
@@ -279,8 +279,8 @@ describe("RunBundleService", () => {
     const opened = await b.service.open(created.url.split("/").at(-1) ?? "");
     expect(opened.filename).toBe("Diwali vlog (1 clip).zip");
     const names = [...entriesOf(await bytesOf(opened.stream)).keys()];
-    expect(names).toContain("Diwali vlog/01 Clip 1/Clip 1 9x16.mp4");
-    expect(names).toContain("Diwali vlog/01 Clip 1/Dubbed Hindi/Clip 1 9x16 Hindi.mp4");
+    expect(names).toContain("Diwali vlog/01 Clip 1/9x16.mp4");
+    expect(names).toContain("Diwali vlog/01 Clip 1/Dubbed Hindi/9x16 Hindi.mp4");
     expect(names.some((name) => name.includes("Clip 2"))).toBe(false);
     expect(names).not.toContain("Diwali vlog/Episode text.txt");
     expect(b.harness.audits.at(-1)).toMatchObject({
@@ -313,9 +313,9 @@ describe("RunBundleService", () => {
     });
     const opened = await b.service.open(created.url.split("/").at(-1) ?? "");
     const names = [...entriesOf(await bytesOf(opened.stream)).keys()];
-    expect(names).toContain("Diwali vlog/01 Clip 1/Without captions/Clip 1 4x5 no captions.mp4");
+    expect(names).toContain("Diwali vlog/01 Clip 1/Without captions/4x5 no captions.mp4");
     expect(names).toContain(
-      "Diwali vlog/01 Clip 1/Dubbed Hindi/Without captions/Clip 1 9x16 Hindi no captions.mp4",
+      "Diwali vlog/01 Clip 1/Dubbed Hindi/Without captions/9x16 Hindi no captions.mp4",
     );
   });
 

@@ -158,12 +158,13 @@ export const MediaAcquireResultSchema = z.strictObject({
  * above the other. Only a shape tall enough to hold two halves is stacked
  * ({@link STACKED_ASPECTS}).
  */
-export const CLIP_LAYOUTS = ["single", "stacked"] as const;
+export const CLIP_LAYOUTS = ["single", "stacked", "fit"] as const;
 export const ClipLayoutSchema = z.enum(CLIP_LAYOUTS);
 export type ClipLayout = z.infer<typeof ClipLayoutSchema>;
 
 /** The shapes a stacked cut is made in: 1:1 would squash two halves, and 16:9 needs none. */
 export const STACKED_ASPECTS = ["9:16", "4:5"] as const;
+export const FIT_ASPECTS = ["9:16", "4:5"] as const;
 
 /**
  * One of the two people a stacked cut shows: where their face is, as
@@ -355,11 +356,21 @@ export const MediaClipPayloadSchema = z
         message: "Only a 9:16 or a 4:5 cut is stacked.",
       });
     }
-    if (value.audiogram !== undefined && value.reframe?.layout === "stacked") {
+    if (
+      value.reframe?.layout === "fit" &&
+      !(FIT_ASPECTS as readonly string[]).includes(value.aspect ?? "9:16")
+    ) {
       context.addIssue({
         code: "custom",
         path: ["reframe", "layout"],
-        message: "An audiogram is one picture; it is never stacked.",
+        message: "Only a 9:16 or a 4:5 cut is fitted.",
+      });
+    }
+    if (value.audiogram !== undefined && (value.reframe?.layout === "stacked" || value.reframe?.layout === "fit")) {
+      context.addIssue({
+        code: "custom",
+        path: ["reframe", "layout"],
+        message: "An audiogram is one picture; it is never stacked or fitted.",
       });
     }
     const artwork = value.audiogram?.artwork;
@@ -685,7 +696,7 @@ export function mediaClipJobKey(
 
 /** The end of a cut's job key that names its layout: nothing for one window. */
 export function layoutKeySuffix(layout: ClipLayout): string {
-  return layout === "stacked" ? ":stacked" : "";
+  return layout === "stacked" ? ":stacked" : layout === "fit" ? ":fit" : "";
 }
 
 /** The revision is in the key: an edited transcript is a different analysis. */

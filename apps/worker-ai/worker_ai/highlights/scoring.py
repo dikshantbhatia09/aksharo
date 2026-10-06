@@ -292,6 +292,19 @@ HOOK_OPENERS: Final[tuple[tuple[str, ...], ...]] = tuple(
 #: Connectives skipped before matching an opener: "So, here's the thing".
 _OPENER_SKIP: Final = frozenset({"so", "and", "but", "okay", "ok", "now", "well", "toh", "तो"})
 
+#: Sentence openings that start with an orphan pronoun without antecedent context.
+_ORPHAN_PRONOUNS: Final = (
+    ("it", "also"),
+    ("they", "also"),
+    ("he", "also"),
+    ("she", "also"),
+    ("it", "s", "also"),
+    ("its", "also"),
+    ("here", "s", "its"),
+    ("heres", "its"),
+    ("it", "turns", "out"),
+)
+
 #: Weights per `contentGoal`. Each row sums to 1. `question` is not a breakdown
 #: dimension (the contract has none for it), but it is what `engagement` asks for.
 _WEIGHTS: Final[dict[str, dict[str, float]]] = {
@@ -403,7 +416,22 @@ class WordFeatures:
 
     def opening(self, first: int) -> float:
         """How clean the cut in before word ``first`` is: see :meth:`cut_after`."""
-        return self._edge_cut if first == 0 else self.cut_after(first - 1)
+        base = self._edge_cut if first == 0 else self.cut_after(first - 1)
+        if self._has_orphan_pronoun(first):
+            return base * 0.2
+        return base
+
+    def _has_orphan_pronoun(self, first: int) -> bool:
+        stop = min(first + 6, len(self.norm))
+        tokens = self.norm[first:stop]
+        skipped = 0
+        while skipped < 2 and skipped < len(tokens) and tokens[skipped] in _OPENER_SKIP:
+            skipped += 1
+        tokens = tokens[skipped:]
+        for phrase in _ORPHAN_PRONOUNS:
+            if len(tokens) >= len(phrase) and tuple(tokens[: len(phrase)]) == phrase:
+                return True
+        return False
 
     def closing(self, last: int) -> float:
         """How clean the cut out after word ``last`` is.

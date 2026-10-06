@@ -214,7 +214,9 @@ describe("media.clip@1, two-speaker layouts (2026-10-01)", () => {
     expect(mediaClipJobKey(CANDIDATE, "0-1", "3", "single")).toBe(`media.clip:${CANDIDATE}:0-1:3`);
     expect(mediaClipJobKey(CANDIDATE, "0-1", "3")).toBe(mediaClipJobKey(CANDIDATE, "0-1", "3"));
     expect(layoutKeySuffix("stacked")).toBe(":stacked");
+    expect(layoutKeySuffix("fit")).toBe(":fit");
     expect(layoutKeySuffix("single")).toBe("");
+    expect(mediaClipJobKey(CANDIDATE, "0-1", "3", "fit")).toBe(`media.clip:${CANDIDATE}:0-1:3:fit`);
   });
 });
 

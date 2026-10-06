@@ -45,6 +45,7 @@ from collections.abc import Callable, Iterable
 from pathlib import Path
 from typing import Any, Protocol
 
+from worker_ai.highlights.text import sanitize_transcript_text
 from worker_ai.languages import whisper_language
 from worker_ai.logging_setup import get_logger
 from worker_ai.providers.base import (
@@ -183,7 +184,10 @@ def words_from_segments(segments: Iterable[Any], offset_ms: int) -> tuple[Word, 
         segment_words = _val(segment, "words") or []
         if segment_words:
             for word in segment_words:
-                text = str(_val(word, "word", "")).strip()
+                raw_text = str(_val(word, "word", "")).strip()
+                if not raw_text:
+                    continue
+                text = sanitize_transcript_text(raw_text)
                 if not text:
                     continue
                 probability = _val(word, "probability")
@@ -196,15 +200,17 @@ def words_from_segments(segments: Iterable[Any], offset_ms: int) -> tuple[Word, 
                     )
                 )
             continue
-        text = str(_val(segment, "text", "")).strip()
-        if text:
-            words.append(
-                Word(
-                    s=_ms(_val(segment, "start"), offset_ms),
-                    e=_ms(_val(segment, "end"), offset_ms),
-                    t=text,
+        raw_text = str(_val(segment, "text", "")).strip()
+        if raw_text:
+            text = sanitize_transcript_text(raw_text)
+            if text:
+                words.append(
+                    Word(
+                        s=_ms(_val(segment, "start"), offset_ms),
+                        e=_ms(_val(segment, "end"), offset_ms),
+                        t=text,
+                    )
                 )
-            )
     return tuple(words)
 
 
@@ -252,12 +258,23 @@ def _prepare_cleaned_audio(audio_uri: str) -> tuple[str, bool]:
     return audio_uri, False
 
 
+DEFAULT_AI_FRONTIER_HOTWORDS: Final[tuple[str, ...]] = (
+    "GPT-6.1 Sol",
+    "Claude Sonnet 5.5",
+    "Claude Opus 5.5",
+    "Gemini 4 Argon",
+    "Ideogram 4.5",
+    "Flux 3",
+    "ElevenLabs",
+    "Unitree G1",
+    "Tsinghua",
+)
+
+
 def _build_initial_prompt(hints: tuple[str, ...] | list[str] | None) -> str | None:
     """Whisper's only hotword mechanism is the decoder prompt (`09 §3`).
 
-    Every term comes from the caller's glossary/hints (B09/B09b) — never
-    hardcoded here. A domain vocabulary belongs in the workspace's glossary,
-    not baked into a shared provider adapter that every workspace calls.
+    No hardcoded vocabulary: every term comes from the glossary/hints (B09).
     """
     hint_list = [h.strip() for h in (hints or ()) if h.strip()]
     if hint_list:

@@ -74,7 +74,7 @@ export interface PostFacts {
   readonly timeKnown: boolean;
   /** When it went out, or was recorded when that is not known: what a window is cut by. */
   readonly at: Date;
-  readonly layout: "single" | "stacked" | null;
+  readonly layout: "single" | "stacked" | "fit" | null;
   /** The language the post's words are in (a dub's, else the clip's). */
   readonly language: string | null;
 }
@@ -258,6 +258,13 @@ function layoutBucket(post: PostFacts): Bucket | null {
       key: "stacked",
       label: "Two speakers, stacked",
       subject: "Clips with two speakers one above the other",
+    };
+  }
+  if (post.layout === "fit") {
+    return {
+      key: "fit",
+      label: "Canvas fit",
+      subject: "Clips with canvas fit presentation",
     };
   }
   return null;

@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { FaceTrackDocument } from "@montaj/render-core";
 import { MediaClipPayloadSchema } from "@montaj/repurpose-contracts";
 
-import { SINGLE_LAYOUT, detectLayout } from "./layout.js";
+import { FIT_LAYOUT, SINGLE_LAYOUT, detectLayout } from "./layout.js";
 import { CENTRE_REFRAME, framingFromTrack, layoutOfReframe } from "./reframe.js";
 
 type Box = readonly [number, number, number, number];
@@ -165,6 +165,11 @@ describe("detectLayout (2026-10-01, two-speaker layouts)", () => {
     ]);
     expect(detectLayout(messy, 0, 10_000, "auto").layout).toBe("stacked");
   });
+
+  it("returns fit layout when asked for fit", () => {
+    expect(detectLayout(PODCAST, 0, 20_000, "fit")).toEqual(FIT_LAYOUT);
+    expect(detectLayout(undefined, 0, 10_000, "fit")).toEqual(FIT_LAYOUT);
+  });
 });
 
 describe("framingFromTrack", () => {
@@ -205,5 +210,15 @@ describe("framingFromTrack", () => {
       expect(framingFromTrack(PODCAST, interval, "stacked", shape).layout).toBeUndefined();
     }
     expect(framingFromTrack(PODCAST, interval, "stacked", "4:5").layout).toBe("stacked");
+  });
+
+  it("handles fit framing correctly on vertical and wide shapes", () => {
+    const fitFraming = framingFromTrack(PODCAST, interval, "fit", "9:16");
+    expect(fitFraming.layout).toBe("fit");
+    expect(layoutOfReframe(fitFraming)).toBe("fit");
+    const wideFit = framingFromTrack(PODCAST, interval, "fit", "16:9");
+    expect(wideFit.layout).toBeUndefined();
+    const fourByFiveFit = framingFromTrack(PODCAST, interval, "fit", "4:5");
+    expect(fourByFiveFit.layout).toBe("fit");
   });
 });
