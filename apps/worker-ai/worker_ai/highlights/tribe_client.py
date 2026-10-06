@@ -199,7 +199,25 @@ class TribeClient:
                     data = res.json()
                     lat = round((time.monotonic() - start_t) * 1000)
                     score = self._parse_single_item(item.window_id, data, lat)
-                    return item.window_id, score
+                    if score is not None:
+                        return item.window_id, score
+                elif res.status_code == 404:
+                    # Fallback to multipart /predict/text endpoint if deployed on Mac
+                    predict_url = f"{self.base_url}/predict/text"
+                    files = {
+                        "file": (
+                            f"{item.window_id}.txt",
+                            item.transcript_text.encode("utf-8"),
+                            "text/plain",
+                        )
+                    }
+                    res2 = await client.post(predict_url, files=files)
+                    if res2.status_code == 200:
+                        data = res2.json()
+                        lat = round((time.monotonic() - start_t) * 1000)
+                        score = self._parse_single_item(item.window_id, data, lat)
+                        if score is not None:
+                            return item.window_id, score
             except Exception:
                 pass
             return item.window_id, None
@@ -223,9 +241,11 @@ class TribeClient:
 
         results: dict[str, NeuralAttentionScore] = {}
         for item in raw_items:
-            if not isinstance(item, dict):
+            if not isinstance(item, (dict, list)):
                 continue
-            window_id = str(item.get("windowId") or item.get("window_id") or "")
+            window_id = ""
+            if isinstance(item, dict):
+                window_id = str(item.get("windowId") or item.get("window_id") or "")
             if not window_id:
                 continue
             parsed = self._parse_single_item(window_id, item, latency_ms)
@@ -235,13 +255,69 @@ class TribeClient:
 
     @staticmethod
     def _parse_single_item(
-        window_id: str, item: dict[str, Any], latency_ms: int
+        window_id: str, item: Any, latency_ms: int
     ) -> NeuralAttentionScore | None:
         try:
-            hook = float(item.get("hookScore") or item.get("hook_score") or 0.0)
-            retention = float(item.get("retentionScore") or item.get("retention_score") or 0.0)
-            immersion = float(item.get("immersionScore") or item.get("immersion_score") or 0.0)
-            viral = float(item.get("neuralViralIndex") or item.get("viral_potential") or 0.0)
+            if isinstance(item, list):
+                numeric_vals = [
+                    float(x) for x in item if isinstance(x, (int, float)) and math.isfinite(x)
+                ]
+                if not numeric_vals:
+                    return None
+                mean_val = sum(numeric_vals) / len(numeric_vals)
+                hook = max(0.0, min(1.0, numeric_vals[0] if numeric_vals else mean_val))
+                retention = max(0.0, min(1.0, mean_val))
+                immersion = max(0.0, min(1.0, 1.0 - (max(numeric_vals) - min(numeric_vals)) * 0.5))
+                viral = round(
+                    max(0.0, min(100.0, (0.40 * hook + 0.35 * retention + 0.25 * immersion) * 100.0)),
+                    2,
+                )
+                return NeuralAttentionScore(
+                    window_id=window_id,
+                    hook_score=hook,
+                    retention_score=retention,
+                    immersion_score=immersion,
+                    neural_viral_index=viral,
+                    attention_curve=tuple(round(x, 4) for x in numeric_vals[:30]),
+                    dropoff_risk_points=(),
+                    source="tribe_v2_macbook",
+                    latency_ms=latency_ms,
+                )
+
+            if not isinstance(item, dict):
+                return None
+
+            if "result" in item and isinstance(item["result"], (dict, list)):
+                return TribeClient._parse_single_item(window_id, item["result"], latency_ms)
+
+            hook = float(
+                item.get("hookScore")
+                or item.get("hook_score")
+                or item.get("hook")
+                or 0.0
+            )
+            retention = float(
+                item.get("retentionScore")
+                or item.get("retention_score")
+                or item.get("retention")
+                or item.get("attention_score")
+                or item.get("attention")
+                or 0.0
+            )
+            immersion = float(
+                item.get("immersionScore")
+                or item.get("immersion_score")
+                or item.get("immersion")
+                or item.get("boredom_suppression")
+                or 0.0
+            )
+            viral = float(
+                item.get("neuralViralIndex")
+                or item.get("composite_viral_index")
+                or item.get("viral_potential")
+                or item.get("viral_index")
+                or 0.0
+            )
 
             if not math.isfinite(hook):
                 hook = 0.5

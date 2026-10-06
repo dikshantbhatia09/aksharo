@@ -382,3 +382,94 @@ def test_ranking_model_reflects_tribe_tag() -> None:
         }
     )
     assert _ranking_model([p_with]) == "montaj-highlight-v2+tribe-v2"
+
+
+def test_tribe_client_parse_list_and_nested_results() -> None:
+    client = TribeClient()
+    # 1. Raw list of activations
+    parsed_list = client._parse_single_item(
+        "w-list",
+        [0.85, 0.75, 0.65, 0.70],
+        latency_ms=15,
+    )
+    assert parsed_list is not None
+    assert parsed_list.hook_score == 0.85
+    assert parsed_list.retention_score == pytest.approx(0.7375, rel=1e-2)
+    assert parsed_list.neural_viral_index > 70.0
+
+    # 2. Nested result dict with alternate keys
+    parsed_nested = client._parse_single_item(
+        "w-nested",
+        {
+            "result": {
+                "hook": 0.9,
+                "attention_score": 0.8,
+                "boredom_suppression": 0.85,
+            }
+        },
+        latency_ms=20,
+    )
+    assert parsed_nested is not None
+    assert parsed_nested.hook_score == 0.9
+    assert parsed_nested.retention_score == 0.8
+    assert parsed_nested.immersion_score == 0.85
+
+
+@pytest.mark.asyncio
+async def test_tribe_client_fallback_to_predict_text(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = TribeClient(
+        base_url="http://mac-server:8765",
+        enabled=True,
+    )
+
+    class MockResponse:
+        def __init__(self, status_code: int, data: dict) -> None:
+            self.status_code = status_code
+            self._data = data
+
+        def json(self) -> dict:
+            return self._data
+
+        def raise_for_status(self) -> None:
+            if self.status_code >= 400:
+                raise httpx.HTTPStatusError("err", request=None, response=self)  # type: ignore
+
+    class MockAsyncClient:
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+        async def __aenter__(self) -> MockAsyncClient:
+            return self
+
+        async def __aexit__(self, *args) -> None:
+            pass
+
+        async def post(self, url: str, **kwargs) -> MockResponse:
+            if "/v1/batch-neural-attention" in url or "/v1/neural-attention" in url:
+                return MockResponse(404, {"detail": "Not found"})
+            if "/predict/text" in url:
+                assert "files" in kwargs
+                return MockResponse(
+                    200,
+                    {
+                        "hook": 0.88,
+                        "attention": 0.78,
+                        "immersion": 0.82,
+                        "viral_potential": 83.5,
+                    },
+                )
+            return MockResponse(404, {})
+
+    monkeypatch.setattr(httpx, "AsyncClient", MockAsyncClient)
+
+    item = TribeWindowInput(
+        window_id="w-fallback",
+        start_ms=0,
+        end_ms=5000,
+        transcript_text="Testing fallback to /predict/text multipart upload",
+    )
+    scores = await client.predict_batch([item])
+    assert "w-fallback" in scores
+    assert scores["w-fallback"].hook_score == 0.88
+    assert scores["w-fallback"].retention_score == 0.78
+    assert scores["w-fallback"].neural_viral_index == 83.5
