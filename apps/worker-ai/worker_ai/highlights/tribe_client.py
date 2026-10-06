@@ -240,6 +240,15 @@ class TribeClient:
             immersion = float(item.get("immersionScore") or item.get("immersion_score") or 0.0)
             viral = float(item.get("neuralViralIndex") or item.get("viral_potential") or 0.0)
 
+            if not math.isfinite(hook):
+                hook = 0.5
+            if not math.isfinite(retention):
+                retention = 0.5
+            if not math.isfinite(immersion):
+                immersion = 0.5
+            if not math.isfinite(viral):
+                viral = 50.0
+
             # Clamp scores to expected ranges
             hook = max(0.0, min(1.0, hook))
             retention = max(0.0, min(1.0, retention))
@@ -249,10 +258,18 @@ class TribeClient:
             viral = max(0.0, min(100.0, viral))
 
             raw_curve = item.get("attentionCurve") or item.get("attention_curve") or ()
-            curve = tuple(float(x) for x in raw_curve) if isinstance(raw_curve, (list, tuple)) else ()
+            curve = (
+                tuple(float(x) for x in raw_curve if isinstance(x, (int, float)) and math.isfinite(x))
+                if isinstance(raw_curve, (list, tuple))
+                else ()
+            )
 
             raw_drop = item.get("dropoffRiskPoints") or item.get("dropoff_risk_points") or ()
-            dropoff = tuple(int(x) for x in raw_drop) if isinstance(raw_drop, (list, tuple)) else ()
+            dropoff = (
+                tuple(int(x) for x in raw_drop if isinstance(x, (int, float)) and math.isfinite(x))
+                if isinstance(raw_drop, (list, tuple))
+                else ()
+            )
 
             return NeuralAttentionScore(
                 window_id=window_id,
@@ -303,3 +320,4 @@ class TribeClient:
             source="heuristic_cortex",
             latency_ms=0,
         )
+

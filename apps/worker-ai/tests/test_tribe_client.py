@@ -282,3 +282,68 @@ def test_proposal_generation_with_neural_signals() -> None:
     tribe_reasons = [r for r in proposal.reasons if "TRIBE v2" in r.explanation]
     assert len(tribe_reasons) >= 1
     assert any(r.label in {"hook", "visual"} for r in tribe_reasons)
+
+
+def test_tribe_client_nan_inf_safety() -> None:
+    client = TribeClient()
+    parsed = client._parse_single_item(
+        "w-nan",
+        {
+            "hookScore": float("nan"),
+            "retentionScore": float("inf"),
+            "immersionScore": float("-inf"),
+            "neuralViralIndex": float("nan"),
+            "attentionCurve": [0.5, float("nan"), 0.8],
+            "dropoffRiskPoints": [1000, "invalid", 2000],
+        },
+        latency_ms=10,
+    )
+    assert parsed is not None
+    assert parsed.hook_score == 0.5
+    assert parsed.retention_score == 0.5
+    assert parsed.immersion_score == 0.5
+    assert parsed.neural_viral_index == 50.0
+    # Invalid floats filtered out
+    assert parsed.attention_curve == (0.5, 0.8)
+    assert parsed.dropoff_risk_points == (1000, 2000)
+
+
+def test_tribe_client_empty_and_corrupt_response() -> None:
+    client = TribeClient()
+    assert client._parse_batch_response(None, 0) == {}
+    assert client._parse_batch_response("not-a-dict", 0) == {}
+    assert client._parse_batch_response({"predictions": "not-a-list"}, 0) == {}
+    assert client._parse_batch_response({"predictions": [{"missing_id": 1}]}, 0) == {}
+
+
+def test_ranking_model_reflects_tribe_tag() -> None:
+    from worker_ai.highlights.contracts import ProposalReason, ScoreBreakdown
+    from worker_ai.processors.highlights import _ranking_model
+
+    p_without = HighlightProposal(
+        window_id="w1",
+        start_ms=1000,
+        end_ms=5000,
+        start_word_id="w001",
+        end_word_id="w010",
+        title="Test",
+        transcript_excerpt="Test excerpt",
+        potential_score=75,
+        score_breakdown=ScoreBreakdown(
+            hook=70, clarity=80, emotion=60, visual_activity=50, novelty=70, standalone_value=80, safety=100
+        ),
+        reasons=(ProposalReason(label="hook", explanation="Standard hook opening."),),
+    )
+    assert _ranking_model([p_without]) == "montaj-highlight-v2"
+
+    p_with = p_without.model_copy(
+        update={
+            "reasons": (
+                ProposalReason(
+                    label="hook",
+                    explanation="TRIBE v2 Neural Brain Encoder: High ventral attention peak in opening.",
+                ),
+            )
+        }
+    )
+    assert _ranking_model([p_with]) == "montaj-highlight-v2+tribe-v2"

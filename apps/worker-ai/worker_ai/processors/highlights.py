@@ -871,6 +871,7 @@ async def process_highlights(context: JobContext) -> ProcessorOutcome:
     uses_model = (
         bool(model_chain(context.services.llm_providers, options.region or "in"))
         or options.copy_options is not None
+        or (context.services.tribe is not None and context.services.tribe.enabled)
     )
     use = _ModelUse()
     try:
