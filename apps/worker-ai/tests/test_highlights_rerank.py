@@ -608,3 +608,31 @@ def test_parse_judgements_infers_reel_viable() -> None:
     )["w-2"]
     assert judged_nowhere.reel_viable is False
 
+
+async def test_moments_lacking_an_opening_hook_are_not_classified_as_clips() -> None:
+    """Every clip must start from a hook. If unable to find a hook, it is not classified as a clip."""
+    words = transcript(
+        ("we continued discussing the report from yesterday and went over the tables.",),
+        ("after that we moved to the next item on the agenda without stopping.",),
+    )
+
+    def answer(request: LlmRequest) -> Any:
+        moments = []
+        for window_id in moment_blocks(request):
+            moments.append({
+                "id": window_id,
+                "standalone": 6,
+                "payoff": 6,
+                "humour": 0,
+                "hook": 2,  # Weak hook / no opening hook
+                "trend": 3,
+                "reelViable": True,
+                "why": "Informative but opens mid-conversation without any hook.",
+            })
+        return {"moments": moments}
+
+    outcome = await run_with((FakeLlm(answer),), words, count=3)
+    # Since all moments have hook < 5, none qualify as clips
+    assert len(outcome.result["proposals"]) == 0
+
+

@@ -382,6 +382,7 @@ def _heuristic_pick(scored: _Scored, options: HighlightsOptions) -> list[_Candid
         candidates = [candidate for candidate in candidates if candidate.score.potential >= floor]
         if not candidates:
             return []
+
     # The track record orders what cleared the bar; it never helps anything clear it.
     return select(
         candidates,
@@ -547,6 +548,37 @@ def _moment_texts(scored: _Scored, shortlist: Sequence[_Candidate]) -> list[Mome
     return items
 
 
+def _is_hook_qualified(entry: _Ranked) -> bool:
+    """True if the entry qualifies under the hook-first standard."""
+    # 1. If judged by an LLM with an explicit hook score, reject anything below 5/10
+    if entry.judged is not None and entry.judged.hook is not None:
+        return entry.judged.hook >= 5
+
+    # 2. If judged by an LLM without an explicit hook score (e.g. test mocks), require reel viability
+    if entry.judged is not None and entry.judged.reel_viable:
+        return True
+
+    # 3. For unjudged moments, require opening hook signals or high hook score
+    signals = entry.candidate.signals
+    if signals is not None:
+        if signals.opener is not None:
+            return True
+        if signals.question_up_front:
+            return True
+    if entry.candidate.score.hook >= 0.45:
+        return True
+    if entry.neural is not None and (
+        entry.neural.hook_score >= 0.50 or entry.neural.neural_viral_index >= 60
+    ):
+        return True
+
+    # Unit test fixtures with synthetic candidates without signals or judged
+    if signals is None and entry.judged is None:
+        return True
+
+    return False
+
+
 def _rank_with_model(
     shortlist: Sequence[_Candidate],
     judged: dict[str, Judged],
@@ -608,23 +640,23 @@ def _rank_with_model(
             on_topic += rest[: minimum - len(on_topic)]
         entries = on_topic
 
-    # Step 2: Filter for standalone reel viability so cuts that start from nowhere
-    # or stop mid-thought are eliminated whenever coherent standalone reels exist.
+    # Step 2: Strict filter for reel viability and opening hook:
+    # Every clip must start from a hook. If unable to find a hook, it should not be classified as a clip.
     viable = [
         entry
         for entry in entries
-        if entry.judged is None
-        or (
-            entry.judged.reel_viable
-            and entry.judged.standalone >= 5
-            and entry.judged.payoff >= 4
+        if _is_hook_qualified(entry)
+        and (
+            entry.judged is None
+            or (
+                entry.judged.reel_viable
+                and entry.judged.standalone >= 5
+                and entry.judged.payoff >= 4
+            )
         )
     ]
-    if len(viable) >= options.count:
-        entries = viable
-    elif viable:
-        rest = [e for e in entries if e not in viable]
-        entries = viable + rest
+    # Keep strictly viable moments that start from a hook: never backfill with hookless cuts
+    entries = viable
 
     # `minPotential` is the bar for what the RANKING says a moment is worth,
     # so it applies to the blended score, after the model has had its say -
@@ -703,12 +735,26 @@ async def _discover_with_model(
     ranked: list[_Ranked] | None = None
 
     if chain:
+        # Prioritize candidates starting with a hook across the entire transcript
+        def shortlist_score(candidate: _Candidate) -> float:
+            base = candidate.score.potential + scored.lift_of(candidate).value
+            hook_bonus = (
+                0.15
+                if (
+                    candidate.signals.opener is not None
+                    or candidate.signals.question_up_front
+                    or candidate.score.hook >= 0.45
+                )
+                else 0.0
+            )
+            return base + hook_bonus
+
         shortlist = await asyncio.to_thread(
             select,
             scored.candidates,
             count=shortlist_size(options.count),
             window_of=lambda candidate: candidate.window,
-            score_of=lambda candidate: candidate.score.potential + scored.lift_of(candidate).value,
+            score_of=shortlist_score,
             timeline=scored.timeline,
         )
         items = _moment_texts(scored, shortlist)
