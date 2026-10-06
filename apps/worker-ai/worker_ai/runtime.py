@@ -58,6 +58,7 @@ from worker_ai.callbacks import CallbackAck, CallbackClient, JobCompletion, JobE
 from worker_ai.clean.processor import process_clean
 from worker_ai.diarisation import DiariserRegistry
 from worker_ai.dubbing.sarvam import SARVAM_DUBBING_DEFAULT_BASE_URL, SarvamDubbingClient
+from worker_ai.highlights.tribe_client import TribeClient
 from worker_ai.lid import (
     GpuLanguageIdentifier,
     IndicLidClassifier,
@@ -189,6 +190,22 @@ def build_services(settings: Settings, *, callbacks: CallbackClient | None = Non
         llm_providers=build_llm_providers(settings),
         dubbing=build_dubbing_client(settings),
         speech=build_speech_client(settings),
+        tribe=build_tribe_client(settings),
+    )
+
+
+def build_tribe_client(settings: Settings) -> TribeClient | None:
+    """TRIBE v2 client connecting to the remote Apple Silicon MacBook host.
+
+    ``None`` when not configured or disabled; highlight candidate ranking then
+    proceeds with standard heuristics and LLM reranking without interruption.
+    """
+    if not settings.tribe_enabled or not settings.tribe_inference_url:
+        return None
+    return TribeClient(
+        base_url=settings.tribe_inference_url,
+        enabled=settings.tribe_enabled,
+        timeout_seconds=settings.tribe_timeout_seconds,
     )
 
 

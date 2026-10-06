@@ -115,6 +115,10 @@ WORKER_ENV_VARS: tuple[str, ...] = (
     "LLM_FALLBACK_PROVIDER",
     "LLM_FALLBACK_MODEL",
     "LLM_DAILY_BUDGET_INR",
+    # 2026-10-06: TRIBE v2 (Trimodal Brain Encoder) remote inference server
+    "WORKER_AI_TRIBE_URL",
+    "WORKER_AI_TRIBE_ENABLED",
+    "WORKER_AI_TRIBE_TIMEOUT_SECONDS",
 )
 
 
@@ -317,6 +321,10 @@ class Settings:
     routing_overrides_json: str = ""
     routing_overrides_from_api: bool = False
     feature_flags: dict[str, Any] = field(default_factory=dict)
+    #: 2026-10-06: TRIBE v2 remote inference endpoint (e.g. "http://192.168.1.50:8095")
+    tribe_inference_url: str = ""
+    tribe_enabled: bool = False
+    tribe_timeout_seconds: float = 15.0
 
     @property
     def has_any_asr_provider(self) -> bool:
@@ -443,6 +451,14 @@ def load_settings(source: dict[str, str] | None = None) -> Settings:
     if gpu_provider_url and not gpu_provider_url.startswith(("http://", "https://")):
         problems.append("GPU_PROVIDER_URL: must be an http(s) URL")
 
+    tribe_url = env.get("WORKER_AI_TRIBE_URL", "").strip().rstrip("/")
+    if tribe_url and not tribe_url.startswith(("http://", "https://")):
+        problems.append("WORKER_AI_TRIBE_URL: must be an http(s) URL")
+
+    tribe_timeout_s = _non_negative_number(
+        env, "WORKER_AI_TRIBE_TIMEOUT_SECONDS", 15.0, problems
+    )
+
     flags_raw = env.get("FEATURE_FLAGS_JSON", "").strip()
     feature_flags: dict[str, Any] = {}
     if flags_raw:
@@ -557,6 +573,9 @@ def load_settings(source: dict[str, str] | None = None) -> Settings:
             _optional_bool(env.get("WORKER_AI_ROUTING_OVERRIDES_FROM_API")) is True
         ),
         feature_flags=feature_flags,
+        tribe_inference_url=tribe_url,
+        tribe_enabled=_optional_bool(env.get("WORKER_AI_TRIBE_ENABLED")) is True,
+        tribe_timeout_seconds=tribe_timeout_s,
     )
 
 

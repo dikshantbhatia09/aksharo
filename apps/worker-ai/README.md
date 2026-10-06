@@ -633,6 +633,9 @@ deliberately _not_ in CONTRACTS §1 — the same precedent the API set for
 | `LLM_FALLBACK_PROVIDER`                | `ollama`                        | where a `sarvam` chain goes after Sarvam fails or the day's budget is spent: `ollama` (reached at `LLM_BASE_URL`) or `none` |
 | `LLM_FALLBACK_MODEL`                   | `qwen2.5:3b`                    | the fallback's model |
 | `LLM_DAILY_BUDGET_INR`                 | `300`                           | rupees the paid model (Sarvam) may cost per UTC day, across every worker; `0` turns it off |
+| `WORKER_AI_TRIBE_URL`                  | —                               | TRIBE v2 (Trimodal Brain Encoder) remote inference server URL (e.g. `http://192.168.1.50:8095`) |
+| `WORKER_AI_TRIBE_ENABLED`              | `false`                         | whether TRIBE v2 neural cortical attention evaluation is enabled for highlight clipping |
+| `WORKER_AI_TRIBE_TIMEOUT_SECONDS`      | `15.0`                          | request timeout in seconds for TRIBE v2 inference calls |
 
 `GPU_PROVIDER_URL` is a **raise for the orchestrator**: CONTRACTS §1 freezes
 `GPU_PROVIDER` but not its endpoint, and A09 may not edit that file. It is

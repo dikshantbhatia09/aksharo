@@ -24,6 +24,11 @@ from worker_ai.highlights.contracts import (
     StorageObject,
     highlights_job_key,
 )
+from worker_ai.highlights.tribe_client import (
+    NeuralAttentionScore,
+    TribeClient,
+    TribeWindowInput,
+)
 
 __all__ = [
     "HIGHLIGHTS_SCHEMA_VERSION",
@@ -33,8 +38,11 @@ __all__ = [
     "HighlightsOptions",
     "HighlightsPayload",
     "HighlightsResult",
+    "NeuralAttentionScore",
     "ProposalReason",
     "ScoreBreakdown",
     "StorageObject",
+    "TribeClient",
+    "TribeWindowInput",
     "highlights_job_key",
 ]

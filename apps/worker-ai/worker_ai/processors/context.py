@@ -32,6 +32,7 @@ from worker_ai.cache import NullResultCache, ResultCache, content_hash
 from worker_ai.callbacks import CallbackAck, CallbackClient, JobUsage
 from worker_ai.diarisation import DiariserRegistry
 from worker_ai.dubbing.sarvam import SarvamDubbingClient
+from worker_ai.highlights.tribe_client import TribeClient
 from worker_ai.lid import LanguageIdentifier, TextClassifier
 from worker_ai.llm.providers.base import LlmProvider
 from worker_ai.llm.providers.mock import MockLlmProvider
@@ -143,6 +144,8 @@ class Services:
     #: `ai.voiceover` (2026-10-01): Sarvam's text-to-speech, when `SARVAM_API_KEY` is set.
     #: ``None`` answers every voice-over with `voiceover/not_configured`.
     speech: SarvamSpeechClient | None = None
+    #: TRIBE v2 (2026-10-06): Remote Apple Silicon inference client for neural cortical attention
+    tribe: TribeClient | None = None
 
 
 @dataclass(slots=True)

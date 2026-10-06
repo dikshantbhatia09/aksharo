@@ -90,6 +90,7 @@ from worker_ai.highlights.scoring import (
     score,
 )
 from worker_ai.highlights.text import make_excerpt, make_title
+from worker_ai.highlights.tribe_client import NeuralAttentionScore, TribeWindowInput
 from worker_ai.highlights.windows import (
     Unit,
     Window,
@@ -173,16 +174,22 @@ class _Ranked:
     ``potential`` is the ranking's own reading, which every rule the person
     set is applied to; ``lift`` is the track record's, added only to order
     what those rules allowed (and to the figure shown).
+    ``neural`` is TRIBE v2's cortical engagement reading when enabled.
     """
 
     candidate: _Candidate
     potential: float
     judged: Judged | None = None
     lift: Lift = NO_LIFT
+    neural: NeuralAttentionScore | None = None
 
     @property
     def ranked_on(self) -> float:
-        return self.potential + self.lift.value
+        neural_bonus = 0.0
+        if self.neural is not None:
+            # Neural viral index (0-100) provides up to +0.15 biological attention lift
+            neural_bonus = (self.neural.neural_viral_index / 100.0) * 0.15
+        return self.potential + self.lift.value + neural_bonus
 
 
 @dataclass(slots=True)
@@ -443,6 +450,33 @@ def _proposal(
             {"label": label, "explanation": explanation}
             for label, explanation in model_reasons(judged, topic)
         ] + reasons
+    breakdown = dict(candidate.score.breakdown())
+    neural = ranked.neural
+    if neural is not None:
+        # Refine visualActivity (immersion) and hook with measured neural signals
+        breakdown["visualActivity"] = _percent(neural.immersion_score)
+        if neural.hook_score > 0.6:
+            breakdown["hook"] = _percent(0.6 * (breakdown["hook"] / 100.0) + 0.4 * neural.hook_score)
+
+        neural_reasons = []
+        if neural.hook_score >= 0.70:
+            neural_reasons.append({
+                "label": "hook",
+                "explanation": (
+                    f"TRIBE v2 Neural Brain Encoder: High ventral attention peak in opening "
+                    f"(hook score {round(neural.hook_score * 100)}%)."
+                ),
+            })
+        if neural.retention_score >= 0.75:
+            neural_reasons.append({
+                "label": "visual",
+                "explanation": (
+                    f"TRIBE v2 Neural Brain Encoder: Sustained dorsal attention retention "
+                    f"({round(neural.retention_score * 100)}%) with zero mind-wandering dropoff."
+                ),
+            })
+        reasons = neural_reasons + reasons
+
     fields: dict[str, Any] = {
         "windowId": window.window_id,
         "startMs": window.start_ms,
@@ -452,7 +486,7 @@ def _proposal(
         "title": make_title(texts, fallback=_moment_title(window.start_ms)),
         "transcriptExcerpt": make_excerpt(texts),
         "potentialScore": _percent(ranked.ranked_on),
-        "scoreBreakdown": candidate.score.breakdown(),
+        "scoreBreakdown": breakdown,
         "reasons": reasons[:12],
     }
     if judged is not None:
@@ -583,6 +617,56 @@ def _rank_with_model(
     return entries
 
 
+async def _enrich_with_tribe(
+    context: JobContext,
+    ranked: list[_Ranked],
+    scored: _Scored,
+) -> list[_Ranked]:
+    """Score candidate moments against the MacBook TRIBE v2 server if available."""
+    tribe = context.services.tribe
+    if tribe is None or not ranked:
+        return ranked
+
+    try:
+        available = await tribe.is_available()
+        if not available:
+            return ranked
+
+        inputs = [
+            TribeWindowInput(
+                window_id=entry.candidate.window.window_id,
+                start_ms=entry.candidate.window.start_ms,
+                end_ms=entry.candidate.window.end_ms,
+                transcript_text=" ".join(
+                    word.text
+                    for word in scored.words[
+                        entry.candidate.window.first : entry.candidate.window.last + 1
+                    ]
+                ),
+            )
+            for entry in ranked
+        ]
+        await context.progress(65, message="Evaluating neural attention with TRIBE v2")
+        predictions = await tribe.predict_batch(inputs)
+        if not predictions:
+            return ranked
+
+        enriched = [
+            _Ranked(
+                candidate=entry.candidate,
+                potential=entry.potential,
+                judged=entry.judged,
+                lift=entry.lift,
+                neural=predictions.get(entry.candidate.window.window_id),
+            )
+            for entry in ranked
+        ]
+        return sorted(enriched, key=lambda entry: -entry.ranked_on)
+    except Exception as err:
+        _log.warning("TRIBE v2 neural evaluation skipped", extra={"error": str(err)})
+        return ranked
+
+
 async def _discover_with_model(
     context: JobContext,
     payload: HighlightsPayload,
@@ -646,6 +730,9 @@ async def _discover_with_model(
             _Ranked(candidate, candidate.score.potential, lift=scored.lift_of(candidate))
             for candidate in picked
         ]
+
+    if context.services.tribe is not None and ranked:
+        ranked = await _enrich_with_tribe(context, ranked, scored)
 
     copies: dict[str, dict[str, Any]] = {}
     if options.copy_options is not None and ranked:
@@ -741,12 +828,16 @@ def _discover_by_rule(
 
 def _ranking_model(proposals: Sequence[HighlightProposal]) -> str:
     """``montaj-highlight-v2``, plus the model that judged most of the picks."""
+    has_neural = any(
+        "TRIBE v2" in reason.explanation for proposal in proposals for reason in proposal.reasons
+    )
+    base = f"{HIGHLIGHT_MODEL}+tribe-v2" if has_neural else HIGHLIGHT_MODEL
     models = Counter(
         proposal.judgement.model for proposal in proposals if proposal.judgement is not None
     )
     if not models:
-        return HIGHLIGHT_MODEL
-    return f"{HIGHLIGHT_MODEL}+{models.most_common(1)[0][0]}"[:100]
+        return base[:100]
+    return f"{base}+{models.most_common(1)[0][0]}"[:100]
 
 
 def _usage(use: _ModelUse) -> JobUsage | None:

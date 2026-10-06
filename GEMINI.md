@@ -10,3 +10,4 @@ Whenever the user commands to make changes to the codebase or fix issues:
    - Restart the production stack using `_orchestration\tools\stop-production-stack.ps1` and `_orchestration\tools\start-production-stack.ps1`.
    - Commit and push changes to GitHub `origin/main` (`https://github.com/dikshantbhatia09/aksharo.git`).
    - Confirm that the changes are actively visible and running on live (`https://aksharo.crestmondtechnologies.com`).
+
