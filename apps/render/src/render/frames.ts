@@ -293,12 +293,12 @@ export function createPooledFrameSource(options: PooledFrameSourceOptions): Pool
 
       previousHash = hash;
       rasterised += 1;
-      const handle = new FrameHandle(
-        pool.render(commands).catch((error: unknown) => {
-          failure ??= error instanceof Error ? error : new Error(String(error));
-          throw failure;
-        }),
-      );
+      const handlePromise = pool.render(commands).catch((error: unknown) => {
+        failure ??= error instanceof Error ? error : new Error(String(error));
+        throw failure;
+      });
+      handlePromise.catch(() => undefined);
+      const handle = new FrameHandle(handlePromise);
       // Two references, and both are load-bearing: the pin that lets the next
       // identical frame reuse the slot, and this frame's own write. Counting
       // them as one is how a slot gets recycled underneath a caption that was

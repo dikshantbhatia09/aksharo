@@ -169,6 +169,11 @@ async function main(): Promise<void> {
   };
   process.on("SIGINT", shutdown);
   process.on("SIGTERM", shutdown);
+  process.on("unhandledRejection", (reason: unknown) => {
+    logger.warn("unhandled rejection caught in render service", {
+      error: reason instanceof Error ? reason.message : String(reason),
+    });
+  });
 }
 
 main().catch((error: unknown) => {
