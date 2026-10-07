@@ -29,6 +29,26 @@ function seconds(tMs: number): number {
   return tMs / 1000;
 }
 
+/** Formats a number with up to 3 decimal places and strips trailing zeroes. */
+function fmtNum(n: number): string {
+  if (!Number.isFinite(n)) return "0";
+  const s = n.toFixed(3);
+  return s.includes(".") ? s.replace(/\.?0+$/, "") : s;
+}
+
+/** Bounds keyframe segments to ensure ffmpeg command line stays well within OS limits. */
+function simplifyKeyframes(keyframes: readonly CropKeyframe[], maxPoints = 24): CropKeyframe[] {
+  if (keyframes.length <= maxPoints) return [...keyframes];
+  const stride = Math.ceil(keyframes.length / maxPoints);
+  const result: CropKeyframe[] = [keyframes[0]!];
+  for (let i = stride; i < keyframes.length - 1; i += stride) {
+    // eslint-disable-next-line security/detect-object-injection -- internal keyframe index
+    result.push(keyframes[i]!);
+  }
+  result.push(keyframes[keyframes.length - 1]!);
+  return result;
+}
+
 /** One dimension's value across every keyframe, in destination units (pixels). */
 function dimensionExpr(
   keyframes: readonly CropKeyframe[],
@@ -38,19 +58,17 @@ function dimensionExpr(
   if (keyframes.length === 0) return "0";
   const first = keyframes[0];
   if (first === undefined) return "0";
-  if (keyframes.length === 1) return String(pick(first.rect) * scale);
+  if (keyframes.length === 1) return fmtNum(pick(first.rect) * scale);
 
-  // Build from the last segment inward, so each `if` chain's `else` is the
-  // chain built for everything after it — the last keyframe's value is the
-  // innermost `else`.
-  const last = keyframes[keyframes.length - 1];
+  const simplified = simplifyKeyframes(keyframes, 24);
+  const last = simplified[simplified.length - 1];
   if (last === undefined) return "0";
-  let expr = String(pick(last.rect) * scale);
+  let expr = fmtNum(pick(last.rect) * scale);
 
-  for (let i = keyframes.length - 2; i >= 0; i -= 1) {
+  for (let i = simplified.length - 2; i >= 0; i -= 1) {
     // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
-    const before = keyframes[i];
-    const after = keyframes[i + 1];
+    const before = simplified[i];
+    const after = simplified[i + 1];
     if (before === undefined || after === undefined) continue;
     const t0 = seconds(before.tMs);
     const t1 = seconds(after.tMs);
@@ -58,14 +76,14 @@ function dimensionExpr(
     const v1 = pick(after.rect) * scale;
     const span = t1 - t0;
     const ramp =
-      span > 0
-        ? `(${String(v0)}+(${String(v1)}-${String(v0)})*(t-${String(t0)})/(${String(span)}))`
-        : String(v1);
+      span > 0 && Math.abs(v1 - v0) > 0.05
+        ? `(${fmtNum(v0)}+(${fmtNum(v1)}-${fmtNum(v0)})*(t-${fmtNum(t0)})/(${fmtNum(span)}))`
+        : fmtNum(v1);
     if (i === 0) {
       // Before the first keyframe, hold its value.
-      expr = `if(lt(t,${String(t0)}),${String(v0)},if(lt(t,${String(t1)}),${ramp},${expr}))`;
+      expr = `if(lt(t,${fmtNum(t0)}),${fmtNum(v0)},if(lt(t,${fmtNum(t1)}),${ramp},${expr}))`;
     } else {
-      expr = `if(lt(t,${String(t1)}),${ramp},${expr})`;
+      expr = `if(lt(t,${fmtNum(t1)}),${ramp},${expr})`;
     }
   }
   return expr;

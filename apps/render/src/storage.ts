@@ -228,44 +228,58 @@ export async function createObjectStore(config: BucketConfig): Promise<ObjectSto
     async upload(key, source, options) {
       // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
       const info = await stat(source);
-      try {
-        await client.send(
-          new PutObjectCommand({
-            Bucket: config.bucket,
-            Key: key,
-            // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
-            Body: createReadStream(source),
-            ContentLength: info.size,
-            ...(options?.contentType === undefined ? {} : { ContentType: options.contentType }),
-          }),
-        );
-      } catch (error) {
-        throw new StorageError(
-          "storage/unwritable",
-          `could not write ${config.bucket}/${key}: ${messageOf(error)}`,
-        );
+      let lastError: unknown;
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          await client.send(
+            new PutObjectCommand({
+              Bucket: config.bucket,
+              Key: key,
+              // eslint-disable-next-line security/detect-non-literal-fs-filename -- path built from internal, non-attacker-controlled segments (manifest/config/workspace/fixture/build-output paths), not user input -- reviewed for M06's eslint-plugin-security promotion
+              Body: createReadStream(source),
+              ContentLength: info.size,
+              ...(options?.contentType === undefined ? {} : { ContentType: options.contentType }),
+            }),
+          );
+          return info.size;
+        } catch (error) {
+          lastError = error;
+          if (attempt < 3) {
+            await new Promise((r) => setTimeout(r, 500 * attempt));
+          }
+        }
       }
-      return info.size;
+      throw new StorageError(
+        "storage/unwritable",
+        `could not write ${config.bucket}/${key}: ${messageOf(lastError)}`,
+      );
     },
 
     async putBytes(key, bytes, options) {
-      try {
-        await client.send(
-          new PutObjectCommand({
-            Bucket: config.bucket,
-            Key: key,
-            Body: Buffer.from(bytes),
-            ContentLength: bytes.byteLength,
-            ...(options?.contentType === undefined ? {} : { ContentType: options.contentType }),
-          }),
-        );
-      } catch (error) {
-        throw new StorageError(
-          "storage/unwritable",
-          `could not write ${config.bucket}/${key}: ${messageOf(error)}`,
-        );
+      let lastError: unknown;
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          await client.send(
+            new PutObjectCommand({
+              Bucket: config.bucket,
+              Key: key,
+              Body: Buffer.from(bytes),
+              ContentLength: bytes.byteLength,
+              ...(options?.contentType === undefined ? {} : { ContentType: options.contentType }),
+            }),
+          );
+          return bytes.byteLength;
+        } catch (error) {
+          lastError = error;
+          if (attempt < 3) {
+            await new Promise((r) => setTimeout(r, 500 * attempt));
+          }
+        }
       }
-      return bytes.byteLength;
+      throw new StorageError(
+        "storage/unwritable",
+        `could not write ${config.bucket}/${key}: ${messageOf(lastError)}`,
+      );
     },
   };
 }
