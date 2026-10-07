@@ -77,6 +77,11 @@ export interface Settings {
    * model, which denies file-system and child-process access to the script.
    */
   readonly ytDlpJsRuntime: string | undefined;
+  /**
+   * Player clients for YouTube extractor args (`YT_DLP_YOUTUBE_PLAYER_CLIENT`).
+   * Defaults to 'ios,android,web' to bypass web bot challenges.
+   */
+  readonly ytDlpYoutubePlayerClient?: string;
   /** Where scratch files go; `undefined` means the OS temp directory. */
   readonly tempDir: string | undefined;
   /**
@@ -183,6 +188,7 @@ export function resolveSettings(source: NodeJS.ProcessEnv = process.env): Settin
     // The same rule, for the same reason.
     ytDlpAllowUnpinned: source["WORKER_MEDIA_YT_DLP_ALLOW_UNPINNED"] === "1",
     ytDlpJsRuntime: jsRuntime(source["YT_DLP_JS_RUNTIME"]),
+    ytDlpYoutubePlayerClient: source["YT_DLP_YOUTUBE_PLAYER_CLIENT"]?.trim() || undefined,
     tempDir: source["WORKER_MEDIA_TEMP_DIR"]?.trim() || undefined,
     minFreeBytes: nonNegativeInteger(source["WORKER_MEDIA_MIN_FREE_BYTES"], DEFAULT_MIN_FREE_BYTES),
     alertWebhookUrl: source["ALERT_WEBHOOK_URL"]?.trim() || undefined,

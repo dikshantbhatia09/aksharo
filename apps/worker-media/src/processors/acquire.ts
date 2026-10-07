@@ -210,6 +210,7 @@ export async function processAcquire(context: JobContext): Promise<ProcessorOutc
       limits,
       signal: context.signal,
       ...(jsRuntime === undefined ? {} : { jsRuntime }),
+      ...(settings.ytDlpYoutubePlayerClient === undefined ? {} : { youtubePlayerClient: settings.ytDlpYoutubePlayerClient }),
       ...(window === undefined ? {} : { window }),
       ...(extractor === null ? {} : { extractor }),
     });
@@ -546,6 +547,7 @@ async function fetchSource(input: {
     signal: context.signal,
     onProgress: input.onProgress,
     ...(settings.ytDlpJsRuntime === undefined ? {} : { jsRuntime: settings.ytDlpJsRuntime }),
+    ...(settings.ytDlpYoutubePlayerClient === undefined ? {} : { youtubePlayerClient: settings.ytDlpYoutubePlayerClient }),
     ...(input.extractor === null ? {} : { extractor: input.extractor }),
     // Every download stops before the volume it shares with the database
     // falls below the reserve, whatever its own size.

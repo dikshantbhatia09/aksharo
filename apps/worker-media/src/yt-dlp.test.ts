@@ -176,6 +176,34 @@ describe("the argument list", () => {
     }
   });
 
+  it("passes mobile player clients for YouTube extractor to bypass bot check", () => {
+    for (const args of [
+      buildArgs({ url: "https://youtu.be/x", outputPath: "/tmp/o.mp4", limits: LIMITS }),
+      buildProbeArgs("https://youtu.be/x"),
+    ]) {
+      const at = args.indexOf("--extractor-args");
+      expect(at).toBeGreaterThanOrEqual(0);
+      expect(args[at + 1]).toBe("youtube:player_client=ios,android,web");
+      expect(at).toBeLessThan(args.indexOf("--"));
+    }
+
+    const overridden = buildArgs({
+      url: "https://youtu.be/x",
+      outputPath: "/tmp/o.mp4",
+      limits: LIMITS,
+      youtubePlayerClient: "ios",
+    });
+    expect(overridden[overridden.indexOf("--extractor-args") + 1]).toBe("youtube:player_client=ios");
+
+    const disabled = buildArgs({
+      url: "https://youtu.be/x",
+      outputPath: "/tmp/o.mp4",
+      limits: LIMITS,
+      youtubePlayerClient: "off",
+    });
+    expect(disabled).not.toContain("--extractor-args");
+  });
+
   it("never fetches remote components or searches plugin directories", () => {
     for (const args of [
       buildArgs({

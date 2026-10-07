@@ -686,6 +686,8 @@ export function buildArgs(input: {
   readonly section?: Pick<SectionPlan, "startMs" | "endMs"> | null;
   /** A hosted link's one extractor (see {@link HOSTED_EXTRACTORS}). */
   readonly extractor?: HostedExtractor;
+  /** Extractor player client for YouTube (defaults to 'ios,android,web'). */
+  readonly youtubePlayerClient?: string;
 }): string[] {
   const format = input.format ?? FALLBACK_FORMAT;
   const fallback = format === FALLBACK_FORMAT;
@@ -715,7 +717,7 @@ export function buildArgs(input: {
     "--ignore-config",
     "--no-cache-dir",
     ...runtimeArgs(input.jsRuntime),
-    ...extractorArgs(input.extractor),
+    ...extractorArgs(input.extractor, input.youtubePlayerClient),
     // Refuse a live stream rather than downloading an unbounded segment feed.
     "--no-live-from-start",
     // A hard byte ceiling the downloader applies itself; the caller checks the
@@ -766,17 +768,35 @@ export function runtimeArgs(jsRuntime: string | undefined): string[] {
   ];
 }
 
+export const DEFAULT_YOUTUBE_PLAYER_CLIENT = "ios,android,web";
+
+export function youtubeExtractorArgs(
+  playerClient: string = process.env["YT_DLP_YOUTUBE_PLAYER_CLIENT"]?.trim() || DEFAULT_YOUTUBE_PLAYER_CLIENT,
+): string[] {
+  if (playerClient === "none" || playerClient === "off") return [];
+  return ["--extractor-args", `youtube:player_client=${playerClient}`];
+}
+
 /**
- * `--use-extractors <name>` for a hosted link, and nothing for YouTube.
+ * `--use-extractors <name>` for a hosted link, and YouTube extractor args for YouTube.
  *
  * The point is what it leaves out: yt-dlp's generic extractor, which reads
  * any page it is given and follows wherever that page points. With only the
  * site's own extractor allowed, a link it does not claim is an "unsupported
  * URL" and nothing is fetched. The name is checked against the closed list
  * here as well as by the type, because the list is the invariant.
+ *
+ * For YouTube (`extractor === undefined`):
+ * Passes `--extractor-args "youtube:player_client=ios,android,web"` so that
+ * YouTube's recent web client bot checks and GVS Proof of Origin (PO) token
+ * requirements (HTTP 429 / "Sign in to confirm you're not a bot") do not block
+ * downloads or metadata extraction.
  */
-export function extractorArgs(extractor: HostedExtractor | undefined): string[] {
-  if (extractor === undefined) return [];
+export function extractorArgs(
+  extractor: HostedExtractor | undefined,
+  youtubePlayerClient?: string,
+): string[] {
+  if (extractor === undefined) return youtubeExtractorArgs(youtubePlayerClient);
   if (!(HOSTED_EXTRACTORS as readonly string[]).includes(extractor)) {
     throw new DownloaderUnusableError(`refusing the extractor ${JSON.stringify(extractor)}`);
   }
@@ -811,7 +831,11 @@ function ffmpegLocationArgs(ffmpegPath: string | undefined): string[] {
 /** The metadata-only argument list: no bytes are fetched. */
 export function buildProbeArgs(
   url: string,
-  options: { readonly jsRuntime?: string; readonly extractor?: HostedExtractor } = {},
+  options: {
+    readonly jsRuntime?: string;
+    readonly extractor?: HostedExtractor;
+    readonly youtubePlayerClient?: string;
+  } = {},
 ): string[] {
   const args = [
     // Warnings are kept for the operator log; see `buildArgs`.
@@ -823,7 +847,7 @@ export function buildProbeArgs(
     // The metadata step is where YouTube's challenges are solved, so it needs
     // the runtime at least as much as the download does.
     ...runtimeArgs(options.jsRuntime),
-    ...extractorArgs(options.extractor),
+    ...extractorArgs(options.extractor, options.youtubePlayerClient),
     "--skip-download",
     "--dump-single-json",
     "--socket-timeout",
@@ -1309,12 +1333,14 @@ export async function probeSource(input: {
   readonly window?: AcquireWindow;
   /** A hosted link's one extractor; absent for YouTube. */
   readonly extractor?: HostedExtractor;
+  readonly youtubePlayerClient?: string;
 }): Promise<SourceMetadata> {
   const result = await run(
     input.binary,
     buildProbeArgs(input.url, {
       ...(input.jsRuntime === undefined ? {} : { jsRuntime: input.jsRuntime }),
       ...(input.extractor === undefined ? {} : { extractor: input.extractor }),
+      ...(input.youtubePlayerClient === undefined ? {} : { youtubePlayerClient: input.youtubePlayerClient }),
     }),
     {
       timeoutMs: Math.min(input.limits.timeoutMs, 120_000),
@@ -1672,6 +1698,7 @@ export async function download(input: {
   readonly section?: Pick<SectionPlan, "startMs" | "endMs"> | null;
   /** A hosted link's one extractor (see {@link extractorArgs}); absent for YouTube. */
   readonly extractor?: HostedExtractor;
+  readonly youtubePlayerClient?: string;
   /** Kill a download that runs slower than this; see {@link isTooSlow}. */
   readonly pace?: DownloadPace;
   readonly onProgress?: (percent: number) => void;
@@ -1694,6 +1721,7 @@ export async function download(input: {
       ...(input.jsRuntime === undefined ? {} : { jsRuntime: input.jsRuntime }),
       ...(input.section === undefined ? {} : { section: input.section }),
       ...(input.extractor === undefined ? {} : { extractor: input.extractor }),
+      ...(input.youtubePlayerClient === undefined ? {} : { youtubePlayerClient: input.youtubePlayerClient }),
     }),
     {
       timeoutMs: input.limits.timeoutMs,
