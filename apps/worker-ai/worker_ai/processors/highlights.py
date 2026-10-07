@@ -742,6 +742,11 @@ async def _enrich_with_tribe(
     try:
         available = await tribe.is_available()
         if not available:
+            if tribe.enabled:
+                _log.warning(
+                    "TRIBE v2 is enabled at %s but server is not available; falling back to heuristic scoring",
+                    tribe.base_url,
+                )
             return ranked
 
         inputs = [

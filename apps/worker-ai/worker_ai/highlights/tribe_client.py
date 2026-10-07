@@ -106,7 +106,12 @@ class TribeClient:
                 )
                 return None
         except Exception as error:
-            _log.debug("TRIBE v2 server unreachable on health check", extra={"error": str(error)})
+            _log.warning(
+                "TRIBE v2 server unreachable on health check at %s: %s",
+                url,
+                error,
+                extra={"error": str(error), "url": url},
+            )
             return None
 
     async def is_available(self) -> bool:

@@ -218,6 +218,7 @@ export class RepurposeClipCompletionHandler implements JobCompletionHandler, OnM
         {
           title: `${clip.title} (${shape})`,
           sourceLanguage,
+          aspect: shape,
         },
       );
       childProjectId = childProject.id;
