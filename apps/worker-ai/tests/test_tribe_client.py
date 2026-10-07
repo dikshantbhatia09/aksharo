@@ -473,3 +473,62 @@ async def test_tribe_client_fallback_to_predict_text(monkeypatch: pytest.MonkeyP
     assert scores["w-fallback"].hook_score == 0.88
     assert scores["w-fallback"].retention_score == 0.78
     assert scores["w-fallback"].neural_viral_index == 83.5
+
+
+@pytest.mark.asyncio
+async def test_tribe_client_parses_2d_predictions_tensor(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = TribeClient(base_url="http://macbook-host:8765", enabled=True)
+
+    class MockResponse:
+        def __init__(self, status_code: int, data: dict) -> None:
+            self.status_code = status_code
+            self._data = data
+
+        def json(self) -> dict:
+            return self._data
+
+        def raise_for_status(self) -> None:
+            pass
+
+    class MockAsyncClient:
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+        async def __aenter__(self) -> MockAsyncClient:
+            return self
+
+        async def __aexit__(self, *args) -> None:
+            pass
+
+        async def post(self, url: str, **kwargs) -> MockResponse:
+            if "/predict/text" in url:
+                return MockResponse(
+                    200,
+                    {
+                        "shape": [4, 20484],
+                        "predictions": [
+                            [0.85, 0.1, -0.2],
+                            [0.55, 0.05, -0.1],
+                            [0.65, 0.2, 0.0],
+                            [0.35, -0.1, 0.1],
+                        ],
+                    },
+                )
+            return MockResponse(404, {})
+
+    monkeypatch.setattr(httpx, "AsyncClient", MockAsyncClient)
+
+    item = TribeWindowInput(
+        window_id="w-tensor",
+        start_ms=0,
+        end_ms=10000,
+        transcript_text="Testing 2D cortical tensor",
+    )
+    scores = await client.predict_batch([item])
+    assert "w-tensor" in scores
+    score = scores["w-tensor"]
+    assert score.source == "tribe_v2_macbook"
+    assert score.hook_score > 0.8
+    assert score.retention_score > 0.7
+    assert score.neural_viral_index > 75.0
+

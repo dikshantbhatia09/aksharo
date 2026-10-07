@@ -88,6 +88,8 @@ class TribeClient:
         self.base_url = base_url.strip().rstrip("/")
         self.enabled = bool(enabled and self.base_url)
         self.timeout_seconds = max(1.0, float(timeout_seconds))
+        self._has_batch_endpoint: bool | None = None
+        self._has_single_json: bool | None = None
 
     async def health(self) -> dict[str, Any] | None:
         """Query the remote MacBook TRIBE server's health and hardware state."""
@@ -146,30 +148,33 @@ class TribeClient:
             return {}
 
         start_time = time.monotonic()
-        payload = {
-            "windows": [
-                {
-                    "windowId": item.window_id,
-                    "startMs": item.start_ms,
-                    "endMs": item.end_ms,
-                    "transcriptText": item.transcript_text,
-                }
-                for item in items
-            ]
-        }
-
         url = f"{self.base_url}/v1/batch-neural-attention"
         try:
             async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
-                response = await client.post(url, json=payload)
-                if response.status_code == 404:
-                    # Fallback to single item endpoint if batch route is not present
-                    return await self._fallback_single_calls(client, items)
+                if self._has_batch_endpoint is not False:
+                    payload = {
+                        "windows": [
+                            {
+                                "windowId": item.window_id,
+                                "startMs": item.start_ms,
+                                "endMs": item.end_ms,
+                                "transcriptText": item.transcript_text,
+                            }
+                            for item in items
+                        ]
+                    }
+                    response = await client.post(url, json=payload)
+                    if response.status_code == 404:
+                        self._has_batch_endpoint = False
+                        return await self._fallback_single_calls(client, items)
 
-                response.raise_for_status()
-                data = response.json()
-                latency = round((time.monotonic() - start_time) * 1000)
-                return self._parse_batch_response(data, latency)
+                    response.raise_for_status()
+                    self._has_batch_endpoint = True
+                    data = response.json()
+                    latency = round((time.monotonic() - start_time) * 1000)
+                    return self._parse_batch_response(data, latency)
+                else:
+                    return await self._fallback_single_calls(client, items)
         except httpx.TimeoutException:
             _log.warning(
                 "TRIBE v2 inference call timed out; continuing with standard scoring",
@@ -186,52 +191,54 @@ class TribeClient:
     async def _fallback_single_calls(
         self, client: httpx.AsyncClient, items: Sequence[TribeWindowInput]
     ) -> dict[str, NeuralAttentionScore]:
-        """Dispatch concurrent single calls if batch endpoint is not deployed."""
+        """Dispatch single calls to available endpoint on Mac."""
         results: dict[str, NeuralAttentionScore] = {}
 
-        async def one(item: TribeWindowInput) -> tuple[str, NeuralAttentionScore | None]:
+        for item in items:
             start_t = time.monotonic()
-            single_url = f"{self.base_url}/v1/neural-attention"
-            single_payload = {
-                "windowId": item.window_id,
-                "startMs": item.start_ms,
-                "endMs": item.end_ms,
-                "transcriptText": item.transcript_text,
-            }
-            try:
-                res = await client.post(single_url, json=single_payload)
-                if res.status_code == 200:
-                    data = res.json()
-                    lat = round((time.monotonic() - start_t) * 1000)
-                    score = self._parse_single_item(item.window_id, data, lat)
-                    if score is not None:
-                        return item.window_id, score
-                elif res.status_code == 404:
-                    # Fallback to multipart /predict/text endpoint if deployed on Mac
-                    predict_url = f"{self.base_url}/predict/text"
-                    files = {
-                        "file": (
-                            f"{item.window_id}.txt",
-                            item.transcript_text.encode("utf-8"),
-                            "text/plain",
-                        )
-                    }
-                    res2 = await client.post(predict_url, files=files)
-                    if res2.status_code == 200:
-                        data = res2.json()
+            if self._has_single_json is not False:
+                single_url = f"{self.base_url}/v1/neural-attention"
+                single_payload = {
+                    "windowId": item.window_id,
+                    "startMs": item.start_ms,
+                    "endMs": item.end_ms,
+                    "transcriptText": item.transcript_text,
+                }
+                try:
+                    res = await client.post(single_url, json=single_payload)
+                    if res.status_code == 200:
+                        self._has_single_json = True
+                        data = res.json()
                         lat = round((time.monotonic() - start_t) * 1000)
                         score = self._parse_single_item(item.window_id, data, lat)
                         if score is not None:
-                            return item.window_id, score
-            except Exception:
-                pass
-            return item.window_id, None
+                            results[item.window_id] = score
+                            continue
+                    elif res.status_code == 404:
+                        self._has_single_json = False
+                except Exception:
+                    pass
 
-        tasks = [one(item) for item in items]
-        pairs = await asyncio.gather(*tasks, return_exceptions=True)
-        for pair in pairs:
-            if isinstance(pair, tuple) and pair[1] is not None:
-                results[pair[0]] = pair[1]
+            # Call multipart /predict/text endpoint deployed on Mac
+            predict_url = f"{self.base_url}/predict/text"
+            files = {
+                "file": (
+                    f"{item.window_id}.txt",
+                    item.transcript_text.encode("utf-8"),
+                    "text/plain",
+                )
+            }
+            try:
+                res2 = await client.post(predict_url, files=files)
+                if res2.status_code == 200:
+                    data = res2.json()
+                    lat = round((time.monotonic() - start_t) * 1000)
+                    score = self._parse_single_item(item.window_id, data, lat)
+                    if score is not None:
+                        results[item.window_id] = score
+            except Exception as e:
+                _log.warning("TRIBE v2 prediction failed for %s: %s", item.window_id, e)
+
         return results
 
     def _parse_batch_response(
@@ -294,6 +301,34 @@ class TribeClient:
 
             if "result" in item and isinstance(item["result"], (dict, list)):
                 return TribeClient._parse_single_item(window_id, item["result"], latency_ms)
+
+            if "predictions" in item and isinstance(item["predictions"], list):
+                preds = item["predictions"]
+                if preds and isinstance(preds[0], list):
+                    step_peaks = [max(step) for step in preds if isinstance(step, list) and step]
+                    if step_peaks:
+                        opening_peak = max(step_peaks[:2]) if len(step_peaks) >= 2 else step_peaks[0]
+                        hook_val = max(0.0, min(1.0, 0.5 + opening_peak * 0.5))
+                        mean_peak = sum(step_peaks) / len(step_peaks)
+                        ret_val = max(0.0, min(1.0, 0.5 + mean_peak * 0.5))
+                        var_val = sum((p - mean_peak) ** 2 for p in step_peaks) / len(step_peaks)
+                        imm_val = max(0.0, min(1.0, 1.0 - math.sqrt(var_val) * 0.5))
+                        viral_val = round(
+                            max(0.0, min(100.0, (0.40 * hook_val + 0.35 * ret_val + 0.25 * imm_val) * 100.0)),
+                            2,
+                        )
+                        curve_val = tuple(round(max(0.0, min(1.0, 0.5 + p * 0.5)), 4) for p in step_peaks)
+                        return NeuralAttentionScore(
+                            window_id=window_id,
+                            hook_score=hook_val,
+                            retention_score=ret_val,
+                            immersion_score=imm_val,
+                            neural_viral_index=viral_val,
+                            attention_curve=curve_val,
+                            dropoff_risk_points=(),
+                            source="tribe_v2_macbook",
+                            latency_ms=latency_ms,
+                        )
 
             hook = float(
                 item.get("hookScore")

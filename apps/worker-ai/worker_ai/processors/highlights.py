@@ -749,6 +749,8 @@ async def _enrich_with_tribe(
                 )
             return ranked
 
+        # Target top candidate moments for TRIBE v2 neural scoring to keep turnaround fast
+        top_candidates = ranked[:6]
         inputs = [
             TribeWindowInput(
                 window_id=entry.candidate.window.window_id,
@@ -761,7 +763,7 @@ async def _enrich_with_tribe(
                     ]
                 ),
             )
-            for entry in ranked
+            for entry in top_candidates
         ]
         await context.progress(65, message="Evaluating neural attention with TRIBE v2")
         predictions = await tribe.predict_batch(inputs)
