@@ -39,6 +39,7 @@ model Workspace {
   quota         WorkspaceQuota?
   cloudIntegrations WorkspaceCloudIntegration[]
   cloudImportJobs   CloudImportJob[]
+  zoomIntegration   WorkspaceZoomIntegration?
 }
 
 model WorkspaceMember {
@@ -271,4 +272,34 @@ model CloudImportJob {
   completedAt   DateTime?
 
   workspace     Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+model WorkspaceZoomIntegration {
+  id             String    @id @default(uuid())
+  workspaceId    String    @unique
+  zoomUserId     String
+  zoomEmail      String
+  accessToken    String    // AES-256-GCM
+  refreshToken   String    // AES-256-GCM
+  expiresAt      DateTime
+  autoRepurpose  Boolean   @default(true)
+  minDurationSec Int       @default(600) // 10 minutes minimum
+  nameFilter     String?   // Regex or tag filter
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  workspace      Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+model ZoomRecordingEvent {
+  id          String    @id @default(uuid())
+  meetingId   String    @unique
+  workspaceId String?
+  topic       String
+  durationMin Int
+  fileCount   Int
+  status      String    @default("PENDING") // PENDING, PROCESSING, COMPLETED, IGNORED, FAILED
+  projectId   String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 }

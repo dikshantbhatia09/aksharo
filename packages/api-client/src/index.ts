@@ -50,6 +50,7 @@ export {
   offersEndpoints,
   mediaEndpoints,
   cloudIntegrationEndpoints,
+  zoomIntegrationEndpoints,
   memoryEndpoints,
   notificationEndpoints,
   pendingEndpoints,
@@ -259,6 +260,14 @@ export type {
   SetClientTagRequest,
   TransferOwnershipRequest,
   TransferOwnershipResult,
+  WorkspaceZoomIntegrationView,
+  ZoomAuthorizeUrlResponse,
+  ZoomOAuthCallbackRequest,
+  UpdateZoomSettingsRequest,
+  ZoomRecordingEventView,
+  RiversideStudioTrack,
+  RiversideStudioImportRequest,
+  GoogleMeetImportRequest,
 } from "./types.js";
 
 /** Build-time identity of this package, used by diagnostics bundles. */

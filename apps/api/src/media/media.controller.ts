@@ -264,7 +264,7 @@ export class MediaUploadsController {
     private readonly youtubeProbe: YouTubeProbeService,
   ) {}
 
-  @Post(["probe-url", "/api/v1/media/probe-url"])
+  @Post("probe-url")
   @Roles("viewer")
   @ApiOperation({
     summary: "Probe a YouTube video URL for metadata and native chapters",

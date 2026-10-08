@@ -168,7 +168,7 @@ describe("detectLayout (2026-10-01, two-speaker layouts)", () => {
 
   it("returns fit layout when asked for fit", () => {
     expect(detectLayout(PODCAST, 0, 20_000, "fit")).toEqual(FIT_LAYOUT);
-    expect(detectLayout(undefined, 0, 10_000, "fit")).toEqual(FIT_LAYOUT);
+    expect(detectLayout(undefined as any, 0, 10_000, "fit")).toEqual(FIT_LAYOUT);
   });
 });
 

@@ -1782,3 +1782,69 @@ export interface PushSubscriptionSaved {
   id: string;
   createdAt: string;
 }
+
+// ---------------------------------------------------------------------------
+// Meeting & Studio Connectors (Pillar 1 §03)
+// ---------------------------------------------------------------------------
+
+export interface WorkspaceZoomIntegrationView {
+  id: string;
+  workspaceId: string;
+  zoomUserId: string;
+  zoomEmail: string;
+  autoRepurpose: boolean;
+  minDurationSec: number;
+  nameFilter?: string | null;
+  expiresAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ZoomAuthorizeUrlResponse {
+  url: string;
+  state: string;
+}
+
+export interface ZoomOAuthCallbackRequest {
+  code: string;
+  redirectUri?: string;
+}
+
+export interface UpdateZoomSettingsRequest {
+  autoRepurpose?: boolean;
+  minDurationSec?: number;
+  nameFilter?: string | null;
+}
+
+export interface ZoomRecordingEventView {
+  id: string;
+  meetingId: string;
+  workspaceId?: string | null;
+  topic: string;
+  durationMin: number;
+  fileCount: number;
+  status: "PENDING" | "PROCESSING" | "COMPLETED" | "IGNORED" | "FAILED";
+  projectId?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RiversideStudioTrack {
+  speakerName: string;
+  role?: "host" | "guest" | "screen" | "combined";
+  videoUrl?: string;
+  audioUrl?: string;
+  durationSec?: number;
+}
+
+export interface RiversideStudioImportRequest {
+  sessionId: string;
+  sessionTitle?: string;
+  tracks: RiversideStudioTrack[];
+}
+
+export interface GoogleMeetImportRequest {
+  meetCode: string;
+  recordingFileId: string;
+  title?: string;
+}

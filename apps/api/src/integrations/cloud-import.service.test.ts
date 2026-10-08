@@ -11,6 +11,7 @@ describe("CloudImportService", () => {
     const prisma = {
       project: {
         findFirst: vi.fn().mockResolvedValue({ id: PROJ_ID, title: "Existing Project" }),
+        create: vi.fn().mockResolvedValue({ id: PROJ_ID, title: "interview.mp4", status: "draft" }),
       },
       mediaAsset: {
         create: vi.fn().mockImplementation(({ data }) => {

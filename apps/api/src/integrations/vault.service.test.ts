@@ -32,7 +32,7 @@ describe("VaultService", () => {
     const [iv, tag, ct] = encrypted.split(":");
 
     // Tamper with ciphertext
-    const tamperedCt = ct.slice(0, -2) + "aa";
+    const tamperedCt = ct!.slice(0, -2) + "aa";
     const tampered = `${iv}:${tag}:${tamperedCt}`;
 
     expect(() => vault.decrypt(tampered)).toThrow();
@@ -44,7 +44,7 @@ describe("VaultService", () => {
     const [iv, tag, ct] = encrypted.split(":");
 
     // Tamper with tag
-    const tamperedTag = tag.slice(0, -2) + "zz";
+    const tamperedTag = tag!.slice(0, -2) + "zz";
     const tampered = `${iv}:${tamperedTag}:${ct}`;
 
     expect(() => vault.decrypt(tampered)).toThrow();

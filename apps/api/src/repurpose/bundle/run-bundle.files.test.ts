@@ -98,6 +98,8 @@ describe("bundleFilesOf", () => {
               {
                 id: "carousel",
                 name: "Carousel",
+                width: 1080,
+                height: 1350,
                 keys: [{ name: "carousel-slide-1", key: "ws/w/img1.jpg" }],
               },
             ],
@@ -121,6 +123,8 @@ describe("bundleFilesOf", () => {
         linkedinPost: "",
         xThread: [],
         newsletter: "",
+        locale: "en",
+        source: "model",
       },
       includeClean: true,
     });

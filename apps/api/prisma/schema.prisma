@@ -918,6 +918,7 @@ model Workspace {
   clipPosts              ClipPost[]
   cloudIntegrations      WorkspaceCloudIntegration[]
   cloudImportJobs        CloudImportJob[]
+  zoomIntegration        WorkspaceZoomIntegration?
 
   @@index([ownerId])
   @@index([billingCountry])
@@ -4909,4 +4910,43 @@ model CloudImportJob {
   @@index([workspaceId])
   @@index([status])
   @@map("cloud_import_jobs")
+}
+
+/// Meeting & studio connectors (Pillar 1 §03) — Zoom OAuth credentials and auto-repurpose configuration.
+model WorkspaceZoomIntegration {
+  id             String    @id @default(uuid())
+  workspaceId    String    @unique @map("workspace_id") @db.Char(26)
+  zoomUserId     String    @map("zoom_user_id")
+  zoomEmail      String    @map("zoom_email")
+  accessToken    String    @map("access_token") // AES-256-GCM
+  refreshToken   String    @map("refresh_token") // AES-256-GCM
+  expiresAt      DateTime  @map("expires_at") @db.Timestamptz(6)
+  autoRepurpose  Boolean   @default(true) @map("auto_repurpose")
+  minDurationSec Int       @default(600) @map("min_duration_sec") // 10 minutes minimum
+  nameFilter     String?   @map("name_filter")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  workspace      Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([zoomUserId])
+  @@map("workspace_zoom_integrations")
+}
+
+/// Idempotent webhook event ledger for incoming Zoom recordings (Pillar 1 §03).
+model ZoomRecordingEvent {
+  id          String    @id @default(uuid())
+  meetingId   String    @unique @map("meeting_id")
+  workspaceId String?   @map("workspace_id") @db.Char(26)
+  topic       String
+  durationMin Int       @map("duration_min")
+  fileCount   Int       @map("file_count")
+  status      String    @default("PENDING") // PENDING, PROCESSING, COMPLETED, IGNORED, FAILED
+  projectId   String?   @map("project_id") @db.Char(26)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([status])
+  @@index([workspaceId])
+  @@map("zoom_recording_events")
 }

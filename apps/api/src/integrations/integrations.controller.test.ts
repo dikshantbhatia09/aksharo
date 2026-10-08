@@ -63,7 +63,7 @@ describe("IntegrationsController", () => {
   it("lists connected cloud integrations", async () => {
     const list = await controller.listIntegrations("ws-1");
     expect(list).toHaveLength(1);
-    expect(list[0].provider).toBe("GOOGLE_DRIVE");
+    expect(list[0]!.provider).toBe("GOOGLE_DRIVE");
   });
 
   it("saves a cloud integration", async () => {

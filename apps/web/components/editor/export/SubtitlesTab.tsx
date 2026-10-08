@@ -31,6 +31,7 @@ export function SubtitlesTab({
   readonly value: SubtitlesTabValue;
   readonly onChange: (value: SubtitlesTabValue) => void;
   readonly disabled: boolean;
+  readonly assExportable?: boolean;
 }): React.JSX.Element {
   const toggle = (format: SubtitleFormat): void => {
     const has = value.formats.includes(format);

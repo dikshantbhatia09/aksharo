@@ -139,6 +139,13 @@ import type {
   UploadTicket,
   UsageSummary,
   WorkspaceSummary,
+  WorkspaceZoomIntegrationView,
+  ZoomAuthorizeUrlResponse,
+  ZoomOAuthCallbackRequest,
+  UpdateZoomSettingsRequest,
+  ZoomRecordingEventView,
+  RiversideStudioImportRequest,
+  GoogleMeetImportRequest,
 } from "./types.js";
 
 /** Auth (A04). */
@@ -707,15 +714,15 @@ export const mediaEndpoints = {
   }),
   importCloud: defineEndpoint<ImportCloudRequest, CloudImportJobResponse>({
     method: "POST",
-    path: "/api/v1/media/import-cloud",
+    path: "/media/import-cloud",
     auth: "bearer",
-    pending: "Pillar 1 §02",
+    operationId: "importMediaFromCloud",
   }),
   getCloudImportStatus: defineEndpoint<void, CloudImportJobResponse>({
     method: "GET",
-    path: "/api/v1/media/cloud-import/{jobId}",
+    path: "/media/cloud-import/{jobId}",
     auth: "bearer",
-    pending: "Pillar 1 §02",
+    operationId: "getCloudImportStatus",
   }),
 } as const;
 
@@ -723,21 +730,79 @@ export const mediaEndpoints = {
 export const cloudIntegrationEndpoints = {
   list: defineEndpoint<void, CloudIntegrationView[]>({
     method: "GET",
-    path: "/api/v1/integrations/cloud",
+    path: "/integrations/cloud",
     auth: "bearer",
-    pending: "Pillar 1 §02",
+    operationId: "listCloudIntegrations",
   }),
   save: defineEndpoint<SaveCloudIntegrationRequest, CloudIntegrationView>({
     method: "POST",
-    path: "/api/v1/integrations/cloud",
+    path: "/integrations/cloud",
     auth: "bearer",
-    pending: "Pillar 1 §02",
+    operationId: "saveCloudIntegration",
   }),
   delete: defineEndpoint<void, void>({
     method: "DELETE",
-    path: "/api/v1/integrations/cloud/{id}",
+    path: "/integrations/cloud/{id}",
     auth: "bearer",
-    pending: "Pillar 1 §02",
+    operationId: "deleteCloudIntegration",
+  }),
+} as const;
+
+/** Meeting & Studio Connectors (Zoom Cloud, Riverside.fm, Google Meet) - Pillar 1 §03 */
+export const zoomIntegrationEndpoints = {
+  get: defineEndpoint<void, WorkspaceZoomIntegrationView | { connected: false }>({
+    method: "GET",
+    path: "/integrations/zoom",
+    auth: "bearer",
+    operationId: "getZoomIntegration",
+  }),
+  authorizeUrl: defineEndpoint<void, ZoomAuthorizeUrlResponse>({
+    method: "POST",
+    path: "/integrations/zoom/authorize",
+    auth: "bearer",
+    operationId: "getZoomAuthorizeUrl",
+  }),
+  callback: defineEndpoint<ZoomOAuthCallbackRequest, WorkspaceZoomIntegrationView>({
+    method: "POST",
+    path: "/integrations/zoom/callback",
+    auth: "bearer",
+    operationId: "connectZoomOAuth",
+  }),
+  updateSettings: defineEndpoint<UpdateZoomSettingsRequest, WorkspaceZoomIntegrationView>({
+    method: "PATCH",
+    path: "/integrations/zoom/settings",
+    auth: "bearer",
+    operationId: "updateZoomSettings",
+  }),
+  disconnect: defineEndpoint<void, void>({
+    method: "DELETE",
+    path: "/integrations/zoom",
+    auth: "bearer",
+    operationId: "disconnectZoom",
+  }),
+  events: defineEndpoint<void, ZoomRecordingEventView[]>({
+    method: "GET",
+    path: "/integrations/zoom/events",
+    auth: "bearer",
+    operationId: "listZoomEvents",
+  }),
+  importMeeting: defineEndpoint<{ meetingId: string; topic?: string; downloadUrl?: string }, { status: string; projectId?: string }>({
+    method: "POST",
+    path: "/integrations/zoom/import/{meetingId}",
+    auth: "bearer",
+    operationId: "importZoomMeeting",
+  }),
+  importRiverside: defineEndpoint<RiversideStudioImportRequest, { status: string; projectId: string; tracksCount: number }>({
+    method: "POST",
+    path: "/integrations/studio/riverside",
+    auth: "bearer",
+    operationId: "importRiversideStudio",
+  }),
+  importGoogleMeet: defineEndpoint<GoogleMeetImportRequest, { status: string; projectId: string }>({
+    method: "POST",
+    path: "/integrations/studio/google-meet",
+    auth: "bearer",
+    operationId: "importGoogleMeet",
   }),
 } as const;
 
@@ -1200,6 +1265,7 @@ export const endpoints = {
   folders: folderEndpoints,
   media: mediaEndpoints,
   cloudIntegrations: cloudIntegrationEndpoints,
+  zoomIntegrations: zoomIntegrationEndpoints,
   styles: styleEndpoints,
   transcripts: transcriptEndpoints,
   transcriptScripts: transcriptScriptsEndpoints,
@@ -1241,6 +1307,7 @@ export const ALL_ENDPOINTS = [
   ...Object.entries(folderEndpoints),
   ...Object.entries(mediaEndpoints),
   ...Object.entries(cloudIntegrationEndpoints),
+  ...Object.entries(zoomIntegrationEndpoints),
   ...Object.entries(styleEndpoints),
   ...Object.entries(transcriptEndpoints),
   ...Object.entries(transcriptScriptsEndpoints),

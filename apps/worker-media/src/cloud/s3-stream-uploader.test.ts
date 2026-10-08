@@ -56,6 +56,6 @@ describe("uploadStreamToS3", () => {
     expect(result.key).toBe("ws/123/media/456/raw.mp4");
     expect(result.totalBytesUploaded).toBe(1048576);
     expect(progressList.length).toBeGreaterThan(0);
-    expect(progressList[progressList.length - 1].percentage).toBe(100);
+    expect(progressList[progressList.length - 1]!.percentage).toBe(100);
   });
 });

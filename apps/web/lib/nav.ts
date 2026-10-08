@@ -303,6 +303,12 @@ export const SETTINGS_NAV: readonly SettingsSection[] = [
     description: "Offline activation for plugins and the desktop app.",
   },
   {
+    key: "integrations",
+    label: "Integrations & Studio",
+    href: "/settings/integrations",
+    description: "Zoom Cloud, Riverside.fm and Google Meet auto-ingestion.",
+  },
+  {
     // B14: added additively — this file is outside B14's stated boundary
     // (`apps/web/app/(app)/settings/developers/**`), but the Developers
     // settings page is unreachable from the sidebar without a nav entry.

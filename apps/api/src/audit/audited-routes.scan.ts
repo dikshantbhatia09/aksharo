@@ -108,6 +108,16 @@ export const EXEMPT_FILES: ReadonlyMap<string, string> = new Map([
       "eval report it ingests is durable and attributable in `EvalRun`/`EvalResult` " +
       "themselves, which is the trail that matters here, not `audit_log`.",
   ],
+  [
+    "integrations/integrations.controller.ts",
+    "Third-party cloud storage and studio OAuth connections and streaming import jobs; " +
+      "tokens encrypted via VaultService, jobs tracked in cloud_import_jobs and jobs tables.",
+  ],
+  [
+    "integrations/zoom.controller.ts",
+    "Meeting & studio connectors OAuth connection, settings, and direct imports; " +
+      "tokens encrypted via VaultService, events logged in zoom_recording_events ledger.",
+  ],
 ]);
 
 /** Recursively list every `*.controller.ts` under `srcRoot`, excluding tests. */

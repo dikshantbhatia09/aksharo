@@ -54,7 +54,7 @@ export class IntegrationsController {
     private readonly cloudImport: CloudImportService,
   ) {}
 
-  @Get(["integrations/cloud", "api/v1/integrations/cloud"])
+  @Get("integrations/cloud")
   @Roles("viewer")
   @ApiOperation({
     summary: "List connected third-party cloud storage accounts",
@@ -74,7 +74,7 @@ export class IntegrationsController {
     }));
   }
 
-  @Post(["integrations/cloud", "api/v1/integrations/cloud"])
+  @Post("integrations/cloud")
   @Roles("editor")
   @ApiOperation({
     summary: "Connect or refresh third-party cloud storage account credentials",
@@ -96,7 +96,7 @@ export class IntegrationsController {
     };
   }
 
-  @Delete(["integrations/cloud/:id", "api/v1/integrations/cloud/:id"])
+  @Delete("integrations/cloud/:id")
   @Roles("editor")
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
@@ -110,7 +110,7 @@ export class IntegrationsController {
     return this.integrations.deleteIntegration(workspaceId, id);
   }
 
-  @Post(["media/import-cloud", "api/v1/media/import-cloud"])
+  @Post("media/import-cloud")
   @Roles("editor")
   @ApiOperation({
     summary: "Import video file directly from cloud storage",
@@ -127,7 +127,7 @@ export class IntegrationsController {
     return this.cloudImport.importFromCloud(workspaceId, body);
   }
 
-  @Get(["media/cloud-import/:jobId", "api/v1/media/cloud-import/:jobId"])
+  @Get("media/cloud-import/:jobId")
   @Roles("viewer")
   @ApiOperation({
     summary: "Check status of a cloud import streaming job",

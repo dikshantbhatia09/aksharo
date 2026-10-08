@@ -101,6 +101,8 @@ export const queryKeys = {
    * bytes at `packs/{packId}/{assetId}.wav` do not change per workspace, so
    * two projects previewing the same catalogue cue share the one fetch. */
   audioAssetUrl: (assetId: string) => ["audioAssets", assetId, "url"] as const,
+  zoomIntegration: (workspaceId: string) => ["ws", workspaceId, "integrations", "zoom"] as const,
+  zoomEvents: (workspaceId: string) => ["ws", workspaceId, "integrations", "zoom", "events"] as const,
 } as const;
 
 export type QueryKeys = typeof queryKeys;

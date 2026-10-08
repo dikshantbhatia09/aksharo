@@ -63,6 +63,7 @@ export interface ExportDialogProps {
   readonly isLocalProject?: boolean;
   readonly onUploadToCloud?: () => void;
   readonly uploadingToCloud?: boolean;
+  readonly hasVideo?: boolean;
 }
 
 const DEFAULT_VIDEO: VideoTabValue = {

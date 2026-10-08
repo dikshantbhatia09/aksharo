@@ -46,8 +46,8 @@ export class CloudImportService {
       const integration = await this.integrations.getDecryptedToken(workspaceId, provider);
       if (!integration?.accessToken) {
         throw new AppException(
-          ERROR_CODES.unauthorized,
-          `No active OAuth connection or token found for ${provider}. Please authenticate first.`,
+          "integrations/token_required",
+          `integrations/token_required: No active OAuth connection or token found for ${provider}. Please authenticate first.`,
           HttpStatus.UNAUTHORIZED,
         );
       }

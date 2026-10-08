@@ -663,6 +663,13 @@ export const API_OPERATIONS = [
     summary: "Confirm an uploaded diagnostics bundle and attach it to the ticket",
   },
   {
+    operationId: "connectZoomOAuth",
+    method: "POST",
+    path: "/integrations/zoom/callback",
+    tags: ["integrations"],
+    summary: "Connect Zoom workspace using OAuth authorization code",
+  },
+  {
     operationId: "countGuestLinkDownload",
     method: "POST",
     path: "/guest/downloads",
@@ -978,6 +985,13 @@ export const API_OPERATIONS = [
     summary: "Delete a picture",
   },
   {
+    operationId: "deleteCloudIntegration",
+    method: "DELETE",
+    path: "/integrations/cloud/{id}",
+    tags: ["integrations"],
+    summary: "Disconnect third-party cloud storage account",
+  },
+  {
     operationId: "deleteFolder",
     method: "DELETE",
     path: "/folders/{folderId}",
@@ -1111,6 +1125,13 @@ export const API_OPERATIONS = [
     summary: "Discard many dead letters",
   },
   {
+    operationId: "disconnectZoom",
+    method: "DELETE",
+    path: "/integrations/zoom",
+    tags: ["integrations"],
+    summary: "Disconnect Zoom integration",
+  },
+  {
     operationId: "dismissChangelogVersion",
     method: "POST",
     path: "/academy/changelog/dismissed",
@@ -1207,6 +1228,13 @@ export const API_OPERATIONS = [
     path: "/fonts/manifest",
     tags: ["fonts"],
     summary: "The bundled font catalogue",
+  },
+  {
+    operationId: "getCloudImportStatus",
+    method: "GET",
+    path: "/media/cloud-import/{jobId}",
+    tags: ["integrations"],
+    summary: "Check status of a cloud import streaming job",
   },
   {
     operationId: "getConsents",
@@ -1594,11 +1622,32 @@ export const API_OPERATIONS = [
     summary: "Ledger history, newest first",
   },
   {
+    operationId: "getZoomAuthorizeUrl",
+    method: "POST",
+    path: "/integrations/zoom/authorize",
+    tags: ["integrations"],
+    summary: "Get Zoom OAuth authorization URL",
+  },
+  {
+    operationId: "getZoomIntegration",
+    method: "GET",
+    path: "/integrations/zoom",
+    tags: ["integrations"],
+    summary: "Get Zoom integration status and configuration for workspace",
+  },
+  {
     operationId: "handleRazorpayWebhook",
     method: "POST",
     path: "/billing/webhooks/razorpay",
     tags: ["billing"],
     summary: "Razorpay webhook (THREAT-MODEL T16)",
+  },
+  {
+    operationId: "handleZoomWebhook",
+    method: "POST",
+    path: "/webhooks/zoom",
+    tags: ["webhooks"],
+    summary: "Handle Zoom Webhooks and endpoint URL validation",
   },
   {
     operationId: "importEdgDocument",
@@ -1608,11 +1657,32 @@ export const API_OPERATIONS = [
     summary: "Write a whole EDG document as revision 1 of a fresh project",
   },
   {
+    operationId: "importGoogleMeet",
+    method: "POST",
+    path: "/integrations/studio/google-meet",
+    tags: ["integrations"],
+    summary: "Import Google Meet cloud recording",
+  },
+  {
+    operationId: "importMediaFromCloud",
+    method: "POST",
+    path: "/media/import-cloud",
+    tags: ["integrations"],
+    summary: "Import video file directly from cloud storage",
+  },
+  {
     operationId: "importMemoryGlossary",
     method: "POST",
     path: "/memory/import",
     tags: ["memory"],
     summary: "Bulk-import glossary terms from CSV",
+  },
+  {
+    operationId: "importRiversideStudio",
+    method: "POST",
+    path: "/integrations/studio/riverside",
+    tags: ["integrations"],
+    summary: "Import Riverside.fm studio session with multi-speaker track separation",
   },
   {
     operationId: "importSubtitles",
@@ -1627,6 +1697,13 @@ export const API_OPERATIONS = [
     path: "/projects/{projectId}/import-url",
     tags: ["media"],
     summary: "Import a subtitle file from a URL",
+  },
+  {
+    operationId: "importZoomMeeting",
+    method: "POST",
+    path: "/integrations/zoom/import/{meetingId}",
+    tags: ["integrations"],
+    summary: "Trigger manual import of a Zoom recording",
   },
   {
     operationId: "initFontUpload",
@@ -1690,6 +1767,13 @@ export const API_OPERATIONS = [
     path: "/workspaces/{id}/client-tags",
     tags: ["workspaces"],
     summary: "Client tags in use, with counts",
+  },
+  {
+    operationId: "listCloudIntegrations",
+    method: "GET",
+    path: "/integrations/cloud",
+    tags: ["integrations"],
+    summary: "List connected third-party cloud storage accounts",
   },
   {
     operationId: "listComments",
@@ -2049,6 +2133,13 @@ export const API_OPERATIONS = [
     summary: "The workspaces the caller belongs to",
   },
   {
+    operationId: "listZoomEvents",
+    method: "GET",
+    path: "/integrations/zoom/events",
+    tags: ["integrations"],
+    summary: "List Zoom recording events from persistent ledger",
+  },
+  {
     operationId: "markAcademyStepDone",
     method: "POST",
     path: "/academy/tracks/{trackId}/steps/{stepId}/done",
@@ -2173,6 +2264,13 @@ export const API_OPERATIONS = [
     path: "/s/{token}/preview",
     tags: ["share-public"],
     summary: "Proxy URL + EDG projection for the CanvasKit preview",
+  },
+  {
+    operationId: "probeYouTubeUrl",
+    method: "POST",
+    path: "/media/probe-url",
+    tags: ["media"],
+    summary: "Probe a YouTube video URL for metadata and native chapters",
   },
   {
     operationId: "projectTranscriptionState",
@@ -2581,6 +2679,13 @@ export const API_OPERATIONS = [
     summary: "Keep a stock photo in the library",
   },
   {
+    operationId: "saveCloudIntegration",
+    method: "POST",
+    path: "/integrations/cloud",
+    tags: ["integrations"],
+    summary: "Connect or refresh third-party cloud storage account credentials",
+  },
+  {
     operationId: "savePushSubscription",
     method: "POST",
     path: "/me/push-subscriptions",
@@ -2887,6 +2992,13 @@ export const API_OPERATIONS = [
     path: "/workspaces/{id}",
     tags: ["workspaces"],
     summary: "Rename a workspace or change its settings",
+  },
+  {
+    operationId: "updateZoomSettings",
+    method: "PATCH",
+    path: "/integrations/zoom/settings",
+    tags: ["integrations"],
+    summary: "Update Zoom selective ingestion rules",
   },
   {
     operationId: "useRepurposeUpload",

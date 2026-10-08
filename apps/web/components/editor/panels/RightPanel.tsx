@@ -262,12 +262,40 @@ export function RightPanel({
           role="tablist"
           aria-label="Caption settings"
         >
-          {PANEL_TABS.map((entry) => (
+          {PANEL_TABS.map((entry, idx) => (
             <button
               key={entry.id}
               type="button"
               role="tab"
               aria-selected={tab === entry.id}
+              aria-controls={`right-panel-panel-${entry.id}`}
+              tabIndex={tab === entry.id ? 0 : -1}
+              onKeyDown={(e) => {
+                if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+                  e.preventDefault();
+                  const nextIdx = (idx + 1) % PANEL_TABS.length;
+                  const nextTab = PANEL_TABS[nextIdx]!.id;
+                  setTab(nextTab);
+                  e.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[nextIdx]?.focus();
+                } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+                  e.preventDefault();
+                  const prevIdx = (idx - 1 + PANEL_TABS.length) % PANEL_TABS.length;
+                  const prevTab = PANEL_TABS[prevIdx]!.id;
+                  setTab(prevTab);
+                  e.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[prevIdx]?.focus();
+                } else if (e.key === "Home") {
+                  e.preventDefault();
+                  const firstTab = PANEL_TABS[0]!.id;
+                  setTab(firstTab);
+                  e.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[0]?.focus();
+                } else if (e.key === "End") {
+                  e.preventDefault();
+                  const lastIdx = PANEL_TABS.length - 1;
+                  const lastTab = PANEL_TABS[lastIdx]!.id;
+                  setTab(lastTab);
+                  e.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[lastIdx]?.focus();
+                }
+              }}
               onClick={() => {
                 setTab(entry.id);
               }}
@@ -321,25 +349,44 @@ export function RightPanel({
           />
         </div>
       ) : tab === "style" ? (
-        <StylePicker
-          styles={styles}
-          selectedStyleId={style.id}
-          scope={scope}
-          onOp={onOp}
-          canvas={canvas}
-          className="min-h-0 flex-1"
-          {...(onSaveTemplate === undefined ? {} : { onSaveTemplate })}
-          {...(myPresets === undefined ? {} : { myPresets })}
-          {...(onDeletePreset === undefined ? {} : { onDeletePreset })}
-        />
+        <div
+          role="tabpanel"
+          id="right-panel-panel-style"
+          aria-labelledby="right-panel-tab-style"
+          className="flex min-h-0 flex-1 flex-col"
+        >
+          <StylePicker
+            styles={styles}
+            selectedStyleId={style.id}
+            scope={scope}
+            onOp={onOp}
+            canvas={canvas}
+            className="min-h-0 flex-1"
+            {...(onSaveTemplate === undefined ? {} : { onSaveTemplate })}
+            {...(myPresets === undefined ? {} : { myPresets })}
+            {...(onDeletePreset === undefined ? {} : { onDeletePreset })}
+          />
+        </div>
       ) : tab === "audio" ? (
-        audio === undefined ? (
-          <p className="text-xs text-fg-2">Audio clean is not available for this project.</p>
-        ) : (
-          <AudioPanel {...audio} />
-        )
+        <div
+          role="tabpanel"
+          id="right-panel-panel-audio"
+          aria-labelledby="right-panel-tab-audio"
+          className="flex min-h-0 flex-1 flex-col"
+        >
+          {audio === undefined ? (
+            <p className="text-xs text-fg-2">Audio clean is not available for this project.</p>
+          ) : (
+            <AudioPanel {...audio} />
+          )}
+        </div>
       ) : (
-        <div className="editor-inspector-body scrollbar-thin flex min-h-0 flex-1 flex-col overflow-y-auto">
+        <div
+          role="tabpanel"
+          id={`right-panel-panel-${tab}`}
+          aria-labelledby={`right-panel-tab-${tab}`}
+          className="editor-inspector-body scrollbar-thin flex min-h-0 flex-1 flex-col overflow-y-auto"
+        >
           {/* shrink-0: a flex column item shrinks below its own height by default,
               which squeezed this preview to 62px and broke the aspect it was
               just given. The explicit size from `fitPreview` is the contract. */}

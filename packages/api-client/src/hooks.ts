@@ -140,6 +140,13 @@ import type {
   PluginManifestResponse,
   TransferOwnershipRequest,
   TransferOwnershipResult,
+  WorkspaceZoomIntegrationView,
+  ZoomAuthorizeUrlResponse,
+  UpdateZoomSettingsRequest,
+  ZoomRecordingEventView,
+  ZoomOAuthCallbackRequest,
+  RiversideStudioImportRequest,
+  GoogleMeetImportRequest,
 } from "./types.js";
 import type {
   InfiniteData,
@@ -2580,3 +2587,148 @@ export function useFeatureFlag(key: string): boolean {
   // eslint-disable-next-line security/detect-object-injection -- `key` is a flag name from the caller module constants, and a miss is simply false
   return (flags as Record<string, unknown>)[key] === true;
 }
+
+// ---------------------------------------------------------------------------
+// Meeting & Studio Connectors (Pillar 1 §03)
+// ---------------------------------------------------------------------------
+
+export function useZoomIntegration(): UseQueryResult<WorkspaceZoomIntegrationView | { connected: false }> {
+  const client = useApiClient();
+  const workspaceId = useWorkspaceId();
+  return useQuery({
+    queryKey: queryKeys.zoomIntegration(workspaceId ?? "none"),
+    enabled: workspaceId !== null,
+    queryFn: () => client.call(endpoints.zoomIntegrations.get),
+  });
+}
+
+export function useZoomEvents(): UseQueryResult<ZoomRecordingEventView[]> {
+  const client = useApiClient();
+  const workspaceId = useWorkspaceId();
+  return useQuery({
+    queryKey: queryKeys.zoomEvents(workspaceId ?? "none"),
+    enabled: workspaceId !== null,
+    queryFn: () => client.call(endpoints.zoomIntegrations.events),
+  });
+}
+
+export function useUpdateZoomSettings(): UseMutationResult<
+  WorkspaceZoomIntegrationView,
+  unknown,
+  UpdateZoomSettingsRequest
+> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  const workspaceId = useWorkspaceId();
+  return useMutation({
+    mutationFn: (body: UpdateZoomSettingsRequest) =>
+      client.call(endpoints.zoomIntegrations.updateSettings, { body }),
+    onSuccess: () => {
+      if (workspaceId) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.zoomIntegration(workspaceId) });
+      }
+    },
+  });
+}
+
+export function useDisconnectZoom(): UseMutationResult<void, unknown, void> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  const workspaceId = useWorkspaceId();
+  return useMutation({
+    mutationFn: () => client.call(endpoints.zoomIntegrations.disconnect),
+    onSuccess: () => {
+      if (workspaceId) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.zoomIntegration(workspaceId) });
+      }
+    },
+  });
+}
+
+export function useZoomAuthorizeUrl(): UseMutationResult<ZoomAuthorizeUrlResponse, unknown, void> {
+  const client = useApiClient();
+  return useMutation({
+    mutationFn: () => client.call(endpoints.zoomIntegrations.authorizeUrl),
+  });
+}
+
+export function useConnectZoomOAuth(): UseMutationResult<
+  WorkspaceZoomIntegrationView,
+  unknown,
+  ZoomOAuthCallbackRequest
+> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  const workspaceId = useWorkspaceId();
+  return useMutation({
+    mutationFn: (body: ZoomOAuthCallbackRequest) =>
+      client.call(endpoints.zoomIntegrations.callback, { body }),
+    onSuccess: () => {
+      if (workspaceId) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.zoomIntegration(workspaceId) });
+      }
+    },
+  });
+}
+
+export function useImportZoomMeeting(): UseMutationResult<
+  { status: string; projectId?: string },
+  unknown,
+  { meetingId: string; topic?: string; downloadUrl?: string }
+> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  const workspaceId = useWorkspaceId();
+  return useMutation({
+    mutationFn: ({ meetingId, topic, downloadUrl }) =>
+      client.call(endpoints.zoomIntegrations.importMeeting, {
+        params: { meetingId },
+        body: { meetingId, topic, downloadUrl },
+      }),
+    onSuccess: () => {
+      if (workspaceId) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.zoomEvents(workspaceId) });
+        queryClient.invalidateQueries({ queryKey: queryKeys.projects(workspaceId) });
+      }
+    },
+  });
+}
+
+export function useImportRiverside(): UseMutationResult<
+  { status: string; projectId: string; tracksCount: number },
+  unknown,
+  RiversideStudioImportRequest
+> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  const workspaceId = useWorkspaceId();
+  return useMutation({
+    mutationFn: (body: RiversideStudioImportRequest) =>
+      client.call(endpoints.zoomIntegrations.importRiverside, { body }),
+    onSuccess: () => {
+      if (workspaceId) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.projects(workspaceId) });
+      }
+    },
+  });
+}
+
+export function useImportGoogleMeet(): UseMutationResult<
+  { status: string; projectId: string },
+  unknown,
+  GoogleMeetImportRequest
+> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  const workspaceId = useWorkspaceId();
+  return useMutation({
+    mutationFn: (body: GoogleMeetImportRequest) =>
+      client.call(endpoints.zoomIntegrations.importGoogleMeet, { body }),
+    onSuccess: () => {
+      if (workspaceId) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.projects(workspaceId) });
+      }
+    },
+  });
+}
+
