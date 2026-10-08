@@ -1,5 +1,5 @@
 import { createCipheriv, createDecipheriv, hkdfSync, randomBytes } from "node:crypto";
-import { Injectable } from "@nestjs/common";
+import { Inject, Injectable, Optional } from "@nestjs/common";
 
 const HKDF_INFO = Buffer.from("montaj.cloud.vault.v1");
 const HKDF_SALT = Buffer.from("montaj-cloud-vault-salt");
@@ -15,7 +15,7 @@ const ALGO = "aes-256-gcm";
 export class VaultService {
   private readonly key: Buffer;
 
-  constructor(secretOverride?: string) {
+  constructor(@Optional() @Inject("VAULT_SECRET_OVERRIDE") secretOverride?: string) {
     const rawSecret =
       secretOverride ||
       process.env["ENCRYPTION_KEY"] ||
