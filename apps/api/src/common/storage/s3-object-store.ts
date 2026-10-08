@@ -142,6 +142,45 @@ export class S3ObjectStore implements ObjectStore {
     return this.client;
   }
 
+  async initiateMultipartUpload(input: {
+    readonly key: string;
+    readonly contentType?: string;
+    readonly tags?: Readonly<Record<string, string>>;
+  }): Promise<{ readonly uploadId: string }> {
+    const created = await this.client.send(
+      new CreateMultipartUploadCommand({
+        Bucket: this.bucket,
+        Key: input.key,
+        ...(input.contentType === undefined ? {} : { ContentType: input.contentType }),
+        ...(input.tags === undefined ? {} : { Tagging: encodeTags(input.tags) }),
+      }),
+    );
+    const uploadId = created.UploadId;
+    if (uploadId === undefined) {
+      throw new ObjectStoreError(`${this.bucket} returned no upload id for ${input.key}`);
+    }
+    return { uploadId };
+  }
+
+  async presignPartUpload(
+    key: string,
+    uploadId: string,
+    partNumber: number,
+    expiresInSeconds?: number,
+  ): Promise<string> {
+    const ttl = expiresInSeconds ?? UPLOAD_URL_TTL_SECONDS;
+    return getSignedUrl(
+      this.presignClient,
+      new UploadPartCommand({
+        Bucket: this.bucket,
+        Key: key,
+        UploadId: uploadId,
+        PartNumber: partNumber,
+      }),
+      { expiresIn: ttl },
+    );
+  }
+
   async createMultipartUpload(input: CreateMultipartInput): Promise<MultipartUpload> {
     const partCount = partCountFor(input.sizeBytes, this.partSizeBytes);
     if (partCount > MULTIPART_MAX_PARTS) {

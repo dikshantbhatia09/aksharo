@@ -85,6 +85,21 @@ export interface ObjectStore {
   /** Begin a multipart upload and presign every part. */
   createMultipartUpload(input: CreateMultipartInput): Promise<MultipartUpload>;
 
+  /** Initiate a multipart upload without pre-signing all parts up front. */
+  initiateMultipartUpload?(input: {
+    readonly key: string;
+    readonly contentType?: string;
+    readonly tags?: Readonly<Record<string, string>>;
+  }): Promise<{ readonly uploadId: string }>;
+
+  /** Presign a single part upload on demand. */
+  presignPartUpload?(
+    key: string,
+    uploadId: string,
+    partNumber: number,
+    expiresInSeconds?: number,
+  ): Promise<string>;
+
   /** Finish one, in part order. Returns the final object's ETag when the store gives one. */
   completeMultipartUpload(
     key: string,

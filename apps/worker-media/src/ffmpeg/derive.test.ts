@@ -139,6 +139,14 @@ describe("proxyArgs", () => {
   it("asks ffmpeg for machine-readable progress, so the heartbeat is not a guess", () => {
     expect(valueOf(proxyArgs({ ...base, hdr: false, hasAudio: true }), "-progress")).toBe("pipe:2");
   });
+
+  it("injects -fps_mode cfr when VFR is detected to prevent A/V drift", () => {
+    const vfrArgs = proxyArgs({ ...base, hdr: false, hasAudio: true, isVfr: true });
+    expect(valueOf(vfrArgs, "-fps_mode")).toBe("cfr");
+
+    const cfrArgs = proxyArgs({ ...base, hdr: false, hasAudio: true, isVfr: false });
+    expect(cfrArgs).not.toContain("-fps_mode");
+  });
 });
 
 describe("thumbnailCount", () => {

@@ -4,6 +4,8 @@ import { FacesTrigger, MediaFacesCompletionHandler } from "./faces.js";
 import { SubtitleImportService } from "./import/subtitle-import.service.js";
 import { MediaController, MediaUploadsController } from "./media.controller.js";
 import { MediaService } from "./media.service.js";
+import { MultipartUploadController } from "./multipart-upload.controller.js";
+import { MultipartUploadService } from "./multipart-upload.service.js";
 import { MediaProbeCompletionHandler } from "./probe.handler.js";
 import { MediaProxyCompletionHandler } from "./proxy.handler.js";
 import { RetentionService } from "./retention.service.js";
@@ -47,9 +49,15 @@ import { WorkspacesModule } from "../workspaces/workspaces.module.js";
  */
 @Module({
   imports: [ProjectsModule, WorkspacesModule, JobsModule, EdgModule, TranscriptsModule],
-  controllers: [MediaController, MediaUploadsController, SampleProjectController],
+  controllers: [
+    MediaController,
+    MediaUploadsController,
+    MultipartUploadController,
+    SampleProjectController,
+  ],
   providers: [
     MediaService,
+    MultipartUploadService,
     SubtitleImportService,
     RetentionService,
     MediaProbeCompletionHandler,
@@ -61,6 +69,13 @@ import { WorkspacesModule } from "../workspaces/workspaces.module.js";
     MediaFacesCompletionHandler,
     YouTubeProbeService,
   ],
-  exports: [MediaService, SubtitleImportService, RetentionService, FacesTrigger, YouTubeProbeService],
+  exports: [
+    MediaService,
+    MultipartUploadService,
+    SubtitleImportService,
+    RetentionService,
+    FacesTrigger,
+    YouTubeProbeService,
+  ],
 })
 export class MediaModule {}

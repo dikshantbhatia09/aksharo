@@ -151,7 +151,7 @@ export async function processProxy(context: JobContext): Promise<ProcessorOutcom
       const out = workspace.path("proxy540.mp4");
       const { toneMapped } = await encodeProxy(
         derive,
-        { out, size, hdr: facts.hdr, hasAudio: facts.hasAudio },
+        { out, size, hdr: facts.hdr, hasAudio: facts.hasAudio, isVfr: facts.isVfr },
         (chunk) => {
           const progress = readEncodeProgress(chunk, facts.durationMs);
           // 40 → 85 is the encode's slice of the job.
@@ -265,6 +265,7 @@ interface MediaFacts {
   readonly width: number;
   readonly height: number;
   readonly hdr: boolean;
+  readonly isVfr?: boolean;
 }
 
 /** The payload's hints when they are complete, a fresh ffprobe when they are not. */
@@ -283,6 +284,7 @@ async function resolveFacts(context: JobContext, payload: MediaProxyPayload): Pr
       width: payload.width ?? 0,
       height: payload.height ?? 0,
       hdr: payload.hdr ?? false,
+      isVfr: (payload as any).isVfr ?? false,
     };
   }
 
@@ -302,6 +304,7 @@ async function resolveFacts(context: JobContext, payload: MediaProxyPayload): Pr
     width: container.video?.width ?? 0,
     height: container.video?.height ?? 0,
     hdr: container.video?.hdr ?? false,
+    isVfr: container.video?.isVfr ?? false,
   };
 }
 

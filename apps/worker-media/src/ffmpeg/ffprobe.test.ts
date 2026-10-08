@@ -153,4 +153,23 @@ describe("readProbe", () => {
     // Terminal: retrying will not put a stream in the file.
     expect(error?.retryable).toBe(false);
   });
+
+  it("detects Variable Frame Rate (VFR) when r_frame_rate != avg_frame_rate", () => {
+    const vfrStream: FfprobeStream = {
+      ...H264,
+      avg_frame_rate: "29.97/1",
+      r_frame_rate: "90000/1",
+    };
+    const video = readVideo(vfrStream);
+    expect(video.isVfr).toBe(true);
+
+    const cfrStream: FfprobeStream = {
+      ...H264,
+      avg_frame_rate: "30000/1001",
+      r_frame_rate: "30000/1001",
+    };
+    const cfrVideo = readVideo(cfrStream);
+    expect(cfrVideo.isVfr).toBe(false);
+  });
 });
+

@@ -33,6 +33,8 @@ export interface ProbeVideo {
   readonly colourTransfer: string | null;
   readonly colourPrimaries: string | null;
   readonly hdr: boolean;
+  /** Variable Frame Rate flag; triggers CFR normalization during proxy transcode. */
+  readonly isVfr?: boolean;
 }
 
 /** One stretch of near-silence, from ffmpeg's `silencedetect`. */

@@ -179,11 +179,13 @@ describe("ZoomIngestService", () => {
           tracks: [
             {
               speakerName: "Host Alice",
+              audioUrl: "https://riverside.fm/rec/host.wav",
               videoUrl: "https://riverside.fm/rec/host.mp4",
               role: "host",
             },
             {
               speakerName: "Guest Bob",
+              audioUrl: "https://riverside.fm/rec/guest.wav",
               videoUrl: "https://riverside.fm/rec/guest.mp4",
               role: "guest",
             },
@@ -204,7 +206,7 @@ describe("ZoomIngestService", () => {
       const validWsId = ulid();
       const res = await service.ingestGoogleMeetRecording(validWsId, {
         meetCode: "abc-defg-hij",
-        driveFileId: "drive-file-789",
+        recordingFileId: "drive-file-789",
         title: "Sprint Planning Meet",
       });
 

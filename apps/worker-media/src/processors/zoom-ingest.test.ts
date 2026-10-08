@@ -124,10 +124,10 @@ describe("streamZoomFileToS3", () => {
 
     expect(bytes).toBe(1048576);
     expect(customFetch).toHaveBeenCalledTimes(1);
-    const calledUrl = customFetch.mock.calls[0][0];
-    const calledOpts = customFetch.mock.calls[0][1];
+    const calledUrl = customFetch.mock.calls[0]![0];
+    const calledOpts = customFetch.mock.calls[0]![1] as any;
     expect(calledUrl).toContain("access_token=zoom-token-123");
-    expect(calledOpts.headers["Authorization"]).toBe("Bearer zoom-token-123");
+    expect(calledOpts?.headers?.["Authorization"]).toBe("Bearer zoom-token-123");
   });
 
   it("throws an error if fetch fails", async () => {

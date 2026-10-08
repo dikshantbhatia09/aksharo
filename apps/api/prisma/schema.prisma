@@ -919,6 +919,7 @@ model Workspace {
   cloudIntegrations      WorkspaceCloudIntegration[]
   cloudImportJobs        CloudImportJob[]
   zoomIntegration        WorkspaceZoomIntegration?
+  uploadSessions         MediaUploadSession[]
 
   @@index([ownerId])
   @@index([billingCountry])
@@ -4950,3 +4951,27 @@ model ZoomRecordingEvent {
   @@index([workspaceId])
   @@map("zoom_recording_events")
 }
+
+/// Multipart resumable upload sessions (Pillar 1 §04).
+model MediaUploadSession {
+  id             String    @id @default(uuid())
+  workspaceId    String    @map("workspace_id") @db.Char(26)
+  uploadId       String    @map("upload_id") // S3 Multipart Upload ID
+  s3Key          String    @map("s3_key")
+  fileName       String    @map("file_name")
+  fileSizeBytes  BigInt    @map("file_size_bytes")
+  mimeType       String    @map("mime_type")
+  chunkSizeBytes Int       @default(16777216) @map("chunk_size_bytes") // 16MB
+  totalParts     Int       @map("total_parts")
+  completedParts Int       @default(0) @map("completed_parts")
+  status         String    @default("UPLOADING") // UPLOADING, COMPLETED, ABORTED, EXPIRED
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  workspace      Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([uploadId])
+  @@map("media_upload_sessions")
+}
+

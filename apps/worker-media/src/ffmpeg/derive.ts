@@ -218,6 +218,7 @@ export function proxyArgs(input: {
   readonly size: ProxySize;
   readonly hdr: boolean;
   readonly hasAudio: boolean;
+  readonly isVfr?: boolean;
 }): string[] {
   return [
     ...FFMPEG_BASE_ARGS,
@@ -249,6 +250,9 @@ export function proxyArgs(input: {
     String(PROXY_CRF),
     "-pix_fmt",
     "yuv420p",
+    // When Variable Frame Rate (e.g. phones/OBS) is detected, force Constant Frame Rate
+    // normalization to prevent audio/video synchronization drift during cutting and timeline edits.
+    ...(input.isVfr ? ["-fps_mode", "cfr"] : []),
     ...(input.hasAudio ? ["-c:a", "aac", "-b:a", PROXY_AUDIO_BITRATE, "-ac", "2"] : []),
     // The moov atom at the front: without it the browser has to fetch the end of
     // the file before it can show the first frame.
@@ -275,6 +279,7 @@ export async function encodeProxy(
     readonly size: ProxySize;
     readonly hdr: boolean;
     readonly hasAudio: boolean;
+    readonly isVfr?: boolean;
   },
   onProgress?: (chunk: string) => void,
 ): Promise<{ readonly toneMapped: boolean }> {

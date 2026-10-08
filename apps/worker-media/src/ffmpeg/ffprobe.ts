@@ -175,17 +175,27 @@ export function readVideo(stream: FfprobeStream): ProbeVideo {
   const swapped = rotation === 90 || rotation === 270;
   const transfer = stream.color_transfer ?? null;
 
+  const avgFps = readFrameRate(stream.avg_frame_rate);
+  const rFps = readFrameRate(stream.r_frame_rate);
+  const isVfr = Boolean(
+    stream.r_frame_rate &&
+      stream.avg_frame_rate &&
+      stream.r_frame_rate !== stream.avg_frame_rate &&
+      (rFps !== avgFps || (rFps > 60 && avgFps <= 60)),
+  );
+
   return {
     codec: stream.codec_name ?? "unknown",
     width: swapped ? rawHeight : rawWidth,
     height: swapped ? rawWidth : rawHeight,
-    fps: readFrameRate(stream.avg_frame_rate) || readFrameRate(stream.r_frame_rate),
+    fps: avgFps || rFps,
     rotation,
     pixelFormat: stream.pix_fmt ?? null,
     bitDepth: integerOrNull(stream.bits_per_raw_sample) ?? bitDepthOfPixelFormat(stream.pix_fmt),
     colourTransfer: transfer,
     colourPrimaries: stream.color_primaries ?? null,
     hdr: transfer !== null && (HDR_TRANSFERS as readonly string[]).includes(transfer),
+    isVfr,
   };
 }
 
