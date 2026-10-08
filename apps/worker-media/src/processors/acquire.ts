@@ -14,6 +14,7 @@ import { ffprobe, readProbe } from "../ffmpeg/ffprobe.js";
 import { FFMPEG_BASE_ARGS, run } from "../ffmpeg/run.js";
 import { logger } from "../logger.js";
 import { toolVersion } from "../media-tools.js";
+import { globalProxyPool } from "../proxy-pool.js";
 import { withWorkspace } from "../workspace.js";
 import {
   SECTION_MIN_REALTIME,
@@ -204,16 +205,24 @@ export async function processAcquire(context: JobContext): Promise<ProcessorOutc
   return withWorkspace("acquire", settings.tempDir, async (workspace) => {
     context.report(2, "checking the video");
 
-    const metadata = await probeSource({
-      binary: settings.ytDlpPath,
-      url: payload.source.normalizedUrl,
-      limits,
-      signal: context.signal,
-      ...(jsRuntime === undefined ? {} : { jsRuntime }),
-      ...(settings.ytDlpYoutubePlayerClient === undefined ? {} : { youtubePlayerClient: settings.ytDlpYoutubePlayerClient }),
-      ...(window === undefined ? {} : { window }),
-      ...(extractor === null ? {} : { extractor }),
-    });
+    const probeOp = await globalProxyPool.executeWithProxyFailover(
+      (proxyUrl, nodeName) =>
+        probeSource({
+          binary: settings.ytDlpPath,
+          url: payload.source.normalizedUrl,
+          limits,
+          signal: context.signal,
+          ...(jsRuntime === undefined ? {} : { jsRuntime }),
+          ...(settings.ytDlpYoutubePlayerClient === undefined ? {} : { youtubePlayerClient: settings.ytDlpYoutubePlayerClient }),
+          ...(window === undefined ? {} : { window }),
+          ...(extractor === null ? {} : { extractor }),
+          ...(proxyUrl ? { proxyUrl } : {}),
+          egressProxyNode: nodeName,
+        }),
+      { sessionId: payload.mediaId, maxRetries: 3 },
+    );
+    const metadata = probeOp.result;
+    const egressProxyUrl = probeOp.proxyUrl;
 
     // Now that the video's size is known: room for it, with the floor still
     // free after it. The runtime could only check the floor.
@@ -235,6 +244,7 @@ export async function processAcquire(context: JobContext): Promise<ProcessorOutc
       metadata,
       deadline,
       extractor,
+      proxyUrl: egressProxyUrl,
       onProgress: (percent, bytes) => {
         // A split download counts 0-100% for the picture and again for the
         // sound, and a fallback starts again from 0; the rail only ever moves
@@ -342,6 +352,8 @@ export async function processAcquire(context: JobContext): Promise<ProcessorOutc
           title: metadata.title,
           channel: metadata.channel,
           durationMs: probed.durationMs,
+          ...(metadata.nativeChapters ? { chapters: metadata.nativeChapters } : {}),
+          ...(metadata.egressProxyNode ? { egressProxyNode: metadata.egressProxyNode } : {}),
         },
         // Only when a window was applied: absent means the whole source landed.
         ...(section === null ? {} : { section: sectionResult(section) }),
@@ -529,6 +541,7 @@ async function fetchSource(input: {
   readonly extractor: HostedExtractor | null;
   /** `bytes` when the download counts them itself (a section's bytes on disk). */
   readonly onProgress: (percent: number, bytes?: number) => void;
+  readonly proxyUrl?: string;
 }): Promise<{
   readonly path: string;
   readonly whole: boolean;
@@ -549,6 +562,7 @@ async function fetchSource(input: {
     ...(settings.ytDlpJsRuntime === undefined ? {} : { jsRuntime: settings.ytDlpJsRuntime }),
     ...(settings.ytDlpYoutubePlayerClient === undefined ? {} : { youtubePlayerClient: settings.ytDlpYoutubePlayerClient }),
     ...(input.extractor === null ? {} : { extractor: input.extractor }),
+    ...(input.proxyUrl === undefined ? {} : { proxyUrl: input.proxyUrl }),
     // Every download stops before the volume it shares with the database
     // falls below the reserve, whatever its own size.
     ...(disk === undefined ? {} : { lowDisk: async () => disk.belowReserve() }),

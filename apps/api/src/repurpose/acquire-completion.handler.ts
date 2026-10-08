@@ -267,6 +267,56 @@ export class RepurposeAcquireCompletionHandler implements JobCompletionHandler, 
         data: { title: sourceProjectTitle(title, section) },
       });
     }
+
+    // Persist YouTube-specific metadata and chapters (Pillar 1 §01 & §02)
+    const isYouTube =
+      result.sourceMetadata.provider?.toLowerCase().includes("youtube") ||
+      (result.sourceMetadata.sourceId ?? "").startsWith("youtube:");
+
+    if (isYouTube) {
+      try {
+        const rawVideoId = (result.sourceMetadata.sourceId ?? "").replace(/^youtube:/, "");
+        const chapters = result.sourceMetadata.chapters ?? [];
+
+        await this.prisma.youTubeSourceMetadata.upsert({
+          where: { projectId: project.id },
+          create: {
+            projectId: project.id,
+            videoId: rawVideoId,
+            channelTitle: result.sourceMetadata.channel ?? "YouTube Channel",
+            nativeChapters: chapters as any,
+            ingestMode: "SPLIT_STREAM",
+            egressProxyNode: result.sourceMetadata.egressProxyNode ?? null,
+          },
+          update: {
+            videoId: rawVideoId,
+            channelTitle: result.sourceMetadata.channel ?? "YouTube Channel",
+            nativeChapters: chapters as any,
+            egressProxyNode: result.sourceMetadata.egressProxyNode ?? null,
+          },
+        });
+
+        if (chapters.length > 0) {
+          await this.prisma.transcriptChapter.deleteMany({
+            where: { projectId: project.id },
+          });
+
+          await this.prisma.transcriptChapter.createMany({
+            data: chapters.map((ch) => ({
+              projectId: project.id,
+              title: ch.title,
+              startMs: Math.round(ch.startSec * 1000),
+              endMs: Math.round(ch.endSec * 1000),
+            })),
+          });
+        }
+      } catch (metadataError) {
+        this.logger.warn(
+          { projectId: project.id, error: metadataError instanceof Error ? metadataError.message : String(metadataError) },
+          "Failed to persist YouTube source metadata or chapters",
+        );
+      }
+    }
   }
 
   /**

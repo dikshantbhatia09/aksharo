@@ -39,6 +39,7 @@ __all__ = [
     "HighlightsPayload",
     "HighlightsResult",
     "Judgement",
+    "NativeChapter",
     "PerformanceHit",
     "PerformanceHook",
     "PerformanceLength",
@@ -189,6 +190,14 @@ class PerformanceSignal(_Strict):
     hook: PerformanceHook | None = None
 
 
+class NativeChapter(_Strict):
+    """YouTube native chapter ingested as semantic boundary priors (Pillar 1 §01)."""
+
+    title: Annotated[str, _trimmed(1, 500)]
+    start_ms: int = Field(alias="startMs", ge=0)
+    end_ms: int = Field(alias="endMs", ge=0)
+
+
 class HighlightsOptions(_Strict):
     count: int = Field(ge=1, le=40)
     #: The bar a moment must clear to be returned at all (0-1); ``None`` keeps
@@ -216,6 +225,8 @@ class HighlightsOptions(_Strict):
     #: What the workspace's posted clips say worked (2026-10-05); absent
     #: without enough measured posts, and from an API that predates it.
     performance: PerformanceSignal | None = None
+    #: YouTube native chapters ingested as semantic boundary priors (Pillar 1 §01).
+    chapters: tuple[NativeChapter, ...] | None = Field(default=None, max_length=200)
 
     @model_validator(mode="after")
     def _duration_range_is_ordered(self) -> HighlightsOptions:

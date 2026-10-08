@@ -8,6 +8,7 @@ import { MediaProbeCompletionHandler } from "./probe.handler.js";
 import { MediaProxyCompletionHandler } from "./proxy.handler.js";
 import { RetentionService } from "./retention.service.js";
 import { SampleProjectController } from "./sample-project.controller.js";
+import { YouTubeProbeService } from "./youtube-probe.service.js";
 import { EdgModule } from "../edg/edg.module.js";
 import { JobsModule } from "../jobs/jobs.module.js";
 import { ProjectsModule } from "../projects/projects.module.js";
@@ -58,7 +59,8 @@ import { WorkspacesModule } from "../workspaces/workspaces.module.js";
     AlignCompletionHandler,
     FacesTrigger,
     MediaFacesCompletionHandler,
+    YouTubeProbeService,
   ],
-  exports: [MediaService, SubtitleImportService, RetentionService, FacesTrigger],
+  exports: [MediaService, SubtitleImportService, RetentionService, FacesTrigger, YouTubeProbeService],
 })
 export class MediaModule {}

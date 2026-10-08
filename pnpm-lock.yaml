@@ -73,9 +73,6 @@ importers:
       '@montaj/render-manifest':
         specifier: workspace:*
         version: link:../../packages/render-manifest
-      '@montaj/repurpose-contracts':
-        specifier: workspace:*
-        version: link:../../packages/repurpose-contracts
       '@montaj/timemap':
         specifier: workspace:*
         version: link:../../packages/timemap
@@ -176,6 +173,9 @@ importers:
         specifier: ^4.5.4
         version: 4.5.4
     devDependencies:
+      '@montaj/repurpose-contracts':
+        specifier: workspace:*
+        version: link:../../packages/repurpose-contracts
       '@nestjs/cli':
         specifier: ^11.0.24
         version: 11.0.24(@swc/core@1.16.1)(@types/node@22.20.1)(esbuild@0.28.2)(lightningcss@1.32.0)(prettier@3.9.6)
@@ -344,6 +344,9 @@ importers:
       '@montaj/render-manifest':
         specifier: workspace:*
         version: link:../../packages/render-manifest
+      '@montaj/repurpose-contracts':
+        specifier: workspace:*
+        version: link:../../packages/repurpose-contracts
       '@montaj/timemap':
         specifier: workspace:*
         version: link:../../packages/timemap

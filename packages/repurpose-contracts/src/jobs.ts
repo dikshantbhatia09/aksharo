@@ -122,6 +122,16 @@ export const MediaAcquireResultSchema = z.strictObject({
     title: z.union([z.string().trim().max(500), z.null()]),
     channel: z.union([z.string().trim().max(200), z.null()]),
     durationMs: z.union([MillisecondsSchema, z.null()]),
+    chapters: z
+      .array(
+        z.strictObject({
+          title: z.string().trim().min(1).max(500),
+          startSec: z.number().nonnegative(),
+          endSec: z.number().nonnegative(),
+        }),
+      )
+      .optional(),
+    egressProxyNode: z.union([z.string().trim().max(100), z.null()]).optional(),
   }),
   /**
    * Where the landed file sits in the source, when only a window of it was
@@ -556,6 +566,19 @@ export const HighlightsPayloadSchema = z
        * it (strict), so the worker deploys first.
        */
       performance: PerformanceSignalSchema.optional(),
+      /**
+       * YouTube native chapters ingested as semantic boundary priors (Pillar 1 §01).
+       */
+      chapters: z
+        .array(
+          z.strictObject({
+            title: z.string().trim().min(1).max(500),
+            startMs: z.int().min(0),
+            endMs: z.int().min(0),
+          }),
+        )
+        .max(200)
+        .optional(),
     }),
     promptVersion: z.string().trim().min(1).max(100),
     featureVersion: z.string().trim().min(1).max(100),

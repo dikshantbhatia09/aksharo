@@ -101,6 +101,8 @@ import {
   coverFileProblem,
   isAudioFile,
 } from "@/components/repurpose/use-cover";
+import { useYouTubeProbe } from "@/components/repurpose/use-youtube-probe";
+import { YouTubePreviewCard } from "@/components/repurpose/YouTubePreviewCard";
 
 export {
   DEFAULT_STYLE_ID,
@@ -398,11 +400,29 @@ export function SourceStartForm({
 }: SourceStartFormProps): React.JSX.Element {
   const [showProblems, setShowProblems] = React.useState(false);
   const startAtRef = React.useRef<HTMLInputElement>(null);
+
+  const [debouncedUrl, setDebouncedUrl] = React.useState(value.url);
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedUrl(value.url);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [value.url]);
+
+  const probeQuery = useYouTubeProbe(debouncedUrl);
+  const probeData = probeQuery.data ?? null;
+
+  const effectiveKnownLength: KnownLength | undefined =
+    knownLength ??
+    (probeData && probeData.durationSec > 0
+      ? { link: value.url, durationMs: probeData.durationSec * 1000 }
+      : undefined);
+
   // A start is not checked where it is not offered: a hidden field's error
   // would block the form with nothing to correct.
   const problems = validateStartForm(processesWholeVideos ? { ...value, startAt: "" } : value, {
     ...(maxFileBytes === undefined ? {} : { maxFileBytes }),
-    ...(knownLength === undefined ? {} : { knownLength }),
+    ...(effectiveKnownLength === undefined ? {} : { knownLength: effectiveKnownLength }),
     otherSites,
   });
   const visible: StartFormProblems = showProblems ? problems : {};
@@ -576,6 +596,20 @@ export function SourceStartForm({
                 }}
               />
             </Field>
+
+            {value.tab === "link" &&
+            isPlausibleLink(normaliseSourceLink(value.url)) &&
+            (linkSite(normaliseSourceLink(value.url)) ?? "youtube") === "youtube" ? (
+              <YouTubePreviewCard
+                probe={probeData}
+                isLoading={probeQuery.isLoading}
+                error={probeQuery.isError ? (probeQuery.error as Error).message : null}
+                onSelectChapter={(startSec) => {
+                  set("startAt", formatClock(startSec * 1000));
+                  startAtRef.current?.focus();
+                }}
+              />
+            ) : null}
 
             {/* Optional, and a plain time field: most people never need it, and
                 the line under it says when it applies and what happens when it

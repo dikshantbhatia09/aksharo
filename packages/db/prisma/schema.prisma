@@ -94,6 +94,8 @@ model Project {
   script              String         @default("latin") // latin (Hinglish), native (Devanagari)
 
   transcript          Transcript?
+  youtubeSourceMetadata YouTubeSourceMetadata?
+  transcriptChapters  TranscriptChapter[]
   styleDocument       Json?          // Full StyleDocSchema JSON
   captionSettings     Json?          // DisplaySettings, Actions, Timing Delay
 
@@ -204,4 +206,33 @@ model Subscription {
   createdAt      DateTime  @default(now())
 
   user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model YouTubeSourceMetadata {
+  id              String    @id @default(uuid())
+  projectId       String    @unique
+  videoId         String
+  channelTitle    String
+  channelUrl      String?
+  viewCount       BigInt?
+  publishedAt     DateTime?
+  nativeChapters  Json      @default("[]")
+  ingestMode      String    @default("SPLIT_STREAM")
+  egressProxyNode String?
+  createdAt       DateTime  @default(now())
+
+  project         Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model TranscriptChapter {
+  id        String   @id @default(uuid())
+  projectId String
+  title     String
+  startMs   Int
+  endMs     Int
+  createdAt DateTime @default(now())
+
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
 }

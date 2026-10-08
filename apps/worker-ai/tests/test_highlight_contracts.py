@@ -291,3 +291,30 @@ def test_refuses_a_track_record_out_of_bounds(change: dict[str, Any]) -> None:
     source["options"]["performance"] = source["options"]["performance"] | change
     with pytest.raises(ValidationError):
         HighlightsPayload.model_validate(source)
+
+
+def test_the_native_chapter_declares_the_typescript_fields() -> None:
+    from worker_ai.highlights.contracts import NativeChapter
+
+    def aliases(model: type[Any]) -> list[str]:
+        return sorted((field.alias or name) for name, field in model.model_fields.items())
+
+    assert aliases(NativeChapter) == ["endMs", "startMs", "title"]
+
+
+def test_parses_payload_with_native_chapters() -> None:
+    from worker_ai.highlights.contracts import NativeChapter
+
+    source = fixture("ai-highlights-payload.v1.json")
+    source["options"]["chapters"] = [
+        {"title": "Introduction", "startMs": 0, "endMs": 15000},
+        {"title": "Main Breakdown", "startMs": 15000, "endMs": 90000},
+    ]
+    payload = HighlightsPayload.model_validate(source)
+    assert payload.options.chapters is not None
+    assert len(payload.options.chapters) == 2
+    assert payload.options.chapters[0].title == "Introduction"
+    assert payload.options.chapters[0].start_ms == 0
+    assert payload.options.chapters[0].end_ms == 15000
+    assert isinstance(payload.options.chapters[0], NativeChapter)
+

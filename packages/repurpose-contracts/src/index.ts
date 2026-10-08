@@ -199,3 +199,11 @@ export {
   type VoiceoverLanguage,
   type VoiceoverSpeaker,
 } from "./voiceover.js";
+export {
+  YouTubeNativeChapterSchema,
+  YouTubeProbeRequestSchema,
+  YouTubeProbeResponseSchema,
+  type YouTubeNativeChapter,
+  type YouTubeProbeRequest,
+  type YouTubeProbeResponse,
+} from "./youtube.js";

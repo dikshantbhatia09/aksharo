@@ -23,7 +23,9 @@ import {
   parseMediaTime,
   parseProgress,
   planSection,
+  proxyArgs,
   readDownloaderHeader,
+  FAST_AUDIO_FORMAT,
 } from "./yt-dlp.js";
 
 import type {
@@ -377,6 +379,39 @@ describe("the argument list", () => {
       });
       expect(args, String(ffmpegPath)).not.toContain("--ffmpeg-location");
     }
+  });
+
+  it("passes rotating proxy url safely before -- in buildArgs and buildProbeArgs", () => {
+    const proxyUrl = "http://user:pass@proxy.example.com:8080";
+    expect(proxyArgs(undefined)).toEqual([]);
+    expect(proxyArgs("")).toEqual([]);
+    expect(proxyArgs(proxyUrl)).toEqual(["--proxy", proxyUrl]);
+
+    const args = buildArgs({
+      url: "https://youtu.be/x",
+      outputPath: "/tmp/o.mp4",
+      limits: LIMITS,
+      proxyUrl,
+    });
+    expect(args[args.indexOf("--proxy") + 1]).toBe(proxyUrl);
+    expect(args.indexOf("--proxy")).toBeLessThan(args.indexOf("--"));
+
+    const probeArgs = buildProbeArgs("https://youtu.be/x", { proxyUrl });
+    expect(probeArgs[probeArgs.indexOf("--proxy") + 1]).toBe(proxyUrl);
+    expect(probeArgs.indexOf("--proxy")).toBeLessThan(probeArgs.indexOf("--"));
+  });
+
+  it("configures fast audio extraction args for instant STT handoff", () => {
+    const args = buildArgs({
+      url: "https://youtu.be/x",
+      outputPath: "/tmp/audio.wav",
+      limits: LIMITS,
+      audioOnly: true,
+    });
+    expect(args).toContain("--extract-audio");
+    expect(args[args.indexOf("--audio-format") + 1]).toBe("wav");
+    expect(args[args.indexOf("-f") + 1]).toBe(FAST_AUDIO_FORMAT);
+    expect(args).not.toContain("--merge-output-format");
   });
 
   it("passes a hostile URL through as one argument rather than sanitising it", () => {

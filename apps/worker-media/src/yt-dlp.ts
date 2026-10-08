@@ -252,6 +252,14 @@ export interface SourceMetadata {
   readonly wholeBytes?: number | null;
   /** The centre of YouTube's most-replayed segment, in ms; `null` without a heatmap. */
   readonly replayedPeakMs?: number | null;
+  /** Native YouTube chapters parsed from video metadata (Pillar 1 §01). */
+  readonly nativeChapters?: Array<{
+    readonly title: string;
+    readonly startSec: number;
+    readonly endSec: number;
+  }>;
+  /** Egress proxy node name that successfully probed or acquired the source. */
+  readonly egressProxyNode?: string | null;
 }
 
 /*
@@ -328,6 +336,9 @@ export const FALLBACK_FORMAT = "bv*+ba/b";
  * 1080 x 1920, where the old height filter took 480 x 854.
  */
 export const FALLBACK_SORT = `res:${String(DEFAULT_MAX_SHORT_SIDE)},+codec:avc:m4a`;
+
+/** Format selector for ultra-fast audio-only download for instant STT handoff (Pillar 1 §01). */
+export const FAST_AUDIO_FORMAT = "ba[ext=m4a]/ba/140/251/bestaudio";
 
 /** One entry of the probe's `formats` array, as far as the chooser reads it. */
 export interface ProbeFormat {
@@ -688,13 +699,19 @@ export function buildArgs(input: {
   readonly extractor?: HostedExtractor;
   /** Extractor player client for YouTube (defaults to 'ios,android,web'). */
   readonly youtubePlayerClient?: string;
+  /** Rotating egress proxy URL (Pillar 1 §01). */
+  readonly proxyUrl?: string;
+  /** Audio-only fast extraction for instant STT handoff (Pillar 1 §01). */
+  readonly audioOnly?: boolean;
 }): string[] {
-  const format = input.format ?? FALLBACK_FORMAT;
+  const defaultFormat = input.audioOnly ? FAST_AUDIO_FORMAT : FALLBACK_FORMAT;
+  const format = input.format ?? defaultFormat;
   const fallback = format === FALLBACK_FORMAT;
+  const isDefault = format === FALLBACK_FORMAT || format === FAST_AUDIO_FORMAT;
   // The selector reaches argv as one entry either way; this keeps it to what
   // `chooseFormat` produces (format ids joined by `+`) or the fixed fallback.
   const ids = format.split("+");
-  if (!fallback && (ids.length > 2 || !ids.every((id) => FORMAT_ID.test(id)))) {
+  if (!isDefault && (ids.length > 2 || !ids.every((id) => FORMAT_ID.test(id)))) {
     throw new DownloaderUnusableError(
       `refusing an unexpected format selector ${JSON.stringify(format)}`,
     );
@@ -718,6 +735,7 @@ export function buildArgs(input: {
     "--no-cache-dir",
     ...runtimeArgs(input.jsRuntime),
     ...extractorArgs(input.extractor, input.youtubePlayerClient),
+    ...proxyArgs(input.proxyUrl),
     // Refuse a live stream rather than downloading an unbounded segment feed.
     "--no-live-from-start",
     // A hard byte ceiling the downloader applies itself; the caller checks the
@@ -725,8 +743,9 @@ export function buildArgs(input: {
     "--max-filesize",
     `${String(input.limits.maxBytes)}`,
     // One file, merged into a container the existing media pipeline accepts.
-    "--merge-output-format",
-    "mp4",
+    ...(input.audioOnly
+      ? ["--extract-audio", "--audio-format", "wav", "--audio-quality", "0"]
+      : ["--merge-output-format", "mp4"]),
     ...ffmpegLocationArgs(input.ffmpegPath),
     "-f",
     format,
@@ -828,6 +847,14 @@ function ffmpegLocationArgs(ffmpegPath: string | undefined): string[] {
   return ["--ffmpeg-location", ffmpegPath];
 }
 
+/**
+ * `--proxy <url>` when a rotating egress proxy is configured (Pillar 1 §01).
+ */
+export function proxyArgs(proxyUrl: string | undefined): string[] {
+  if (proxyUrl === undefined || proxyUrl.trim() === "") return [];
+  return ["--proxy", proxyUrl.trim()];
+}
+
 /** The metadata-only argument list: no bytes are fetched. */
 export function buildProbeArgs(
   url: string,
@@ -835,6 +862,7 @@ export function buildProbeArgs(
     readonly jsRuntime?: string;
     readonly extractor?: HostedExtractor;
     readonly youtubePlayerClient?: string;
+    readonly proxyUrl?: string;
   } = {},
 ): string[] {
   const args = [
@@ -848,6 +876,7 @@ export function buildProbeArgs(
     // the runtime at least as much as the download does.
     ...runtimeArgs(options.jsRuntime),
     ...extractorArgs(options.extractor, options.youtubePlayerClient),
+    ...proxyArgs(options.proxyUrl),
     "--skip-download",
     "--dump-single-json",
     "--socket-timeout",
@@ -1334,6 +1363,10 @@ export async function probeSource(input: {
   /** A hosted link's one extractor; absent for YouTube. */
   readonly extractor?: HostedExtractor;
   readonly youtubePlayerClient?: string;
+  /** Rotating egress proxy URL (Pillar 1 §01). */
+  readonly proxyUrl?: string;
+  /** Egress proxy node name (Pillar 1 §01). */
+  readonly egressProxyNode?: string | null;
 }): Promise<SourceMetadata> {
   const result = await run(
     input.binary,
@@ -1341,6 +1374,7 @@ export async function probeSource(input: {
       ...(input.jsRuntime === undefined ? {} : { jsRuntime: input.jsRuntime }),
       ...(input.extractor === undefined ? {} : { extractor: input.extractor }),
       ...(input.youtubePlayerClient === undefined ? {} : { youtubePlayerClient: input.youtubePlayerClient }),
+      ...(input.proxyUrl === undefined ? {} : { proxyUrl: input.proxyUrl }),
     }),
     {
       timeoutMs: Math.min(input.limits.timeoutMs, 120_000),
@@ -1402,6 +1436,26 @@ export async function probeSource(input: {
       : typeof parsed["filesize_approx"] === "number"
         ? parsed["filesize_approx"]
         : null;
+
+  // Native YouTube chapters parsed from video metadata (Pillar 1 §01).
+  const rawChapters = Array.isArray(parsed["chapters"]) ? parsed["chapters"] : [];
+  const nativeChapters: Array<{ title: string; startSec: number; endSec: number }> = [];
+  for (const item of rawChapters) {
+    if (typeof item === "object" && item !== null) {
+      const rec = item as Record<string, unknown>;
+      const title = asString(rec["title"]);
+      const startSec = typeof rec["start_time"] === "number" ? rec["start_time"] : undefined;
+      const endSec = typeof rec["end_time"] === "number" ? rec["end_time"] : undefined;
+      if (title && startSec !== undefined && endSec !== undefined && endSec > startSec) {
+        nativeChapters.push({
+          title,
+          startSec,
+          endSec,
+        });
+      }
+    }
+  }
+
   const metadata: SourceMetadata = {
     provider: asString(parsed["extractor_key"]) ?? asString(parsed["extractor"]) ?? "unknown",
     sourceId: asString(parsed["id"]),
@@ -1427,6 +1481,8 @@ export async function probeSource(input: {
     wholeFormatSelector: whole?.selector ?? null,
     wholeBytes: whole !== null ? whole.bytes : listed,
     replayedPeakMs,
+    nativeChapters: nativeChapters.length > 0 ? nativeChapters : undefined,
+    egressProxyNode: input.egressProxyNode ?? null,
   };
 
   assertWithinLimits(metadata, input.limits);
@@ -1699,6 +1755,8 @@ export async function download(input: {
   /** A hosted link's one extractor (see {@link extractorArgs}); absent for YouTube. */
   readonly extractor?: HostedExtractor;
   readonly youtubePlayerClient?: string;
+  /** Rotating egress proxy URL (Pillar 1 §01). */
+  readonly proxyUrl?: string;
   /** Kill a download that runs slower than this; see {@link isTooSlow}. */
   readonly pace?: DownloadPace;
   readonly onProgress?: (percent: number) => void;
@@ -1722,6 +1780,7 @@ export async function download(input: {
       ...(input.section === undefined ? {} : { section: input.section }),
       ...(input.extractor === undefined ? {} : { extractor: input.extractor }),
       ...(input.youtubePlayerClient === undefined ? {} : { youtubePlayerClient: input.youtubePlayerClient }),
+      ...(input.proxyUrl === undefined ? {} : { proxyUrl: input.proxyUrl }),
     }),
     {
       timeoutMs: input.limits.timeoutMs,
@@ -1754,6 +1813,76 @@ export async function download(input: {
     throw classify(
       result.output,
       "the download finished without a file",
+      "media/acquire_no_output",
+    );
+  }
+}
+
+/**
+ * Ultra-fast audio-only download for instant STT handoff (Pillar 1 §01).
+ * Downloads raw audio stream in m4a/opus/wav format directly.
+ */
+export async function downloadAudioFast(input: {
+  readonly binary: string;
+  readonly url: string;
+  readonly outputPath: string;
+  readonly limits: AcquireLimits;
+  readonly ffmpegPath?: string;
+  readonly jsRuntime?: string;
+  readonly section?: Pick<SectionPlan, "startMs" | "endMs"> | null;
+  readonly extractor?: HostedExtractor;
+  readonly youtubePlayerClient?: string;
+  readonly proxyUrl?: string;
+  readonly pace?: DownloadPace;
+  readonly onProgress?: (percent: number) => void;
+  readonly onBytes?: (bytes: number) => void;
+  readonly lowDisk?: () => Promise<boolean>;
+  readonly signal?: AbortSignal;
+  readonly sizeCheckIntervalMs?: number;
+}): Promise<void> {
+  const result = await runDownloader(
+    input.binary,
+    buildArgs({
+      url: input.url,
+      outputPath: input.outputPath,
+      limits: input.limits,
+      audioOnly: true,
+      ...(input.ffmpegPath === undefined ? {} : { ffmpegPath: input.ffmpegPath }),
+      ...(input.jsRuntime === undefined ? {} : { jsRuntime: input.jsRuntime }),
+      ...(input.section === undefined ? {} : { section: input.section }),
+      ...(input.extractor === undefined ? {} : { extractor: input.extractor }),
+      ...(input.youtubePlayerClient === undefined ? {} : { youtubePlayerClient: input.youtubePlayerClient }),
+      ...(input.proxyUrl === undefined ? {} : { proxyUrl: input.proxyUrl }),
+    }),
+    {
+      timeoutMs: input.limits.timeoutMs,
+      outputPath: input.outputPath,
+      maxBytes: input.limits.maxBytes,
+      sizeCheckIntervalMs: input.sizeCheckIntervalMs ?? SIZE_CHECK_INTERVAL_MS,
+      onLine: (line) => {
+        const percent = parseProgress(line);
+        if (percent !== null) input.onProgress?.(percent);
+      },
+      ...(input.onBytes === undefined ? {} : { onBytes: input.onBytes }),
+      ...(input.pace === undefined ? {} : { pace: input.pace }),
+      ...(input.lowDisk === undefined ? {} : { lowDisk: input.lowDisk }),
+      ...(input.signal === undefined ? {} : { signal: input.signal }),
+    },
+  );
+  logWarnings(result.output);
+
+  if (result.code !== 0) {
+    throw classify(result.output, "we could not download audio from that video");
+  }
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- a name this module chose, in a directory `withWorkspace` made
+  const landed = await stat(input.outputPath).then(
+    (facts) => facts.isFile(),
+    () => false,
+  );
+  if (!landed) {
+    throw classify(
+      result.output,
+      "the audio download finished without a file",
       "media/acquire_no_output",
     );
   }

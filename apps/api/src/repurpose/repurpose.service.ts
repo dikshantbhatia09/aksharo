@@ -2483,6 +2483,24 @@ export class RepurposeService {
       ? media.storageKey.replace(/raw\.[^.]+$/, "proxy540.mp4")
       : `ws/${run.workspaceId}/p/${run.sourceProjectId}/media/${media?.id ?? "unknown"}/proxy540.mp4`;
 
+    const nativeChapters = await this.prisma.transcriptChapter.findMany({
+      where: { projectId: run.sourceProjectId },
+      orderBy: { startMs: "asc" },
+      select: { title: true, startMs: true, endMs: true },
+    });
+
+    const offsetMs = media?.sourceOffsetMs ?? run.windowStartMs ?? 0;
+    const chapters =
+      nativeChapters.length > 0
+        ? nativeChapters
+            .map((ch) => ({
+              title: ch.title,
+              startMs: Math.max(0, ch.startMs - offsetMs),
+              endMs: Math.max(0, ch.endMs - offsetMs),
+            }))
+            .filter((ch) => ch.endMs > ch.startMs)
+        : undefined;
+
     const payload: HighlightsPayload = {
       schemaVersion: 1,
       runId: run.id,
@@ -2527,6 +2545,7 @@ export class RepurposeService {
         // Learn what works (2026-10-05): what the workspace's posted clips say
         // did best, once it has enough of them; nothing otherwise.
         ...(await this.performanceOption(run.workspaceId)),
+        ...(chapters && chapters.length > 0 ? { chapters } : {}),
       },
       promptVersion: "highlights-v1",
       featureVersion: "features-v1",

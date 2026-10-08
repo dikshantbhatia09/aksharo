@@ -1027,3 +1027,29 @@ def test_split_overlong_sentences_never_start_on_internal_fragments() -> None:
     for piece in split_pieces:
         assert all(w.start_ms != piece.start_ms for w in windows)
 
+
+def test_native_chapter_boundary_bonus_is_applied() -> None:
+    from worker_ai.highlights.contracts import NativeChapter
+
+    raw = talk([
+        "welcome back to the channel today we are going to explore deep learning.",
+        "let us start with transformers and self attention mechanisms.",
+        "finally we will conclude with practical tips and best practices.",
+    ], word_ms=800)
+    options_without = options(count=3)
+    proposals_without, _ = discover(raw, options_without)
+
+    first_start = proposals_without[0].start_ms
+    chapter = NativeChapter(title="Deep Learning Deep Dive", start_ms=first_start, end_ms=first_start + 15_000)
+    options_with = options_without.model_copy(update={"chapters": (chapter,)})
+    proposals_with, _ = discover(raw, options_with)
+
+    matching = next((p for p in proposals_with if p.start_ms == first_start), None)
+    assert matching is not None
+    matching_without = next((p for p in proposals_without if p.start_ms == first_start), None)
+    assert matching_without is not None
+    assert matching.potential_score >= matching_without.potential_score
+    assert any("chapter" in r.explanation.lower() for r in matching.reasons)
+
+
+

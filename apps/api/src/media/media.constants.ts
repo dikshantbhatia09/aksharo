@@ -79,3 +79,8 @@ export const MEDIA_FAILURE_REASONS = [
 ] as const;
 
 export type MediaFailureReason = (typeof MEDIA_FAILURE_REASONS)[number];
+
+export const DEFAULT_STALE_MEDIA_THRESHOLD_MS = 24 * 60 * 60 * 1000;
+export const MEDIA_STALE_REAPER_TASK = "media:stale-reaper";
+export const STALE_MEDIA_REAPER_CRON = "0 */6 * * *";
+

@@ -36,8 +36,16 @@ export function useApiContext(): ApiContextValue {
   return value;
 }
 
+export function useOptionalApiContext(): ApiContextValue | null {
+  return useContext(ApiContext);
+}
+
 export function useApiClient(): ApiClient {
   return useApiContext().client;
+}
+
+export function useOptionalApiClient(): ApiClient | null {
+  return useContext(ApiContext)?.client ?? null;
 }
 
 /**

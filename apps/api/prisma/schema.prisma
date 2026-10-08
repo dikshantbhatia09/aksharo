@@ -1179,6 +1179,10 @@ model Project {
   clipVariant           ClipVariant?
   /// Set when this project IS one shape of a clip dubbed into another language (2026-10-04).
   clipDubVariant        ClipDubVariant?
+  /// YouTube source metadata when imported directly from YouTube (Pillar 1 §01).
+  youtubeSourceMetadata YouTubeSourceMetadata?
+  /// Human-curated or native YouTube chapters (Pillar 1 §01).
+  transcriptChapters    TranscriptChapter[]
 
   @@index([workspaceId])
   @@index([lastActivityAt])
@@ -4827,4 +4831,38 @@ model ClipVoiceover {
   @@index([clipId])
   @@index([status])
   @@map("clip_voiceovers")
+}
+
+/// YouTube video source metadata and native chapters (Pillar 1 §01).
+model YouTubeSourceMetadata {
+  id              String    @id @default(uuid())
+  projectId       String    @unique @map("project_id") @db.Char(26)
+  videoId         String    @map("video_id")
+  channelTitle    String    @map("channel_title")
+  channelUrl      String?   @map("channel_url")
+  viewCount       BigInt?   @map("view_count")
+  publishedAt     DateTime? @map("published_at") @db.Timestamptz(6)
+  nativeChapters  Json      @default("[]") @map("native_chapters") @db.JsonB
+  ingestMode      String    @default("SPLIT_STREAM") @map("ingest_mode")
+  egressProxyNode String?   @map("egress_proxy_node")
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  project         Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("youtube_source_metadata")
+}
+
+/// Native or extracted chapters for high-priority semantic boundary selection (Pillar 1 §01).
+model TranscriptChapter {
+  id        String   @id @default(uuid())
+  projectId String   @map("project_id") @db.Char(26)
+  title     String
+  startMs   Int      @map("start_ms")
+  endMs     Int      @map("end_ms")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@map("transcript_chapters")
 }

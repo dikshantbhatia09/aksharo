@@ -66,7 +66,15 @@ export type { SessionSnapshot } from "./session.js";
 export { queryKeys } from "./query-keys.js";
 export type { QueryKeys } from "./query-keys.js";
 
-export { ApiProvider, useApiClient, useApiContext, useSession, useWorkspaceId } from "./context.js";
+export {
+  ApiProvider,
+  useApiClient,
+  useApiContext,
+  useOptionalApiClient,
+  useOptionalApiContext,
+  useSession,
+  useWorkspaceId,
+} from "./context.js";
 export type { ApiContextValue } from "./context.js";
 
 export * from "./hooks.js";

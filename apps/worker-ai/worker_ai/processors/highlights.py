@@ -60,6 +60,7 @@ from worker_ai.highlights.contracts import (
     HighlightsOptions,
     HighlightsPayload,
     HighlightsResult,
+    NativeChapter,
 )
 from worker_ai.highlights.performance import (
     NO_LIFT,
@@ -325,9 +326,29 @@ def _score_all(
 
     features = WordFeatures(words, units)
     candidates: list[_Candidate] = []
+    chapters = options.chapters or ()
     for window in windows:
         signals = features.signals(window.first, window.last, window.start_ms, window.end_ms)
-        candidates.append(_Candidate(window, signals, score(signals, options.content_goal)))
+        sc = score(signals, options.content_goal)
+        if chapters:
+            near_chapter = any(
+                abs(window.start_ms - ch.start_ms) <= 2000
+                or abs(window.end_ms - ch.end_ms) <= 2000
+                for ch in chapters
+            )
+            if near_chapter:
+                sc = Score(
+                    potential=min(1.0, sc.potential + 0.08),
+                    hook=sc.hook,
+                    clarity=sc.clarity,
+                    emotion=sc.emotion,
+                    novelty=sc.novelty,
+                    standalone=min(1.0, sc.standalone + 0.05),
+                    question=sc.question,
+                    density=sc.density,
+                    fluency=sc.fluency,
+                )
+        candidates.append(_Candidate(window, signals, sc))
     track, lifts = _track_lifts(words, units, candidates, options)
     return _Scored(
         words=words,
@@ -412,7 +433,9 @@ def discover(
     picked = _heuristic_pick(scored, options)
     proposals = [
         _proposal(
-            _Ranked(candidate, candidate.score.potential, lift=scored.lift_of(candidate)), scored
+            _Ranked(candidate, candidate.score.potential, lift=scored.lift_of(candidate)),
+            scored,
+            chapters=options.chapters,
         )
         for candidate in picked
     ]
@@ -425,6 +448,7 @@ def _proposal(
     *,
     topic: str | None = None,
     copy: dict[str, Any] | None = None,
+    chapters: Sequence[NativeChapter] | None = None,
 ) -> HighlightProposal:
     candidate = ranked.candidate
     window = candidate.window
@@ -439,6 +463,24 @@ def _proposal(
             scored.features.emphatic_words(window.first, window.last),
         )
     ]
+    if chapters:
+        matching_chapter = next(
+            (
+                ch
+                for ch in chapters
+                if abs(window.start_ms - ch.start_ms) <= 2000
+                or abs(window.end_ms - ch.end_ms) <= 2000
+            ),
+            None,
+        )
+        if matching_chapter is not None:
+            reasons = [
+                {
+                    "label": "standalone",
+                    "explanation": f"Aligns with creator chapter '{matching_chapter.title}' boundary."[:240],
+                },
+                *reasons,
+            ]
     # What the workspace's own clips say, next: it is why this moment was
     # lifted, and a person should see that before the heuristic's detail.
     track = None if scored.track is None else reason_for(ranked.lift, scored.track)
@@ -922,6 +964,7 @@ async def _discover_with_model(
             scored,
             topic=options.topic,
             copy=copies.get(entry.candidate.window.window_id),
+            chapters=options.chapters,
         )
         for entry in ranked
     ]

@@ -32,6 +32,12 @@ import {
   uploadTicketSchema,
 } from "./media.dto.js";
 import { MediaService } from "./media.service.js";
+import { YouTubeProbeService } from "./youtube-probe.service.js";
+import {
+  type YouTubeProbeResponse,
+  YouTubeProbeRequestSchema,
+  YouTubeProbeResponseSchema,
+} from "@montaj/repurpose-contracts";
 import { zodArrayResponse, zodBody, zodResponse } from "../auth/dto/openapi.js";
 import {
   CurrentWorkspace,
@@ -253,7 +259,23 @@ export class MediaController {
 @UseGuards(JwtAuthGuard, WorkspaceMemberGuard, RolesGuard)
 @Controller("media")
 export class MediaUploadsController {
-  constructor(private readonly media: MediaService) {}
+  constructor(
+    private readonly media: MediaService,
+    private readonly youtubeProbe: YouTubeProbeService,
+  ) {}
+
+  @Post(["probe-url", "/api/v1/media/probe-url"])
+  @Roles("viewer")
+  @ApiOperation({
+    summary: "Probe a YouTube video URL for metadata and native chapters",
+    description: "Returns title, creator, duration, thumbnail, and native chapters with SLA < 1.8s.",
+    operationId: "probeYouTubeUrl",
+  })
+  @ApiBody(zodBody(YouTubeProbeRequestSchema))
+  @ApiOkResponse(zodResponse(YouTubeProbeResponseSchema, "The parsed YouTube metadata and chapters."))
+  async probeUrl(@Body() body: { url: string }): Promise<YouTubeProbeResponse> {
+    return this.youtubeProbe.probe(body.url);
+  }
 
   @Get(":mediaId")
   @Roles("viewer")
