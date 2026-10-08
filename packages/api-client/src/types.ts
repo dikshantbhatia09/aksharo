@@ -469,8 +469,53 @@ export interface MediaUrls {
   waveform?: string;
   /** `faces.json`: face boxes over time, for caption placement (`ai.faces`). */
   faces?: string;
-  thumbs: string[];
-  expiresAt: string;
+}
+
+export interface ImportCloudRequest {
+  provider: "GOOGLE_DRIVE" | "DROPBOX" | "ONEDRIVE" | "BOX" | string;
+  fileId: string;
+  fileName?: string;
+  fileSizeBytes?: number;
+  mimeType?: string;
+  token?: string;
+  directLink?: string;
+  projectId?: string;
+}
+
+export interface CloudImportJobResponse {
+  jobId: string;
+  workspaceId: string;
+  projectId?: string | null;
+  provider: string;
+  fileId: string;
+  fileName: string;
+  fileSizeBytes: string;
+  status: "QUEUED" | "STREAMING" | "COMPLETED" | "FAILED";
+  progressPct: number;
+  errorMessage?: string | null;
+  s3Key?: string | null;
+  mediaId?: string | null;
+  createdAt: string;
+  completedAt?: string | null;
+}
+
+export interface CloudIntegrationView {
+  id: string;
+  workspaceId: string;
+  provider: string;
+  accountEmail: string;
+  hasRefreshToken: boolean;
+  expiresAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SaveCloudIntegrationRequest {
+  provider: "GOOGLE_DRIVE" | "DROPBOX" | "ONEDRIVE" | "BOX";
+  accountEmail: string;
+  accessToken: string;
+  refreshToken?: string;
+  expiresAt?: string;
 }
 
 // --- Jobs (A08, A14) ---------------------------------------------------------

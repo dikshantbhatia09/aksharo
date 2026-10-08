@@ -37,6 +37,8 @@ model Workspace {
   customFonts   CustomFont[]
   brandAssets   BrandAsset[]
   quota         WorkspaceQuota?
+  cloudIntegrations WorkspaceCloudIntegration[]
+  cloudImportJobs   CloudImportJob[]
 }
 
 model WorkspaceMember {
@@ -235,4 +237,38 @@ model TranscriptChapter {
   project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@index([projectId])
+}
+
+model WorkspaceCloudIntegration {
+  id           String    @id @default(uuid())
+  workspaceId  String
+  provider     String    // GOOGLE_DRIVE, DROPBOX, ONEDRIVE, BOX
+  accountEmail String
+  accessToken  String    // Encrypted AES-256-GCM
+  refreshToken String?   // Encrypted AES-256-GCM
+  expiresAt    DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  @@unique([workspaceId, provider, accountEmail])
+}
+
+model CloudImportJob {
+  id            String    @id @default(uuid())
+  workspaceId   String
+  projectId     String?
+  provider      String
+  fileId        String
+  fileName      String
+  fileSizeBytes BigInt
+  status        String    @default("QUEUED") // QUEUED, STREAMING, COMPLETED, FAILED
+  progressPct   Int       @default(0)
+  errorMessage  String?
+  s3Key         String?
+  sourceUrl     String?
+  createdAt     DateTime  @default(now())
+  completedAt   DateTime?
+
+  workspace     Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 }

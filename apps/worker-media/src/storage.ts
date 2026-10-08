@@ -46,6 +46,17 @@ export interface ObjectStore {
     readonly contentType: string;
     readonly tags?: Readonly<Record<string, string>>;
   }): Promise<number>;
+  /** Direct S3Client access if needed */
+  getClient?(): S3Client;
+  /** Zero-disk streaming upload directly to S3 multipart */
+  uploadStream?(input: {
+    readonly key: string;
+    readonly stream: import("node:stream").Readable;
+    readonly contentType?: string;
+    readonly totalExpectedBytes?: number;
+    readonly onProgress?: (progress: { loaded: number; total?: number; percentage: number }) => void;
+    readonly signal?: AbortSignal;
+  }): Promise<number>;
 }
 
 export interface StoreConfig {
@@ -150,6 +161,32 @@ export class S3Store implements ObjectStore {
       input.key,
     );
     return input.body.byteLength;
+  }
+
+  getClient(): S3Client {
+    return this.client;
+  }
+
+  async uploadStream(input: {
+    readonly key: string;
+    readonly stream: import("node:stream").Readable;
+    readonly contentType?: string;
+    readonly totalExpectedBytes?: number;
+    readonly onProgress?: (progress: { loaded: number; total?: number; percentage: number }) => void;
+    readonly signal?: AbortSignal;
+  }): Promise<number> {
+    const { uploadStreamToS3 } = await import("./cloud/s3-stream-uploader.js");
+    const result = await uploadStreamToS3({
+      client: this.client,
+      bucket: this.bucket,
+      key: input.key,
+      stream: input.stream,
+      contentType: input.contentType,
+      totalExpectedBytes: input.totalExpectedBytes,
+      onProgress: input.onProgress,
+      signal: input.signal,
+    });
+    return result.totalBytesUploaded;
   }
 
   private async send(command: PutObjectCommand, key: string): Promise<void> {

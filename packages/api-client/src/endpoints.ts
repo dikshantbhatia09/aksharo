@@ -78,6 +78,10 @@ import type {
   Folder,
   ImportGlossaryRequest,
   ImportGlossaryResult,
+  ImportCloudRequest,
+  CloudImportJobResponse,
+  CloudIntegrationView,
+  SaveCloudIntegrationRequest,
   InitUploadRequest,
   InsightsAccepted,
   InsightsRequest,
@@ -701,6 +705,40 @@ export const mediaEndpoints = {
     auth: "bearer",
     operationId: "getMediaUrls",
   }),
+  importCloud: defineEndpoint<ImportCloudRequest, CloudImportJobResponse>({
+    method: "POST",
+    path: "/api/v1/media/import-cloud",
+    auth: "bearer",
+    pending: "Pillar 1 §02",
+  }),
+  getCloudImportStatus: defineEndpoint<void, CloudImportJobResponse>({
+    method: "GET",
+    path: "/api/v1/media/cloud-import/{jobId}",
+    auth: "bearer",
+    pending: "Pillar 1 §02",
+  }),
+} as const;
+
+/** Cloud Storage Connectors (Google Drive, Dropbox, Box, OneDrive) - Pillar 1 §02 */
+export const cloudIntegrationEndpoints = {
+  list: defineEndpoint<void, CloudIntegrationView[]>({
+    method: "GET",
+    path: "/api/v1/integrations/cloud",
+    auth: "bearer",
+    pending: "Pillar 1 §02",
+  }),
+  save: defineEndpoint<SaveCloudIntegrationRequest, CloudIntegrationView>({
+    method: "POST",
+    path: "/api/v1/integrations/cloud",
+    auth: "bearer",
+    pending: "Pillar 1 §02",
+  }),
+  delete: defineEndpoint<void, void>({
+    method: "DELETE",
+    path: "/api/v1/integrations/cloud/{id}",
+    auth: "bearer",
+    pending: "Pillar 1 §02",
+  }),
 } as const;
 
 /** The style catalogue and a workspace's custom presets (A16, D64, A14). */
@@ -1161,6 +1199,7 @@ export const endpoints = {
   push: pushEndpoints,
   folders: folderEndpoints,
   media: mediaEndpoints,
+  cloudIntegrations: cloudIntegrationEndpoints,
   styles: styleEndpoints,
   transcripts: transcriptEndpoints,
   transcriptScripts: transcriptScriptsEndpoints,
@@ -1201,6 +1240,7 @@ export const ALL_ENDPOINTS = [
   ...Object.entries(pushEndpoints),
   ...Object.entries(folderEndpoints),
   ...Object.entries(mediaEndpoints),
+  ...Object.entries(cloudIntegrationEndpoints),
   ...Object.entries(styleEndpoints),
   ...Object.entries(transcriptEndpoints),
   ...Object.entries(transcriptScriptsEndpoints),

@@ -46,6 +46,13 @@ import {
   rememberedWritingScript,
   rememberWritingScript,
 } from "@/components/projects/writing-script-picker";
+import {
+  GooglePickerButton,
+  DropboxChooserButton,
+  CloudImportProgress,
+  type GoogleDrivePickedFile,
+  type DropboxPickedFile,
+} from "@/components/media";
 import { useUploadQueue } from "@/lib/upload/use-upload-queue";
 
 function firstName(fullName: string | null): string | undefined {
@@ -63,6 +70,47 @@ export function HomeView(): React.JSX.Element {
     undefined,
   );
   const [activeBatchId, setActiveBatchId] = React.useState<string | undefined>(undefined);
+  const [cloudImportJob, setCloudImportJob] = React.useState<{
+    id: string;
+    fileName: string;
+    provider: string;
+  } | null>(null);
+
+  const handleCloudFile = React.useCallback(
+    async (file: GoogleDrivePickedFile | DropboxPickedFile): Promise<void> => {
+      try {
+        const res = await fetch("/api/v1/media/import-cloud", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            provider: file.provider,
+            fileId: file.fileId,
+            fileName: file.fileName,
+            fileSizeBytes: file.fileSizeBytes,
+            token: "token" in file ? file.token : undefined,
+            downloadUrl: "downloadUrl" in file ? file.downloadUrl : undefined,
+          }),
+        });
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          toast.error((err as { message?: string }).message || "Failed to start cloud import");
+          return;
+        }
+
+        const job = (await res.json()) as { id: string };
+        setCloudImportJob({
+          id: job.id,
+          fileName: file.fileName,
+          provider: file.provider,
+        });
+        toast.success(`Started cloud transfer for "${file.fileName}"`);
+      } catch (err: unknown) {
+        toast.error(err instanceof Error ? err.message : "Cloud transfer failed to start");
+      }
+    },
+    [],
+  );
 
   // K02: a single file dropped opens "Prepare Your Media" instead of uploading
   // straight away — `localId` fills in once `queue.addFiles` has registered the
@@ -244,6 +292,14 @@ export function HomeView(): React.JSX.Element {
                 setQuickPick(next);
               }}
             />
+
+            <div className="flex flex-col gap-2 pt-2 border-t border-border">
+              <span className="text-fg-2 text-xs font-medium">Or import from cloud storage:</span>
+              <div className="flex flex-wrap items-center gap-2">
+                <GooglePickerButton onFileSelected={handleCloudFile} />
+                <DropboxChooserButton onFileSelected={handleCloudFile} />
+              </div>
+            </div>
           </div>
 
           <DropZone
@@ -270,6 +326,22 @@ export function HomeView(): React.JSX.Element {
           quickPick={quickPick}
           onCancel={() => setPendingBatchFiles(undefined)}
           onConfirmed={handleBatchConfirmed}
+        />
+      )}
+
+      {/* Cloud Import Progress */}
+      {cloudImportJob && (
+        <CloudImportProgress
+          jobId={cloudImportJob.id}
+          fileName={cloudImportJob.fileName}
+          provider={cloudImportJob.provider}
+          onCompleted={() => {
+            toast.success(`Cloud transfer complete for "${cloudImportJob.fileName}"!`);
+            recent.refetch();
+          }}
+          onFailed={(err) => {
+            toast.error(`Cloud import failed: ${err}`);
+          }}
         />
       )}
 

@@ -170,6 +170,7 @@ function harness(options: Options = {}) {
     repurposeClip: { count: vi.fn(async () => 0) },
     clipVariant: { count: vi.fn(async () => 0) },
     job: { findMany: vi.fn(async (): Promise<Array<{ id: string; type: string }>> => []) },
+    transcriptChapter: { findMany: vi.fn(async () => []) },
     workspace: { findUnique: vi.fn(async () => ({ region: options.region ?? "in" })) },
     brandAsset: {
       findFirst: vi.fn(

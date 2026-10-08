@@ -2483,11 +2483,12 @@ export class RepurposeService {
       ? media.storageKey.replace(/raw\.[^.]+$/, "proxy540.mp4")
       : `ws/${run.workspaceId}/p/${run.sourceProjectId}/media/${media?.id ?? "unknown"}/proxy540.mp4`;
 
-    const nativeChapters = await this.prisma.transcriptChapter.findMany({
-      where: { projectId: run.sourceProjectId },
-      orderBy: { startMs: "asc" },
-      select: { title: true, startMs: true, endMs: true },
-    });
+    const nativeChapters =
+      (await this.prisma.transcriptChapter?.findMany({
+        where: { projectId: run.sourceProjectId },
+        orderBy: { startMs: "asc" },
+        select: { title: true, startMs: true, endMs: true },
+      })) ?? [];
 
     const offsetMs = media?.sourceOffsetMs ?? run.windowStartMs ?? 0;
     const chapters =

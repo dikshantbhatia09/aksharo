@@ -126,9 +126,15 @@ export interface AcquirePayload {
   readonly mediaId: string;
   readonly source: {
     /** `hosted_url` (2026-10-01): a public Vimeo, Google Drive or Dropbox link. */
-    readonly kind: "youtube_url" | "hosted_url" | "direct_media_url";
+    readonly kind: "youtube_url" | "hosted_url" | "direct_media_url" | "cloud_stream";
     readonly normalizedUrl: string;
     readonly sourceId: string | null;
+    readonly provider?: "GOOGLE_DRIVE" | "DROPBOX" | "ONEDRIVE" | "BOX" | string;
+    readonly fileId?: string;
+    readonly token?: string;
+    readonly directLink?: string;
+    readonly path?: string;
+    readonly importJobId?: string;
   };
   readonly destination: { readonly bucket: string; readonly key: string };
   readonly limits: AcquireLimits;
@@ -184,6 +190,100 @@ const RESULT_SCHEMA_VERSION = 1;
 export async function processAcquire(context: JobContext): Promise<ProcessorOutcome> {
   const { settings, envelope } = context;
   const payload = envelope.payload as unknown as AcquirePayload;
+
+  // Zero-Disk Cloud Storage Streaming Pipeline (Pillar 1 §02)
+  if (payload.source.kind === "cloud_stream" || (payload.source as any).provider) {
+    context.report(5, "connecting to cloud storage provider");
+    const provider = String((payload.source as any).provider || "").toUpperCase();
+    let streamResult;
+    if (provider === "GOOGLE_DRIVE") {
+      const { getGoogleDriveStream } = await import("../cloud/google-drive-stream.js");
+      streamResult = await getGoogleDriveStream({
+        fileId: (payload.source as any).fileId!,
+        accessToken: (payload.source as any).token!,
+        signal: context.signal,
+      });
+    } else if (provider === "DROPBOX") {
+      const { getDropboxStream } = await import("../cloud/dropbox-stream.js");
+      streamResult = await getDropboxStream({
+        pathOrId: (payload.source as any).fileId || (payload.source as any).path,
+        directLink: (payload.source as any).directLink,
+        accessToken: (payload.source as any).token,
+        signal: context.signal,
+      });
+    } else {
+      throw unreadableMedia(`cloud provider ${provider} not supported yet`, "media/unsupported");
+    }
+
+    context.report(15, `streaming ${streamResult.fileName} directly to storage`);
+    const s3Client = (context.raw as any).getClient?.();
+    let uploadedBytes = 0;
+
+    const { uploadStreamToS3 } = await import("../cloud/s3-stream-uploader.js");
+    if (s3Client) {
+      const uploadRes = await uploadStreamToS3({
+        client: s3Client,
+        bucket: payload.destination.bucket,
+        key: payload.destination.key,
+        stream: streamResult.stream,
+        contentType: streamResult.mimeType || "video/mp4",
+        totalExpectedBytes: streamResult.fileSizeBytes,
+        onProgress: (p) => {
+          const pct = Math.min(95, Math.max(15, 15 + Math.round(p.percentage * 0.8)));
+          context.report(pct, `streaming ${String(p.percentage)}%`, {
+            bytesDone: p.loaded,
+            bytesTotal: streamResult.fileSizeBytes || p.total,
+          });
+        },
+        signal: context.signal,
+      });
+      uploadedBytes = uploadRes.totalBytesUploaded;
+    } else if (context.raw.uploadStream) {
+      uploadedBytes = await context.raw.uploadStream({
+        key: payload.destination.key,
+        stream: streamResult.stream,
+        contentType: streamResult.mimeType || "video/mp4",
+        totalExpectedBytes: streamResult.fileSizeBytes,
+        onProgress: (p) => {
+          const pct = Math.min(95, Math.max(15, 15 + Math.round(p.percentage * 0.8)));
+          context.report(pct, `streaming ${String(p.percentage)}%`, {
+            bytesDone: p.loaded,
+            bytesTotal: streamResult.fileSizeBytes || p.total,
+          });
+        },
+        signal: context.signal,
+      });
+    }
+
+    context.report(98, "saving your video");
+    return {
+      result: {
+        schemaVersion: RESULT_SCHEMA_VERSION,
+        mediaId: payload.mediaId,
+        bucket: payload.destination.bucket,
+        key: payload.destination.key,
+        filename: streamResult.fileName,
+        mime: streamResult.mimeType || "video/mp4",
+        sizeBytes: uploadedBytes,
+        checksum: null,
+        sourceMetadata: {
+          provider: provider || "cloud_stream",
+          sourceId: (payload.source as any).fileId || null,
+          title: streamResult.fileName,
+          channel: null,
+          durationMs: 0,
+        },
+        toolVersion: "cloud-stream-ingest/1.0",
+        deduplicated: false,
+        probeToolVersion: "stream-uploader",
+      },
+      mediaPatch: {
+        sizeBytes: uploadedBytes,
+        contentHash: null,
+        mime: streamResult.mimeType || "video/mp4",
+      },
+    };
+  }
 
   // The API refuses a direct media URL at creation, because nothing yet stops
   // a downloader on this machine from being pointed at an address only this

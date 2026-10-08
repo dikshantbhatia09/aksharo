@@ -138,6 +138,10 @@ export class S3ObjectStore implements ObjectStore {
         : new S3Client({ ...clientOptions, endpoint: config.publicEndpoint });
   }
 
+  getClient(): S3Client {
+    return this.client;
+  }
+
   async createMultipartUpload(input: CreateMultipartInput): Promise<MultipartUpload> {
     const partCount = partCountFor(input.sizeBytes, this.partSizeBytes);
     if (partCount > MULTIPART_MAX_PARTS) {

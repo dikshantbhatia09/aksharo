@@ -103,6 +103,12 @@ import {
 } from "@/components/repurpose/use-cover";
 import { useYouTubeProbe } from "@/components/repurpose/use-youtube-probe";
 import { YouTubePreviewCard } from "@/components/repurpose/YouTubePreviewCard";
+import {
+  GooglePickerButton,
+  DropboxChooserButton,
+  type GoogleDrivePickedFile,
+  type DropboxPickedFile,
+} from "@/components/media";
 
 export {
   DEFAULT_STYLE_ID,
@@ -365,6 +371,8 @@ export interface SourceStartFormProps {
   readonly defaultsControl?: React.ReactNode;
   /** The workspace's own caption looks (2026-10-01), offered after the system ones. */
   readonly presets?: readonly { readonly id: string; readonly name: string }[];
+  /** Cloud file picked from Google Drive or Dropbox (Pillar 1 §02). */
+  readonly onCloudFileSelected?: (file: GoogleDrivePickedFile | DropboxPickedFile) => void;
   readonly className?: string;
 }
 
@@ -396,6 +404,7 @@ export function SourceStartForm({
   estimate,
   defaultsControl,
   presets,
+  onCloudFileSelected,
   className,
 }: SourceStartFormProps): React.JSX.Element {
   const [showProblems, setShowProblems] = React.useState(false);
@@ -756,6 +765,37 @@ export function SourceStartForm({
                 }}
               />
             </Field>
+            <div className="flex flex-col gap-2 pt-1 border-t border-border/40">
+              <span className="text-xs text-fg-2">Or import from cloud storage:</span>
+              <div className="flex flex-wrap items-center gap-2">
+                <GooglePickerButton
+                  onFileSelected={(file) => {
+                    onCloudFileSelected?.(file);
+                    const synthetic = new File([""], file.fileName, {
+                      type: file.mimeType || "video/mp4",
+                    });
+                    onChange({
+                      ...value,
+                      file: synthetic,
+                      files: allowSeveralFiles ? [synthetic] : [],
+                    });
+                  }}
+                />
+                <DropboxChooserButton
+                  onFileSelected={(file) => {
+                    onCloudFileSelected?.(file);
+                    const synthetic = new File([""], file.fileName, {
+                      type: "video/mp4",
+                    });
+                    onChange({
+                      ...value,
+                      file: synthetic,
+                      files: allowSeveralFiles ? [synthetic] : [],
+                    });
+                  }}
+                />
+              </div>
+            </div>
             {files.length === 1 && (
               <p className="text-xs text-fg-1" data-testid="selected-file">
                 {files[0]?.name}

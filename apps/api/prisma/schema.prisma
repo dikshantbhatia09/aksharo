@@ -916,6 +916,8 @@ model Workspace {
   sourceWatches          SourceWatch[]
   /// Where its clips were posted, and how they did (2026-10-05).
   clipPosts              ClipPost[]
+  cloudIntegrations      WorkspaceCloudIntegration[]
+  cloudImportJobs        CloudImportJob[]
 
   @@index([ownerId])
   @@index([billingCountry])
@@ -4865,4 +4867,46 @@ model TranscriptChapter {
 
   @@index([projectId])
   @@map("transcript_chapters")
+}
+
+/// Cloud storage provider OAuth integration credentials (Pillar 1 §02).
+model WorkspaceCloudIntegration {
+  id           String    @id @default(uuid())
+  workspaceId  String    @map("workspace_id") @db.Char(26)
+  provider     String    // GOOGLE_DRIVE, DROPBOX, ONEDRIVE, BOX
+  accountEmail String    @map("account_email")
+  accessToken  String    @map("access_token") // Encrypted AES-256-GCM
+  refreshToken String?   @map("refresh_token") // Encrypted AES-256-GCM
+  expiresAt    DateTime? @map("expires_at") @db.Timestamptz(6)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, provider, accountEmail])
+  @@map("workspace_cloud_integrations")
+}
+
+/// Cloud media streaming import jobs (Pillar 1 §02).
+model CloudImportJob {
+  id            String    @id @default(uuid())
+  workspaceId   String    @map("workspace_id") @db.Char(26)
+  projectId     String?   @map("project_id") @db.Char(26)
+  provider      String
+  fileId        String    @map("file_id")
+  fileName      String    @map("file_name")
+  fileSizeBytes BigInt    @map("file_size_bytes")
+  status        String    @default("QUEUED") // QUEUED, STREAMING, COMPLETED, FAILED
+  progressPct   Int       @default(0) @map("progress_pct")
+  errorMessage  String?   @map("error_message")
+  s3Key         String?   @map("s3_key")
+  sourceUrl     String?   @map("source_url")
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  completedAt   DateTime? @map("completed_at") @db.Timestamptz(6)
+
+  workspace     Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([status])
+  @@map("cloud_import_jobs")
 }

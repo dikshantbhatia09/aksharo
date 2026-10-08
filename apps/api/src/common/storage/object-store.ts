@@ -79,6 +79,9 @@ export interface ObjectStore {
   /** `s3` or `r2` — the `StorageBucket` value that names this store in the schema. */
   readonly kind: "s3" | "r2";
 
+  /** Access underlying S3Client when needed */
+  getClient?(): import("@aws-sdk/client-s3").S3Client;
+
   /** Begin a multipart upload and presign every part. */
   createMultipartUpload(input: CreateMultipartInput): Promise<MultipartUpload>;
 
