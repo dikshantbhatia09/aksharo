@@ -46,23 +46,23 @@ export function formatIcuLite(template: string, values: Record<string, string>):
 
 const HERO_TEMPLATES: Record<HeroLocale, HeroCopy> = {
   en: {
-    kicker: "{brand} — captions, cuts and polish for Indian video creators",
-    headline: "Captions that get how you actually speak.",
+    kicker: "{brand} — #1 AI viral video repurposing tool",
+    headline: "1 long video, 10 viral clips. Create 10x faster.",
     subheads: [
-      "Hinglish-accurate captions, every word editable, thirty styles built for Reels, Shorts and YouTube.",
-      "Autocut, zoom and polish — proposals you accept in one click, with editable text and instant subtitle exports.",
-      "One unified credit pool, priced in ₹, with a free clean export on us.",
+      "Aksharo turns your long podcasts, YouTube videos, and webinars into high-retention shorts, reels, and TikToks with AI virality scoring and active speaker tracking.",
+      "Autocut, auto-reframe, dynamic captions, and AI B-roll — accept proposals in one click with instant subtitle exports.",
+      "One transparent credit pool, priced in ₹, with a free clean export on us.",
     ],
     cta: "Start free — one clean export on us",
     ctaNote: "No card required. Your footage is never used to train anyone's AI.",
   },
   hi: {
-    kicker: "{brand} — भारतीय वीडियो क्रिएटर्स के लिए सटीक कैप्शन, कट और पॉलिश",
-    headline: "कैप्शन जो आपकी असली बोलचाल समझते हैं।",
+    kicker: "{brand} — #1 AI वायरल वीडियो रीपर्पसिंग टूल",
+    headline: "1 लंबा वीडियो, 10 वायरल क्लिप्स। 10x तेज़ी से बनाएं।",
     subheads: [
-      "Hinglish पर सटीक कैप्शन, हर शब्द एडिटेबल, Reels, Shorts और YouTube के लिए बने तीस स्टाइल्स।",
-      "Autocut, zoom और पॉलिश — एक क्लिक में स्वीकार करें, एडिटेबल टेक्स्ट और तुरंत सबटाइटल एक्सपोर्ट के साथ।",
-      "एक ही क्रेडिट पूल, ₹ में, पहला क्लीन एक्सपोर्ट हमारी तरफ से फ्री।",
+      "Aksharo आपके लंबे पॉडकास्ट, YouTube वीडियो और वेबिनार को AI वायरल स्कोरिंग और एक्टिव स्पीकर ट्रैकिंग के साथ हाई-रिटेंशन शॉर्ट्स में बदलता है।",
+      "Autocut, ऑटो-रीफ्रेम, डायनामिक कैप्शन्स और AI B-roll — एक क्लिक में स्वीकार करें, तुरंत सबटाइटल एक्सपोर्ट के साथ।",
+      "एक ही पारदर्शी क्रेडिट पूल, ₹ में, पहला क्लीन एक्सपोर्ट हमारी तरफ से फ्री।",
     ],
     cta: "फ्री शुरू करें — पहला क्लीन एक्सपोर्ट हमारी तरफ से",
     ctaNote: "कार्ड की ज़रूरत नहीं। आपकी फुटेज से कभी कोई AI ट्रेन नहीं होता।",
