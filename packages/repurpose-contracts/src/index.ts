@@ -242,4 +242,25 @@ export {
   type VodProbeResponse,
   type StreamVodMetadata,
 } from "./vod.js";
+export {
+  ClipTrimRequestSchema,
+  DEFAULT_FRAME_RATE,
+  DEFAULT_SNAP_DEADBAND_PX,
+  DEFAULT_SNAP_TOLERANCE_SEC,
+  TimedWordSchema,
+  formatSecToTimecode,
+  parseTimecodeToSec,
+  quantizeToFrame,
+  sliceTranscriptLines,
+  sliceTranscriptWords,
+  snapToWordBoundary,
+  type ClipTrimRequest,
+  type SliceLinesOptions,
+  type SlicedCaptionLine,
+  type SlicedTimedWord,
+  type SnapBoundaryOptions,
+  type SnapBoundaryResult,
+  type TimedWord,
+} from "./transcript-slice.js";
+
 

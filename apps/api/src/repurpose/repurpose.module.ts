@@ -3,6 +3,7 @@ import { Module } from "@nestjs/common";
 import { RepurposeAcquireCompletionHandler } from "./acquire-completion.handler.js";
 import { RepurposeClipCompletionHandler } from "./clip-completion.handler.js";
 import { ClipFinishing } from "./clip-finishing.js";
+import { ClipTrimController } from "./clip-trim.controller.js";
 import { RepurposeCompilationCompletionHandler } from "./compilation-completion.handler.js";
 import { RepurposeCompilationsController } from "./compilations.controller.js";
 import { RepurposeCompilationsService } from "./compilations.service.js";
@@ -84,6 +85,7 @@ import { WorkspacesModule } from "../workspaces/workspaces.module.js";
   controllers: [
     RepurposeController,
     RepurposeSteeringController,
+    ClipTrimController,
     RepurposeEpisodePackController,
     // Compilations and series (2026-10-03).
     RepurposeCompilationsController,

@@ -30,6 +30,7 @@ import {
 } from "@montaj/api-client";
 import { Badge, Button } from "@montaj/ui";
 
+import { TimelineTrimmer } from "@/components/editor/timeline-trimmer";
 import { STEERING_COPY } from "@/components/repurpose/copy";
 import { formatClock } from "@/components/repurpose/moment-time";
 import { describeRefusal } from "@/components/repurpose/refusal";
@@ -63,6 +64,7 @@ export function ClipControls({
   const remove = useRemoveMoment();
   const adjust = useAdjustMoment();
   const [editing, setEditing] = React.useState(false);
+  const [bypassSnap, setBypassSnap] = React.useState(false);
   const saved = React.useMemo(
     () => ({ startMs: candidate.startMs, endMs: candidate.endMs }),
     [candidate.startMs, candidate.endMs],
@@ -72,6 +74,7 @@ export function ClipControls({
   // from where it now is.
   React.useEffect(() => {
     setDraft(saved);
+    setBypassSnap(false);
   }, [saved]);
   // The video's length bounds the end; read only while the nudges are open.
   const preview = useRepurposePreview(editing ? runId : null);
@@ -91,7 +94,13 @@ export function ClipControls({
 
   const apply = (): void => {
     adjust.mutate(
-      { runId, candidateId: candidate.id, startMs: draft.startMs, endMs: draft.endMs },
+      {
+        runId,
+        candidateId: candidate.id,
+        startMs: draft.startMs,
+        endMs: draft.endMs,
+        ...(bypassSnap ? { bypassSnap: true } : {}),
+      },
       {
         onSuccess: () => {
           setEditing(false);
@@ -115,6 +124,7 @@ export function ClipControls({
             onClick={() => {
               adjust.reset();
               setDraft(saved);
+              setBypassSnap(false);
               setEditing(!editing);
             }}
             data-testid={`adjust-moment-${candidate.id}`}
@@ -151,6 +161,21 @@ export function ClipControls({
           className="flex flex-col gap-2 rounded-sm border border-border bg-sunken p-3"
           data-testid={panelId}
         >
+          <TimelineTrimmer
+            startSec={draft.startMs / 1000}
+            endSec={draft.endMs / 1000}
+            aiStartSec={saved.startMs / 1000}
+            aiEndSec={saved.endMs / 1000}
+            videoDurationSec={durationMs !== null ? durationMs / 1000 : 0}
+            busy={adjust.isPending}
+            onChange={(nextBounds) => {
+              setBypassSnap(nextBounds.bypassSnap);
+              setDraft({
+                startMs: Math.round(nextBounds.startSec * 1000),
+                endMs: Math.round(nextBounds.endSec * 1000),
+              });
+            }}
+          />
           <NudgeRow
             side="start"
             bounds={draft}

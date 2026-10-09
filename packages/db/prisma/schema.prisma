@@ -110,6 +110,24 @@ model Project {
 
   workspace           Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   exports             ExportJob[]
+  clips               Clip[]
+}
+
+model Clip {
+  id               String   @id @default(uuid())
+  projectId        String
+  title            String   @default("Untitled Clip")
+  startSec         Float
+  endSec           Float
+  isManualOverride Boolean  @default(false)
+  manualStartSec   Float?
+  manualEndSec     Float?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  project          Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
 }
 
 model MediaAsset {

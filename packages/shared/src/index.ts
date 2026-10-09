@@ -85,3 +85,6 @@ export function isHinglish(languageCode: string | undefined): boolean {
   const normalized = languageCode.toLowerCase().trim();
   return normalized === "hinglish" || normalized === "hi-latn" || normalized === "hin-latn";
 }
+
+export * from "./transcript-slice.js";
+

@@ -1,7 +1,15 @@
 import { HttpStatus, Inject, Injectable, Logger } from "@nestjs/common";
 
 import type { Env } from "@montaj/config";
-import type { ClipLayout } from "@montaj/repurpose-contracts";
+import {
+  quantizeToFrame,
+  sliceTranscriptLines,
+  sliceTranscriptWords,
+  type ClipLayout,
+  type SlicedCaptionLine,
+  type SlicedTimedWord,
+  type TimedWord,
+} from "@montaj/repurpose-contracts";
 
 import { stillsKeyPrefix } from "./clip-images.js";
 import { shapeLayoutOf, type ClipLayoutChoice } from "./layout.js";
@@ -25,8 +33,12 @@ import { ProjectsService } from "../projects/projects.service.js";
 import { EntitlementService } from "../workspaces/entitlement.service.js";
 
 import type { RepurposeClipItemView } from "./repurpose-clips.service.js";
-import type { AdjustCandidateInput, ClipLayoutInput } from "./repurpose-steering.dto.js";
-import type { SnapWord } from "./steering.js";
+import type {
+  AdjustCandidateInput,
+  ClipLayoutInput,
+  TrimClipInput,
+} from "./repurpose-steering.dto.js";
+import type { SnapWord, SnappedBounds } from "./steering.js";
 import type { ClipCandidate, RepurposeRun } from "@prisma/client";
 
 /** What removing, restoring or re-timing a moment answers with. */
@@ -39,6 +51,24 @@ export interface SteeringResult {
   readonly clip: RepurposeClipItemView | null;
   /** On an Autopilot run, the moments that were given a clip in a removed one's place. */
   readonly promoted: readonly string[];
+}
+
+/** Response payload for frame-accurate or word-snapped boundary trimming (Pillar 2 §08). */
+export interface ClipTrimResult {
+  readonly clipId: string | null;
+  readonly candidateId: string;
+  readonly startSec: number;
+  readonly endSec: number;
+  readonly startMs: number;
+  readonly endMs: number;
+  readonly isManualOverride: boolean;
+  readonly manualStartSec: number;
+  readonly manualEndSec: number;
+  readonly snapped: boolean;
+  readonly words: readonly SlicedTimedWord[];
+  readonly lines: readonly SlicedCaptionLine[];
+  readonly candidate: ClipCandidate;
+  readonly clip: RepurposeClipItemView | null;
 }
 
 /** What changing a clip's layout answers with (two-speaker layouts, 2026-10-01). */
@@ -241,11 +271,14 @@ export class RepurposeSteeringService {
 
     // Everything that can refuse, refuses before anything is written.
     const { words, durationMs } = await this.sourceWords(run);
-    const snapped = snapToWords(words, input, candidate, {
-      minMs: MIN_CLIP_MS,
-      maxMs: MAX_CLIP_MS,
-      durationMs,
-    });
+    const snapped =
+      input.bypassSnap === true
+        ? frameQuantizedBounds(input, durationMs)
+        : snapToWords(words, input, candidate, {
+            minMs: MIN_CLIP_MS,
+            maxMs: MAX_CLIP_MS,
+            durationMs,
+          });
     if (snapped === null) {
       throw new AppException(
         REPURPOSE_CLIP_ERRORS.boundsInvalid,
@@ -327,6 +360,9 @@ export class RepurposeSteeringService {
             title,
             sourceStartMs: snapped.startMs,
             sourceEndMs: snapped.endMs,
+            isManualOverride: true,
+            manualStartSec: snapped.startMs / 1000,
+            manualEndSec: snapped.endMs / 1000,
             mezzanineKey: null,
             mezzanineChecksum: null,
             mezzanineDurationMs: null,
@@ -372,6 +408,117 @@ export class RepurposeSteeringService {
       where: { id: candidate.id },
     });
     return { candidate: adjusted, clip: recut, promoted: [] };
+  }
+
+  /**
+   * Frame-accurate or word-snapped clip boundary trimming with real-time
+   * transcript word and subtitle line re-slicing (Pillar 2 §08).
+   *
+   * Validates `0 <= startSec < endSec <= videoDurationSec` and `3s <= duration <= 180s`,
+   * updates the clip & candidate records (`isManualOverride: true`, `manualStartSec`,
+   * `manualEndSec`), invalidates cached preview renders, and returns re-sliced
+   * words and lines.
+   */
+  async trimClip(
+    workspaceId: string,
+    userId: string,
+    projectOrRunId: string,
+    clipOrCandidateId: string,
+    input: TrimClipInput,
+  ): Promise<ClipTrimResult> {
+    await this.assertAvailable(workspaceId);
+    const run = await this.resolveRun(workspaceId, projectOrRunId);
+    if (run.status === "cancelled") {
+      throw new AppException(
+        REPURPOSE_CLIP_ERRORS.runNotReady,
+        "This run was stopped, so nothing new can be made from it.",
+        HttpStatus.CONFLICT,
+      );
+    }
+    const { candidate, clipId } = await this.resolveCandidateOrClip(run, clipOrCandidateId);
+    const { words, durationMs } = await this.sourceWords(run);
+    const videoDurationSec = durationMs / 1000;
+
+    const startSec =
+      input.startSec ??
+      input.manualStartSec ??
+      (input.startMs === undefined ? Number.NaN : input.startMs / 1000);
+    const endSec =
+      input.endSec ??
+      input.manualEndSec ??
+      (input.endMs === undefined ? Number.NaN : input.endMs / 1000);
+
+    if (
+      !Number.isFinite(startSec) ||
+      !Number.isFinite(endSec) ||
+      startSec < 0 ||
+      endSec <= startSec ||
+      endSec > videoDurationSec + 1e-6
+    ) {
+      throw new AppException(
+        REPURPOSE_CLIP_ERRORS.boundsInvalid,
+        "A clip has to be between 3 seconds and 3 minutes long, and inside the video.",
+        HttpStatus.BAD_REQUEST,
+        { minMs: MIN_CLIP_MS, maxMs: MAX_CLIP_MS, durationMs },
+      );
+    }
+
+    const steeringResult = await this.adjustCandidate(
+      workspaceId,
+      userId,
+      run.id,
+      candidate.id,
+      {
+        startMs: Math.round(startSec * 1000),
+        endMs: Math.round(endSec * 1000),
+        ...(input.bypassSnap === undefined ? {} : { bypassSnap: input.bypassSnap }),
+      },
+    );
+
+    const finalStartMs = steeringResult.candidate.startMs;
+    const finalEndMs = steeringResult.candidate.endMs;
+    const finalStartSec = finalStartMs / 1000;
+    const finalEndSec = finalEndMs / 1000;
+
+    const timedWords: TimedWord[] = words
+      .filter(
+        (w) =>
+          w.deleted !== true &&
+          Number.isFinite(w.s) &&
+          Number.isFinite(w.e) &&
+          w.e > w.s &&
+          typeof w.t === "string",
+      )
+      .map((w) => ({
+        id: w.wid,
+        text: w.t ?? "",
+        start: w.s / 1000,
+        end: w.e / 1000,
+      }));
+
+    const slicedWords = sliceTranscriptWords(timedWords, finalStartSec, finalEndSec);
+    const slicedLines = sliceTranscriptLines(timedWords, finalStartSec, finalEndSec);
+    const resolvedClipId = steeringResult.clip?.id ?? clipId;
+
+    return {
+      clipId: resolvedClipId,
+      candidateId: steeringResult.candidate.id,
+      startSec: finalStartSec,
+      endSec: finalEndSec,
+      startMs: finalStartMs,
+      endMs: finalEndMs,
+      isManualOverride: true,
+      manualStartSec: finalStartSec,
+      manualEndSec: finalEndSec,
+      snapped:
+        input.bypassSnap !== true &&
+        (steeringResult.candidate.startWordId !== null ||
+          steeringResult.candidate.endWordId !== null),
+      words: slicedWords,
+      lines: slicedLines,
+      candidate: steeringResult.candidate,
+      clip: steeringResult.clip,
+    };
   }
 
   /**
@@ -761,6 +908,49 @@ export class RepurposeSteeringService {
   }
 
   /**
+   * Resolves a run by either `runId` or `sourceProjectId` (for `/api/v1/projects/:id/clips/:clipId/trim`),
+   * always scoped by `workspaceId`.
+   */
+  private async resolveRun(workspaceId: string, projectOrRunId: string): Promise<RepurposeRun> {
+    const byRunId = await this.prisma.repurposeRun.findFirst({
+      where: { id: projectOrRunId, workspaceId },
+    });
+    if (byRunId !== null) return byRunId;
+    const byProjectId = await this.prisma.repurposeRun.findFirst({
+      where: { sourceProjectId: projectOrRunId, workspaceId },
+    });
+    if (byProjectId !== null) return byProjectId;
+    throw new AppException(
+      REPURPOSE_ERRORS.notFound,
+      "We could not find that video project.",
+      HttpStatus.NOT_FOUND,
+    );
+  }
+
+  /**
+   * Resolves a clip candidate by either `clipId` (`repurpose_clips.id`) or
+   * `candidateId` (`clip_candidates.id`), scoped to `run.id`.
+   */
+  private async resolveCandidateOrClip(
+    run: RepurposeRun,
+    clipOrCandidateId: string,
+  ): Promise<{ readonly candidate: ClipCandidate; readonly clipId: string | null }> {
+    const clip = await this.prisma.repurposeClip.findFirst({
+      where: { id: clipOrCandidateId, runId: run.id },
+      include: { candidate: true },
+    });
+    if (clip !== null && clip.candidate !== undefined) {
+      return { candidate: clip.candidate, clipId: clip.id };
+    }
+    const candidate = await this.requireCandidate(run, clipOrCandidateId);
+    const matchingClip = await this.prisma.repurposeClip.findUnique({
+      where: { candidateId: candidate.id },
+      select: { id: true },
+    });
+    return { candidate, clipId: matchingClip?.id ?? null };
+  }
+
+  /**
    * `RepurposeService.flagEnabled`'s rule, restated as `RepurposeClipsService`
    * restates it: an explicit `FEATURE_FLAGS_JSON` value wins, otherwise the
    * workspace's entitlement. 404 while the surface is off.
@@ -781,6 +971,37 @@ export class RepurposeSteeringService {
       HttpStatus.NOT_FOUND,
     );
   }
+}
+
+/**
+ * Quantizes free-form `Shift`-dragged bounds (`bypassSnap: true`) to 1/30s frame
+ * accuracy and validates `0 <= startMs < endMs <= durationMs` and `3s <= length <= 180s`.
+ */
+function frameQuantizedBounds(
+  requested: { readonly startMs: number; readonly endMs: number },
+  durationMs: number | null,
+): SnappedBounds | null {
+  if (
+    !Number.isFinite(requested.startMs) ||
+    !Number.isFinite(requested.endMs) ||
+    requested.startMs < 0
+  ) {
+    return null;
+  }
+  const startSec = quantizeToFrame(requested.startMs / 1000, 30);
+  const rawEndSec = quantizeToFrame(requested.endMs / 1000, 30);
+  const startMs = Math.round(startSec * 1000);
+  const maxEndMs =
+    durationMs !== null && durationMs > 0 ? durationMs : Math.round(rawEndSec * 1000);
+  const endMs = Math.min(maxEndMs, Math.round(rawEndSec * 1000));
+  const length = endMs - startMs;
+  if (startMs < 0 || endMs <= startMs || length < MIN_CLIP_MS || length > MAX_CLIP_MS) {
+    return null;
+  }
+  if (durationMs !== null && durationMs > 0 && Math.round(rawEndSec * 1000) > durationMs) {
+    return null;
+  }
+  return { startMs, endMs, startWordId: null, endWordId: null };
 }
 
 /**

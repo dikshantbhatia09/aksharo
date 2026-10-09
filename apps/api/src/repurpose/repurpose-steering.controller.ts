@@ -15,8 +15,10 @@ import { CLIP_RATE_LIMITS } from "./repurpose-clips.dto.js";
 import {
   AdjustCandidateDto,
   ClipLayoutDto,
+  TrimClipDto,
   adjustCandidateSchema,
   clipLayoutSchema,
+  trimClipSchema,
 } from "./repurpose-steering.dto.js";
 import { RepurposeSteeringService } from "./repurpose-steering.service.js";
 import { zodBody } from "../auth/dto/openapi.js";
@@ -31,7 +33,11 @@ import {
 } from "../common/guards/index.js";
 import { WorkspaceMemberGuard } from "../workspaces/workspace-member.guard.js";
 
-import type { LayoutResult, SteeringResult } from "./repurpose-steering.service.js";
+import type {
+  ClipTrimResult,
+  LayoutResult,
+  SteeringResult,
+} from "./repurpose-steering.service.js";
 
 /**
  * Steering a run's moments (2026-09-29): remove one, bring it back, change its
@@ -139,5 +145,27 @@ export class RepurposeSteeringController {
     @Param("candidateId") candidateId: string,
   ): Promise<SteeringResult> {
     return this.steering.restoreCandidate(workspaceId, userId, runId, candidateId);
+  }
+
+  @Patch(":runId/clips/:clipId/trim")
+  @Roles("editor")
+  @UseGuards(RateLimitGuard)
+  @RateLimit(CLIP_RATE_LIMITS.mutate)
+  @ApiOperation({
+    summary: "Trim a clip's start and end boundaries with real-time transcript word re-slicing",
+    description:
+      "Validates 0 <= startSec < endSec <= videoDurationSec, updates the clip's boundary override, " +
+      "invalidates cached preview renders, and returns re-sliced transcript words and subtitle lines.",
+    operationId: "trimRepurposeClip",
+  })
+  @ApiBody(zodBody(trimClipSchema))
+  async trim(
+    @CurrentWorkspace() workspaceId: string,
+    @CurrentUser("userId") userId: string,
+    @Param("runId") runId: string,
+    @Param("clipId") clipId: string,
+    @Body() body: TrimClipDto,
+  ): Promise<ClipTrimResult> {
+    return this.steering.trimClip(workspaceId, userId, runId, clipId, body);
   }
 }

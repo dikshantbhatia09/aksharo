@@ -97,7 +97,9 @@ function harness(overrides: { run?: Row; media?: Row } = {}) {
   const prisma = {
     repurposeRun: {
       findFirst: vi.fn(async (args: { where: Row }) =>
-        args.where["id"] === t.run["id"] && args.where["workspaceId"] === t.run["workspaceId"]
+        (args.where["id"] === t.run["id"] ||
+          args.where["sourceProjectId"] === t.run["sourceProjectId"]) &&
+        args.where["workspaceId"] === t.run["workspaceId"]
           ? { ...t.run }
           : null,
       ),
@@ -720,3 +722,72 @@ describe("setClipLayout (two-speaker layouts, 2026-10-01)", () => {
     expect(error.httpStatus).toBe(404);
   });
 });
+
+describe("trimClip (Pillar 2 §08: Manual Timestamp Controls)", () => {
+  it("trims clip boundaries with magnetic word snapping, sets manual override fields, and re-slices words & lines", async () => {
+    const h = harness();
+    withReadyClip(h);
+
+    const result = await h.service.trimClip(WS, USER, SRC, CLIP_A, {
+      startSec: 61.13,
+      endSec: 70.0,
+    });
+
+    expect(result.clipId).toBe(CLIP_A);
+    expect(result.candidateId).toBe(CAND_A);
+    expect(result.startSec).toBe(61);
+    expect(result.endSec).toBe(70);
+    expect(result.isManualOverride).toBe(true);
+    expect(result.manualStartSec).toBe(61);
+    expect(result.manualEndSec).toBe(70);
+    expect(result.snapped).toBe(true);
+    expect(result.words.length).toBeGreaterThan(0);
+    expect(result.words[0]!.clipRelativeStart).toBe(0);
+    expect(result.lines.length).toBeGreaterThan(0);
+    expect(h.t.clips[0]).toMatchObject({
+      isManualOverride: true,
+      manualStartSec: 61,
+      manualEndSec: 70,
+      mezzanineKey: null,
+    });
+  });
+
+  it("supports Shift-drag frame-accurate trimming (bypassSnap: true) at 1/30s precision", async () => {
+    const h = harness();
+    withReadyClip(h);
+
+    const result = await h.service.trimClip(WS, USER, RUN, CLIP_A, {
+      startSec: 61.1,
+      endSec: 70.5,
+      bypassSnap: true,
+    });
+
+    expect(result.snapped).toBe(false);
+    expect(result.startSec).toBeCloseTo(61.1, 3);
+    expect(result.endSec).toBeCloseTo(70.5, 3);
+    expect(result.isManualOverride).toBe(true);
+  });
+
+  it("rejects out-of-bounds or inverted trim timestamps (0 <= startSec < endSec <= videoDurationSec)", async () => {
+    const h = harness();
+    withReadyClip(h);
+
+    const neg = await refusal(
+      h.service.trimClip(WS, USER, SRC, CLIP_A, { startSec: -1, endSec: 20 }),
+    );
+    expect(neg.httpStatus).toBe(400);
+    expect(neg.code).toBe(REPURPOSE_CLIP_ERRORS.boundsInvalid);
+
+    const inverted = await refusal(
+      h.service.trimClip(WS, USER, SRC, CLIP_A, { startSec: 50, endSec: 40 }),
+    );
+    expect(inverted.httpStatus).toBe(400);
+
+    const pastVideo = await refusal(
+      h.service.trimClip(WS, USER, SRC, CLIP_A, { startSec: 580, endSec: 610 }),
+    );
+    expect(pastVideo.httpStatus).toBe(400);
+    expect(pastVideo.code).toBe(REPURPOSE_CLIP_ERRORS.boundsInvalid);
+  });
+});
+

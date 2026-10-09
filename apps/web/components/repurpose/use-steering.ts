@@ -44,11 +44,40 @@ const restoreEndpoint = defineEndpoint<void, SteeringResponse>({
 });
 
 const adjustEndpoint = defineEndpoint<
-  { readonly startMs: number; readonly endMs: number },
+  { readonly startMs: number; readonly endMs: number; readonly bypassSnap?: boolean },
   SteeringResponse
 >({
   method: "PATCH",
   path: "/repurpose/runs/{runId}/candidates/{candidateId}",
+  auth: "bearer",
+});
+
+export interface TrimClipResponse {
+  readonly clipId: string;
+  readonly candidateId: string;
+  readonly startSec: number;
+  readonly endSec: number;
+  readonly startMs: number;
+  readonly endMs: number;
+  readonly isManualOverride: boolean;
+  readonly manualStartSec: number;
+  readonly manualEndSec: number;
+  readonly snapped: boolean;
+  readonly candidate: RepurposeCandidateItem;
+  readonly clip: RepurposeClipItem | null;
+}
+
+const trimClipEndpoint = defineEndpoint<
+  {
+    readonly startSec: number;
+    readonly endSec: number;
+    readonly bypassSnap?: boolean;
+    readonly isManualOverride?: boolean;
+  },
+  TrimClipResponse
+>({
+  method: "PATCH",
+  path: "/repurpose/runs/{runId}/clips/{clipId}/trim",
   auth: "bearer",
 });
 
@@ -113,7 +142,7 @@ export function useRestoreMoment(): UseMutationResult<SteeringResponse, Error, M
 export function useAdjustMoment(): UseMutationResult<
   SteeringResponse,
   Error,
-  MomentRef & { readonly startMs: number; readonly endMs: number }
+  MomentRef & { readonly startMs: number; readonly endMs: number; readonly bypassSnap?: boolean }
 > {
   const client = useApiClient();
   const settle = useSettle();
@@ -121,10 +150,49 @@ export function useAdjustMoment(): UseMutationResult<
     mutationFn: (input) =>
       client.call(adjustEndpoint, {
         params: { runId: input.runId, candidateId: input.candidateId },
-        body: { startMs: input.startMs, endMs: input.endMs },
+        body: {
+          startMs: input.startMs,
+          endMs: input.endMs,
+          ...(input.bypassSnap === true ? { bypassSnap: true } : {}),
+        },
       }),
     onSettled: (_data, _error, input) => {
       settle(input.runId);
     },
   });
 }
+
+/** Frame-accurate or word-snapped clip boundary trim with real-time word re-slicing. */
+export function useTrimClip(): UseMutationResult<
+  TrimClipResponse,
+  Error,
+  {
+    readonly runId: string;
+    readonly clipId: string;
+    readonly startSec: number;
+    readonly endSec: number;
+    readonly bypassSnap?: boolean;
+    readonly isManualOverride?: boolean;
+  }
+> {
+  const client = useApiClient();
+  const settle = useSettle();
+  return useMutation({
+    mutationFn: (input) =>
+      client.call(trimClipEndpoint, {
+        params: { runId: input.runId, clipId: input.clipId },
+        body: {
+          startSec: input.startSec,
+          endSec: input.endSec,
+          ...(input.bypassSnap === undefined ? {} : { bypassSnap: input.bypassSnap }),
+          ...(input.isManualOverride === undefined
+            ? {}
+            : { isManualOverride: input.isManualOverride }),
+        },
+      }),
+    onSettled: (_data, _error, input) => {
+      settle(input.runId);
+    },
+  });
+}
+

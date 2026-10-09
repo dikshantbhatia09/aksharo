@@ -23,21 +23,42 @@ export function formatClock(ms: number): string {
     : `${String(minutes)}:${ss}`;
 }
 
+/** `mm:ss.mmm` for frame-accurate trimming; `hh:mm:ss.mmm` past the hour. */
+export function formatClockMs(ms: number): string {
+  const clampedMs = Math.max(0, Math.round(ms));
+  const totalSeconds = Math.floor(clampedMs / 1000);
+  const millis = clampedMs % 1000;
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  const mm = String(minutes).padStart(2, "0");
+  const ss = String(seconds).padStart(2, "0");
+  const mmm = String(millis).padStart(3, "0");
+  return hours > 0
+    ? `${String(hours).padStart(2, "0")}:${mm}:${ss}.${mmm}`
+    : `${mm}:${ss}.${mmm}`;
+}
+
 /**
- * `m:ss` or `h:mm:ss` (also `mm:ss` and a bare minute count over 59, as people
- * type "75:30") to milliseconds, or `null` when it is neither. Seconds and a
- * minutes field after an hour must be two digits under 60, so "1:5" is refused
- * rather than guessed at.
+ * `m:ss`, `h:mm:ss`, `mm:ss.mmm`, or `h:mm:ss.mmm` (also a bare minute count
+ * over 59, as people type "75:30") to milliseconds, or `null` when it is
+ * none of these. Seconds and a minutes field after an hour must be two digits
+ * under 60, so "1:5" is refused rather than guessed at.
  */
 export function parseClock(raw: string): number | null {
-  const match = /^\s*(?:(\d{1,2}):(\d{2}):(\d{2})|(\d{1,3}):(\d{2}))\s*$/.exec(raw);
+  const match =
+    /^\s*(?:(\d{1,2}):(\d{2}):(\d{2})(?:\.(\d{1,3}))?|(\d{1,3}):(\d{2})(?:\.(\d{1,3}))?)\s*$/.exec(
+      raw,
+    );
   if (match === null) return null;
-  const [, h, hm, hs, m, s] = match;
+  const [, h, hm, hs, hFrac, m, s, mFrac] = match;
   const hours = h === undefined ? 0 : Number(h);
   const minutes = h === undefined ? Number(m) : Number(hm);
   const seconds = h === undefined ? Number(s) : Number(hs);
   if (seconds > 59 || (h !== undefined && minutes > 59)) return null;
-  return ((hours * 60 + minutes) * 60 + seconds) * 1000;
+  const fracRaw = h === undefined ? mFrac : hFrac;
+  const millis = fracRaw === undefined ? 0 : Number(fracRaw.padEnd(3, "0"));
+  return ((hours * 60 + minutes) * 60 + seconds) * 1000 + millis;
 }
 
 export interface MomentProblems {

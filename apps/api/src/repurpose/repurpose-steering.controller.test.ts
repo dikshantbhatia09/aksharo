@@ -2,8 +2,13 @@ import { HttpStatus, RequestMethod } from "@nestjs/common";
 import { describe, expect, it, vi } from "vitest";
 
 import { CLIP_RATE_LIMITS } from "./repurpose-clips.dto.js";
+import { ClipTrimController } from "./clip-trim.controller.js";
 import { RepurposeSteeringController } from "./repurpose-steering.controller.js";
-import { adjustCandidateSchema, clipLayoutSchema } from "./repurpose-steering.dto.js";
+import {
+  adjustCandidateSchema,
+  clipLayoutSchema,
+  trimClipSchema,
+} from "./repurpose-steering.dto.js";
 import { RATE_LIMIT_KEY, ROLES_KEY } from "../common/guards/index.js";
 
 const WS = "01JCWS0000000000000000000A";
@@ -99,8 +104,82 @@ describe("RepurposeSteeringController", () => {
 
   it("leaves a moment's range to the service, which answers with clip_bounds_invalid", () => {
     expect(adjustCandidateSchema.safeParse({ startMs: -5, endMs: 1 }).success).toBe(true);
+    expect(adjustCandidateSchema.safeParse({ startMs: 1000, endMs: 5000, bypassSnap: true }).success).toBe(true);
     expect(adjustCandidateSchema.safeParse({ startMs: "0", endMs: 1 }).success).toBe(false);
     expect(adjustCandidateSchema.safeParse({ startMs: 0 }).success).toBe(false);
     expect(adjustCandidateSchema.safeParse({ startMs: Infinity, endMs: 1 }).success).toBe(false);
   });
+
+  it("mounts PATCH :runId/clips/:clipId/trim and delegates to steering.trimClip", async () => {
+    const steering = {
+      trimClip: vi.fn(async () => ({
+        clipId: CLIP,
+        runId: RUN,
+        candidateId: CAND,
+        startSec: 12.4,
+        endSec: 45.8,
+        startMs: 12_400,
+        endMs: 45_800,
+        durationMs: 33_400,
+        isManualOverride: true,
+        manualStartSec: 12.4,
+        manualEndSec: 45.8,
+        snappedStart: true,
+        snappedEnd: true,
+        words: [],
+        lines: [],
+        clip: null,
+        candidate: null,
+      })),
+    };
+    const controller = new RepurposeSteeringController(steering as never);
+    await controller.trim(WS, USER, RUN, CLIP, { startSec: 12.4, endSec: 45.8 });
+    expect(steering.trimClip).toHaveBeenCalledWith(WS, USER, RUN, CLIP, {
+      startSec: 12.4,
+      endSec: 45.8,
+    });
+    expect(route("trim")).toMatchObject({
+      path: ":runId/clips/:clipId/trim",
+      method: RequestMethod.PATCH,
+      roles: ["editor"],
+      rateLimits: [CLIP_RATE_LIMITS.mutate],
+    });
+  });
+
+  it("mounts PATCH /api/v1/projects/:id/clips/:clipId/trim on ClipTrimController", async () => {
+    const steering = {
+      trimClip: vi.fn(async () => ({ clipId: CLIP })),
+    };
+    const clipTrim = new ClipTrimController(steering as never);
+    await clipTrim.trimV1(WS, USER, RUN, CLIP, {
+      startSec: 10,
+      endSec: 25,
+      bypassSnap: true,
+    });
+    expect(steering.trimClip).toHaveBeenCalledWith(WS, USER, RUN, CLIP, {
+      startSec: 10,
+      endSec: 25,
+      bypassSnap: true,
+    });
+    await clipTrim.updateClipBoundsV1(WS, USER, RUN, CLIP, {
+      startSec: 12,
+      endSec: 28,
+    });
+    await clipTrim.trimProjectClip(WS, USER, RUN, CLIP, {
+      startSec: 14,
+      endSec: 30,
+    });
+    expect(steering.trimClip).toHaveBeenCalledTimes(3);
+
+    expect(
+      trimClipSchema.safeParse({ startSec: 12.4, endSec: 45.8, isManualOverride: true }).success,
+    ).toBe(true);
+    expect(
+      trimClipSchema.safeParse({ manualStartSec: 12.4, manualEndSec: 45.8, bypassSnap: true })
+        .success,
+    ).toBe(true);
+    expect(trimClipSchema.safeParse({ startMs: 12400, endMs: 45800 }).success).toBe(true);
+    expect(trimClipSchema.safeParse({}).success).toBe(false);
+  });
 });
+

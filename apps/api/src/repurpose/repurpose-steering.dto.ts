@@ -17,9 +17,39 @@ import { zodDto } from "../common/index.js";
 export const adjustCandidateSchema = z.object({
   startMs: z.number().finite(),
   endMs: z.number().finite(),
+  bypassSnap: z.boolean().optional(),
 });
 export class AdjustCandidateDto extends zodDto(adjustCandidateSchema) {}
 export type AdjustCandidateInput = z.infer<typeof adjustCandidateSchema>;
+
+/**
+ * `PATCH /api/v1/projects/{id}/clips/{clipId}/trim` and
+ * `PATCH /repurpose/runs/{runId}/clips/{clipId}/trim` (Pillar 2 §08):
+ * frame-accurate or word-snapped boundary trimming in seconds.
+ */
+export const trimClipSchema = z
+  .object({
+    startSec: z.number().finite().optional(),
+    endSec: z.number().finite().optional(),
+    manualStartSec: z.number().finite().optional(),
+    manualEndSec: z.number().finite().optional(),
+    startMs: z.number().finite().optional(),
+    endMs: z.number().finite().optional(),
+    isManualOverride: z.boolean().optional(),
+    bypassSnap: z.boolean().optional(),
+  })
+  .refine(
+    (val) =>
+      (val.startSec !== undefined && val.endSec !== undefined) ||
+      (val.manualStartSec !== undefined && val.manualEndSec !== undefined) ||
+      (val.startMs !== undefined && val.endMs !== undefined),
+    {
+      message:
+        "Provide startSec & endSec, manualStartSec & manualEndSec, or startMs & endMs.",
+    },
+  );
+export class TrimClipDto extends zodDto(trimClipSchema) {}
+export type TrimClipInput = z.infer<typeof trimClipSchema>;
 
 /**
  * `PUT /repurpose/runs/{id}/clips/{clipId}/layout` (two-speaker layouts,

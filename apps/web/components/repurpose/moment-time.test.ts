@@ -1,14 +1,17 @@
 import { describe, expect, it } from "vitest";
 
-import { formatClock, parseClock, validateMoment } from "./moment-time";
+import { formatClock, formatClockMs, parseClock, validateMoment } from "./moment-time";
 
 describe("parseClock", () => {
-  it("reads m:ss and h:mm:ss", () => {
+  it("reads m:ss, h:mm:ss, and millisecond timecodes mm:ss.mmm", () => {
     expect(parseClock("1:05")).toBe(65_000);
     expect(parseClock("01:05")).toBe(65_000);
     expect(parseClock(" 0:03 ")).toBe(3_000);
     expect(parseClock("75:30")).toBe(4_530_000);
     expect(parseClock("1:02:03")).toBe(3_723_000);
+    expect(parseClock("04:15.000")).toBe(255_000);
+    expect(parseClock("05:02.500")).toBe(302_500);
+    expect(parseClock("1:02:03.25")).toBe(3_723_250);
   });
 
   it("refuses anything it would have to guess at", () => {
@@ -18,11 +21,17 @@ describe("parseClock", () => {
   });
 });
 
-describe("formatClock", () => {
+describe("formatClock & formatClockMs", () => {
   it("writes m:ss, and h:mm:ss past the hour", () => {
     expect(formatClock(65_000)).toBe("1:05");
     expect(formatClock(0)).toBe("0:00");
     expect(formatClock(3_723_000)).toBe("1:02:03");
+  });
+
+  it("writes mm:ss.mmm and hh:mm:ss.mmm for frame-accurate timecodes", () => {
+    expect(formatClockMs(255_000)).toBe("04:15.000");
+    expect(formatClockMs(302_500)).toBe("05:02.500");
+    expect(formatClockMs(3_723_250)).toBe("01:02:03.250");
   });
 });
 

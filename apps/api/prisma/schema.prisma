@@ -4009,6 +4009,10 @@ model RepurposeClip {
   /// Two-speaker layouts (2026-10-01): the layout the person picked. What each
   /// shape's picture actually is, is its variant's `layout`.
   layout              ClipLayoutChoice @default(auto)
+  /// Manual timestamp selection & boundary trimming override (Pillar 2 §08).
+  isManualOverride    Boolean          @default(false) @map("is_manual_override")
+  manualStartSec      Float?           @map("manual_start_sec")
+  manualEndSec        Float?           @map("manual_end_sec")
   createdAt           DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt           DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
