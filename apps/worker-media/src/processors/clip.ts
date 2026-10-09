@@ -15,7 +15,11 @@ import {
   type AudiogramLayout,
 } from "./audiogram.js";
 import {
+  CANVAS_FIT_CENTER_Y_1080P,
+  DEFAULT_PIP_BUBBLE_DIAMETER,
   MAX_CLIP_HEIGHT,
+  PRESENTATION_FIT_Y,
+  canvasFitFilter,
   clipFilter,
   clipFrame,
   directorCutFilter,
@@ -23,16 +27,22 @@ import {
   fitFilter,
   fitFrame,
   interpolateTrajectoryAt,
+  pipBubbleFilter,
   remotionVideoTransform,
   splitScreenFilter,
   splitScreenFrame,
   stackedFilter,
   stackedFrame,
   toSplitScreenConfig,
+  type CanvasFitPlacement,
   type ClipAspect,
+  type ClipLayoutMode,
   type CropKeyframe,
   type DynamicReframeTrajectory,
   type LayoutCut,
+  type PipBubblePlacement,
+  type PipBubblePosition,
+  type PipWebcamInput,
   type SplitScreenConfig,
   type SplitScreenFrame,
   type StackedPersonInput,
@@ -43,16 +53,26 @@ import type { ProbeContainer } from "../ffmpeg/ffprobe.js";
 import type { JobContext, ProcessorOutcome } from "../runtime.js";
 
 export {
+  CANVAS_FIT_CENTER_Y_1080P,
+  DEFAULT_PIP_BUBBLE_DIAMETER,
+  PRESENTATION_FIT_Y,
+  canvasFitFilter,
   directorCutFilter,
   dynamicCropExpressions,
   interpolateTrajectoryAt,
+  pipBubbleFilter,
   remotionVideoTransform,
   splitScreenFilter,
   splitScreenFrame,
   toSplitScreenConfig,
+  type CanvasFitPlacement,
+  type ClipLayoutMode,
   type CropKeyframe,
   type DynamicReframeTrajectory,
   type LayoutCut,
+  type PipBubblePlacement,
+  type PipBubblePosition,
+  type PipWebcamInput,
   type SplitScreenConfig,
   type SplitScreenFrame,
 };
@@ -83,6 +103,13 @@ export interface ClipPayload {
      * first on top (`stackedFrame`). Absent or `single`: one window.
      */
     readonly layout?: "single" | "stacked" | "fit";
+    /**
+     * Pillar 3 §04 — Screen Share & Presentation Slide Detection Engine:
+     * `'CROP_FACE'` | `'CANVAS_FIT'` | `'PIP_BUBBLE'`.
+     */
+    readonly layoutMode?: ClipLayoutMode;
+    readonly pipWebcam?: PipWebcamInput;
+    readonly slideY?: number;
     readonly people?: readonly StackedPersonInput[];
     readonly trajectory?: DynamicReframeTrajectory;
     readonly splitScreen?: SplitScreenConfig;
@@ -244,6 +271,13 @@ export async function processClip(context: JobContext): Promise<ProcessorOutcome
           ...(payload.aspect === undefined ? {} : { aspect: payload.aspect }),
           ...(payload.reframe === undefined ? {} : { centerX: payload.reframe.centerX }),
           ...(payload.reframe?.centerY === undefined ? {} : { centerY: payload.reframe.centerY }),
+          ...(payload.reframe?.layoutMode === undefined
+            ? {}
+            : { layoutMode: payload.reframe.layoutMode }),
+          ...(payload.reframe?.pipWebcam === undefined
+            ? {}
+            : { pipWebcam: payload.reframe.pipWebcam }),
+          ...(payload.reframe?.slideY === undefined ? {} : { slideY: payload.reframe.slideY }),
         });
   if (source.video !== null && stacked === null && fitted === null && frame === null) {
     throw unreadableMedia("The source's picture size could not be read.", "media/probe_failed");

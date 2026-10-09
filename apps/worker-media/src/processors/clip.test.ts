@@ -10,8 +10,12 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { audiogramLayout } from "./audiogram.js";
 import {
+  CANVAS_FIT_CENTER_Y_1080P,
+  DEFAULT_PIP_BUBBLE_DIAMETER,
   MAX_CLIP_HEIGHT,
+  PRESENTATION_FIT_Y,
   STACK_FACE_ROW,
+  canvasFitFilter,
   clipFilter,
   clipFrame,
   directorCutFilter,
@@ -19,6 +23,7 @@ import {
   fitFilter,
   fitFrame,
   interpolateTrajectoryAt,
+  pipBubbleFilter,
   remotionVideoTransform,
   splitScreenFilter,
   splitScreenFrame,
@@ -1725,5 +1730,99 @@ describe("directorCutFilter (Pillar 3 §03 Multi-Speaker Grid & Dynamic Camera S
     expect(triFilter).toContain("[top][bot]vstack=inputs=2");
   });
 });
+
+describe("CANVAS_FIT & PIP_BUBBLE modes (Pillar 3 §04 Screen Share & Presentation Slide Detection Engine)", () => {
+  const fullHd = { width: 1920, height: 1080 };
+
+  it("preserves the full 16:9 width without cropping in CANVAS_FIT mode (1080x608 centered at y=656)", () => {
+    const frame = clipFrame(fullHd, { layoutMode: "CANVAS_FIT", maxHeight: 1920 });
+    expect(frame).not.toBeNull();
+    if (frame === null) return;
+
+    expect(frame.layoutMode).toBe("CANVAS_FIT");
+    // Un-cropped 16:9 source rect
+    expect(frame.crop).toEqual({ width: 1920, height: 1080, x: 0, y: 0 });
+    expect(frame.output).toEqual({ width: 1080, height: 1920 });
+    expect(frame.canvasFit).toEqual({
+      width: 1080,
+      height: 608,
+      x: 0,
+      y: CANVAS_FIT_CENTER_Y_1080P, // (1920 - 608) / 2 = 656
+      blurRadius: 40,
+    });
+    expect(frame.pipBubble).toBeUndefined();
+
+    const filter = clipFilter(frame);
+    expect(filter).toBe(canvasFitFilter(frame));
+    expect(filter).toContain("boxblur=40:5");
+    expect(filter).toContain("scale=1080:608:flags=bicubic");
+    expect(filter).toContain("overlay=0:656");
+  });
+
+  it("supports custom slideY (e.g. Presentation Fit y=360) in CANVAS_FIT mode", () => {
+    const frame = clipFrame(fullHd, {
+      layoutMode: "CANVAS_FIT",
+      slideY: PRESENTATION_FIT_Y,
+      maxHeight: 1920,
+    });
+    expect(frame?.canvasFit?.y).toBe(PRESENTATION_FIT_Y);
+    if (frame !== null) {
+      expect(clipFilter(frame)).toContain(`overlay=0:${String(PRESENTATION_FIT_Y)}`);
+    }
+  });
+
+  it("computes un-cropped 1080x608 slide plus a 280px circular PIP presenter bubble in PIP_BUBBLE mode", () => {
+    const frame = clipFrame(fullHd, {
+      layoutMode: "PIP_BUBBLE",
+      maxHeight: 1920,
+      pipWebcam: {
+        x: 1580,
+        y: 800,
+        width: 240,
+        height: 200,
+        position: "top-right",
+      },
+    });
+    expect(frame).not.toBeNull();
+    if (frame === null) return;
+
+    expect(frame.layoutMode).toBe("PIP_BUBBLE");
+    expect(frame.crop).toEqual({ width: 1920, height: 1080, x: 0, y: 0 });
+    expect(frame.canvasFit).toEqual({
+      width: 1080,
+      height: 608,
+      x: 0,
+      y: 656,
+      blurRadius: 40,
+    });
+    expect(frame.pipBubble).toBeDefined();
+    expect(frame.pipBubble?.canvas.diameter).toBe(DEFAULT_PIP_BUBBLE_DIAMETER);
+    expect(frame.pipBubble?.canvas.position).toBe("top-right");
+    expect(frame.pipBubble?.canvas.x).toBe(1080 - DEFAULT_PIP_BUBBLE_DIAMETER - 48);
+
+    const filter = clipFilter(frame);
+    expect(filter).toBe(pipBubbleFilter(frame));
+    expect(filter).toContain("split=3[fg_in][bg_in][pip_in]");
+    expect(filter).toContain("scale=280:280:flags=bicubic");
+  });
+
+  it("positions bottom-center PIP bubble below the centered slide", () => {
+    const frame = clipFrame(fullHd, {
+      layoutMode: "PIP_BUBBLE",
+      maxHeight: 1920,
+      pipWebcam: {
+        x: 1580,
+        y: 800,
+        width: 240,
+        height: 200,
+        position: "bottom-center",
+      },
+    });
+    expect(frame?.pipBubble?.canvas.position).toBe("bottom-center");
+    expect(frame?.pipBubble?.canvas.x).toBe((1080 - DEFAULT_PIP_BUBBLE_DIAMETER) / 2);
+    expect(frame?.pipBubble?.canvas.y).toBeGreaterThanOrEqual(656 + 608);
+  });
+});
+
 
 

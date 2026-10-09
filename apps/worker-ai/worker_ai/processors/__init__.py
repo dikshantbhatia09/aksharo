@@ -15,6 +15,7 @@ from worker_ai.processors.director import process_director
 from worker_ai.processors.highlights import process_highlights
 from worker_ai.processors.llm import process_llm
 from worker_ai.processors.not_implemented import OWNERS, process_not_implemented
+from worker_ai.processors.scene_classifier import process_scene_classifier
 from worker_ai.processors.transcribe import process_transcribe
 from worker_ai.processors.translate import process_translate
 from worker_ai.processors.transliterate import process_transliterate
@@ -33,6 +34,7 @@ __all__ = [
     "process_llm",
     "process_not_implemented",
     "process_pass",
+    "process_scene_classifier",
     "process_transcribe",
     "process_translate",
     "process_transliterate",

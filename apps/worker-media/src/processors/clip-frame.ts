@@ -50,6 +50,53 @@ export const MAX_CLIP_HEIGHT = 1920;
 export const DEFAULT_CENTER_X = 0.5;
 export const DEFAULT_CENTER_Y = 0.5;
 
+/** Screen Share & Presentation Slide Layout Modes (Pillar 3 §04). */
+export type ClipLayoutMode = "CROP_FACE" | "CANVAS_FIT" | "PIP_BUBBLE";
+
+/** Floating presenter webcam PIP bubble position on the 9:16 canvas (Pillar 3 §04 §2.1). */
+export type PipBubblePosition = "top-right" | "bottom-center";
+
+/** Default circular presenter PIP mask diameter on a 1080 × 1920 canvas (Pillar 3 §04 §2.1). */
+export const DEFAULT_PIP_BUBBLE_DIAMETER = 280;
+
+/** Vizard-style Presentation Fit vertical offset on a 1080 × 1920 canvas (Pillar 3 §04 §2.1). */
+export const PRESENTATION_FIT_Y = 360;
+
+/** Centered 16:9 slide vertical offset on a 1080 × 1920 canvas: (1920 - 608) / 2 = 656 px. */
+export const CANVAS_FIT_CENTER_Y_1080P = 656;
+
+export interface PipWebcamInput {
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+  readonly position?: PipBubblePosition;
+  readonly diameter?: number;
+}
+
+export interface CanvasFitPlacement {
+  readonly width: number;
+  readonly height: number;
+  readonly x: number;
+  readonly y: number;
+  readonly blurRadius: number;
+}
+
+export interface PipBubblePlacement {
+  readonly crop: {
+    readonly width: number;
+    readonly height: number;
+    readonly x: number;
+    readonly y: number;
+  };
+  readonly canvas: {
+    readonly x: number;
+    readonly y: number;
+    readonly diameter: number;
+    readonly position: PipBubblePosition;
+  };
+}
+
 export interface ClipFrame {
   /** The picture size the crop was computed for: the source as probed. */
   readonly source: { readonly width: number; readonly height: number };
@@ -62,6 +109,12 @@ export interface ClipFrame {
   };
   /** The mezzanine's size. Equal to the crop when the crop is short enough. */
   readonly output: { readonly width: number; readonly height: number };
+  /** Screen share & presentation layout mode when explicitly selected (Pillar 3 §04). */
+  readonly layoutMode?: ClipLayoutMode;
+  /** Un-cropped 16:9 slide placement inside the vertical canvas for `CANVAS_FIT` / `PIP_BUBBLE`. */
+  readonly canvasFit?: CanvasFitPlacement;
+  /** Optional presenter circular PIP bubble placement for `PIP_BUBBLE`. */
+  readonly pipBubble?: PipBubblePlacement;
 }
 
 export interface CropKeyframe {
@@ -87,6 +140,57 @@ export interface ClipFrameOptions {
   readonly aspect?: ClipAspect;
   /** Optional time-varying crop trajectory (Pillar 3 §01). */
   readonly trajectory?: DynamicReframeTrajectory;
+  /** Screen Share & Presentation layout mode (Pillar 3 §04). */
+  readonly layoutMode?: ClipLayoutMode;
+  /** Optional presenter webcam bounding box for `PIP_BUBBLE` layout mode (Pillar 3 §04). */
+  readonly pipWebcam?: PipWebcamInput;
+  /** Optional explicit vertical offset for the fitted 16:9 slide (e.g. 656 or 360). */
+  readonly slideY?: number;
+}
+
+function resolvePipBubblePlacement(
+  source: { readonly width: number; readonly height: number },
+  canvas: { readonly width: number; readonly height: number },
+  webcam?: PipWebcamInput,
+): PipBubblePlacement {
+  const { width, height } = source;
+  const position: PipBubblePosition = webcam?.position ?? "bottom-center";
+  const rawDiameter = webcam?.diameter ?? Math.round((DEFAULT_PIP_BUBBLE_DIAMETER * canvas.width) / 1080);
+  const diameter = clamp(even(rawDiameter), 64, Math.min(canvas.width, canvas.height));
+
+  let rawX = webcam?.x ?? 0.78;
+  let rawY = webcam?.y ?? 0.72;
+  let rawW = webcam?.width ?? 0.18;
+  let rawH = webcam?.height ?? 0.24;
+
+  // Normalise 0..1 fractions vs pixel coordinates
+  if (rawX <= 1.5 && rawY <= 1.5 && rawW <= 1.5 && rawH <= 1.5) {
+    rawX *= width;
+    rawY *= height;
+    rawW *= width;
+    rawH *= height;
+  }
+
+  const side = Math.min(floorEven(Math.max(rawW, rawH, 64)), floorEven(Math.min(width, height)));
+  const cx = rawX + rawW / 2;
+  const cy = rawY + rawH / 2;
+  const cropX = Math.floor(clamp(Math.round(cx - side / 2), 0, Math.max(0, width - side)) / 2) * 2;
+  const cropY = Math.floor(clamp(Math.round(cy - side / 2), 0, Math.max(0, height - side)) / 2) * 2;
+
+  const marginX = Math.max(16, even(Math.round(canvas.width * 0.044)));
+  const topY = Math.max(24, even(Math.round(canvas.height * 0.05)));
+  const bottomY = Math.max(0, even(canvas.height - diameter - Math.round(canvas.height * 0.083)));
+
+  const canvasX =
+    position === "top-right"
+      ? Math.max(0, even(canvas.width - diameter - marginX))
+      : Math.max(0, even((canvas.width - diameter) / 2));
+  const canvasY = position === "top-right" ? topY : bottomY;
+
+  return {
+    crop: { width: side, height: side, x: cropX, y: cropY },
+    canvas: { x: canvasX, y: canvasY, diameter, position },
+  };
 }
 
 /**
@@ -103,6 +207,10 @@ export interface ClipFrameOptions {
  * - The output is the crop, scaled down to `maxHeight` when the crop is taller.
  *   It is never scaled up: a 720p source makes a 406 x 720 9:16 mezzanine, and
  *   inventing pixels here would only make every later encode slower.
+ * - When `options.layoutMode` is `'CANVAS_FIT'` or `'PIP_BUBBLE'` (Pillar 3 §04),
+ *   the width is NOT cropped: the full 16:9 source (`crop.width = source.width`)
+ *   is fitted across the 1080-wide canvas (`1080 x 608`) and centered vertically
+ *   at `y = (1920 - 608) / 2 = 656 px` (or `options.slideY`).
  *
  * Returns `null` when the source has no usable picture size.
  */
@@ -113,6 +221,65 @@ export function clipFrame(
   const { width, height } = source;
   if (!Number.isFinite(width) || !Number.isFinite(height) || width < 2 || height < 2) return null;
   const shape = CLIP_ASPECTS[options.aspect ?? "9:16"];
+
+  const limit = floorEven(
+    Math.min(
+      typeof options.maxHeight === "number" && Number.isFinite(options.maxHeight)
+        ? options.maxHeight
+        : MAX_CLIP_HEIGHT,
+      MAX_CLIP_HEIGHT,
+    ),
+  );
+
+  if (options.layoutMode === "CANVAS_FIT" || options.layoutMode === "PIP_BUBBLE") {
+    const outHeight = limit;
+    const outWidth = even((limit * shape.width) / shape.height);
+    const fullCrop: ClipFrame["crop"] = {
+      width: floorEven(width),
+      height: floorEven(height),
+      x: 0,
+      y: 0,
+    };
+    const fgWidth = outWidth;
+    const fgHeight = Math.min(even((fgWidth * height) / width), outHeight);
+    const defaultY = Math.floor((outHeight - fgHeight) / 4) * 2;
+    const fgY =
+      typeof options.slideY === "number" && Number.isFinite(options.slideY)
+        ? Math.floor(clamp(Math.round(options.slideY), 0, Math.max(0, outHeight - fgHeight)) / 2) * 2
+        : defaultY;
+
+    const canvasFit: CanvasFitPlacement = {
+      width: fgWidth,
+      height: fgHeight,
+      x: 0,
+      y: fgY,
+      blurRadius: 40,
+    };
+
+    if (options.layoutMode === "PIP_BUBBLE") {
+      const pipBubble = resolvePipBubblePlacement(
+        { width, height },
+        { width: outWidth, height: outHeight },
+        options.pipWebcam,
+      );
+      return {
+        source: { width, height },
+        crop: fullCrop,
+        output: { width: outWidth, height: outHeight },
+        layoutMode: "PIP_BUBBLE",
+        canvasFit,
+        pipBubble,
+      };
+    }
+
+    return {
+      source: { width, height },
+      crop: fullCrop,
+      output: { width: outWidth, height: outHeight },
+      layoutMode: "CANVAS_FIT",
+      canvasFit,
+    };
+  }
 
   let crop: ClipFrame["crop"];
   if (width * shape.height > height * shape.width) {
@@ -139,19 +306,14 @@ export function clipFrame(
     };
   }
 
-  const limit = floorEven(
-    Math.min(
-      typeof options.maxHeight === "number" && Number.isFinite(options.maxHeight)
-        ? options.maxHeight
-        : MAX_CLIP_HEIGHT,
-      MAX_CLIP_HEIGHT,
-    ),
-  );
   const output =
     crop.height > limit
       ? { width: even((limit * shape.width) / shape.height), height: limit }
       : { width: crop.width, height: crop.height };
 
+  if (options.layoutMode !== undefined) {
+    return { source: { width, height }, crop, output, layoutMode: options.layoutMode };
+  }
   return { source: { width, height }, crop, output };
 }
 
@@ -315,11 +477,60 @@ export function dynamicCropExpressions(
  * filter smoothly pans across the keyframes using a bounded `clip(t, ...)`
  * expression evaluated per frame.
  */
+export function canvasFitFilter(frame: ClipFrame): string {
+  const { source, output, canvasFit } = frame;
+  const fg = canvasFit ?? {
+    width: output.width,
+    height: Math.min(even((output.width * source.height) / source.width), output.height),
+    x: 0,
+    y: Math.floor((output.height - even((output.width * source.height) / source.width)) / 4) * 2,
+    blurRadius: 40,
+  };
+  const lumaRadius = Math.max(4, Math.min(40, fg.blurRadius));
+  return [
+    `scale=${String(source.width)}:${String(source.height)},split=2[fg_in][bg_in]`,
+    `[bg_in]scale=${String(output.width)}:${String(output.height)}:flags=bicubic,boxblur=${String(lumaRadius)}:5[bg]`,
+    `[fg_in]scale=${String(fg.width)}:${String(fg.height)}:flags=bicubic[fg]`,
+    `[bg][fg]overlay=${String(fg.x)}:${String(fg.y)},setsar=1,format=yuv420p`,
+  ].join(";");
+}
+
+export function pipBubbleFilter(frame: ClipFrame): string {
+  const { source, output, canvasFit, pipBubble } = frame;
+  if (pipBubble === undefined) {
+    return canvasFitFilter(frame);
+  }
+  const fg = canvasFit ?? {
+    width: output.width,
+    height: Math.min(even((output.width * source.height) / source.width), output.height),
+    x: 0,
+    y: Math.floor((output.height - even((output.width * source.height) / source.width)) / 4) * 2,
+    blurRadius: 40,
+  };
+  const lumaRadius = Math.max(4, Math.min(40, fg.blurRadius));
+  const { crop: pipCrop, canvas: pipCanvas } = pipBubble;
+  return [
+    `scale=${String(source.width)}:${String(source.height)},split=3[fg_in][bg_in][pip_in]`,
+    `[bg_in]scale=${String(output.width)}:${String(output.height)}:flags=bicubic,boxblur=${String(lumaRadius)}:5[bg]`,
+    `[fg_in]scale=${String(fg.width)}:${String(fg.height)}:flags=bicubic[fg]`,
+    `[pip_in]crop=${String(pipCrop.width)}:${String(pipCrop.height)}:${String(pipCrop.x)}:${String(pipCrop.y)},scale=${String(pipCanvas.diameter)}:${String(pipCanvas.diameter)}:flags=bicubic[pip]`,
+    `[bg][fg]overlay=${String(fg.x)}:${String(fg.y)}[base]`,
+    `[base][pip]overlay=${String(pipCanvas.x)}:${String(pipCanvas.y)},setsar=1,format=yuv420p`,
+  ].join(";");
+}
+
 export function clipFilter(
   frame: ClipFrame,
   trajectory?: DynamicReframeTrajectory,
   leadOffsetSec = 0,
 ): string {
+  if (frame.layoutMode === "PIP_BUBBLE") {
+    return pipBubbleFilter(frame);
+  }
+  if (frame.layoutMode === "CANVAS_FIT") {
+    return canvasFitFilter(frame);
+  }
+
   const { source, crop, output } = frame;
   const scaled = output.width !== crop.width || output.height !== crop.height;
   const dynamic =
