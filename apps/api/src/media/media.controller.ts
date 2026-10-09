@@ -32,8 +32,12 @@ import {
   uploadTicketSchema,
 } from "./media.dto.js";
 import { MediaService } from "./media.service.js";
+import { VodProbeService } from "./vod-probe.service.js";
 import { YouTubeProbeService } from "./youtube-probe.service.js";
 import {
+  type VodProbeResponse,
+  VodProbeRequestSchema,
+  VodProbeResponseSchema,
   type YouTubeProbeResponse,
   YouTubeProbeRequestSchema,
   YouTubeProbeResponseSchema,
@@ -257,11 +261,12 @@ export class MediaController {
 @ApiUnauthorizedResponse({ description: "Missing or invalid access token." })
 @ApiForbiddenResponse({ description: "`auth/not_a_member` or `common/forbidden`." })
 @UseGuards(JwtAuthGuard, WorkspaceMemberGuard, RolesGuard)
-@Controller("media")
+@Controller(["media", "api/v1/media"])
 export class MediaUploadsController {
   constructor(
     private readonly media: MediaService,
     private readonly youtubeProbe: YouTubeProbeService,
+    private readonly vodProbe: VodProbeService,
   ) {}
 
   @Post("probe-url")
@@ -275,6 +280,19 @@ export class MediaUploadsController {
   @ApiOkResponse(zodResponse(YouTubeProbeResponseSchema, "The parsed YouTube metadata and chapters."))
   async probeUrl(@Body() body: { url: string }): Promise<YouTubeProbeResponse> {
     return this.youtubeProbe.probe(body.url);
+  }
+
+  @Post("probe-vod")
+  @Roles("viewer")
+  @ApiOperation({
+    summary: "Probe a livestream or VOD URL for metadata, chat velocity, and peak highlights",
+    description: "Supports Twitch VODs, YouTube Live archives, and Kick streams with SLA < 5s.",
+    operationId: "probeVodUrl",
+  })
+  @ApiBody(zodBody(VodProbeRequestSchema))
+  @ApiOkResponse(zodResponse(VodProbeResponseSchema, "The parsed VOD metadata, chat velocity curve, and highlights."))
+  async probeVod(@Body() body: { url: string }): Promise<VodProbeResponse> {
+    return this.vodProbe.probe(body.url);
   }
 
   @Get(":mediaId")

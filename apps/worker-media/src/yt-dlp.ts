@@ -156,7 +156,7 @@ export const REQUIRED_ARGS = [
  * one video extractor and never `vimeo:album` or `vimeo:channel`. A YouTube
  * link carries none, exactly as before: its URL check is the boundary there.
  */
-export const HOSTED_EXTRACTORS = ["vimeo", "googledrive", "dropbox"] as const;
+export const HOSTED_EXTRACTORS = ["vimeo", "googledrive", "dropbox", "twitch", "kick"] as const;
 export type HostedExtractor = (typeof HOSTED_EXTRACTORS)[number];
 
 /**
@@ -221,6 +221,12 @@ export interface SectionPlan {
   readonly endMs: number;
   readonly sourceDurationMs: number;
   readonly policy: WindowPolicy;
+}
+
+/** Multi-range / selective VOD download section (Pillar 1 §05). */
+export interface YtDlpDownloadSection {
+  readonly startSec: number;
+  readonly endSec: number;
 }
 
 export interface SourceMetadata {
@@ -695,6 +701,10 @@ export function buildArgs(input: {
   readonly jsRuntime?: string;
   /** Only this part of the source (see {@link planSection}). */
   readonly section?: Pick<SectionPlan, "startMs" | "endMs"> | null;
+  /** Multi-range / selective VOD download sections (Pillar 1 §05). */
+  readonly sections?: ReadonlyArray<YtDlpDownloadSection> | null;
+  /** Force keyframes at cut boundaries (Pillar 1 §05). */
+  readonly forceKeyframesAtCuts?: boolean;
   /** A hosted link's one extractor (see {@link HOSTED_EXTRACTORS}). */
   readonly extractor?: HostedExtractor;
   /** Extractor player client for YouTube (defaults to 'ios,android,web'). */
@@ -752,7 +762,7 @@ export function buildArgs(input: {
     // Exact ids need no order. The fallback leaves the choice to yt-dlp, and
     // only its sort can rank by the short side (see FALLBACK_FORMAT).
     ...(fallback ? ["-S", FALLBACK_SORT] : []),
-    ...sectionArgs(input.section ?? null),
+    ...sectionArgs(input.section ?? null, input.sections, input.forceKeyframesAtCuts),
     // Bounded retries inside one attempt; BullMQ owns the retries between them.
     "--retries",
     "3",
@@ -822,15 +832,38 @@ export function extractorArgs(
   return ["--use-extractors", extractor];
 }
 
-function sectionArgs(section: Pick<SectionPlan, "startMs" | "endMs"> | null): string[] {
-  if (section === null) return [];
-  if (!(section.endMs > section.startMs)) {
-    throw new DownloaderUnusableError(`refusing an empty section ${JSON.stringify(section)}`);
+function sectionArgs(
+  section: Pick<SectionPlan, "startMs" | "endMs"> | null | undefined,
+  sections?: ReadonlyArray<YtDlpDownloadSection> | null,
+  forceKeyframesAtCuts?: boolean,
+): string[] {
+  const args: string[] = [];
+  if (sections && sections.length > 0) {
+    for (const item of sections) {
+      if (!Number.isFinite(item.startSec) || !Number.isFinite(item.endSec) || !(item.endSec > item.startSec)) {
+        throw new DownloaderUnusableError(`refusing an empty or invalid section range ${JSON.stringify(item)}`);
+      }
+      args.push(
+        "--download-sections",
+        `*${formatSeconds(Math.round(item.startSec * 1000))}-${formatSeconds(Math.round(item.endSec * 1000))}`,
+      );
+    }
+    args.push("--force-keyframes-at-cuts");
+    return args;
   }
-  return [
-    "--download-sections",
-    `*${formatSeconds(section.startMs)}-${formatSeconds(section.endMs)}`,
-  ];
+  if (section !== null && section !== undefined) {
+    if (!(section.endMs > section.startMs)) {
+      throw new DownloaderUnusableError(`refusing an empty section ${JSON.stringify(section)}`);
+    }
+    args.push(
+      "--download-sections",
+      `*${formatSeconds(section.startMs)}-${formatSeconds(section.endMs)}`,
+    );
+    if (forceKeyframesAtCuts) {
+      args.push("--force-keyframes-at-cuts");
+    }
+  }
+  return args;
 }
 
 /**
@@ -1752,6 +1785,10 @@ export async function download(input: {
   readonly jsRuntime?: string;
   /** Only this part of the source. */
   readonly section?: Pick<SectionPlan, "startMs" | "endMs"> | null;
+  /** Multi-range / selective VOD download sections (Pillar 1 §05). */
+  readonly sections?: ReadonlyArray<YtDlpDownloadSection> | null;
+  /** Force keyframes at cuts (Pillar 1 §05). */
+  readonly forceKeyframesAtCuts?: boolean;
   /** A hosted link's one extractor (see {@link extractorArgs}); absent for YouTube. */
   readonly extractor?: HostedExtractor;
   readonly youtubePlayerClient?: string;
@@ -1778,6 +1815,8 @@ export async function download(input: {
       ...(input.ffmpegPath === undefined ? {} : { ffmpegPath: input.ffmpegPath }),
       ...(input.jsRuntime === undefined ? {} : { jsRuntime: input.jsRuntime }),
       ...(input.section === undefined ? {} : { section: input.section }),
+      ...(input.sections === undefined ? {} : { sections: input.sections }),
+      ...(input.forceKeyframesAtCuts === undefined ? {} : { forceKeyframesAtCuts: input.forceKeyframesAtCuts }),
       ...(input.extractor === undefined ? {} : { extractor: input.extractor }),
       ...(input.youtubePlayerClient === undefined ? {} : { youtubePlayerClient: input.youtubePlayerClient }),
       ...(input.proxyUrl === undefined ? {} : { proxyUrl: input.proxyUrl }),
@@ -1830,6 +1869,8 @@ export async function downloadAudioFast(input: {
   readonly ffmpegPath?: string;
   readonly jsRuntime?: string;
   readonly section?: Pick<SectionPlan, "startMs" | "endMs"> | null;
+  readonly sections?: ReadonlyArray<YtDlpDownloadSection> | null;
+  readonly forceKeyframesAtCuts?: boolean;
   readonly extractor?: HostedExtractor;
   readonly youtubePlayerClient?: string;
   readonly proxyUrl?: string;
@@ -1850,10 +1891,13 @@ export async function downloadAudioFast(input: {
       ...(input.ffmpegPath === undefined ? {} : { ffmpegPath: input.ffmpegPath }),
       ...(input.jsRuntime === undefined ? {} : { jsRuntime: input.jsRuntime }),
       ...(input.section === undefined ? {} : { section: input.section }),
+      ...(input.sections === undefined ? {} : { sections: input.sections }),
+      ...(input.forceKeyframesAtCuts === undefined ? {} : { forceKeyframesAtCuts: input.forceKeyframesAtCuts }),
       ...(input.extractor === undefined ? {} : { extractor: input.extractor }),
       ...(input.youtubePlayerClient === undefined ? {} : { youtubePlayerClient: input.youtubePlayerClient }),
       ...(input.proxyUrl === undefined ? {} : { proxyUrl: input.proxyUrl }),
     }),
+
     {
       timeoutMs: input.limits.timeoutMs,
       outputPath: input.outputPath,

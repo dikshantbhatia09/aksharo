@@ -428,3 +428,29 @@ describe("an unlisted Vimeo video's two fingerprints (a documented limit)", () =
     );
   });
 });
+
+describe("Twitch and Kick livestream VOD links (Pillar 1 §05)", () => {
+  it("accepts single Twitch VOD URLs", () => {
+    const source = accepted("https://www.twitch.tv/videos/1234567890");
+    expect(source.kind).toBe("hosted_url");
+    expect(source.sourceFingerprint).toBe("twitch:1234567890");
+    expect(source.normalizedUrl).toBe("https://www.twitch.tv/videos/1234567890");
+    expect(source.display).toBe("twitch.tv · 1234567890");
+    expect(sourceUrlOf("hosted_url", "twitch:1234567890")).toBe("https://www.twitch.tv/videos/1234567890");
+  });
+
+  it("accepts Kick VOD URLs", () => {
+    const source = accepted("https://kick.com/video/abc-def-999");
+    expect(source.kind).toBe("hosted_url");
+    expect(source.sourceFingerprint).toBe("kick:abc-def-999");
+    expect(source.normalizedUrl).toBe("https://kick.com/video/abc-def-999");
+    expect(source.display).toBe("kick.com · abc-def-999");
+    expect(sourceUrlOf("hosted_url", "kick:abc-def-999")).toBe("https://kick.com/video/abc-def-999");
+  });
+
+  it("refuses channel pages without a video id", () => {
+    expect(rejectedWith("https://www.twitch.tv/shroud")).toBe("missing_video_id");
+    expect(rejectedWith("https://kick.com/xqc")).toBe("missing_video_id");
+  });
+});
+

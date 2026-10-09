@@ -216,6 +216,20 @@ export const createRunSchema = z.object({
      * channel automation's setup.
      */
     captions: runCaptionsSetupSchema.optional(),
+    vod: z
+      .object({
+        platform: z.enum(["TWITCH", "YOUTUBE_LIVE", "KICK"]),
+        vodId: z.string().trim().min(1),
+        totalDurationSec: z.number().min(0),
+        chatVelocity: z.array(z.any()).optional(),
+        selectedRanges: z.array(
+          z.object({
+            startSec: z.number().min(0),
+            endSec: z.number().min(0),
+          }),
+        ),
+      })
+      .optional(),
   }),
   /** Optional title; defaults to the source's safe display form. */
   title: shortLabel.optional(),

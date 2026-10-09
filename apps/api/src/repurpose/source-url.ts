@@ -116,6 +116,11 @@ const DROPBOX_RLKEY = /^[A-Za-z0-9]{5,40}$/;
  */
 const DROPBOX_NAME = /^[A-Za-z0-9_.!~*'()%-]{1,95}$/;
 
+const TWITCH_HOSTS: ReadonlySet<string> = new Set(["twitch.tv", "www.twitch.tv"]);
+const KICK_HOSTS: ReadonlySet<string> = new Set(["kick.com", "www.kick.com"]);
+const TWITCH_VOD_ID = /^\d{1,15}$/;
+const KICK_VOD_ID = /^[\w-]+$/;
+
 /**
  * The contract's longest `sourceId` (`MediaAcquirePayloadSchema`). A
  * fingerprint over it could not be fetched, so it is refused here.
@@ -152,7 +157,7 @@ export type SourceRejectionCode =
   | "unsupported_source";
 
 /** The other video sites a `hosted_url` may be on (2026-10-01). */
-export type HostedSite = "vimeo" | "gdrive" | "dropbox";
+export type HostedSite = "vimeo" | "gdrive" | "dropbox" | "twitch" | "kick";
 
 export interface NormalisedSource {
   readonly kind: "youtube_url" | "hosted_url" | "direct_media_url";
@@ -237,6 +242,8 @@ export function parseSourceUrl(raw: string): SourceParseResult {
   if (VIMEO_HOSTS.has(host) || host === VIMEO_PLAYER_HOST) return vimeoSource(host, url);
   if (host === DRIVE_HOST) return driveSource(url);
   if (DROPBOX_HOSTS.has(host)) return dropboxSource(url);
+  if (TWITCH_HOSTS.has(host)) return twitchSource(url);
+  if (KICK_HOSTS.has(host)) return kickSource(url);
 
   const lowerPath = url.pathname.toLowerCase();
   if (DIRECT_MEDIA_EXTENSIONS.some((extension) => lowerPath.endsWith(extension))) {
@@ -344,6 +351,26 @@ function dropboxSource(url: URL): SourceParseResult {
   return reject("missing_video_id");
 }
 
+function twitchSource(url: URL): SourceParseResult {
+  const segments = url.pathname.split("/").filter((segment) => segment !== "");
+  if (segments.length === 2 && segments[0] === "videos" && TWITCH_VOD_ID.test(segments[1] ?? "")) {
+    return hostedResult({ site: "twitch", id: segments[1] ?? "" });
+  }
+  return reject("missing_video_id");
+}
+
+function kickSource(url: URL): SourceParseResult {
+  const segments = url.pathname.split("/").filter((segment) => segment !== "");
+  if (segments.length === 2 && segments[0] === "video" && KICK_VOD_ID.test(segments[1] ?? "")) {
+    return hostedResult({ site: "kick", id: segments[1] ?? "" });
+  }
+  if (segments.length === 3 && segments[1] === "videos" && KICK_VOD_ID.test(segments[2] ?? "")) {
+    return hostedResult({ site: "kick", id: segments[2] ?? "" });
+  }
+  return reject("missing_video_id");
+}
+
+
 /** What a hosted link is made of, before it is checked. */
 interface HostedParts {
   readonly site: HostedSite;
@@ -387,6 +414,8 @@ function hostedFingerprint(parts: HostedParts): string | { readonly code: Source
     return VIMEO_HASH.test(parts.hash) ? `vimeo:${parts.id}/${parts.hash}` : invalid;
   }
   if (parts.site === "gdrive") return DRIVE_ID.test(parts.id) ? `gdrive:${parts.id}` : invalid;
+  if (parts.site === "twitch") return TWITCH_VOD_ID.test(parts.id) ? `twitch:${parts.id}` : invalid;
+  if (parts.site === "kick") return KICK_VOD_ID.test(parts.id) ? `kick:${parts.id}` : invalid;
   if (!DROPBOX_ID.test(parts.id)) return invalid;
   const name = reencodedName(parts.name ?? "");
   if (name === null) return invalid;
@@ -439,9 +468,16 @@ function hostedDisplay(parts: HostedParts): string {
     // The id is the file's share capability: shortened, never shown whole.
     return `Google Drive · ${parts.id.slice(0, 6)}…`;
   }
+  if (parts.site === "twitch") {
+    return `twitch.tv · ${parts.id}`;
+  }
+  if (parts.site === "kick") {
+    return `kick.com · ${parts.id}`;
+  }
   // Checked by `reencodedName` before this is reached, so it decodes.
   return `Dropbox · ${decodeURIComponent(parts.name ?? "")}`.slice(0, 160);
 }
+
 
 const VIMEO_FINGERPRINT = /^vimeo:(\d{1,15})$/;
 const VIMEO_UNLISTED_FINGERPRINT = /^vimeo:(\d{1,15})\/([0-9a-f]{10})$/;
@@ -449,6 +485,8 @@ const DRIVE_FINGERPRINT = /^gdrive:([A-Za-z0-9_-]{28,100})$/;
 const DROPBOX_S_FINGERPRINT = /^dropbox:s\/([A-Za-z0-9_-]{5,40})\/([A-Za-z0-9_.!~*'()%-]{1,95})$/;
 const DROPBOX_SCL_FINGERPRINT =
   /^dropbox:scl\/fi\/([A-Za-z0-9_-]{5,40})\/([A-Za-z0-9_.!~*'()%-]{1,95})\?rlkey=([A-Za-z0-9]{5,40})$/;
+const TWITCH_FINGERPRINT = /^twitch:(\d{1,15})$/;
+const KICK_FINGERPRINT = /^kick:([\w-]+)$/;
 
 /**
  * The address a hosted link's fingerprint stands for - the only address a
@@ -459,6 +497,10 @@ const DROPBOX_SCL_FINGERPRINT =
  * run's fingerprint when no earlier job is left to read it from.
  */
 export function hostedUrlOf(fingerprint: string): string | null {
+  const twitch = TWITCH_FINGERPRINT.exec(fingerprint);
+  if (twitch !== null) return `https://www.twitch.tv/videos/${twitch[1] ?? ""}`;
+  const kick = KICK_FINGERPRINT.exec(fingerprint);
+  if (kick !== null) return `https://kick.com/video/${kick[1] ?? ""}`;
   const vimeo = VIMEO_FINGERPRINT.exec(fingerprint);
   // The embedded player's address (2026-10-01): yt-dlp's Vimeo "web" client
   // now needs a signed-in account for `vimeo.com/{id}` and its "android"
@@ -499,7 +541,14 @@ export function sourceUrlOf(kind: string, fingerprint: string | null): string | 
 }
 
 /** Fingerprint prefixes that may carry a share secret, or a caller's whole path. */
-const SECRET_BEARING_PREFIXES = ["vimeo:", "gdrive:", "dropbox:", "url:"] as const;
+const SECRET_BEARING_PREFIXES = [
+  "vimeo:",
+  "gdrive:",
+  "dropbox:",
+  "url:",
+  "twitch:",
+  "kick:",
+] as const;
 
 /**
  * A fingerprint as it may be written to the audit log or a log line: a
@@ -528,5 +577,6 @@ export const SOURCE_REJECTION_MESSAGES: Readonly<Record<SourceRejectionCode, str
     link_too_long:
       "That link is too long to use. Give the file a shorter name, share it again and paste the new link.",
     unsupported_source:
-      "We can use a YouTube, Vimeo, Google Drive or Dropbox link. For anything else, upload the video.",
+      "We can use a YouTube, Twitch, Kick, Vimeo, Google Drive or Dropbox link. For anything else, upload the video.",
   });
+

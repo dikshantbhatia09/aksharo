@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { isPlausibleLink, normaliseSourceLink } from "./source-link";
+import { isLivestreamLink, isPlausibleLink, linkSite, normaliseSourceLink } from "./source-link";
 
 describe("normaliseSourceLink", () => {
   it("adds https to a link pasted without a scheme", () => {
@@ -54,5 +54,15 @@ describe("isPlausibleLink", () => {
     expect(isPlausibleLink("ftp://example.com/a.mp4")).toBe(false);
     expect(isPlausibleLink("dQw4w9WgXcQ")).toBe(false);
     expect(isPlausibleLink("https://localhost/x")).toBe(false);
+  });
+});
+
+describe("linkSite and isLivestreamLink", () => {
+  it("identifies Twitch and Kick sites", () => {
+    expect(linkSite("https://www.twitch.tv/videos/123456")).toBe("twitch");
+    expect(linkSite("https://kick.com/video/987654")).toBe("kick");
+    expect(isLivestreamLink("https://www.twitch.tv/videos/123456")).toBe(true);
+    expect(isLivestreamLink("https://kick.com/xqc")).toBe(true);
+    expect(isLivestreamLink("https://www.youtube.com/live/12345678901")).toBe(true);
   });
 });

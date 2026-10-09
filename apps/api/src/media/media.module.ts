@@ -10,6 +10,7 @@ import { MediaProbeCompletionHandler } from "./probe.handler.js";
 import { MediaProxyCompletionHandler } from "./proxy.handler.js";
 import { RetentionService } from "./retention.service.js";
 import { SampleProjectController } from "./sample-project.controller.js";
+import { VodProbeService } from "./vod-probe.service.js";
 import { YouTubeProbeService } from "./youtube-probe.service.js";
 import { EdgModule } from "../edg/edg.module.js";
 import { JobsModule } from "../jobs/jobs.module.js";
@@ -68,6 +69,7 @@ import { WorkspacesModule } from "../workspaces/workspaces.module.js";
     FacesTrigger,
     MediaFacesCompletionHandler,
     YouTubeProbeService,
+    VodProbeService,
   ],
   exports: [
     MediaService,
@@ -76,6 +78,7 @@ import { WorkspacesModule } from "../workspaces/workspaces.module.js";
     RetentionService,
     FacesTrigger,
     YouTubeProbeService,
+    VodProbeService,
   ],
 })
 export class MediaModule {}

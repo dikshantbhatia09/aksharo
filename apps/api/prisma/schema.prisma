@@ -1185,6 +1185,8 @@ model Project {
   clipDubVariant        ClipDubVariant?
   /// YouTube source metadata when imported directly from YouTube (Pillar 1 §01).
   youtubeSourceMetadata YouTubeSourceMetadata?
+  /// Livestream / VOD metadata when imported from Twitch, YouTube Live, or Kick (Pillar 1 §05).
+  streamVodMetadata     StreamVodMetadata?
   /// Human-curated or native YouTube chapters (Pillar 1 §01).
   transcriptChapters    TranscriptChapter[]
 
@@ -4855,6 +4857,23 @@ model YouTubeSourceMetadata {
 
   @@map("youtube_source_metadata")
 }
+
+/// Livestream & VOD metadata, chat velocity graph, and selected time ranges (Pillar 1 §05).
+model StreamVodMetadata {
+  id               String   @id @default(uuid())
+  projectId        String   @unique @map("project_id") @db.Char(26)
+  platform         String   // TWITCH, YOUTUBE_LIVE, KICK
+  vodId            String   @map("vod_id")
+  totalDurationSec Float    @map("total_duration_sec")
+  chatVelocity     Json?    @map("chat_velocity") @db.JsonB
+  selectedRanges   Json     @map("selected_ranges") @db.JsonB
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  project          Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("stream_vod_metadata")
+}
+
 
 /// Native or extracted chapters for high-priority semantic boundary selection (Pillar 1 §01).
 model TranscriptChapter {

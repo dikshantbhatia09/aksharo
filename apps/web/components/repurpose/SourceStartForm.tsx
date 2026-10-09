@@ -91,6 +91,7 @@ import {
 } from "@/components/repurpose/several-links";
 import {
   isPlausibleLink,
+  isLivestreamLink,
   linkSite,
   linkSitesPhrase,
   normaliseSourceLink,
@@ -101,7 +102,9 @@ import {
   coverFileProblem,
   isAudioFile,
 } from "@/components/repurpose/use-cover";
+import { useVodProbe } from "@/components/repurpose/use-vod-probe";
 import { useYouTubeProbe } from "@/components/repurpose/use-youtube-probe";
+import { VodRangeSelector } from "@/components/repurpose/VodRangeSelector";
 import { YouTubePreviewCard } from "@/components/repurpose/YouTubePreviewCard";
 import {
   GooglePickerButton,
@@ -421,11 +424,16 @@ export function SourceStartForm({
   const probeQuery = useYouTubeProbe(debouncedUrl);
   const probeData = probeQuery.data ?? null;
 
+  const vodProbeQuery = useVodProbe(debouncedUrl);
+  const vodProbeData = vodProbeQuery.data ?? null;
+
   const effectiveKnownLength: KnownLength | undefined =
     knownLength ??
-    (probeData && probeData.durationSec > 0
-      ? { link: value.url, durationMs: probeData.durationSec * 1000 }
-      : undefined);
+    (vodProbeData && vodProbeData.durationSec > 0
+      ? { link: value.url, durationMs: vodProbeData.durationSec * 1000 }
+      : probeData && probeData.durationSec > 0
+        ? { link: value.url, durationMs: probeData.durationSec * 1000 }
+        : undefined);
 
   // A start is not checked where it is not offered: a hidden field's error
   // would block the form with nothing to correct.
@@ -607,6 +615,17 @@ export function SourceStartForm({
             </Field>
 
             {value.tab === "link" &&
+            (vodProbeData || (vodProbeQuery.isLoading && isLivestreamLink(normaliseSourceLink(value.url)))) ? (
+              <VodRangeSelector
+                probe={vodProbeData}
+                isLoading={vodProbeQuery.isLoading}
+                error={vodProbeQuery.isError ? (vodProbeQuery.error as Error).message : null}
+                onSelectStartAt={(startSec) => {
+                  set("startAt", formatClock(startSec * 1000));
+                  startAtRef.current?.focus();
+                }}
+              />
+            ) : value.tab === "link" &&
             isPlausibleLink(normaliseSourceLink(value.url)) &&
             (linkSite(normaliseSourceLink(value.url)) ?? "youtube") === "youtube" ? (
               <YouTubePreviewCard

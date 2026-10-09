@@ -284,6 +284,47 @@ describe("the argument list", () => {
     ).not.toContain("--download-sections");
   });
 
+  it("fetches multiple sections with forceKeyframesAtCuts (Pillar 1 §05)", () => {
+    const args = buildArgs({
+      url: "https://youtu.be/x",
+      outputPath: "/tmp/o.mp4",
+      limits: LIMITS,
+      sections: [
+        { startSec: 100, endSec: 250 },
+        { startSec: 500, endSec: 750 },
+      ],
+    });
+    const sectionIndices = args.flatMap((arg, i) => (arg === "--download-sections" ? [i] : []));
+    expect(sectionIndices).toHaveLength(2);
+    expect(args[sectionIndices[0] + 1]).toBe("*100.000-250.000");
+    expect(args[sectionIndices[1] + 1]).toBe("*500.000-750.000");
+    expect(args).toContain("--force-keyframes-at-cuts");
+  });
+
+  it("adds forceKeyframesAtCuts when explicitly requested with single section", () => {
+    const args = buildArgs({
+      url: "https://youtu.be/x",
+      outputPath: "/tmp/o.mp4",
+      limits: LIMITS,
+      section: { startMs: 10_000, endMs: 20_000 },
+      forceKeyframesAtCuts: true,
+    });
+    expect(args).toContain("--download-sections");
+    expect(args).toContain("--force-keyframes-at-cuts");
+  });
+
+  it("refuses empty or invalid section in sections list", () => {
+    expect(() =>
+      buildArgs({
+        url: "https://youtu.be/x",
+        outputPath: "/tmp/o.mp4",
+        limits: LIMITS,
+        sections: [{ startSec: 300, endSec: 200 }],
+      }),
+    ).toThrow(DownloaderUnusableError);
+  });
+
+
   it("refuses a section that is not two ordered whole milliseconds inside a day", () => {
     for (const section of [
       { startMs: -1, endMs: 1_000 },

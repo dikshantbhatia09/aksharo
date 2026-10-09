@@ -74,7 +74,7 @@ export function isPlausibleLink(normalised: string): boolean {
 export const HOSTED_SITES_FLAG = "source_hosted_acquire";
 
 /** The video sites a clips run may start from a link on. */
-export type LinkSite = "youtube" | "vimeo" | "gdrive" | "dropbox";
+export type LinkSite = "youtube" | "vimeo" | "gdrive" | "dropbox" | "twitch" | "kick";
 
 /**
  * The hosts each site is recognised on: the API's lists in
@@ -90,6 +90,11 @@ const SITE_HOSTS: ReadonlyMap<string, LinkSite> = new Map<string, LinkSite>([
   ["www.youtube-nocookie.com", "youtube"],
   ["youtu.be", "youtube"],
   ["www.youtu.be", "youtube"],
+  ["twitch.tv", "twitch"],
+  ["www.twitch.tv", "twitch"],
+  ["m.twitch.tv", "twitch"],
+  ["kick.com", "kick"],
+  ["www.kick.com", "kick"],
   ["vimeo.com", "vimeo"],
   ["www.vimeo.com", "vimeo"],
   ["player.vimeo.com", "vimeo"],
@@ -112,6 +117,21 @@ export function linkSite(normalised: string): LinkSite | null {
   }
   if (url.protocol !== "https:") return null;
   return SITE_HOSTS.get(url.hostname.toLowerCase()) ?? null;
+}
+
+/** Whether a link is on a dedicated livestream platform (Twitch, Kick) or YouTube Live. */
+export function isLivestreamLink(normalised: string): boolean {
+  const site = linkSite(normalised);
+  if (site === "twitch" || site === "kick") return true;
+  if (site === "youtube") {
+    try {
+      const url = new URL(normalised);
+      return url.pathname.startsWith("/live/") || url.searchParams.has("v");
+    } catch {
+      return false;
+    }
+  }
+  return false;
 }
 
 /** The plain words for which links this workspace can use. */

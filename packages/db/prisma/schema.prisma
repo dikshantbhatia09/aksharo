@@ -99,6 +99,7 @@ model Project {
 
   transcript          Transcript?
   youtubeSourceMetadata YouTubeSourceMetadata?
+  streamVodMetadata   StreamVodMetadata?
   transcriptChapters  TranscriptChapter[]
   styleDocument       Json?          // Full StyleDocSchema JSON
   captionSettings     Json?          // DisplaySettings, Actions, Timing Delay
@@ -226,6 +227,18 @@ model YouTubeSourceMetadata {
   createdAt       DateTime  @default(now())
 
   project         Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model StreamVodMetadata {
+  id              String   @id @default(uuid())
+  projectId       String   @unique
+  platform        String   // TWITCH, YOUTUBE_LIVE, KICK
+  vodId           String
+  totalDurationSec Float
+  chatVelocity    Json?    // [{ timestampSec: number, mps: number, topKeywords: string[] }]
+  selectedRanges  Json     // [{ startSec: number, endSec: number }]
+  
+  project         Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 }
 
 model TranscriptChapter {

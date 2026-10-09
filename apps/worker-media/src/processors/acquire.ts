@@ -977,6 +977,10 @@ const HOSTED_HOSTS: ReadonlyMap<string, HostedExtractor> = new Map<string, Hoste
   ["player.vimeo.com", "vimeo"],
   ["drive.google.com", "googledrive"],
   ["www.dropbox.com", "dropbox"],
+  ["twitch.tv", "twitch"],
+  ["www.twitch.tv", "twitch"],
+  ["kick.com", "kick"],
+  ["www.kick.com", "kick"],
 ]);
 
 /**
@@ -1022,6 +1026,12 @@ export function assertHostedUrl(value: string): {
 
 function isOneHostedFile(url: URL, extractor: HostedExtractor): boolean {
   if (url.hash !== "") return false;
+  if (extractor === "twitch") {
+    return /^\/videos\/\d{1,15}$/.test(url.pathname);
+  }
+  if (extractor === "kick") {
+    return /^\/video\/[\w-]+$/.test(url.pathname) || /^\/[a-zA-Z0-9_-]+\/videos\/[\w-]+$/.test(url.pathname);
+  }
   if (extractor === "vimeo") {
     // `player.vimeo.com/video/{id}`, with `?h={hash}` alone for an unlisted one.
     if (!VIMEO_PATH.test(url.pathname)) return false;
@@ -1039,6 +1049,7 @@ function isOneHostedFile(url: URL, extractor: HostedExtractor): boolean {
     DROPBOX_RLKEY.test(url.searchParams.get("rlkey") ?? "")
   );
 }
+
 
 /**
  * A window as the link's site can honour it: only YouTube publishes a

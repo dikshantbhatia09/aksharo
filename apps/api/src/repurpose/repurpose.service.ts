@@ -1118,6 +1118,30 @@ export class RepurposeService {
         },
       });
 
+      if (input.setup.vod) {
+        const vodData = {
+          platform: input.setup.vod.platform,
+          vodId: input.setup.vod.vodId,
+          totalDurationSec: input.setup.vod.totalDurationSec,
+          ...(input.setup.vod.chatVelocity
+            ? { chatVelocity: input.setup.vod.chatVelocity as any }
+            : {}),
+          selectedRanges: input.setup.vod.selectedRanges,
+        };
+        await this.prisma.streamVodMetadata
+          .upsert({
+            where: { projectId: project.id },
+            create: {
+              projectId: project.id,
+              ...vodData,
+            },
+            update: vodData,
+          })
+          .catch((err) => {
+            this.logger.warn(`Failed to store streamVodMetadata: ${String(err)}`);
+          });
+      }
+
       // A link source has no browser to push bytes, so the fetch is started
       // here, in the same compensated block: a workspace that is over its
       // admission limit refuses the run outright rather than leaving a project,

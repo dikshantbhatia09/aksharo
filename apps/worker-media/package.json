@@ -21,6 +21,7 @@
     "@aws-sdk/lib-storage": "^3.1147.0",
     "@aws-sdk/s3-request-presigner": "^3.980.0",
     "@montaj/config": "workspace:*",
+    "@montaj/repurpose-contracts": "workspace:*",
     "bullmq": "^5.81.4",
     "dotenv": "^17.4.2",
     "ioredis": "^5.11.1"

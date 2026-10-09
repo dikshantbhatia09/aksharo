@@ -207,3 +207,21 @@ export {
   type YouTubeProbeRequest,
   type YouTubeProbeResponse,
 } from "./youtube.js";
+export {
+  VOD_PLATFORMS,
+  VodPlatformSchema,
+  ChatDensityBucketSchema,
+  ChatPeakHighlightSchema,
+  SelectedTimeRangeSchema,
+  VodProbeRequestSchema,
+  VodProbeResponseSchema,
+  StreamVodMetadataSchema,
+  type VodPlatform,
+  type ChatDensityBucket,
+  type ChatPeakHighlight,
+  type SelectedTimeRange,
+  type VodProbeRequest,
+  type VodProbeResponse,
+  type StreamVodMetadata,
+} from "./vod.js";
+
