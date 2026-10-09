@@ -281,6 +281,7 @@ export async function renderVideo(
       outputDurationMs: timemap.outputDurationMs,
       outputPath,
       encoder: dependencies.encoder,
+      isHdr: probe.isHdr,
       ...(cropKeyframes.length === 0 ? {} : { cropKeyframes }),
       ...(sfxCues.length === 0 && musicCues.length === 0
         ? {}

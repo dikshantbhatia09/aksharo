@@ -49,6 +49,7 @@ export interface FfprobeStream {
   readonly duration?: string;
   readonly pix_fmt?: string;
   readonly bits_per_raw_sample?: string;
+  readonly color_space?: string;
   readonly color_transfer?: string;
   readonly color_primaries?: string;
   readonly channels?: number;
@@ -101,7 +102,7 @@ export async function ffprobe(input: {
       // landscape and get a proxy on its side.
       "-show_entries",
       "stream=index,codec_type,codec_name,width,height,r_frame_rate,avg_frame_rate,duration," +
-        "pix_fmt,bits_per_raw_sample,color_transfer,color_primaries,channels,sample_rate:" +
+        "pix_fmt,bits_per_raw_sample,color_space,color_transfer,color_primaries,channels,sample_rate:" +
         "stream_tags=rotate:stream_side_data=rotation:format=format_name,duration,size,bit_rate",
       ...inputArgs(input.source),
     ],
@@ -174,6 +175,9 @@ export function readVideo(stream: FfprobeStream): ProbeVideo {
   const rawHeight = stream.height ?? 0;
   const swapped = rotation === 90 || rotation === 270;
   const transfer = stream.color_transfer ?? null;
+  const primaries = stream.color_primaries ?? null;
+  const colorSpace = stream.color_space ?? null;
+  const pixFmt = stream.pix_fmt ?? null;
 
   const avgFps = readFrameRate(stream.avg_frame_rate);
   const rFps = readFrameRate(stream.r_frame_rate);
@@ -184,17 +188,22 @@ export function readVideo(stream: FfprobeStream): ProbeVideo {
       (rFps !== avgFps || (rFps > 60 && avgFps <= 60)),
   );
 
+  const hdr =
+    (transfer !== null && (HDR_TRANSFERS as readonly string[]).includes(transfer)) ||
+    Boolean(pixFmt && pixFmt.includes("10"));
+
   return {
     codec: stream.codec_name ?? "unknown",
     width: swapped ? rawHeight : rawWidth,
     height: swapped ? rawWidth : rawHeight,
     fps: avgFps || rFps,
     rotation,
-    pixelFormat: stream.pix_fmt ?? null,
-    bitDepth: integerOrNull(stream.bits_per_raw_sample) ?? bitDepthOfPixelFormat(stream.pix_fmt),
+    pixelFormat: pixFmt,
+    bitDepth: integerOrNull(stream.bits_per_raw_sample) ?? bitDepthOfPixelFormat(pixFmt ?? undefined),
     colourTransfer: transfer,
-    colourPrimaries: stream.color_primaries ?? null,
-    hdr: transfer !== null && (HDR_TRANSFERS as readonly string[]).includes(transfer),
+    colourPrimaries: primaries,
+    colorSpace,
+    hdr,
     isVfr,
   };
 }

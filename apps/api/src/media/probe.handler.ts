@@ -222,6 +222,9 @@ function technicalFacts(probe: ProbeResult): {
   codec: string | null;
   hasAudio: boolean;
   hdr: boolean;
+  colorTransfer?: string | null;
+  colorPrimaries?: string | null;
+  colorSpace?: string | null;
   audioChannels: number | null;
   mime?: string;
 } {
@@ -233,6 +236,9 @@ function technicalFacts(probe: ProbeResult): {
     codec: probe.video?.codec ?? probe.audio?.codec ?? null,
     hasAudio: probe.hasAudio,
     hdr: probe.video?.hdr ?? false,
+    colorTransfer: probe.video?.colourTransfer ?? null,
+    colorPrimaries: probe.video?.colourPrimaries ?? null,
+    colorSpace: probe.video?.colorSpace ?? null,
     audioChannels: probe.audio?.channels ?? null,
     // The container's own type beats the uploader's claim (THREAT-MODEL T7), but
     // only when the probe managed to name one.
@@ -256,6 +262,9 @@ function proxyPayload(media: MediaAsset, probe: ProbeResult): ProxyJobPayload {
     width: probe.video?.width ?? null,
     height: probe.video?.height ?? null,
     hdr: probe.video?.hdr ?? false,
+    colorTransfer: probe.video?.colourTransfer ?? null,
+    colorPrimaries: probe.video?.colourPrimaries ?? null,
+    colorSpace: probe.video?.colorSpace ?? null,
   };
 }
 

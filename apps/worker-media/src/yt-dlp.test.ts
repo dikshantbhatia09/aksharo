@@ -296,8 +296,8 @@ describe("the argument list", () => {
     });
     const sectionIndices = args.flatMap((arg, i) => (arg === "--download-sections" ? [i] : []));
     expect(sectionIndices).toHaveLength(2);
-    expect(args[sectionIndices[0] + 1]).toBe("*100.000-250.000");
-    expect(args[sectionIndices[1] + 1]).toBe("*500.000-750.000");
+    expect(args[sectionIndices[0]! + 1]).toBe("*100.000-250.000");
+    expect(args[sectionIndices[1]! + 1]).toBe("*500.000-750.000");
     expect(args).toContain("--force-keyframes-at-cuts");
   });
 

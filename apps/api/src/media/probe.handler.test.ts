@@ -36,6 +36,7 @@ function probeResult(overrides: Partial<ProbeResult> = {}): Record<string, unkno
       bitDepth: 8,
       colourTransfer: "bt709",
       colourPrimaries: "bt709",
+      colorSpace: "bt709",
       hdr: false,
     },
     audio: {
@@ -220,13 +221,14 @@ describe("MediaProbeCompletionHandler", () => {
         bitDepth: 10,
         colourTransfer: "smpte2084",
         colourPrimaries: "bt2020",
+        colorSpace: "bt2020nc",
         hdr: true,
       },
     });
     await h.handler.handle(context(hdr));
-    expect(h.update.mock.calls[0]?.[0]).toMatchObject({ data: { hdr: true, codec: "hevc" } });
+    expect(h.update.mock.calls[0]?.[0]).toMatchObject({ data: { hdr: true, codec: "hevc", colorSpace: "bt2020nc" } });
     const [, input] = h.enqueueChild.mock.calls[0] as [Job, Record<string, unknown>];
-    expect(input["payload"]).toMatchObject({ hdr: true });
+    expect(input["payload"]).toMatchObject({ hdr: true, colorSpace: "bt2020nc" });
   });
 
   it("fails the asset on the plan's duration cap and builds no proxy", async () => {

@@ -124,6 +124,7 @@ describe("proxyArgs", () => {
     expect(valueOf(args, "-profile:v")).toBe("main");
     expect(valueOf(args, "-crf")).toBe(String(PROXY_CRF));
     expect(valueOf(args, "-pix_fmt")).toBe("yuv420p");
+    expect(valueOf(args, "-r")).toBe("30");
     expect(valueOf(args, "-c:a")).toBe("aac");
     expect(valueOf(args, "-b:a")).toBe("96k");
     // The moov atom first, or a browser must fetch the end of the file to start.

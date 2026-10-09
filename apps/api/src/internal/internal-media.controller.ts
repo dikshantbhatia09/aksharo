@@ -63,6 +63,9 @@ const MediaPatchSchema = z
     hasAudio: z.boolean().optional(),
     /** PQ or HLG source; the proxy is tone-mapped to BT.709 either way. */
     hdr: z.boolean().optional(),
+    colorTransfer: z.string().max(64).nullable().optional(),
+    colorPrimaries: z.string().max(64).nullable().optional(),
+    colorSpace: z.string().max(64).nullable().optional(),
     /** Only meaningful next to `status: "failed"`; see {@link MEDIA_FAILURE_REASONS}. */
     failureReason: z.enum(MEDIA_FAILURE_REASONS).optional(),
     proxyKey: objectKey.optional(),

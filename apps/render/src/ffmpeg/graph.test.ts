@@ -505,3 +505,67 @@ describe("D04e: sfx/music cue mixing", () => {
     expect(plan.filterGraph).toContain("adelay=500|500");
   });
 });
+
+describe("4K HDR ingestion & dual-resolution render pipeline (07)", () => {
+  it("injects tone-mapping filter chain when isHdr is true", () => {
+    const sdrPlan = graph({}, { isHdr: false });
+    expect(sdrPlan.filterGraph).not.toContain("tonemap=tonemap=hable");
+    expect(sdrPlan.filterGraph).not.toContain("zscale=");
+
+    const hdrPlan = graph({}, { isHdr: true });
+    expect(hdrPlan.filterGraph).toContain("zscale=transfer=linear");
+    expect(hdrPlan.filterGraph).toContain("tonemap=tonemap=hable:desat=0");
+    expect(hdrPlan.filterGraph).toContain("zscale=transfer=bt709:matrix=bt709:range=tv");
+  });
+
+  it("handles 4K UHD export resolution directly with CRF 18", () => {
+    const plan4k = graph(
+      {
+        output: {
+          kind: "video",
+          preset: "youtube-4k",
+          aspect: "16:9",
+          width: 3840,
+          height: 2160,
+          fps: 60,
+          container: "mp4",
+          videoCodec: "h264",
+        },
+      },
+      {
+        sourceWidth: 3840,
+        sourceHeight: 2160,
+        isHdr: true,
+      },
+      true, // stripCrf to test automatic 4K CRF selection
+    );
+    expect(plan4k.filterGraph).toContain("setsar=1"); // identity fit: keeps full 3840x2160 master detail
+    expect(plan4k.args).toContain("18"); // CRF 18 for >= 2160 height
+    expect(plan4k.filterGraph).toContain("tonemap=tonemap=hable");
+
+    // When scaling a 1080p source up or different aspect to 4K:
+    const plan4kScaled = graph(
+      {
+        output: {
+          kind: "video",
+          preset: "youtube-4k",
+          aspect: "16:9",
+          width: 3840,
+          height: 2160,
+          fps: 60,
+          container: "mp4",
+          videoCodec: "h264",
+        },
+      },
+      {
+        sourceWidth: 1920,
+        sourceHeight: 1080,
+        isHdr: true,
+      },
+      true,
+    );
+    expect(plan4kScaled.filterGraph).toContain("scale=3840:2160");
+    expect(plan4kScaled.args).toContain("18");
+  });
+});
+

@@ -41,6 +41,7 @@ export const ProbeVideoSchema = z.object({
   bitDepth: z.number().int().min(0).max(16).nullable().default(null),
   colourTransfer: z.string().max(64).nullable().default(null),
   colourPrimaries: z.string().max(64).nullable().default(null),
+  colorSpace: z.string().max(64).nullable().optional().default(null),
   /** PQ or HLG: the proxy is tone-mapped to BT.709 and the row is flagged. */
   hdr: z.boolean(),
 });
@@ -133,4 +134,7 @@ export interface ProxyJobPayload extends Record<string, unknown> {
   readonly width: number | null;
   readonly height: number | null;
   readonly hdr: boolean;
+  readonly colorTransfer?: string | null;
+  readonly colorPrimaries?: string | null;
+  readonly colorSpace?: string | null;
 }

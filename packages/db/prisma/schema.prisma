@@ -129,6 +129,11 @@ model MediaAsset {
   waveformUri      String?   // JSON amplitude peaks
   filmstripUri     String?   // WebP sprite sheet of video frames
 
+  isHdr           Boolean   @default(false)
+  colorTransfer   String?   // bt709, arib-std-b67, smpte2084
+  colorPrimaries  String?   // bt709, bt2020
+  colorSpace      String?
+
   createdAt        DateTime  @default(now())
 }
 

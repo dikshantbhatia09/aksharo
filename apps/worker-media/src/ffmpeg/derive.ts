@@ -250,6 +250,9 @@ export function proxyArgs(input: {
     String(PROXY_CRF),
     "-pix_fmt",
     "yuv420p",
+    // Downsample framerate to 30 fps to eliminate unnecessary decoding load during in-browser preview
+    "-r",
+    "30",
     // When Variable Frame Rate (e.g. phones/OBS) is detected, force Constant Frame Rate
     // normalization to prevent audio/video synchronization drift during cutting and timeline edits.
     ...(input.isVfr ? ["-fps_mode", "cfr"] : []),

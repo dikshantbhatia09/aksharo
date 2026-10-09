@@ -88,6 +88,9 @@ export async function processProbe(context: JobContext): Promise<ProcessorOutcom
             fps: container.video.fps,
             codec: container.video.codec,
             hdr: container.video.hdr,
+            colorTransfer: container.video.colourTransfer,
+            colorPrimaries: container.video.colourPrimaries,
+            colorSpace: container.video.colorSpace,
           }),
       ...(container.audio === null
         ? {}

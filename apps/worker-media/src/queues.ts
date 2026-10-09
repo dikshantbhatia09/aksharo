@@ -139,6 +139,9 @@ export interface MediaProxyPayload extends MediaProbePayload {
   readonly width?: number | null;
   readonly height?: number | null;
   readonly hdr?: boolean;
+  readonly colorTransfer?: string | null;
+  readonly colorPrimaries?: string | null;
+  readonly colorSpace?: string | null;
 }
 
 /** Narrow an unknown BullMQ `job.data` to the contract envelope. */

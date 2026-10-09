@@ -57,6 +57,20 @@ export function isVideoEncoder(value: unknown): value is VideoEncoder {
 /** Output sample rate for every re-encoded track. */
 export const AUDIO_SAMPLE_RATE = 48_000;
 
+/**
+ * High-fidelity color tone-mapping filter graph for HDR sources (PQ / HLG -> BT.709 SDR).
+ * Matches the pipeline calibrated in worker-media proxy transcode.
+ */
+export function toneMapFilter(): string {
+  return [
+    "zscale=transfer=linear:npl=100",
+    "format=gbrpf32le",
+    "zscale=primaries=bt709",
+    "tonemap=tonemap=hable:desat=0",
+    "zscale=transfer=bt709:matrix=bt709:range=tv",
+  ].join(",");
+}
+
 export class GraphError extends Error {
   public override readonly name = "GraphError";
   constructor(
@@ -84,6 +98,8 @@ export interface GraphInput {
   readonly outputPath: string;
   /** `libx264` unless the deployment set `RENDER_VIDEO_ENCODER`. */
   readonly encoder: VideoEncoder;
+  /** Whether the source video is HDR (PQ / HLG / 10-bit), requiring tone mapping for SDR exports. */
+  readonly isHdr?: boolean;
   /** ffmpeg log level; `error` in production, `info` when a render is being chased. */
   readonly logLevel?: string;
   /**
@@ -465,8 +481,9 @@ export function buildFfmpegArgs(input: GraphInput): GraphPlan {
       input.sourceWidth,
       input.sourceHeight,
     );
+    const toneMap = input.isHdr ? `${toneMapFilter()},` : "";
     if (dynamicCrop === null) {
-      filters.push(`[${cuts.videoLabel}]${buildFit(input)},fps=${String(fps)}[base]`);
+      filters.push(`[${cuts.videoLabel}]${toneMap}${buildFit(input)},fps=${String(fps)}[base]`);
     } else {
       // A dynamic crop's window is the review UI's chosen composition (already
       // at, or proportioned to, the output aspect — CONTRACTS §2 `zoom`/
@@ -481,7 +498,7 @@ export function buildFfmpegArgs(input: GraphInput): GraphPlan {
       // this pass — reported as an open question in the final report.
       const { width, height } = input.manifest.output;
       filters.push(
-        `[${cuts.videoLabel}]${dynamicCrop},` +
+        `[${cuts.videoLabel}]${toneMap}${dynamicCrop},` +
           `scale=${String(width)}:${String(height)}:flags=bicubic,setsar=1,` +
           `fps=${String(fps)}[base]`,
       );

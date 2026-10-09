@@ -32,6 +32,7 @@ export interface ProbeVideo {
   readonly bitDepth: number | null;
   readonly colourTransfer: string | null;
   readonly colourPrimaries: string | null;
+  readonly colorSpace?: string | null;
   readonly hdr: boolean;
   /** Variable Frame Rate flag; triggers CFR normalization during proxy transcode. */
   readonly isVfr?: boolean;

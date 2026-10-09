@@ -88,6 +88,26 @@ describe("readVideo", () => {
     expect(readVideo({ ...H264, color_transfer: "bt2020-10" }).hdr).toBe(false);
   });
 
+  it("identifies 10-bit pixel format as HDR even without transfer curve", () => {
+    const tenBit = readVideo({ ...H264, pix_fmt: "yuv420p10le", color_transfer: undefined });
+    expect(tenBit.hdr).toBe(true);
+    expect(tenBit.bitDepth).toBe(10);
+  });
+
+  it("extracts color_space, color_primaries and color_transfer correctly", () => {
+    const stream = readVideo({
+      ...H264,
+      color_space: "bt2020nc",
+      color_primaries: "bt2020",
+      color_transfer: "smpte2084",
+      pix_fmt: "yuv420p10le",
+    });
+    expect(stream.colorSpace).toBe("bt2020nc");
+    expect(stream.colourPrimaries).toBe("bt2020");
+    expect(stream.colourTransfer).toBe("smpte2084");
+    expect(stream.hdr).toBe(true);
+  });
+
   it("infers the bit depth from the pixel format when ffprobe does not say", () => {
     expect(readVideo({ ...H264, pix_fmt: "yuv420p10le" }).bitDepth).toBe(10);
     expect(readVideo({ ...H264, pix_fmt: "yuv420p" }).bitDepth).toBe(8);

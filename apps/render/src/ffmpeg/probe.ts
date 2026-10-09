@@ -24,6 +24,10 @@ export interface ProbedStream {
   readonly durationMs?: number;
   /** Display rotation in degrees, from the side data of a phone recording. */
   readonly rotation?: number;
+  readonly colorTransfer?: string | null;
+  readonly colorPrimaries?: string | null;
+  readonly colorSpace?: string | null;
+  readonly pixelFormat?: string | null;
 }
 
 export interface ProbeResult {
@@ -34,6 +38,7 @@ export interface ProbeResult {
   readonly displayWidth: number;
   readonly displayHeight: number;
   readonly hasAlpha: boolean;
+  readonly isHdr: boolean;
 }
 
 export class ProbeError extends Error {
@@ -69,6 +74,9 @@ interface FfprobeStream {
   readonly avg_frame_rate?: string;
   readonly duration?: string;
   readonly pix_fmt?: string;
+  readonly color_space?: string;
+  readonly color_transfer?: string;
+  readonly color_primaries?: string;
   readonly side_data_list?: readonly { readonly rotation?: number }[];
   readonly tags?: Readonly<Record<string, string>>;
 }
@@ -101,6 +109,10 @@ export function parseProbeOutput(json: string): ProbeResult {
   const storedWidth = videoStream?.width ?? 0;
   const storedHeight = videoStream?.height ?? 0;
   const transposed = Math.abs(rotation % 180) === 90;
+  const transfer = videoStream?.color_transfer ?? null;
+  const isHdr =
+    (transfer !== null && (transfer === "smpte2084" || transfer === "arib-std-b67")) ||
+    Boolean(videoStream?.pix_fmt && videoStream.pix_fmt.includes("10"));
 
   const video: ProbedStream | null =
     videoStream === undefined
@@ -117,6 +129,10 @@ export function parseProbeOutput(json: string): ProbeResult {
             ? { durationMs: Math.round(Number(videoStream.duration) * 1000) }
             : {}),
           ...(rotation === 0 ? {} : { rotation }),
+          colorTransfer: transfer,
+          colorPrimaries: videoStream.color_primaries ?? null,
+          colorSpace: videoStream.color_space ?? null,
+          pixelFormat: videoStream.pix_fmt ?? null,
         };
 
   const audio: ProbedStream | null =
@@ -137,6 +153,7 @@ export function parseProbeOutput(json: string): ProbeResult {
     displayWidth: transposed ? storedHeight : storedWidth,
     displayHeight: transposed ? storedWidth : storedHeight,
     hasAlpha: ALPHA_PIXEL_FORMATS.test(videoStream?.pix_fmt ?? ""),
+    isHdr,
   };
 }
 
