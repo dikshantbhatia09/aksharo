@@ -46,10 +46,12 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Any, Final
 
-from worker_ai.highlights.contracts import MIN_DURATION_MS, ExcludeRange
+from worker_ai.highlights.contracts import MAX_DURATION_MS, MIN_DURATION_MS, ExcludeRange
 from worker_ai.highlights.text import carries_break, ends_clause, ends_sentence_before, is_speech
 
 __all__ = [
+    "DISALLOWED_CLOSINGS",
+    "DISALLOWED_OPENINGS",
     "HARD_BREAK_PATTERNS",
     "PAUSE_MS",
     "SPONSOR_PATTERNS",
@@ -58,13 +60,20 @@ __all__ = [
     "Window",
     "Word",
     "build_units",
+    "discourse_opening_advance",
     "enumerate_windows",
+    "is_incomplete_closing",
     "outside",
     "padded_windows",
     "select",
     "sentence_ends",
+    "snap_to_silence",
+    "snap_to_silence_ms",
+    "snap_window_to_silence",
+    "snap_windows",
     "spoken_count",
     "usable_words",
+    "words_to_silence_gaps",
 ]
 
 #: Explicit transition markers that start a new news item or segment.
@@ -157,6 +166,96 @@ class Word:
     end_ms: int
 
 
+#: Disallowed discourse openings that indicate trailing context or fragmented thoughts (Pillar 2 §03).
+DISALLOWED_OPENINGS: Final[frozenset[str]] = frozenset({
+    "and",
+    "but",
+    "so",
+    "because",
+    "or",
+    "like i said",
+    "like i was saying",
+    "as mentioned",
+    "as i said",
+    "anyway",
+    "well",
+    "and then",
+    "and so",
+    "so anyway",
+    "but then",
+    "aur",
+    "lekin",
+    "kyunki",
+    "waise",
+})
+
+#: Disallowed closing conjunctions that leave sentences hanging (Pillar 2 §03).
+DISALLOWED_CLOSINGS: Final[frozenset[str]] = frozenset({
+    "and",
+    "but",
+    "because",
+    "if",
+    "when",
+    "which",
+    "that",
+    "so",
+    "like",
+    "or",
+    "with",
+    "as",
+    "aur",
+    "lekin",
+    "to",
+    "kyunki",
+})
+
+
+def discourse_opening_advance(words: Sequence[Word], first: int, last: int) -> int:
+    """Calculates how many leading words to advance past disallowed discourse connectors."""
+    if first > last:
+        return 0
+    clean_words = [w.text.lower().rstrip(".,!?;:\"'—–-") for w in words[first : min(last + 1, first + 5)]]
+    if len(clean_words) >= 4:
+        four = " ".join(clean_words[:4])
+        if four in ("like i was saying",):
+            return 4
+    if len(clean_words) >= 3:
+        three = " ".join(clean_words[:3])
+        if three in ("like i said", "as i said", "so anyway", "like i was"):
+            return 3
+    if len(clean_words) >= 2:
+        two = " ".join(clean_words[:2])
+        if two in ("as mentioned", "and then", "and so", "but then", "so anyway"):
+            return 2
+    if len(clean_words) >= 1:
+        one = clean_words[0]
+        if one in ("and", "but", "so", "because", "or", "anyway", "well", "aur", "lekin", "kyunki", "waise"):
+            return 1
+    return 0
+
+
+def is_incomplete_closing(words: Sequence[Word], first: int, last: int) -> bool:
+    """True if the trailing words form an incomplete dependency clause or hanging conjunction."""
+    if last < first:
+        return False
+    raw_tail = words[last].text
+    clean_tail = raw_tail.lower().rstrip(".,!?;:\"'—–-")
+    if clean_tail in ("and", "but", "because", "if", "when", "which", "so", "or", "aur", "lekin", "to", "kyunki"):
+        return True
+    if clean_tail in ("that", "like", "with", "as"):
+        if not raw_tail.endswith((".", "!", "?", "।", "॥")):
+            return True
+    if last - first >= 2:
+        three = " ".join(w.text.lower().rstrip(".,!?;:\"'—–-") for w in words[last - 2 : last + 1])
+        if three in ("which means that", "in order to", "so much that"):
+            return True
+    if last - first >= 1:
+        two = " ".join(w.text.lower().rstrip(".,!?;:\"'—–-") for w in words[last - 1 : last + 1])
+        if two in ("because of", "and then", "so that", "such as", "due to"):
+            return True
+    return False
+
+
 @dataclass(frozen=True, slots=True)
 class Unit:
     """A sentence, or a piece of an overlong one: words ``first..last``."""
@@ -172,6 +271,9 @@ class Unit:
     is_teaser: bool = False
     starts_sentence: bool = True
     is_orphan_start: bool = False
+    has_disallowed_opening: bool = False
+    has_disallowed_closing: bool = False
+    opening_advance: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -341,23 +443,31 @@ def build_units(words: Sequence[Word], *, min_ms: int, max_ms: int) -> list[Unit
     for first, last in _sentence_spans(ends):
         pieces = _split_overlong(words, first, last, cap_ms)
         for piece_idx, (low, high) in enumerate(pieces):
-            unit_text = " ".join(words[k].text for k in range(low, high + 1))
+            advance = discourse_opening_advance(words, low, high) if piece_idx == 0 else 0
+            effective_low = low + advance if (low + advance <= high) else low
+            has_open = bool(advance > 0)
+            has_close = is_incomplete_closing(words, effective_low, high)
+            unit_text = " ".join(words[k].text for k in range(effective_low, high + 1))
             is_break = bool(HARD_BREAK_PATTERNS.search(unit_text))
             is_spon = bool(SPONSOR_PATTERNS.search(unit_text))
-            is_teas = bool(words[low].start_ms <= 60_000 and INTRO_TEASER_PATTERNS.search(unit_text))
-            is_orphan = bool(low > 0 and ORPHAN_START_PATTERNS.search(unit_text))
+            is_teas = bool(words[effective_low].start_ms <= 60_000 and INTRO_TEASER_PATTERNS.search(unit_text))
+            is_orphan = bool(effective_low > 0 and ORPHAN_START_PATTERNS.search(unit_text))
+            starts_sent = (piece_idx == 0) and (low + advance <= high)
             units.append(
                 Unit(
-                    first=low,
+                    first=effective_low,
                     last=high,
-                    start_ms=words[low].start_ms,
+                    start_ms=words[effective_low].start_ms,
                     end_ms=words[high].end_ms,
                     sentence_end=ends[high],
                     is_hard_break=is_break,
                     is_sponsor=is_spon,
                     is_teaser=is_teas,
-                    starts_sentence=(piece_idx == 0),
+                    starts_sentence=starts_sent,
                     is_orphan_start=is_orphan,
+                    has_disallowed_opening=has_open,
+                    has_disallowed_closing=has_close,
+                    opening_advance=advance,
                 )
             )
     return units
@@ -430,6 +540,106 @@ def _end_ranges(units: Sequence[Unit], *, min_ms: int, max_ms: int) -> list[tupl
     return ranges
 
 
+def snap_to_silence(
+    timestamp: float,
+    silences: Sequence[tuple[float, float]],
+    tolerance: float = 0.3,
+) -> float:
+    """Finds the silence interval closest to timestamp and snaps to its midpoint (Pillar 2 §03)."""
+    best_mid: float | None = None
+    min_dist = float("inf")
+    for start, end in silences:
+        if start - tolerance <= timestamp <= end + tolerance:
+            dist = abs(timestamp - (start + end) / 2.0)
+            if dist < min_dist:
+                min_dist = dist
+                best_mid = (start + end) / 2.0
+    return best_mid if best_mid is not None else timestamp
+
+
+def snap_to_silence_ms(
+    timestamp_ms: int,
+    silences_ms: Sequence[tuple[int, int]],
+    tolerance_ms: int = 300,
+) -> int:
+    """Finds the silence interval closest to timestamp_ms and snaps to its midpoint."""
+    best_mid: int | None = None
+    min_dist = float("inf")
+    for start, end in silences_ms:
+        if start - tolerance_ms <= timestamp_ms <= end + tolerance_ms:
+            dist = abs(timestamp_ms - (start + end) / 2.0)
+            if dist < min_dist:
+                min_dist = dist
+                best_mid = round((start + end) / 2.0)
+    return best_mid if best_mid is not None else timestamp_ms
+
+
+def snap_window_to_silence(
+    window: Window,
+    silences: Sequence[tuple[int, int]],
+    words: Sequence[Word] | None = None,
+    *,
+    min_ms: int = MIN_DURATION_MS,
+    max_ms: int = MAX_DURATION_MS,
+    tolerance_ms: int = 300,
+) -> Window:
+    """Snaps window start and end timestamps to silence gap midpoints."""
+    new_start = snap_to_silence_ms(window.start_ms, silences, tolerance_ms)
+    new_end = snap_to_silence_ms(window.end_ms, silences, tolerance_ms)
+    if words:
+        first_word = words[window.first]
+        last_word = words[window.last]
+        # Never slice into the words of this window
+        new_start = min(new_start, first_word.start_ms)
+        new_end = max(new_end, last_word.end_ms)
+        # Never slice into neighbouring words
+        if window.first > 0:
+            new_start = max(new_start, words[window.first - 1].end_ms)
+        if window.last + 1 < len(words):
+            new_end = min(new_end, words[window.last + 1].start_ms)
+    # Ensure min/max duration constraints remain respected
+    if new_end - new_start < min_ms or new_end - new_start > max_ms:
+        return window
+    return Window(
+        window_id=window.window_id,
+        first=window.first,
+        last=window.last,
+        start_ms=new_start,
+        end_ms=new_end,
+    )
+
+
+def snap_windows(
+    windows: Sequence[Window],
+    silences: Sequence[tuple[int, int]],
+    words: Sequence[Word] | None = None,
+    *,
+    min_ms: int = MIN_DURATION_MS,
+    max_ms: int = MAX_DURATION_MS,
+) -> list[Window]:
+    """Snaps all windows to nearest silence gap midpoints."""
+    return [
+        snap_window_to_silence(w, silences, words, min_ms=min_ms, max_ms=max_ms)
+        for w in windows
+    ]
+
+
+def words_to_silence_gaps(words: Sequence[Word], duration_ms: int = 0) -> list[tuple[int, int]]:
+    """Extracts silence intervals (inter-word pauses) from words."""
+    gaps: list[tuple[int, int]] = []
+    if not words:
+        return gaps
+    if words[0].start_ms > 0:
+        gaps.append((0, words[0].start_ms))
+    for i in range(len(words) - 1):
+        if words[i + 1].start_ms > words[i].end_ms:
+            gaps.append((words[i].end_ms, words[i + 1].start_ms))
+    max_end = max(duration_ms, words[-1].end_ms)
+    if max_end > words[-1].end_ms:
+        gaps.append((words[-1].end_ms, max_end))
+    return gaps
+
+
 def _cleanest_along(
     indices: Sequence[int], keep: int, cut: Sequence[tuple[bool, int]]
 ) -> list[int]:
@@ -455,6 +665,8 @@ def enumerate_windows(
     max_ms: int,
     budget: int = WINDOW_BUDGET,
     exclude: Sequence[ExcludeRange] | None = None,
+    silences: Sequence[tuple[int, int]] | None = None,
+    words: Sequence[Word] | None = None,
 ) -> list[Window]:
     """Every run of consecutive units whose span is within ``[min_ms, max_ms]``.
 
@@ -490,18 +702,22 @@ def enumerate_windows(
             ends = _cleanest_along(ends, ends_per_start, cut_after)
         for b in ends:
             tail = units[b]
+            # Syntactic discourse filter: never end on a trailing hanging conjunction
+            if tail.has_disallowed_closing:
+                continue
             # Words can overlap, so a later unit can end earlier than the one before it.
             if tail.end_ms - head.start_ms < min_ms:
                 continue
-            windows.append(
-                Window(
-                    window_id=_window_id(len(windows) + 1),
-                    first=head.first,
-                    last=tail.last,
-                    start_ms=head.start_ms,
-                    end_ms=tail.end_ms,
-                )
+            w = Window(
+                window_id=_window_id(len(windows) + 1),
+                first=head.first,
+                last=tail.last,
+                start_ms=head.start_ms,
+                end_ms=tail.end_ms,
             )
+            if silences:
+                w = snap_window_to_silence(w, silences, words, min_ms=min_ms, max_ms=max_ms)
+            windows.append(w)
     auto_sponsor_excludes = [
         ExcludeRange(start_ms=u.start_ms, end_ms=u.end_ms)
         for u in units
@@ -518,6 +734,8 @@ def padded_windows(
     max_ms: int,
     timeline_end_ms: int,
     exclude: Sequence[ExcludeRange] | None = None,
+    silences: Sequence[tuple[int, int]] | None = None,
+    words: Sequence[Word] | None = None,
 ) -> list[Window]:
     """For a transcript where no window fits: runs of units padded up to ``min_ms``.
 
@@ -547,6 +765,12 @@ def padded_windows(
         ):
             b += 1
         tail = units[b]
+        # Never end a padded window on a trailing conjunction if avoidable
+        if tail.has_disallowed_closing and b > a:
+            b -= 1
+            tail = units[b]
+        if tail.has_disallowed_closing:
+            continue
         span = tail.end_ms - head.start_ms
         if span > max_ms or span < min_speech_ms:
             continue
@@ -560,15 +784,16 @@ def padded_windows(
         after = min(max(0, room_after), need - before)
         if before + after < need:
             continue
-        windows.append(
-            Window(
-                window_id=_window_id(len(windows) + 1),
-                first=head.first,
-                last=tail.last,
-                start_ms=head.start_ms - before,
-                end_ms=tail.end_ms + after,
-            )
+        w = Window(
+            window_id=_window_id(len(windows) + 1),
+            first=head.first,
+            last=tail.last,
+            start_ms=head.start_ms - before,
+            end_ms=tail.end_ms + after,
         )
+        if silences:
+            w = snap_window_to_silence(w, silences, words, min_ms=min_ms, max_ms=max_ms)
+        windows.append(w)
     return outside(windows, all_exclude)
 
 

@@ -93,6 +93,7 @@ from worker_ai.highlights.scoring import (
     virality_tier,
 )
 from worker_ai.highlights.text import make_excerpt, make_title
+from worker_ai.highlights.texttiling import TextTilingResult, compute_texttiling, discourse_coherence_bonus
 from worker_ai.highlights.tribe_client import NeuralAttentionScore, TribeWindowInput
 from worker_ai.highlights.windows import (
     Unit,
@@ -165,6 +166,8 @@ class _Scored:
     #: lift it gives each window that gains any (by window id).
     track: TrackRecord | None = None
     lifts: dict[str, Lift] = field(default_factory=dict)
+    tiling: TextTilingResult | None = None
+    coherence_bonuses: dict[str, float] = field(default_factory=dict)
 
     def lift_of(self, candidate: _Candidate) -> Lift:
         return self.lifts.get(candidate.window.window_id, NO_LIFT)
@@ -280,29 +283,19 @@ def _moment_title(start_ms: int) -> str:
 
 
 def _score_all(
-    raw_words: Sequence[Any], options: HighlightsOptions, duration_ms: int
+    raw_words: Sequence[Any],
+    options: HighlightsOptions,
+    duration_ms: int,
+    silences: Sequence[tuple[int, int]] | None = None,
 ) -> _Scored | None:
     """Every window of the transcript with its heuristic score, or ``None`` for none.
 
     Raises :class:`UntimedTranscriptError` when most citable spoken words have
     no usable timing.
     """
-    # Nothing said - no words, or only music notes and sound labels - is the
-    # empty answer the contract documents, and the run offers "add a moment by
-    # time" for it. So is speech with no id a proposal could cite (the API's
-    # words endpoint always sends one): that is not a timing fault, and naming
-    # it as one would send the user to transcribe again for nothing.
     spoken = spoken_count(raw_words)
     if spoken == 0:
         return None
-    # Sarvam transcripts written before 2026-09-17 have every word at 0-0 (§9).
-    # Cutting windows from timings like that would cut the wrong video, and an
-    # empty answer would tell the user the video has no strong moment when it is
-    # the transcript that is wrong. Counted over citable speech only, so the two
-    # sides differ by timing alone: a song intro's notes are timed, but they are
-    # not words, and are no reason to refuse the talk; a word with a malformed id
-    # is in neither. A word with no timing at all never reaches `words`, so it
-    # counts as untimed too - which also means `words` is not empty past this check.
     words = usable_words(raw_words)
     timed = sum(1 for word in words if word.end_ms > word.start_ms)
     if timed * 2 < spoken:
@@ -311,17 +304,26 @@ def _score_all(
     min_ms, max_ms = options.min_duration_ms, options.max_duration_ms
     speech_end_ms = max(word.end_ms for word in words)
     units = build_units(words, min_ms=min_ms, max_ms=max_ms)
+    tiling = compute_texttiling(units, words)
+
     # The parts of the video the person asked to skip (`excludeRanges`) are
     # never a window, so never scored or proposed.
     exclude = options.exclude_ranges
     windows = enumerate_windows(
-        units, min_ms=min_ms, max_ms=max_ms, exclude=exclude
+        units,
+        min_ms=min_ms,
+        max_ms=max_ms,
+        exclude=exclude,
+        silences=silences,
+        words=words,
     ) or padded_windows(
         units,
         min_ms=min_ms,
         max_ms=max_ms,
         timeline_end_ms=max(duration_ms, speech_end_ms),
         exclude=exclude,
+        silences=silences,
+        words=words,
     )
     if not windows:
         return None
@@ -329,9 +331,33 @@ def _score_all(
     features = WordFeatures(words, units)
     candidates: list[_Candidate] = []
     chapters = options.chapters or ()
+    coherence_bonuses: dict[str, float] = {}
+
+    unit_first_map = {u.first: idx for idx, u in enumerate(units)}
+    unit_last_map = {u.last: idx for idx, u in enumerate(units)}
+
     for window in windows:
         signals = features.signals(window.first, window.last, window.start_ms, window.end_ms)
         sc = score(signals, options.content_goal)
+
+        # Discourse boundary thematic episode bonus (TextTiling)
+        u_start = unit_first_map.get(window.first, 0)
+        u_end = unit_last_map.get(window.last, len(units) - 1)
+        bonus = discourse_coherence_bonus(u_start, u_end, len(units), tiling)
+        if bonus > 0:
+            coherence_bonuses[window.window_id] = bonus
+            sc = Score(
+                potential=sc.potential,
+                hook=sc.hook,
+                clarity=sc.clarity,
+                emotion=sc.emotion,
+                novelty=sc.novelty,
+                standalone=min(1.0, sc.standalone + bonus),
+                question=sc.question,
+                density=sc.density,
+                fluency=sc.fluency,
+            )
+
         if chapters:
             near_chapter = any(
                 abs(window.start_ms - ch.start_ms) <= 2000
@@ -361,6 +387,8 @@ def _score_all(
         timeline=(words[0].start_ms, speech_end_ms),
         track=track,
         lifts=lifts,
+        tiling=tiling,
+        coherence_bonuses=coherence_bonuses,
     )
 
 
@@ -417,7 +445,10 @@ def _heuristic_pick(scored: _Scored, options: HighlightsOptions) -> list[_Candid
 
 
 def discover(
-    raw_words: Sequence[Any], options: HighlightsOptions, duration_ms: int = 0
+    raw_words: Sequence[Any],
+    options: HighlightsOptions,
+    duration_ms: int = 0,
+    silences: Sequence[tuple[int, int]] | None = None,
 ) -> tuple[list[HighlightProposal], int]:
     """The proposals for a transcript's words, best first, and how many windows were scored.
 
@@ -429,7 +460,7 @@ def discover(
     no usable timing; a transcript with nothing said in it (or nothing a
     proposal could cite) is an empty answer instead.
     """
-    scored = _score_all(raw_words, options, duration_ms)
+    scored = _score_all(raw_words, options, duration_ms, silences=silences)
     if scored is None:
         return [], 0
     picked = _heuristic_pick(scored, options)
@@ -465,6 +496,15 @@ def _proposal(
             scored.features.emphatic_words(window.first, window.last),
         )
     ]
+    coherence_bonus = scored.coherence_bonuses.get(window.window_id, 0.0)
+    if coherence_bonus >= 0.08:
+        reasons = [
+            {
+                "label": "standalone",
+                "explanation": "Natural discourse boundary: standalone thematic episode with self-contained narrative arc.",
+            },
+            *reasons,
+        ]
     if chapters:
         matching_chapter = next(
             (
