@@ -51,7 +51,9 @@ from typing import Any, Final
 
 from pydantic import ValidationError
 
+from worker_ai.audio import Pcm
 from worker_ai.callbacks import CallbackError, JobUsage
+from worker_ai.highlights.acoustic import AcousticEmotionAggregator, AcousticFeatures
 from worker_ai.highlights.clip_copy import ClipSource, heuristic_copy, resolve_style, write_copies
 from worker_ai.highlights.contracts import (
     HIGHLIGHTS_SCHEMA_VERSION,
@@ -96,7 +98,11 @@ from worker_ai.highlights.scoring import (
 )
 from worker_ai.highlights.sponsors import detect_intro_teasers, is_commercial_segment
 from worker_ai.highlights.text import make_excerpt, make_title
-from worker_ai.highlights.texttiling import TextTilingResult, compute_texttiling, discourse_coherence_bonus
+from worker_ai.highlights.texttiling import (
+    TextTilingResult,
+    compute_texttiling,
+    discourse_coherence_bonus,
+)
 from worker_ai.highlights.topic_search import (
     SEMANTIC_SIMILARITY_FLOOR,
     WindowTopicMatch,
@@ -178,6 +184,7 @@ class _Scored:
     tiling: TextTilingResult | None = None
     coherence_bonuses: dict[str, float] = field(default_factory=dict)
     topic_matches: dict[str, WindowTopicMatch] = field(default_factory=dict)
+    acoustic: dict[str, AcousticFeatures] = field(default_factory=dict)
 
     def lift_of(self, candidate: _Candidate) -> Lift:
         return self.lifts.get(candidate.window.window_id, NO_LIFT)
@@ -297,6 +304,9 @@ def _score_all(
     options: HighlightsOptions,
     duration_ms: int,
     silences: Sequence[tuple[int, int]] | None = None,
+    *,
+    pcm: Pcm | None = None,
+    acoustic_by_window: dict[str, AcousticFeatures] | None = None,
 ) -> _Scored | None:
     """Every window of the transcript with its heuristic score, or ``None`` for none.
 
@@ -344,6 +354,14 @@ def _score_all(
     if not windows:
         return None
 
+    acoustic_map: dict[str, AcousticFeatures] = (
+        dict(acoustic_by_window) if acoustic_by_window else {}
+    )
+    if pcm is not None and len(pcm.samples) > 0:
+        aggregator = AcousticEmotionAggregator(pcm.samples, pcm.sample_rate)
+        for wid, ac_feat in aggregator.features_for_windows(windows).items():
+            acoustic_map.setdefault(wid, ac_feat)
+
     features = WordFeatures(words, units)
     candidates: list[_Candidate] = []
     chapters = options.chapters or ()
@@ -357,7 +375,8 @@ def _score_all(
         if is_commercial_segment(window_text):
             continue
         signals = features.signals(window.first, window.last, window.start_ms, window.end_ms)
-        sc = score(signals, options.content_goal)
+        win_acoustic = acoustic_map.get(window.window_id)
+        sc = score(signals, options.content_goal, acoustic=win_acoustic)
 
         # Discourse boundary thematic episode bonus (TextTiling)
         u_start = unit_first_map.get(window.first, 0)
@@ -375,12 +394,12 @@ def _score_all(
                 question=sc.question,
                 density=sc.density,
                 fluency=sc.fluency,
+                virality=sc.virality,
             )
 
         if chapters:
             near_chapter = any(
-                abs(window.start_ms - ch.start_ms) <= 2000
-                or abs(window.end_ms - ch.end_ms) <= 2000
+                abs(window.start_ms - ch.start_ms) <= 2000 or abs(window.end_ms - ch.end_ms) <= 2000
                 for ch in chapters
             )
             if near_chapter:
@@ -394,6 +413,7 @@ def _score_all(
                     question=sc.question,
                     density=sc.density,
                     fluency=sc.fluency,
+                    virality=sc.virality,
                 )
         candidates.append(_Candidate(window, signals, sc))
     track, lifts = _track_lifts(words, units, candidates, options)
@@ -417,6 +437,7 @@ def _score_all(
         tiling=tiling,
         coherence_bonuses=coherence_bonuses,
         topic_matches=topic_matches,
+        acoustic=acoustic_map,
     )
 
 
@@ -470,7 +491,9 @@ def _heuristic_pick(scored: _Scored, options: HighlightsOptions) -> list[_Candid
     # scores under it is not worth a clip, however many slots are left.
     if options.min_potential is not None:
         floor_percent = round(options.min_potential * 100)
-        candidates = [candidate for candidate in candidates if candidate.score.percent() >= floor_percent]
+        candidates = [
+            candidate for candidate in candidates if candidate.score.percent() >= floor_percent
+        ]
         if not candidates:
             return []
 
@@ -497,6 +520,9 @@ def discover(
     options: HighlightsOptions,
     duration_ms: int = 0,
     silences: Sequence[tuple[int, int]] | None = None,
+    *,
+    pcm: Pcm | None = None,
+    acoustic_by_window: dict[str, AcousticFeatures] | None = None,
 ) -> tuple[list[HighlightProposal], int]:
     """The proposals for a transcript's words, best first, and how many windows were scored.
 
@@ -508,7 +534,14 @@ def discover(
     no usable timing; a transcript with nothing said in it (or nothing a
     proposal could cite) is an empty answer instead.
     """
-    scored = _score_all(raw_words, options, duration_ms, silences=silences)
+    scored = _score_all(
+        raw_words,
+        options,
+        duration_ms,
+        silences=silences,
+        pcm=pcm,
+        acoustic_by_window=acoustic_by_window,
+    )
     if scored is None:
         return [], 0
     picked = _heuristic_pick(scored, options)
@@ -537,12 +570,14 @@ def _proposal(
     words = scored.words
     inside = words[window.first : window.last + 1]
     texts = [word.text for word in inside]
+    win_acoustic = scored.acoustic.get(window.window_id)
     reasons = [
         {"label": reason.label, "explanation": reason.explanation}
         for reason in reasons_for(
             candidate.signals,
             candidate.score,
             scored.features.emphatic_words(window.first, window.last),
+            acoustic=win_acoustic,
         )
     ]
     coherence_bonus = scored.coherence_bonuses.get(window.window_id, 0.0)
@@ -568,7 +603,9 @@ def _proposal(
             reasons = [
                 {
                     "label": "standalone",
-                    "explanation": f"Aligns with creator chapter '{matching_chapter.title}' boundary."[:240],
+                    "explanation": f"Aligns with creator chapter '{matching_chapter.title}' boundary."[
+                        :240
+                    ],
                 },
                 *reasons,
             ]
@@ -602,25 +639,31 @@ def _proposal(
         # Refine visualActivity (immersion) and hook with measured neural signals
         breakdown["visualActivity"] = _percent(neural.immersion_score)
         if neural.hook_score > 0.6:
-            breakdown["hook"] = _percent(0.6 * (breakdown["hook"] / 100.0) + 0.4 * neural.hook_score)
+            breakdown["hook"] = _percent(
+                0.6 * (breakdown["hook"] / 100.0) + 0.4 * neural.hook_score
+            )
 
         neural_reasons = []
         if neural.hook_score >= 0.70:
-            neural_reasons.append({
-                "label": "hook",
-                "explanation": (
-                    f"TRIBE v2 Neural Brain Encoder: High ventral attention peak in opening "
-                    f"(hook score {round(neural.hook_score * 100)}%)."
-                ),
-            })
+            neural_reasons.append(
+                {
+                    "label": "hook",
+                    "explanation": (
+                        f"TRIBE v2 Neural Brain Encoder: High ventral attention peak in opening "
+                        f"(hook score {round(neural.hook_score * 100)}%)."
+                    ),
+                }
+            )
         if neural.retention_score >= 0.75:
-            neural_reasons.append({
-                "label": "visual",
-                "explanation": (
-                    f"TRIBE v2 Neural Brain Encoder: Sustained dorsal attention retention "
-                    f"({round(neural.retention_score * 100)}%) with zero mind-wandering dropoff."
-                ),
-            })
+            neural_reasons.append(
+                {
+                    "label": "visual",
+                    "explanation": (
+                        f"TRIBE v2 Neural Brain Encoder: Sustained dorsal attention retention "
+                        f"({round(neural.retention_score * 100)}%) with zero mind-wandering dropoff."
+                    ),
+                }
+            )
         reasons = neural_reasons + reasons
 
     hook_val = breakdown.get("hook", 0)
@@ -648,17 +691,36 @@ def _proposal(
         first_word = texts[0].lower().rstrip(".,!?") if texts else ""
         has_question = "?" in " ".join(texts[:10]) or any(
             first_word == q
-            for q in ("what", "why", "how", "who", "when", "where", "kyun", "kaise", "kya", "kab", "did", "is", "are", "do")
+            for q in (
+                "what",
+                "why",
+                "how",
+                "who",
+                "when",
+                "where",
+                "kyun",
+                "kaise",
+                "kya",
+                "kab",
+                "did",
+                "is",
+                "are",
+                "do",
+            )
         )
         first_few = " ".join(texts[:5]).lower() if texts else ""
         has_filler = any(
             first_few.startswith(f)
             for f in ("um", "uh", "so basically", "you know", "yeah so", "like i said")
         )
-        trailing_conjunction = any(
-            texts[-1].lower().rstrip(".,!?") == c
-            for c in ("and", "but", "so", "because", "or", "aur", "lekin", "to")
-        ) if texts else False
+        trailing_conjunction = (
+            any(
+                texts[-1].lower().rstrip(".,!?") == c
+                for c in ("and", "but", "so", "because", "or", "aur", "lekin", "to")
+            )
+            if texts
+            else False
+        )
 
         acoustic_map = getattr(scored, "acoustic", None)
         acoustic = acoustic_map.get(window.window_id) if isinstance(acoustic_map, dict) else None
@@ -1010,7 +1072,9 @@ async def _discover_with_model(
             bonus = 0.0
             if signals is not None:
                 # Elite viral hook potential (>90%): opener combined with punch or upfront question
-                if signals.opener is not None and (signals.punch_up_front or signals.question_up_front):
+                if signals.opener is not None and (
+                    signals.punch_up_front or signals.question_up_front
+                ):
                     bonus = 0.35
                 elif signals.opener is not None or signals.question_up_front:
                     bonus = 0.20

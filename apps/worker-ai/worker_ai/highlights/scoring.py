@@ -37,7 +37,14 @@ from dataclasses import dataclass
 from itertools import accumulate
 from typing import Final, Literal
 
-from worker_ai.highlights.acoustic import AcousticFeatures
+from worker_ai.highlights.acoustic import (
+    HIGH_VARIANCE_PITCH_STD_HZ,
+    MONOTONE_PITCH_STD_HZ,
+    SPIKE_THRESHOLD_DB,
+    AcousticFeatures,
+    WindowAcousticFeatures,
+    ensure_acoustic_features,
+)
 from worker_ai.highlights.text import (
     ends_clause,
     is_exclamation,
@@ -57,8 +64,11 @@ __all__ = [
     "Score",
     "ViralityBreakdown",
     "ViralityTier",
+    "WindowAcousticFeatures",
     "WindowSignals",
     "WordFeatures",
+    "acoustic_emotion_score",
+    "acoustic_energy_and_penalty",
     "reasons_for",
     "score",
     "virality_index",
@@ -366,57 +376,244 @@ _ORPHAN_PRONOUNS: Final = (
 
 QUESTION_WORDS: Final = _nfc(
     {
-        "why", "how", "what", "who", "when", "which", "where", "can", "could", "would",
-        "should", "do", "does", "did", "have", "has", "had", "is", "are", "kya", "kyun",
-        "kyon", "kaise", "kab", "kahan", "kaun", "kisko", "kisne", "क्या", "क्यों", "कैसे",
-        "कब", "कहाँ", "कौन",
+        "why",
+        "how",
+        "what",
+        "who",
+        "when",
+        "which",
+        "where",
+        "can",
+        "could",
+        "would",
+        "should",
+        "do",
+        "does",
+        "did",
+        "have",
+        "has",
+        "had",
+        "is",
+        "are",
+        "kya",
+        "kyun",
+        "kyon",
+        "kaise",
+        "kab",
+        "kahan",
+        "kaun",
+        "kisko",
+        "kisne",
+        "क्या",
+        "क्यों",
+        "कैसे",
+        "कब",
+        "कहाँ",
+        "कौन",
     }
 )
 
 CURIOSITY_WORDS: Final = _nfc(
     {
-        "secret", "secrets", "truth", "problem", "reason", "mystery", "nobody", "revealed",
-        "formula", "hack", "hacks", "trick", "tricks", "hidden", "why", "how", "imagine",
-        "mistake", "mistakes", "danger", "warning", "ruin", "destroy", "magic", "lie",
-        "lies", "raaz", "sach", "sachchai", "galti", "dhokha", "farzi", "asli",
+        "secret",
+        "secrets",
+        "truth",
+        "problem",
+        "reason",
+        "mystery",
+        "nobody",
+        "revealed",
+        "formula",
+        "hack",
+        "hacks",
+        "trick",
+        "tricks",
+        "hidden",
+        "why",
+        "how",
+        "imagine",
+        "mistake",
+        "mistakes",
+        "danger",
+        "warning",
+        "ruin",
+        "destroy",
+        "magic",
+        "lie",
+        "lies",
+        "raaz",
+        "sach",
+        "sachchai",
+        "galti",
+        "dhokha",
+        "farzi",
+        "asli",
     }
 )
 
 CONTRARIAN_WORDS: Final = _nfc(
     {
-        "never", "stop", "worst", "mistake", "mistakes", "wrong", "dangerous", "insane",
-        "crazy", "shocking", "hate", "impossible", "ruin", "destroy", "scam", "trapped",
-        "toxic", "fake", "terrible", "lies", "myth", "fail", "failed", "warning",
-        "galti", "galat", "khatarnak", "sabse", "mat", "kabhi",
+        "never",
+        "stop",
+        "worst",
+        "mistake",
+        "mistakes",
+        "wrong",
+        "dangerous",
+        "insane",
+        "crazy",
+        "shocking",
+        "hate",
+        "impossible",
+        "ruin",
+        "destroy",
+        "scam",
+        "trapped",
+        "toxic",
+        "fake",
+        "terrible",
+        "lies",
+        "myth",
+        "fail",
+        "failed",
+        "warning",
+        "galti",
+        "galat",
+        "khatarnak",
+        "sabse",
+        "mat",
+        "kabhi",
     }
 )
 
 TREND_KEYWORDS: Final = _nfc(
     {
         # AI & Tech
-        "ai", "gpt", "chatgpt", "deepseek", "llm", "claude", "agent", "agents", "automation",
-        "algorithm", "software", "tech", "coding", "robot", "nvidia", "apple", "google",
-        "meta", "openai", "machine", "intelligence",
+        "ai",
+        "gpt",
+        "chatgpt",
+        "deepseek",
+        "llm",
+        "claude",
+        "agent",
+        "agents",
+        "automation",
+        "algorithm",
+        "software",
+        "tech",
+        "coding",
+        "robot",
+        "nvidia",
+        "apple",
+        "google",
+        "meta",
+        "openai",
+        "machine",
+        "intelligence",
         # Wealth & Business
-        "money", "rich", "wealth", "wealthy", "income", "crore", "crores", "lakh", "lakhs",
-        "million", "billion", "dollar", "dollars", "rupee", "rupees", "business", "startup",
-        "profit", "sales", "revenue", "invest", "investing", "crypto", "bitcoin", "salary",
-        "cash", "paisa", "paise", "crorepati", "ameer", "kamao", "kamai", "dhandha", "naukri",
+        "money",
+        "rich",
+        "wealth",
+        "wealthy",
+        "income",
+        "crore",
+        "crores",
+        "lakh",
+        "lakhs",
+        "million",
+        "billion",
+        "dollar",
+        "dollars",
+        "rupee",
+        "rupees",
+        "business",
+        "startup",
+        "profit",
+        "sales",
+        "revenue",
+        "invest",
+        "investing",
+        "crypto",
+        "bitcoin",
+        "salary",
+        "cash",
+        "paisa",
+        "paise",
+        "crorepati",
+        "ameer",
+        "kamao",
+        "kamai",
+        "dhandha",
+        "naukri",
         # Productivity & Mindset
-        "productivity", "habit", "habits", "discipline", "focus", "dopamine", "mindset",
-        "success", "successful", "brain", "routine", "burnout", "sleep", "biohack", "goal",
-        "goals", "safalta", "kamyabi", "dimaag", "aadat",
+        "productivity",
+        "habit",
+        "habits",
+        "discipline",
+        "focus",
+        "dopamine",
+        "mindset",
+        "success",
+        "successful",
+        "brain",
+        "routine",
+        "burnout",
+        "sleep",
+        "biohack",
+        "goal",
+        "goals",
+        "safalta",
+        "kamyabi",
+        "dimaag",
+        "aadat",
         # Controversy & Insights
-        "secret", "secrets", "truth", "scam", "trap", "cheat", "hacks", "hack", "mistake",
-        "mistakes", "danger", "dangerous", "warning", "banned", "illegal", "hidden",
-        "conspiracy", "exposed", "lie", "lies", "raaz", "sach",
+        "secret",
+        "secrets",
+        "truth",
+        "scam",
+        "trap",
+        "cheat",
+        "hacks",
+        "hack",
+        "mistake",
+        "mistakes",
+        "danger",
+        "dangerous",
+        "warning",
+        "banned",
+        "illegal",
+        "hidden",
+        "conspiracy",
+        "exposed",
+        "lie",
+        "lies",
+        "raaz",
+        "sach",
     }
 )
 
 TRAILING_CONJUNCTIONS: Final = _nfc(
     {
-        "and", "but", "so", "or", "because", "like", "if", "though", "although", "aur",
-        "lekin", "kyunki", "ya", "toh", "par", "magar", "ki", "then", "also", "plus",
+        "and",
+        "but",
+        "so",
+        "or",
+        "because",
+        "like",
+        "if",
+        "though",
+        "although",
+        "aur",
+        "lekin",
+        "kyunki",
+        "ya",
+        "toh",
+        "par",
+        "magar",
+        "ki",
+        "then",
+        "also",
+        "plus",
     }
 )
 
@@ -452,24 +649,25 @@ class HookWindowAnalysis:
 
     words: list[str]
     duration_ms: int
-    curiosity_gap: float      # 0-1
-    contrarian_score: float   # 0-1
+    curiosity_gap: float  # 0-1
+    contrarian_score: float  # 0-1
     hook_energy_ratio: float  # 0-1
     has_filler_opening: bool
-    s_hook: float             # 0-30
+    s_hook: float  # 0-30
 
 
 @dataclass(frozen=True, slots=True)
 class ViralityBreakdown:
     """Multi-modal 5-component universal virality formulation (0-100)."""
 
-    hook: float       # 0-30
+    hook: float  # 0-30
     narrative: float  # 0-25
-    energy: float     # 0-20
-    trend: float      # 0-15
-    pacing: float     # 0-10
-    total: int        # 0-100
+    energy: float  # 0-20
+    trend: float  # 0-15
+    pacing: float  # 0-10
+    total: int  # 0-100
     tier: ViralityTier  # VIRAL_GOLD, HIGH_POTENTIAL, MODERATE, STANDARD
+
 
 #: Weights per `contentGoal`. Each row sums to 1. `question` is not a breakdown
 #: dimension (the contract has none for it), but it is what `engagement` asks for.
@@ -637,10 +835,7 @@ class WordFeatures:
     def hook_analysis(self, first: int, last: int, start_ms: int) -> HookWindowAnalysis:
         """Evaluate the isolated 0-3.5s opening hook window (Pillar 2 §01)."""
         hook_end = first
-        while (
-            hook_end < last
-            and self.words[hook_end + 1].start_ms - start_ms <= HOOK_WINDOW_MS
-        ):
+        while hook_end < last and self.words[hook_end + 1].start_ms - start_ms <= HOOK_WINDOW_MS:
             hook_end += 1
 
         hook_tokens = self.norm[first : hook_end + 1]
@@ -658,7 +853,9 @@ class WordFeatures:
 
         opener = self.opener(first, last)
         starts_q = self.question[first] or self.norm[first] in QUESTION_WORDS
-        has_q = any(self.question[i] or self.norm[i] in QUESTION_WORDS for i in range(first, hook_end + 1))
+        has_q = any(
+            self.question[i] or self.norm[i] in QUESTION_WORDS for i in range(first, hook_end + 1)
+        )
         curiosity_tokens = sum(1 for t in hook_tokens if t in CURIOSITY_WORDS)
 
         c_score = 0.0
@@ -685,11 +882,16 @@ class WordFeatures:
             k_score += 0.2
         contrarian_score = max(0.0, min(1.0, k_score))
 
-        hook_speech_ms = sum(max(0, self.words[i].end_ms - self.words[i].start_ms) for i in range(first, hook_end + 1))
+        hook_speech_ms = sum(
+            max(0, self.words[i].end_ms - self.words[i].start_ms)
+            for i in range(first, hook_end + 1)
+        )
         speech_density = hook_speech_ms / hook_duration_ms
         hook_emphatic = any(self.emphatic[i] for i in range(first, hook_end + 1))
 
-        e_score = 0.5 * min(1.0, speech_density / 0.75) + (0.5 if (hook_emphatic or has_excl) else 0.2)
+        e_score = 0.5 * min(1.0, speech_density / 0.75) + (
+            0.5 if (hook_emphatic or has_excl) else 0.2
+        )
         hook_energy_ratio = max(0.0, min(1.0, e_score))
 
         s_hook = 15.0 * curiosity_gap + 10.0 * contrarian_score + 5.0 * hook_energy_ratio
@@ -748,9 +950,7 @@ class WordFeatures:
         hook_an = self.hook_analysis(first, last, start_ms)
         trailing_conj = self.trailing_conjunction(last)
         internal_pauses_1s = (
-            max(0, self._pauses_over_1s[last] - self._pauses_over_1s[first])
-            if last > first
-            else 0
+            max(0, self._pauses_over_1s[last] - self._pauses_over_1s[first]) if last > first else 0
         )
         trend_count = self._trend[stop] - self._trend[first]
         total_duration_ms = end_ms - start_ms
@@ -767,7 +967,9 @@ class WordFeatures:
             pause_after=self.pause_after(last),
             opener=None if has_orphan else self.opener(first, last),
             question_up_front=False if has_orphan else any(self.question[i] for i in opening),
-            punch_up_front=False if has_orphan else any(self.emphatic[i] or self.number[i] for i in opening),
+            punch_up_front=False
+            if has_orphan
+            else any(self.emphatic[i] or self.number[i] for i in opening),
             questions=self._questions[stop] - self._questions[first],
             exclamations=self._exclamations[stop] - self._exclamations[first],
             fillers=self._fillers[stop] - self._fillers[first],
@@ -890,14 +1092,84 @@ def virality_tier(score_val: int) -> ViralityTier:
     return "STANDARD"
 
 
+def acoustic_energy_and_penalty(
+    acoustic: AcousticFeatures | WindowAcousticFeatures,
+    *,
+    window_duration_sec: float = 10.0,
+) -> tuple[float, float]:
+    """Compute S_energy (0-20 pts) and monotone penalty (0-10 pts) from acoustic features.
+
+    Pillar 2 §07 Step 3:
+    - Awards up to +20 points for high pitch variance (>= 40 Hz) and confirmed laughter / applause.
+    - Penalizes monotone windows (sigma_F0 < 15 Hz) with flat dynamics.
+    """
+    ac = ensure_acoustic_features(acoustic, window_duration_sec=window_duration_sec)
+    if ac is None:
+        return 0.0, 0.0
+
+    std_hz = ac.effective_pitch_std_hz
+
+    # Base weighted acoustic energy
+    s_energy = (
+        8.0 * ac.pitch_variance
+        + 6.0 * ac.volume_dynamics
+        + 3.0 * ac.laughter_probability
+        + 3.0 * ac.energy_peaks
+    )
+
+    # High pitch variance (>= 40 Hz) bonus
+    if std_hz >= HIGH_VARIANCE_PITCH_STD_HZ:
+        s_energy += 3.5 + min(2.5, (std_hz - HIGH_VARIANCE_PITCH_STD_HZ) / 10.0)
+
+    # Confirmed laughter (YAMNet Class 16/17) bonus
+    if ac.has_confirmed_laughter:
+        laugh_boost = 4.5 + min(3.5, ac.laughter_duration_sec * 1.2 + ac.laughter_probability * 2.0)
+        s_energy += laugh_boost
+
+    # Confirmed audience applause / cheering (YAMNet Class 23/24) or >15 dB spike bonus
+    if ac.applause_detected or ac.applause_probability >= 0.50:
+        s_energy += 4.5
+    if ac.rms_max_spike_db >= SPIKE_THRESHOLD_DB:
+        s_energy += 2.5
+
+    # Monotone window (< 15 Hz) with flat dynamics penalty
+    monotone_penalty = 0.0
+    is_flat_dynamics = (
+        ac.volume_dynamics <= 0.30
+        and ac.rms_max_spike_db < 8.0
+        and not ac.has_confirmed_laughter
+        and not ac.applause_detected
+    )
+    if std_hz < MONOTONE_PITCH_STD_HZ and is_flat_dynamics:
+        s_energy *= 0.25
+        severity = (MONOTONE_PITCH_STD_HZ - std_hz) / MONOTONE_PITCH_STD_HZ
+        monotone_penalty = round(5.0 + 5.0 * max(0.0, min(1.0, severity)), 2)
+
+    return max(0.0, min(20.0, s_energy)), monotone_penalty
+
+
+def acoustic_emotion_score(
+    acoustic: AcousticFeatures | WindowAcousticFeatures,
+    *,
+    window_duration_sec: float = 10.0,
+) -> float:
+    """Compute normalized 0-1 emotional delivery score from acoustic prosody and YAMNet events."""
+    s_energy, monotone_penalty = acoustic_energy_and_penalty(
+        acoustic, window_duration_sec=window_duration_sec
+    )
+    if monotone_penalty > 0:
+        return max(0.0, min(0.20, (s_energy / 20.0) * 0.5))
+    return _unit(s_energy / 20.0)
+
+
 def virality_index(
     signals: WindowSignals,
-    acoustic: AcousticFeatures | None = None,
+    acoustic: AcousticFeatures | WindowAcousticFeatures | None = None,
     goal: str = "reach",
 ) -> ViralityBreakdown:
     """Universal Virality Formulation (0-100):
 
-    ViralityScore = clamp(S_hook + S_narrative + S_energy + S_trend + S_pacing, 0, 100)
+    ViralityScore = clamp(S_hook + S_narrative + S_energy + S_trend + S_pacing - monotone_penalty, 0, 100)
     """
     # 1. S_hook (0-30 pts)
     hook_an = signals.hook_analysis
@@ -917,19 +1189,20 @@ def virality_index(
     conjunction_pts = 0.0 if signals.trailing_conjunction else 5.0
     s_narrative = max(0.0, min(25.0, premise + closing + conjunction_pts))
 
-    # 3. S_energy (0-20 pts)
+    # 3. S_energy (0-20 pts) & Monotone Penalty
+    monotone_penalty = 0.0
     if acoustic is not None:
-        s_energy = (
-            8.0 * acoustic.pitch_variance
-            + 6.0 * acoustic.volume_dynamics
-            + 3.0 * acoustic.laughter_probability
-            + 3.0 * acoustic.energy_peaks
+        win_sec = max(1.0, signals.duration_ms / 1000.0)
+        s_energy, monotone_penalty = acoustic_energy_and_penalty(
+            acoustic, window_duration_sec=win_sec
         )
     else:
         words_count = max(1, signals.words)
         emphatic_score = min(1.0, (signals.emphatic / words_count) / 0.04)
         excl_score = min(1.0, signals.exclamations / 2.0)
-        speech_ratio = min(1.0, max(0.0, (signals.speech_ms / max(1, signals.duration_ms) - 0.35) / 0.5))
+        speech_ratio = min(
+            1.0, max(0.0, (signals.speech_ms / max(1, signals.duration_ms) - 0.35) / 0.5)
+        )
         s_energy = 9.0 * emphatic_score + 5.0 * excl_score + 6.0 * speech_ratio
     s_energy = max(0.0, min(20.0, s_energy))
 
@@ -971,7 +1244,7 @@ def virality_index(
         pauses = 0.0
     s_pacing = max(0.0, min(10.0, cadence + pauses))
 
-    total_raw = s_hook + s_narrative + s_energy + s_trend + s_pacing
+    total_raw = s_hook + s_narrative + s_energy + s_trend + s_pacing - monotone_penalty
     total = max(0.0, min(100.0, total_raw))
     total_int = int(math.floor(total + 0.5))
     tier = virality_tier(total_int)
@@ -990,11 +1263,13 @@ def virality_index(
 def score(
     signals: WindowSignals,
     goal: str = "reach",
-    acoustic: AcousticFeatures | None = None,
+    acoustic: AcousticFeatures | WindowAcousticFeatures | None = None,
 ) -> Score:
     """Combine a window's signals into calibrated multi-modal virality formulation and potential (0-1)."""
     words = max(1, signals.words)
-    virality = virality_index(signals, acoustic=acoustic, goal=goal)
+    win_sec = max(1.0, signals.duration_ms / 1000.0)
+    ac = ensure_acoustic_features(acoustic, window_duration_sec=win_sec)
+    virality = virality_index(signals, acoustic=ac, goal=goal)
 
     standalone = (
         0.3 * signals.opening
@@ -1006,7 +1281,13 @@ def score(
         standalone *= 0.5
 
     opener = 1.0 if signals.opener else 0.6 if signals.question_up_front else 0.0
-    punch = 0.3 if signals.punch_up_front else 0.2 if (signals.question_up_front and signals.opener) else 0.0
+    punch = (
+        0.3
+        if signals.punch_up_front
+        else 0.2
+        if (signals.question_up_front and signals.opener)
+        else 0.0
+    )
     heuristic_hook = min(1.0, 0.7 * opener + punch)
     hook = max(heuristic_hook, min(1.0, virality.hook / 30.0))
 
@@ -1014,7 +1295,20 @@ def score(
     fluency = 1.0 - _unit(signals.fillers / words / 0.08)
     clarity = 0.55 * density + 0.45 * fluency
 
-    emotion = 0.75 * _unit(signals.emphatic / words / 0.04) + 0.25 * _unit(signals.exclamations / 2)
+    lexical_emotion = 0.75 * _unit(signals.emphatic / words / 0.04) + 0.25 * _unit(
+        signals.exclamations / 2
+    )
+    if ac is not None:
+        ac_emotion = acoustic_emotion_score(ac, window_duration_sec=win_sec)
+        _, monotone_pen = acoustic_energy_and_penalty(ac, window_duration_sec=win_sec)
+        if monotone_pen > 0:
+            emotion = min(lexical_emotion * 0.5, ac_emotion)
+        else:
+            emotion = max(lexical_emotion, 0.35 * lexical_emotion + 0.65 * ac_emotion)
+    else:
+        emotion = lexical_emotion
+        monotone_pen = 0.0
+
     novelty = 0.5 * _unit(signals.numbers / 3) + 0.5 * _unit(signals.entities / 3)
     question = _unit(signals.questions / 2)
 
@@ -1027,6 +1321,8 @@ def score(
         + weights["novelty"] * novelty
         + weights["question"] * question
     )
+    if monotone_pen > 0:
+        weighted_potential = max(0.0, weighted_potential - (monotone_pen / 100.0))
 
     if goal == "reach":
         potential = 0.6 * (virality.total / 100.0) + 0.4 * weighted_potential
@@ -1037,7 +1333,7 @@ def score(
         potential=_unit(potential),
         hook=hook,
         clarity=clarity,
-        emotion=emotion,
+        emotion=_unit(emotion),
         novelty=novelty,
         standalone=standalone,
         question=question,
@@ -1061,11 +1357,15 @@ def _plural(count: int, noun: str) -> str:
 
 
 def reasons_for(
-    signals: WindowSignals, result: Score, emphatic_words: Sequence[str]
+    signals: WindowSignals,
+    result: Score,
+    emphatic_words: Sequence[str],
+    acoustic: AcousticFeatures | WindowAcousticFeatures | None = None,
 ) -> list[Reason]:
     """Why this window was picked, in terms of what was measured. Never empty."""
     reasons: list[Reason] = []
     seconds = round(signals.duration_ms / 1000)
+    ac = ensure_acoustic_features(acoustic, window_duration_sec=max(1.0, float(seconds)))
 
     if signals.opener:
         reasons.append(
@@ -1077,7 +1377,10 @@ def reasons_for(
         )
     elif signals.hook_analysis and signals.hook_analysis.s_hook >= 18:
         reasons.append(
-            Reason("hook", f"Strong hook opening ({round(signals.hook_analysis.s_hook)}/30 pts) with immediate curiosity gap.")
+            Reason(
+                "hook",
+                f"Strong hook opening ({round(signals.hook_analysis.s_hook)}/30 pts) with immediate curiosity gap.",
+            )
         )
     elif signals.questions:
         reasons.append(
@@ -1101,7 +1404,31 @@ def reasons_for(
     if specifics:
         reasons.append(Reason("novelty", f"Concrete: mentions {' and '.join(specifics)}."))
 
-    if emphatic_words:
+    if ac is not None and ac.has_confirmed_laughter:
+        dur_str = (
+            f" ({ac.laughter_duration_sec:.1f}s laughter burst)"
+            if ac.laughter_duration_sec >= 0.5
+            else ""
+        )
+        reasons.append(
+            Reason(
+                "emotion",
+                f"Contagious laughter and high vocal inflection detected{dur_str}.",
+            )
+        )
+    elif ac is not None and ac.applause_detected:
+        reasons.append(
+            Reason("emotion", "Audience applause and high-energy vocal projection detected.")
+        )
+    elif ac is not None and ac.has_high_pitch_variance:
+        pitch_std = round(ac.effective_pitch_std_hz)
+        reasons.append(
+            Reason(
+                "emotion",
+                f"Dynamic emotional delivery (pitch variance {pitch_std} Hz).",
+            )
+        )
+    elif emphatic_words:
         quoted = ", ".join(f"'{word}'" for word in emphatic_words)
         reasons.append(Reason("emotion", f"Said with conviction ({quoted})."))
     elif signals.exclamations:
