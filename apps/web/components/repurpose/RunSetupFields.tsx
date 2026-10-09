@@ -33,6 +33,7 @@ import type { BrollOffer } from "@/components/broll/use-broll-library";
 import { PICKABLE_STYLES } from "@/components/editor/panels/system-styles";
 import { LanguagePicker } from "@/components/projects/language-picker";
 import { WritingScriptPicker } from "@/components/projects/writing-script-picker";
+import { CopilotBar } from "@/components/repurpose/copilot-bar";
 import { AUTOPILOT_COPY, BRAND_COPY, BROLL_COPY, STEERING_COPY } from "@/components/repurpose/copy";
 import {
   DurationPicker,
@@ -581,26 +582,35 @@ export function RunSetupFields<V extends RunSetupValue>({
           timestamps known, there is nothing for these to steer. */}
       {method === "ai" && (
         <div className="space-y-5" data-testid="steering-fields">
-          <Field
-            label={STEERING_COPY.topicLabel}
-            htmlFor={id("topic")}
-            hint={STEERING_COPY.topicHint}
-            {...(problems.topic === undefined ? {} : { error: problems.topic })}
-          >
-            <Input
-              id={id("topic")}
-              className="bg-sunken"
-              placeholder={STEERING_COPY.topicPlaceholder}
-              maxLength={TOPIC_MAX_LENGTH}
+          <div className="space-y-2.5">
+            <Field
+              label={STEERING_COPY.topicLabel}
+              htmlFor={id("topic")}
+              hint={STEERING_COPY.topicHint}
+              {...(problems.topic === undefined ? {} : { error: problems.topic })}
+            >
+              <Input
+                id={id("topic")}
+                className="bg-sunken"
+                placeholder={STEERING_COPY.topicPlaceholder}
+                maxLength={TOPIC_MAX_LENGTH}
+                value={value.topic}
+                data-testid="steering-topic"
+                aria-invalid={problems.topic !== undefined}
+                aria-describedby={problems.topic === undefined ? id("topic-hint") : id("topic-error")}
+                onChange={(event) => {
+                  set("topic", event.target.value);
+                }}
+              />
+            </Field>
+            <CopilotBar
               value={value.topic}
-              data-testid="steering-topic"
-              aria-invalid={problems.topic !== undefined}
-              aria-describedby={problems.topic === undefined ? id("topic-hint") : id("topic-error")}
-              onChange={(event) => {
-                set("topic", event.target.value);
+              showInput={false}
+              onChange={(nextTopic) => {
+                set("topic", nextTopic);
               }}
             />
-          </Field>
+          </div>
 
           <fieldset className="border-0 p-0">
             <legend className="text-sm font-medium text-fg-1">{STEERING_COPY.lengthLegend}</legend>

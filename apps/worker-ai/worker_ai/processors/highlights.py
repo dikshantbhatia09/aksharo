@@ -83,6 +83,7 @@ from worker_ai.highlights.rerank import (
     model_quality,
     model_reasons,
     moment_text,
+    passes_topic_floor,
     shortlist_size,
 )
 from worker_ai.highlights.scoring import (
@@ -96,6 +97,12 @@ from worker_ai.highlights.scoring import (
 from worker_ai.highlights.sponsors import detect_intro_teasers, is_commercial_segment
 from worker_ai.highlights.text import make_excerpt, make_title
 from worker_ai.highlights.texttiling import TextTilingResult, compute_texttiling, discourse_coherence_bonus
+from worker_ai.highlights.topic_search import (
+    SEMANTIC_SIMILARITY_FLOOR,
+    WindowTopicMatch,
+    prefilter_candidates_for_topic,
+    score_windows_for_topic,
+)
 from worker_ai.highlights.tribe_client import NeuralAttentionScore, TribeWindowInput
 from worker_ai.highlights.windows import (
     Unit,
@@ -170,6 +177,7 @@ class _Scored:
     lifts: dict[str, Lift] = field(default_factory=dict)
     tiling: TextTilingResult | None = None
     coherence_bonuses: dict[str, float] = field(default_factory=dict)
+    topic_matches: dict[str, WindowTopicMatch] = field(default_factory=dict)
 
     def lift_of(self, candidate: _Candidate) -> Lift:
         return self.lifts.get(candidate.window.window_id, NO_LIFT)
@@ -389,6 +397,14 @@ def _score_all(
                 )
         candidates.append(_Candidate(window, signals, sc))
     track, lifts = _track_lifts(words, units, candidates, options)
+    topic_matches: dict[str, WindowTopicMatch] = {}
+    if options.topic and options.topic.strip():
+        topic_matches = score_windows_for_topic(
+            options.topic,
+            units,
+            words,
+            [c.window for c in candidates],
+        )
     return _Scored(
         words=words,
         units=units,
@@ -400,6 +416,7 @@ def _score_all(
         lifts=lifts,
         tiling=tiling,
         coherence_bonuses=coherence_bonuses,
+        topic_matches=topic_matches,
     )
 
 
@@ -437,6 +454,18 @@ def _track_lifts(
 
 def _heuristic_pick(scored: _Scored, options: HighlightsOptions) -> list[_Candidate]:
     candidates = scored.candidates
+    if options.topic and scored.topic_matches:
+        candidates = [
+            candidate
+            for candidate in candidates
+            if scored.topic_matches.get(
+                candidate.window.window_id, WindowTopicMatch("", 0.0, 0.0, 0.0, 0.0)
+            ).combined_score
+            >= SEMANTIC_SIMILARITY_FLOOR
+        ]
+        if not candidates:
+            return []
+
     # Autopilot keeps only what clears the bar (`minPotential`): a moment that
     # scores under it is not worth a clip, however many slots are left.
     if options.min_potential is not None:
@@ -445,12 +474,20 @@ def _heuristic_pick(scored: _Scored, options: HighlightsOptions) -> list[_Candid
         if not candidates:
             return []
 
+    def heuristic_rank_score(candidate: _Candidate) -> float:
+        base = candidate.score.potential + scored.lift_of(candidate).value
+        if options.topic and scored.topic_matches:
+            match = scored.topic_matches.get(candidate.window.window_id)
+            sem = match.combined_score if match is not None else 0.0
+            return 0.65 * sem + 0.35 * base
+        return base
+
     # The track record orders what cleared the bar; it never helps anything clear it.
     return select(
         candidates,
         count=options.count,
         window_of=lambda candidate: candidate.window,
-        score_of=lambda candidate: candidate.score.potential + scored.lift_of(candidate).value,
+        score_of=heuristic_rank_score,
         timeline=scored.timeline,
     )
 
@@ -479,6 +516,7 @@ def discover(
         _proposal(
             _Ranked(candidate, candidate.score.potential, lift=scored.lift_of(candidate)),
             scored,
+            topic=options.topic,
             chapters=options.chapters,
         )
         for candidate in picked
@@ -546,6 +584,16 @@ def _proposal(
             {"label": label, "explanation": explanation}
             for label, explanation in model_reasons(judged, topic)
         ] + reasons
+    elif topic and window.window_id in scored.topic_matches:
+        topic_match = scored.topic_matches[window.window_id]
+        fit_out_of_10 = max(7, min(10, round(topic_match.combined_score * 10)))
+        reasons = [
+            {
+                "label": "clear_point",
+                "explanation": f"On your topic ({topic.strip()[:60]}): {fit_out_of_10}/10.",
+            },
+            *reasons,
+        ]
     breakdown = dict(candidate.score.breakdown())
     if judged is not None and judged.hook is not None:
         breakdown["hook"] = _percent(0.2 * (breakdown["hook"] / 100.0) + 0.8 * (judged.hook / 10.0))
@@ -787,20 +835,36 @@ def _rank_with_model(
         entries.append(_Ranked(candidate, potential, verdict, lift))
 
     if with_topic:
-        on_topic = [
-            entry
-            for entry in entries
-            if entry.judged is not None
-            and entry.judged.topic_fit is not None
-            and entry.judged.topic_fit >= TOPIC_FIT_FLOOR
-        ]
+        on_topic: list[_Ranked] = []
+        for entry in entries:
+            fit = entry.judged.topic_fit if entry.judged is not None else None
+            if passes_topic_floor(fit):
+                on_topic.append(entry)
+            else:
+                _log.info(
+                    "dropping off-topic candidate below strict topic_fit floor",
+                    extra={
+                        "windowId": entry.candidate.window.window_id,
+                        "topic": topic,
+                        "topicFit": fit,
+                        "topicFitFloor": TOPIC_FIT_FLOOR,
+                        "reason": "topic_fit_below_floor",
+                    },
+                )
         minimum = min(options.count, _TOPIC_MINIMUM)
-        if len(on_topic) < minimum:
-            # Too few on topic to be useful: the closest of the rest fill in,
-            # best fit first, rather than a run with one clip.
+        if len(on_topic) < minimum and any(
+            entry.judged is not None and entry.judged.topic_fit == 4 for entry in entries
+        ):
             chosen = {id(entry) for entry in on_topic}
             rest = sorted(
-                (entry for entry in entries if id(entry) not in chosen),
+                (
+                    entry
+                    for entry in entries
+                    if id(entry) not in chosen
+                    and entry.judged is not None
+                    and entry.judged.topic_fit is not None
+                    and entry.judged.topic_fit >= 4
+                ),
                 key=lambda entry: (
                     -(
                         entry.judged.topic_fit
@@ -954,14 +1018,27 @@ async def _discover_with_model(
                 bonus = 0.20
             return base + bonus
 
-        shortlist = await asyncio.to_thread(
-            select,
-            scored.candidates,
-            count=shortlist_size(options.count),
-            window_of=lambda candidate: candidate.window,
-            score_of=shortlist_score,
-            timeline=scored.timeline,
-        )
+        if options.topic and options.topic.strip():
+            shortlist = await asyncio.to_thread(
+                prefilter_candidates_for_topic,
+                scored.candidates,
+                topic=options.topic,
+                units=scored.units,
+                words=scored.words,
+                window_of=lambda candidate: candidate.window,
+                score_of=shortlist_score,
+                count=shortlist_size(options.count),
+                timeline=scored.timeline,
+            )
+        else:
+            shortlist = await asyncio.to_thread(
+                select,
+                scored.candidates,
+                count=shortlist_size(options.count),
+                window_of=lambda candidate: candidate.window,
+                score_of=shortlist_score,
+                timeline=scored.timeline,
+            )
         items = _moment_texts(scored, shortlist)
         await context.progress(40, message=f"Reviewing {len(items)} moments with the AI editor")
 

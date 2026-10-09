@@ -39,6 +39,7 @@ __all__ = [
     "HUMOUR_BONUS",
     "MODEL_WEIGHT",
     "TOPIC_FIT_FLOOR",
+    "TOPIC_FIT_SCORE_FLOOR",
     "TOPIC_WEIGHT",
     "Judged",
     "Judgements",
@@ -50,6 +51,7 @@ __all__ = [
     "model_reasons",
     "moment_text",
     "parse_judgements",
+    "passes_topic_floor",
     "shortlist_size",
     "system_prompt",
     "user_prompt",
@@ -74,8 +76,20 @@ HUMOUR_BONUS: Final[dict[str, float]] = {
 
 #: With a topic, the share of the model's reading that is topic fit.
 TOPIC_WEIGHT: Final[float] = 0.20
-#: With a topic, a moment scored under this for fit is off topic.
-TOPIC_FIT_FLOOR: Final[int] = 5
+#: Normalized topic fit floor (0.0-1.0); candidates below 0.70 are off-topic.
+TOPIC_FIT_SCORE_FLOOR: Final[float] = 0.70
+#: With a topic, a moment scored under this (0-10 scale) for fit is off topic.
+TOPIC_FIT_FLOOR: Final[int] = 7
+
+
+def passes_topic_floor(
+    topic_fit: int | float | None, *, floor: float = TOPIC_FIT_SCORE_FLOOR
+) -> bool:
+    """Return True when ``topic_fit`` (0-10 int or 0.0-1.0 float) meets the strict topic floor."""
+    if topic_fit is None:
+        return False
+    normalized = float(topic_fit) / 10.0 if (isinstance(topic_fit, int) or topic_fit > 1.0) else float(topic_fit)
+    return normalized >= floor - 1e-6
 
 #: Moments per model call. Eight keeps a call's reply small enough to come
 #: back whole from a small local model, and the per-call instructions cheap.
@@ -167,8 +181,9 @@ class Judgements:
 
 def system_prompt(*, with_topic: bool) -> str:
     topic_line = (
-        "- topicFit: how much is it about the creator's topic? 0 = unrelated, "
-        "10 = squarely about it.\n"
+        "- topicFit: how directly does it address the creator's topic or prompt? "
+        "0 = unrelated, 1 to 6 = tangential or off-topic (dropped below 7), "
+        "7 to 10 = squarely about it and directly answers the prompt.\n"
         if with_topic
         else ""
     )
