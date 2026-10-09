@@ -19,9 +19,13 @@ import {
   DEFAULT_PIP_BUBBLE_DIAMETER,
   MAX_CLIP_HEIGHT,
   PRESENTATION_FIT_Y,
+  blurredFitFilter,
+  buildBlurredFitFiltergraph,
+  buildBlurredFitVfFiltergraph,
   canvasFitFilter,
   clipFilter,
   clipFrame,
+  computeBlurredFitFilterGeometry,
   directorCutFilter,
   dynamicCropExpressions,
   fitFilter,
@@ -34,6 +38,9 @@ import {
   stackedFilter,
   stackedFrame,
   toSplitScreenConfig,
+  validateBlurredFitAspectRatio,
+  type BlurredFitFilterGeometry,
+  type BlurredFitFiltergraphOptions,
   type CanvasFitPlacement,
   type ClipAspect,
   type ClipLayoutMode,
@@ -56,7 +63,11 @@ export {
   CANVAS_FIT_CENTER_Y_1080P,
   DEFAULT_PIP_BUBBLE_DIAMETER,
   PRESENTATION_FIT_Y,
+  blurredFitFilter,
+  buildBlurredFitFiltergraph,
+  buildBlurredFitVfFiltergraph,
   canvasFitFilter,
+  computeBlurredFitFilterGeometry,
   directorCutFilter,
   dynamicCropExpressions,
   interpolateTrajectoryAt,
@@ -65,6 +76,9 @@ export {
   splitScreenFilter,
   splitScreenFrame,
   toSplitScreenConfig,
+  validateBlurredFitAspectRatio,
+  type BlurredFitFilterGeometry,
+  type BlurredFitFiltergraphOptions,
   type CanvasFitPlacement,
   type ClipLayoutMode,
   type CropKeyframe,
@@ -104,10 +118,20 @@ export interface ClipPayload {
      */
     readonly layout?: "single" | "stacked" | "fit";
     /**
-     * Pillar 3 §04 — Screen Share & Presentation Slide Detection Engine:
-     * `'CROP_FACE'` | `'CANVAS_FIT'` | `'PIP_BUBBLE'`.
+     * Pillar 3 §04 & §05 — Screen Share, Presentation Slide & Blurred Background Fit:
+     * `'CROP_FACE'` | `'CANVAS_FIT'` | `'PIP_BUBBLE'` | `'BLURRED_FIT'`.
      */
     readonly layoutMode?: ClipLayoutMode;
+    readonly videoLayoutMode?: "CROP_FACE" | "SPLIT_TWO_SPEAKER" | "BLURRED_FIT" | "STREAMER_SPLIT";
+    readonly blurredFit?: {
+      readonly enabled: boolean;
+      readonly blurRadius?: number;
+      readonly dimOpacity?: number;
+      readonly saturation?: number;
+      readonly borderRadius?: number;
+      readonly foregroundY?: number;
+      readonly captionZoneY?: number;
+    };
     readonly pipWebcam?: PipWebcamInput;
     readonly slideY?: number;
     readonly people?: readonly StackedPersonInput[];
@@ -263,6 +287,12 @@ export async function processClip(context: JobContext): Promise<ProcessorOutcome
           maxHeight,
           ...(payload.aspect === undefined ? {} : { aspect: payload.aspect }),
         });
+  const effectiveLayoutMode: ClipLayoutMode | undefined =
+    payload.reframe?.layoutMode ??
+    (payload.reframe?.videoLayoutMode === "BLURRED_FIT" || payload.reframe?.blurredFit?.enabled === true
+      ? "BLURRED_FIT"
+      : undefined);
+  const effectiveSlideY = payload.reframe?.slideY ?? payload.reframe?.blurredFit?.foregroundY;
   const frame =
     source.video === null || stacked !== null || fitted !== null
       ? null
@@ -271,13 +301,11 @@ export async function processClip(context: JobContext): Promise<ProcessorOutcome
           ...(payload.aspect === undefined ? {} : { aspect: payload.aspect }),
           ...(payload.reframe === undefined ? {} : { centerX: payload.reframe.centerX }),
           ...(payload.reframe?.centerY === undefined ? {} : { centerY: payload.reframe.centerY }),
-          ...(payload.reframe?.layoutMode === undefined
-            ? {}
-            : { layoutMode: payload.reframe.layoutMode }),
+          ...(effectiveLayoutMode === undefined ? {} : { layoutMode: effectiveLayoutMode }),
           ...(payload.reframe?.pipWebcam === undefined
             ? {}
             : { pipWebcam: payload.reframe.pipWebcam }),
-          ...(payload.reframe?.slideY === undefined ? {} : { slideY: payload.reframe.slideY }),
+          ...(effectiveSlideY === undefined ? {} : { slideY: effectiveSlideY }),
         });
   if (source.video !== null && stacked === null && fitted === null && frame === null) {
     throw unreadableMedia("The source's picture size could not be read.", "media/probe_failed");

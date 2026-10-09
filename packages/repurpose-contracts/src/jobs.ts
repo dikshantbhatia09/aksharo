@@ -1,6 +1,11 @@
 import { z } from "zod";
 
-import { DirectorEdlSchema, SplitScreenConfigSchema } from "./formats.js";
+import {
+  BlurredFitConfigSchema,
+  DirectorEdlSchema,
+  SplitScreenConfigSchema,
+  VideoLayoutModeSchema,
+} from "./formats.js";
 import {
   AspectSchema,
   CANDIDATE_REASON_LABELS,
@@ -321,6 +326,14 @@ export const MediaClipPayloadSchema = z
          * Timed Layout EDL cuts for Multi-Speaker Grid & Dynamic Camera Switcher (Pillar 3 §03).
          */
         directorEdl: DirectorEdlSchema.optional(),
+        /**
+         * High-level video layout mode preset (Pillar 3 §05).
+         */
+        videoLayoutMode: VideoLayoutModeSchema.optional(),
+        /**
+         * Blurred Background Canvas Fit (16:9 in 9:16) styling and placement parameters (Pillar 3 §05).
+         */
+        blurredFit: BlurredFitConfigSchema.optional(),
       })
       .superRefine((value, context) => {
         if (value.layout === "stacked" && value.people === undefined) {
@@ -339,7 +352,9 @@ export const MediaClipPayloadSchema = z
         }
         if (
           value.trajectory !== undefined &&
-          (value.layout === "stacked" || value.layout === "fit")
+          (value.layout === "stacked" ||
+            value.layout === "fit" ||
+            value.videoLayoutMode === "BLURRED_FIT")
         ) {
           context.addIssue({
             code: "custom",

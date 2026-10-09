@@ -4,12 +4,18 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
+  BLURRED_FIT_CANVAS,
+  BlurredFitConfigSchema,
   DirectorEdlSchema,
   LayoutCutSchema,
   LayoutOverrideSchema,
   SplitScreenConfigSchema,
+  VIDEO_LAYOUT_MODES,
+  VideoLayoutModeSchema,
+  type BlurredFitConfig,
   type LayoutCut,
   type SplitScreenConfig,
+  type VideoLayoutMode,
 } from "./formats.js";
 import {
   HighlightsPayloadSchema,
@@ -692,4 +698,84 @@ describe("LayoutCut & DirectorEdl (Pillar 3 §03)", () => {
   });
 });
 
+describe("VideoLayoutMode & BlurredFitConfig (Pillar 3 §05 Blurred Background Canvas Fit)", () => {
+  it("validates VideoLayoutMode enum values including BLURRED_FIT", () => {
+    const expectedModes: readonly VideoLayoutMode[] = [
+      "CROP_FACE",
+      "SPLIT_TWO_SPEAKER",
+      "BLURRED_FIT",
+      "STREAMER_SPLIT",
+    ];
+    expect(VIDEO_LAYOUT_MODES).toEqual(expectedModes);
+    for (const mode of expectedModes) {
+      expect(VideoLayoutModeSchema.safeParse(mode).success).toBe(true);
+    }
+    expect(VideoLayoutModeSchema.safeParse("INVALID_MODE").success).toBe(false);
+  });
 
+  it("validates BlurredFitConfigSchema and BLURRED_FIT_CANVAS defaults", () => {
+    expect(BLURRED_FIT_CANVAS.width).toBe(1080);
+    expect(BLURRED_FIT_CANVAS.height).toBe(1920);
+    expect(BLURRED_FIT_CANVAS.foregroundWidth).toBe(1080);
+    expect(BLURRED_FIT_CANVAS.foregroundHeight).toBe(608);
+    expect(BLURRED_FIT_CANVAS.foregroundY).toBe(656);
+    expect(BLURRED_FIT_CANVAS.blurRadius).toBe(35);
+    expect(BLURRED_FIT_CANVAS.dimOpacity).toBe(0.65);
+    expect(BLURRED_FIT_CANVAS.saturation).toBe(1.2);
+    expect(BLURRED_FIT_CANVAS.borderRadius).toBe(16);
+    expect(BLURRED_FIT_CANVAS.captionZoneY).toBe(1450);
+
+    const sampleConfig: BlurredFitConfig = {
+      enabled: true,
+      blurRadius: 35,
+      dimOpacity: 0.65,
+      saturation: 1.2,
+      borderRadius: 16,
+      foregroundY: 656,
+      captionZoneY: 1450,
+    };
+    const parsed = BlurredFitConfigSchema.safeParse(sampleConfig);
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data).toEqual(sampleConfig);
+    }
+  });
+
+  it("allows MediaClipPayloadSchema.reframe to carry videoLayoutMode=BLURRED_FIT and blurredFit config", () => {
+    const base = fixture("media-clip-payload.v1.json");
+    const parsed = MediaClipPayloadSchema.safeParse({
+      ...base,
+      reframe: {
+        centerX: 0.5,
+        basis: "centre",
+        layout: "fit",
+        videoLayoutMode: "BLURRED_FIT",
+        blurredFit: {
+          enabled: true,
+          blurRadius: 35,
+          dimOpacity: 0.65,
+          borderRadius: 16,
+        },
+      },
+    });
+    expect(parsed.success).toBe(true);
+
+    // Rejects dynamic trajectory combined with BLURRED_FIT
+    const withTrajectory = MediaClipPayloadSchema.safeParse({
+      ...base,
+      reframe: {
+        centerX: 0.5,
+        basis: "faces",
+        videoLayoutMode: "BLURRED_FIT",
+        trajectory: {
+          interpolation: "SPRING_DAMPED",
+          keyframes: [
+            { timeSec: 0, centerX: 0.4, centerY: 0.5, zoom: 1 },
+            { timeSec: 2, centerX: 0.6, centerY: 0.5, zoom: 1 },
+          ],
+        },
+      },
+    });
+    expect(withTrajectory.success).toBe(false);
+  });
+});

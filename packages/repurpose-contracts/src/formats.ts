@@ -528,4 +528,67 @@ export const LayoutOverrideSchema = z.strictObject({
 
 export const DirectorEdlSchema = z.array(LayoutCutSchema).max(500);
 
+/**
+ * Blurred Background Canvas Fit Engine (Pillar 3 §05).
+ *
+ * High-level video layout modes for vertical short-form repurposing:
+ * - `CROP_FACE`: Active speaker face crop (Pillar 3 §01)
+ * - `SPLIT_TWO_SPEAKER`: Two-speaker vertical split-screen (Pillar 3 §02)
+ * - `BLURRED_FIT`: Blurred background 9:16 canvas with un-cropped 16:9 foreground (Pillar 3 §05)
+ * - `STREAMER_SPLIT`: Streamer webcam + gameplay split (Pillar 3 §06)
+ */
+export const VIDEO_LAYOUT_MODES = [
+  "CROP_FACE",
+  "SPLIT_TWO_SPEAKER",
+  "BLURRED_FIT",
+  "STREAMER_SPLIT",
+] as const;
 
+export type VideoLayoutMode = "CROP_FACE" | "SPLIT_TWO_SPEAKER" | "BLURRED_FIT" | "STREAMER_SPLIT";
+
+export const VideoLayoutModeSchema = z.enum(VIDEO_LAYOUT_MODES);
+
+/**
+ * Styling and geometry configuration for Blurred Background Canvas Fit (16:9 in 9:16).
+ */
+export interface BlurredFitConfig {
+  readonly enabled: boolean;
+  /** Heavy Gaussian / box blur radius in px (default 35). */
+  readonly blurRadius?: number;
+  /** Luminance attenuation factor 0..1 (default 0.65, darkening by 35%). */
+  readonly dimOpacity?: number;
+  /** Background saturation boost multiplier (default 1.2). */
+  readonly saturation?: number;
+  /** Subtle corner rounding radius in px on the un-cropped 16:9 foreground (default 16). */
+  readonly borderRadius?: number;
+  /** Foreground vertical position in px on a 1080 × 1920 canvas (default 656). */
+  readonly foregroundY?: number;
+  /** Lower blurred safe-zone Y position in px for dynamic kinetic captions (default 1450). */
+  readonly captionZoneY?: number;
+}
+
+export const BLURRED_FIT_CANVAS = Object.freeze({
+  width: 1080,
+  height: 1920,
+  foregroundWidth: 1080,
+  foregroundHeight: 608,
+  foregroundY: 656,
+  blurRadius: 35,
+  cssBlurRadius: 40,
+  dimOpacity: 0.65,
+  colorChannelFactor: 0.6,
+  saturation: 1.2,
+  borderRadius: 16,
+  boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.7)",
+  captionZoneY: 1450,
+});
+
+export const BlurredFitConfigSchema = z.strictObject({
+  enabled: z.boolean(),
+  blurRadius: z.number().min(1).max(120).optional(),
+  dimOpacity: z.number().min(0.1).max(1).optional(),
+  saturation: z.number().min(0.5).max(3).optional(),
+  borderRadius: z.number().min(0).max(64).optional(),
+  foregroundY: z.number().nonnegative().max(1920).optional(),
+  captionZoneY: z.number().nonnegative().max(1920).optional(),
+});

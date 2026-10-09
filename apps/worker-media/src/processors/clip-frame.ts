@@ -46,12 +46,36 @@ export type ClipAspect = keyof typeof CLIP_ASPECTS;
  */
 export const MAX_CLIP_HEIGHT = 1920;
 
+import {
+  BLURRED_FIT_DEFAULT_CHANNEL_FACTOR,
+  BLURRED_FIT_DEFAULT_LUMA_POWER,
+  BLURRED_FIT_DEFAULT_LUMA_RADIUS,
+  buildBlurredFitFiltergraph,
+  buildBlurredFitVfFiltergraph,
+  computeBlurredFitFilterGeometry,
+  validateBlurredFitAspectRatio,
+  type BlurredFitFilterGeometry,
+  type BlurredFitFiltergraphOptions,
+} from "../ffmpeg/filtergraphs.js";
+
+export {
+  BLURRED_FIT_DEFAULT_CHANNEL_FACTOR,
+  BLURRED_FIT_DEFAULT_LUMA_POWER,
+  BLURRED_FIT_DEFAULT_LUMA_RADIUS,
+  buildBlurredFitFiltergraph,
+  buildBlurredFitVfFiltergraph,
+  computeBlurredFitFilterGeometry,
+  validateBlurredFitAspectRatio,
+  type BlurredFitFilterGeometry,
+  type BlurredFitFiltergraphOptions,
+};
+
 /** Where the window goes when the payload says nothing: the frame centre. */
 export const DEFAULT_CENTER_X = 0.5;
 export const DEFAULT_CENTER_Y = 0.5;
 
-/** Screen Share & Presentation Slide Layout Modes (Pillar 3 §04). */
-export type ClipLayoutMode = "CROP_FACE" | "CANVAS_FIT" | "PIP_BUBBLE";
+/** Screen Share, Presentation Slide & Blurred Background Fit Layout Modes (Pillar 3 §04 & §05). */
+export type ClipLayoutMode = "CROP_FACE" | "CANVAS_FIT" | "PIP_BUBBLE" | "BLURRED_FIT";
 
 /** Floating presenter webcam PIP bubble position on the 9:16 canvas (Pillar 3 §04 §2.1). */
 export type PipBubblePosition = "top-right" | "bottom-center";
@@ -231,7 +255,11 @@ export function clipFrame(
     ),
   );
 
-  if (options.layoutMode === "CANVAS_FIT" || options.layoutMode === "PIP_BUBBLE") {
+  if (
+    options.layoutMode === "CANVAS_FIT" ||
+    options.layoutMode === "PIP_BUBBLE" ||
+    options.layoutMode === "BLURRED_FIT"
+  ) {
     const outHeight = limit;
     const outWidth = even((limit * shape.width) / shape.height);
     const fullCrop: ClipFrame["crop"] = {
@@ -253,7 +281,7 @@ export function clipFrame(
       height: fgHeight,
       x: 0,
       y: fgY,
-      blurRadius: 40,
+      blurRadius: options.layoutMode === "BLURRED_FIT" ? BLURRED_FIT_DEFAULT_LUMA_RADIUS : 40,
     };
 
     if (options.layoutMode === "PIP_BUBBLE") {
@@ -276,7 +304,7 @@ export function clipFrame(
       source: { width, height },
       crop: fullCrop,
       output: { width: outWidth, height: outHeight },
-      layoutMode: "CANVAS_FIT",
+      layoutMode: options.layoutMode,
       canvasFit,
     };
   }
@@ -519,6 +547,16 @@ export function pipBubbleFilter(frame: ClipFrame): string {
   ].join(";");
 }
 
+export function blurredFitFilter(frame: ClipFrame): string {
+  const { source, output, canvasFit } = frame;
+  if (source.width * output.height > source.height * output.width) {
+    return buildBlurredFitVfFiltergraph(source.width, source.height, output.width, output.height, {
+      ...(canvasFit === undefined ? {} : { lumaRadius: canvasFit.blurRadius, foregroundY: canvasFit.y }),
+    });
+  }
+  return canvasFitFilter(frame);
+}
+
 export function clipFilter(
   frame: ClipFrame,
   trajectory?: DynamicReframeTrajectory,
@@ -526,6 +564,9 @@ export function clipFilter(
 ): string {
   if (frame.layoutMode === "PIP_BUBBLE") {
     return pipBubbleFilter(frame);
+  }
+  if (frame.layoutMode === "BLURRED_FIT") {
+    return blurredFitFilter(frame);
   }
   if (frame.layoutMode === "CANVAS_FIT") {
     return canvasFitFilter(frame);

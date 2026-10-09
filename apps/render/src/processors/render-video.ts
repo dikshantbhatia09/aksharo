@@ -51,6 +51,47 @@ export function unrenderableStylesUsed(payload: RenderVideoPayload): string[] {
   return unrenderable;
 }
 
+/**
+ * Default lower blurred safe-zone Y coordinate (`1450px` on a `1080 × 1920` canvas)
+ * for kinetic captions when `layout === 'BLURRED_FIT'` (Pillar 3 §05 §4).
+ */
+export const BLURRED_FIT_CAPTION_Y = 1450;
+
+/**
+ * When `payload.layout === 'BLURRED_FIT'`, place any segment that does not already
+ * carry an explicit `position` into the dedicated lower blurred safe zone
+ * (`y = 1450px` on `1080 × 1920`, scaled proportionally to the canvas height)
+ * so subtitle text never obscures the un-cropped 16:9 foreground action (`y = 656..1264`).
+ */
+export function applyBlurredFitLayout(payload: RenderVideoPayload): RenderVideoPayload {
+  if (payload.layout !== "BLURRED_FIT") {
+    return payload;
+  }
+  const canvasWidth = payload.projection.canvas.width;
+  const canvasHeight = payload.projection.canvas.height;
+  const captionY = Math.round((BLURRED_FIT_CAPTION_Y / 1920) * canvasHeight);
+  const captionX = Math.round(canvasWidth / 2);
+
+  return {
+    ...payload,
+    projection: {
+      ...payload.projection,
+      segments: payload.projection.segments.map((segment) =>
+        segment.position !== undefined
+          ? segment
+          : {
+              ...segment,
+              position: {
+                x: captionX,
+                y: captionY,
+                anchor: "center",
+              },
+            },
+      ),
+    },
+  };
+}
+
 export interface ProcessorContext {
   readonly dependencies: Omit<RenderDependencies, "onProgress">;
   readonly callbacks: CallbackClient;
@@ -110,7 +151,8 @@ export async function processRenderVideo(
   const finalAttempt = job.attemptsMade + 1 >= (job.opts.attempts ?? 1);
 
   try {
-    const payload = RenderVideoPayloadSchema.parse(envelope.payload);
+    const parsedPayload = RenderVideoPayloadSchema.parse(envelope.payload);
+    const payload = applyBlurredFitLayout(parsedPayload);
     if (payload.path === "ass") {
       // `05 §5.2` keeps an ASS fast path for the styles A18a's parity gate has
       // proved `assRenderable` (D33): a real, measured SSIM/pixel-diff against

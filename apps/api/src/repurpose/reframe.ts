@@ -1,12 +1,14 @@
 import { parseFaceTrack, type FaceTrackDocument } from "@montaj/render-core";
 import {
   STACKED_ASPECTS,
+  type BlurredFitConfig,
   type ClipLayout,
   type CropKeyframe,
   type DynamicReframeTrajectory,
   type LayoutCut,
   type SplitScreenConfig,
   type StackedPerson,
+  type VideoLayoutMode,
 } from "@montaj/repurpose-contracts";
 
 import { detectLayout, type ClipLayoutChoice } from "./layout.js";
@@ -67,6 +69,14 @@ export interface ClipReframe {
    * Optional timed LayoutCut[] EDL for Multi-Speaker Grid & Dynamic Camera Switcher (Pillar 3 §03).
    */
   readonly directorEdl?: readonly LayoutCut[];
+  /**
+   * High-level video layout mode preset (Pillar 3 §05).
+   */
+  readonly videoLayoutMode?: VideoLayoutMode;
+  /**
+   * Blurred Background Canvas Fit (16:9 in 9:16) styling and placement parameters (Pillar 3 §05).
+   */
+  readonly blurredFit?: BlurredFitConfig;
 }
 
 export const CENTRE_REFRAME: ClipReframe = Object.freeze({ centerX: 0.5, basis: "centre" });

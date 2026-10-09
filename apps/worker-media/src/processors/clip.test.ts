@@ -15,6 +15,8 @@ import {
   MAX_CLIP_HEIGHT,
   PRESENTATION_FIT_Y,
   STACK_FACE_ROW,
+  blurredFitFilter,
+  buildBlurredFitFiltergraph,
   canvasFitFilter,
   clipFilter,
   clipFrame,
@@ -1824,5 +1826,35 @@ describe("CANVAS_FIT & PIP_BUBBLE modes (Pillar 3 §04 Screen Share & Presentati
   });
 });
 
+describe("BLURRED_FIT mode (Pillar 3 §05 Blurred Background Canvas Fit)", () => {
+  const fullHd = { width: 1920, height: 1080 };
 
+  it("computes un-cropped 1080x608 foreground at y=656 with blurRadius=35 and colorchannelmixer attenuation", () => {
+    const frame = clipFrame(fullHd, { layoutMode: "BLURRED_FIT", maxHeight: 1920 });
+    expect(frame).not.toBeNull();
+    if (frame === null) return;
 
+    expect(frame.layoutMode).toBe("BLURRED_FIT");
+    expect(frame.crop).toEqual({ width: 1920, height: 1080, x: 0, y: 0 });
+    expect(frame.output).toEqual({ width: 1080, height: 1920 });
+    expect(frame.canvasFit).toEqual({
+      width: 1080,
+      height: 608,
+      x: 0,
+      y: 656,
+      blurRadius: 35,
+    });
+
+    const filter = clipFilter(frame);
+    expect(filter).toBe(blurredFitFilter(frame));
+    expect(filter).toContain("boxblur=luma_radius=35:luma_power=2");
+    expect(filter).toContain("colorchannelmixer=aa=1.0:rr=0.6:gg=0.6:bb=0.6");
+    expect(filter).toContain("[fg_in]scale=1080:608:flags=bicubic,setsar=1[fg]");
+    expect(filter).toContain("[bg][fg]overlay=x=0:y=656,setsar=1,format=yuv420p");
+
+    const complexGraph = buildBlurredFitFiltergraph(1920, 1080, 1080, 1920);
+    expect(complexGraph).toBe(
+      "[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=luma_radius=35:luma_power=2,colorchannelmixer=aa=1.0:rr=0.6:gg=0.6:bb=0.6[bg]; [0:v]scale=1080:608[fg]; [bg][fg]overlay=x=0:y=656[v]",
+    );
+  });
+});

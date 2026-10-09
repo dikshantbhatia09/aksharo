@@ -206,6 +206,15 @@ export type RenderProjection = z.infer<typeof RenderProjectionSchema>;
  * the payload is the manifest itself, the projection snapshot it applies to, and
  * the style documents to draw it with.
  */
+export const VIDEO_LAYOUT_MODES = [
+  "CROP_FACE",
+  "SPLIT_TWO_SPEAKER",
+  "BLURRED_FIT",
+  "STREAMER_SPLIT",
+] as const;
+
+export type VideoLayoutMode = (typeof VIDEO_LAYOUT_MODES)[number];
+
 export const RenderVideoPayloadSchema = z.object({
   manifest: RenderManifestSchema,
   projection: RenderProjectionSchema,
@@ -220,6 +229,11 @@ export const RenderVideoPayloadSchema = z.object({
   /** Which of a word's scripts to burn in. */
   script: z.enum(["roman", "native", "en"]).default("roman"),
   dropFillers: z.boolean().default(false),
+  /**
+   * Optional high-level video layout preset (Pillar 3 §05).
+   * When set to `'BLURRED_FIT'`, captions default to the lower blurred safe zone (`y = 1450px` on `1080 x 1920`).
+   */
+  layout: z.enum(VIDEO_LAYOUT_MODES).optional(),
 });
 
 export type RenderVideoPayload = z.infer<typeof RenderVideoPayloadSchema>;
