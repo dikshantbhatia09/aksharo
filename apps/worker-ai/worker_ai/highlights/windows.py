@@ -52,6 +52,7 @@ from worker_ai.highlights.text import carries_break, ends_clause, ends_sentence_
 __all__ = [
     "DISALLOWED_CLOSINGS",
     "DISALLOWED_OPENINGS",
+    "DURATION_BINS_MS",
     "HARD_BREAK_PATTERNS",
     "PAUSE_MS",
     "SPONSOR_PATTERNS",
@@ -62,6 +63,7 @@ __all__ = [
     "build_units",
     "discourse_opening_advance",
     "enumerate_windows",
+    "filter_windows_by_duration",
     "is_incomplete_closing",
     "outside",
     "padded_windows",
@@ -75,6 +77,15 @@ __all__ = [
     "usable_words",
     "words_to_silence_gaps",
 ]
+
+#: Preset duration bins in milliseconds (Pillar 2 §05).
+DURATION_BINS_MS: Final[dict[str, tuple[int, int]]] = {
+    "UNDER_30": (15_000, 30_000),
+    "BETWEEN_30_60": (30_000, 60_000),
+    "BETWEEN_60_90": (60_000, 90_000),
+    "BETWEEN_90_180": (90_000, 180_000),
+    "AUTO": (20_000, 90_000),
+}
 
 #: Explicit transition markers that start a new news item or segment.
 HARD_BREAK_PATTERNS: Final = re.compile(
@@ -610,6 +621,16 @@ def snap_window_to_silence(
     )
 
 
+def filter_windows_by_duration(
+    windows: Sequence[Window],
+    *,
+    min_ms: int,
+    max_ms: int,
+) -> list[Window]:
+    """Strictly filters candidate windows so 100% of kept windows satisfy [min_ms, max_ms]."""
+    return [w for w in windows if min_ms <= (w.end_ms - w.start_ms) <= max_ms]
+
+
 def snap_windows(
     windows: Sequence[Window],
     silences: Sequence[tuple[int, int]],
@@ -618,11 +639,12 @@ def snap_windows(
     min_ms: int = MIN_DURATION_MS,
     max_ms: int = MAX_DURATION_MS,
 ) -> list[Window]:
-    """Snaps all windows to nearest silence gap midpoints."""
-    return [
+    """Snaps all windows to nearest silence gap midpoints and strictly filters to [min_ms, max_ms]."""
+    snapped = [
         snap_window_to_silence(w, silences, words, min_ms=min_ms, max_ms=max_ms)
         for w in windows
     ]
+    return filter_windows_by_duration(snapped, min_ms=min_ms, max_ms=max_ms)
 
 
 def words_to_silence_gaps(words: Sequence[Word], duration_ms: int = 0) -> list[tuple[int, int]]:
@@ -707,7 +729,8 @@ def enumerate_windows(
             if tail.has_disallowed_closing:
                 continue
             # Words can overlap, so a later unit can end earlier than the one before it.
-            if tail.end_ms - head.start_ms < min_ms:
+            span_ms = tail.end_ms - head.start_ms
+            if span_ms < min_ms or span_ms > max_ms:
                 continue
             w = Window(
                 window_id=_window_id(len(windows) + 1),
@@ -718,6 +741,11 @@ def enumerate_windows(
             )
             if silences:
                 w = snap_window_to_silence(w, silences, words, min_ms=min_ms, max_ms=max_ms)
+            # Semantic knapsack strict filtering: discard any window whose total duration
+            # after acoustic pause snapping falls outside [min_ms, max_ms].
+            snapped_duration_ms = w.end_ms - w.start_ms
+            if snapped_duration_ms < min_ms or snapped_duration_ms > max_ms:
+                continue
             windows.append(w)
     auto_sponsor_excludes = [
         ExcludeRange(start_ms=u.start_ms, end_ms=u.end_ms)
@@ -725,7 +753,7 @@ def enumerate_windows(
         if u.is_sponsor
     ]
     all_exclude = list(exclude or []) + auto_sponsor_excludes
-    return outside(windows, all_exclude)
+    return filter_windows_by_duration(outside(windows, all_exclude), min_ms=min_ms, max_ms=max_ms)
 
 
 def padded_windows(
@@ -794,8 +822,11 @@ def padded_windows(
         )
         if silences:
             w = snap_window_to_silence(w, silences, words, min_ms=min_ms, max_ms=max_ms)
+        snapped_duration_ms = w.end_ms - w.start_ms
+        if snapped_duration_ms < min_ms or snapped_duration_ms > max_ms:
+            continue
         windows.append(w)
-    return outside(windows, all_exclude)
+    return filter_windows_by_duration(outside(windows, all_exclude), min_ms=min_ms, max_ms=max_ms)
 
 
 def select[T](

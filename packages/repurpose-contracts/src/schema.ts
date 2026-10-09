@@ -61,12 +61,126 @@ export const CaptionConfigSchema = z.strictObject({
   styleVersion: z.int().positive(),
 });
 
+export const DURATION_BINS = {
+  UNDER_30: { minSec: 15, maxSec: 30, label: "< 30s (Rapid Loops)" },
+  BETWEEN_30_60: { minSec: 30, maxSec: 60, label: "30s–60s (Shorts & Reels)" },
+  BETWEEN_60_90: { minSec: 60, maxSec: 90, label: "60s–90s (TikTok Monetization)" },
+  BETWEEN_90_180: { minSec: 90, maxSec: 180, label: "90s–3m (Deep Dives & LinkedIn)" },
+  AUTO: { minSec: 20, maxSec: 90, label: "AI Recommended" },
+} as const;
+
+export type DurationBinKey = keyof typeof DURATION_BINS;
+
+export const DURATION_BIN_KEYS = [
+  "UNDER_30",
+  "BETWEEN_30_60",
+  "BETWEEN_60_90",
+  "BETWEEN_90_180",
+  "AUTO",
+  "under_30",
+  "30_60",
+  "60_90",
+  "90_180",
+  "auto",
+] as const;
+
+export const DurationBinSchema = z.enum(DURATION_BIN_KEYS);
+export type DurationBin = z.infer<typeof DurationBinSchema>;
+
+export const DurationCustomRangeSchema = z
+  .strictObject({
+    minDurationSec: z.number().positive(),
+    maxDurationSec: z.number().positive().max(300),
+  })
+  .superRefine((value, context) => {
+    if (value.minDurationSec >= value.maxDurationSec) {
+      context.addIssue({
+        code: "custom",
+        path: ["maxDurationSec"],
+        message: "Maximum duration must be greater than minimum duration.",
+      });
+    }
+  });
+
+export function validateDurationRange(minDurationSec: number, maxDurationSec: number): boolean {
+  return (
+    Number.isFinite(minDurationSec) &&
+    Number.isFinite(maxDurationSec) &&
+    minDurationSec > 0 &&
+    minDurationSec < maxDurationSec &&
+    maxDurationSec <= 300
+  );
+}
+
+export function resolveDurationBin(bin: string | undefined | null): {
+  readonly minSec: number;
+  readonly maxSec: number;
+  readonly minDurationMs: number;
+  readonly maxDurationMs: number;
+  readonly label: string;
+  readonly key: DurationBinKey;
+} | null {
+  if (typeof bin !== "string" || bin.trim() === "") return null;
+  const normalized = bin.trim().toUpperCase();
+  if (normalized === "UNDER_30" || normalized === "UNDER-30" || normalized === "SHORT") {
+    return {
+      key: "UNDER_30",
+      minSec: DURATION_BINS.UNDER_30.minSec,
+      maxSec: DURATION_BINS.UNDER_30.maxSec,
+      minDurationMs: DURATION_BINS.UNDER_30.minSec * 1000,
+      maxDurationMs: DURATION_BINS.UNDER_30.maxSec * 1000,
+      label: DURATION_BINS.UNDER_30.label,
+    };
+  }
+  if (normalized === "BETWEEN_30_60" || normalized === "30_60" || normalized === "30-60" || normalized === "MEDIUM") {
+    return {
+      key: "BETWEEN_30_60",
+      minSec: DURATION_BINS.BETWEEN_30_60.minSec,
+      maxSec: DURATION_BINS.BETWEEN_30_60.maxSec,
+      minDurationMs: DURATION_BINS.BETWEEN_30_60.minSec * 1000,
+      maxDurationMs: DURATION_BINS.BETWEEN_30_60.maxSec * 1000,
+      label: DURATION_BINS.BETWEEN_30_60.label,
+    };
+  }
+  if (normalized === "BETWEEN_60_90" || normalized === "60_90" || normalized === "60-90" || normalized === "LONG") {
+    return {
+      key: "BETWEEN_60_90",
+      minSec: DURATION_BINS.BETWEEN_60_90.minSec,
+      maxSec: DURATION_BINS.BETWEEN_60_90.maxSec,
+      minDurationMs: DURATION_BINS.BETWEEN_60_90.minSec * 1000,
+      maxDurationMs: DURATION_BINS.BETWEEN_60_90.maxSec * 1000,
+      label: DURATION_BINS.BETWEEN_60_90.label,
+    };
+  }
+  if (normalized === "BETWEEN_90_180" || normalized === "90_180" || normalized === "90-180") {
+    return {
+      key: "BETWEEN_90_180",
+      minSec: DURATION_BINS.BETWEEN_90_180.minSec,
+      maxSec: DURATION_BINS.BETWEEN_90_180.maxSec,
+      minDurationMs: DURATION_BINS.BETWEEN_90_180.minSec * 1000,
+      maxDurationMs: DURATION_BINS.BETWEEN_90_180.maxSec * 1000,
+      label: DURATION_BINS.BETWEEN_90_180.label,
+    };
+  }
+  if (normalized === "AUTO") {
+    return {
+      key: "AUTO",
+      minSec: DURATION_BINS.AUTO.minSec,
+      maxSec: DURATION_BINS.AUTO.maxSec,
+      minDurationMs: DURATION_BINS.AUTO.minSec * 1000,
+      maxDurationMs: DURATION_BINS.AUTO.maxSec * 1000,
+      label: DURATION_BINS.AUTO.label,
+    };
+  }
+  return null;
+}
+
 export const DiscoveryConfigSchema = z
   .strictObject({
     mode: RunModeSchema,
     requestedCandidates: z.int().min(0).max(20),
-    minDurationMs: z.int().min(3_000).max(180_000),
-    maxDurationMs: z.int().min(3_000).max(180_000),
+    minDurationMs: z.int().min(3_000).max(300_000),
+    maxDurationMs: z.int().min(3_000).max(300_000),
     contentGoal: z.enum(["reach", "education", "authority", "engagement"]),
     /**
      * Steering (2026-09-29), frozen as the create request sent it (see
@@ -76,6 +190,7 @@ export const DiscoveryConfigSchema = z
      */
     topic: z.string().trim().min(2).max(200).optional(),
     clipLength: z.enum(["short", "medium", "long"]).optional(),
+    durationBin: DurationBinSchema.optional(),
     skipIntroMs: z.int().min(0).max(1_800_000).optional(),
     skipOutroMs: z.int().min(0).max(1_800_000).optional(),
   })
@@ -541,6 +656,11 @@ export const CreateRunRequestSchema = z
          */
         topic: z.string().trim().min(2).max(200).optional(),
         clipLength: ClipLengthPresetSchema.optional(),
+        durationBin: DurationBinSchema.optional(),
+        minDurationSec: z.number().positive().max(300).optional(),
+        maxDurationSec: z.number().positive().max(300).optional(),
+        minDurationMs: z.int().min(3_000).max(300_000).optional(),
+        maxDurationMs: z.int().min(3_000).max(300_000).optional(),
         skipIntroMs: z.int().min(0).max(1_800_000).optional(),
         skipOutroMs: z.int().min(0).max(1_800_000).optional(),
       }),
@@ -581,6 +701,28 @@ export const CreateRunRequestSchema = z
         code: "custom",
         path: ["setup", "discovery", "requestedCandidates"],
         message: "Manual mode cannot request AI candidates.",
+      });
+    }
+    if (
+      value.setup.discovery.minDurationSec !== undefined &&
+      value.setup.discovery.maxDurationSec !== undefined &&
+      value.setup.discovery.minDurationSec >= value.setup.discovery.maxDurationSec
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["setup", "discovery", "maxDurationSec"],
+        message: "Maximum duration must be greater than minimum duration.",
+      });
+    }
+    if (
+      value.setup.discovery.minDurationMs !== undefined &&
+      value.setup.discovery.maxDurationMs !== undefined &&
+      value.setup.discovery.minDurationMs > value.setup.discovery.maxDurationMs
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["setup", "discovery", "maxDurationMs"],
+        message: "Maximum duration is below minimum.",
       });
     }
   });

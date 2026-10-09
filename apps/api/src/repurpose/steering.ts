@@ -1,4 +1,9 @@
-import { CLIP_LENGTH_PRESETS, ClipLengthPresetSchema } from "@montaj/repurpose-contracts";
+import {
+  CLIP_LENGTH_PRESETS,
+  ClipLengthPresetSchema,
+  resolveDurationBin,
+  type DurationBin,
+} from "@montaj/repurpose-contracts";
 
 import { MAX_CLIP_MS, MIN_CLIP_MS } from "./repurpose-clips.dto.js";
 import {
@@ -14,7 +19,7 @@ import {
  * a database.
  *
  *   * **At the start:** what the clips are about (`topic`), how long they are
- *     (`clipLength`, a `CLIP_LENGTH_PRESETS` band), and how much of the start
+ *     (`clipLength`, a `CLIP_LENGTH_PRESETS` band, or `durationBin`), and how much of the start
  *     and end of the video to leave out (`skipIntroMs`, `skipOutroMs`).
  *   * **Autopilot's reserve:** discovery is asked for about a third more
  *     moments than Autopilot cuts. The extra ones wait, uncut, and the best of
@@ -84,7 +89,7 @@ export function steeringOf(config: unknown): RunSteering | null {
 }
 
 /**
- * The discovery setup a run freezes: with a `clipLength`, its preset's band
+ * The discovery setup a run freezes: with a `durationBin` or `clipLength`, its preset's band
  * written into `minDurationMs`/`maxDurationMs` too, so the frozen config says
  * the same thing to a reader that knows nothing of presets. A preset wins over
  * bounds sent beside it - it is what the person chose on the form.
@@ -92,10 +97,36 @@ export function steeringOf(config: unknown): RunSteering | null {
 export function withLengthPreset<
   T extends {
     readonly clipLength?: ClipLength | undefined;
+    readonly durationBin?: DurationBin | string | undefined;
+    readonly minDurationSec?: number | undefined;
+    readonly maxDurationSec?: number | undefined;
     readonly minDurationMs?: number;
     readonly maxDurationMs?: number;
   },
 >(discovery: T): T {
+  if (
+    typeof discovery.minDurationSec === "number" &&
+    typeof discovery.maxDurationSec === "number" &&
+    discovery.minDurationSec > 0 &&
+    discovery.minDurationSec < discovery.maxDurationSec &&
+    discovery.maxDurationSec <= 300
+  ) {
+    const minDurationMs = Math.max(MIN_CLIP_MS, Math.round(discovery.minDurationSec * 1000));
+    const maxDurationMs = Math.min(MAX_CLIP_MS, Math.round(discovery.maxDurationSec * 1000));
+    if (minDurationMs <= maxDurationMs) {
+      return { ...discovery, minDurationMs, maxDurationMs };
+    }
+  }
+  if (typeof discovery.durationBin === "string") {
+    const bin = resolveDurationBin(discovery.durationBin);
+    if (bin !== null) {
+      return {
+        ...discovery,
+        minDurationMs: bin.minDurationMs,
+        maxDurationMs: bin.maxDurationMs,
+      };
+    }
+  }
   if (discovery.clipLength === undefined) return discovery;
   return { ...discovery, ...CLIP_LENGTH_PRESETS[discovery.clipLength] };
 }
@@ -119,6 +150,32 @@ export function discoveryBoundsOf(discovery: unknown): {
   readonly maxDurationMs: number;
 } {
   const record = recordOf(discovery);
+  const minSec = record["minDurationSec"];
+  const maxSec = record["maxDurationSec"];
+  if (
+    typeof minSec === "number" &&
+    typeof maxSec === "number" &&
+    Number.isFinite(minSec) &&
+    Number.isFinite(maxSec) &&
+    minSec > 0 &&
+    minSec < maxSec &&
+    maxSec <= 300
+  ) {
+    const minDurationMs = Math.max(MIN_CLIP_MS, Math.round(minSec * 1000));
+    const maxDurationMs = Math.min(MAX_CLIP_MS, Math.round(maxSec * 1000));
+    if (minDurationMs <= maxDurationMs) {
+      return { minDurationMs, maxDurationMs };
+    }
+  }
+  if (typeof record["durationBin"] === "string") {
+    const bin = resolveDurationBin(record["durationBin"]);
+    if (bin !== null) {
+      return {
+        minDurationMs: bin.minDurationMs,
+        maxDurationMs: bin.maxDurationMs,
+      };
+    }
+  }
   const preset = clipLengthOf(record["clipLength"]);
   // eslint-disable-next-line security/detect-object-injection -- a parsed ClipLength, one of three literal keys
   if (preset !== null) return { ...CLIP_LENGTH_PRESETS[preset] };

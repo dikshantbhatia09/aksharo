@@ -35,6 +35,10 @@ import { LanguagePicker } from "@/components/projects/language-picker";
 import { WritingScriptPicker } from "@/components/projects/writing-script-picker";
 import { AUTOPILOT_COPY, BRAND_COPY, BROLL_COPY, STEERING_COPY } from "@/components/repurpose/copy";
 import {
+  DurationPicker,
+  type DurationBinSelection,
+} from "@/components/repurpose/duration-picker";
+import {
   CLIP_LENGTHS,
   DEFAULT_CLIP_LENGTH,
   TOPIC_MAX_LENGTH,
@@ -622,6 +626,21 @@ export function RunSetupFields<V extends RunSetupValue>({
                 </label>
               ))}
             </div>
+            <DurationPicker
+              className="mt-2.5"
+              value={
+                value.clipLength === "short"
+                  ? "UNDER_30"
+                  : value.clipLength === "long"
+                    ? "BETWEEN_60_90"
+                    : "BETWEEN_30_60"
+              }
+              onChange={(bin: DurationBinSelection) => {
+                if (bin === "UNDER_30") set("clipLength", "short");
+                else if (bin === "BETWEEN_60_90" || bin === "BETWEEN_90_180") set("clipLength", "long");
+                else set("clipLength", "medium");
+              }}
+            />
           </fieldset>
 
           <fieldset

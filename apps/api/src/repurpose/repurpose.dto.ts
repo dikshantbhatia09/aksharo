@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { ClipLengthPresetSchema } from "@montaj/repurpose-contracts";
+import { ClipLengthPresetSchema, DurationBinSchema } from "@montaj/repurpose-contracts";
 
 import {
   AUTOMATION_MODES,
@@ -46,8 +46,8 @@ export const discoverySetupSchema = z
   .object({
     mode: z.enum(["ai", "manual", "mixed"]).default("ai"),
     requestedCandidates: z.number().int().min(0).max(20).default(DEFAULT_REQUESTED_CANDIDATES),
-    minDurationMs: z.number().int().min(3_000).max(180_000).default(DEFAULT_MIN_CANDIDATE_MS),
-    maxDurationMs: z.number().int().min(3_000).max(180_000).default(DEFAULT_MAX_CANDIDATE_MS),
+    minDurationMs: z.number().int().min(3_000).max(300_000).default(DEFAULT_MIN_CANDIDATE_MS),
+    maxDurationMs: z.number().int().min(3_000).max(300_000).default(DEFAULT_MAX_CANDIDATE_MS),
     contentGoal: z.enum(["reach", "education", "authority", "engagement"]).default("reach"),
     /**
      * Steering (2026-09-29), as `CreateRunRequestSchema.setup.discovery` has it:
@@ -57,6 +57,9 @@ export const discoverySetupSchema = z
      */
     topic: z.string().trim().min(2).max(200).optional(),
     clipLength: ClipLengthPresetSchema.optional(),
+    durationBin: DurationBinSchema.optional(),
+    minDurationSec: z.number().positive().max(300).optional(),
+    maxDurationSec: z.number().positive().max(300).optional(),
     skipIntroMs: z.number().int().min(0).max(MAX_SKIP_MS).optional(),
     skipOutroMs: z.number().int().min(0).max(MAX_SKIP_MS).optional(),
   })
@@ -66,6 +69,17 @@ export const discoverySetupSchema = z
         code: "custom",
         path: ["maxDurationMs"],
         message: "The longest clip cannot be shorter than the shortest.",
+      });
+    }
+    if (
+      value.minDurationSec !== undefined &&
+      value.maxDurationSec !== undefined &&
+      value.minDurationSec >= value.maxDurationSec
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["maxDurationSec"],
+        message: "Maximum duration must be greater than minimum duration.",
       });
     }
     if (value.mode === "manual" && value.requestedCandidates !== 0) {

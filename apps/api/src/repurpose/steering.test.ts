@@ -87,6 +87,44 @@ describe("clip length presets", () => {
       maxDurationMs: 60_000,
     });
   });
+
+  it("resolves durationBin presets and custom duration seconds accurately", () => {
+    expect(discoveryBoundsOf({ durationBin: "UNDER_30" })).toEqual({
+      minDurationMs: 15_000,
+      maxDurationMs: 30_000,
+    });
+    expect(discoveryBoundsOf({ durationBin: "BETWEEN_30_60" })).toEqual({
+      minDurationMs: 30_000,
+      maxDurationMs: 60_000,
+    });
+    expect(discoveryBoundsOf({ durationBin: "BETWEEN_60_90" })).toEqual({
+      minDurationMs: 60_000,
+      maxDurationMs: 90_000,
+    });
+    expect(discoveryBoundsOf({ durationBin: "60_90" })).toEqual({
+      minDurationMs: 60_000,
+      maxDurationMs: 90_000,
+    });
+    expect(discoveryBoundsOf({ durationBin: "BETWEEN_90_180" })).toEqual({
+      minDurationMs: 90_000,
+      maxDurationMs: 180_000,
+    });
+    expect(discoveryBoundsOf({ durationBin: "AUTO" })).toEqual({
+      minDurationMs: 20_000,
+      maxDurationMs: 90_000,
+    });
+    expect(discoveryBoundsOf({ minDurationSec: 45, maxDurationSec: 75 })).toEqual({
+      minDurationMs: 45_000,
+      maxDurationMs: 75_000,
+    });
+    expect(
+      withLengthPreset({
+        durationBin: "BETWEEN_60_90" as const,
+        minDurationMs: 15_000,
+        maxDurationMs: 60_000,
+      }),
+    ).toMatchObject({ minDurationMs: 60_000, maxDurationMs: 90_000 });
+  });
 });
 
 describe("excludeRangesFor — the skips, on the clock the words are timed on", () => {

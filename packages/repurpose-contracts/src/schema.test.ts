@@ -9,13 +9,18 @@ import {
   ClipVariantViewSchema,
   CreateRunRequestSchema,
   CreateRunResponseSchema,
+  DURATION_BINS,
   DiagnosticItemSchema,
+  DurationBinSchema,
+  DurationCustomRangeSchema,
   ManualCandidateRequestSchema,
   RepurposeClipViewSchema,
   RunConfigSchema,
   SAFE_ERROR_CODES,
   StageProgressSchema,
   ViralityDiagnosticSchema,
+  resolveDurationBin,
+  validateDurationRange,
 } from "./schema.js";
 
 const RUN_ID = "01ARZ3NDEKTSV4RRFFQ69G5FAV";
@@ -305,5 +310,57 @@ describe("repurpose@1 fixture contracts", () => {
       },
     };
     expect(ClipCandidateSchema.safeParse(withDiag).success).toBe(true);
+  });
+
+  it("validates DurationBinSchema, DURATION_BINS, and custom duration ranges", () => {
+    expect(DURATION_BINS.UNDER_30).toEqual({ minSec: 15, maxSec: 30, label: "< 30s (Rapid Loops)" });
+    expect(DURATION_BINS.BETWEEN_30_60).toEqual({
+      minSec: 30,
+      maxSec: 60,
+      label: "30s–60s (Shorts & Reels)",
+    });
+    expect(DURATION_BINS.BETWEEN_60_90).toEqual({
+      minSec: 60,
+      maxSec: 90,
+      label: "60s–90s (TikTok Monetization)",
+    });
+    expect(DURATION_BINS.BETWEEN_90_180).toEqual({
+      minSec: 90,
+      maxSec: 180,
+      label: "90s–3m (Deep Dives & LinkedIn)",
+    });
+    expect(DURATION_BINS.AUTO).toEqual({ minSec: 20, maxSec: 90, label: "AI Recommended" });
+
+    for (const bin of ["UNDER_30", "BETWEEN_30_60", "BETWEEN_60_90", "BETWEEN_90_180", "AUTO", "60_90"]) {
+      expect(DurationBinSchema.safeParse(bin).success).toBe(true);
+    }
+    expect(DurationBinSchema.safeParse("INVALID_BIN").success).toBe(false);
+
+    expect(resolveDurationBin("BETWEEN_60_90")).toEqual({
+      key: "BETWEEN_60_90",
+      minSec: 60,
+      maxSec: 90,
+      minDurationMs: 60_000,
+      maxDurationMs: 90_000,
+      label: "60s–90s (TikTok Monetization)",
+    });
+    expect(resolveDurationBin("60_90")?.minDurationMs).toBe(60_000);
+    expect(resolveDurationBin("UNDER_30")?.maxDurationMs).toBe(30_000);
+    expect(resolveDurationBin("BETWEEN_90_180")?.maxDurationMs).toBe(180_000);
+    expect(resolveDurationBin("AUTO")?.minDurationMs).toBe(20_000);
+    expect(resolveDurationBin("unknown")).toBeNull();
+
+    // Validate 0 < minDurationSec < maxDurationSec <= 300
+    expect(DurationCustomRangeSchema.safeParse({ minDurationSec: 45, maxDurationSec: 75 }).success).toBe(true);
+    expect(DurationCustomRangeSchema.safeParse({ minDurationSec: 1, maxDurationSec: 300 }).success).toBe(true);
+    expect(DurationCustomRangeSchema.safeParse({ minDurationSec: 0, maxDurationSec: 60 }).success).toBe(false);
+    expect(DurationCustomRangeSchema.safeParse({ minDurationSec: 60, maxDurationSec: 60 }).success).toBe(false);
+    expect(DurationCustomRangeSchema.safeParse({ minDurationSec: 90, maxDurationSec: 60 }).success).toBe(false);
+    expect(DurationCustomRangeSchema.safeParse({ minDurationSec: 30, maxDurationSec: 301 }).success).toBe(false);
+
+    expect(validateDurationRange(45, 75)).toBe(true);
+    expect(validateDurationRange(0, 60)).toBe(false);
+    expect(validateDurationRange(75, 45)).toBe(false);
+    expect(validateDurationRange(30, 301)).toBe(false);
   });
 });
