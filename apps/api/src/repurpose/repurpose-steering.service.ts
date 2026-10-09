@@ -1,11 +1,21 @@
 import { HttpStatus, Inject, Injectable, Logger } from "@nestjs/common";
 
 import type { Env } from "@montaj/config";
+import { computeAspectTypographyScaling } from "@montaj/caption-styles";
 import {
+  MULTI_ASPECT_PRESETS,
+  MultiAspectExportPayloadSchema,
+  computeMultiAspectCrop,
   quantizeToFrame,
+  resolveMultiAspectDimensions,
   sliceTranscriptLines,
   sliceTranscriptWords,
   type ClipLayout,
+  type MultiAspectExportResult,
+  type MultiAspectExportTarget,
+  type MultiAspectRatio,
+  type MultiAspectResolution,
+  type MultiAspectVariantOutput,
   type SlicedCaptionLine,
   type SlicedTimedWord,
   type TimedWord,
@@ -36,6 +46,7 @@ import type { RepurposeClipItemView } from "./repurpose-clips.service.js";
 import type {
   AdjustCandidateInput,
   ClipLayoutInput,
+  ExportMultiClipInput,
   TrimClipInput,
 } from "./repurpose-steering.dto.js";
 import type { SnapWord, SnappedBounds } from "./steering.js";
@@ -518,6 +529,153 @@ export class RepurposeSteeringService {
       lines: slicedLines,
       candidate: steeringResult.candidate,
       clip: steeringResult.clip,
+    };
+  }
+
+  /**
+   * Simultaneous Multi-Format Batch Export (Pillar 3 §06):
+   * Exports a clip across multiple requested aspect ratios (9:16, 1:1, 4:5, 16:9),
+   * calculating the dynamic crop rectangle centered on (centerX, centerY) and
+   * adaptive typography scaling for each format.
+   */
+  async exportMultiClip(
+    workspaceId: string,
+    userId: string,
+    projectOrRunId: string,
+    clipOrCandidateId: string,
+    input: ExportMultiClipInput,
+  ): Promise<MultiAspectExportResult> {
+    await this.assertAvailable(workspaceId);
+    const run = await this.resolveRun(workspaceId, projectOrRunId);
+    if (run.status === "cancelled") {
+      throw new AppException(
+        REPURPOSE_CLIP_ERRORS.runNotReady,
+        "This run was stopped, so nothing new can be made from it.",
+        HttpStatus.CONFLICT,
+      );
+    }
+    const { candidate, clipId } = await this.resolveCandidateOrClip(run, clipOrCandidateId);
+
+    const source = await this.prisma.mediaAsset.findFirst({
+      where: { projectId: run.sourceProjectId, role: "primary" },
+      orderBy: { createdAt: "desc" },
+      select: { width: true, height: true, status: true, rawPurgedAt: true },
+    });
+    const refusal = uncuttableSource(source);
+    if (refusal !== null) throw refusal;
+
+    const sourceWidth = source?.width ?? 1920;
+    const sourceHeight = source?.height ?? 1080;
+    const centerX = input.centerX ?? 0.5;
+    const centerY = input.centerY ?? 0.5;
+    const resolvedClipId = clipId ?? candidate.id;
+
+    const resolution: MultiAspectResolution = input.resolution ?? "1080p";
+    const rawAspects = input.aspects ?? input.aspectRatios;
+    let targets: MultiAspectExportTarget[] = [];
+    if (input.targets !== undefined && input.targets.length > 0) {
+      targets = input.targets.map((t) => ({
+        aspect: (t.aspect ?? t.aspectRatio ?? "9:16") as MultiAspectRatio,
+        resolution: (t.resolution ?? resolution) as MultiAspectResolution,
+      }));
+    } else if (rawAspects !== undefined && rawAspects.length > 0) {
+      targets = rawAspects.map((aspect) => ({ aspect, resolution }));
+    } else {
+      targets = [
+        { aspect: "9:16", resolution },
+        { aspect: "1:1", resolution },
+      ];
+    }
+
+    const payloadValidation = MultiAspectExportPayloadSchema.safeParse({
+      clipId: resolvedClipId,
+      targets,
+    });
+    if (!payloadValidation.success) {
+      throw new AppException(
+        "repurpose/export_multi_invalid",
+        payloadValidation.error.message,
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    const batchJobId = `batch_export_${resolvedClipId}_${String(Date.now())}`;
+    const variants: MultiAspectVariantOutput[] = targets.map((target) => {
+      const canvas = resolveMultiAspectDimensions(target.aspect, target.resolution);
+      const crop = computeMultiAspectCrop(sourceWidth, sourceHeight, target.aspect, centerX, centerY);
+      const typography = computeAspectTypographyScaling({
+        aspect: target.aspect,
+        canvasWidth: canvas.width,
+        canvasHeight: canvas.height,
+      });
+      // eslint-disable-next-line security/detect-object-injection -- closed enum key
+      const preset = MULTI_ASPECT_PRESETS[target.aspect];
+      const filename = `clip_${preset.filenameSlug}.mp4`;
+      const downloadUrl = `/api/v1/projects/${encodeURIComponent(run.sourceProjectId)}/clips/${encodeURIComponent(resolvedClipId)}/downloads/${encodeURIComponent(filename)}`;
+
+      return {
+        aspect: target.aspect,
+        aspectRatio: target.aspect,
+        resolution: target.resolution,
+        width: canvas.width,
+        height: canvas.height,
+        crop,
+        captionFontSizePx: typography.fontSizePx,
+        captionYOffsetPx: typography.yOffset,
+        filename,
+        status: "ready",
+        downloadUrl,
+      };
+    });
+
+    const addClipFormatFn = (
+      this.clips as unknown as {
+        addClipFormat?: (
+          ws: string,
+          user: string,
+          rId: string,
+          cId: string,
+          aspect: MultiAspectRatio,
+        ) => Promise<unknown>;
+      }
+    ).addClipFormat;
+
+    const enqueued: string[] = [];
+    for (const target of targets) {
+      if (typeof addClipFormatFn === "function") {
+        await addClipFormatFn.call(
+          this.clips,
+          workspaceId,
+          userId,
+          run.id,
+          resolvedClipId,
+          target.aspect,
+        ).catch(() => null);
+      }
+      enqueued.push(target.aspect);
+    }
+
+    await this.audit.record({
+      action: "repurpose.clip.export_multi_requested",
+      resource: "repurpose_clip",
+      resourceId: resolvedClipId,
+      actorId: userId,
+      workspaceId,
+      data: {
+        runId: run.id,
+        candidateId: candidate.id,
+        targets: targets.map((t) => ({ aspect: t.aspect, resolution: t.resolution })),
+        batchJobId,
+      },
+    });
+
+    return {
+      clipId: resolvedClipId,
+      runId: run.id,
+      candidateId: candidate.id,
+      batchJobId,
+      variants,
+      enqueued,
     };
   }
 

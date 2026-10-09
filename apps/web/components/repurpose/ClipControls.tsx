@@ -30,6 +30,7 @@ import {
 } from "@montaj/api-client";
 import { Badge, Button } from "@montaj/ui";
 
+import { CanvasToolbar } from "@/components/editor/canvas-toolbar";
 import { MultiSpeakerGridSwitcher } from "@/components/editor/multispeaker-grid-switcher";
 import { TimelineTrimmer } from "@/components/editor/timeline-trimmer";
 import { STEERING_COPY } from "@/components/repurpose/copy";
@@ -185,6 +186,14 @@ export function ClipControls({
             endSec={draft.endMs / 1000}
             busy={adjust.isPending}
             onChange={() => {
+              setLayoutChanged(true);
+            }}
+          />
+          <CanvasToolbar
+            clipId={clip?.id ?? candidate.id}
+            projectId={runId}
+            busy={adjust.isPending}
+            onAspectChange={() => {
               setLayoutChanged(true);
             }}
           />

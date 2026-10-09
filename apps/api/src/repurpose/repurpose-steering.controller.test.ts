@@ -7,6 +7,7 @@ import { RepurposeSteeringController } from "./repurpose-steering.controller.js"
 import {
   adjustCandidateSchema,
   clipLayoutSchema,
+  exportMultiClipSchema,
   trimClipSchema,
 } from "./repurpose-steering.dto.js";
 import { RATE_LIMIT_KEY, ROLES_KEY } from "../common/guards/index.js";
@@ -180,6 +181,47 @@ describe("RepurposeSteeringController", () => {
     ).toBe(true);
     expect(trimClipSchema.safeParse({ startMs: 12400, endMs: 45800 }).success).toBe(true);
     expect(trimClipSchema.safeParse({}).success).toBe(false);
+  });
+
+  it("mounts POST /api/v1/projects/:id/clips/:clipId/export-multi for Simultaneous Multi-Format Batch Export", async () => {
+    const steering = {
+      exportMultiClip: vi.fn(async () => ({
+        clipId: CLIP,
+        variants: [
+          { aspectRatio: "9:16", resolution: "1080p", width: 1080, height: 1920 },
+          { aspectRatio: "1:1", resolution: "1080p", width: 1080, height: 1080 },
+        ],
+      })),
+    };
+    const controller = new RepurposeSteeringController(steering as never);
+    const clipTrim = new ClipTrimController(steering as never);
+
+    expect(route("exportMulti")).toMatchObject({
+      path: ":runId/clips/:clipId/export-multi",
+      method: RequestMethod.POST,
+      httpCode: HttpStatus.OK,
+      roles: ["editor"],
+      rateLimits: [CLIP_RATE_LIMITS.mutate],
+    });
+
+    const payload = {
+      targets: [
+        { aspectRatio: "9:16" as const, resolution: "1080p" as const },
+        { aspectRatio: "1:1" as const, resolution: "1080p" as const },
+        { aspectRatio: "4:5" as const, resolution: "1080p" as const },
+        { aspectRatio: "16:9" as const, resolution: "1080p" as const },
+      ],
+    };
+
+    await controller.exportMulti(WS, USER, RUN, CLIP, payload);
+    await clipTrim.exportMultiV1(WS, USER, RUN, CLIP, payload);
+    await clipTrim.exportMultiProjectClip(WS, USER, RUN, CLIP, payload);
+    expect(steering.exportMultiClip).toHaveBeenCalledTimes(3);
+
+    expect(exportMultiClipSchema.safeParse(payload).success).toBe(true);
+    expect(exportMultiClipSchema.safeParse({ aspectRatios: ["9:16", "1:1", "4:5", "16:9"] }).success).toBe(true);
+    expect(exportMultiClipSchema.safeParse({ targets: [] }).success).toBe(false);
+    expect(exportMultiClipSchema.safeParse({}).success).toBe(false);
   });
 });
 

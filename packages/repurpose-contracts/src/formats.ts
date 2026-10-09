@@ -592,3 +592,225 @@ export const BlurredFitConfigSchema = z.strictObject({
   foregroundY: z.number().nonnegative().max(1920).optional(),
   captionZoneY: z.number().nonnegative().max(1920).optional(),
 });
+
+/**
+ * Multi-Aspect Ratio Engine (9:16, 1:1, 4:5, 16:9) & Simultaneous Multi-Format Batch Export (Pillar 3 §06).
+ */
+export const MULTI_ASPECT_RATIOS = ["9:16", "1:1", "4:5", "16:9"] as const;
+export type MultiAspectRatio = (typeof MULTI_ASPECT_RATIOS)[number];
+
+export const MULTI_ASPECT_RESOLUTIONS = ["720p", "1080p", "4k"] as const;
+export type MultiAspectResolution = (typeof MULTI_ASPECT_RESOLUTIONS)[number];
+
+export interface MultiAspectExportTarget {
+  readonly aspect: "9:16" | "1:1" | "4:5" | "16:9";
+  readonly resolution: "720p" | "1080p" | "4k";
+}
+
+export interface MultiAspectExportPayload {
+  readonly clipId: string;
+  readonly targets: Array<{
+    readonly aspect: "9:16" | "1:1" | "4:5" | "16:9";
+    readonly resolution: "720p" | "1080p" | "4k";
+  }>;
+}
+
+export const MULTI_ASPECT_RATIO_NUMBERS: Readonly<
+  Record<MultiAspectRatio, { readonly width: number; readonly height: number }>
+> = Object.freeze({
+  "9:16": { width: 9, height: 16 },
+  "1:1": { width: 1, height: 1 },
+  "4:5": { width: 4, height: 5 },
+  "16:9": { width: 16, height: 9 },
+});
+
+export const MULTI_ASPECT_DIMENSIONS: Readonly<
+  Record<
+    MultiAspectRatio,
+    Readonly<Record<MultiAspectResolution, { readonly width: number; readonly height: number }>>
+  >
+> = Object.freeze({
+  "9:16": Object.freeze({
+    "720p": Object.freeze({ width: 720, height: 1280 }),
+    "1080p": Object.freeze({ width: 1080, height: 1920 }),
+    "4k": Object.freeze({ width: 2160, height: 3840 }),
+  }),
+  "1:1": Object.freeze({
+    "720p": Object.freeze({ width: 720, height: 720 }),
+    "1080p": Object.freeze({ width: 1080, height: 1080 }),
+    "4k": Object.freeze({ width: 2160, height: 2160 }),
+  }),
+  "4:5": Object.freeze({
+    "720p": Object.freeze({ width: 720, height: 900 }),
+    "1080p": Object.freeze({ width: 1080, height: 1350 }),
+    "4k": Object.freeze({ width: 2160, height: 2700 }),
+  }),
+  "16:9": Object.freeze({
+    "720p": Object.freeze({ width: 1280, height: 720 }),
+    "1080p": Object.freeze({ width: 1920, height: 1080 }),
+    "4k": Object.freeze({ width: 3840, height: 2160 }),
+  }),
+});
+
+export interface MultiAspectPresetMetadata {
+  readonly aspect: MultiAspectRatio;
+  readonly label: string;
+  readonly shortLabel: string;
+  readonly platformSummary: string;
+  readonly filenameSlug: string;
+  readonly baseFontSizePx: number;
+  readonly defaultWidth: number;
+  readonly defaultHeight: number;
+}
+
+export const MULTI_ASPECT_PRESETS: Readonly<Record<MultiAspectRatio, MultiAspectPresetMetadata>> =
+  Object.freeze({
+    "9:16": Object.freeze({
+      aspect: "9:16",
+      label: "Vertical 9:16",
+      shortLabel: "9:16",
+      platformSummary: "TikTok · Instagram Reels · YouTube Shorts",
+      filenameSlug: "reels_9x16",
+      baseFontSizePx: 54,
+      defaultWidth: 1080,
+      defaultHeight: 1920,
+    }),
+    "1:1": Object.freeze({
+      aspect: "1:1",
+      label: "Square 1:1",
+      shortLabel: "1:1",
+      platformSummary: "LinkedIn Feed · Instagram Square · X",
+      filenameSlug: "linkedin_1x1",
+      baseFontSizePx: 42,
+      defaultWidth: 1080,
+      defaultHeight: 1080,
+    }),
+    "4:5": Object.freeze({
+      aspect: "4:5",
+      label: "Portrait 4:5",
+      shortLabel: "4:5",
+      platformSummary: "Instagram Feed · Facebook Home Feed",
+      filenameSlug: "feed_4x5",
+      baseFontSizePx: 48,
+      defaultWidth: 1080,
+      defaultHeight: 1350,
+    }),
+    "16:9": Object.freeze({
+      aspect: "16:9",
+      label: "Landscape 16:9",
+      shortLabel: "16:9",
+      platformSummary: "YouTube · Webinar Recaps · Desktop",
+      filenameSlug: "youtube_16x9",
+      baseFontSizePx: 44,
+      defaultWidth: 1920,
+      defaultHeight: 1080,
+    }),
+  });
+
+export function resolveMultiAspectDimensions(
+  aspect: MultiAspectRatio,
+  resolution: MultiAspectResolution = "1080p",
+): { readonly width: number; readonly height: number } {
+  // eslint-disable-next-line security/detect-object-injection -- closed enum keys
+  return MULTI_ASPECT_DIMENSIONS[aspect][resolution];
+}
+
+/**
+ * Compute target crop rectangle for any aspect ratio (9:16, 1:1, 4:5, 16:9)
+ * centered on normalized face coordinates (cx, cy) in [0.0, 1.0] x [0.0, 1.0],
+ * clamped to source frame boundaries and aligned to even pixel boundaries (Pillar 3 §06 §2.1):
+ *   crop_w = min(W_src, H_src * W_T / H_T)
+ *   crop_h = min(H_src, W_src * H_T / W_T)
+ */
+export function computeMultiAspectCrop(
+  sourceWidth: number,
+  sourceHeight: number,
+  aspect: MultiAspectRatio,
+  centerX = 0.5,
+  centerY = 0.5,
+): { readonly x: number; readonly y: number; readonly width: number; readonly height: number } {
+  const safeW = Math.max(2, Math.floor(sourceWidth / 2) * 2);
+  const safeH = Math.max(2, Math.floor(sourceHeight / 2) * 2);
+  // eslint-disable-next-line security/detect-object-injection -- closed enum key
+  const ratio = MULTI_ASPECT_RATIO_NUMBERS[aspect];
+  const rawCropW = Math.min(safeW, (safeH * ratio.width) / ratio.height);
+  const rawCropH = Math.min(safeH, (safeW * ratio.height) / ratio.width);
+  const cropW = Math.max(2, Math.min(safeW, Math.round(rawCropW / 2) * 2));
+  const cropH = Math.max(2, Math.min(safeH, Math.round(rawCropH / 2) * 2));
+
+  const cx = Number.isFinite(centerX) ? Math.min(1, Math.max(0, centerX)) : 0.5;
+  const cy = Number.isFinite(centerY) ? Math.min(1, Math.max(0, centerY)) : 0.5;
+
+  const rawX = Math.round(cx * safeW - cropW / 2);
+  const rawY = Math.round(cy * safeH - cropH / 2);
+  const clampedX = Math.min(Math.max(0, rawX), Math.max(0, safeW - cropW));
+  const clampedY = Math.min(Math.max(0, rawY), Math.max(0, safeH - cropH));
+
+  return {
+    x: Math.floor(clampedX / 2) * 2,
+    y: Math.floor(clampedY / 2) * 2,
+    width: cropW,
+    height: cropH,
+  };
+}
+
+export const MultiAspectRatioSchema = z.enum(MULTI_ASPECT_RATIOS);
+export const MultiAspectResolutionSchema = z.enum(MULTI_ASPECT_RESOLUTIONS);
+
+export const MultiAspectExportTargetSchema = z.strictObject({
+  aspect: MultiAspectRatioSchema,
+  resolution: MultiAspectResolutionSchema,
+});
+
+export const MultiAspectExportPayloadSchema = z
+  .strictObject({
+    clipId: z.string().trim().min(1).max(120),
+    targets: z.array(MultiAspectExportTargetSchema).min(1).max(4),
+  })
+  .superRefine((value, context) => {
+    const seen = new Set<string>();
+    for (let index = 0; index < value.targets.length; index += 1) {
+      // eslint-disable-next-line security/detect-object-injection -- bounded numeric index
+      const target = value.targets[index];
+      if (target === undefined) continue;
+      const key = `${target.aspect}:${target.resolution}`;
+      if (seen.has(key)) {
+        context.addIssue({
+          code: "custom",
+          path: ["targets", index, "aspect"],
+          message: `Duplicate export target ${key}.`,
+        });
+      }
+      seen.add(key);
+    }
+  });
+
+export interface MultiAspectVariantOutput {
+  readonly aspect: MultiAspectRatio;
+  readonly aspectRatio?: MultiAspectRatio;
+  readonly resolution: MultiAspectResolution;
+  readonly width: number;
+  readonly height: number;
+  readonly crop: {
+    readonly x: number;
+    readonly y: number;
+    readonly width: number;
+    readonly height: number;
+  };
+  readonly captionFontSizePx: number;
+  readonly captionYOffsetPx: number;
+  readonly filename: string;
+  readonly status: "ready" | "rendering" | "preparing";
+  readonly downloadUrl: string;
+}
+
+export interface MultiAspectExportResult {
+  readonly clipId: string;
+  readonly runId?: string;
+  readonly candidateId: string;
+  readonly batchJobId: string;
+  readonly variants: readonly MultiAspectVariantOutput[];
+  readonly enqueued?: readonly string[];
+}
+
+

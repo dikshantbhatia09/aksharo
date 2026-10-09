@@ -15,13 +15,16 @@ import { CLIP_RATE_LIMITS } from "./repurpose-clips.dto.js";
 import {
   AdjustCandidateDto,
   ClipLayoutDto,
+  ExportMultiClipDto,
   TrimClipDto,
   adjustCandidateSchema,
   clipLayoutSchema,
+  exportMultiClipSchema,
   trimClipSchema,
 } from "./repurpose-steering.dto.js";
 import { RepurposeSteeringService } from "./repurpose-steering.service.js";
 import { zodBody } from "../auth/dto/openapi.js";
+import type { MultiAspectExportResult } from "@montaj/repurpose-contracts";
 import {
   CurrentUser,
   CurrentWorkspace,
@@ -168,4 +171,27 @@ export class RepurposeSteeringController {
   ): Promise<ClipTrimResult> {
     return this.steering.trimClip(workspaceId, userId, runId, clipId, body);
   }
+
+  @Post(":runId/clips/:clipId/export-multi")
+  @Roles("editor")
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(RateLimitGuard)
+  @RateLimit(CLIP_RATE_LIMITS.mutate)
+  @ApiOperation({
+    summary: "Simultaneous Multi-Format Batch Export (9:16, 1:1, 4:5, 16:9)",
+    description:
+      "Renders and returns multi-aspect ratio export variants for omnichannel distribution with adaptive typography scaling.",
+    operationId: "exportMultiRepurposeClip",
+  })
+  @ApiBody(zodBody(exportMultiClipSchema))
+  async exportMulti(
+    @CurrentWorkspace() workspaceId: string,
+    @CurrentUser("userId") userId: string,
+    @Param("runId") runId: string,
+    @Param("clipId") clipId: string,
+    @Body() body: ExportMultiClipDto,
+  ): Promise<MultiAspectExportResult> {
+    return this.steering.exportMultiClip(workspaceId, userId, runId, clipId, body);
+  }
 }
+

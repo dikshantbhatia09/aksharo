@@ -247,6 +247,11 @@ function harness(overrides: { run?: Row; media?: Row } = {}) {
   const clips = {
     createClip: vi.fn(async () => ({ id: CLIP_A, candidateId: CAND_A, state: "cutting" })),
     reconcileClips: vi.fn(async (): Promise<{ enqueued: string[] }> => ({ enqueued: [] })),
+    addClipFormat: vi.fn(async (_ws: string, _user: string, _run: string, clipId: string, aspect: string) => ({
+      id: `VAR-${aspect}`,
+      clipId,
+      aspect,
+    })),
     /** What a cut would decide under a choice: here, two people are found. */
     layoutFor: vi.fn(async (_run: unknown, _candidate: unknown, choice: string) =>
       choice === "single" ? "single" : "stacked",
@@ -790,4 +795,90 @@ describe("trimClip (Pillar 2 §08: Manual Timestamp Controls)", () => {
     expect(pastVideo.code).toBe(REPURPOSE_CLIP_ERRORS.boundsInvalid);
   });
 });
+
+describe("exportMultiClip (Pillar 3 §06: Multi-Aspect Ratio Engine)", () => {
+  it("enqueues batch export variants across 9:16, 1:1, 4:5, and 16:9 aspect ratios", async () => {
+    const h = harness();
+    withReadyClip(h);
+
+    const result = await h.service.exportMultiClip(WS, USER, RUN, CLIP_A, {
+      targets: [
+        { aspectRatio: "9:16", resolution: "1080p" },
+        { aspectRatio: "1:1", resolution: "1080p" },
+        { aspectRatio: "4:5", resolution: "1080p" },
+        { aspectRatio: "16:9", resolution: "1080p" },
+      ],
+    });
+
+    expect(result.clipId).toBe(CLIP_A);
+    expect(result.runId).toBe(RUN);
+    expect(result.variants).toHaveLength(4);
+    expect(result.enqueued).toEqual(["9:16", "1:1", "4:5", "16:9"]);
+
+    const v916 = result.variants.find((v) => v.aspectRatio === "9:16");
+    expect(v916).toMatchObject({
+      aspectRatio: "9:16",
+      resolution: "1080p",
+      width: 1080,
+      height: 1920,
+    });
+    expect(v916?.crop).toBeDefined();
+
+    const v11 = result.variants.find((v) => v.aspectRatio === "1:1");
+    expect(v11).toMatchObject({
+      aspectRatio: "1:1",
+      resolution: "1080p",
+      width: 1080,
+      height: 1080,
+    });
+
+    const v45 = result.variants.find((v) => v.aspectRatio === "4:5");
+    expect(v45).toMatchObject({
+      aspectRatio: "4:5",
+      resolution: "1080p",
+      width: 1080,
+      height: 1350,
+    });
+
+    const v169 = result.variants.find((v) => v.aspectRatio === "16:9");
+    expect(v169).toMatchObject({
+      aspectRatio: "16:9",
+      resolution: "1080p",
+      width: 1920,
+      height: 1080,
+    });
+
+    expect(h.clips.addClipFormat).toHaveBeenCalledTimes(4);
+    expect(h.audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "repurpose.clip.export_multi_requested",
+        resourceId: CLIP_A,
+      }),
+    );
+  });
+
+  it("supports simplified aspectRatios input shorthand", async () => {
+    const h = harness();
+    withReadyClip(h);
+
+    const result = await h.service.exportMultiClip(WS, USER, RUN, CLIP_A, {
+      aspectRatios: ["9:16", "1:1"],
+    });
+
+    expect(result.variants).toHaveLength(2);
+    expect(result.enqueued).toEqual(["9:16", "1:1"]);
+    expect(h.clips.addClipFormat).toHaveBeenCalledTimes(2);
+  });
+
+  it("rejects request if clip does not exist", async () => {
+    const h = harness();
+    const missing = await refusal(
+      h.service.exportMultiClip(WS, USER, RUN, "01JCC11PZ00000000000000000", {
+        aspectRatios: ["9:16"],
+      }),
+    );
+    expect(missing.httpStatus).toBe(404);
+  });
+});
+
 

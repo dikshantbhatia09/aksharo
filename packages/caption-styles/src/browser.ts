@@ -30,3 +30,5 @@
 export * from "./schema.js";
 export * from "./naming.js";
 export * from "./catalogue.js";
+export * from "./scaling.js";
+

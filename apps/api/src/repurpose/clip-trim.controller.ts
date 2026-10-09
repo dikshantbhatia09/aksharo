@@ -1,8 +1,15 @@
-import { Body, Controller, Param, Patch, UseGuards } from "@nestjs/common";
+import { Body, Controller, HttpCode, HttpStatus, Param, Patch, Post, UseGuards } from "@nestjs/common";
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiTags } from "@nestjs/swagger";
 
+import type { MultiAspectExportResult } from "@montaj/repurpose-contracts";
+
 import { CLIP_RATE_LIMITS } from "./repurpose-clips.dto.js";
-import { TrimClipDto, trimClipSchema } from "./repurpose-steering.dto.js";
+import {
+  ExportMultiClipDto,
+  TrimClipDto,
+  exportMultiClipSchema,
+  trimClipSchema,
+} from "./repurpose-steering.dto.js";
 import { RepurposeSteeringService } from "./repurpose-steering.service.js";
 import { zodBody } from "../auth/dto/openapi.js";
 import {
@@ -92,5 +99,48 @@ export class ClipTrimController {
   ): Promise<ClipTrimResult> {
     return this.steering.trimClip(workspaceId, userId, id, clipId, body);
   }
+
+  @Post("api/v1/projects/:id/clips/:clipId/export-multi")
+  @Roles("editor")
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(RateLimitGuard)
+  @RateLimit(CLIP_RATE_LIMITS.mutate)
+  @ApiOperation({
+    summary: "Simultaneous Multi-Format Batch Export (9:16, 1:1, 4:5, 16:9)",
+    description:
+      "Renders and returns multi-aspect ratio export variants for omnichannel distribution with adaptive typography scaling.",
+    operationId: "exportMultiClipV1",
+  })
+  @ApiBody(zodBody(exportMultiClipSchema))
+  async exportMultiV1(
+    @CurrentWorkspace() workspaceId: string,
+    @CurrentUser("userId") userId: string,
+    @Param("id") id: string,
+    @Param("clipId") clipId: string,
+    @Body() body: ExportMultiClipDto,
+  ): Promise<MultiAspectExportResult> {
+    return this.steering.exportMultiClip(workspaceId, userId, id, clipId, body);
+  }
+
+  @Post("projects/:id/clips/:clipId/export-multi")
+  @Roles("editor")
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(RateLimitGuard)
+  @RateLimit(CLIP_RATE_LIMITS.mutate)
+  @ApiOperation({
+    summary: "Simultaneous Multi-Format Batch Export (9:16, 1:1, 4:5, 16:9)",
+    operationId: "exportMultiProjectClip",
+  })
+  @ApiBody(zodBody(exportMultiClipSchema))
+  async exportMultiProjectClip(
+    @CurrentWorkspace() workspaceId: string,
+    @CurrentUser("userId") userId: string,
+    @Param("id") id: string,
+    @Param("clipId") clipId: string,
+    @Body() body: ExportMultiClipDto,
+  ): Promise<MultiAspectExportResult> {
+    return this.steering.exportMultiClip(workspaceId, userId, id, clipId, body);
+  }
 }
+
 

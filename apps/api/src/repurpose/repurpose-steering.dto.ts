@@ -1,5 +1,11 @@
 import { z } from "zod";
 
+import {
+  MULTI_ASPECT_RATIOS,
+  MULTI_ASPECT_RESOLUTIONS,
+  MultiAspectExportTargetSchema,
+} from "@montaj/repurpose-contracts";
+
 import { CLIP_LAYOUT_CHOICES } from "./layout.js";
 import { zodDto } from "../common/index.js";
 
@@ -51,6 +57,44 @@ export const trimClipSchema = z
 export class TrimClipDto extends zodDto(trimClipSchema) {}
 export type TrimClipInput = z.infer<typeof trimClipSchema>;
 
+export const multiAspectTargetInputSchema = z
+  .object({
+    aspect: z.enum(MULTI_ASPECT_RATIOS).optional(),
+    aspectRatio: z.enum(MULTI_ASPECT_RATIOS).optional(),
+    resolution: z.enum(MULTI_ASPECT_RESOLUTIONS).default("1080p"),
+  })
+  .refine(
+    (target) => target.aspect !== undefined || target.aspectRatio !== undefined,
+    { message: "Target must specify 'aspect' or 'aspectRatio'." },
+  );
+
+/**
+ * `POST /api/v1/projects/{id}/clips/{clipId}/export-multi` and
+ * `POST /repurpose/runs/{runId}/clips/{clipId}/export-multi` (Pillar 3 §06):
+ * Simultaneous Multi-Format Batch Export across 9:16, 1:1, 4:5, and 16:9.
+ */
+export const exportMultiClipSchema = z
+  .object({
+    clipId: z.string().trim().min(1).max(120).optional(),
+    aspects: z.array(z.enum(MULTI_ASPECT_RATIOS)).min(1).max(4).optional(),
+    aspectRatios: z.array(z.enum(MULTI_ASPECT_RATIOS)).min(1).max(4).optional(),
+    resolution: z.enum(MULTI_ASPECT_RESOLUTIONS).optional(),
+    targets: z.array(multiAspectTargetInputSchema).min(1).max(4).optional(),
+    centerX: z.number().min(0).max(1).optional(),
+    centerY: z.number().min(0).max(1).optional(),
+  })
+  .refine(
+    (val) =>
+      (val.aspects !== undefined && val.aspects.length > 0) ||
+      (val.aspectRatios !== undefined && val.aspectRatios.length > 0) ||
+      (val.targets !== undefined && val.targets.length > 0),
+    {
+      message: "Provide at least one target aspect ratio in `aspects`, `aspectRatios`, or `targets`.",
+    },
+  );
+export class ExportMultiClipDto extends zodDto(exportMultiClipSchema) {}
+export type ExportMultiClipInput = z.infer<typeof exportMultiClipSchema>;
+
 /**
  * `PUT /repurpose/runs/{id}/clips/{clipId}/layout` (two-speaker layouts,
  * 2026-10-01): "Auto", "One speaker" or "Both speakers" for one clip.
@@ -72,3 +116,4 @@ export const REPURPOSE_STEERING_ERRORS = {
   /** The moment was removed: bring it back before changing its times. */
   candidateRemoved: "repurpose/candidate_removed",
 } as const;
+

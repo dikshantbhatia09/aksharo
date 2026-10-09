@@ -1130,6 +1130,220 @@ export function directorCutFilter(
   ].join(";");
 }
 
+/**
+ * Multi-Aspect Ratio Engine (9:16, 1:1, 4:5, 16:9) & Simultaneous Multi-Format Batch Export (Pillar 3 §06).
+ */
+export type MultiAspectResolutionTier = "720p" | "1080p" | "4k";
+
+export const ASPECT_TYPOGRAPHY_BASE_PX: Readonly<Record<ClipAspect, number>> = Object.freeze({
+  "9:16": 54,
+  "4:5": 48,
+  "1:1": 42,
+  "16:9": 44,
+});
+
+export const ASPECT_SAFE_Y_OFFSET_PX: Readonly<Record<ClipAspect, number>> = Object.freeze({
+  "9:16": 422,
+  "4:5": 270,
+  "1:1": 194,
+  "16:9": 162,
+});
+
+export const ASPECT_TARGET_RESOLUTIONS: Readonly<
+  Record<
+    ClipAspect,
+    Readonly<Record<MultiAspectResolutionTier, { readonly width: number; readonly height: number }>>
+  >
+> = Object.freeze({
+  "9:16": Object.freeze({
+    "720p": Object.freeze({ width: 720, height: 1280 }),
+    "1080p": Object.freeze({ width: 1080, height: 1920 }),
+    "4k": Object.freeze({ width: 2160, height: 3840 }),
+  }),
+  "1:1": Object.freeze({
+    "720p": Object.freeze({ width: 720, height: 720 }),
+    "1080p": Object.freeze({ width: 1080, height: 1080 }),
+    "4k": Object.freeze({ width: 2160, height: 2160 }),
+  }),
+  "4:5": Object.freeze({
+    "720p": Object.freeze({ width: 720, height: 900 }),
+    "1080p": Object.freeze({ width: 1080, height: 1350 }),
+    "4k": Object.freeze({ width: 2160, height: 2700 }),
+  }),
+  "16:9": Object.freeze({
+    "720p": Object.freeze({ width: 1280, height: 720 }),
+    "1080p": Object.freeze({ width: 1920, height: 1080 }),
+    "4k": Object.freeze({ width: 3840, height: 2160 }),
+  }),
+});
+
+/**
+ * Compute crop rectangle in source pixels for target aspect ratio `(W_T, H_T)`,
+ * centered on normalized face coordinates `(centerX, centerY)` in `[0.0, 1.0] x [0.0, 1.0]`
+ * and clamped to frame boundaries (Pillar 3 §06 §2.1):
+ *   crop_w = min(W_src, H_src * W_T / H_T)
+ *   crop_h = min(H_src, W_src * H_T / W_T)
+ */
+export function computeNormalizedAspectCrop(
+  source: { readonly width: number; readonly height: number },
+  aspect: ClipAspect,
+  center: { readonly centerX?: number; readonly centerY?: number } = {},
+): ClipFrame["crop"] | null {
+  const frame = clipFrame(source, {
+    aspect,
+    ...(center.centerX === undefined ? {} : { centerX: center.centerX }),
+    ...(center.centerY === undefined ? {} : { centerY: center.centerY }),
+  });
+  return frame === null ? null : frame.crop;
+}
+
+export interface MultiAspectVariantComposition {
+  readonly aspect: ClipAspect;
+  readonly frame: ClipFrame;
+  readonly targetCanvas: { readonly width: number; readonly height: number };
+  readonly captionFontSizePx: number;
+  readonly captionYOffsetPx: number;
+}
+
+/**
+ * Dynamically re-compose a clip across multiple aspect ratios (`9:16`, `1:1`, `4:5`, `16:9`)
+ * in a single pass ($\le 10\text{ ms}$ SLA, Pillar 3 §06 §1 & §2.1).
+ */
+export function recomposeMultiAspectFrames(
+  source: { readonly width: number; readonly height: number },
+  aspects: readonly ClipAspect[] = ["9:16", "1:1", "4:5", "16:9"],
+  options: Omit<ClipFrameOptions, "aspect"> & {
+    readonly resolution?: MultiAspectResolutionTier;
+  } = {},
+): ReadonlyArray<MultiAspectVariantComposition> {
+  const resolution: MultiAspectResolutionTier = options.resolution ?? "1080p";
+  const results: MultiAspectVariantComposition[] = [];
+
+  for (const aspect of aspects) {
+    const frame = clipFrame(source, { ...options, aspect });
+    if (frame === null) continue;
+    // eslint-disable-next-line security/detect-object-injection -- closed enum key
+    const targetCanvas = ASPECT_TARGET_RESOLUTIONS[aspect][resolution];
+    // eslint-disable-next-line security/detect-object-injection -- closed enum key
+    const refCanvas = ASPECT_TARGET_RESOLUTIONS[aspect]["1080p"];
+    const widthScale = targetCanvas.width / refCanvas.width;
+    const heightScale = targetCanvas.height / refCanvas.height;
+    // eslint-disable-next-line security/detect-object-injection -- closed enum key
+    const captionFontSizePx = Math.max(12, Math.round(ASPECT_TYPOGRAPHY_BASE_PX[aspect] * widthScale));
+    // eslint-disable-next-line security/detect-object-injection -- closed enum key
+    const captionYOffsetPx = Math.max(16, Math.round(ASPECT_SAFE_Y_OFFSET_PX[aspect] * heightScale));
+
+    results.push({
+      aspect,
+      frame,
+      targetCanvas,
+      captionFontSizePx,
+      captionYOffsetPx,
+    });
+  }
+
+  return results;
+}
+
+export interface MultiAspectBatchTargetInput {
+  readonly aspect: ClipAspect;
+  readonly resolution?: MultiAspectResolutionTier;
+  readonly centerX?: number;
+  readonly centerY?: number;
+}
+
+export interface MultiAspectBatchStreamPlan {
+  readonly aspect: ClipAspect;
+  readonly resolution: MultiAspectResolutionTier;
+  readonly outputLabel: string;
+  readonly width: number;
+  readonly height: number;
+  readonly crop: ClipFrame["crop"];
+  readonly captionFontSizePx: number;
+  readonly captionYOffsetPx: number;
+}
+
+export interface MultiAspectBatchFiltergraphPlan {
+  readonly filterComplex: string;
+  readonly streams: ReadonlyArray<MultiAspectBatchStreamPlan>;
+}
+
+/**
+ * Build a simultaneous multi-format batch export FFmpeg `-filter_complex` graph
+ * that decodes the source stream once, splits it (`split=N`), and crops/scales
+ * all requested aspect ratios (`9:16`, `1:1`, `4:5`, `16:9`) in parallel (Pillar 3 §06 §4).
+ */
+export function buildMultiAspectBatchFiltergraph(
+  source: { readonly width: number; readonly height: number },
+  targets: readonly MultiAspectBatchTargetInput[],
+): MultiAspectBatchFiltergraphPlan | null {
+  if (!Number.isFinite(source.width) || !Number.isFinite(source.height) || source.width < 2 || source.height < 2) {
+    return null;
+  }
+  if (targets.length === 0) return null;
+
+  const streams: MultiAspectBatchStreamPlan[] = [];
+  const splitLabels: string[] = [];
+  const branchFilters: string[] = [];
+
+  for (let i = 0; i < targets.length; i += 1) {
+    // eslint-disable-next-line security/detect-object-injection -- bounded numeric index
+    const target = targets[i];
+    if (target === undefined) continue;
+    const resolution: MultiAspectResolutionTier = target.resolution ?? "1080p";
+    const frame = clipFrame(source, {
+      aspect: target.aspect,
+      ...(target.centerX === undefined ? {} : { centerX: target.centerX }),
+      ...(target.centerY === undefined ? {} : { centerY: target.centerY }),
+    });
+    if (frame === null) continue;
+
+    // eslint-disable-next-line security/detect-object-injection -- closed enum keys
+    const canvas = ASPECT_TARGET_RESOLUTIONS[target.aspect][resolution];
+    // eslint-disable-next-line security/detect-object-injection -- closed enum keys
+    const refCanvas = ASPECT_TARGET_RESOLUTIONS[target.aspect]["1080p"];
+    const widthScale = canvas.width / refCanvas.width;
+    const heightScale = canvas.height / refCanvas.height;
+    // eslint-disable-next-line security/detect-object-injection -- closed enum key
+    const captionFontSizePx = Math.max(12, Math.round(ASPECT_TYPOGRAPHY_BASE_PX[target.aspect] * widthScale));
+    // eslint-disable-next-line security/detect-object-injection -- closed enum key
+    const captionYOffsetPx = Math.max(16, Math.round(ASPECT_SAFE_Y_OFFSET_PX[target.aspect] * heightScale));
+
+    const slug = target.aspect.replace(":", "x");
+    const inLabel = `in_${String(i)}_${slug}`;
+    const outLabel = `out_${String(i)}_${slug}`;
+    splitLabels.push(`[${inLabel}]`);
+
+    const { crop } = frame;
+    branchFilters.push(
+      `[${inLabel}]crop=${String(crop.width)}:${String(crop.height)}:${String(crop.x)}:${String(crop.y)},scale=${String(canvas.width)}:${String(canvas.height)}:flags=bicubic,setsar=1,format=yuv420p[${outLabel}]`,
+    );
+
+    streams.push({
+      aspect: target.aspect,
+      resolution,
+      outputLabel: outLabel,
+      width: canvas.width,
+      height: canvas.height,
+      crop,
+      captionFontSizePx,
+      captionYOffsetPx,
+    });
+  }
+
+  if (streams.length === 0) return null;
+
+  const head =
+    streams.length === 1
+      ? `scale=${String(floorEven(source.width))}:${String(floorEven(source.height))}${splitLabels[0] ?? "[in_0]"}`
+      : `scale=${String(floorEven(source.width))}:${String(floorEven(source.height))},split=${String(streams.length)}${splitLabels.join("")}`;
+
+  return {
+    filterComplex: [head, ...branchFilters].join(";"),
+    streams,
+  };
+}
+
 /** Round to an even number ≥ 2: H.264 4:2:0 cannot encode odd dimensions. */
 function even(value: number): number {
   return Math.max(2, Math.round(value / 2) * 2);
@@ -1143,5 +1357,6 @@ function floorEven(value: number): number {
 function clamp(value: number, low: number, high: number): number {
   return Math.min(high, Math.max(low, value));
 }
+
 
 

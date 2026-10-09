@@ -9,11 +9,17 @@ import {
   DirectorEdlSchema,
   LayoutCutSchema,
   LayoutOverrideSchema,
+  MULTI_ASPECT_PRESETS,
+  MULTI_ASPECT_RATIOS,
+  MultiAspectExportPayloadSchema,
   SplitScreenConfigSchema,
   VIDEO_LAYOUT_MODES,
   VideoLayoutModeSchema,
+  computeMultiAspectCrop,
+  resolveMultiAspectDimensions,
   type BlurredFitConfig,
   type LayoutCut,
+  type MultiAspectExportPayload,
   type SplitScreenConfig,
   type VideoLayoutMode,
 } from "./formats.js";
@@ -779,3 +785,61 @@ describe("VideoLayoutMode & BlurredFitConfig (Pillar 3 §05 Blurred Background C
     expect(withTrajectory.success).toBe(false);
   });
 });
+
+describe("Multi-Aspect Ratio Engine contracts (Pillar 3 §06)", () => {
+  it("validates MultiAspectExportPayload for simultaneous multi-format batch export", () => {
+    const payload: MultiAspectExportPayload = {
+      clipId: "01ARZ3NDEKTSV4RRFFQ69G5FCL",
+      targets: [
+        { aspect: "9:16", resolution: "1080p" },
+        { aspect: "1:1", resolution: "1080p" },
+        { aspect: "4:5", resolution: "1080p" },
+        { aspect: "16:9", resolution: "4k" },
+      ],
+    };
+    const parsed = MultiAspectExportPayloadSchema.safeParse(payload);
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data).toEqual(payload);
+    }
+
+    // Rejects duplicate aspect+resolution targets
+    const duplicate = MultiAspectExportPayloadSchema.safeParse({
+      clipId: "01ARZ3NDEKTSV4RRFFQ69G5FCL",
+      targets: [
+        { aspect: "9:16", resolution: "1080p" },
+        { aspect: "9:16", resolution: "1080p" },
+      ],
+    });
+    expect(duplicate.success).toBe(false);
+  });
+
+  it("resolves target dimensions and base typography font sizes across 9:16, 1:1, 4:5, and 16:9", () => {
+    expect(MULTI_ASPECT_RATIOS).toEqual(["9:16", "1:1", "4:5", "16:9"]);
+    expect(resolveMultiAspectDimensions("9:16", "1080p")).toEqual({ width: 1080, height: 1920 });
+    expect(resolveMultiAspectDimensions("1:1", "1080p")).toEqual({ width: 1080, height: 1080 });
+    expect(resolveMultiAspectDimensions("4:5", "1080p")).toEqual({ width: 1080, height: 1350 });
+    expect(resolveMultiAspectDimensions("16:9", "1080p")).toEqual({ width: 1920, height: 1080 });
+    expect(resolveMultiAspectDimensions("9:16", "720p")).toEqual({ width: 720, height: 1280 });
+    expect(resolveMultiAspectDimensions("16:9", "4k")).toEqual({ width: 3840, height: 2160 });
+
+    expect(MULTI_ASPECT_PRESETS["9:16"].baseFontSizePx).toBe(54);
+    expect(MULTI_ASPECT_PRESETS["4:5"].baseFontSizePx).toBe(48);
+    expect(MULTI_ASPECT_PRESETS["1:1"].baseFontSizePx).toBe(42);
+  });
+
+  it("computes normalized crop rectangles clamped to frame boundaries for all 4 aspects", () => {
+    const c9x16 = computeMultiAspectCrop(1920, 1080, "9:16", 0.5, 0.5);
+    expect(c9x16).toEqual({ x: 656, y: 0, width: 608, height: 1080 });
+
+    const c1x1 = computeMultiAspectCrop(1920, 1080, "1:1", 0.5, 0.5);
+    expect(c1x1).toEqual({ x: 420, y: 0, width: 1080, height: 1080 });
+
+    const c4x5 = computeMultiAspectCrop(1920, 1080, "4:5", 0.5, 0.5);
+    expect(c4x5).toEqual({ x: 528, y: 0, width: 864, height: 1080 });
+
+    const c16x9 = computeMultiAspectCrop(1920, 1080, "16:9", 0.5, 0.5);
+    expect(c16x9).toEqual({ x: 0, y: 0, width: 1920, height: 1080 });
+  });
+});
+
