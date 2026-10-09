@@ -17,7 +17,18 @@
  * AI editor's sentence for that part when there is one, else the moment's own
  * reason of that kind.
  */
-import { clipCopyOf, judgementOf, type RepurposeCandidateItem } from "@montaj/api-client";
+import {
+  clipCopyOf,
+  diagnosticOf,
+  judgementOf,
+  type DiagnosticCategory,
+  type DiagnosticItem,
+  type DiagnosticSentiment,
+  type RepurposeCandidateItem,
+  type ViralityDiagnostic,
+} from "@montaj/api-client";
+
+export type { DiagnosticCategory, DiagnosticItem, DiagnosticSentiment, ViralityDiagnostic };
 
 export type AnalysisKey = "hook" | "flow" | "value" | "trend";
 
@@ -40,6 +51,8 @@ export interface ClipAnalysis {
   readonly parts: readonly AnalysisPart[];
   /** People the moment names or features, as the AI editor read them. */
   readonly people: readonly string[];
+  /** Detailed virality scoring diagnostic rationale (Pillar 2 §02). */
+  readonly diagnostic: ViralityDiagnostic | null;
 }
 
 const LABELS: Readonly<Record<AnalysisKey, { readonly label: string; readonly question: string }>> =
@@ -154,10 +167,13 @@ export function analysisOf(candidate: RepurposeCandidateItem): ClipAnalysis {
       )
     : [];
 
+  const diagnostic = diagnosticOf(candidate.diagnostic) ?? fallbackDiagnostic(candidate);
+
   return {
     overall: typeof overall === "number" && Number.isFinite(overall) ? Math.round(overall) : null,
     parts,
     people: people.slice(0, 5),
+    diagnostic,
   };
 }
 
@@ -331,4 +347,147 @@ export function viralityTierOf(candidate: RepurposeCandidateItem): ViralityTierI
     score,
   };
 }
+
+/**
+ * Synthesizes a structured ViralityDiagnostic from legacy candidate reasons
+ * and scoreBreakdown when explicit AI diagnostic is not present.
+ */
+export function fallbackDiagnostic(candidate: RepurposeCandidateItem): ViralityDiagnostic | null {
+  const items: DiagnosticItem[] = [];
+  const score = candidate.potentialScore ?? candidate.score ?? 50;
+
+  // 1. Hook
+  const hookReason = (candidate.reasons ?? []).find(
+    (r) => r.label === "hook" && !r.explanation.startsWith("AI editor:"),
+  )?.explanation;
+  const breakdown = record(candidate["scoreBreakdown"]);
+  const hookScore = typeof breakdown["hook"] === "number" ? breakdown["hook"] : null;
+  if (hookReason !== undefined || hookScore !== null) {
+    const isPositive =
+      hookScore !== null ? hookScore >= 70 : Boolean(hookReason?.toLowerCase().includes("hook"));
+    items.push({
+      category: "HOOK",
+      label: hookScore !== null && hookScore >= 85 ? "Compelling Hook" : "Opening Delivery",
+      detail:
+        hookReason ??
+        (hookScore !== null && hookScore >= 70
+          ? "Strong momentum in the first seconds."
+          : "Opening pacing could be tightened to retain viewers."),
+      sentiment:
+        isPositive ? "POSITIVE" : hookScore !== null && hookScore < 50 ? "WARNING" : "NEUTRAL",
+    });
+  }
+
+  // 2. Flow / Standalone
+  const flowReason = (candidate.reasons ?? []).find(
+    (r) => r.label === "standalone" && !r.explanation.startsWith("AI editor:"),
+  )?.explanation;
+  if (flowReason !== undefined) {
+    items.push({
+      category: "FLOW",
+      label: "Narrative Cohesion",
+      detail: flowReason,
+      sentiment: "POSITIVE",
+    });
+  }
+
+  // 3. Clarity / Value / Emotion
+  const impactReason = (candidate.reasons ?? []).find(
+    (r) =>
+      (r.label === "clear_point" || r.label === "emotion") &&
+      !r.explanation.startsWith("AI editor:"),
+  )?.explanation;
+  if (impactReason !== undefined) {
+    items.push({
+      category: "EMOTION",
+      label: "Audience Impact",
+      detail: impactReason,
+      sentiment: "POSITIVE",
+    });
+  }
+
+  // 4. Trend / Track record
+  const trendReason = (candidate.reasons ?? []).find(
+    (r) =>
+      (r.label === "track_record" || r.label === "novelty") &&
+      !r.explanation.startsWith("AI editor:"),
+  )?.explanation;
+  if (trendReason !== undefined) {
+    items.push({
+      category: "TREND",
+      label: "Topic Relevance",
+      detail: trendReason,
+      sentiment: "POSITIVE",
+    });
+  }
+
+  if (items.length === 0) {
+    return null;
+  }
+
+  const tip =
+    score >= 80
+      ? "Add dynamic kinetic subtitles and subtle sound design on emphasis words."
+      : score >= 60
+        ? "Crop to punch-in on speaker reactions during key assertions to boost retention."
+        : "Trim opening silence or add a text hook title card within the first 2 seconds.";
+
+  return {
+    overallSummary:
+      candidate.reason ??
+      (candidate.transcriptExcerpt
+        ? `Moment centered on: "${candidate.transcriptExcerpt.slice(0, 60)}..."`
+        : "High potential moment identified based on speech cadence and narrative structure."),
+    items,
+    creatorTip: tip,
+  };
+}
+
+/** Returns the tone for rendering a DiagnosticSentiment badge. */
+export function diagnosticSentimentTone(
+  sentiment: DiagnosticSentiment,
+): "accepted" | "neutral" | "warning" {
+  switch (sentiment) {
+    case "POSITIVE":
+      return "accepted";
+    case "WARNING":
+      return "warning";
+    case "NEUTRAL":
+    default:
+      return "neutral";
+  }
+}
+
+/** Returns the human-readable label for a DiagnosticCategory. */
+export function diagnosticCategoryLabel(category: DiagnosticCategory): string {
+  switch (category) {
+    case "HOOK":
+      return "Hook";
+    case "FLOW":
+      return "Flow";
+    case "EMOTION":
+      return "Emotion";
+    case "TREND":
+      return "Trend";
+    case "RETENTION":
+      return "Retention";
+  }
+}
+
+/** Returns a suitable emoji icon for a DiagnosticCategory. */
+export function diagnosticCategoryIcon(category: DiagnosticCategory): string {
+  switch (category) {
+    case "HOOK":
+      return "🎣";
+    case "FLOW":
+      return "🌊";
+    case "EMOTION":
+      return "💥";
+    case "TREND":
+      return "📈";
+    case "RETENTION":
+      return "⏱️";
+  }
+}
+
 

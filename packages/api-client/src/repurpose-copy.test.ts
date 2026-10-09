@@ -4,6 +4,7 @@ import {
   EPISODE_PACK_EXPECTED_POLL_MS,
   EPISODE_PACK_WRITING_POLL_MS,
   clipCopyOf,
+  diagnosticOf,
   episodePackPollDelay,
   episodePackQueryKey,
   judgementOf,
@@ -40,6 +41,65 @@ describe("judgementOf", () => {
     expect(judgementOf(judgement)).toEqual(judgement);
     expect(judgementOf(null)).toBeNull();
     expect(judgementOf({ standalone: 8 })).toBeNull();
+  });
+});
+
+describe("diagnosticOf", () => {
+  it("reads structured scoring diagnostic rationale with creator tip", () => {
+    const diag = {
+      overallSummary: "Viral potential hook with clear payoff",
+      items: [
+        {
+          category: "HOOK",
+          label: "Inquiry Opener",
+          detail: "Opens with sharp question.",
+          sentiment: "POSITIVE",
+        },
+        {
+          category: "RETENTION",
+          label: "Punchline Close",
+          detail: "Ends on memorable quote.",
+          sentiment: "POSITIVE",
+        },
+      ],
+      creatorTip: "Add a zoom at 00:02 to heighten tension.",
+    };
+    expect(diagnosticOf(diag)).toEqual(diag);
+  });
+
+  it("normalizes uppercase category and sentiment and ignores invalid items", () => {
+    const mixed = {
+      overallSummary: "Moderate potential",
+      items: [
+        {
+          category: "hook",
+          label: "Slow Intro",
+          detail: "Leads with filler.",
+          sentiment: "warning",
+        },
+        {
+          category: "INVALID",
+          label: "Should be dropped",
+          detail: "Bad category.",
+          sentiment: "POSITIVE",
+        },
+      ],
+    };
+    const parsed = diagnosticOf(mixed);
+    expect(parsed?.overallSummary).toBe("Moderate potential");
+    expect(parsed?.items).toHaveLength(1);
+    expect(parsed?.items[0]).toEqual({
+      category: "HOOK",
+      label: "Slow Intro",
+      detail: "Leads with filler.",
+      sentiment: "WARNING",
+    });
+  });
+
+  it("returns null for non-records or empty items", () => {
+    expect(diagnosticOf(null)).toBeNull();
+    expect(diagnosticOf({})).toBeNull();
+    expect(diagnosticOf({ overallSummary: "Test", items: [] })).toBeNull();
   });
 });
 

@@ -77,6 +77,7 @@ from worker_ai.highlights.rerank import (
     Judged,
     MomentText,
     blend,
+    heuristic_diagnostic,
     judge_moments,
     model_quality,
     model_reasons,
@@ -543,6 +544,44 @@ def _proposal(
         new_reasons.append({"label": "hook", "explanation": category_explanation})
     reasons = new_reasons
 
+    diag = judged.diagnostic if judged is not None else None
+    if diag is None:
+        first_word = texts[0].lower().rstrip(".,!?") if texts else ""
+        has_question = "?" in " ".join(texts[:10]) or any(
+            first_word == q
+            for q in ("what", "why", "how", "who", "when", "where", "kyun", "kaise", "kya", "kab", "did", "is", "are", "do")
+        )
+        first_few = " ".join(texts[:5]).lower() if texts else ""
+        has_filler = any(
+            first_few.startswith(f)
+            for f in ("um", "uh", "so basically", "you know", "yeah so", "like i said")
+        )
+        trailing_conjunction = any(
+            texts[-1].lower().rstrip(".,!?") == c
+            for c in ("and", "but", "so", "because", "or", "aur", "lekin", "to")
+        ) if texts else False
+
+        acoustic_map = getattr(scored, "acoustic", None)
+        acoustic = acoustic_map.get(window.window_id) if isinstance(acoustic_map, dict) else None
+        pitch_variance = acoustic.pitch_variance if acoustic is not None else 0.5
+        volume_dynamics = acoustic.volume_dynamics if acoustic is not None else 0.5
+        laughter_prob = acoustic.laughter_probability if acoustic is not None else 0.0
+
+        diag = heuristic_diagnostic(
+            text=make_excerpt(texts),
+            hook_score=breakdown.get("hook", 50),
+            standalone_score=breakdown.get("standaloneValue", 70),
+            payoff_score=breakdown.get("clarity", 70),
+            humour_score=judged.humour if judged is not None else 0,
+            has_question=has_question,
+            has_filler=has_filler,
+            trailing_conjunction=trailing_conjunction,
+            pitch_variance=pitch_variance,
+            volume_dynamics=volume_dynamics,
+            laughter_prob=laughter_prob,
+            topic=topic,
+        )
+
     fields: dict[str, Any] = {
         "windowId": window.window_id,
         "startMs": window.start_ms,
@@ -555,6 +594,7 @@ def _proposal(
         "tier": virality_tier(_percent(ranked.ranked_on)),
         "scoreBreakdown": breakdown,
         "reasons": reasons[:12],
+        "diagnostic": diag.model_dump(by_alias=True, exclude_none=True),
     }
     if judged is not None:
         fields["judgement"] = {

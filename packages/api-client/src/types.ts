@@ -1599,7 +1599,25 @@ export interface RepurposeCandidateItem {
    */
   copy?: unknown;
   judgement?: unknown;
+  /** Explainable AI scoring diagnostic rationale (Pillar 2 §02). */
+  diagnostic?: unknown;
   [key: string]: unknown;
+}
+
+export type DiagnosticCategory = "HOOK" | "FLOW" | "EMOTION" | "TREND" | "RETENTION";
+export type DiagnosticSentiment = "POSITIVE" | "NEUTRAL" | "WARNING";
+
+export interface DiagnosticItem {
+  readonly category: DiagnosticCategory;
+  readonly label: string;
+  readonly detail: string;
+  readonly sentiment: DiagnosticSentiment;
+}
+
+export interface ViralityDiagnostic {
+  readonly overallSummary: string;
+  readonly items: readonly DiagnosticItem[];
+  readonly creatorTip?: string;
 }
 
 export interface RepurposeClipItem {

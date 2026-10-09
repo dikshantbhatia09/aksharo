@@ -2,7 +2,17 @@ import { describe, expect, it } from "vitest";
 
 import type { RepurposeCandidateItem } from "@montaj/api-client";
 
-import { analysisOf, gradeOf, matchesSearch, tagsOf, viralityTierOf } from "./clip-analysis";
+import {
+  analysisOf,
+  diagnosticCategoryIcon,
+  diagnosticCategoryLabel,
+  diagnosticSentimentTone,
+  fallbackDiagnostic,
+  gradeOf,
+  matchesSearch,
+  tagsOf,
+  viralityTierOf,
+} from "./clip-analysis";
 
 const COPY = {
   summary: "Why insecurity fades",
@@ -165,4 +175,90 @@ describe("viralityTierOf", () => {
     });
   });
 });
+
+describe("ViralityDiagnostic", () => {
+  it("parses explicit candidate diagnostic when present", () => {
+    const item = candidate({
+      diagnostic: {
+        overallSummary: "Explosive opening with high emotional tension.",
+        items: [
+          {
+            category: "HOOK",
+            label: "Provocative Hook",
+            detail: "Opens with an intriguing question.",
+            sentiment: "POSITIVE",
+          },
+          {
+            category: "FLOW",
+            label: "Seamless Delivery",
+            detail: "Transitions cleanly without dead air.",
+            sentiment: "POSITIVE",
+          },
+        ],
+        creatorTip: "Add a punch-in camera zoom on second 03.",
+      },
+    });
+
+    const analysis = analysisOf(item);
+    expect(analysis.diagnostic).not.toBeNull();
+    expect(analysis.diagnostic?.overallSummary).toBe(
+      "Explosive opening with high emotional tension.",
+    );
+    expect(analysis.diagnostic?.items).toHaveLength(2);
+    expect(analysis.diagnostic?.items[0]?.category).toBe("HOOK");
+    expect(analysis.diagnostic?.items[0]?.sentiment).toBe("POSITIVE");
+    expect(analysis.diagnostic?.creatorTip).toBe("Add a punch-in camera zoom on second 03.");
+  });
+
+  it("synthesizes fallback diagnostic when candidate lacks explicit diagnostic", () => {
+    const item = candidate({
+      diagnostic: null,
+      scoreBreakdown: { hook: 88, clarity: 95, standaloneValue: 80 },
+      reasons: [
+        { label: "hook", explanation: "Opens with a direct call to action." },
+        { label: "standalone", explanation: "Complete thought from start to finish." },
+        { label: "clear_point", explanation: "Crystal clear delivery." },
+      ],
+    });
+
+    const fallback = fallbackDiagnostic(item);
+    expect(fallback).not.toBeNull();
+    expect(fallback?.items.length).toBeGreaterThanOrEqual(3);
+    const hookItem = fallback?.items.find((i) => i.category === "HOOK");
+    expect(hookItem?.sentiment).toBe("POSITIVE");
+    expect(hookItem?.detail).toBe("Opens with a direct call to action.");
+    expect(fallback?.creatorTip).toBeDefined();
+
+    const analysis = analysisOf(item);
+    expect(analysis.diagnostic).toEqual(fallback);
+  });
+
+  it("returns null fallback diagnostic when candidate has no reasons or breakdown", () => {
+    const emptyCandidate = candidate({
+      diagnostic: null,
+      reasons: [],
+      scoreBreakdown: {},
+    });
+    expect(fallbackDiagnostic(emptyCandidate)).toBeNull();
+  });
+
+  it("maps sentiment tones and category labels correctly", () => {
+    expect(diagnosticSentimentTone("POSITIVE")).toBe("accepted");
+    expect(diagnosticSentimentTone("WARNING")).toBe("warning");
+    expect(diagnosticSentimentTone("NEUTRAL")).toBe("neutral");
+
+    expect(diagnosticCategoryLabel("HOOK")).toBe("Hook");
+    expect(diagnosticCategoryLabel("FLOW")).toBe("Flow");
+    expect(diagnosticCategoryLabel("EMOTION")).toBe("Emotion");
+    expect(diagnosticCategoryLabel("TREND")).toBe("Trend");
+    expect(diagnosticCategoryLabel("RETENTION")).toBe("Retention");
+
+    expect(diagnosticCategoryIcon("HOOK")).toBe("🎣");
+    expect(diagnosticCategoryIcon("FLOW")).toBe("🌊");
+    expect(diagnosticCategoryIcon("EMOTION")).toBe("💥");
+    expect(diagnosticCategoryIcon("TREND")).toBe("📈");
+    expect(diagnosticCategoryIcon("RETENTION")).toBe("⏱️");
+  });
+});
+
 

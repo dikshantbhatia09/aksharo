@@ -22,6 +22,12 @@ import { useApiClient, useWorkspaceId } from "./context.js";
 import { isApiError } from "./errors.js";
 import { defineEndpoint } from "./http.js";
 import { queryKeys } from "./query-keys.js";
+import type {
+  DiagnosticCategory,
+  DiagnosticItem,
+  DiagnosticSentiment,
+  ViralityDiagnostic,
+} from "./types.js";
 
 /** Who wrote the copy: the language model, the rule-based fallback, or a person. */
 export type RepurposeCopySource = "model" | "heuristic" | "person";
@@ -99,6 +105,49 @@ export function judgementOf(value: unknown): RepurposeJudgement | null {
     typeof model === "string"
     ? (value as unknown as RepurposeJudgement)
     : null;
+}
+
+/** A candidate's scoring diagnostic rationale (Pillar 2 §02), or null when none. */
+export function diagnosticOf(value: unknown): ViralityDiagnostic | null {
+  if (!isRecord(value)) return null;
+  const { overallSummary, items } = value;
+  if (typeof overallSummary !== "string" || !Array.isArray(items)) {
+    return null;
+  }
+  const validItems: DiagnosticItem[] = [];
+  const validCategories = new Set<string>(["HOOK", "FLOW", "EMOTION", "TREND", "RETENTION"]);
+  const validSentiments = new Set<string>(["POSITIVE", "NEUTRAL", "WARNING"]);
+  for (const item of items) {
+    if (!isRecord(item)) continue;
+    const { category, label, detail, sentiment } = item;
+    if (
+      typeof category === "string" &&
+      validCategories.has(category.toUpperCase()) &&
+      typeof label === "string" &&
+      label.trim() !== "" &&
+      typeof detail === "string" &&
+      detail.trim() !== "" &&
+      typeof sentiment === "string" &&
+      validSentiments.has(sentiment.toUpperCase())
+    ) {
+      validItems.push({
+        category: category.toUpperCase() as DiagnosticCategory,
+        label: label.trim(),
+        detail: detail.trim(),
+        sentiment: sentiment.toUpperCase() as DiagnosticSentiment,
+      });
+    }
+  }
+  if (validItems.length === 0) return null;
+  const creatorTip =
+    typeof value["creatorTip"] === "string" && value["creatorTip"].trim() !== ""
+      ? value["creatorTip"].trim()
+      : undefined;
+  return {
+    overallSummary: overallSummary.trim(),
+    items: validItems,
+    ...(creatorTip ? { creatorTip } : {}),
+  };
 }
 
 // ---------------------------------------------------------------------------

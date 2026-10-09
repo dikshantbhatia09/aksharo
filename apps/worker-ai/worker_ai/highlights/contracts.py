@@ -33,6 +33,7 @@ __all__ = [
     "MIN_DURATION_MS",
     "ClipCopy",
     "CopyOptions",
+    "DiagnosticItem",
     "ExcludeRange",
     "HighlightProposal",
     "HighlightsOptions",
@@ -48,6 +49,7 @@ __all__ = [
     "ProposalReason",
     "ScoreBreakdown",
     "StorageObject",
+    "ViralityDiagnostic",
     "highlights_job_key",
 ]
 
@@ -272,6 +274,23 @@ class ProposalReason(_Strict):
     explanation: Annotated[str, _trimmed(1, 240)]
 
 
+_DiagnosticCategory = Literal["HOOK", "FLOW", "EMOTION", "TREND", "RETENTION"]
+_DiagnosticSentiment = Literal["POSITIVE", "NEUTRAL", "WARNING"]
+
+
+class DiagnosticItem(_Strict):
+    category: _DiagnosticCategory
+    label: Annotated[str, _trimmed(1, 160)]
+    detail: Annotated[str, _trimmed(1, 500)]
+    sentiment: _DiagnosticSentiment
+
+
+class ViralityDiagnostic(_Strict):
+    overall_summary: Annotated[str, _trimmed(1, 500)] = Field(alias="overallSummary")
+    items: tuple[DiagnosticItem, ...] = Field(min_length=1, max_length=10)
+    creator_tip: Annotated[str, _trimmed(1, 500)] | None = Field(default=None, alias="creatorTip")
+
+
 def _hashtag(value: str) -> str:
     """A hashtag as the TypeScript `HashtagSchema` pins it: `#` then letters,
     combining marks, digits or underscores, in any script.
@@ -382,6 +401,7 @@ class HighlightProposal(_Strict):
     score_breakdown: ScoreBreakdown = Field(alias="scoreBreakdown")
     reasons: tuple[ProposalReason, ...] = Field(min_length=1, max_length=12)
     copy_text: ClipCopy | None = Field(default=None, alias="copy")
+    diagnostic: ViralityDiagnostic | None = None
     judgement: Judgement | None = None
 
     @model_validator(mode="after")

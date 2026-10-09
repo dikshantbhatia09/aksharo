@@ -65,6 +65,7 @@ const HIGHLIGHTS_RESULT_FIELDS = [
 ];
 const HIGHLIGHT_PROPOSAL_FIELDS = [
   "copy",
+  "diagnostic",
   "endMs",
   "endWordId",
   "judgement",

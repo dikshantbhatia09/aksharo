@@ -55,7 +55,13 @@ import {
   cn,
 } from "@montaj/ui";
 
-import { analysisOf, type AnalysisPart } from "./clip-analysis";
+import {
+  analysisOf,
+  diagnosticCategoryIcon,
+  diagnosticCategoryLabel,
+  diagnosticSentimentTone,
+  type AnalysisPart,
+} from "./clip-analysis";
 import { useClipTranscript, useRetitleClip, type TranscriptLine } from "./use-results";
 
 import { ClipEditingDownload } from "@/components/repurpose/download/ClipEditingDownload";
@@ -313,6 +319,61 @@ function DetailBody({
                     </Badge>
                   ))}
                 </span>
+              </div>
+            )}
+            {analysis.diagnostic === null ? null : (
+              <div
+                className="flex flex-col gap-2 rounded-sm border border-border bg-bg-0 p-3"
+                data-testid="clip-detail-diagnostic"
+              >
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-fg-0">
+                  <Sparkles
+                    className="size-3.5 text-accent-300"
+                    strokeWidth={1.75}
+                    aria-hidden="true"
+                  />
+                  <span>Virality Diagnostic Rationale</span>
+                </div>
+                <p className="m-0 text-xs leading-relaxed text-fg-2">
+                  {analysis.diagnostic.overallSummary}
+                </p>
+                <div className="flex flex-col gap-1.5 mt-1">
+                  {analysis.diagnostic.items.map((item, idx) => (
+                    <div
+                      key={`${item.category}-${String(idx)}`}
+                      className="flex items-start gap-2 rounded-sm border border-border/50 bg-bg-1 p-2 text-xs"
+                      data-testid={`detail-diagnostic-item-${item.category.toLowerCase()}`}
+                    >
+                      <Badge
+                        tone={diagnosticSentimentTone(item.sentiment)}
+                        className="shrink-0 px-1.5 py-0 text-3xs font-semibold"
+                      >
+                        {diagnosticCategoryIcon(item.category)}{" "}
+                        {diagnosticCategoryLabel(item.category)}
+                      </Badge>
+                      <div className="min-w-0 flex-1">
+                        <span className="mr-1 font-medium text-fg-0">{item.label}:</span>
+                        <span className="text-fg-2">{item.detail}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {analysis.diagnostic.creatorTip ? (
+                  <div
+                    className="mt-1 flex items-start gap-1.5 rounded-sm border border-accent/30 bg-accent/5 p-2 text-xs"
+                    data-testid="detail-diagnostic-creator-tip"
+                  >
+                    <span className="shrink-0 text-xs leading-none" aria-hidden="true">
+                      💡
+                    </span>
+                    <div>
+                      <span className="mr-1 font-semibold text-accent-300">
+                        Creator Polish Tip:
+                      </span>
+                      <span className="text-fg-1">{analysis.diagnostic.creatorTip}</span>
+                    </div>
+                  </div>
+                ) : null}
               </div>
             )}
           </section>

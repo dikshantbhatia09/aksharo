@@ -52,6 +52,7 @@ RESULT_FIELDS = [
 ]
 PROPOSAL_FIELDS = [
     "copy",
+    "diagnostic",
     "endMs",
     "endWordId",
     "judgement",

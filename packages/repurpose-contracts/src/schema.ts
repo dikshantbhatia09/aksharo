@@ -188,6 +188,35 @@ export const CandidateReasonSchema = z.strictObject({
   explanation: z.string().trim().min(1).max(240),
 });
 
+export const DIAGNOSTIC_CATEGORIES = [
+  "HOOK",
+  "FLOW",
+  "EMOTION",
+  "TREND",
+  "RETENTION",
+] as const;
+export const DiagnosticCategorySchema = z.enum(DIAGNOSTIC_CATEGORIES);
+export type DiagnosticCategory = z.infer<typeof DiagnosticCategorySchema>;
+
+export const DIAGNOSTIC_SENTIMENTS = ["POSITIVE", "NEUTRAL", "WARNING"] as const;
+export const DiagnosticSentimentSchema = z.enum(DIAGNOSTIC_SENTIMENTS);
+export type DiagnosticSentiment = z.infer<typeof DiagnosticSentimentSchema>;
+
+export const DiagnosticItemSchema = z.strictObject({
+  category: DiagnosticCategorySchema,
+  label: z.string().trim().min(1).max(160),
+  detail: z.string().trim().min(1).max(500),
+  sentiment: DiagnosticSentimentSchema,
+});
+export type DiagnosticItem = z.infer<typeof DiagnosticItemSchema>;
+
+export const ViralityDiagnosticSchema = z.strictObject({
+  overallSummary: z.string().trim().min(1).max(500),
+  items: z.array(DiagnosticItemSchema).min(1).max(10),
+  creatorTip: z.string().trim().min(1).max(500).optional(),
+});
+export type ViralityDiagnostic = z.infer<typeof ViralityDiagnosticSchema>;
+
 /** Auditable aggregate features only; never face identity, raw audio, or inferred traits. */
 export const CandidateSignalsSchema = z.strictObject({
   schemaVersion: z.literal(1),
@@ -214,6 +243,7 @@ export const ClipCandidateSchema = z
     tier: z.enum(["VIRAL_GOLD", "HIGH_POTENTIAL", "MODERATE", "STANDARD"]).optional().nullable(),
     scoreBreakdown: CandidateScoreBreakdownSchema.nullable(),
     reasons: z.array(CandidateReasonSchema).max(12),
+    diagnostic: ViralityDiagnosticSchema.optional().nullable(),
     signalVersion: z.int().positive(),
     signals: CandidateSignalsSchema.nullable(),
     promptVersion: z.string().max(100).nullable(),

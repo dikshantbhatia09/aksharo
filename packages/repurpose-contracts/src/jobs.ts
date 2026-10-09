@@ -8,6 +8,7 @@ import {
   MillisecondsSchema,
   REPURPOSE_SCHEMA_VERSION,
   UlidSchema,
+  ViralityDiagnosticSchema,
 } from "./schema.js";
 
 /**
@@ -640,6 +641,8 @@ export const HighlightProposalSchema = z
       .max(12),
     /** The clip's words for posting, when the model wrote them (2026-09-29). */
     copy: ClipCopySchema.optional(),
+    /** Explainable AI scoring diagnostic rationale (Pillar 2 §02). */
+    diagnostic: ViralityDiagnosticSchema.optional(),
     /**
      * The language model's reading of the moment, 0-10 each: does it stand on
      * its own, does it land its point, is it funny, and (with a topic) is it

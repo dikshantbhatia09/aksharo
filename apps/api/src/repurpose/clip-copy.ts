@@ -18,6 +18,7 @@ export function candidateModelFields(proposal: HighlightProposal): {
   readonly title: string;
   readonly copy?: Prisma.InputJsonValue;
   readonly judgement?: Prisma.InputJsonValue;
+  readonly diagnostic?: Prisma.InputJsonValue;
 } {
   const copy = proposal.copy;
   return {
@@ -26,6 +27,9 @@ export function candidateModelFields(proposal: HighlightProposal): {
     ...(proposal.judgement === undefined
       ? {}
       : { judgement: proposal.judgement as unknown as Prisma.InputJsonValue }),
+    ...(proposal.diagnostic === undefined
+      ? {}
+      : { diagnostic: proposal.diagnostic as unknown as Prisma.InputJsonValue }),
   };
 }
 

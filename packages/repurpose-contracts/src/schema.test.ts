@@ -9,11 +9,13 @@ import {
   ClipVariantViewSchema,
   CreateRunRequestSchema,
   CreateRunResponseSchema,
+  DiagnosticItemSchema,
   ManualCandidateRequestSchema,
   RepurposeClipViewSchema,
   RunConfigSchema,
   SAFE_ERROR_CODES,
   StageProgressSchema,
+  ViralityDiagnosticSchema,
 } from "./schema.js";
 
 const RUN_ID = "01ARZ3NDEKTSV4RRFFQ69G5FAV";
@@ -239,5 +241,69 @@ describe("repurpose@1 fixture contracts", () => {
         editorHref: `/p/${PROJECT_ID}?returnTo=https://evil.example&variant=${VARIANT_ID}`,
       }).success,
     ).toBe(false);
+  });
+
+  it("validates ViralityDiagnostic schema and enforces valid categories and sentiments", () => {
+    const valid = {
+      overallSummary: "Strong contrarian hook in first 2.5s with actionable payoff.",
+      items: [
+        {
+          category: "HOOK",
+          label: "Contrarian Opening",
+          detail: "Challenges standard assumptions immediately.",
+          sentiment: "POSITIVE",
+        },
+        {
+          category: "RETENTION",
+          label: "High-Value Conclusion",
+          detail: "Leaves viewer with an actionable takeaway.",
+          sentiment: "POSITIVE",
+        },
+      ],
+      creatorTip: "Add a punch-in camera zoom on second 03.",
+    };
+    expect(ViralityDiagnosticSchema.safeParse(valid).success).toBe(true);
+    expect(
+      DiagnosticItemSchema.safeParse({
+        category: "INVALID",
+        label: "Bad Category",
+        detail: "Should fail validation",
+        sentiment: "POSITIVE",
+      }).success,
+    ).toBe(false);
+    expect(
+      DiagnosticItemSchema.safeParse({
+        category: "HOOK",
+        label: "Bad Sentiment",
+        detail: "Should fail validation",
+        sentiment: "UNKNOWN",
+      }).success,
+    ).toBe(false);
+  });
+
+  it("accepts a candidate with virality diagnostic rationale attached", () => {
+    const candidate = fixture("candidate.v1.json") as Record<string, unknown>;
+    const withDiag = {
+      ...candidate,
+      diagnostic: {
+        overallSummary: "High-retention reel candidate with strong opening curiosity gap.",
+        items: [
+          {
+            category: "HOOK",
+            label: "Audience Inquiry",
+            detail: "Opens with a direct question that arrests attention.",
+            sentiment: "POSITIVE",
+          },
+          {
+            category: "FLOW",
+            label: "Seamless Cadence",
+            detail: "Unbroken conversational rhythm with zero dead air.",
+            sentiment: "POSITIVE",
+          },
+        ],
+        creatorTip: "Cut 0.5s pause at start to jump straight into speech.",
+      },
+    };
+    expect(ClipCandidateSchema.safeParse(withDiag).success).toBe(true);
   });
 });

@@ -38,6 +38,7 @@ import {
   Clock,
   Download,
   Loader2,
+  Sparkles,
   TrendingUp,
 } from "lucide-react";
 import Link from "next/link";
@@ -70,7 +71,15 @@ import { formatClock } from "@/components/repurpose/moment-time";
 import { ClipPerformance } from "@/components/repurpose/performance/ClipPerformance";
 import { ClipPosts } from "@/components/repurpose/publishing/ClipPosts";
 import { describeRefusal } from "@/components/repurpose/refusal";
-import { hookCategoryOf, tagsOf, viralityTierOf } from "@/components/repurpose/results/clip-analysis";
+import {
+  analysisOf,
+  diagnosticCategoryIcon,
+  diagnosticCategoryLabel,
+  diagnosticSentimentTone,
+  hookCategoryOf,
+  tagsOf,
+  viralityTierOf,
+} from "@/components/repurpose/results/clip-analysis";
 import { ClipReview } from "@/components/repurpose/review/ClipReview";
 import { isRemovedCandidate } from "@/components/repurpose/steering";
 import { useStableUrl } from "@/components/repurpose/use-stable-url";
@@ -277,6 +286,7 @@ export function CandidateCard({
   const tags = tagsOf(candidate);
   const hookCat = hookCategoryOf(candidate);
   const tierInfo = viralityTierOf(candidate);
+  const analysis = analysisOf(candidate);
   // The clip's own project: where its captions live and are exported. The
   // 9:16 one: an Autopilot clip has a project per shape (2026-09-29).
   const clipProjectId = (
@@ -417,6 +427,67 @@ export function CandidateCard({
             <p className="m-0 mt-1 text-xs text-fg-2" data-testid={`pick-note-${candidate.id}`}>
               {select.note}
             </p>
+          )}
+          {analysis.diagnostic === null ? null : (
+            <details
+              className="group mt-2.5 rounded-md border border-border bg-bg-1/40 transition-colors"
+              data-testid={`diagnostic-card-${candidate.id}`}
+            >
+              <summary className="flex cursor-pointer list-none items-center justify-between px-3 py-1.5 text-xs font-medium text-fg-1 hover:text-fg-0">
+                <span className="flex items-center gap-1.5">
+                  <Sparkles
+                    className="size-3.5 text-accent-300"
+                    strokeWidth={1.75}
+                    aria-hidden="true"
+                  />
+                  <span>Virality Rationale &amp; Polish Tip</span>
+                </span>
+                <span className="text-2xs text-fg-2 group-open:hidden">Why it works ▾</span>
+                <span className="hidden text-2xs text-fg-2 group-open:inline">Hide ▴</span>
+              </summary>
+              <div className="border-t border-border px-3 py-2.5">
+                <p className="m-0 text-xs leading-relaxed text-fg-1">
+                  {analysis.diagnostic.overallSummary}
+                </p>
+                <div className="mt-2 flex flex-col gap-1.5">
+                  {analysis.diagnostic.items.map((item, idx) => (
+                    <div
+                      key={`${item.category}-${String(idx)}`}
+                      className="flex items-start gap-2 rounded-sm border border-border/40 bg-bg-0 p-1.5 text-xs"
+                      data-testid={`diagnostic-item-${candidate.id}-${item.category.toLowerCase()}`}
+                    >
+                      <Badge
+                        tone={diagnosticSentimentTone(item.sentiment)}
+                        className="shrink-0 px-1.5 py-0 text-3xs font-semibold"
+                      >
+                        {diagnosticCategoryIcon(item.category)}{" "}
+                        {diagnosticCategoryLabel(item.category)}
+                      </Badge>
+                      <div className="min-w-0 flex-1">
+                        <span className="mr-1 font-medium text-fg-0">{item.label}:</span>
+                        <span className="text-fg-2">{item.detail}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {analysis.diagnostic.creatorTip ? (
+                  <div
+                    className="mt-2 flex items-start gap-1.5 rounded-sm border border-accent/30 bg-accent/5 p-2 text-xs"
+                    data-testid={`diagnostic-tip-${candidate.id}`}
+                  >
+                    <span className="shrink-0 text-xs leading-none" aria-hidden="true">
+                      💡
+                    </span>
+                    <div>
+                      <span className="mr-1 font-semibold text-accent-300">
+                        Creator Polish Tip:
+                      </span>
+                      <span className="text-fg-1">{analysis.diagnostic.creatorTip}</span>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </details>
           )}
         </div>
 

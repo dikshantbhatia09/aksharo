@@ -15,6 +15,7 @@ from worker_ai.highlights.contracts import (
     HIGHLIGHTS_SCHEMA_VERSION,
     MAX_DURATION_MS,
     MIN_DURATION_MS,
+    DiagnosticItem,
     HighlightProposal,
     HighlightsOptions,
     HighlightsPayload,
@@ -23,6 +24,7 @@ from worker_ai.highlights.contracts import (
     ProposalReason,
     ScoreBreakdown,
     StorageObject,
+    ViralityDiagnostic,
     highlights_job_key,
 )
 from worker_ai.highlights.tribe_client import (
@@ -35,6 +37,7 @@ __all__ = [
     "HIGHLIGHTS_SCHEMA_VERSION",
     "MAX_DURATION_MS",
     "MIN_DURATION_MS",
+    "DiagnosticItem",
     "HighlightProposal",
     "HighlightsOptions",
     "HighlightsPayload",
@@ -46,5 +49,6 @@ __all__ = [
     "StorageObject",
     "TribeClient",
     "TribeWindowInput",
+    "ViralityDiagnostic",
     "highlights_job_key",
 ]

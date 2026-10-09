@@ -58,6 +58,30 @@
         },
         "source": "model"
       },
+      "diagnostic": {
+        "overallSummary": "Strong contrarian hook in first 2.5s followed by clear relatable payoff.",
+        "items": [
+          {
+            "category": "HOOK",
+            "label": "Contrarian Mistake Opener",
+            "detail": "Opens with 'Sabse bada galti', creating an instant curiosity gap.",
+            "sentiment": "POSITIVE"
+          },
+          {
+            "category": "FLOW",
+            "label": "Smooth Premise Shift",
+            "detail": "Transitions directly from the flaw to the root cause without derailment.",
+            "sentiment": "POSITIVE"
+          },
+          {
+            "category": "RETENTION",
+            "label": "High-Value Takeaway",
+            "detail": "Delivers an actionable lesson about setting achievable milestones.",
+            "sentiment": "POSITIVE"
+          }
+        ],
+        "creatorTip": "Add a text punch-in on 'sabse bada' at 00:01 to emphasize the contrast."
+      },
       "judgement": {
         "standalone": 8,
         "payoff": 9,

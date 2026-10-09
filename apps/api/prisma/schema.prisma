@@ -3965,6 +3965,8 @@ model ClipCandidate {
   /// The language model's reading of the moment: `{standalone, payoff, humour,
   /// topicFit?, model}`, 0-10 each. Null when no model judged it.
   judgement         Json?           @db.JsonB
+  /// Zod: `ViralityDiagnosticSchema` — explainable AI scoring diagnostic rationale (Pillar 2 §02).
+  diagnostic        Json?           @db.JsonB
   createdAt         DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt         DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 

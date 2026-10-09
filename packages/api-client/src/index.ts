@@ -268,6 +268,10 @@ export type {
   RiversideStudioTrack,
   RiversideStudioImportRequest,
   GoogleMeetImportRequest,
+  DiagnosticCategory,
+  DiagnosticSentiment,
+  DiagnosticItem,
+  ViralityDiagnostic,
 } from "./types.js";
 
 /** Build-time identity of this package, used by diagnostics bundles. */

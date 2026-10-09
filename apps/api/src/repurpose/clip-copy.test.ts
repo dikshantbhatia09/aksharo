@@ -41,10 +41,22 @@ function proposal(extra: Partial<HighlightProposal> = {}): HighlightProposal {
 }
 
 describe("candidateModelFields", () => {
-  it("titles the candidate by its copy and keeps the copy and the judgement", () => {
+  it("titles the candidate by its copy and keeps the copy, judgement and diagnostic", () => {
     const judgement = { standalone: 8, payoff: 7, humour: 1, model: "sarvam-105b-conversations" };
-    const fields = candidateModelFields(proposal({ copy: COPY, judgement }));
-    expect(fields).toEqual({ title: COPY.title, copy: COPY, judgement });
+    const diagnostic = {
+      overallSummary: "Sharp question with immediate payoff.",
+      items: [
+        {
+          category: "HOOK" as const,
+          label: "Inquiry Opener",
+          detail: "Opens with sharp question.",
+          sentiment: "POSITIVE" as const,
+        },
+      ],
+      creatorTip: "Add zoom at 00:02.",
+    };
+    const fields = candidateModelFields(proposal({ copy: COPY, judgement, diagnostic }));
+    expect(fields).toEqual({ title: COPY.title, copy: COPY, judgement, diagnostic });
   });
 
   it("keeps the moment's own title, and writes neither, when the model wrote none", () => {
