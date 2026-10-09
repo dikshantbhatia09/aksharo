@@ -64,6 +64,18 @@ export interface ClipFrame {
   readonly output: { readonly width: number; readonly height: number };
 }
 
+export interface CropKeyframe {
+  readonly timeSec: number;
+  readonly centerX: number; // 0.0 - 1.0
+  readonly centerY: number; // 0.0 - 1.0
+  readonly zoom: number; // 1.0 - 1.5
+}
+
+export interface DynamicReframeTrajectory {
+  readonly keyframes: readonly CropKeyframe[];
+  readonly interpolation: "SPRING_DAMPED" | "CUBIC_BEZIER";
+}
+
 export interface ClipFrameOptions {
   /** `profile.maxHeight`; capped at {@link MAX_CLIP_HEIGHT}. */
   readonly maxHeight?: number;
@@ -73,6 +85,8 @@ export interface ClipFrameOptions {
   readonly centerY?: number;
   /** The shape to cut; 9:16 when absent. */
   readonly aspect?: ClipAspect;
+  /** Optional time-varying crop trajectory (Pillar 3 §01). */
+  readonly trajectory?: DynamicReframeTrajectory;
 }
 
 /**
@@ -146,6 +160,144 @@ function finiteOr(value: number | undefined, fallback: number): number {
 }
 
 /**
+ * Evaluate the interpolated crop keyframe at `timeSec` for a {@link DynamicReframeTrajectory}.
+ */
+export function interpolateTrajectoryAt(
+  trajectory: DynamicReframeTrajectory,
+  timeSec: number,
+): CropKeyframe {
+  const { keyframes, interpolation } = trajectory;
+  const first = keyframes[0];
+  if (first === undefined) {
+    return { timeSec: Math.max(0, timeSec), centerX: DEFAULT_CENTER_X, centerY: DEFAULT_CENTER_Y, zoom: 1 };
+  }
+  if (keyframes.length === 1 || timeSec <= first.timeSec) {
+    return { ...first, timeSec: Math.max(0, timeSec) };
+  }
+  const last = keyframes[keyframes.length - 1] ?? first;
+  if (timeSec >= last.timeSec) {
+    return { ...last, timeSec };
+  }
+
+  for (let i = 0; i < keyframes.length - 1; i += 1) {
+    // eslint-disable-next-line security/detect-object-injection -- bounded numeric index
+    const start = keyframes[i] ?? first;
+    const end = keyframes[i + 1] ?? last;
+    if (timeSec >= start.timeSec && timeSec <= end.timeSec) {
+      const span = end.timeSec - start.timeSec;
+      const rawU = span > 1e-6 ? clamp((timeSec - start.timeSec) / span, 0, 1) : 1;
+      const u =
+        interpolation === "CUBIC_BEZIER"
+          ? rawU * rawU * (3 - 2 * rawU)
+          : 1 - (1 + 2.5 * rawU) * Math.exp(-2.5 * rawU) / (1 - 3.5 * Math.exp(-2.5) + 1e-9) * (1 - 3.5 * Math.exp(-2.5));
+      const factor = clamp(interpolation === "CUBIC_BEZIER" ? u : rawU, 0, 1);
+      return {
+        timeSec,
+        centerX: start.centerX + (end.centerX - start.centerX) * factor,
+        centerY: start.centerY + (end.centerY - start.centerY) * factor,
+        zoom: start.zoom + (end.zoom - start.zoom) * factor,
+      };
+    }
+  }
+  return { ...last, timeSec };
+}
+
+/**
+ * Compute Remotion `<Video style={{ transform: ... }} />` binding for a
+ * {@link DynamicReframeTrajectory} at `timeSec`.
+ */
+export function remotionVideoTransform(
+  trajectory: DynamicReframeTrajectory,
+  timeSec: number,
+): {
+  readonly style: { readonly transform: string; readonly transformOrigin: string };
+  readonly keyframe: CropKeyframe;
+} {
+  const kf = interpolateTrajectoryAt(trajectory, timeSec);
+  const offsetXPercent = ((0.5 - kf.centerX) * 100).toFixed(3);
+  const offsetYPercent = ((0.5 - kf.centerY) * 100).toFixed(3);
+  const scale = clamp(kf.zoom, 1, 1.5).toFixed(4);
+  return {
+    style: {
+      transform: `scale(${scale}) translate3d(${offsetXPercent}%, ${offsetYPercent}%, 0)`,
+      transformOrigin: "center center",
+    },
+    keyframe: kf,
+  };
+}
+
+function buildPiecewiseLinearExpr(
+  points: readonly { readonly t: number; readonly v: number }[],
+  minVal: number,
+  maxVal: number,
+): { readonly expr: string; readonly isDynamic: boolean } {
+  const first = points[0];
+  if (first === undefined || points.length < 2) {
+    const fixed = String(first?.v ?? minVal);
+    return { expr: fixed, isDynamic: false };
+  }
+  const terms: string[] = [];
+  for (let i = 0; i < points.length - 1; i += 1) {
+    // eslint-disable-next-line security/detect-object-injection -- bounded numeric index
+    const p0 = points[i] ?? first;
+    const p1 = points[i + 1] ?? first;
+    const dt = p1.t - p0.t;
+    const dv = p1.v - p0.v;
+    if (dt <= 1e-4 || Math.abs(dv) < 1) continue;
+    const slope = dv / dt;
+    const sign = slope >= 0 ? "+" : "";
+    terms.push(
+      `${sign}${slope.toFixed(4)}*(clip(t,${p0.t.toFixed(4)},${p1.t.toFixed(4)})-${p0.t.toFixed(4)})`,
+    );
+  }
+  if (terms.length === 0) {
+    return { expr: String(first.v), isDynamic: false };
+  }
+  const rawSum = `${String(first.v)}${terms.join("")}`;
+  return {
+    expr: `trunc(clip(${rawSum},${String(minVal)},${String(maxVal)})/2)*2`,
+    isDynamic: true,
+  };
+}
+
+/**
+ * Build FFmpeg `crop` `x` and `y` expressions for a {@link DynamicReframeTrajectory}.
+ */
+export function dynamicCropExpressions(
+  frame: ClipFrame,
+  trajectory: DynamicReframeTrajectory,
+  leadOffsetSec = 0,
+): { readonly xExpr: string; readonly yExpr: string; readonly isDynamic: boolean } {
+  const { source, crop } = frame;
+  const maxX = Math.max(0, source.width - crop.width);
+  const maxY = Math.max(0, source.height - crop.height);
+  const offset = Number.isFinite(leadOffsetSec) && leadOffsetSec > 0 ? leadOffsetSec : 0;
+
+  const xPoints = trajectory.keyframes.map((kf) => {
+    const left = clamp(Math.round(kf.centerX * source.width - crop.width / 2), 0, maxX);
+    return {
+      t: Math.max(0, kf.timeSec + offset),
+      v: Math.floor(left / 2) * 2,
+    };
+  });
+  const yPoints = trajectory.keyframes.map((kf) => {
+    const top = clamp(Math.round(kf.centerY * source.height - crop.height / 2), 0, maxY);
+    return {
+      t: Math.max(0, kf.timeSec + offset),
+      v: Math.floor(top / 2) * 2,
+    };
+  });
+
+  const panX = maxX > 0 ? buildPiecewiseLinearExpr(xPoints, 0, maxX) : { expr: String(crop.x), isDynamic: false };
+  const panY = maxY > 0 ? buildPiecewiseLinearExpr(yPoints, 0, maxY) : { expr: String(crop.y), isDynamic: false };
+  return {
+    xExpr: panX.expr,
+    yExpr: panY.expr,
+    isDynamic: panX.isDynamic || panY.isDynamic,
+  };
+}
+
+/**
  * The `-vf` chain that cuts `frame` out of the source.
  *
  * It opens by scaling every frame to the size the probe read, which is a
@@ -158,13 +310,31 @@ function finiteOr(value: number | undefined, fallback: number): number {
  * crop handled. Scaled back first, the crop's numbers always fit (a picture
  * whose shape changed too is stretched back to the probed shape, which beats no
  * clip at all).
+ *
+ * When a `trajectory` with time-varying keyframes is supplied, the `crop`
+ * filter smoothly pans across the keyframes using a bounded `clip(t, ...)`
+ * expression evaluated per frame.
  */
-export function clipFilter(frame: ClipFrame): string {
+export function clipFilter(
+  frame: ClipFrame,
+  trajectory?: DynamicReframeTrajectory,
+  leadOffsetSec = 0,
+): string {
   const { source, crop, output } = frame;
   const scaled = output.width !== crop.width || output.height !== crop.height;
+  const dynamic =
+    trajectory !== undefined && trajectory.keyframes.length >= 2
+      ? dynamicCropExpressions(frame, trajectory, leadOffsetSec)
+      : null;
+
+  const cropStage =
+    dynamic !== null && dynamic.isDynamic
+      ? `crop=${String(crop.width)}:${String(crop.height)}:x='${dynamic.xExpr}':y='${dynamic.yExpr}'`
+      : `crop=${String(crop.width)}:${String(crop.height)}:${String(crop.x)}:${String(crop.y)}`;
+
   return [
     `scale=${String(source.width)}:${String(source.height)}`,
-    `crop=${String(crop.width)}:${String(crop.height)}:${String(crop.x)}:${String(crop.y)}`,
+    cropStage,
     ...(scaled ? [`scale=${String(output.width)}:${String(output.height)}:flags=bicubic`] : []),
     "setsar=1",
     // The run page plays the mezzanine itself, and a browser cannot play the

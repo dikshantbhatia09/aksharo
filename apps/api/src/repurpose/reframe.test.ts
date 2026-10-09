@@ -9,8 +9,10 @@ import {
   FACE_TRACK_MAX_WAIT_MS,
   FACE_TRACK_QUEUE_WAIT_MS,
   FACE_TRACK_WAIT_MS,
+  applyCriticallyDampedSmoothing,
   awaitingFaceDetection,
   awaitingPictureFaces,
+  buildDynamicReframeTrajectory,
   faceDetectionRunWaitMs,
   reframeForClip,
   reframeFromFaces,
@@ -178,6 +180,67 @@ describe("reframeFromFaces", () => {
     );
     expect(reframe.centerX).toBeLessThanOrEqual(1);
     expect(reframe.centerX).toBeGreaterThanOrEqual(0);
+  });
+
+  it("omits trajectory when a speaker stays within the 6% deadband hysteresis zone", () => {
+    const reframe = reframeFromFaces(
+      track(40, (i) => [face(0.5 + (i % 2 === 0 ? 0.02 : -0.02))]),
+      0,
+      10_000,
+    );
+    expect(reframe.basis).toBe("faces");
+    expect(reframe.trajectory).toBeUndefined();
+  });
+
+  it("attaches a critically damped spring trajectory when a speaker walks across the stage", () => {
+    // Speaker walks smoothly from 0.25 to 0.75 across 40 samples (0.0125 per sample, linked into 1 track)
+    const reframe = reframeFromFaces(
+      track(40, (i) => [face(0.25 + (i / 39) * 0.5)]),
+      0,
+      10_000,
+    );
+    expect(reframe.basis).toBe("faces");
+    expect(reframe.trajectory).toBeDefined();
+    expect(reframe.trajectory?.interpolation).toBe("SPRING_DAMPED");
+    const kfs = reframe.trajectory?.keyframes ?? [];
+    expect(kfs.length).toBeGreaterThanOrEqual(2);
+    expect(kfs[0]?.centerX).toBeCloseTo(0.25, 2);
+    expect(kfs[kfs.length - 1]?.centerX).toBeGreaterThan(0.6);
+  });
+});
+
+describe("applyCriticallyDampedSmoothing & buildDynamicReframeTrajectory", () => {
+  it("produces 0 movement for +/-2% micro-jitter inside the 6% deadband", () => {
+    const samples = Array.from({ length: 40 }, (_, i) => ({
+      timeSec: i / 6,
+      centerX: i === 0 ? 0.5 : 0.5 + (i % 2 === 0 ? 0.02 : -0.02),
+      centerY: 0.4,
+      zoom: 1,
+    }));
+    const smoothed = applyCriticallyDampedSmoothing(samples, { reduceInflections: false });
+    for (const kf of smoothed) {
+      expect(kf.centerX).toBe(0.5);
+      expect(kf.centerY).toBe(0.4);
+    }
+    expect(buildDynamicReframeTrajectory(samples)).toBeUndefined();
+  });
+
+  it("produces a zero-overshoot S-curve on a step jump from 0.25 to 0.75", () => {
+    const samples = Array.from({ length: 36 }, (_, i) => ({
+      timeSec: i / 6,
+      centerX: i === 0 ? 0.25 : 0.75,
+      centerY: 0.45,
+      zoom: 1,
+    }));
+    const dense = applyCriticallyDampedSmoothing(samples, { reduceInflections: false });
+    expect(dense[0]?.centerX).toBeCloseTo(0.25, 4);
+    expect(dense[dense.length - 1]?.centerX).toBeCloseTo(0.75, 2);
+    for (let i = 1; i < dense.length; i += 1) {
+      const prev = dense[i - 1]?.centerX ?? 0;
+      const curr = dense[i]?.centerX ?? 0;
+      expect(curr).toBeGreaterThanOrEqual(prev - 1e-6);
+      expect(curr).toBeLessThanOrEqual(0.75 + 1e-6);
+    }
   });
 });
 

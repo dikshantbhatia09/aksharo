@@ -217,6 +217,48 @@ export const FormatFamilySchema = z.strictObject({
   reframe: z.enum(["auto", "center", "speaker"]),
 });
 
+export const CROP_INTERPOLATION_MODES = ["SPRING_DAMPED", "CUBIC_BEZIER"] as const;
+export const CropInterpolationModeSchema = z.enum(CROP_INTERPOLATION_MODES);
+export type CropInterpolationMode = z.infer<typeof CropInterpolationModeSchema>;
+
+export const CropKeyframeSchema = z.strictObject({
+  timeSec: z.number().nonnegative(),
+  centerX: z.number().min(0).max(1),
+  centerY: z.number().min(0).max(1),
+  zoom: z.number().min(1).max(1.5),
+});
+
+export interface CropKeyframe {
+  readonly timeSec: number;
+  readonly centerX: number; // 0.0 - 1.0
+  readonly centerY: number; // 0.0 - 1.0
+  readonly zoom: number; // 1.0 - 1.5
+}
+
+export const DynamicReframeTrajectorySchema = z
+  .strictObject({
+    keyframes: z.array(CropKeyframeSchema).min(1).max(1_000),
+    interpolation: CropInterpolationModeSchema,
+  })
+  .superRefine((value, context) => {
+    for (let i = 1; i < value.keyframes.length; i += 1) {
+      const prev = value.keyframes[i - 1];
+      const curr = value.keyframes[i];
+      if (prev !== undefined && curr !== undefined && curr.timeSec < prev.timeSec) {
+        context.addIssue({
+          code: "custom",
+          path: ["keyframes", i, "timeSec"],
+          message: "Trajectory keyframes must be ordered by non-decreasing timeSec.",
+        });
+      }
+    }
+  });
+
+export interface DynamicReframeTrajectory {
+  readonly keyframes: readonly CropKeyframe[];
+  readonly interpolation: "SPRING_DAMPED" | "CUBIC_BEZIER";
+}
+
 export const RunConfigSchema = z
   .strictObject({
     schemaVersion: z.literal(REPURPOSE_CONFIG_VERSION),

@@ -1,5 +1,11 @@
 import { parseFaceTrack, type FaceTrackDocument } from "@montaj/render-core";
-import { STACKED_ASPECTS, type ClipLayout, type StackedPerson } from "@montaj/repurpose-contracts";
+import {
+  STACKED_ASPECTS,
+  type ClipLayout,
+  type CropKeyframe,
+  type DynamicReframeTrajectory,
+  type StackedPerson,
+} from "@montaj/repurpose-contracts";
 
 import { detectLayout, type ClipLayoutChoice } from "./layout.js";
 
@@ -17,10 +23,10 @@ import type { FacesTrigger } from "../media/faces.js";
  * fraction of the source width. The worker crops around it and clamps the
  * window to the frame; nothing here has to know the frame's shape.
  *
- * One number per clip, deliberately: a static window never pans or jitters, and
- * a clip is a single moment of 3-180 s in which the speaker rarely crosses the
- * frame. Following motion inside a clip is a later refinement, not a
- * prerequisite for getting the speaker into the picture at all.
+ * When a single speaker moves beyond the 6% deadband hysteresis zone across the
+ * clip, a critically damped spring trajectory (`zeta = 1.0`, `omega_n = 2.5`)
+ * is attached in `reframe.trajectory` so the crop window smoothly pans without
+ * overshoot or micro-jitter.
  *
  * A source proxied before `ai.faces` existed has no track yet, and a clip cut
  * then is on the centre for good: nothing re-frames a clip that is ready at the
@@ -46,9 +52,179 @@ export interface ClipReframe {
   readonly layout?: ClipLayout;
   /** A stacked cut's two people, top half (the left person) first. */
   readonly people?: readonly [StackedPerson, StackedPerson];
+  /**
+   * Time-varying crop trajectory for single-speaker cuts where the active
+   * speaker moves outside the 6% deadband hysteresis zone.
+   */
+  readonly trajectory?: DynamicReframeTrajectory;
 }
 
 export const CENTRE_REFRAME: ClipReframe = Object.freeze({ centerX: 0.5, basis: "centre" });
+
+/** Deadband hysteresis radius: 6% of frame width/height. */
+export const DEADBAND_RATIO = 0.06;
+/** Critically damped natural frequency (rad/s) for smooth camera pans. */
+export const SPRING_OMEGA_N = 2.5;
+/** Inflection reduction collinear tolerance in normalized coordinates. */
+export const INFLECTION_EPSILON = 0.0025;
+
+export interface RawCenterSample {
+  readonly timeSec: number;
+  readonly centerX: number;
+  readonly centerY: number;
+  readonly zoom?: number;
+}
+
+/**
+ * Pass raw face centers through a 6% deadband hysteresis gate and a critically
+ * damped spring-damper filter (`zeta = 1.0`, `omega_n = 2.5 rad/s`).
+ *
+ * Uses the exact analytical solution of the critically damped harmonic oscillator:
+ * `x(t) = target + ((x0 - target) + (v0 + omega_n * (x0 - target)) * dt) * exp(-omega_n * dt)`
+ * `v(t) = (v0 - omega_n^2 * (x0 - target) * dt - omega_n * v0 * dt) * exp(-omega_n * dt)`
+ */
+export function applyCriticallyDampedSmoothing(
+  rawSamples: readonly RawCenterSample[],
+  options: {
+    readonly deadbandRatio?: number;
+    readonly omegaN?: number;
+    readonly reduceInflections?: boolean;
+  } = {},
+): CropKeyframe[] {
+  const first = rawSamples[0];
+  if (first === undefined) return [];
+  const deadband = options.deadbandRatio ?? DEADBAND_RATIO;
+  const omega = options.omegaN ?? SPRING_OMEGA_N;
+  const reduceInflections = options.reduceInflections ?? true;
+
+  let anchorX = clamp01(first.centerX);
+  let anchorY = clamp01(first.centerY);
+  let posX = anchorX;
+  let posY = anchorY;
+  let velX = 0;
+  let velY = 0;
+  let prevTime = Math.max(0, first.timeSec);
+
+  const dense: CropKeyframe[] = [];
+  for (let i = 0; i < rawSamples.length; i += 1) {
+    // eslint-disable-next-line security/detect-object-injection -- bounded index
+    const sample = rawSamples[i] ?? first;
+    const t = Math.max(prevTime, Math.max(0, sample.timeSec));
+    const dt = i === 0 ? 0 : Math.max(0, t - prevTime);
+    prevTime = t;
+
+    const rawX = clamp01(sample.centerX);
+    const rawY = clamp01(sample.centerY);
+    const rawZ = Math.min(1.5, Math.max(1, sample.zoom ?? 1));
+
+    if (Math.abs(rawX - anchorX) > deadband) {
+      anchorX = rawX;
+    }
+    if (Math.abs(rawY - anchorY) > deadband) {
+      anchorY = rawY;
+    }
+
+    if (dt > 0) {
+      const expTerm = Math.exp(-omega * dt);
+      const dx = posX - anchorX;
+      posX = anchorX + (dx + (velX + omega * dx) * dt) * expTerm;
+      velX = (velX - omega * omega * dx * dt - omega * velX * dt) * expTerm;
+
+      const dy = posY - anchorY;
+      posY = anchorY + (dy + (velY + omega * dy) * dt) * expTerm;
+      velY = (velY - omega * omega * dy * dt - omega * velY * dt) * expTerm;
+    }
+
+    dense.push({
+      timeSec: Math.round(t * 10_000) / 10_000,
+      centerX: roundFraction(posX),
+      centerY: roundFraction(posY),
+      zoom: Math.round(rawZ * 10_000) / 10_000,
+    });
+  }
+
+  return reduceInflections ? reduceToInflectionKeyframes(dense) : dense;
+}
+
+function reduceToInflectionKeyframes(
+  keyframes: readonly CropKeyframe[],
+  epsilon: number = INFLECTION_EPSILON,
+): CropKeyframe[] {
+  if (keyframes.length <= 2) return [...keyframes];
+  const first = keyframes[0];
+  if (first === undefined) return [];
+  const reduced: CropKeyframe[] = [first];
+
+  for (let i = 1; i < keyframes.length - 1; i += 1) {
+    const prev = reduced[reduced.length - 1] ?? first;
+    // eslint-disable-next-line security/detect-object-injection -- bounded index
+    const curr = keyframes[i] ?? first;
+    const nxt = keyframes[i + 1] ?? first;
+
+    const dt1 = Math.max(1e-6, curr.timeSec - prev.timeSec);
+    const dt2 = Math.max(1e-6, nxt.timeSec - curr.timeSec);
+    const vx1 = (curr.centerX - prev.centerX) / dt1;
+    const vx2 = (nxt.centerX - curr.centerX) / dt2;
+    const vy1 = (curr.centerY - prev.centerY) / dt1;
+    const vy2 = (nxt.centerY - curr.centerY) / dt2;
+
+    const span = nxt.timeSec - prev.timeSec;
+    const alpha = span > 1e-6 ? (curr.timeSec - prev.timeSec) / span : 0.5;
+    const interpX = prev.centerX + alpha * (nxt.centerX - prev.centerX);
+    const interpY = prev.centerY + alpha * (nxt.centerY - prev.centerY);
+    const dev = Math.hypot(curr.centerX - interpX, curr.centerY - interpY);
+
+    const signFlipX =
+      (vx1 > 1e-4 && vx2 <= 1e-4) ||
+      (vx1 < -1e-4 && vx2 >= -1e-4) ||
+      (Math.abs(vx1) <= 1e-4 && Math.abs(vx2) > 1e-4);
+    const signFlipY =
+      (vy1 > 1e-4 && vy2 <= 1e-4) ||
+      (vy1 < -1e-4 && vy2 >= -1e-4) ||
+      (Math.abs(vy1) <= 1e-4 && Math.abs(vy2) > 1e-4);
+
+    if (signFlipX || signFlipY || dev > epsilon) {
+      reduced.push(curr);
+    }
+  }
+
+  const last = keyframes[keyframes.length - 1];
+  if (last !== undefined) {
+    reduced.push(last);
+  }
+  return reduced;
+}
+
+/**
+ * Build a {@link DynamicReframeTrajectory} from raw samples when the smoothed
+ * path exhibits real camera movement beyond the deadband; returns `undefined`
+ * for stationary speakers so static clips remain single-window cuts.
+ */
+export function buildDynamicReframeTrajectory(
+  rawSamples: readonly RawCenterSample[],
+  interpolation: "SPRING_DAMPED" | "CUBIC_BEZIER" = "SPRING_DAMPED",
+): DynamicReframeTrajectory | undefined {
+  if (rawSamples.length < 2) return undefined;
+  const keyframes = applyCriticallyDampedSmoothing(rawSamples);
+  if (keyframes.length < 2) return undefined;
+  let minX = 1;
+  let maxX = 0;
+  let minY = 1;
+  let maxY = 0;
+  for (const kf of keyframes) {
+    minX = Math.min(minX, kf.centerX);
+    maxX = Math.max(maxX, kf.centerX);
+    minY = Math.min(minY, kf.centerY);
+    maxY = Math.max(maxY, kf.centerY);
+  }
+  if (maxX - minX < 0.005 && maxY - minY < 0.005) {
+    return undefined;
+  }
+  return {
+    keyframes,
+    interpolation,
+  };
+}
 
 /**
  * Faces shorter than this share of the frame are background, not the subject —
@@ -79,6 +255,8 @@ interface FaceTrackBuild {
   readonly centres: number[];
   /** Vertical centres, beside `centres`. */
   readonly rows: number[];
+  /** Timestamped samples for dynamic trajectory smoothing. */
+  readonly timedSamples: RawCenterSample[];
   areaSum: number;
   widthSum: number;
   /** Sample indexes this person appears in (once per sample). */
@@ -116,7 +294,7 @@ export function reframeFromFaces(
   if (samples.length === 0) return CENTRE_REFRAME;
 
   const tracks: FaceTrackBuild[] = [];
-  samples.forEach(([, boxes], sampleIndex) => {
+  samples.forEach(([tMs, boxes], sampleIndex) => {
     const faces = boxes
       .filter((box) => {
         const [x, , w, h] = asArray(box);
@@ -154,6 +332,7 @@ export function reframeFromFaces(
           lastCx: face.cx,
           centres: [],
           rows: [],
+          timedSamples: [],
           areaSum: 0,
           widthSum: 0,
           seenIn: new Set(),
@@ -163,6 +342,12 @@ export function reframeFromFaces(
       owner.lastCx = face.cx;
       owner.centres.push(face.cx);
       owner.rows.push(face.cy);
+      owner.timedSamples.push({
+        timeSec: Math.max(0, (tMs - fromMs) / 1000),
+        centerX: face.cx,
+        centerY: face.cy,
+        zoom: 1,
+      });
       owner.areaSum += face.area;
       owner.widthSum += face.w;
       owner.seenIn.add(sampleIndex);
@@ -185,10 +370,12 @@ export function reframeFromFaces(
   }
   if (dominant === undefined) return CENTRE_REFRAME;
 
+  const trajectory = buildDynamicReframeTrajectory(dominant.timedSamples);
   return {
     centerX: roundFraction(median(dominant.centres)),
     centerY: roundFraction(median(dominant.rows)),
     basis: "faces",
+    ...(trajectory === undefined ? {} : { trajectory }),
   };
 }
 
@@ -212,6 +399,10 @@ function median(values: readonly number[]): number {
 /** Clamped to the frame and rounded, so the payload — and its job — is stable. */
 function roundFraction(value: number): number {
   return Math.round(Math.min(1, Math.max(0, value)) * 10_000) / 10_000;
+}
+
+function clamp01(value: number): number {
+  return Math.min(1, Math.max(0, value));
 }
 
 /**
@@ -447,11 +638,12 @@ export function framingFromTrack(
   if (!(STACKED_ASPECTS as readonly string[]).includes(shape)) return reframe;
   try {
     const decision = detectLayout(track, interval.fromMs, interval.toMs, choice);
+    const { trajectory: _trajectory, ...staticReframe } = reframe;
     if (decision.layout === "stacked" && decision.people !== undefined) {
-      return { ...reframe, layout: "stacked", people: decision.people };
+      return { ...staticReframe, layout: "stacked", people: decision.people };
     }
     if (decision.layout === "fit") {
-      return { ...reframe, layout: "fit" };
+      return { ...staticReframe, layout: "fit" };
     }
     return reframe;
   } catch {

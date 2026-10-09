@@ -19,9 +19,18 @@ from worker_ai.audio import AudioToolError
 from worker_ai.callbacks import JobUsage
 from worker_ai.logging_setup import get_logger
 from worker_ai.passes.faces import (
+    DEFAULT_DAMPING_RATIO,
+    DEFAULT_DEADBAND_RATIO,
     DEFAULT_INTERVAL_MS,
+    DEFAULT_NATURAL_FREQ,
+    SmoothedKeyframe,
     YuNetOnnxDetector,
+    apply_critically_damped_smoothing,
+    build_reframe_trajectory,
+    calculate_mouth_aspect_ratio,
+    correlate_active_speaker,
     detect_face_track,
+    extract_raw_face_centers,
     face_track_document,
 )
 from worker_ai.passes.frame_sampling import probe_video_size
@@ -29,7 +38,18 @@ from worker_ai.processors.context import JobContext, JobFailureError, ProcessorO
 from worker_ai.processors.proxy_media import download_proxy
 from worker_ai.storage import StorageError, derived_key
 
-__all__ = ["process_faces"]
+__all__ = [
+    "DEFAULT_DAMPING_RATIO",
+    "DEFAULT_DEADBAND_RATIO",
+    "DEFAULT_NATURAL_FREQ",
+    "SmoothedKeyframe",
+    "apply_critically_damped_smoothing",
+    "build_reframe_trajectory",
+    "calculate_mouth_aspect_ratio",
+    "correlate_active_speaker",
+    "extract_raw_face_centers",
+    "process_faces",
+]
 
 _log = get_logger(__name__)
 

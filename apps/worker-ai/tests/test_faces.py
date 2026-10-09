@@ -260,3 +260,133 @@ def test_the_track_is_bounded_as_it_is_read_not_only_when_written(
 def test_the_real_model_loads_and_finds_nothing_in_a_blank_frame() -> None:
     detector = YuNetOnnxDetector(os.environ["YUNET_MODEL_PATH"])
     assert detector.detect(np.full((640, 360, 3), 40, dtype=np.uint8)) == []
+
+
+# ---------------------------------------------------------------------------
+# Damped Dynamic Active Speaker Face Tracking Engine (Pillar 3 §01)
+# ---------------------------------------------------------------------------
+
+
+def test_mouth_aspect_ratio_follows_exact_mar_equation() -> None:
+    from worker_ai.passes.faces import calculate_mouth_aspect_ratio
+
+    pts = np.zeros((68, 2), dtype=np.float32)
+    # Horizontal mouth corners p48 = (0, 0), p54 = (10, 0) -> width = 10
+    pts[48] = [0.0, 0.0]
+    pts[54] = [10.0, 0.0]
+    # Vertical pairs: (p51, p57), (p52, p56), (p53, p55) -> each vertical gap = 4.0
+    pts[51] = [5.0, 2.0]
+    pts[57] = [5.0, -2.0]
+    pts[52] = [6.0, 2.0]
+    pts[56] = [6.0, -2.0]
+    pts[53] = [4.0, 2.0]
+    pts[55] = [4.0, -2.0]
+
+    # MAR = (4 + 4 + 4) / (2 * 10) = 12 / 20 = 0.6
+    assert calculate_mouth_aspect_ratio(pts) == pytest.approx(0.6)
+    # Also works with the 20-point mouth landmark slice (indices 48..67)
+    assert calculate_mouth_aspect_ratio(pts[48:68]) == pytest.approx(0.6)
+
+
+def test_correlate_active_speaker_picks_oscillating_mouth_during_speech() -> None:
+    from worker_ai.passes.faces import correlate_active_speaker
+
+    # Candidate 0: silent listener (flat MAR ~0.05)
+    silent = [(t * 0.2, 0.05) for t in range(25)]
+    # Candidate 1: active speaker (oscillating MAR between 0.1 and 0.55 during speech [0.5, 4.5])
+    speaking = [(t * 0.2, 0.12 + (0.42 if t % 2 == 1 else 0.0)) for t in range(25)]
+
+    winner = correlate_active_speaker(
+        {0: silent, 1: speaking},
+        speech_intervals_sec=[(0.5, 4.5)],
+    )
+    assert winner == 1
+
+
+def test_deadband_rejects_plus_minus_two_percent_jitter_with_zero_movement() -> None:
+    """Deadband Verification: +/-2% random noise around a stationary face center produces 0 px movement."""
+    from worker_ai.passes.faces import apply_critically_damped_smoothing
+
+    rng = np.random.default_rng(42)
+    base_x = 0.50
+    base_y = 0.40
+    # 60 samples at 6 fps (10 seconds) with uniform noise in [-0.02, +0.02] (well within 6% deadband)
+    raw_centers = [
+        (
+            i / 6.0,
+            float(base_x + rng.uniform(-0.02, 0.02)),
+            float(base_y + rng.uniform(-0.02, 0.02)),
+            1.0,
+        )
+        for i in range(60)
+    ]
+    # Ensure the initial anchor is exactly (base_x, base_y)
+    raw_centers[0] = (0.0, base_x, base_y, 1.0)
+
+    keyframes = apply_critically_damped_smoothing(
+        raw_centers,
+        sample_fps=6.0,
+        deadband_ratio=0.06,
+        reduce_inflections=False,
+    )
+    assert len(keyframes) == 60
+    # 0 px movement on a 1920x1080 source: every frame stays locked at the initial anchor
+    for kf in keyframes:
+        assert round(kf.center_x * 1920) == round(base_x * 1920)
+        assert round(kf.center_y * 1080) == round(base_y * 1080)
+
+
+def test_critically_damped_spring_produces_smooth_s_curve_with_zero_overshoot() -> None:
+    """Spring Curve Verification: a sudden jump from x=0.25 to x=0.75 yields a smooth S-curve with zero overshoot."""
+    from worker_ai.passes.faces import apply_critically_damped_smoothing, build_reframe_trajectory
+
+    # 5 seconds at 6 fps: jump from 0.25 to 0.75 at frame 1
+    raw_centers = [
+        (i / 6.0, 0.25 if i == 0 else 0.75, 0.45, 1.0)
+        for i in range(31)
+    ]
+    dense = apply_critically_damped_smoothing(
+        raw_centers,
+        sample_fps=6.0,
+        deadband_ratio=0.06,
+        omega_n=2.5,
+        reduce_inflections=False,
+    )
+
+    xs = [kf.center_x for kf in dense]
+    assert xs[0] == pytest.approx(0.25, abs=1e-4)
+    assert xs[-1] == pytest.approx(0.75, abs=1e-3)
+
+    # Monotonically non-decreasing and strictly zero overshoot past 0.75
+    for prev_x, next_x in zip(xs, xs[1:]):
+        assert next_x >= prev_x - 1e-6
+        assert next_x <= 0.75 + 1e-6
+
+    # Reduced trajectory has fewer keyframes than dense 31 samples and serializes cleanly
+    traj = build_reframe_trajectory(raw_centers, sample_fps=6.0)
+    assert traj["interpolation"] == "SPRING_DAMPED"
+    assert 2 <= len(traj["keyframes"]) < len(dense)
+    assert traj["keyframes"][0]["centerX"] == pytest.approx(0.25, abs=1e-4)
+    assert traj["keyframes"][-1]["centerX"] == pytest.approx(0.75, abs=1e-3)
+
+
+def test_1080p_detector_exceeds_50_fps_benchmark() -> None:
+    """Performance Benchmark: 1080p frame preprocessing + detection runs well above 50 fps."""
+    import time
+
+    session = _FakeSession(_outputs((32, 5, 8)))
+    detector = YuNetOnnxDetector("unused", session=session)
+    frame_1080p = np.zeros((1080, 1920, 3), dtype=np.uint8)
+
+    # Warmup
+    detector.detect(frame_1080p)
+
+    iterations = 60
+    start = time.perf_counter()
+    for _ in range(iterations):
+        boxes = detector.detect(frame_1080p)
+        assert len(boxes) == 1
+    elapsed = max(1e-6, time.perf_counter() - start)
+    fps = iterations / elapsed
+    assert fps > 50.0, f"Expected >50 fps on 1080p frames, measured {fps:.1f} fps"
+

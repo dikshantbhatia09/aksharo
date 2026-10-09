@@ -222,6 +222,68 @@ describe("media.clip@1, two-speaker layouts (2026-10-01)", () => {
   });
 });
 
+describe("media.clip@1, dynamic reframe trajectory (Pillar 3 §01)", () => {
+  const basePayload = fixture("media-clip-payload.v1.json");
+  const validTrajectory = {
+    interpolation: "SPRING_DAMPED" as const,
+    keyframes: [
+      { timeSec: 0, centerX: 0.25, centerY: 0.4, zoom: 1 },
+      { timeSec: 1.5, centerX: 0.52, centerY: 0.4, zoom: 1.08 },
+      { timeSec: 4.0, centerX: 0.75, centerY: 0.42, zoom: 1 },
+    ],
+  };
+
+  it("accepts a single-speaker reframe carrying a time-varying trajectory", () => {
+    const parsed = MediaClipPayloadSchema.parse({
+      ...basePayload,
+      reframe: {
+        centerX: 0.5,
+        centerY: 0.4,
+        basis: "faces",
+        trajectory: validTrajectory,
+      },
+    });
+    expect(parsed.reframe?.trajectory?.interpolation).toBe("SPRING_DAMPED");
+    expect(parsed.reframe?.trajectory?.keyframes).toHaveLength(3);
+  });
+
+  it("refuses out-of-order keyframes, out-of-range coordinates/zoom, or trajectory on a stacked cut", () => {
+    const stacked = fixture("media-clip-payload-stacked.v1.json");
+    const stackedReframe = stacked["reframe"] as Record<string, unknown>;
+    expect(
+      MediaClipPayloadSchema.safeParse({
+        ...stacked,
+        reframe: { ...stackedReframe, trajectory: validTrajectory },
+      }).success,
+    ).toBe(false);
+
+    for (const invalidTrajectory of [
+      {
+        interpolation: "SPRING_DAMPED",
+        keyframes: [
+          { timeSec: 2.0, centerX: 0.3, centerY: 0.4, zoom: 1 },
+          { timeSec: 1.0, centerX: 0.7, centerY: 0.4, zoom: 1 },
+        ],
+      },
+      {
+        interpolation: "CUBIC_BEZIER",
+        keyframes: [{ timeSec: 0, centerX: 1.2, centerY: 0.4, zoom: 1 }],
+      },
+      {
+        interpolation: "CUBIC_BEZIER",
+        keyframes: [{ timeSec: 0, centerX: 0.5, centerY: 0.4, zoom: 1.8 }],
+      },
+    ]) {
+      expect(
+        MediaClipPayloadSchema.safeParse({
+          ...basePayload,
+          reframe: { centerX: 0.5, basis: "faces", trajectory: invalidTrajectory },
+        }).success,
+      ).toBe(false);
+    }
+  });
+});
+
 describe("media.clip@1, audiograms (2026-10-04)", () => {
   const payload = fixture("media-clip-payload-audiogram.v1.json");
   const audiogram = payload["audiogram"] as Record<string, unknown>;

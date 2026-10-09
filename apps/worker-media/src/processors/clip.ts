@@ -18,17 +18,30 @@ import {
   MAX_CLIP_HEIGHT,
   clipFilter,
   clipFrame,
+  dynamicCropExpressions,
   fitFilter,
   fitFrame,
+  interpolateTrajectoryAt,
+  remotionVideoTransform,
   stackedFilter,
   stackedFrame,
   type ClipAspect,
+  type CropKeyframe,
+  type DynamicReframeTrajectory,
   type StackedPersonInput,
 } from "./clip-frame.js";
 import { assertKnownClipFields, readAudiogram } from "./clip-payload.js";
 
 import type { ProbeContainer } from "../ffmpeg/ffprobe.js";
 import type { JobContext, ProcessorOutcome } from "../runtime.js";
+
+export {
+  dynamicCropExpressions,
+  interpolateTrajectoryAt,
+  remotionVideoTransform,
+  type CropKeyframe,
+  type DynamicReframeTrajectory,
+};
 
 export interface ClipPayload {
   readonly runId: string;
@@ -57,6 +70,7 @@ export interface ClipPayload {
      */
     readonly layout?: "single" | "stacked" | "fit";
     readonly people?: readonly StackedPersonInput[];
+    readonly trajectory?: DynamicReframeTrajectory;
   };
   /** The shape to cut (2026-09-29); 9:16 when absent. */
   readonly aspect?: ClipAspect;
@@ -209,13 +223,14 @@ export async function processClip(context: JobContext): Promise<ProcessorOutcome
   if (source.video !== null && stacked === null && fitted === null && frame === null) {
     throw unreadableMedia("The source's picture size could not be read.", "media/probe_failed");
   }
+  const leadHandleMs = Math.min(payload.handleMs || 0, Math.max(0, payload.startMs));
   const videoFilter =
     stacked !== null
       ? stackedFilter(stacked)
       : fitted !== null
       ? fitFilter(fitted)
       : frame !== null
-      ? clipFilter(frame)
+      ? clipFilter(frame, payload.reframe?.trajectory, leadHandleMs / 1000)
       : null;
 
   // An audiogram (2026-10-04): a source with no picture gets one drawn, when
@@ -251,7 +266,6 @@ export async function processClip(context: JobContext): Promise<ProcessorOutcome
   context.report(10, "preparing clip workspace");
 
   return withWorkspace("clip", settings.tempDir, async (workspace) => {
-    const leadHandleMs = Math.min(payload.handleMs || 0, Math.max(0, payload.startMs));
     const maxTail = Math.max(0, sourceDurationMs - payload.endMs);
     const tailHandleMs = Math.min(payload.handleMs || 0, maxTail);
 

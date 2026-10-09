@@ -14,10 +14,14 @@ import {
   STACK_FACE_ROW,
   clipFilter,
   clipFrame,
+  dynamicCropExpressions,
   fitFilter,
   fitFrame,
+  interpolateTrajectoryAt,
+  remotionVideoTransform,
   stackedFilter,
   stackedFrame,
+  type DynamicReframeTrajectory,
 } from "./clip-frame.js";
 import { classifyReadFailure, cutCameOutShort, processClip } from "./clip.js";
 import { MediaJobError } from "../errors.js";
@@ -864,6 +868,59 @@ describe("fitFrame, fitFilter", () => {
   });
 });
 
+describe("dynamicCropExpressions, interpolateTrajectoryAt, remotionVideoTransform (Pillar 3 §01)", () => {
+  const trajectory: DynamicReframeTrajectory = {
+    interpolation: "SPRING_DAMPED",
+    keyframes: [
+      { timeSec: 0, centerX: 0.25, centerY: 0.5, zoom: 1 },
+      { timeSec: 2, centerX: 0.75, centerY: 0.5, zoom: 1.1 },
+    ],
+  };
+
+  it("builds a bounded even-aligned FFmpeg crop expression when keyframes pan across the frame", () => {
+    const frame = clipFrame({ width: 1920, height: 1080 }, { centerX: 0.25 });
+    if (frame === null) throw new Error("expected a frame");
+    const expr = dynamicCropExpressions(frame, trajectory, 0.2);
+    expect(expr.isDynamic).toBe(true);
+    expect(expr.xExpr).toContain("trunc(clip(");
+    expect(expr.xExpr).toContain("/2)*2");
+
+    const filter = clipFilter(frame, trajectory, 0.2);
+    expect(filter).toContain(`crop=608:1080:x='${expr.xExpr}':y='${expr.yExpr}'`);
+  });
+
+  it("falls back to static crop when trajectory keyframes do not move", () => {
+    const frame = clipFrame({ width: 1920, height: 1080 }, { centerX: 0.5 });
+    if (frame === null) throw new Error("expected a frame");
+    const staticTraj: DynamicReframeTrajectory = {
+      interpolation: "SPRING_DAMPED",
+      keyframes: [
+        { timeSec: 0, centerX: 0.5, centerY: 0.5, zoom: 1 },
+        { timeSec: 3, centerX: 0.5, centerY: 0.5, zoom: 1 },
+      ],
+    };
+    expect(clipFilter(frame, staticTraj)).toBe(
+      "scale=1920:1080,crop=608:1080:656:0,setsar=1,format=yuv420p",
+    );
+  });
+
+  it("computes Remotion CSS transform and interpolates keyframes smoothly", () => {
+    const start = remotionVideoTransform(trajectory, 0);
+    expect(start.keyframe.centerX).toBeCloseTo(0.25, 3);
+    expect(start.style.transform).toContain("scale(1.0000)");
+    expect(start.style.transform).toContain("translate3d(25.000%, 0.000%, 0)");
+
+    const mid = interpolateTrajectoryAt(trajectory, 1);
+    expect(mid.centerX).toBeGreaterThan(0.25);
+    expect(mid.centerX).toBeLessThan(0.75);
+
+    const end = remotionVideoTransform(trajectory, 2);
+    expect(end.keyframe.centerX).toBeCloseTo(0.75, 3);
+    expect(end.style.transform).toContain("scale(1.1000)");
+    expect(end.style.transform).toContain("translate3d(-25.000%, 0.000%, 0)");
+  });
+});
+
 describe("cutCameOutShort", () => {
   it.each([
     // readProbe's "unknown" is never a length: this used to pass a short clip
@@ -999,6 +1056,33 @@ describe.skipIf(!CAN_RUN)("processClip", () => {
     await processClip(ctx);
 
     expect(countAbove(lumaAt1s(kept), 200)).toBe(0);
+  }, 120_000);
+
+  it("pans smoothly across the frame when reframe.trajectory is supplied", async () => {
+    const kept = join(dir, "kept-trajectory.mp4");
+    const { context: ctx } = buildContext(
+      boxed,
+      {
+        reframe: {
+          centerX: 0.8125,
+          basis: "faces",
+          trajectory: {
+            interpolation: "SPRING_DAMPED",
+            keyframes: [
+              { timeSec: 0, centerX: 0.78, centerY: 0.5, zoom: 1 },
+              { timeSec: 1.0, centerX: 0.8125, centerY: 0.5, zoom: 1 },
+              { timeSec: 2.0, centerX: 0.82, centerY: 0.5, zoom: 1 },
+            ],
+          },
+        },
+      },
+      keepingStore(boxed, kept),
+    );
+
+    await processClip(ctx);
+
+    // At t = 1s, the dynamic crop expression pans onto the white box at centerX = 0.8125.
+    expect(countAbove(lumaAt1s(kept), 200)).toBeGreaterThan(10_000);
   }, 120_000);
 
   // Was 720 x 1280 whatever was asked: every 1080 x 1920 export scaled it up.

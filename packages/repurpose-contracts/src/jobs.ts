@@ -4,6 +4,7 @@ import {
   AspectSchema,
   CANDIDATE_REASON_LABELS,
   ClipCopySchema,
+  DynamicReframeTrajectorySchema,
   ExcludeRangeSchema,
   MillisecondsSchema,
   REPURPOSE_SCHEMA_VERSION,
@@ -306,6 +307,11 @@ export const MediaClipPayloadSchema = z
         layout: ClipLayoutSchema.optional(),
         /** A stacked cut's two people, top half first (the left person, by default). */
         people: z.array(StackedPersonSchema).length(2).optional(),
+        /**
+         * Time-varying crop trajectory (Pillar 3 §01, Dynamic Active Speaker Tracking).
+         * Smoothly pans and zooms the crop window when a single speaker moves beyond the deadband.
+         */
+        trajectory: DynamicReframeTrajectorySchema.optional(),
       })
       .superRefine((value, context) => {
         if (value.layout === "stacked" && value.people === undefined) {
@@ -320,6 +326,16 @@ export const MediaClipPayloadSchema = z
             code: "custom",
             path: ["people"],
             message: "Only a stacked cut names people.",
+          });
+        }
+        if (
+          value.trajectory !== undefined &&
+          (value.layout === "stacked" || value.layout === "fit")
+        ) {
+          context.addIssue({
+            code: "custom",
+            path: ["trajectory"],
+            message: "A dynamic trajectory applies only to a single-speaker cut.",
           });
         }
       })
