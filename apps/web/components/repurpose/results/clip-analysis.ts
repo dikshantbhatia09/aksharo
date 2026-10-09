@@ -143,7 +143,7 @@ export function analysisOf(candidate: RepurposeCandidateItem): ClipAnalysis {
     part(
       "trend",
       mark(raw["trend"]),
-      null,
+      percent(measured["trend"]),
       text(notes["trend"]) ?? reasonOf(candidate, "track_record", "novelty"),
     ),
   ].filter((entry): entry is AnalysisPart => entry !== null);
@@ -274,3 +274,61 @@ export function hookCategoryOf(candidate: RepurposeCandidateItem): HookCategoryI
     score,
   };
 }
+
+export type ViralityTierKey = "VIRAL_GOLD" | "HIGH_POTENTIAL" | "MODERATE" | "STANDARD";
+
+export interface ViralityTierInfo {
+  readonly tier: ViralityTierKey;
+  readonly label: string;
+  readonly shortLabel: string;
+  readonly description: string;
+  readonly score: number;
+}
+
+/**
+ * Classifies clips into tier categories (Pillar 2 §01):
+ * - Viral Gold (85-100): Projected viral hit with strong hook & narrative.
+ * - High Potential (70-84): Strong engagement drivers with high retention potential.
+ * - Moderate (50-69): Solid content suitable for testing and syndication.
+ * - Standard (<50): Baseline clip requiring editorial iteration.
+ */
+export function viralityTierOf(candidate: RepurposeCandidateItem): ViralityTierInfo {
+  const rawScore = candidate.potentialScore ?? candidate.score ?? 0;
+  const score = Math.round(rawScore);
+
+  if (score >= 85) {
+    return {
+      tier: "VIRAL_GOLD",
+      label: "Viral Gold (85-100)",
+      shortLabel: "Viral Gold",
+      description: "Top-tier viral hit with explosive hook and high narrative retention.",
+      score,
+    };
+  }
+  if (score >= 70) {
+    return {
+      tier: "HIGH_POTENTIAL",
+      label: "High Potential (70-84)",
+      shortLabel: "High Potential",
+      description: "Strong performance indicators with high social engagement potential.",
+      score,
+    };
+  }
+  if (score >= 50) {
+    return {
+      tier: "MODERATE",
+      label: "Moderate (50-69)",
+      shortLabel: "Moderate",
+      description: "Solid clip with steady engagement; consider refining hook or pacing.",
+      score,
+    };
+  }
+  return {
+    tier: "STANDARD",
+    label: "Standard (<50)",
+    shortLabel: "Standard",
+    description: "Standard moment; add a hook or punchline in the video editor.",
+    score,
+  };
+}
+

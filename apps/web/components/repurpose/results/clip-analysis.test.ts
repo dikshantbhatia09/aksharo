@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { RepurposeCandidateItem } from "@montaj/api-client";
 
-import { analysisOf, gradeOf, matchesSearch, tagsOf } from "./clip-analysis";
+import { analysisOf, gradeOf, matchesSearch, tagsOf, viralityTierOf } from "./clip-analysis";
 
 const COPY = {
   summary: "Why insecurity fades",
@@ -140,3 +140,29 @@ describe("matchesSearch", () => {
     expect(matchesSearch(one, "  ")).toBe(true);
   });
 });
+
+describe("viralityTierOf", () => {
+  it("classifies candidates into universal virality tiers", () => {
+    expect(viralityTierOf(candidate({ potentialScore: 92 }))).toMatchObject({
+      tier: "VIRAL_GOLD",
+      shortLabel: "Viral Gold",
+      score: 92,
+    });
+    expect(viralityTierOf(candidate({ potentialScore: 78 }))).toMatchObject({
+      tier: "HIGH_POTENTIAL",
+      shortLabel: "High Potential",
+      score: 78,
+    });
+    expect(viralityTierOf(candidate({ potentialScore: 62 }))).toMatchObject({
+      tier: "MODERATE",
+      shortLabel: "Moderate",
+      score: 62,
+    });
+    expect(viralityTierOf(candidate({ potentialScore: 41 }))).toMatchObject({
+      tier: "STANDARD",
+      shortLabel: "Standard",
+      score: 41,
+    });
+  });
+});
+

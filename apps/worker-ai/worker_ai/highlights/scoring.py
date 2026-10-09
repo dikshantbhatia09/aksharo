@@ -37,6 +37,7 @@ from dataclasses import dataclass
 from itertools import accumulate
 from typing import Final, Literal
 
+from worker_ai.highlights.acoustic import AcousticFeatures
 from worker_ai.highlights.text import (
     ends_clause,
     is_exclamation,
@@ -47,17 +48,28 @@ from worker_ai.highlights.text import (
 from worker_ai.highlights.windows import PAUSE_MS, Unit, Word, sentence_ends
 
 __all__ = [
+    "HOOK_WINDOW_MS",
     "PAUSE_MS",
+    "AcousticFeatures",
     "ContentGoal",
+    "HookWindowAnalysis",
     "Reason",
     "Score",
+    "ViralityBreakdown",
+    "ViralityTier",
     "WindowSignals",
     "WordFeatures",
     "reasons_for",
     "score",
+    "virality_index",
+    "virality_tier",
 ]
 
 ContentGoal = Literal["reach", "education", "authority", "engagement"]
+ViralityTier = Literal["VIRAL_GOLD", "HIGH_POTENTIAL", "MODERATE", "STANDARD"]
+
+#: Duration of the critical opening hook window (Pillar 2 §01).
+HOOK_WINDOW_MS: Final[int] = 3_500
 
 #: How far into a window the hook has to land.
 _OPENING_WORDS: Final[int] = 8
@@ -352,6 +364,113 @@ _ORPHAN_PRONOUNS: Final = (
     ("now", "heres"),
 )
 
+QUESTION_WORDS: Final = _nfc(
+    {
+        "why", "how", "what", "who", "when", "which", "where", "can", "could", "would",
+        "should", "do", "does", "did", "have", "has", "had", "is", "are", "kya", "kyun",
+        "kyon", "kaise", "kab", "kahan", "kaun", "kisko", "kisne", "क्या", "क्यों", "कैसे",
+        "कब", "कहाँ", "कौन",
+    }
+)
+
+CURIOSITY_WORDS: Final = _nfc(
+    {
+        "secret", "secrets", "truth", "problem", "reason", "mystery", "nobody", "revealed",
+        "formula", "hack", "hacks", "trick", "tricks", "hidden", "why", "how", "imagine",
+        "mistake", "mistakes", "danger", "warning", "ruin", "destroy", "magic", "lie",
+        "lies", "raaz", "sach", "sachchai", "galti", "dhokha", "farzi", "asli",
+    }
+)
+
+CONTRARIAN_WORDS: Final = _nfc(
+    {
+        "never", "stop", "worst", "mistake", "mistakes", "wrong", "dangerous", "insane",
+        "crazy", "shocking", "hate", "impossible", "ruin", "destroy", "scam", "trapped",
+        "toxic", "fake", "terrible", "lies", "myth", "fail", "failed", "warning",
+        "galti", "galat", "khatarnak", "sabse", "mat", "kabhi",
+    }
+)
+
+TREND_KEYWORDS: Final = _nfc(
+    {
+        # AI & Tech
+        "ai", "gpt", "chatgpt", "deepseek", "llm", "claude", "agent", "agents", "automation",
+        "algorithm", "software", "tech", "coding", "robot", "nvidia", "apple", "google",
+        "meta", "openai", "machine", "intelligence",
+        # Wealth & Business
+        "money", "rich", "wealth", "wealthy", "income", "crore", "crores", "lakh", "lakhs",
+        "million", "billion", "dollar", "dollars", "rupee", "rupees", "business", "startup",
+        "profit", "sales", "revenue", "invest", "investing", "crypto", "bitcoin", "salary",
+        "cash", "paisa", "paise", "crorepati", "ameer", "kamao", "kamai", "dhandha", "naukri",
+        # Productivity & Mindset
+        "productivity", "habit", "habits", "discipline", "focus", "dopamine", "mindset",
+        "success", "successful", "brain", "routine", "burnout", "sleep", "biohack", "goal",
+        "goals", "safalta", "kamyabi", "dimaag", "aadat",
+        # Controversy & Insights
+        "secret", "secrets", "truth", "scam", "trap", "cheat", "hacks", "hack", "mistake",
+        "mistakes", "danger", "dangerous", "warning", "banned", "illegal", "hidden",
+        "conspiracy", "exposed", "lie", "lies", "raaz", "sach",
+    }
+)
+
+TRAILING_CONJUNCTIONS: Final = _nfc(
+    {
+        "and", "but", "so", "or", "because", "like", "if", "though", "although", "aur",
+        "lekin", "kyunki", "ya", "toh", "par", "magar", "ki", "then", "also", "plus",
+    }
+)
+
+TRAILING_PHRASES: Final = (
+    ("and", "so"),
+    ("but", "anyway"),
+    ("and", "then"),
+    ("which", "means"),
+    ("so", "yeah"),
+    ("aur", "phir"),
+    ("toh", "basically"),
+)
+
+FILLER_OPENING_PHRASES: Final = (
+    ("so", "basically"),
+    ("um", "yeah"),
+    ("uh", "yeah"),
+    ("like", "i", "said"),
+    ("as", "i", "was", "saying"),
+    ("as", "i", "said"),
+    ("you", "know", "what", "i", "mean"),
+    ("you", "know"),
+    ("so", "yeah"),
+    ("well", "so"),
+    ("toh", "basically"),
+    ("matlab", "basically"),
+)
+
+
+@dataclass(frozen=True, slots=True)
+class HookWindowAnalysis:
+    """Isolated 0-3.5 second hook window evaluation (Pillar 2 §01)."""
+
+    words: list[str]
+    duration_ms: int
+    curiosity_gap: float      # 0-1
+    contrarian_score: float   # 0-1
+    hook_energy_ratio: float  # 0-1
+    has_filler_opening: bool
+    s_hook: float             # 0-30
+
+
+@dataclass(frozen=True, slots=True)
+class ViralityBreakdown:
+    """Multi-modal 5-component universal virality formulation (0-100)."""
+
+    hook: float       # 0-30
+    narrative: float  # 0-25
+    energy: float     # 0-20
+    trend: float      # 0-15
+    pacing: float     # 0-10
+    total: int        # 0-100
+    tier: ViralityTier  # VIRAL_GOLD, HIGH_POTENTIAL, MODERATE, STANDARD
+
 #: Weights per `contentGoal`. Each row sums to 1. `question` is not a breakdown
 #: dimension (the contract has none for it), but it is what `engagement` asks for.
 _WEIGHTS: Final[dict[str, dict[str, float]]] = {
@@ -438,6 +557,11 @@ class WordFeatures:
         self._numbers = _prefix(self.number)
         self._entities = _prefix(self.entity)
         self._speech_ms = _prefix([max(0, word.end_ms - word.start_ms) for word in words])
+        self.trend = [token in TREND_KEYWORDS for token in self.norm]
+        self._trend = _prefix(self.trend)
+        self._pauses_over_1s = _prefix(
+            [self._gap_after(i) > 1000 for i in range(len(words) - 1)] + ([False] if words else [])
+        )
         self._openers: dict[tuple[int, int], str | None] = {}
 
         inner = [unit.last for unit in units[:-1]]
@@ -498,6 +622,91 @@ class WordFeatures:
             return self._edge_pause
         return _pause_quality(self._gap_after(last))
 
+    def trailing_conjunction(self, last: int) -> bool:
+        """True if the window ends on a dangling conjunction or fragment transition."""
+        if last < 0 or last >= len(self.norm):
+            return False
+        if self.norm[last] in TRAILING_CONJUNCTIONS:
+            return True
+        if last >= 1:
+            phrase = (self.norm[last - 1], self.norm[last])
+            if phrase in TRAILING_PHRASES:
+                return True
+        return False
+
+    def hook_analysis(self, first: int, last: int, start_ms: int) -> HookWindowAnalysis:
+        """Evaluate the isolated 0-3.5s opening hook window (Pillar 2 §01)."""
+        hook_end = first
+        while (
+            hook_end < last
+            and self.words[hook_end + 1].start_ms - start_ms <= HOOK_WINDOW_MS
+        ):
+            hook_end += 1
+
+        hook_tokens = self.norm[first : hook_end + 1]
+        hook_words = [self.words[i].text for i in range(first, hook_end + 1)]
+        hook_duration_ms = max(1, self.words[hook_end].end_ms - start_ms)
+
+        has_filler = False
+        if self.norm[first] in FILLERS or self._has_orphan_pronoun(first):
+            has_filler = True
+        else:
+            for phrase in FILLER_OPENING_PHRASES:
+                if len(hook_tokens) >= len(phrase) and tuple(hook_tokens[: len(phrase)]) == phrase:
+                    has_filler = True
+                    break
+
+        opener = self.opener(first, last)
+        starts_q = self.question[first] or self.norm[first] in QUESTION_WORDS
+        has_q = any(self.question[i] or self.norm[i] in QUESTION_WORDS for i in range(first, hook_end + 1))
+        curiosity_tokens = sum(1 for t in hook_tokens if t in CURIOSITY_WORDS)
+
+        c_score = 0.0
+        if opener is not None:
+            c_score += 0.55
+        if starts_q:
+            c_score += 0.45
+        elif has_q:
+            c_score += 0.35
+        if curiosity_tokens > 0:
+            c_score += min(0.35, curiosity_tokens * 0.2)
+        curiosity_gap = max(0.0, min(1.0, c_score))
+
+        contrarian_tokens = sum(1 for t in hook_tokens if t in CONTRARIAN_WORDS)
+        has_num = any(self.number[i] for i in range(first, hook_end + 1))
+        has_excl = any(self.exclamation[i] for i in range(first, hook_end + 1))
+
+        k_score = 0.0
+        if contrarian_tokens > 0:
+            k_score += min(0.6, contrarian_tokens * 0.35)
+        if has_num:
+            k_score += 0.35
+        if has_excl:
+            k_score += 0.2
+        contrarian_score = max(0.0, min(1.0, k_score))
+
+        hook_speech_ms = sum(max(0, self.words[i].end_ms - self.words[i].start_ms) for i in range(first, hook_end + 1))
+        speech_density = hook_speech_ms / hook_duration_ms
+        hook_emphatic = any(self.emphatic[i] for i in range(first, hook_end + 1))
+
+        e_score = 0.5 * min(1.0, speech_density / 0.75) + (0.5 if (hook_emphatic or has_excl) else 0.2)
+        hook_energy_ratio = max(0.0, min(1.0, e_score))
+
+        s_hook = 15.0 * curiosity_gap + 10.0 * contrarian_score + 5.0 * hook_energy_ratio
+        if has_filler:
+            s_hook *= 0.2
+        s_hook = max(0.0, min(30.0, s_hook))
+
+        return HookWindowAnalysis(
+            words=hook_words,
+            duration_ms=hook_duration_ms,
+            curiosity_gap=round(curiosity_gap, 3),
+            contrarian_score=round(contrarian_score, 3),
+            hook_energy_ratio=round(hook_energy_ratio, 3),
+            has_filler_opening=has_filler,
+            s_hook=round(s_hook, 2),
+        )
+
     def opener(self, first: int, last: int) -> str | None:
         """The hook phrase words ``first..last`` open with, if any."""
         if self._has_orphan_pronoun(first):
@@ -536,9 +745,21 @@ class WordFeatures:
         opening = range(first, opening_end + 1)
         has_orphan = self._has_orphan_pronoun(first)
 
+        hook_an = self.hook_analysis(first, last, start_ms)
+        trailing_conj = self.trailing_conjunction(last)
+        internal_pauses_1s = (
+            max(0, self._pauses_over_1s[last] - self._pauses_over_1s[first])
+            if last > first
+            else 0
+        )
+        trend_count = self._trend[stop] - self._trend[first]
+        total_duration_ms = end_ms - start_ms
+        word_count = stop - first
+        wpm = (word_count / (max(1, total_duration_ms) / 60000.0)) if total_duration_ms > 0 else 0.0
+
         return WindowSignals(
-            words=stop - first,
-            duration_ms=end_ms - start_ms,
+            words=word_count,
+            duration_ms=total_duration_ms,
             speech_ms=self._speech_ms[stop] - self._speech_ms[first],
             opening=self.opening(first),
             closing=self.closing(last),
@@ -553,6 +774,12 @@ class WordFeatures:
             emphatic=self._emphatic[stop] - self._emphatic[first],
             numbers=self._numbers[stop] - self._numbers[first],
             entities=self._entities[stop] - self._entities[first],
+            hook_analysis=hook_an,
+            trailing_conjunction=trailing_conj,
+            pauses_over_1s=internal_pauses_1s,
+            trend_keywords=trend_count,
+            wpm=wpm,
+            orphan_pronoun=has_orphan,
         )
 
     def emphatic_words(self, first: int, last: int, limit: int = 3) -> list[str]:
@@ -588,6 +815,12 @@ class WindowSignals:
     emphatic: int
     numbers: int
     entities: int
+    hook_analysis: HookWindowAnalysis | None = None
+    trailing_conjunction: bool = False
+    pauses_over_1s: int = 0
+    trend_keywords: int = 0
+    wpm: float = 0.0
+    orphan_pronoun: bool = False
 
     @property
     def opens_sentence(self) -> bool:
@@ -611,6 +844,7 @@ class Score:
     question: float
     density: float
     fluency: float
+    virality: ViralityBreakdown | None = None
 
     def percent(self) -> int:
         """``potentialScore``: the potential in whole percent."""
@@ -618,7 +852,7 @@ class Score:
 
     def breakdown(self) -> dict[str, int]:
         """The contract's ``scoreBreakdown``, in whole percent."""
-        return {
+        base: dict[str, int] = {
             "hook": _percent(self.hook),
             "clarity": _percent(self.clarity),
             "emotion": _percent(self.emotion),
@@ -627,6 +861,12 @@ class Score:
             "standaloneValue": _percent(self.standalone),
             "safety": _UNMEASURED_SAFETY,
         }
+        if self.virality is not None:
+            base["narrative"] = int(round(self.virality.narrative * (100.0 / 25.0)))
+            base["energy"] = int(round(self.virality.energy * (100.0 / 20.0)))
+            base["trend"] = int(round(self.virality.trend * (100.0 / 15.0)))
+            base["pacing"] = int(round(self.virality.pacing * (100.0 / 10.0)))
+        return base
 
 
 def _percent(value: float) -> int:
@@ -639,9 +879,122 @@ def _pause_quality(gap_ms: int) -> float:
     return _unit(gap_ms / PAUSE_MS)
 
 
-def score(signals: WindowSignals, goal: str) -> Score:
-    """Combine a window's signals into its dimensions and its potential (0-1)."""
+def virality_tier(score_val: int) -> ViralityTier:
+    """Classifies clips into tier categories: Viral Gold (85-100), High Potential (70-84), Moderate (50-69)."""
+    if score_val >= 85:
+        return "VIRAL_GOLD"
+    if score_val >= 70:
+        return "HIGH_POTENTIAL"
+    if score_val >= 50:
+        return "MODERATE"
+    return "STANDARD"
+
+
+def virality_index(
+    signals: WindowSignals,
+    acoustic: AcousticFeatures | None = None,
+    goal: str = "reach",
+) -> ViralityBreakdown:
+    """Universal Virality Formulation (0-100):
+
+    ViralityScore = clamp(S_hook + S_narrative + S_energy + S_trend + S_pacing, 0, 100)
+    """
+    # 1. S_hook (0-30 pts)
+    hook_an = signals.hook_analysis
+    if hook_an is not None:
+        s_hook = hook_an.s_hook
+    else:
+        curiosity = 1.0 if signals.opener else 0.6 if signals.question_up_front else 0.2
+        contrarian = 0.5 if signals.punch_up_front else 0.0
+        energy_r = 0.5
+        s_hook = 15.0 * curiosity + 10.0 * contrarian + 5.0 * energy_r
+
+    # 2. S_narrative (0-25 pts)
+    premise = 7.0 * signals.opening + 3.0 * min(1.0, signals.pause_before / 0.7)
+    if (hook_an is not None and hook_an.has_filler_opening) or signals.orphan_pronoun:
+        premise *= 0.2
+    closing = 7.0 * signals.closing + 3.0 * min(1.0, signals.pause_after / 0.7)
+    conjunction_pts = 0.0 if signals.trailing_conjunction else 5.0
+    s_narrative = max(0.0, min(25.0, premise + closing + conjunction_pts))
+
+    # 3. S_energy (0-20 pts)
+    if acoustic is not None:
+        s_energy = (
+            8.0 * acoustic.pitch_variance
+            + 6.0 * acoustic.volume_dynamics
+            + 3.0 * acoustic.laughter_probability
+            + 3.0 * acoustic.energy_peaks
+        )
+    else:
+        words_count = max(1, signals.words)
+        emphatic_score = min(1.0, (signals.emphatic / words_count) / 0.04)
+        excl_score = min(1.0, signals.exclamations / 2.0)
+        speech_ratio = min(1.0, max(0.0, (signals.speech_ms / max(1, signals.duration_ms) - 0.35) / 0.5))
+        s_energy = 9.0 * emphatic_score + 5.0 * excl_score + 6.0 * speech_ratio
+    s_energy = max(0.0, min(20.0, s_energy))
+
+    # 4. S_trend (0-15 pts)
+    words_count = max(1, signals.words)
+    trend_density = signals.trend_keywords / words_count
+    if trend_density >= 0.045:
+        s_trend = 15.0
+    elif trend_density >= 0.025:
+        s_trend = 11.0
+    elif signals.trend_keywords >= 1:
+        s_trend = 7.0
+    elif signals.entities >= 2:
+        s_trend = 5.0
+    elif signals.entities == 1:
+        s_trend = 3.0
+    else:
+        s_trend = 0.0
+    s_trend = max(0.0, min(15.0, s_trend))
+
+    # 5. S_pacing (0-10 pts)
+    wpm = signals.wpm
+    if 150.0 <= wpm <= 190.0:
+        cadence = 6.0
+    elif 135.0 <= wpm < 150.0 or 190.0 < wpm <= 205.0:
+        cadence = 4.5
+    elif 120.0 <= wpm < 135.0 or 205.0 < wpm <= 225.0:
+        cadence = 3.0
+    elif 100.0 <= wpm < 120.0 or 225.0 < wpm <= 240.0:
+        cadence = 1.5
+    else:
+        cadence = 0.0
+
+    if signals.pauses_over_1s == 0:
+        pauses = 4.0
+    elif signals.pauses_over_1s == 1:
+        pauses = 2.0
+    else:
+        pauses = 0.0
+    s_pacing = max(0.0, min(10.0, cadence + pauses))
+
+    total_raw = s_hook + s_narrative + s_energy + s_trend + s_pacing
+    total = max(0.0, min(100.0, total_raw))
+    total_int = int(math.floor(total + 0.5))
+    tier = virality_tier(total_int)
+
+    return ViralityBreakdown(
+        hook=round(s_hook, 2),
+        narrative=round(s_narrative, 2),
+        energy=round(s_energy, 2),
+        trend=round(s_trend, 2),
+        pacing=round(s_pacing, 2),
+        total=total_int,
+        tier=tier,
+    )
+
+
+def score(
+    signals: WindowSignals,
+    goal: str = "reach",
+    acoustic: AcousticFeatures | None = None,
+) -> Score:
+    """Combine a window's signals into calibrated multi-modal virality formulation and potential (0-1)."""
     words = max(1, signals.words)
+    virality = virality_index(signals, acoustic=acoustic, goal=goal)
 
     standalone = (
         0.3 * signals.opening
@@ -649,24 +1002,24 @@ def score(signals: WindowSignals, goal: str) -> Score:
         + 0.2 * signals.pause_before
         + 0.2 * signals.pause_after
     )
+    if signals.trailing_conjunction:
+        standalone *= 0.5
 
     opener = 1.0 if signals.opener else 0.6 if signals.question_up_front else 0.0
     punch = 0.3 if signals.punch_up_front else 0.2 if (signals.question_up_front and signals.opener) else 0.0
-    hook = min(1.0, 0.7 * opener + punch)
+    heuristic_hook = min(1.0, 0.7 * opener + punch)
+    hook = max(heuristic_hook, min(1.0, virality.hook / 30.0))
 
-    # Talking for 85% of the window is dense; a third of it is mostly air.
     density = _unit((signals.speech_ms / max(1, signals.duration_ms) - 0.35) / 0.5)
-    # One filler in twelve words is as bad as it gets.
     fluency = 1.0 - _unit(signals.fillers / words / 0.08)
     clarity = 0.55 * density + 0.45 * fluency
 
-    # One emphatic word in 25 is a speaker who means it.
     emotion = 0.75 * _unit(signals.emphatic / words / 0.04) + 0.25 * _unit(signals.exclamations / 2)
     novelty = 0.5 * _unit(signals.numbers / 3) + 0.5 * _unit(signals.entities / 3)
     question = _unit(signals.questions / 2)
 
     weights = _WEIGHTS.get(goal, _WEIGHTS["reach"])
-    potential = (
+    weighted_potential = (
         weights["standalone"] * standalone
         + weights["hook"] * hook
         + weights["clarity"] * clarity
@@ -674,6 +1027,12 @@ def score(signals: WindowSignals, goal: str) -> Score:
         + weights["novelty"] * novelty
         + weights["question"] * question
     )
+
+    if goal == "reach":
+        potential = 0.6 * (virality.total / 100.0) + 0.4 * weighted_potential
+    else:
+        potential = weighted_potential
+
     return Score(
         potential=_unit(potential),
         hook=hook,
@@ -684,6 +1043,7 @@ def score(signals: WindowSignals, goal: str) -> Score:
         question=question,
         density=density,
         fluency=fluency,
+        virality=virality,
     )
 
 
@@ -715,12 +1075,20 @@ def reasons_for(
         reasons.append(
             Reason("hook", "Opens on a question, which gives a reason to keep watching.")
         )
+    elif signals.hook_analysis and signals.hook_analysis.s_hook >= 18:
+        reasons.append(
+            Reason("hook", f"Strong hook opening ({round(signals.hook_analysis.s_hook)}/30 pts) with immediate curiosity gap.")
+        )
     elif signals.questions:
         reasons.append(
             Reason("hook", f"Asks {_plural(signals.questions, 'question')} the viewer can answer.")
         )
 
-    if signals.opens_sentence and signals.closes_sentence:
+    if signals.opens_sentence and signals.closes_sentence and not signals.trailing_conjunction:
+        reasons.append(
+            Reason("standalone", "Starts and ends on complete sentences, so it stands on its own.")
+        )
+    elif signals.opens_sentence and signals.closes_sentence:
         reasons.append(
             Reason("standalone", "Starts and ends on complete sentences, so it stands on its own.")
         )

@@ -161,6 +161,10 @@ export const CandidateScoreBreakdownSchema = z.strictObject({
   novelty: ScoreSchema,
   standaloneValue: ScoreSchema,
   safety: ScoreSchema,
+  narrative: ScoreSchema.optional(),
+  energy: ScoreSchema.optional(),
+  trend: ScoreSchema.optional(),
+  pacing: ScoreSchema.optional(),
 });
 
 /**
@@ -207,6 +211,7 @@ export const ClipCandidateSchema = z
     title: ShortLabelSchema,
     transcriptExcerpt: z.string().max(2_000),
     potentialScore: ScoreSchema.nullable(),
+    tier: z.enum(["VIRAL_GOLD", "HIGH_POTENTIAL", "MODERATE", "STANDARD"]).optional().nullable(),
     scoreBreakdown: CandidateScoreBreakdownSchema.nullable(),
     reasons: z.array(CandidateReasonSchema).max(12),
     signalVersion: z.int().positive(),

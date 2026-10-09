@@ -60,6 +60,7 @@ PROPOSAL_FIELDS = [
     "scoreBreakdown",
     "startMs",
     "startWordId",
+    "tier",
     "title",
     "transcriptExcerpt",
     "windowId",

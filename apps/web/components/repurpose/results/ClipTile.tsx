@@ -24,7 +24,7 @@ import {
 } from "@montaj/api-client";
 import { cn } from "@montaj/ui";
 
-import { hookCategoryOf, tagsOf } from "./clip-analysis";
+import { hookCategoryOf, tagsOf, viralityTierOf } from "./clip-analysis";
 
 import { clipStateOf } from "@/components/repurpose/CandidateCard";
 import { formatClock } from "@/components/repurpose/moment-time";
@@ -52,10 +52,11 @@ function posterOf(clip: RepurposeClipItem | undefined): string | undefined {
   return vertical?.items[0]?.url;
 }
 
-/** A score's colour band, as OpusClip colours its numbers: strong, good, fair. */
+/** A score's colour band matching virality tier thresholds (Viral Gold, High Potential, Moderate). */
 function scoreTone(score: number): string {
-  if (score >= 80) return "text-accepted";
-  if (score >= 65) return "text-warning";
+  if (score >= 85) return "text-amber-400";
+  if (score >= 70) return "text-accepted";
+  if (score >= 50) return "text-warning";
   return "text-fg-1";
 }
 
@@ -76,6 +77,7 @@ export function ClipTile({
   const playUrl = clip?.captioned?.playUrl ?? clip?.mezzanineUrl ?? undefined;
   const tags = tagsOf(candidate);
   const hookCat = hookCategoryOf(candidate);
+  const tierInfo = viralityTierOf(candidate);
   const selected = selection?.selected === true;
   const named = `#${String(rank)} ${title}${score === undefined || score === null ? "" : `, score ${String(score)}`}`;
 
@@ -191,9 +193,10 @@ export function ClipTile({
                 "absolute right-1.5 top-1.5 rounded-sm bg-ink/80 px-1.5 py-0.5 font-display text-lg leading-none",
                 scoreTone(score),
               )}
+              title={tierInfo.label}
               data-testid={`clip-tile-score-${candidate.id}`}
             >
-              {String(score)}
+              {tierInfo.tier === "VIRAL_GOLD" ? "🏆 " : ""}{String(score)}
             </span>
           )}
           <span

@@ -70,7 +70,7 @@ import { formatClock } from "@/components/repurpose/moment-time";
 import { ClipPerformance } from "@/components/repurpose/performance/ClipPerformance";
 import { ClipPosts } from "@/components/repurpose/publishing/ClipPosts";
 import { describeRefusal } from "@/components/repurpose/refusal";
-import { hookCategoryOf, tagsOf } from "@/components/repurpose/results/clip-analysis";
+import { hookCategoryOf, tagsOf, viralityTierOf } from "@/components/repurpose/results/clip-analysis";
 import { ClipReview } from "@/components/repurpose/review/ClipReview";
 import { isRemovedCandidate } from "@/components/repurpose/steering";
 import { useStableUrl } from "@/components/repurpose/use-stable-url";
@@ -276,6 +276,7 @@ export function CandidateCard({
   // What it is about and what makes it work, in two or three words each (2026-10-01).
   const tags = tagsOf(candidate);
   const hookCat = hookCategoryOf(candidate);
+  const tierInfo = viralityTierOf(candidate);
   // The clip's own project: where its captions live and are exported. The
   // 9:16 one: an Autopilot clip has a project per shape (2026-09-29).
   const clipProjectId = (
@@ -320,7 +321,25 @@ export function CandidateCard({
         <div className="min-w-0 flex-[1_1_240px]">
           <div className="flex flex-wrap items-center gap-2">
             {score === undefined || score === null ? null : (
-              <Badge tone="neutral">Potential {String(score)}%</Badge>
+              <Badge
+                tone={
+                  tierInfo.tier === "VIRAL_GOLD"
+                    ? "accepted"
+                    : tierInfo.tier === "HIGH_POTENTIAL"
+                      ? "info"
+                      : tierInfo.tier === "MODERATE"
+                        ? "warning"
+                        : "neutral"
+                }
+                title={`Virality: ${tierInfo.label}`}
+                data-testid={`candidate-tier-badge-${candidate.id}`}
+              >
+                {tierInfo.tier === "VIRAL_GOLD"
+                  ? `🏆 ${tierInfo.shortLabel} ${String(tierInfo.score)}%`
+                  : tierInfo.tier === "HIGH_POTENTIAL"
+                    ? `🚀 ${tierInfo.shortLabel} ${String(tierInfo.score)}%`
+                    : `${tierInfo.shortLabel} ${String(tierInfo.score)}%`}
+              </Badge>
             )}
             <Badge
               tone={

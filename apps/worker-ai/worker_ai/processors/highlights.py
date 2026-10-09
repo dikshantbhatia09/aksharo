@@ -89,6 +89,7 @@ from worker_ai.highlights.scoring import (
     WordFeatures,
     reasons_for,
     score,
+    virality_tier,
 )
 from worker_ai.highlights.text import make_excerpt, make_title
 from worker_ai.highlights.tribe_client import NeuralAttentionScore, TribeWindowInput
@@ -399,8 +400,8 @@ def _heuristic_pick(scored: _Scored, options: HighlightsOptions) -> list[_Candid
     # Autopilot keeps only what clears the bar (`minPotential`): a moment that
     # scores under it is not worth a clip, however many slots are left.
     if options.min_potential is not None:
-        floor = options.min_potential
-        candidates = [candidate for candidate in candidates if candidate.score.potential >= floor]
+        floor_percent = round(options.min_potential * 100)
+        candidates = [candidate for candidate in candidates if candidate.score.percent() >= floor_percent]
         if not candidates:
             return []
 
@@ -551,6 +552,7 @@ def _proposal(
         "title": make_title(texts, fallback=_moment_title(window.start_ms)),
         "transcriptExcerpt": make_excerpt(texts),
         "potentialScore": _percent(ranked.ranked_on),
+        "tier": virality_tier(_percent(ranked.ranked_on)),
         "scoreBreakdown": breakdown,
         "reasons": reasons[:12],
     }
@@ -766,8 +768,8 @@ def _rank_with_model(
     # so it applies to the blended score, after the model has had its say -
     # and without the track record's lift, which only orders what cleared it.
     if options.min_potential is not None:
-        floor = options.min_potential
-        entries = [entry for entry in entries if entry.potential >= floor]
+        floor_percent = round(options.min_potential * 100)
+        entries = [entry for entry in entries if _percent(entry.potential) >= floor_percent]
     return entries
 
 

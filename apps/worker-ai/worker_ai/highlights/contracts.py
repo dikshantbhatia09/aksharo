@@ -250,6 +250,9 @@ class HighlightsPayload(_Strict):
     feature_version: Annotated[str, _trimmed(1, 100)] = Field(alias="featureVersion")
 
 
+_ViralityTier = Literal["VIRAL_GOLD", "HIGH_POTENTIAL", "MODERATE", "STANDARD"]
+
+
 class ScoreBreakdown(_Strict):
     hook: int = Field(ge=0, le=100)
     clarity: int = Field(ge=0, le=100)
@@ -258,6 +261,10 @@ class ScoreBreakdown(_Strict):
     novelty: int = Field(ge=0, le=100)
     standalone_value: int = Field(alias="standaloneValue", ge=0, le=100)
     safety: int = Field(ge=0, le=100)
+    narrative: int | None = Field(default=None, ge=0, le=100)
+    energy: int | None = Field(default=None, ge=0, le=100)
+    trend: int | None = Field(default=None, ge=0, le=100)
+    pacing: int | None = Field(default=None, ge=0, le=100)
 
 
 class ProposalReason(_Strict):
@@ -371,6 +378,7 @@ class HighlightProposal(_Strict):
     title: Annotated[str, _trimmed(1, 160)]
     transcript_excerpt: str = Field(alias="transcriptExcerpt", max_length=2_000)
     potential_score: int = Field(alias="potentialScore", ge=0, le=100)
+    tier: _ViralityTier | None = None
     score_breakdown: ScoreBreakdown = Field(alias="scoreBreakdown")
     reasons: tuple[ProposalReason, ...] = Field(min_length=1, max_length=12)
     copy_text: ClipCopy | None = Field(default=None, alias="copy")

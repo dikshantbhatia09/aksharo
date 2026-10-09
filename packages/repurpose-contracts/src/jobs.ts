@@ -593,6 +593,10 @@ export const HighlightsPayloadSchema = z
     }
   });
 
+export const VIRALITY_TIERS = ["VIRAL_GOLD", "HIGH_POTENTIAL", "MODERATE", "STANDARD"] as const;
+export const ViralityTierSchema = z.enum(VIRALITY_TIERS);
+export type ViralityTier = z.infer<typeof ViralityTierSchema>;
+
 /**
  * One proposal. The model selects an enumerated window id and explains itself; it
  * does not invent a timecode (§10.2 step 6). `windowId` is what makes that
@@ -608,6 +612,7 @@ export const HighlightProposalSchema = z
     title: z.string().trim().min(1).max(160),
     transcriptExcerpt: z.string().max(2_000),
     potentialScore: z.int().min(0).max(100),
+    tier: ViralityTierSchema.optional(),
     scoreBreakdown: z.strictObject({
       hook: z.int().min(0).max(100),
       clarity: z.int().min(0).max(100),
@@ -616,6 +621,10 @@ export const HighlightProposalSchema = z
       novelty: z.int().min(0).max(100),
       standaloneValue: z.int().min(0).max(100),
       safety: z.int().min(0).max(100),
+      narrative: z.int().min(0).max(100).optional(),
+      energy: z.int().min(0).max(100).optional(),
+      trend: z.int().min(0).max(100).optional(),
+      pacing: z.int().min(0).max(100).optional(),
     }),
     reasons: z
       .array(
