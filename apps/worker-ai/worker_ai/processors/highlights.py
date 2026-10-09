@@ -56,6 +56,7 @@ from worker_ai.highlights.clip_copy import ClipSource, heuristic_copy, resolve_s
 from worker_ai.highlights.contracts import (
     HIGHLIGHTS_SCHEMA_VERSION,
     ClipCopy,
+    ExcludeRange,
     HighlightProposal,
     HighlightsOptions,
     HighlightsPayload,
@@ -92,6 +93,7 @@ from worker_ai.highlights.scoring import (
     score,
     virality_tier,
 )
+from worker_ai.highlights.sponsors import detect_intro_teasers, is_commercial_segment
 from worker_ai.highlights.text import make_excerpt, make_title
 from worker_ai.highlights.texttiling import TextTilingResult, compute_texttiling, discourse_coherence_bonus
 from worker_ai.highlights.tribe_client import NeuralAttentionScore, TribeWindowInput
@@ -306,9 +308,15 @@ def _score_all(
     units = build_units(words, min_ms=min_ms, max_ms=max_ms)
     tiling = compute_texttiling(units, words)
 
+    # Detect duplicate introductory teasers in first 90s vs >180s
+    intro_teasers = detect_intro_teasers(words)
+
     # The parts of the video the person asked to skip (`excludeRanges`) are
     # never a window, so never scored or proposed.
-    exclude = options.exclude_ranges
+    exclude = list(options.exclude_ranges or [])
+    if intro_teasers:
+        exclude.extend(ExcludeRange(start_ms=s, end_ms=e) for s, e in intro_teasers)
+
     windows = enumerate_windows(
         units,
         min_ms=min_ms,
@@ -337,6 +345,9 @@ def _score_all(
     unit_last_map = {u.last: idx for idx, u in enumerate(units)}
 
     for window in windows:
+        window_text = " ".join(words[k].text for k in range(window.first, window.last + 1))
+        if is_commercial_segment(window_text):
+            continue
         signals = features.signals(window.first, window.last, window.start_ms, window.end_ms)
         sc = score(signals, options.content_goal)
 

@@ -449,7 +449,8 @@ def build_units(words: Sequence[Word], *, min_ms: int, max_ms: int) -> list[Unit
             has_close = is_incomplete_closing(words, effective_low, high)
             unit_text = " ".join(words[k].text for k in range(effective_low, high + 1))
             is_break = bool(HARD_BREAK_PATTERNS.search(unit_text))
-            is_spon = bool(SPONSOR_PATTERNS.search(unit_text))
+            from worker_ai.highlights.sponsors import is_commercial_segment
+            is_spon = bool(SPONSOR_PATTERNS.search(unit_text)) or is_commercial_segment(unit_text)
             is_teas = bool(words[effective_low].start_ms <= 60_000 and INTRO_TEASER_PATTERNS.search(unit_text))
             is_orphan = bool(effective_low > 0 and ORPHAN_START_PATTERNS.search(unit_text))
             starts_sent = (piece_idx == 0) and (low + advance <= high)

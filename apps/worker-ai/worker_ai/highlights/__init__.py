@@ -34,6 +34,16 @@ from worker_ai.highlights.texttiling import (
     compute_texttiling,
     discourse_coherence_bonus,
 )
+from worker_ai.highlights.sponsors import (
+    COMMERCIAL_SCORE_THRESHOLD,
+    CommercialClassification,
+    classify_commercial_intent,
+    commercial_score,
+    detect_intro_teasers,
+    fetch_sponsorblock_segments_py,
+    filter_commercial_windows,
+    is_commercial_segment,
+)
 from worker_ai.highlights.tribe_client import (
     NeuralAttentionScore,
     TribeClient,
@@ -58,11 +68,19 @@ from worker_ai.highlights.windows import (
 )
 
 __all__ = [
+    "COMMERCIAL_SCORE_THRESHOLD",
+    "CommercialClassification",
     "DISALLOWED_CLOSINGS",
     "DISALLOWED_OPENINGS",
     "HIGHLIGHTS_SCHEMA_VERSION",
     "MAX_DURATION_MS",
     "MIN_DURATION_MS",
+    "classify_commercial_intent",
+    "commercial_score",
+    "detect_intro_teasers",
+    "fetch_sponsorblock_segments_py",
+    "filter_commercial_windows",
+    "is_commercial_segment",
     "DiagnosticItem",
     "HighlightProposal",
     "HighlightsOptions",
