@@ -19,9 +19,13 @@ import {
   fitFrame,
   interpolateTrajectoryAt,
   remotionVideoTransform,
+  splitScreenFilter,
+  splitScreenFrame,
   stackedFilter,
   stackedFrame,
+  toSplitScreenConfig,
   type DynamicReframeTrajectory,
+  type SplitScreenConfig,
 } from "./clip-frame.js";
 import { classifyReadFailure, cutCameOutShort, processClip } from "./clip.js";
 import { MediaJobError } from "../errors.js";
@@ -1621,3 +1625,51 @@ describe.skipIf(!CAN_RUN)("processClip", () => {
     expect(error.reason).toBe("media/unsupported");
   }, 120_000);
 });
+
+describe("splitScreenFrame, splitScreenFilter, toSplitScreenConfig (Pillar 3 §02)", () => {
+  const fullHd = { width: 1920, height: 1080 };
+  const config: SplitScreenConfig = {
+    enabled: true,
+    topCrop: { x: 80, y: 180, width: 640, height: 720 },
+    bottomCrop: { x: 1200, y: 180, width: 640, height: 720 },
+    dividerColor: "#1A1A1A",
+    activeSpeakerHighlight: true,
+  };
+
+  it("computes a 1080x1920 vertical canvas with two 1080x960 panes and a 2px divider line", () => {
+    const frame = splitScreenFrame(fullHd, config, { maxHeight: 1920 });
+    expect(frame).not.toBeNull();
+    if (frame === null) return;
+    expect(frame.half).toEqual({ width: 1080, height: 960 });
+    expect(frame.output).toEqual({ width: 1080, height: 1920 });
+    expect(frame.crops).toEqual([
+      { x: 80, y: 180, width: 640, height: 720 },
+      { x: 1200, y: 180, width: 640, height: 720 },
+    ]);
+
+    const filter = splitScreenFilter(frame);
+    expect(filter).toContain("[top_in]crop=w=640:h=720:x=80:y=180,scale=1080:960:flags=bicubic,setsar=1[top]");
+    expect(filter).toContain("[bottom_in]crop=w=640:h=720:x=1200:y=180,scale=1080:960:flags=bicubic,setsar=1[bottom]");
+    expect(filter).toContain("[top][bottom]vstack=inputs=2[stacked]");
+    expect(filter).toContain("drawbox=y=959:color=#1A1A1A:width=1080:height=2:t=fill");
+  });
+
+  it("converts a StackedFrame into a SplitScreenConfig and rejects disabled or non-landscape sources", () => {
+    const stacked = stackedFrame(fullHd, {
+      people: [
+        { centerX: 0.25, centerY: 0.4, size: 0.14 },
+        { centerX: 0.75, centerY: 0.42, size: 0.14 },
+      ],
+    });
+    expect(stacked).not.toBeNull();
+    if (stacked === null) return;
+    const derivedConfig = toSplitScreenConfig(stacked);
+    expect(derivedConfig.enabled).toBe(true);
+    expect(derivedConfig.topCrop).toEqual(stacked.crops[0]);
+    expect(derivedConfig.bottomCrop).toEqual(stacked.crops[1]);
+
+    expect(splitScreenFrame(fullHd, { ...config, enabled: false })).toBeNull();
+    expect(splitScreenFrame({ width: 1080, height: 1920 }, config)).toBeNull();
+  });
+});
+

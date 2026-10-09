@@ -3,6 +3,7 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { SplitScreenConfigSchema, type SplitScreenConfig } from "./formats.js";
 import {
   HighlightsPayloadSchema,
   HighlightsResultSchema,
@@ -544,3 +545,57 @@ describe("storage keys", () => {
     }
   });
 });
+
+describe("SplitScreenConfig (Pillar 3 §02)", () => {
+  it("validates dual crop coordinates and optional divider/speaker highlight settings", () => {
+    const config: SplitScreenConfig = {
+      enabled: true,
+      topCrop: { x: 80, y: 180, width: 640, height: 720 },
+      bottomCrop: { x: 1200, y: 180, width: 640, height: 720 },
+      dividerColor: "#1A1A1A",
+      activeSpeakerHighlight: true,
+    };
+    const parsed = SplitScreenConfigSchema.safeParse(config);
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data).toEqual(config);
+    }
+
+    const negativeCrop = SplitScreenConfigSchema.safeParse({
+      ...config,
+      topCrop: { x: -10, y: 0, width: 640, height: 720 },
+    });
+    expect(negativeCrop.success).toBe(false);
+
+    const zeroWidth = SplitScreenConfigSchema.safeParse({
+      ...config,
+      bottomCrop: { x: 100, y: 0, width: 0, height: 720 },
+    });
+    expect(zeroWidth.success).toBe(false);
+  });
+
+  it("allows MediaClipPayloadSchema.reframe to carry optional splitScreen config", () => {
+    const base = fixture("media-clip-payload.v1.json");
+    const parsed = MediaClipPayloadSchema.safeParse({
+      ...base,
+      reframe: {
+        centerX: 0.3,
+        basis: "faces",
+        layout: "stacked",
+        people: [
+          { centerX: 0.25, centerY: 0.4, size: 0.14 },
+          { centerX: 0.75, centerY: 0.42, size: 0.14 },
+        ],
+        splitScreen: {
+          enabled: true,
+          topCrop: { x: 80, y: 180, width: 640, height: 720 },
+          bottomCrop: { x: 1200, y: 180, width: 640, height: 720 },
+          dividerColor: "#1A1A1A",
+          activeSpeakerHighlight: true,
+        },
+      },
+    });
+    expect(parsed.success).toBe(true);
+  });
+});
+

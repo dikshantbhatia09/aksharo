@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 /**
  * Every format a clip is prepared in (2026-09-29).
  *
@@ -331,3 +333,90 @@ export const FORMAT_TARGETS: readonly FormatTarget[] = Object.freeze([
   // TikTok
   { id: "tiktok-video", platform: "TikTok", label: "Video", file: video("9:16") },
 ] satisfies FormatTarget[]);
+
+/**
+ * Two-Speaker Vertical Split-Screen Layout Engine (Pillar 3 §02).
+ *
+ * Rectangular crop coordinates in source video pixels for one speaker pane.
+ */
+export interface SplitScreenCropBox {
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+}
+
+/**
+ * Dual crop configuration for stacking two primary speakers vertically inside a
+ * 9:16 vertical canvas (Top Pane: Host / Speaker 1; Bottom Pane: Guest / Speaker 2).
+ */
+export interface SplitScreenConfig {
+  readonly enabled: boolean;
+  readonly topCrop: {
+    readonly x: number;
+    readonly y: number;
+    readonly width: number;
+    readonly height: number;
+  };
+  readonly bottomCrop: {
+    readonly x: number;
+    readonly y: number;
+    readonly width: number;
+    readonly height: number;
+  };
+  readonly dividerColor?: string;
+  readonly activeSpeakerHighlight?: boolean;
+}
+
+export const SPLIT_SCREEN_MODES = ["SPLIT_SCREEN", "SOLO_FULL_SCREEN"] as const;
+export type SplitScreenMode = (typeof SPLIT_SCREEN_MODES)[number];
+
+/**
+ * Timeline segment alternating between split-screen during rapid dialogue and
+ * solo full-screen during extended monologues.
+ */
+export interface SplitScreenSegment {
+  readonly startSec: number;
+  readonly endSec: number;
+  readonly mode: SplitScreenMode;
+  readonly activeSpeaker?: "top" | "bottom";
+}
+
+export const SPLIT_SCREEN_CANVAS = Object.freeze({
+  width: 1080,
+  height: 1920,
+  paneWidth: 1080,
+  paneHeight: 960,
+  dividerY: 959,
+  dividerHeight: 2,
+  defaultDividerColor: "#1A1A1A",
+  activeSpeakerScale: 1.02,
+});
+
+export const SplitScreenCropBoxSchema = z.strictObject({
+  x: z.number().nonnegative(),
+  y: z.number().nonnegative(),
+  width: z.number().positive(),
+  height: z.number().positive(),
+});
+
+export const SplitScreenConfigSchema = z.strictObject({
+  enabled: z.boolean(),
+  topCrop: SplitScreenCropBoxSchema,
+  bottomCrop: SplitScreenCropBoxSchema,
+  dividerColor: z
+    .string()
+    .trim()
+    .min(1)
+    .max(64)
+    .optional(),
+  activeSpeakerHighlight: z.boolean().optional(),
+});
+
+export const SplitScreenSegmentSchema = z.strictObject({
+  startSec: z.number().nonnegative(),
+  endSec: z.number().nonnegative(),
+  mode: z.enum(SPLIT_SCREEN_MODES),
+  activeSpeaker: z.enum(["top", "bottom"]).optional(),
+});
+

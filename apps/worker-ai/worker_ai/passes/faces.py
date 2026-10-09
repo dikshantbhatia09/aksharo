@@ -48,23 +48,32 @@ __all__ = [
     "DEFAULT_INTERVAL_MS",
     "DEFAULT_NATURAL_FREQ",
     "FACE_TRACK_VERSION",
+    "LAYOUT_SINGLE_SPEAKER",
+    "LAYOUT_TWO_SPEAKER_CONVERSATION",
     "MAX_FACES_PER_SAMPLE",
     "MIN_FACE_HEIGHT",
+    "TWO_SPEAKER_MIN_SEPARATION_RATIO",
     "FaceBox",
     "FaceSample",
     "SmoothedKeyframe",
+    "SpeakerCluster",
+    "TwoSpeakerClassification",
     "YuNetOnnxDetector",
     "apply_critically_damped_smoothing",
     "bound_faces",
     "build_reframe_trajectory",
     "calculate_mouth_aspect_ratio",
+    "classify_two_speaker_layout",
+    "cluster_speaker_faces_kmeans",
     "correlate_active_speaker",
     "decode_yunet",
     "detect_face_track",
     "extract_raw_face_centers",
     "face_track_document",
     "iter_bgr_frames",
+    "kmeans_face_clusters",
     "nms",
+    "plan_dialogue_monologue_segments",
 ]
 
 #: Bump when the `faces.json` shape changes; the renderer ignores other versions.
@@ -767,4 +776,622 @@ def build_reframe_trajectory(
         "keyframes": [dict(kf) for kf in smoothed],
         "interpolation": interpolation,
     }
+
+
+# ---------------------------------------------------------------------------
+# Two-Speaker Vertical Split-Screen Layout Engine (Pillar 3 §02)
+# ---------------------------------------------------------------------------
+
+#: Minimum horizontal cluster separation as a fraction of frame width to
+#: classify a source as a two-speaker side-by-side conversation.
+TWO_SPEAKER_MIN_SEPARATION_RATIO = 0.35
+
+LAYOUT_TWO_SPEAKER_CONVERSATION = "TWO_SPEAKER_CONVERSATION"
+LAYOUT_SINGLE_SPEAKER = "SINGLE_SPEAKER"
+
+
+def _median_float(values: Sequence[float], default: float = 0.5) -> float:
+    if not values:
+        return default
+    ordered = sorted(float(v) for v in values)
+    mid = len(ordered) // 2
+    if len(ordered) % 2 == 1:
+        return ordered[mid]
+    return 0.5 * (ordered[mid - 1] + ordered[mid])
+
+
+def _floor_even(value: float, minimum: int = 2) -> int:
+    return max(minimum, int(math.floor(value / 2.0)) * 2)
+
+
+def _round_even(value: float, minimum: int = 2) -> int:
+    return max(minimum, int(round(value / 2.0)) * 2)
+
+
+class SpeakerCluster(dict[str, Any]):
+    """One speaker cluster identified by k-means (k=2) over face samples."""
+
+    def __init__(
+        self,
+        *,
+        speaker_id: int,
+        role: str,
+        center_x: float,
+        center_y: float,
+        median_box: FaceBox,
+        crop_box: dict[str, int],
+        sample_count: int,
+    ) -> None:
+        super().__init__(
+            speakerId=speaker_id,
+            role=role,
+            centerX=round(float(center_x), 4),
+            centerY=round(float(center_y), 4),
+            medianBox={
+                "x": round(float(median_box.x), 4),
+                "y": round(float(median_box.y), 4),
+                "width": round(float(median_box.w), 4),
+                "height": round(float(median_box.h), 4),
+                "score": round(float(median_box.score), 4),
+            },
+            cropBox=dict(crop_box),
+            sampleCount=int(sample_count),
+        )
+        self._median_box = median_box
+
+    @property
+    def speaker_id(self) -> int:
+        return int(self["speakerId"])
+
+    @property
+    def role(self) -> str:
+        return str(self["role"])
+
+    @property
+    def center_x(self) -> float:
+        return float(self["centerX"])
+
+    @property
+    def centerX(self) -> float:  # noqa: N802
+        return float(self["centerX"])
+
+    @property
+    def center_y(self) -> float:
+        return float(self["centerY"])
+
+    @property
+    def centerY(self) -> float:  # noqa: N802
+        return float(self["centerY"])
+
+    @property
+    def median_box(self) -> FaceBox:
+        return self._median_box
+
+    @property
+    def crop_box(self) -> dict[str, int]:
+        return dict(self["cropBox"])
+
+    @property
+    def sample_count(self) -> int:
+        return int(self["sampleCount"])
+
+
+class TwoSpeakerClassification(dict[str, Any]):
+    """Result of k-means (k=2) speaker clustering and split-screen layout classification."""
+
+    def __init__(
+        self,
+        *,
+        layout: str,
+        is_two_speaker: bool,
+        delta_x: float,
+        delta_x_px: float,
+        separation_ratio: float,
+        clusters: tuple[SpeakerCluster, ...],
+        top_crop: dict[str, int],
+        bottom_crop: dict[str, int],
+        divider_color: str = "#1A1A1A",
+        active_speaker_highlight: bool = True,
+    ) -> None:
+        split_config = {
+            "enabled": bool(is_two_speaker),
+            "topCrop": dict(top_crop),
+            "bottomCrop": dict(bottom_crop),
+            "dividerColor": divider_color,
+            "activeSpeakerHighlight": bool(active_speaker_highlight),
+        }
+        super().__init__(
+            layout=layout,
+            classification=layout,
+            enabled=bool(is_two_speaker),
+            isTwoSpeaker=bool(is_two_speaker),
+            deltaX=round(float(delta_x), 4),
+            deltaXPx=round(float(delta_x_px), 2),
+            separationRatio=round(float(separation_ratio), 4),
+            clusters=list(clusters),
+            topCrop=dict(top_crop),
+            bottomCrop=dict(bottom_crop),
+            splitScreenConfig=split_config,
+        )
+        self._clusters = clusters
+
+    @property
+    def layout(self) -> str:
+        return str(self["layout"])
+
+    @property
+    def classification(self) -> str:
+        return str(self["classification"])
+
+    @property
+    def enabled(self) -> bool:
+        return bool(self["enabled"])
+
+    @property
+    def is_two_speaker(self) -> bool:
+        return bool(self["isTwoSpeaker"])
+
+    @property
+    def delta_x(self) -> float:
+        return float(self["deltaX"])
+
+    @property
+    def delta_x_px(self) -> float:
+        return float(self["deltaXPx"])
+
+    @property
+    def separation_ratio(self) -> float:
+        return float(self["separationRatio"])
+
+    @property
+    def clusters(self) -> tuple[SpeakerCluster, ...]:
+        return self._clusters
+
+    @property
+    def top_crop(self) -> dict[str, int]:
+        return dict(self["topCrop"])
+
+    @property
+    def topCrop(self) -> dict[str, int]:  # noqa: N802
+        return dict(self["topCrop"])
+
+    @property
+    def bottom_crop(self) -> dict[str, int]:
+        return dict(self["bottomCrop"])
+
+    @property
+    def bottomCrop(self) -> dict[str, int]:  # noqa: N802
+        return dict(self["bottomCrop"])
+
+    @property
+    def host_box(self) -> FaceBox | None:
+        return self._clusters[0].median_box if len(self._clusters) >= 1 else None
+
+    @property
+    def guest_box(self) -> FaceBox | None:
+        return self._clusters[1].median_box if len(self._clusters) >= 2 else None
+
+    @property
+    def split_screen_config(self) -> dict[str, Any]:
+        return dict(self["splitScreenConfig"])
+
+
+def _extract_candidate_boxes(
+    samples_or_boxes: Sequence[Any],
+    *,
+    source_width: int,
+    source_height: int,
+) -> tuple[list[FaceBox], int, int]:
+    """Normalise diverse caller inputs into a flat list of normalised ``FaceBox``
+    instances plus ``(total_samples, dual_face_samples)``.
+    """
+    sw = max(1.0, float(source_width))
+    sh = max(1.0, float(source_height))
+    flat: list[FaceBox] = []
+    total_samples = 0
+    dual_samples = 0
+
+    def _to_norm_box(item: Any) -> FaceBox | None:
+        if isinstance(item, FaceBox):
+            x, y, w, h, score = item.x, item.y, item.w, item.h, item.score
+        elif isinstance(item, Mapping):
+            if "w" in item or "width" in item:
+                x = float(item.get("x", 0.0))
+                y = float(item.get("y", 0.0))
+                w = float(item.get("w", item.get("width", 0.12)))
+                h = float(item.get("h", item.get("height", 0.16)))
+                score = float(item.get("score", 0.95))
+            else:
+                cx = float(item.get("centerX", item.get("cx", item.get("x", 0.5))))
+                cy = float(item.get("centerY", item.get("cy", item.get("y", 0.4))))
+                w = float(item.get("size", 0.12))
+                h = float(item.get("size", 0.16))
+                if cx > 1.5 or cy > 1.5:
+                    cx /= sw
+                    cy /= sh
+                if w > 1.5:
+                    w /= sw
+                if h > 1.5:
+                    h /= sh
+                return FaceBox(
+                    x=max(0.0, cx - w / 2.0),
+                    y=max(0.0, cy - h / 2.0),
+                    w=w,
+                    h=h,
+                    score=0.95,
+                )
+        elif isinstance(item, (Sequence, np.ndarray)):
+            if len(item) >= 4:
+                x, y, w, h = float(item[0]), float(item[1]), float(item[2]), float(item[3])
+                score = float(item[4]) if len(item) >= 5 else 0.95
+            elif len(item) >= 2:
+                cx, cy = float(item[0]), float(item[1])
+                if cx > 1.5 or cy > 1.5:
+                    cx /= sw
+                    cy /= sh
+                w, h = 0.10, 0.16
+                return FaceBox(
+                    x=max(0.0, cx - w / 2.0),
+                    y=max(0.0, cy - h / 2.0),
+                    w=w,
+                    h=h,
+                    score=0.95,
+                )
+            else:
+                return None
+        else:
+            return None
+
+        # Convert pixel boxes to normalised 0..1 coordinates when values exceed 1.5
+        if x > 1.5 or y > 1.5 or w > 1.5 or h > 1.5:
+            x /= sw
+            y /= sh
+            w /= sw
+            h /= sh
+        if w <= 0.0 or h < MIN_FACE_HEIGHT:
+            return None
+        return FaceBox(
+            x=min(1.0, max(0.0, x)),
+            y=min(1.0, max(0.0, y)),
+            w=min(1.0, max(0.01, w)),
+            h=min(1.0, max(MIN_FACE_HEIGHT, h)),
+            score=score,
+        )
+
+    for entry in samples_or_boxes:
+        if isinstance(entry, FaceSample):
+            total_samples += 1
+            usable = bound_faces(entry.boxes)[:2]
+            if len(usable) >= 2:
+                dual_samples += 1
+            flat.extend(usable)
+        elif (
+            isinstance(entry, (Sequence, np.ndarray))
+            and len(entry) == 2
+            and isinstance(entry[0], (int, float))
+            and isinstance(entry[1], (Sequence, np.ndarray))
+            and (len(entry[1]) == 0 or isinstance(entry[1][0], (Sequence, np.ndarray, FaceBox, Mapping)))
+        ):
+            # Raw `faces.json` sample `[t_ms, boxes]`
+            total_samples += 1
+            sample_boxes = [b for raw_b in entry[1] if (b := _to_norm_box(raw_b)) is not None]
+            sample_boxes.sort(key=lambda b: b.w * b.h, reverse=True)
+            kept = sample_boxes[:2]
+            if len(kept) >= 2:
+                dual_samples += 1
+            flat.extend(kept)
+        else:
+            box = _to_norm_box(entry)
+            if box is not None:
+                flat.append(box)
+
+    return flat, total_samples, dual_samples
+
+
+def _compute_pane_crop(
+    median_box: FaceBox,
+    *,
+    side: str,
+    midpoint_x: float,
+    separation_x: float,
+    source_width: int,
+    source_height: int,
+) -> dict[str, int]:
+    """Compute an optimised 9:8 half-canvas crop window (1080 x 960 aspect ratio)
+    for one speaker in source pixel coordinates, clamped to the speaker's side
+    of the frame so neither pane ever bleeds into the other speaker.
+    """
+    sw = max(2, int(source_width))
+    sh = max(2, int(source_height))
+    pane_ratio = 1080.0 / 960.0  # 1.125 (9:8 half of 9:16)
+
+    cx = (median_box.x + median_box.w / 2.0) * sw
+    cy = (median_box.y + median_box.h / 2.0) * sh
+    mid_px = midpoint_x * sw
+    sep_px = max(64.0, separation_x * sw)
+
+    widest = _floor_even(min(sep_px, mid_px if side == "left" else (sw - mid_px), float(sw)))
+    tallest = min(_floor_even(sh), _floor_even(widest / pane_ratio))
+    if tallest < 16:
+        tallest = _floor_even(sh * 0.5)
+        widest = min(_floor_even(sw * 0.5), _round_even(tallest * pane_ratio))
+
+    wanted_h = (median_box.h * sh) / 0.22
+    floor_h = min(0.5 * sh, float(tallest))
+    crop_h = _floor_even(min(float(tallest), max(floor_h, wanted_h)))
+    crop_w = min(_round_even(crop_h * pane_ratio), widest, _floor_even(sw))
+
+    if side == "left":
+        low_x = 0
+        high_x = max(0, int(math.floor(mid_px)) - crop_w)
+    else:
+        low_x = min(sw - crop_w, int(math.ceil(mid_px)))
+        high_x = max(low_x, sw - crop_w)
+
+    raw_left = int(round(cx - crop_w / 2.0))
+    clamped_left = min(max(raw_left, low_x), max(low_x, high_x))
+    raw_top = int(round(cy - crop_h / 3.0))
+    clamped_top = min(max(raw_top, 0), max(0, sh - crop_h))
+
+    return {
+        "x": (clamped_left // 2) * 2,
+        "y": (clamped_top // 2) * 2,
+        "width": crop_w,
+        "height": crop_h,
+    }
+
+
+def cluster_speaker_faces_kmeans(
+    samples_or_boxes: Sequence[Any],
+    *,
+    k: int = 2,
+    source_width: int = 1920,
+    source_height: int = 1080,
+    min_separation_ratio: float = TWO_SPEAKER_MIN_SEPARATION_RATIO,
+    max_iters: int = 50,
+    divider_color: str = "#1A1A1A",
+    active_speaker_highlight: bool = True,
+) -> TwoSpeakerClassification:
+    """Group detected face centers across sample frames using k-means (``k=2``),
+    compute stable median bounding boxes for each speaker, and classify the
+    video as ``TWO_SPEAKER_CONVERSATION`` when cluster centers are separated by
+    ``delta_x > 0.35 * width``.
+    """
+    if k != 2:
+        raise ValueError(f"Two-speaker split-screen clustering requires k=2, got k={k}")
+
+    boxes, total_samples, dual_samples = _extract_candidate_boxes(
+        samples_or_boxes,
+        source_width=source_width,
+        source_height=source_height,
+    )
+    default_crop = {
+        "x": 0,
+        "y": 0,
+        "width": _floor_even(source_width * 0.5),
+        "height": _floor_even(source_height * 0.5),
+    }
+
+    if len(boxes) < 2 or source_width <= source_height:
+        return TwoSpeakerClassification(
+            layout=LAYOUT_SINGLE_SPEAKER,
+            is_two_speaker=False,
+            delta_x=0.0,
+            delta_x_px=0.0,
+            separation_ratio=0.0,
+            clusters=(),
+            top_crop=default_crop,
+            bottom_crop=default_crop,
+            divider_color=divider_color,
+            active_speaker_highlight=active_speaker_highlight,
+        )
+
+    centers = [(b.x + b.w / 2.0, b.y + b.h / 2.0) for b in boxes]
+    sorted_cx = sorted(c[0] for c in centers)
+    # Deterministic quantile initialisation (25th and 75th percentiles)
+    q25_idx = max(0, (len(sorted_cx) - 1) // 4)
+    q75_idx = min(len(sorted_cx) - 1, (3 * (len(sorted_cx) - 1)) // 4)
+    c0_x = sorted_cx[q25_idx]
+    c1_x = sorted_cx[q75_idx]
+    if abs(c1_x - c0_x) < 1e-6:
+        c0_x = sorted_cx[0]
+        c1_x = sorted_cx[-1]
+
+    c0_y = _median_float([cy for cx, cy in centers if cx <= 0.5 * (c0_x + c1_x)], 0.45)
+    c1_y = _median_float([cy for cx, cy in centers if cx > 0.5 * (c0_x + c1_x)], 0.45)
+
+    assignments = [0] * len(boxes)
+    for _ in range(max(1, max_iters)):
+        new_assignments: list[int] = []
+        for cx, cy in centers:
+            # Horizontal position is primary for side-by-side speaker seating
+            d0 = math.hypot(cx - c0_x, 0.35 * (cy - c0_y))
+            d1 = math.hypot(cx - c1_x, 0.35 * (cy - c1_y))
+            new_assignments.append(0 if d0 <= d1 else 1)
+
+        group0 = [centers[i] for i, a in enumerate(new_assignments) if a == 0]
+        group1 = [centers[i] for i, a in enumerate(new_assignments) if a == 1]
+        if not group0 or not group1:
+            assignments = new_assignments
+            break
+
+        next_c0_x = sum(pt[0] for pt in group0) / len(group0)
+        next_c0_y = sum(pt[1] for pt in group0) / len(group0)
+        next_c1_x = sum(pt[0] for pt in group1) / len(group1)
+        next_c1_y = sum(pt[1] for pt in group1) / len(group1)
+
+        shift = max(
+             abs(next_c0_x - c0_x),
+            abs(next_c0_y - c0_y),
+            abs(next_c1_x - c1_x),
+            abs(next_c1_y - c1_y),
+        )
+        c0_x, c0_y, c1_x, c1_y = next_c0_x, next_c0_y, next_c1_x, next_c1_y
+        assignments = new_assignments
+        if shift < 1e-6:
+            break
+
+    boxes_0 = [boxes[i] for i, a in enumerate(assignments) if a == 0]
+    boxes_1 = [boxes[i] for i, a in enumerate(assignments) if a == 1]
+    if not boxes_0 or not boxes_1:
+        mid = len(boxes) // 2
+        ordered_boxes = sorted(boxes, key=lambda b: b.x + b.w / 2.0)
+        boxes_0 = ordered_boxes[:mid]
+        boxes_1 = ordered_boxes[mid:]
+
+    # Ensure Cluster 0 is always Left (Host / Speaker 1) and Cluster 1 is Right (Guest / Speaker 2)
+    med_cx_0 = _median_float([b.x + b.w / 2.0 for b in boxes_0])
+    med_cx_1 = _median_float([b.x + b.w / 2.0 for b in boxes_1])
+    if med_cx_0 > med_cx_1:
+        boxes_0, boxes_1 = boxes_1, boxes_0
+        med_cx_0, med_cx_1 = med_cx_1, med_cx_0
+
+    def _build_median_box(cluster_boxes: Sequence[FaceBox]) -> tuple[FaceBox, float, float, float]:
+        cxs = [b.x + b.w / 2.0 for b in cluster_boxes]
+        cys = [b.y + b.h / 2.0 for b in cluster_boxes]
+        ws = [b.w for b in cluster_boxes]
+        hs = [b.h for b in cluster_boxes]
+        scores = [b.score for b in cluster_boxes]
+        med_cx = _median_float(cxs)
+        med_cy = _median_float(cys)
+        med_w = _median_float(ws, 0.10)
+        med_h = _median_float(hs, 0.16)
+        med_score = _median_float(scores, 0.95)
+        mad_x = _median_float([abs(cx - med_cx) for cx in cxs], 0.0)
+        box = FaceBox(
+            x=min(1.0, max(0.0, med_cx - med_w / 2.0)),
+            y=min(1.0, max(0.0, med_cy - med_h / 2.0)),
+            w=min(1.0, max(0.01, med_w)),
+            h=min(1.0, max(MIN_FACE_HEIGHT, med_h)),
+            score=med_score,
+        )
+        return box, med_cx, med_cy, mad_x
+
+    host_box, host_cx, host_cy, host_mad_x = _build_median_box(boxes_0)
+    guest_box, guest_cx, guest_cy, guest_mad_x = _build_median_box(boxes_1)
+
+    separation_ratio = abs(guest_cx - host_cx)
+    delta_x_px = separation_ratio * float(source_width)
+    midpoint_x = 0.5 * (host_cx + guest_cx)
+
+    top_crop = _compute_pane_crop(
+        host_box,
+        side="left",
+        midpoint_x=midpoint_x,
+        separation_x=separation_ratio,
+        source_width=source_width,
+        source_height=source_height,
+    )
+    bottom_crop = _compute_pane_crop(
+        guest_box,
+        side="right",
+        midpoint_x=midpoint_x,
+        separation_x=separation_ratio,
+        source_width=source_width,
+        source_height=source_height,
+    )
+
+    host_cluster = SpeakerCluster(
+        speaker_id=0,
+        role="host",
+        center_x=host_cx,
+        center_y=host_cy,
+        median_box=host_box,
+        crop_box=top_crop,
+        sample_count=len(boxes_0),
+    )
+    guest_cluster = SpeakerCluster(
+        speaker_id=1,
+        role="guest",
+        center_x=guest_cx,
+        center_y=guest_cy,
+        median_box=guest_box,
+        crop_box=bottom_crop,
+        sample_count=len(boxes_1),
+    )
+
+    min_cluster_share = min(len(boxes_0), len(boxes_1)) / max(1, len(boxes))
+    # Reject a single speaker walking across the frame (zero dual-face samples AND wide intra-cluster spread)
+    walking_single_speaker = (
+        total_samples > 0
+        and dual_samples == 0
+        and max(host_mad_x, guest_mad_x) > 0.08 * max(0.35, separation_ratio)
+    )
+    is_two_speaker = (
+        separation_ratio > float(min_separation_ratio)
+        and min_cluster_share >= 0.15
+        and not walking_single_speaker
+    )
+    layout = LAYOUT_TWO_SPEAKER_CONVERSATION if is_two_speaker else LAYOUT_SINGLE_SPEAKER
+
+    return TwoSpeakerClassification(
+        layout=layout,
+        is_two_speaker=is_two_speaker,
+        delta_x=separation_ratio,
+        delta_x_px=delta_x_px,
+        separation_ratio=separation_ratio,
+        clusters=(host_cluster, guest_cluster),
+        top_crop=top_crop,
+        bottom_crop=bottom_crop,
+        divider_color=divider_color,
+        active_speaker_highlight=active_speaker_highlight,
+    )
+
+
+kmeans_face_clusters = cluster_speaker_faces_kmeans
+classify_two_speaker_layout = cluster_speaker_faces_kmeans
+
+
+def plan_dialogue_monologue_segments(
+    speaker_turns: Sequence[Mapping[str, Any] | tuple[float, float, Any]],
+    *,
+    monologue_threshold_sec: float = 10.0,
+    merge_gap_sec: float = 1.2,
+) -> list[dict[str, Any]]:
+    """Alternate between ``SPLIT_SCREEN`` during rapid back-and-forth dialogue
+    and ``SOLO_FULL_SCREEN`` during extended monologues (>= ``monologue_threshold_sec``).
+    """
+    if not speaker_turns:
+        return []
+
+    normalised: list[tuple[float, float, str]] = []
+    for item in speaker_turns:
+        if isinstance(item, Mapping):
+            start = float(item.get("startSec", item.get("start", 0.0)))
+            end = float(item.get("endSec", item.get("end", start)))
+            raw_sp = item.get("speaker", item.get("activeSpeaker", "top"))
+        else:
+            start, end, raw_sp = float(item[0]), float(item[1]), item[2]
+        if end <= start:
+            continue
+        speaker = "bottom" if str(raw_sp).lower() in ("1", "guest", "bottom", "right", "speaker_2", "b") else "top"
+        if normalised and normalised[-1][2] == speaker and (start - normalised[-1][1]) <= merge_gap_sec:
+            prev_s, _, prev_sp = normalised[-1]
+            normalised[-1] = (prev_s, max(end, normalised[-1][1]), prev_sp)
+        else:
+            normalised.append((start, end, speaker))
+
+    segments: list[dict[str, Any]] = []
+    for start, end, speaker in normalised:
+        duration = end - start
+        mode = "SOLO_FULL_SCREEN" if duration >= monologue_threshold_sec else "SPLIT_SCREEN"
+        if (
+            segments
+            and segments[-1]["mode"] == "SPLIT_SCREEN"
+            and mode == "SPLIT_SCREEN"
+            and (start - float(segments[-1]["endSec"])) <= merge_gap_sec
+        ):
+            segments[-1]["endSec"] = round(end, 4)
+            segments[-1]["activeSpeaker"] = speaker
+        else:
+            segments.append(
+                {
+                    "startSec": round(start, 4),
+                    "endSec": round(end, 4),
+                    "mode": mode,
+                    "activeSpeaker": speaker,
+                }
+            )
+    return segments
+
 

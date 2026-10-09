@@ -23,11 +23,16 @@ import {
   fitFrame,
   interpolateTrajectoryAt,
   remotionVideoTransform,
+  splitScreenFilter,
+  splitScreenFrame,
   stackedFilter,
   stackedFrame,
+  toSplitScreenConfig,
   type ClipAspect,
   type CropKeyframe,
   type DynamicReframeTrajectory,
+  type SplitScreenConfig,
+  type SplitScreenFrame,
   type StackedPersonInput,
 } from "./clip-frame.js";
 import { assertKnownClipFields, readAudiogram } from "./clip-payload.js";
@@ -39,8 +44,13 @@ export {
   dynamicCropExpressions,
   interpolateTrajectoryAt,
   remotionVideoTransform,
+  splitScreenFilter,
+  splitScreenFrame,
+  toSplitScreenConfig,
   type CropKeyframe,
   type DynamicReframeTrajectory,
+  type SplitScreenConfig,
+  type SplitScreenFrame,
 };
 
 export interface ClipPayload {
@@ -71,6 +81,7 @@ export interface ClipPayload {
     readonly layout?: "single" | "stacked" | "fit";
     readonly people?: readonly StackedPersonInput[];
     readonly trajectory?: DynamicReframeTrajectory;
+    readonly splitScreen?: SplitScreenConfig;
   };
   /** The shape to cut (2026-09-29); 9:16 when absent. */
   readonly aspect?: ClipAspect;
@@ -189,14 +200,23 @@ export async function processClip(context: JobContext): Promise<ProcessorOutcome
   // (`reframe.centerX`), never failed: the clip matters more than its layout.
   const wantsStack = payload.reframe?.layout === "stacked";
   const wantsFit = payload.reframe?.layout === "fit";
-  const stacked =
-    source.video === null || !wantsStack
+  const splitConfig = payload.reframe?.splitScreen;
+  const customSplit =
+    source.video === null || splitConfig?.enabled !== true
       ? null
-      : stackedFrame(source.video, {
+      : splitScreenFrame(source.video, splitConfig, {
           maxHeight,
-          people: payload.reframe?.people ?? [],
           ...(payload.aspect === undefined ? {} : { aspect: payload.aspect }),
         });
+  const stacked =
+    source.video === null || (!wantsStack && customSplit === null)
+      ? null
+      : (customSplit ??
+          stackedFrame(source.video, {
+            maxHeight,
+            people: payload.reframe?.people ?? [],
+            ...(payload.aspect === undefined ? {} : { aspect: payload.aspect }),
+          }));
   if (wantsStack && source.video !== null && stacked === null) {
     logger.warn("a stacked cut could not be stacked; cut as one window", {
       clipId: payload.clipId,
@@ -225,7 +245,9 @@ export async function processClip(context: JobContext): Promise<ProcessorOutcome
   }
   const leadHandleMs = Math.min(payload.handleMs || 0, Math.max(0, payload.startMs));
   const videoFilter =
-    stacked !== null
+    customSplit !== null
+      ? splitScreenFilter(customSplit)
+      : stacked !== null
       ? stackedFilter(stacked)
       : fitted !== null
       ? fitFilter(fitted)

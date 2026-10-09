@@ -390,3 +390,166 @@ def test_1080p_detector_exceeds_50_fps_benchmark() -> None:
     fps = iterations / elapsed
     assert fps > 50.0, f"Expected >50 fps on 1080p frames, measured {fps:.1f} fps"
 
+
+# ---------------------------------------------------------------------------
+# Two-Speaker Vertical Split-Screen Layout Engine (Pillar 3 §02)
+# ---------------------------------------------------------------------------
+
+
+def test_kmeans_face_clustering_separates_host_and_guest_and_classifies_two_speaker() -> None:
+    """K-means (k=2) separates Host (x ~ 0.25) and Guest (x ~ 0.75) with delta_x > 0.35 * width."""
+    from worker_ai.processors.faces import (
+        LAYOUT_SINGLE_SPEAKER,
+        LAYOUT_TWO_SPEAKER_CONVERSATION,
+        classify_two_speaker_layout,
+        cluster_speaker_faces_kmeans,
+    )
+
+    samples = [
+        FaceSample(
+            t_ms=i * 250,
+            boxes=(
+                FaceBox(x=0.20 + (i % 3) * 0.002, y=0.32, w=0.10, h=0.16, score=0.95),
+                FaceBox(x=0.70 - (i % 3) * 0.002, y=0.34, w=0.10, h=0.16, score=0.94),
+            ),
+        )
+        for i in range(40)
+    ]
+    # Add one outlier sample to verify median bounding box stability
+    samples.append(
+        FaceSample(
+            t_ms=40 * 250,
+            boxes=(
+                FaceBox(x=0.05, y=0.10, w=0.25, h=0.35, score=0.70),
+                FaceBox(x=0.88, y=0.70, w=0.08, h=0.12, score=0.70),
+            ),
+        )
+    )
+
+    result = cluster_speaker_faces_kmeans(samples, source_width=1920, source_height=1080)
+    assert result.layout == LAYOUT_TWO_SPEAKER_CONVERSATION
+    assert result.is_two_speaker is True
+    assert result.separation_ratio == pytest.approx(0.50, abs=0.02)
+    assert result.delta_x_px > 0.35 * 1920
+
+    assert len(result.clusters) == 2
+    host, guest = result.clusters
+    assert host.role == "host"
+    assert guest.role == "guest"
+    assert host.center_x == pytest.approx(0.25, abs=0.01)
+    assert guest.center_x == pytest.approx(0.75, abs=0.01)
+    assert host.median_box.w == pytest.approx(0.10, abs=0.005)
+    assert guest.median_box.h == pytest.approx(0.16, abs=0.005)
+
+    # Top and bottom crops stay on their respective halves of the 1920x1080 frame
+    assert result.top_crop["x"] + result.top_crop["width"] <= 960
+    assert result.bottom_crop["x"] >= 960
+    assert result.split_screen_config["enabled"] is True
+    assert result.split_screen_config["dividerColor"] == "#1A1A1A"
+
+    # When speakers sit too close (delta_x <= 0.35 * width), classify as SINGLE_SPEAKER
+    close_samples = [
+        FaceSample(
+            t_ms=i * 250,
+            boxes=(
+                FaceBox(x=0.35, y=0.32, w=0.10, h=0.16, score=0.95),
+                FaceBox(x=0.52, y=0.34, w=0.10, h=0.16, score=0.94),
+            ),
+        )
+        for i in range(20)
+    ]
+    close_result = classify_two_speaker_layout(close_samples, source_width=1920, source_height=1080)
+    assert close_result.layout == LAYOUT_SINGLE_SPEAKER
+    assert close_result.is_two_speaker is False
+
+
+def test_two_speaker_classification_accuracy_exceeds_98_percent_sla() -> None:
+    """SLA Verification: >= 98.0% classification accuracy across 100 two-speaker and single-speaker setups."""
+    from worker_ai.processors.faces import (
+        LAYOUT_SINGLE_SPEAKER,
+        LAYOUT_TWO_SPEAKER_CONVERSATION,
+        classify_two_speaker_layout,
+    )
+
+    rng = np.random.default_rng(12345)
+    correct = 0
+    total = 100
+
+    for idx in range(total):
+        if idx < 50:
+            # Two-speaker interview: left speaker in [0.18, 0.30], right speaker in [0.68, 0.82]
+            left_cx = float(rng.uniform(0.18, 0.30))
+            right_cx = float(rng.uniform(0.68, 0.82))
+            samples = [
+                FaceSample(
+                    t_ms=t * 250,
+                    boxes=(
+                        FaceBox(
+                            x=left_cx - 0.05 + float(rng.normal(0, 0.008)),
+                            y=0.32,
+                            w=0.10,
+                            h=0.16,
+                            score=0.95,
+                        ),
+                        FaceBox(
+                            x=right_cx - 0.05 + float(rng.normal(0, 0.008)),
+                            y=0.34,
+                            w=0.10,
+                            h=0.16,
+                            score=0.95,
+                        ),
+                    ),
+                )
+                for t in range(24)
+            ]
+            res = classify_two_speaker_layout(samples, source_width=1920, source_height=1080)
+            if res.layout == LAYOUT_TWO_SPEAKER_CONVERSATION:
+                correct += 1
+        else:
+            # Single-speaker setup: one speaker centered in [0.35, 0.65]
+            solo_cx = float(rng.uniform(0.35, 0.65))
+            samples = [
+                FaceSample(
+                    t_ms=t * 250,
+                    boxes=(
+                        FaceBox(
+                            x=solo_cx - 0.05 + float(rng.normal(0, 0.01)),
+                            y=0.32,
+                            w=0.10,
+                            h=0.16,
+                            score=0.95,
+                        ),
+                    ),
+                )
+                for t in range(24)
+            ]
+            res = classify_two_speaker_layout(samples, source_width=1920, source_height=1080)
+            if res.layout == LAYOUT_SINGLE_SPEAKER:
+                correct += 1
+
+    accuracy = correct / total
+    assert accuracy >= 0.98, f"Expected >= 98.0% layout accuracy, got {accuracy * 100:.1f}%"
+
+
+def test_plan_dialogue_monologue_segments_alternates_split_and_solo_modes() -> None:
+    """Alternates between SPLIT_SCREEN during rapid dialogue and SOLO_FULL_SCREEN during extended monologues."""
+    from worker_ai.processors.faces import plan_dialogue_monologue_segments
+
+    turns = [
+        {"startSec": 0.0, "endSec": 3.5, "speaker": "host"},
+        {"startSec": 3.8, "endSec": 7.0, "speaker": "guest"},
+        {"startSec": 7.2, "endSec": 9.8, "speaker": "host"},
+        # Extended monologue by guest (15 seconds >= 10s threshold)
+        {"startSec": 10.0, "endSec": 25.0, "speaker": "guest"},
+    ]
+    segments = plan_dialogue_monologue_segments(turns, monologue_threshold_sec=10.0)
+    assert len(segments) == 2
+    assert segments[0]["mode"] == "SPLIT_SCREEN"
+    assert segments[0]["startSec"] == 0.0
+    assert segments[0]["endSec"] == 9.8
+    assert segments[1]["mode"] == "SOLO_FULL_SCREEN"
+    assert segments[1]["activeSpeaker"] == "bottom"
+    assert segments[1]["startSec"] == 10.0
+    assert segments[1]["endSec"] == 25.0
+
+

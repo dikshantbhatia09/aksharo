@@ -4,6 +4,7 @@ import {
   type ClipLayout,
   type CropKeyframe,
   type DynamicReframeTrajectory,
+  type SplitScreenConfig,
   type StackedPerson,
 } from "@montaj/repurpose-contracts";
 
@@ -57,6 +58,10 @@ export interface ClipReframe {
    * speaker moves outside the 6% deadband hysteresis zone.
    */
   readonly trajectory?: DynamicReframeTrajectory;
+  /**
+   * Optional explicit dual crop coordinates for Two-Speaker Split-Screen Layout (Pillar 3 §02).
+   */
+  readonly splitScreen?: SplitScreenConfig;
 }
 
 export const CENTRE_REFRAME: ClipReframe = Object.freeze({ centerX: 0.5, basis: "centre" });

@@ -5,5 +5,5 @@
     "outDir": "./dist",
     "tsBuildInfoFile": "./dist/.tsbuildinfo.build"
   },
-  "exclude": ["node_modules", "dist", ".turbo", "src/**/*.test.ts", "parity/**/*.ts"]
+  "exclude": ["node_modules", "dist", ".turbo", "src/**/*.test.ts", "src/**/*.test.tsx", "parity/**/*.ts"]
 }

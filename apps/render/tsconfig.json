@@ -1,8 +1,11 @@
 {
   "extends": "@montaj/config/tsconfig.node.json",
   "compilerOptions": {
+    "jsx": "react",
+    "jsxFactory": "h",
+    "jsxFragmentFactory": "Fragment",
     "tsBuildInfoFile": "./dist/.tsbuildinfo"
   },
-  "include": ["src/**/*.ts", "parity/**/*.ts"],
+  "include": ["src/**/*.ts", "src/**/*.tsx", "parity/**/*.ts"],
   "exclude": ["node_modules", "dist", ".turbo"]
 }

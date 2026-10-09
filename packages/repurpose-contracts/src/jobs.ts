@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { SplitScreenConfigSchema } from "./formats.js";
 import {
   AspectSchema,
   CANDIDATE_REASON_LABELS,
@@ -312,6 +313,10 @@ export const MediaClipPayloadSchema = z
          * Smoothly pans and zooms the crop window when a single speaker moves beyond the deadband.
          */
         trajectory: DynamicReframeTrajectorySchema.optional(),
+        /**
+         * Dual crop coordinates for two-speaker vertical split-screen layout (Pillar 3 §02).
+         */
+        splitScreen: SplitScreenConfigSchema.optional(),
       })
       .superRefine((value, context) => {
         if (value.layout === "stacked" && value.people === undefined) {

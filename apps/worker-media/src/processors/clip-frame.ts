@@ -616,6 +616,158 @@ export function fitFilter(frame: FitFrame): string {
   ].join(";");
 }
 
+/**
+ * Dual crop configuration for Two-Speaker Vertical Split-Screen Layout Engine (Pillar 3 §02).
+ */
+export interface SplitScreenConfig {
+  readonly enabled: boolean;
+  readonly topCrop: {
+    readonly x: number;
+    readonly y: number;
+    readonly width: number;
+    readonly height: number;
+  };
+  readonly bottomCrop: {
+    readonly x: number;
+    readonly y: number;
+    readonly width: number;
+    readonly height: number;
+  };
+  readonly dividerColor?: string;
+  readonly activeSpeakerHighlight?: boolean;
+}
+
+export interface SplitScreenFrame extends StackedFrame {
+  readonly dividerColor: string;
+  readonly activeSpeakerHighlight: boolean;
+}
+
+function isSafeFfmpegColor(value: string): boolean {
+  if (value.length === 0 || value.length > 32) return false;
+  return (
+    /^#[0-9a-fA-F]{6}$/.test(value) ||
+    /^[a-zA-Z]+@[0-9.]+$/.test(value) ||
+    /^[a-zA-Z]+$/.test(value)
+  );
+}
+
+function sanitizeDividerColor(color: string | undefined): string {
+  if (typeof color === "string" && isSafeFfmpegColor(color.trim())) {
+    return color.trim();
+  }
+  return "black@0.6";
+}
+
+/**
+ * Convert a {@link StackedFrame} into a {@link SplitScreenConfig}.
+ */
+export function toSplitScreenConfig(
+  frame: StackedFrame,
+  options: { readonly dividerColor?: string; readonly activeSpeakerHighlight?: boolean } = {},
+): SplitScreenConfig {
+  const [top, bottom] = frame.crops;
+  return {
+    enabled: true,
+    topCrop: { x: top.x, y: top.y, width: top.width, height: top.height },
+    bottomCrop: { x: bottom.x, y: bottom.y, width: bottom.width, height: bottom.height },
+    dividerColor: options.dividerColor ?? "#1A1A1A",
+    activeSpeakerHighlight: options.activeSpeakerHighlight ?? true,
+  };
+}
+
+/**
+ * Compute a {@link SplitScreenFrame} from explicit dual crop coordinates ({@link SplitScreenConfig}).
+ */
+export function splitScreenFrame(
+  source: { readonly width: number; readonly height: number },
+  config: SplitScreenConfig,
+  options: { readonly maxHeight?: number; readonly aspect?: ClipAspect } = {},
+): SplitScreenFrame | null {
+  const { width, height } = source;
+  if (!config.enabled) return null;
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width < 2 || height < 2) return null;
+  const aspect = options.aspect ?? "9:16";
+  if (!STACKED_ASPECTS.has(aspect) || width <= height) return null;
+
+  const sanitizeCrop = (raw: SplitScreenConfig["topCrop"]): ClipFrame["crop"] | null => {
+    if (
+      !Number.isFinite(raw.x) ||
+      !Number.isFinite(raw.y) ||
+      !Number.isFinite(raw.width) ||
+      !Number.isFinite(raw.height) ||
+      raw.width < 2 ||
+      raw.height < 2
+    ) {
+      return null;
+    }
+    const w = Math.min(floorEven(raw.width), floorEven(width));
+    const h = Math.min(floorEven(raw.height), floorEven(height));
+    const x = Math.floor(clamp(Math.round(raw.x), 0, Math.max(0, width - w)) / 2) * 2;
+    const y = Math.floor(clamp(Math.round(raw.y), 0, Math.max(0, height - h)) / 2) * 2;
+    return { width: w, height: h, x, y };
+  };
+
+  const top = sanitizeCrop(config.topCrop);
+  const bottom = sanitizeCrop(config.bottomCrop);
+  if (top === null || bottom === null) return null;
+
+  // eslint-disable-next-line security/detect-object-injection -- closed enum (ClipAspect)
+  const shape = CLIP_ASPECTS[aspect];
+  const ratio = (shape.width * 2) / shape.height;
+  const targetHeight = floorEven(
+    Math.min(
+      typeof options.maxHeight === "number" && Number.isFinite(options.maxHeight)
+        ? options.maxHeight
+        : MAX_CLIP_HEIGHT,
+      MAX_CLIP_HEIGHT,
+    ),
+  );
+  const halfHeight = floorEven(targetHeight / 2);
+  const halfWidth = even(halfHeight * ratio);
+
+  return {
+    source: { width, height },
+    crops: [top, bottom],
+    half: { width: halfWidth, height: halfHeight },
+    output: { width: halfWidth, height: halfHeight * 2 },
+    dividerColor: sanitizeDividerColor(config.dividerColor),
+    activeSpeakerHighlight: config.activeSpeakerHighlight ?? false,
+  };
+}
+
+/**
+ * Build the FFmpeg dual-stack filtergraph with a 2px aesthetic divider line
+ * between the top and bottom speaker panes (Pillar 3 §02 §4.1).
+ */
+export function splitScreenFilter(
+  frame: StackedFrame,
+  options: { readonly dividerColor?: string; readonly dividerHeight?: number } = {},
+): string {
+  const { source, crops, half, output } = frame;
+  const rawColor =
+    options.dividerColor ??
+    ("dividerColor" in frame && typeof (frame as SplitScreenFrame).dividerColor === "string"
+      ? (frame as SplitScreenFrame).dividerColor
+      : "black@0.6");
+  const color = sanitizeDividerColor(rawColor);
+  const divHeight = Math.max(1, Math.min(8, Math.round(options.dividerHeight ?? 2)));
+  const divY = Math.max(0, half.height - Math.floor(divHeight / 2));
+
+  const paneChain = (crop: ClipFrame["crop"]): string =>
+    [
+      `crop=w=${String(crop.width)}:h=${String(crop.height)}:x=${String(crop.x)}:y=${String(crop.y)}`,
+      `scale=${String(half.width)}:${String(half.height)}:flags=bicubic`,
+      "setsar=1",
+    ].join(",");
+
+  return [
+    `scale=${String(source.width)}:${String(source.height)},split=2[top_in][bottom_in]`,
+    `[top_in]${paneChain(crops[0])}[top]`,
+    `[bottom_in]${paneChain(crops[1])}[bottom]`,
+    `[top][bottom]vstack=inputs=2[stacked]`,
+    `[stacked]drawbox=y=${String(divY)}:color=${color}:width=${String(output.width)}:height=${String(divHeight)}:t=fill,setsar=1,format=yuv420p`,
+  ].join(";");
+}
 
 /** Round to an even number ≥ 2: H.264 4:2:0 cannot encode odd dimensions. */
 function even(value: number): number {
@@ -630,3 +782,4 @@ function floorEven(value: number): number {
 function clamp(value: number, low: number, high: number): number {
   return Math.min(high, Math.max(low, value));
 }
+
