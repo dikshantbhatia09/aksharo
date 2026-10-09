@@ -20,3 +20,4 @@ DO $$ BEGIN
         ALTER TABLE "stream_vod_metadata" ADD CONSTRAINT "stream_vod_metadata_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE CASCADE ON UPDATE CASCADE;
     END IF;
 END $$;
+

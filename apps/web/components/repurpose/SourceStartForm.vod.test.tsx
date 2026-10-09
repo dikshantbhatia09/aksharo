@@ -107,3 +107,4 @@ describe("<SourceStartForm /> VOD range selector integration", () => {
     expect(latest.startAt).toBe("29:30");
   });
 });
+

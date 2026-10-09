@@ -11790,7 +11790,645 @@
         ]
       }
     },
+    "/api/v1/media/probe-url": {
+      "post": {
+        "description": "Returns title, creator, duration, thumbnail, and native chapters with SLA < 1.8s.",
+        "operationId": "probeYouTubeUrl",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "url": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "url"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The parsed YouTube metadata and chapters.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "videoId": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "channelName": {
+                      "type": "string"
+                    },
+                    "durationSec": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "thumbnailUrl": {
+                      "type": "string"
+                    },
+                    "isLiveStream": {
+                      "type": "boolean"
+                    },
+                    "hasCaptions": {
+                      "type": "boolean"
+                    },
+                    "nativeChapters": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "title": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 500
+                          },
+                          "startSec": {
+                            "type": "number",
+                            "minimum": 0
+                          },
+                          "endSec": {
+                            "type": "number",
+                            "minimum": 0
+                          }
+                        },
+                        "required": [
+                          "title",
+                          "startSec",
+                          "endSec"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "videoId",
+                    "title",
+                    "channelName",
+                    "durationSec",
+                    "thumbnailUrl",
+                    "isLiveStream",
+                    "hasCaptions",
+                    "nativeChapters"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`auth/not_a_member` or `common/forbidden`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Probe a YouTube video URL for metadata and native chapters",
+        "tags": [
+          "media"
+        ]
+      }
+    },
+    "/media/probe-vod": {
+      "post": {
+        "description": "Supports Twitch VODs, YouTube Live archives, and Kick streams with SLA < 5s.",
+        "operationId": "probeVodUrl",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "url": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "url"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The parsed VOD metadata, chat velocity curve, and highlights.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "platform": {
+                      "type": "string",
+                      "enum": [
+                        "TWITCH",
+                        "YOUTUBE_LIVE",
+                        "KICK"
+                      ]
+                    },
+                    "vodId": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "channelName": {
+                      "type": "string"
+                    },
+                    "durationSec": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "thumbnailUrl": {
+                      "type": "string"
+                    },
+                    "isLive": {
+                      "type": "boolean"
+                    },
+                    "chatVelocity": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "timestampSec": {
+                            "type": "number",
+                            "minimum": 0
+                          },
+                          "mps": {
+                            "type": "number",
+                            "minimum": 0
+                          },
+                          "topKeywords": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "required": [
+                          "timestampSec",
+                          "mps",
+                          "topKeywords"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "peaks": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "startSec": {
+                            "type": "number",
+                            "minimum": 0
+                          },
+                          "endSec": {
+                            "type": "number",
+                            "minimum": 0
+                          },
+                          "score": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 100
+                          },
+                          "topEmotes": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "reason": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "startSec",
+                          "endSec",
+                          "score",
+                          "topEmotes"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "platform",
+                    "vodId",
+                    "title",
+                    "channelName",
+                    "durationSec",
+                    "thumbnailUrl",
+                    "isLive",
+                    "chatVelocity",
+                    "peaks"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`auth/not_a_member` or `common/forbidden`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Probe a livestream or VOD URL for metadata, chat velocity, and peak highlights",
+        "tags": [
+          "media"
+        ]
+      }
+    },
+    "/api/v1/media/probe-vod": {
+      "post": {
+        "description": "Supports Twitch VODs, YouTube Live archives, and Kick streams with SLA < 5s.",
+        "operationId": "probeVodUrl",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "url": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "url"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The parsed VOD metadata, chat velocity curve, and highlights.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "platform": {
+                      "type": "string",
+                      "enum": [
+                        "TWITCH",
+                        "YOUTUBE_LIVE",
+                        "KICK"
+                      ]
+                    },
+                    "vodId": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "channelName": {
+                      "type": "string"
+                    },
+                    "durationSec": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "thumbnailUrl": {
+                      "type": "string"
+                    },
+                    "isLive": {
+                      "type": "boolean"
+                    },
+                    "chatVelocity": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "timestampSec": {
+                            "type": "number",
+                            "minimum": 0
+                          },
+                          "mps": {
+                            "type": "number",
+                            "minimum": 0
+                          },
+                          "topKeywords": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "required": [
+                          "timestampSec",
+                          "mps",
+                          "topKeywords"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "peaks": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "startSec": {
+                            "type": "number",
+                            "minimum": 0
+                          },
+                          "endSec": {
+                            "type": "number",
+                            "minimum": 0
+                          },
+                          "score": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 100
+                          },
+                          "topEmotes": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "reason": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "startSec",
+                          "endSec",
+                          "score",
+                          "topEmotes"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "platform",
+                    "vodId",
+                    "title",
+                    "channelName",
+                    "durationSec",
+                    "thumbnailUrl",
+                    "isLive",
+                    "chatVelocity",
+                    "peaks"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`auth/not_a_member` or `common/forbidden`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Probe a livestream or VOD URL for metadata, chat velocity, and peak highlights",
+        "tags": [
+          "media"
+        ]
+      }
+    },
     "/media/{mediaId}": {
+      "get": {
+        "operationId": "getMedia",
+        "parameters": [
+          {
+            "name": "mediaId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The media asset.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "projectId": {
+                      "type": "string"
+                    },
+                    "role": {
+                      "type": "string"
+                    },
+                    "bucket": {
+                      "type": "string",
+                      "enum": [
+                        "s3",
+                        "r2"
+                      ]
+                    },
+                    "storageKey": {
+                      "type": "string"
+                    },
+                    "filename": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "mime": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "sizeBytes": {
+                      "nullable": true,
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "contentHash": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "durationMs": {
+                      "nullable": true,
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "fps": {
+                      "nullable": true,
+                      "type": "number"
+                    },
+                    "width": {
+                      "nullable": true,
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "height": {
+                      "nullable": true,
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "audioChannels": {
+                      "nullable": true,
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "pending",
+                        "uploading",
+                        "uploaded",
+                        "probing",
+                        "ready",
+                        "failed",
+                        "purged"
+                      ]
+                    },
+                    "needsRealign": {
+                      "type": "boolean"
+                    },
+                    "uploadedAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "rawPurgeAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "derivedPurgeAt": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "derived": {
+                      "type": "object",
+                      "properties": {
+                        "proxy": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "audio16k": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "audio48k": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "waveform": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "thumbs": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      },
+                      "required": [
+                        "proxy",
+                        "audio16k",
+                        "audio48k",
+                        "waveform",
+                        "thumbs"
+                      ]
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "projectId",
+                    "role",
+                    "bucket",
+                    "storageKey",
+                    "filename",
+                    "mime",
+                    "sizeBytes",
+                    "contentHash",
+                    "durationMs",
+                    "fps",
+                    "width",
+                    "height",
+                    "audioChannels",
+                    "status",
+                    "needsRealign",
+                    "uploadedAt",
+                    "rawPurgeAt",
+                    "derivedPurgeAt",
+                    "derived",
+                    "createdAt"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`auth/not_a_member` or `common/forbidden`."
+          },
+          "404": {
+            "description": "`media/not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Fetch one media asset",
+        "tags": [
+          "media"
+        ]
+      }
+    },
+    "/api/v1/media/{mediaId}": {
       "get": {
         "operationId": "getMedia",
         "parameters": [
@@ -12228,6 +12866,1028 @@
         "summary": "Finish an upload and start the pipeline",
         "tags": [
           "media"
+        ]
+      }
+    },
+    "/api/v1/media/{mediaId}/complete": {
+      "post": {
+        "description": "Completes the multipart upload from the part `ETag`s **in part order**, records the store's own byte count, sets `rawPurgeAt` (upload + 7 days) and `derivedPurgeAt` (the plan's retention), then enqueues `media.probe` and `media.proxy`. Idempotent: a retry returns the same two job ids.",
+        "operationId": "completeMediaUpload",
+        "parameters": [
+          {
+            "name": "mediaId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "etags": {
+                    "minItems": 1,
+                    "maxItems": 10000,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 256
+                    }
+                  }
+                },
+                "required": [
+                  "etags"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The media and its two jobs.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "media": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "projectId": {
+                          "type": "string"
+                        },
+                        "role": {
+                          "type": "string"
+                        },
+                        "bucket": {
+                          "type": "string",
+                          "enum": [
+                            "s3",
+                            "r2"
+                          ]
+                        },
+                        "storageKey": {
+                          "type": "string"
+                        },
+                        "filename": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "mime": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "sizeBytes": {
+                          "nullable": true,
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "contentHash": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "durationMs": {
+                          "nullable": true,
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "fps": {
+                          "nullable": true,
+                          "type": "number"
+                        },
+                        "width": {
+                          "nullable": true,
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "height": {
+                          "nullable": true,
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "audioChannels": {
+                          "nullable": true,
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "pending",
+                            "uploading",
+                            "uploaded",
+                            "probing",
+                            "ready",
+                            "failed",
+                            "purged"
+                          ]
+                        },
+                        "needsRealign": {
+                          "type": "boolean"
+                        },
+                        "uploadedAt": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "rawPurgeAt": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "derivedPurgeAt": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "derived": {
+                          "type": "object",
+                          "properties": {
+                            "proxy": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "audio16k": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "audio48k": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "waveform": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "thumbs": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          "required": [
+                            "proxy",
+                            "audio16k",
+                            "audio48k",
+                            "waveform",
+                            "thumbs"
+                          ]
+                        },
+                        "createdAt": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "projectId",
+                        "role",
+                        "bucket",
+                        "storageKey",
+                        "filename",
+                        "mime",
+                        "sizeBytes",
+                        "contentHash",
+                        "durationMs",
+                        "fps",
+                        "width",
+                        "height",
+                        "audioChannels",
+                        "status",
+                        "needsRealign",
+                        "uploadedAt",
+                        "rawPurgeAt",
+                        "derivedPurgeAt",
+                        "derived",
+                        "createdAt"
+                      ]
+                    },
+                    "probeJobId": {
+                      "type": "string"
+                    },
+                    "proxyJobId": {
+                      "nullable": true,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "media",
+                    "probeJobId",
+                    "proxyJobId"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "`auth/not_a_member` or `common/forbidden`."
+          },
+          "404": {
+            "description": "`media/not_found`."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Finish an upload and start the pipeline",
+        "tags": [
+          "media"
+        ]
+      }
+    },
+    "/api/v1/media/upload/initiate": {
+      "post": {
+        "description": "Allocates S3 multipart upload ID and returns chunk configuration (16 MB) and part 1 presigned URL with start latency <= 250ms.",
+        "operationId": "initiateMultipartUpload",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "fileName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 255
+                  },
+                  "fileSizeBytes": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "exclusiveMinimum": true,
+                    "maximum": 10737418240
+                  },
+                  "mimeType": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 255
+                  },
+                  "contentHash": {
+                    "type": "string",
+                    "minLength": 8,
+                    "maxLength": 128
+                  },
+                  "projectId": {
+                    "type": "string"
+                  },
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "primary",
+                      "broll",
+                      "audio"
+                    ]
+                  }
+                },
+                "required": [
+                  "fileName",
+                  "fileSizeBytes",
+                  "mimeType"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The upload session details.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "sessionId": {
+                      "type": "string"
+                    },
+                    "uploadId": {
+                      "type": "string"
+                    },
+                    "s3Key": {
+                      "type": "string"
+                    },
+                    "chunkSize": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "totalParts": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "initialPartUrl": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "sessionId",
+                    "uploadId",
+                    "s3Key",
+                    "chunkSize",
+                    "totalParts"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Not a member of this workspace or forbidden."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Initiate direct S3 multipart upload session",
+        "tags": [
+          "media-upload"
+        ]
+      }
+    },
+    "/media/upload/initiate": {
+      "post": {
+        "description": "Allocates S3 multipart upload ID and returns chunk configuration (16 MB) and part 1 presigned URL with start latency <= 250ms.",
+        "operationId": "initiateMultipartUpload",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "fileName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 255
+                  },
+                  "fileSizeBytes": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "exclusiveMinimum": true,
+                    "maximum": 10737418240
+                  },
+                  "mimeType": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 255
+                  },
+                  "contentHash": {
+                    "type": "string",
+                    "minLength": 8,
+                    "maxLength": 128
+                  },
+                  "projectId": {
+                    "type": "string"
+                  },
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "primary",
+                      "broll",
+                      "audio"
+                    ]
+                  }
+                },
+                "required": [
+                  "fileName",
+                  "fileSizeBytes",
+                  "mimeType"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The upload session details.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "sessionId": {
+                      "type": "string"
+                    },
+                    "uploadId": {
+                      "type": "string"
+                    },
+                    "s3Key": {
+                      "type": "string"
+                    },
+                    "chunkSize": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "totalParts": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "initialPartUrl": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "sessionId",
+                    "uploadId",
+                    "s3Key",
+                    "chunkSize",
+                    "totalParts"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Not a member of this workspace or forbidden."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Initiate direct S3 multipart upload session",
+        "tags": [
+          "media-upload"
+        ]
+      }
+    },
+    "/api/v1/media/upload/part-url": {
+      "post": {
+        "description": "Dynamically signs chunk PUT URL on demand so URLs never expire for slow or interrupted connections.",
+        "operationId": "signMultipartPartUrl",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "uploadId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "s3Key": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "partNumber": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 10000
+                  }
+                },
+                "required": [
+                  "uploadId",
+                  "s3Key",
+                  "partNumber"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The signed PUT URL.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "partNumber": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "url": {
+                      "type": "string"
+                    },
+                    "expiresInSeconds": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "partNumber",
+                    "url",
+                    "expiresInSeconds"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Not a member of this workspace or forbidden."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Presign S3 chunk upload PUT URL on demand",
+        "tags": [
+          "media-upload"
+        ]
+      }
+    },
+    "/media/upload/part-url": {
+      "post": {
+        "description": "Dynamically signs chunk PUT URL on demand so URLs never expire for slow or interrupted connections.",
+        "operationId": "signMultipartPartUrl",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "uploadId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "s3Key": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "partNumber": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 10000
+                  }
+                },
+                "required": [
+                  "uploadId",
+                  "s3Key",
+                  "partNumber"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The signed PUT URL.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "partNumber": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "url": {
+                      "type": "string"
+                    },
+                    "expiresInSeconds": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "partNumber",
+                    "url",
+                    "expiresInSeconds"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Not a member of this workspace or forbidden."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Presign S3 chunk upload PUT URL on demand",
+        "tags": [
+          "media-upload"
+        ]
+      }
+    },
+    "/api/v1/media/upload/complete": {
+      "post": {
+        "description": "Verifies parts with storage, creates MediaAsset, and enqueues media.probe and media.proxy.",
+        "operationId": "completeMultipartUpload",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "uploadId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "s3Key": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "parts": {
+                    "minItems": 1,
+                    "maxItems": 10000,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "PartNumber": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 10000
+                        },
+                        "ETag": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "required": [
+                        "PartNumber",
+                        "ETag"
+                      ]
+                    }
+                  },
+                  "projectId": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "uploadId",
+                  "s3Key",
+                  "parts"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Upload completion status.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "mediaId": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "probeJobId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "mediaId",
+                    "status",
+                    "probeJobId"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Not a member of this workspace or forbidden."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Complete multipart upload and begin processing pipeline",
+        "tags": [
+          "media-upload"
+        ]
+      }
+    },
+    "/media/upload/complete": {
+      "post": {
+        "description": "Verifies parts with storage, creates MediaAsset, and enqueues media.probe and media.proxy.",
+        "operationId": "completeMultipartUpload",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "uploadId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "s3Key": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "parts": {
+                    "minItems": 1,
+                    "maxItems": 10000,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "PartNumber": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 10000
+                        },
+                        "ETag": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "required": [
+                        "PartNumber",
+                        "ETag"
+                      ]
+                    }
+                  },
+                  "projectId": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "uploadId",
+                  "s3Key",
+                  "parts"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Upload completion status.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "mediaId": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "probeJobId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "mediaId",
+                    "status",
+                    "probeJobId"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Not a member of this workspace or forbidden."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Complete multipart upload and begin processing pipeline",
+        "tags": [
+          "media-upload"
+        ]
+      }
+    },
+    "/api/v1/media/upload/abort": {
+      "post": {
+        "description": "Cleans up orphaned chunk parts on S3 and cancels session.",
+        "operationId": "abortMultipartUpload",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "uploadId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "s3Key": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "uploadId",
+                  "s3Key"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Upload successfully aborted."
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Not a member of this workspace or forbidden."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Abort multipart upload",
+        "tags": [
+          "media-upload"
+        ]
+      }
+    },
+    "/media/upload/abort": {
+      "post": {
+        "description": "Cleans up orphaned chunk parts on S3 and cancels session.",
+        "operationId": "abortMultipartUpload",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "uploadId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "s3Key": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "uploadId",
+                  "s3Key"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Upload successfully aborted."
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Not a member of this workspace or forbidden."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Abort multipart upload",
+        "tags": [
+          "media-upload"
+        ]
+      }
+    },
+    "/api/v1/media/upload/session/{uploadId}": {
+      "get": {
+        "description": "Returns session metadata for resuming interrupted uploads.",
+        "operationId": "getUploadSession",
+        "parameters": [
+          {
+            "name": "uploadId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Not a member of this workspace or forbidden."
+          },
+          "404": {
+            "description": "Session not found."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Get current upload session progress",
+        "tags": [
+          "media-upload"
+        ]
+      }
+    },
+    "/media/upload/session/{uploadId}": {
+      "get": {
+        "description": "Returns session metadata for resuming interrupted uploads.",
+        "operationId": "getUploadSession",
+        "parameters": [
+          {
+            "name": "uploadId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "Not a member of this workspace or forbidden."
+          },
+          "404": {
+            "description": "Session not found."
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Get current upload session progress",
+        "tags": [
+          "media-upload"
         ]
       }
     },
@@ -28954,6 +30614,57 @@
                             "additionalProperties": false
                           }
                         ]
+                      },
+                      "vod": {
+                        "type": "object",
+                        "properties": {
+                          "platform": {
+                            "type": "string",
+                            "enum": [
+                              "TWITCH",
+                              "YOUTUBE_LIVE",
+                              "KICK"
+                            ]
+                          },
+                          "vodId": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "totalDurationSec": {
+                            "type": "number",
+                            "minimum": 0
+                          },
+                          "chatVelocity": {
+                            "type": "array",
+                            "items": {}
+                          },
+                          "selectedRanges": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "startSec": {
+                                  "type": "number",
+                                  "minimum": 0
+                                },
+                                "endSec": {
+                                  "type": "number",
+                                  "minimum": 0
+                                }
+                              },
+                              "required": [
+                                "startSec",
+                                "endSec"
+                              ]
+                            }
+                          }
+                        },
+                        "required": [
+                          "platform",
+                          "vodId",
+                          "totalDurationSec",
+                          "selectedRanges"
+                        ]
                       }
                     },
                     "required": [
@@ -33368,6 +35079,57 @@
                       },
                       "broll": {
                         "type": "boolean"
+                      },
+                      "vod": {
+                        "type": "object",
+                        "properties": {
+                          "platform": {
+                            "type": "string",
+                            "enum": [
+                              "TWITCH",
+                              "YOUTUBE_LIVE",
+                              "KICK"
+                            ]
+                          },
+                          "vodId": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "totalDurationSec": {
+                            "type": "number",
+                            "minimum": 0
+                          },
+                          "chatVelocity": {
+                            "type": "array",
+                            "items": {}
+                          },
+                          "selectedRanges": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "startSec": {
+                                  "type": "number",
+                                  "minimum": 0
+                                },
+                                "endSec": {
+                                  "type": "number",
+                                  "minimum": 0
+                                }
+                              },
+                              "required": [
+                                "startSec",
+                                "endSec"
+                              ]
+                            }
+                          }
+                        },
+                        "required": [
+                          "platform",
+                          "vodId",
+                          "totalDurationSec",
+                          "selectedRanges"
+                        ]
                       }
                     },
                     "required": [
@@ -35505,6 +37267,57 @@
                                     "additionalProperties": false
                                   }
                                 ]
+                              },
+                              "vod": {
+                                "type": "object",
+                                "properties": {
+                                  "platform": {
+                                    "type": "string",
+                                    "enum": [
+                                      "TWITCH",
+                                      "YOUTUBE_LIVE",
+                                      "KICK"
+                                    ]
+                                  },
+                                  "vodId": {
+                                    "type": "string",
+                                    "minLength": 1
+                                  },
+                                  "totalDurationSec": {
+                                    "type": "number",
+                                    "minimum": 0
+                                  },
+                                  "chatVelocity": {
+                                    "type": "array",
+                                    "items": {}
+                                  },
+                                  "selectedRanges": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "object",
+                                      "properties": {
+                                        "startSec": {
+                                          "type": "number",
+                                          "minimum": 0
+                                        },
+                                        "endSec": {
+                                          "type": "number",
+                                          "minimum": 0
+                                        }
+                                      },
+                                      "required": [
+                                        "startSec",
+                                        "endSec"
+                                      ]
+                                    }
+                                  }
+                                },
+                                "required": [
+                                  "platform",
+                                  "vodId",
+                                  "totalDurationSec",
+                                  "selectedRanges"
+                                ]
                               }
                             },
                             "required": [
@@ -35895,6 +37708,57 @@
                             "additionalProperties": false
                           }
                         ]
+                      },
+                      "vod": {
+                        "type": "object",
+                        "properties": {
+                          "platform": {
+                            "type": "string",
+                            "enum": [
+                              "TWITCH",
+                              "YOUTUBE_LIVE",
+                              "KICK"
+                            ]
+                          },
+                          "vodId": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "totalDurationSec": {
+                            "type": "number",
+                            "minimum": 0
+                          },
+                          "chatVelocity": {
+                            "type": "array",
+                            "items": {}
+                          },
+                          "selectedRanges": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "startSec": {
+                                  "type": "number",
+                                  "minimum": 0
+                                },
+                                "endSec": {
+                                  "type": "number",
+                                  "minimum": 0
+                                }
+                              },
+                              "required": [
+                                "startSec",
+                                "endSec"
+                              ]
+                            }
+                          }
+                        },
+                        "required": [
+                          "platform",
+                          "vodId",
+                          "totalDurationSec",
+                          "selectedRanges"
+                        ]
                       }
                     },
                     "required": [
@@ -36207,6 +38071,57 @@
                               ],
                               "additionalProperties": false
                             }
+                          ]
+                        },
+                        "vod": {
+                          "type": "object",
+                          "properties": {
+                            "platform": {
+                              "type": "string",
+                              "enum": [
+                                "TWITCH",
+                                "YOUTUBE_LIVE",
+                                "KICK"
+                              ]
+                            },
+                            "vodId": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "totalDurationSec": {
+                              "type": "number",
+                              "minimum": 0
+                            },
+                            "chatVelocity": {
+                              "type": "array",
+                              "items": {}
+                            },
+                            "selectedRanges": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "startSec": {
+                                    "type": "number",
+                                    "minimum": 0
+                                  },
+                                  "endSec": {
+                                    "type": "number",
+                                    "minimum": 0
+                                  }
+                                },
+                                "required": [
+                                  "startSec",
+                                  "endSec"
+                                ]
+                              }
+                            }
+                          },
+                          "required": [
+                            "platform",
+                            "vodId",
+                            "totalDurationSec",
+                            "selectedRanges"
                           ]
                         }
                       },
@@ -36635,6 +38550,57 @@
                               "additionalProperties": false
                             }
                           ]
+                        },
+                        "vod": {
+                          "type": "object",
+                          "properties": {
+                            "platform": {
+                              "type": "string",
+                              "enum": [
+                                "TWITCH",
+                                "YOUTUBE_LIVE",
+                                "KICK"
+                              ]
+                            },
+                            "vodId": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "totalDurationSec": {
+                              "type": "number",
+                              "minimum": 0
+                            },
+                            "chatVelocity": {
+                              "type": "array",
+                              "items": {}
+                            },
+                            "selectedRanges": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "startSec": {
+                                    "type": "number",
+                                    "minimum": 0
+                                  },
+                                  "endSec": {
+                                    "type": "number",
+                                    "minimum": 0
+                                  }
+                                },
+                                "required": [
+                                  "startSec",
+                                  "endSec"
+                                ]
+                              }
+                            }
+                          },
+                          "required": [
+                            "platform",
+                            "vodId",
+                            "totalDurationSec",
+                            "selectedRanges"
+                          ]
                         }
                       },
                       "required": [
@@ -37013,6 +38979,57 @@
                             "additionalProperties": false
                           }
                         ]
+                      },
+                      "vod": {
+                        "type": "object",
+                        "properties": {
+                          "platform": {
+                            "type": "string",
+                            "enum": [
+                              "TWITCH",
+                              "YOUTUBE_LIVE",
+                              "KICK"
+                            ]
+                          },
+                          "vodId": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "totalDurationSec": {
+                            "type": "number",
+                            "minimum": 0
+                          },
+                          "chatVelocity": {
+                            "type": "array",
+                            "items": {}
+                          },
+                          "selectedRanges": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "startSec": {
+                                  "type": "number",
+                                  "minimum": 0
+                                },
+                                "endSec": {
+                                  "type": "number",
+                                  "minimum": 0
+                                }
+                              },
+                              "required": [
+                                "startSec",
+                                "endSec"
+                              ]
+                            }
+                          }
+                        },
+                        "required": [
+                          "platform",
+                          "vodId",
+                          "totalDurationSec",
+                          "selectedRanges"
+                        ]
                       }
                     },
                     "required": [
@@ -37311,6 +39328,57 @@
                               ],
                               "additionalProperties": false
                             }
+                          ]
+                        },
+                        "vod": {
+                          "type": "object",
+                          "properties": {
+                            "platform": {
+                              "type": "string",
+                              "enum": [
+                                "TWITCH",
+                                "YOUTUBE_LIVE",
+                                "KICK"
+                              ]
+                            },
+                            "vodId": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "totalDurationSec": {
+                              "type": "number",
+                              "minimum": 0
+                            },
+                            "chatVelocity": {
+                              "type": "array",
+                              "items": {}
+                            },
+                            "selectedRanges": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "startSec": {
+                                    "type": "number",
+                                    "minimum": 0
+                                  },
+                                  "endSec": {
+                                    "type": "number",
+                                    "minimum": 0
+                                  }
+                                },
+                                "required": [
+                                  "startSec",
+                                  "endSec"
+                                ]
+                              }
+                            }
+                          },
+                          "required": [
+                            "platform",
+                            "vodId",
+                            "totalDurationSec",
+                            "selectedRanges"
                           ]
                         }
                       },
@@ -37767,6 +39835,57 @@
                               "additionalProperties": false
                             }
                           ]
+                        },
+                        "vod": {
+                          "type": "object",
+                          "properties": {
+                            "platform": {
+                              "type": "string",
+                              "enum": [
+                                "TWITCH",
+                                "YOUTUBE_LIVE",
+                                "KICK"
+                              ]
+                            },
+                            "vodId": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "totalDurationSec": {
+                              "type": "number",
+                              "minimum": 0
+                            },
+                            "chatVelocity": {
+                              "type": "array",
+                              "items": {}
+                            },
+                            "selectedRanges": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "startSec": {
+                                    "type": "number",
+                                    "minimum": 0
+                                  },
+                                  "endSec": {
+                                    "type": "number",
+                                    "minimum": 0
+                                  }
+                                },
+                                "required": [
+                                  "startSec",
+                                  "endSec"
+                                ]
+                              }
+                            }
+                          },
+                          "required": [
+                            "platform",
+                            "vodId",
+                            "totalDurationSec",
+                            "selectedRanges"
+                          ]
                         }
                       },
                       "required": [
@@ -38195,6 +40314,57 @@
                               "additionalProperties": false
                             }
                           ]
+                        },
+                        "vod": {
+                          "type": "object",
+                          "properties": {
+                            "platform": {
+                              "type": "string",
+                              "enum": [
+                                "TWITCH",
+                                "YOUTUBE_LIVE",
+                                "KICK"
+                              ]
+                            },
+                            "vodId": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "totalDurationSec": {
+                              "type": "number",
+                              "minimum": 0
+                            },
+                            "chatVelocity": {
+                              "type": "array",
+                              "items": {}
+                            },
+                            "selectedRanges": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "startSec": {
+                                    "type": "number",
+                                    "minimum": 0
+                                  },
+                                  "endSec": {
+                                    "type": "number",
+                                    "minimum": 0
+                                  }
+                                },
+                                "required": [
+                                  "startSec",
+                                  "endSec"
+                                ]
+                              }
+                            }
+                          },
+                          "required": [
+                            "platform",
+                            "vodId",
+                            "totalDurationSec",
+                            "selectedRanges"
+                          ]
                         }
                       },
                       "required": [
@@ -38574,6 +40744,57 @@
                             ],
                             "additionalProperties": false
                           }
+                        ]
+                      },
+                      "vod": {
+                        "type": "object",
+                        "properties": {
+                          "platform": {
+                            "type": "string",
+                            "enum": [
+                              "TWITCH",
+                              "YOUTUBE_LIVE",
+                              "KICK"
+                            ]
+                          },
+                          "vodId": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "totalDurationSec": {
+                            "type": "number",
+                            "minimum": 0
+                          },
+                          "chatVelocity": {
+                            "type": "array",
+                            "items": {}
+                          },
+                          "selectedRanges": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "startSec": {
+                                  "type": "number",
+                                  "minimum": 0
+                                },
+                                "endSec": {
+                                  "type": "number",
+                                  "minimum": 0
+                                }
+                              },
+                              "required": [
+                                "startSec",
+                                "endSec"
+                              ]
+                            }
+                          }
+                        },
+                        "required": [
+                          "platform",
+                          "vodId",
+                          "totalDurationSec",
+                          "selectedRanges"
                         ]
                       }
                     },
@@ -39881,6 +42102,402 @@
         "summary": "A single-use link to a clip's files for an editing app",
         "tags": [
           "repurpose"
+        ]
+      }
+    },
+    "/podcasts/connect": {
+      "post": {
+        "description": "Fetches and indexes all historical episodes into the catalog.",
+        "operationId": "connectPodcastShow",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "feedUrl": {
+                    "type": "string",
+                    "format": "uri"
+                  },
+                  "autoRepurpose": {
+                    "default": true,
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "feedUrl"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Connected podcast show with episodes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "workspaceId": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "feedUrl": {
+                      "type": "string"
+                    },
+                    "author": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "imageUrl": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "lastBuildDate": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "autoRepurpose": {
+                      "type": "boolean"
+                    },
+                    "episodeCount": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "episodes": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "showId": {
+                            "type": "string"
+                          },
+                          "guid": {
+                            "type": "string"
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "audioUrl": {
+                            "type": "string"
+                          },
+                          "durationSec": {
+                            "nullable": true,
+                            "type": "number"
+                          },
+                          "publishedAt": {
+                            "type": "string"
+                          },
+                          "isProcessed": {
+                            "type": "boolean"
+                          },
+                          "projectId": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "description": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "summary": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "chapters": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "title": {
+                                  "type": "string"
+                                },
+                                "startSec": {
+                                  "type": "number"
+                                },
+                                "endSec": {
+                                  "type": "number"
+                                }
+                              },
+                              "required": [
+                                "title",
+                                "startSec"
+                              ]
+                            }
+                          },
+                          "createdAt": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "showId",
+                          "guid",
+                          "title",
+                          "audioUrl",
+                          "publishedAt",
+                          "isProcessed",
+                          "createdAt"
+                        ]
+                      }
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "workspaceId",
+                    "title",
+                    "feedUrl",
+                    "autoRepurpose",
+                    "createdAt",
+                    "updatedAt"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Connect a podcast RSS feed",
+        "tags": [
+          "podcasts"
+        ]
+      }
+    },
+    "/podcasts/search": {
+      "get": {
+        "description": "Search Apple Podcasts to find show title, artwork, and RSS feed URL.",
+        "operationId": "searchPodcastsDirectory",
+        "parameters": [
+          {
+            "name": "q",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Search iTunes directory for podcasts",
+        "tags": [
+          "podcasts"
+        ]
+      }
+    },
+    "/podcasts": {
+      "get": {
+        "operationId": "listPodcastShows",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "List connected podcasts in workspace",
+        "tags": [
+          "podcasts"
+        ]
+      }
+    },
+    "/podcasts/{showId}": {
+      "get": {
+        "operationId": "getPodcastShow",
+        "parameters": [
+          {
+            "name": "showId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Get podcast show details and complete episode catalog",
+        "tags": [
+          "podcasts"
+        ]
+      },
+      "patch": {
+        "description": "Toggle autoRepurpose on or off.",
+        "operationId": "updatePodcastShow",
+        "parameters": [
+          {
+            "name": "showId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "autoRepurpose": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Update podcast show settings",
+        "tags": [
+          "podcasts"
+        ]
+      },
+      "delete": {
+        "operationId": "deletePodcastShow",
+        "parameters": [
+          {
+            "name": "showId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Disconnect and remove a podcast show",
+        "tags": [
+          "podcasts"
+        ]
+      }
+    },
+    "/podcasts/{showId}/sync": {
+      "post": {
+        "description": "Performs conditional GET with ETag / If-Modified-Since to discover new releases.",
+        "operationId": "syncPodcastFeed",
+        "parameters": [
+          {
+            "name": "showId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "Sync RSS feed for new episodes",
+        "tags": [
+          "podcasts"
+        ]
+      }
+    },
+    "/podcasts/episodes/{episodeId}/repurpose": {
+      "post": {
+        "description": "Converts a podcast episode into video shorts with chapters seeded from show notes.",
+        "operationId": "repurposePodcastEpisode",
+        "parameters": [
+          {
+            "name": "episodeId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "access-token": []
+          }
+        ],
+        "summary": "1-Click Repurpose for an episode",
+        "tags": [
+          "podcasts"
         ]
       }
     }

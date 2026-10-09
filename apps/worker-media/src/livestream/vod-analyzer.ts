@@ -232,3 +232,4 @@ function generateSyntheticCurve(durationSec: number): ChatDensityBucket[] {
 
   return buckets;
 }
+

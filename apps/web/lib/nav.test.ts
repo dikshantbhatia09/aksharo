@@ -44,6 +44,7 @@ describe("PRIMARY_NAV", () => {
   it("keeps every shipped destination reachable, primary or secondary", () => {
     expect(SECONDARY_NAV.map((item) => item.label)).toEqual([
       "Automations",
+      "Podcasts",
       "Templates",
       "Academy",
       "Plugins",
@@ -91,6 +92,7 @@ describe("SETTINGS_NAV", () => {
       "support",
       "subscription",
       "plugin-keys",
+      "integrations",
       "developers",
     ]);
   });

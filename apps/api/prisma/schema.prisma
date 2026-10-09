@@ -920,6 +920,7 @@ model Workspace {
   cloudImportJobs        CloudImportJob[]
   zoomIntegration        WorkspaceZoomIntegration?
   uploadSessions         MediaUploadSession[]
+  podcastShows           PodcastShow[]
 
   @@index([ownerId])
   @@index([billingCountry])
@@ -4993,4 +4994,48 @@ model MediaUploadSession {
   @@index([uploadId])
   @@map("media_upload_sessions")
 }
+
+/// Podcast RSS Ingestion & Automated Episode Watcher (Pillar 1 §06).
+model PodcastShow {
+  id             String           @id @default(uuid())
+  workspaceId    String           @map("workspace_id") @db.Char(26)
+  title          String
+  feedUrl        String           @unique @map("feed_url")
+  author         String?
+  imageUrl       String?          @map("image_url")
+  lastBuildDate  DateTime?        @map("last_build_date") @db.Timestamptz(6)
+  etag           String?
+  autoRepurpose  Boolean          @default(true) @map("auto_repurpose")
+  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  workspace      Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  episodes       PodcastEpisode[]
+
+  @@index([workspaceId])
+  @@map("podcast_shows")
+}
+
+model PodcastEpisode {
+  id           String       @id @default(uuid())
+  showId       String       @map("show_id")
+  guid         String       @unique
+  title        String
+  audioUrl     String       @map("audio_url")
+  durationSec  Float?       @map("duration_sec")
+  publishedAt  DateTime     @map("published_at") @db.Timestamptz(6)
+  isProcessed  Boolean      @default(false) @map("is_processed")
+  projectId    String?      @map("project_id") @db.Char(26)
+  description  String?
+  summary      String?
+  chapters     Json?        @default("[]") @db.JsonB
+  createdAt    DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  show         PodcastShow  @relation(fields: [showId], references: [id], onDelete: Cascade)
+
+  @@index([showId])
+  @@index([isProcessed])
+  @@map("podcast_episodes")
+}
+
 

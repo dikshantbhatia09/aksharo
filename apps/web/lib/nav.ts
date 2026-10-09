@@ -11,6 +11,7 @@ import {
   Palette,
   Plug,
   Radar,
+  Radio,
   SlidersHorizontal,
   Stamp,
   Users,
@@ -161,6 +162,15 @@ export const SECONDARY_NAV: readonly NavItem[] = [
     short: "Auto",
     href: "/repurpose/automations",
     icon: Radar,
+    ready: true,
+  },
+  {
+    // Pillar 1 §06: Podcast RSS Ingestion & Automated Episode Watcher
+    key: "podcasts",
+    label: "Podcasts",
+    short: "Podcasts",
+    href: "/podcasts",
+    icon: Radio,
     ready: true,
   },
   {

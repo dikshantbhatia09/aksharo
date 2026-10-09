@@ -41,6 +41,7 @@ import { OpsModule } from "./ops/ops.module.js";
 import { OpsWatchModule } from "./ops/watch/ops-watch.module.js";
 import { PartnerCatalogueModule } from "./partner-catalogue/partner-catalogue.module.js";
 import { PassesModule } from "./passes/passes.module.js";
+import { PodcastsModule } from "./podcasts/podcasts.module.js";
 import { PrivacyModule } from "./privacy/privacy.module.js";
 import { ProjectsModule } from "./projects/projects.module.js";
 import { PromptedEditsModule } from "./prompted-edits/prompted-edits.module.js";
@@ -246,6 +247,8 @@ import { WorkspacesModule } from "./workspaces/workspaces.module.js";
     RepurposeGuestModule,
     // "Download all": a run's clips as one streamed ZIP (2026-10-01).
     RepurposeBundleModule,
+    // Pillar 1 §06: Podcast RSS Ingestion & Automated Episode Watcher
+    PodcastsModule,
   ],
 })
 export class AppModule {}

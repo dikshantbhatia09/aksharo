@@ -15,7 +15,7 @@ export const initiateMultipartUploadSchema = z.object({
   mimeType: z.string().trim().min(3).max(255),
   contentHash: z.string().trim().min(8).max(128).optional(),
   projectId: z.string().trim().optional(),
-  role: z.enum(MEDIA_ROLES).optional().default("primary"),
+  role: z.enum(MEDIA_ROLES).optional(),
 });
 
 export class InitiateMultipartUploadDto extends zodDto(initiateMultipartUploadSchema) {}

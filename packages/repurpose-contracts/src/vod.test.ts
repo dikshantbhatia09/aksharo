@@ -78,3 +78,4 @@ describe("VOD and livestream contracts", () => {
     expect(record.selectedRanges[0]?.startSec).toBe(3600);
   });
 });
+

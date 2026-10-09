@@ -97,3 +97,4 @@ describe("VodRangeSelector component", () => {
     expect(onSelectRange).toHaveBeenCalledWith({ startSec: 270, endSec: 1260 });
   });
 });
+

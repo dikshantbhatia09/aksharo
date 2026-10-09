@@ -19,6 +19,20 @@ export const API_VERSION = "0.1.0";
 
 export const API_OPERATIONS = [
   {
+    operationId: "abortMultipartUpload",
+    method: "POST",
+    path: "/api/v1/media/upload/abort",
+    tags: ["media-upload"],
+    summary: "Abort multipart upload",
+  },
+  {
+    operationId: "abortMultipartUpload",
+    method: "POST",
+    path: "/media/upload/abort",
+    tags: ["media-upload"],
+    summary: "Abort multipart upload",
+  },
+  {
     operationId: "acceptInvitation",
     method: "POST",
     path: "/invitations/{id}/accept",
@@ -642,6 +656,27 @@ export const API_OPERATIONS = [
     summary: "Finish an upload and start the pipeline",
   },
   {
+    operationId: "completeMediaUpload",
+    method: "POST",
+    path: "/api/v1/media/{mediaId}/complete",
+    tags: ["media"],
+    summary: "Finish an upload and start the pipeline",
+  },
+  {
+    operationId: "completeMultipartUpload",
+    method: "POST",
+    path: "/api/v1/media/upload/complete",
+    tags: ["media-upload"],
+    summary: "Complete multipart upload and begin processing pipeline",
+  },
+  {
+    operationId: "completeMultipartUpload",
+    method: "POST",
+    path: "/media/upload/complete",
+    tags: ["media-upload"],
+    summary: "Complete multipart upload and begin processing pipeline",
+  },
+  {
     operationId: "completeProjectMediaUpload",
     method: "POST",
     path: "/projects/{projectId}/media/{mediaId}/complete",
@@ -661,6 +696,13 @@ export const API_OPERATIONS = [
     path: "/telemetry/diagnostics-bundle/confirm",
     tags: ["telemetry"],
     summary: "Confirm an uploaded diagnostics bundle and attach it to the ticket",
+  },
+  {
+    operationId: "connectPodcastShow",
+    method: "POST",
+    path: "/podcasts/connect",
+    tags: ["podcasts"],
+    summary: "Connect a podcast RSS feed",
   },
   {
     operationId: "connectZoomOAuth",
@@ -1013,6 +1055,13 @@ export const API_OPERATIONS = [
     summary: "Delete one memory entry",
   },
   {
+    operationId: "deletePodcastShow",
+    method: "DELETE",
+    path: "/podcasts/{showId}",
+    tags: ["podcasts"],
+    summary: "Disconnect and remove a podcast show",
+  },
+  {
     operationId: "deleteProject",
     method: "DELETE",
     path: "/projects/{projectId}",
@@ -1314,6 +1363,13 @@ export const API_OPERATIONS = [
     summary: "Fetch one media asset",
   },
   {
+    operationId: "getMedia",
+    method: "GET",
+    path: "/api/v1/media/{mediaId}",
+    tags: ["media"],
+    summary: "Fetch one media asset",
+  },
+  {
     operationId: "getMediaUrls",
     method: "GET",
     path: "/projects/{projectId}/media/{mediaId}/urls",
@@ -1347,6 +1403,13 @@ export const API_OPERATIONS = [
     path: "/admin/metrics/offers",
     tags: ["admin"],
     summary: "₹9 clean-export hypothesis: purchases, upgrades within 60 days, recommendation",
+  },
+  {
+    operationId: "getPodcastShow",
+    method: "GET",
+    path: "/podcasts/{showId}",
+    tags: ["podcasts"],
+    summary: "Get podcast show details and complete episode catalog",
   },
   {
     operationId: "getPrivacyNotice",
@@ -1573,6 +1636,20 @@ export const API_OPERATIONS = [
     summary: "The workspace's current subscription",
   },
   {
+    operationId: "getUploadSession",
+    method: "GET",
+    path: "/api/v1/media/upload/session/{uploadId}",
+    tags: ["media-upload"],
+    summary: "Get current upload session progress",
+  },
+  {
+    operationId: "getUploadSession",
+    method: "GET",
+    path: "/media/upload/session/{uploadId}",
+    tags: ["media-upload"],
+    summary: "Get current upload session progress",
+  },
+  {
     operationId: "getWorkspace",
     method: "GET",
     path: "/workspaces/{id}",
@@ -1711,6 +1788,20 @@ export const API_OPERATIONS = [
     path: "/workspaces/{id}/fonts/init",
     tags: ["fonts"],
     summary: "Begin a custom font upload",
+  },
+  {
+    operationId: "initiateMultipartUpload",
+    method: "POST",
+    path: "/api/v1/media/upload/initiate",
+    tags: ["media-upload"],
+    summary: "Initiate direct S3 multipart upload session",
+  },
+  {
+    operationId: "initiateMultipartUpload",
+    method: "POST",
+    path: "/media/upload/initiate",
+    tags: ["media-upload"],
+    summary: "Initiate direct S3 multipart upload session",
   },
   {
     operationId: "initMediaUpload",
@@ -1935,6 +2026,13 @@ export const API_OPERATIONS = [
     path: "/billing/plans",
     tags: ["billing"],
     summary: "The public plan catalogue (INR and USD)",
+  },
+  {
+    operationId: "listPodcastShows",
+    method: "GET",
+    path: "/podcasts",
+    tags: ["podcasts"],
+    summary: "List connected podcasts in workspace",
   },
   {
     operationId: "listProjectAudioCleans",
@@ -2266,9 +2364,30 @@ export const API_OPERATIONS = [
     summary: "Proxy URL + EDG projection for the CanvasKit preview",
   },
   {
+    operationId: "probeVodUrl",
+    method: "POST",
+    path: "/media/probe-vod",
+    tags: ["media"],
+    summary: "Probe a livestream or VOD URL for metadata, chat velocity, and peak highlights",
+  },
+  {
+    operationId: "probeVodUrl",
+    method: "POST",
+    path: "/api/v1/media/probe-vod",
+    tags: ["media"],
+    summary: "Probe a livestream or VOD URL for metadata, chat velocity, and peak highlights",
+  },
+  {
     operationId: "probeYouTubeUrl",
     method: "POST",
     path: "/media/probe-url",
+    tags: ["media"],
+    summary: "Probe a YouTube video URL for metadata and native chapters",
+  },
+  {
+    operationId: "probeYouTubeUrl",
+    method: "POST",
+    path: "/api/v1/media/probe-url",
     tags: ["media"],
     summary: "Probe a YouTube video URL for metadata and native chapters",
   },
@@ -2432,6 +2551,13 @@ export const API_OPERATIONS = [
     path: "/s/{token}/report",
     tags: ["share-public"],
     summary: "Report abuse on a shared preview (F-504)",
+  },
+  {
+    operationId: "repurposePodcastEpisode",
+    method: "POST",
+    path: "/podcasts/episodes/{episodeId}/repurpose",
+    tags: ["podcasts"],
+    summary: "1-Click Repurpose for an episode",
   },
   {
     operationId: "requestExport",
@@ -2721,6 +2847,13 @@ export const API_OPERATIONS = [
     summary: "Search the partner catalogue (SFX/music), 404 while assets.partnerCatalogue is off",
   },
   {
+    operationId: "searchPodcastsDirectory",
+    method: "GET",
+    path: "/podcasts/search",
+    tags: ["podcasts"],
+    summary: "Search iTunes directory for podcasts",
+  },
+  {
     operationId: "searchRepurposeRun",
     method: "GET",
     path: "/repurpose/runs/{runId}/search",
@@ -2775,6 +2908,20 @@ export const API_OPERATIONS = [
     path: "/workspaces/{id}/tax-profile",
     tags: ["workspaces"],
     summary: "Set the billing country, State and GSTIN",
+  },
+  {
+    operationId: "signMultipartPartUrl",
+    method: "POST",
+    path: "/api/v1/media/upload/part-url",
+    tags: ["media-upload"],
+    summary: "Presign S3 chunk upload PUT URL on demand",
+  },
+  {
+    operationId: "signMultipartPartUrl",
+    method: "POST",
+    path: "/media/upload/part-url",
+    tags: ["media-upload"],
+    summary: "Presign S3 chunk upload PUT URL on demand",
   },
   {
     operationId: "simulateNinePassPayment",
@@ -2852,6 +2999,13 @@ export const API_OPERATIONS = [
     path: "/telemetry/events",
     tags: ["telemetry"],
     summary: "Submit a batch of consent-gated telemetry events",
+  },
+  {
+    operationId: "syncPodcastFeed",
+    method: "POST",
+    path: "/podcasts/{showId}/sync",
+    tags: ["podcasts"],
+    summary: "Sync RSS feed for new episodes",
   },
   {
     operationId: "TaxRegistrationsController_list",
@@ -2957,6 +3111,13 @@ export const API_OPERATIONS = [
     path: "/admin/ops/incidents/{id}",
     tags: ["admin"],
     summary: "Update, escalate or resolve a status-page incident",
+  },
+  {
+    operationId: "updatePodcastShow",
+    method: "PATCH",
+    path: "/podcasts/{showId}",
+    tags: ["podcasts"],
+    summary: "Update podcast show settings",
   },
   {
     operationId: "updateProject",

@@ -104,3 +104,4 @@ describe("Twitch Chat Sentiment & Density Miner", () => {
     expect(probe.peaks.length).toBeGreaterThanOrEqual(1);
   });
 });
+

@@ -75,3 +75,4 @@ export const StreamVodMetadataSchema = z.strictObject({
   selectedRanges: z.array(SelectedTimeRangeSchema),
 });
 export type StreamVodMetadata = z.infer<typeof StreamVodMetadataSchema>;
+
