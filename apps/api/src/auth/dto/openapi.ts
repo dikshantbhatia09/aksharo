@@ -15,7 +15,15 @@ import type { ZodType } from "zod";
  * whose nullable unions (`type: ["string", "null"]`) OpenAPI 3.0 tooling rejects.
  */
 function convert(schema: ZodType): SchemaObject {
-  return z.toJSONSchema(schema, { target: "openapi-3.0", io: "input" }) as SchemaObject;
+  try {
+    return z.toJSONSchema(schema, {
+      target: "openapi-3.0",
+      io: "input",
+      unrepresentable: () => ({ type: "string", format: "date-time" }),
+    }) as SchemaObject;
+  } catch {
+    return { type: "object" };
+  }
 }
 
 /** `@ApiBody(zodBody(signUpSchema))` */
