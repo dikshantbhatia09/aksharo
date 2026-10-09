@@ -74,6 +74,19 @@ const MediaPatchSchema = z
     waveformKey: objectKey.optional(),
     /** `thumb-{n}.jpg` keys in index order (CONTRACTS §6). */
     thumbKeys: z.array(objectKey).max(MAX_THUMB_KEYS).optional(),
+    audioTracks: z
+      .array(
+        z.object({
+          streamIndex: z.number().int().min(0),
+          channelIndex: z.number().int().min(0).default(0),
+          label: z.string().max(255).nullable().optional(),
+          audioWavKey: objectKey,
+          durationMs: z.number().int().min(0),
+          isDialogue: z.boolean().default(true),
+          speakerName: z.string().max(255).nullable().optional(),
+        }),
+      )
+      .optional(),
   })
   .refine((value) => Object.keys(value).length > 0, { message: "No fields to update." });
 
@@ -126,15 +139,34 @@ export class InternalMediaController {
 
     assertOwnKeys(body, mediaPrefix(asset.project.workspaceId, asset.projectId, asset.id));
 
+    const { audioTracks, ...rest } = body;
     const data: Prisma.MediaAssetUncheckedUpdateInput = {
-      ...body,
-      ...(body.sizeBytes === undefined ? {} : { sizeBytes: BigInt(body.sizeBytes) }),
+      ...rest,
+      ...(rest.sizeBytes === undefined ? {} : { sizeBytes: BigInt(rest.sizeBytes) }),
     };
 
-    const { count } = await this.prisma.mediaAsset.updateMany({ where: { id }, data });
-    if (count === 0) {
-      throw new AppException(ERROR_CODES.notFound, "No such media asset.", HttpStatus.NOT_FOUND, {
-        mediaId: id,
+    if (Object.keys(data).length > 0) {
+      const { count } = await this.prisma.mediaAsset.updateMany({ where: { id }, data });
+      if (count === 0) {
+        throw new AppException(ERROR_CODES.notFound, "No such media asset.", HttpStatus.NOT_FOUND, {
+          mediaId: id,
+        });
+      }
+    }
+
+    if (audioTracks !== undefined && audioTracks.length > 0) {
+      await this.prisma.mediaAudioTrack.deleteMany({ where: { mediaAssetId: id } });
+      await this.prisma.mediaAudioTrack.createMany({
+        data: audioTracks.map((t) => ({
+          mediaAssetId: id,
+          streamIndex: t.streamIndex,
+          channelIndex: t.channelIndex,
+          label: t.label ?? null,
+          audioWavUri: t.audioWavKey,
+          durationMs: t.durationMs,
+          isDialogue: t.isDialogue,
+          speakerName: t.speakerName ?? null,
+        })),
       });
     }
 
@@ -179,7 +211,7 @@ export class InternalMediaController {
  * @throws AppException 400 naming only the field, never the offending key.
  */
 export function assertOwnKeys(
-  body: Partial<Record<(typeof DERIVED_KEY_FIELDS)[number] | "thumbKeys", unknown>>,
+  body: Partial<Record<(typeof DERIVED_KEY_FIELDS)[number] | "thumbKeys" | "audioTracks", unknown>>,
   prefix: string,
 ): void {
   const scope = `${prefix}/`;
@@ -193,6 +225,19 @@ export function assertOwnKeys(
   const thumbs = body.thumbKeys;
   if (Array.isArray(thumbs) && thumbs.some((key) => !isInside(String(key), scope))) {
     offending.push("thumbKeys");
+  }
+  const tracks = body.audioTracks;
+  if (
+    Array.isArray(tracks) &&
+    tracks.some(
+      (track) =>
+        typeof track === "object" &&
+        track !== null &&
+        "audioWavKey" in track &&
+        !isInside(String((track as Record<string, unknown>)["audioWavKey"]), scope),
+    )
+  ) {
+    offending.push("audioTracks");
   }
 
   if (offending.length === 0) return;

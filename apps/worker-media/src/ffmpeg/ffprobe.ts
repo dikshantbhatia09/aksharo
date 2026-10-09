@@ -53,6 +53,7 @@ export interface FfprobeStream {
   readonly color_transfer?: string;
   readonly color_primaries?: string;
   readonly channels?: number;
+  readonly channel_layout?: string;
   readonly sample_rate?: string;
   readonly tags?: Readonly<Record<string, string>>;
   readonly side_data_list?: readonly Readonly<Record<string, unknown>>[];
@@ -70,6 +71,15 @@ export interface FfprobeOutput {
   readonly format?: FfprobeFormat;
 }
 
+export interface ProbeAudioStream {
+  readonly index: number;
+  readonly codec: string;
+  readonly channels: number;
+  readonly sampleRate: number;
+  readonly channelLayout: string | null;
+  readonly title: string | null;
+}
+
 export interface ProbeContainer {
   readonly container: string;
   readonly mime: string | null;
@@ -78,6 +88,7 @@ export interface ProbeContainer {
   readonly video: ProbeVideo | null;
   /** Loudness fields are `null` here; the EBU R128 pass fills them in. */
   readonly audio: ProbeAudio | null;
+  readonly audioStreams: readonly ProbeAudioStream[];
 }
 
 /** Run ffprobe against a source and return its parsed JSON. */
@@ -102,8 +113,8 @@ export async function ffprobe(input: {
       // landscape and get a proxy on its side.
       "-show_entries",
       "stream=index,codec_type,codec_name,width,height,r_frame_rate,avg_frame_rate,duration," +
-        "pix_fmt,bits_per_raw_sample,color_space,color_transfer,color_primaries,channels,sample_rate:" +
-        "stream_tags=rotate:stream_side_data=rotation:format=format_name,duration,size,bit_rate",
+        "pix_fmt,bits_per_raw_sample,color_space,color_transfer,color_primaries,channels,channel_layout,sample_rate:" +
+        "stream_tags=title,handler_name,rotate:stream_side_data=rotation:format=format_name,duration,size,bit_rate",
       ...inputArgs(input.source),
     ],
     {
@@ -139,6 +150,23 @@ export async function ffprobe(input: {
 }
 
 /**
+ * Enumerate all audio streams from ffprobe's output.
+ */
+export function readAudioStreams(output: FfprobeOutput): ProbeAudioStream[] {
+  const streams = output.streams ?? [];
+  return streams
+    .filter((stream) => stream.codec_type === "audio")
+    .map((stream, idx) => ({
+      index: stream.index ?? idx,
+      codec: stream.codec_name ?? "unknown",
+      channels: stream.channels ?? 0,
+      sampleRate: integerOrNull(stream.sample_rate) ?? 0,
+      channelLayout: stream.channel_layout ?? null,
+      title: stream.tags?.["title"] ?? stream.tags?.["handler_name"] ?? null,
+    }));
+}
+
+/**
  * Turn ffprobe's JSON into the facts the pipeline needs.
  *
  * @throws MediaJobError `media/no_streams` when the container is readable but
@@ -149,6 +177,7 @@ export function readProbe(output: FfprobeOutput): ProbeContainer {
   const streams = output.streams ?? [];
   const video = streams.find((stream) => stream.codec_type === "video" && !isCoverArt(stream));
   const audio = streams.find((stream) => stream.codec_type === "audio");
+  const audioStreams = readAudioStreams(output);
 
   if (video === undefined && audio === undefined) {
     throw unreadableMedia("This file has no audio or video in it.", "media/no_streams");
@@ -165,6 +194,7 @@ export function readProbe(output: FfprobeOutput): ProbeContainer {
     sizeBytes: integerOrNull(output.format?.size),
     video: video === undefined ? null : readVideo(video),
     audio: audio === undefined ? null : readAudio(audio),
+    audioStreams,
   };
 }
 

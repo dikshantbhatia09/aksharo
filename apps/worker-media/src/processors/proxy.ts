@@ -1,3 +1,5 @@
+import { mkdir } from "node:fs/promises";
+
 import { describeError } from "../errors.js";
 import {
   ASR_SAMPLE_RATE,
@@ -9,14 +11,16 @@ import {
   thumbnailCount,
   thumbnailOffsetMs,
 } from "../ffmpeg/derive.js";
-import { ffprobe, readProbe } from "../ffmpeg/ffprobe.js";
+import { ffprobe, readAudioStreams, readProbe } from "../ffmpeg/ffprobe.js";
 import { logger } from "../logger.js";
 import { derivedKey, thumbKey } from "../storage-keys.js";
 import { DERIVED_CONTENT_TYPES, DERIVED_OBJECT_TAGS } from "../storage.js";
 import { buildWaveform } from "../waveform.js";
 import { withWorkspace } from "../workspace.js";
+import { demuxAudioTracks } from "./demux-audio.js";
 
 import type { DeriveContext } from "../ffmpeg/derive.js";
+import type { ProbeAudioStream } from "../ffmpeg/ffprobe.js";
 import type { ProxyResult } from "../probe-result.js";
 import type { MediaProxyPayload } from "../queues.js";
 import type { JobContext, ProcessorOutcome } from "../runtime.js";
@@ -94,6 +98,15 @@ export async function processProxy(context: JobContext): Promise<ProcessorOutcom
       waveformKey: null,
       thumbKeys: [],
     };
+    const audioTracks: Array<{
+      streamIndex: number;
+      channelIndex: number;
+      label: string;
+      audioWavKey: string;
+      durationMs: number;
+      isDialogue: boolean;
+      speakerName: string;
+    }> = [];
     let bytesWritten = 0;
     // The early write-back of the ASR audio, in flight alongside the rest of
     // the job. Never rejects; awaited before the job returns (see below).
@@ -142,6 +155,52 @@ export async function processProxy(context: JobContext): Promise<ProcessorOutcom
         contentType: DERIVED_CONTENT_TYPES["waveform.json"],
         tags: DERIVED_OBJECT_TAGS,
       });
+
+      // --- multi-track audio demuxing ---------------------------------------
+      if (
+        facts.audioStreams &&
+        (facts.audioStreams.length > 1 ||
+          (facts.audioStreams.length === 1 && (facts.audioStreams[0]?.channels ?? 0) > 1))
+      ) {
+        context.report(35, "demuxing multi-track audio channels");
+        try {
+          const tracksDir = workspace.path("tracks");
+          await mkdir(tracksDir, { recursive: true });
+          const demuxed = await demuxAudioTracks({
+            binary: settings.ffmpegPath,
+            source: derive.source,
+            audioStreams: facts.audioStreams,
+            durationMs: facts.durationMs,
+            outDir: tracksDir,
+            derivedPrefix,
+            timeoutMs: settings.ffmpegTimeoutMs,
+            signal: context.signal,
+          });
+
+          for (const track of demuxed) {
+            bytesWritten += await context.derived.putFile({
+              key: track.audioWavKey,
+              file: track.localPath,
+              contentType: DERIVED_CONTENT_TYPES["audio16k.wav"],
+              tags: DERIVED_OBJECT_TAGS,
+            });
+            audioTracks.push({
+              streamIndex: track.streamIndex,
+              channelIndex: track.channelIndex,
+              label: track.label,
+              audioWavKey: track.audioWavKey,
+              durationMs: track.durationMs,
+              isDialogue: track.isDialogue,
+              speakerName: track.speakerName,
+            });
+          }
+        } catch (error) {
+          logger.warn("multi-track audio demuxing failed; continuing with primary audio", {
+            mediaId: payload.mediaId,
+            error: describeError(error),
+          });
+        }
+      }
     }
 
     // --- proxy ------------------------------------------------------------
@@ -219,6 +278,7 @@ export async function processProxy(context: JobContext): Promise<ProcessorOutcom
         ...(keys.audio48kKey === null ? {} : { audio48kKey: keys.audio48kKey }),
         ...(keys.waveformKey === null ? {} : { waveformKey: keys.waveformKey }),
         thumbKeys: keys.thumbKeys,
+        ...(audioTracks.length > 0 ? { audioTracks } : {}),
       },
       usage: { mediaSeconds: facts.durationMs / 1000, egressBytes: bytesWritten },
     };
@@ -266,6 +326,7 @@ interface MediaFacts {
   readonly height: number;
   readonly hdr: boolean;
   readonly isVfr?: boolean;
+  readonly audioStreams?: readonly ProbeAudioStream[];
 }
 
 /** The payload's hints when they are complete, a fresh ffprobe when they are not. */
@@ -277,6 +338,23 @@ async function resolveFacts(context: JobContext, payload: MediaProxyPayload): Pr
     typeof payload.hasAudio === "boolean";
 
   if (complete) {
+    const rawPayload = payload as unknown as Record<string, unknown>;
+    let audioStreams: readonly ProbeAudioStream[] = (rawPayload["audioStreams"] as readonly ProbeAudioStream[] | undefined) ?? [];
+    if (audioStreams.length === 0 && payload.hasAudio) {
+      try {
+        const source = await context.raw.presignGet(payload.key, context.settings.sourceUrlTtlSeconds);
+        const output = await ffprobe({
+          binary: context.settings.ffprobePath,
+          source,
+          timeoutMs: context.settings.ffmpegTimeoutMs,
+          signal: context.signal,
+        });
+        audioStreams = readAudioStreams(output);
+      } catch {
+        // Ignored; fallback gracefully
+      }
+    }
+
     return {
       durationMs: payload.durationMs ?? 0,
       hasVideo: payload.hasVideo ?? false,
@@ -284,7 +362,8 @@ async function resolveFacts(context: JobContext, payload: MediaProxyPayload): Pr
       width: payload.width ?? 0,
       height: payload.height ?? 0,
       hdr: payload.hdr ?? false,
-      isVfr: (payload as any).isVfr ?? false,
+      isVfr: (rawPayload["isVfr"] as boolean | undefined) ?? false,
+      audioStreams,
     };
   }
 
@@ -305,6 +384,7 @@ async function resolveFacts(context: JobContext, payload: MediaProxyPayload): Pr
     height: container.video?.height ?? 0,
     hdr: container.video?.hdr ?? false,
     isVfr: container.video?.isVfr ?? false,
+    audioStreams: container.audioStreams,
   };
 }
 

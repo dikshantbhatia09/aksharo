@@ -689,6 +689,52 @@ export class MediaService {
   }
 
   // -------------------------------------------------------------------------
+  // Multi-Track Audio (Feature 08)
+  // -------------------------------------------------------------------------
+
+  /**
+   * List detected audio tracks for a media asset.
+   */
+  async getAudioTracks(workspaceId: string, projectId: string, mediaId: string) {
+    const { media } = await this.require(workspaceId, mediaId, projectId);
+    return this.prisma.mediaAudioTrack.findMany({
+      where: { mediaAssetId: media.id },
+      orderBy: [{ streamIndex: "asc" }, { channelIndex: "asc" }],
+    });
+  }
+
+  /**
+   * Update audio track configuration (mute/dialogue, speaker name, label).
+   */
+  async updateAudioTrack(
+    workspaceId: string,
+    projectId: string,
+    mediaId: string,
+    trackId: string,
+    update: { label?: string; isDialogue?: boolean; speakerName?: string | null },
+  ) {
+    const { media } = await this.require(workspaceId, mediaId, projectId);
+    const track = await this.prisma.mediaAudioTrack.findFirst({
+      where: { id: trackId, mediaAssetId: media.id },
+    });
+    if (track === null) {
+      throw new AppException(ERROR_CODES.notFound, "Audio track not found.", HttpStatus.NOT_FOUND, {
+        trackId,
+        mediaId,
+      });
+    }
+
+    return this.prisma.mediaAudioTrack.update({
+      where: { id: trackId },
+      data: {
+        ...(update.label !== undefined ? { label: update.label } : {}),
+        ...(update.isDialogue !== undefined ? { isDialogue: update.isDialogue } : {}),
+        ...(update.speakerName !== undefined ? { speakerName: update.speakerName } : {}),
+      },
+    });
+  }
+
+  // -------------------------------------------------------------------------
   // Internals
   // -------------------------------------------------------------------------
 

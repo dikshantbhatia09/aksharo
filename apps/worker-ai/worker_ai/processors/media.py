@@ -21,7 +21,7 @@ from worker_ai.processors.context import JobContext, JobFailureError
 from worker_ai.storage import StorageError, derived_key
 from worker_ai.vad import SpeechRegion, detect_regions
 
-__all__ = ["MediaAudio", "load_audio", "speech_regions"]
+__all__ = ["MediaAudio", "load_audio", "load_track_audio", "speech_regions"]
 
 _log = get_logger(__name__)
 
@@ -92,6 +92,63 @@ def load_audio(context: JobContext) -> MediaAudio:
         path=destination,
         pcm=_decode(destination),
         key=key,
+        size_bytes=size,
+    )
+
+
+def load_track_audio(
+    context: JobContext, track: dict[str, Any], track_index: int = 0
+) -> MediaAudio:
+    """Download (or open) one isolated audio track for a multi-track media asset."""
+    media_id = context.payload_str("mediaId", required=True)
+    track_id = str(track.get("id") or f"track_{track_index}")
+
+    # 1. Local path / audioUri provided (test mode or local worker)
+    local_uri = track.get("audioUri") or track.get("path")
+    if local_uri and Path(str(local_uri)).is_file():
+        return _load_local(f"{media_id}-{track_id}", Path(str(local_uri)))
+
+    # 2. Local file path supplied in storageKey
+    storage_key = track.get("storageKey")
+    if storage_key and Path(str(storage_key)).is_file():
+        return _load_local(f"{media_id}-{track_id}", Path(str(storage_key)))
+
+    store = context.services.derived_store
+    if store is None:
+        raise JobFailureError(
+            "worker/storage_unconfigured",
+            "R2_ENDPOINT, R2_BUCKET_DERIVED and the R2 credentials are required",
+            retryable=False,
+        )
+
+    if not storage_key:
+        raise JobFailureError(
+            "worker/invalid_payload",
+            f"audio track {track_id} is missing storageKey",
+            retryable=False,
+        )
+
+    destination = context.workdir / f"track_{track_id}.wav"
+    try:
+        store.download(storage_key, destination)
+        size = destination.stat().st_size
+    except StorageError as error:
+        raise JobFailureError("worker/storage_unavailable", str(error), retryable=True) from error
+
+    _log.info(
+        "derived audio track fetched",
+        extra={
+            **context.envelope.log_fields(),
+            "mediaId": media_id,
+            "trackId": track_id,
+            "bytes": size,
+        },
+    )
+    return MediaAudio(
+        media_id=f"{media_id}-{track_id}",
+        path=destination,
+        pcm=_decode(destination),
+        key=storage_key,
         size_bytes=size,
     )
 

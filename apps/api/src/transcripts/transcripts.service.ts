@@ -378,6 +378,11 @@ export class TranscriptsService {
     const languages = languageHints(request.languages);
     const hints = await this.buildHints(request, project.sourceLanguage);
 
+    const audioTracks = await this.prisma.mediaAudioTrack.findMany({
+      where: { mediaAssetId: media.id },
+      orderBy: [{ streamIndex: "asc" }, { channelIndex: "asc" }],
+    });
+
     // A distinct job key per transcript id: dedupe must stop a double-click on the
     // same request, and must not stop a deliberate re-transcription.
     const jobKey = options.retranscribe
@@ -407,6 +412,20 @@ export class TranscriptsService {
         diarise: request.diarise === true,
         revision: 1,
         ...(request.captions === undefined ? {} : { captions: request.captions }),
+        ...(audioTracks.length > 0
+          ? {
+              audioTracks: audioTracks.map((t) => ({
+                id: t.id,
+                streamIndex: t.streamIndex,
+                channelIndex: t.channelIndex,
+                label: t.label,
+                audioWavUri: t.audioWavUri,
+                durationMs: t.durationMs,
+                isDialogue: t.isDialogue,
+                speakerName: t.speakerName,
+              })),
+            }
+          : {}),
       },
     });
 

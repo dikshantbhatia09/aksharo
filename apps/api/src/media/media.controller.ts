@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Param, Patch, Post, UseGuards } from "@nestjs/common";
 import {
   ApiBearerAuth,
   ApiBody,
@@ -25,10 +25,13 @@ import {
   importUrlSchema,
   InitUploadDto,
   initUploadSchema,
+  mediaAudioTrackSchema,
   mediaSchema,
   mediaUrlsSchema,
   ReplaceMediaDto,
   replaceMediaSchema,
+  UpdateAudioTrackDto,
+  updateAudioTrackSchema,
   uploadTicketSchema,
 } from "./media.dto.js";
 import { MediaService } from "./media.service.js";
@@ -196,6 +199,43 @@ export class MediaController {
       void this.faces.maybeEnqueue(mediaId, { onlyIfNeverTried: true });
     }
     return urls;
+  }
+
+  @Get("media/:mediaId/audio-tracks")
+  @Roles("viewer")
+  @ApiOperation({
+    summary: "List detected audio tracks for this media asset",
+    description: "Returns all isolated mono tracks or channel tracks detected during container ingestion.",
+    operationId: "getMediaAudioTracks",
+  })
+  @ApiOkResponse(zodArrayResponse(mediaAudioTrackSchema, "Audio tracks detected for the media asset."))
+  @ApiNotFoundResponse({ description: "`media/not_found`." })
+  async getAudioTracks(
+    @CurrentWorkspace() workspaceId: string,
+    @Param("projectId") projectId: string,
+    @Param("mediaId") mediaId: string,
+  ) {
+    return this.media.getAudioTracks(workspaceId, projectId, mediaId);
+  }
+
+  @Patch("media/:mediaId/audio-tracks/:trackId")
+  @Roles("editor")
+  @ApiOperation({
+    summary: "Update audio track configuration (mute/dialogue, speaker name, label)",
+    description: "Allows muting background/game audio or customizing speaker attribution labels.",
+    operationId: "updateMediaAudioTrack",
+  })
+  @ApiBody(zodBody(updateAudioTrackSchema))
+  @ApiOkResponse(zodResponse(mediaAudioTrackSchema, "The updated audio track."))
+  @ApiNotFoundResponse({ description: "`track/not_found` or `media/not_found`." })
+  async updateAudioTrack(
+    @CurrentWorkspace() workspaceId: string,
+    @Param("projectId") projectId: string,
+    @Param("mediaId") mediaId: string,
+    @Param("trackId") trackId: string,
+    @Body() body: UpdateAudioTrackDto,
+  ) {
+    return this.media.updateAudioTrack(workspaceId, projectId, mediaId, trackId, body);
   }
 
   @Post("import")

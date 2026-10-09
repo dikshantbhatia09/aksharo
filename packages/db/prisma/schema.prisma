@@ -134,7 +134,28 @@ model MediaAsset {
   colorPrimaries  String?   // bt709, bt2020
   colorSpace      String?
 
+  audioTracks     MediaAudioTrack[]
+
   createdAt        DateTime  @default(now())
+}
+
+model MediaAudioTrack {
+  id           String    @id @default(uuid())
+  mediaAssetId String
+  streamIndex  Int
+  channelIndex Int       @default(0)
+  label        String?   // "Host", "Guest", "Game Audio"
+  audioWavUri  String    // S3 URI of isolated 16kHz WAV
+  durationMs   Int
+  isDialogue   Boolean   @default(true)
+  speakerName  String?
+
+  createdAt    DateTime  @default(now())
+
+  mediaAsset   MediaAsset @relation(fields: [mediaAssetId], references: [id], onDelete: Cascade)
+
+  @@index([mediaAssetId])
+  @@map("media_audio_tracks")
 }
 
 model Transcript {

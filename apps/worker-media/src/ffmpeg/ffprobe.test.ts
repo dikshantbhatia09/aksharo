@@ -191,5 +191,127 @@ describe("readProbe", () => {
     const cfrVideo = readVideo(cfrStream);
     expect(cfrVideo.isVfr).toBe(false);
   });
+
+  describe("readAudioStreams (Feature 08: Multi-Track Demuxing)", () => {
+    it("enumerates multi-stream containers (e.g. OBS recording with 3 audio tracks)", () => {
+      const output = {
+        streams: [
+          { codec_type: "video", codec_name: "h264", width: 1920, height: 1080 },
+          {
+            index: 1,
+            codec_type: "audio",
+            codec_name: "aac",
+            channels: 1,
+            sample_rate: "48000",
+            tags: { title: "Microphone (Host)" },
+          },
+          {
+            index: 2,
+            codec_type: "audio",
+            codec_name: "aac",
+            channels: 2,
+            sample_rate: "48000",
+            tags: { title: "Discord / Guest" },
+          },
+          {
+            index: 3,
+            codec_type: "audio",
+            codec_name: "aac",
+            channels: 2,
+            sample_rate: "48000",
+            tags: { title: "Desktop / Game Audio" },
+          },
+        ],
+        format: { format_name: "mov,mp4", duration: "120" },
+      };
+
+      const probe = readProbe(output);
+      expect(probe.audioStreams).toHaveLength(3);
+      expect(probe.audioStreams[0]?.index).toBe(1);
+      expect(probe.audioStreams[0]?.title).toBe("Microphone (Host)");
+      expect(probe.audioStreams[0]?.channels).toBe(1);
+
+      expect(probe.audioStreams[1]?.index).toBe(2);
+      expect(probe.audioStreams[1]?.title).toBe("Discord / Guest");
+      expect(probe.audioStreams[1]?.channels).toBe(2);
+
+      expect(probe.audioStreams[2]?.index).toBe(3);
+      expect(probe.audioStreams[2]?.title).toBe("Desktop / Game Audio");
+    });
+
+    it("parses stereo pair container with channel layout", () => {
+      const output = {
+        streams: [
+          {
+            index: 0,
+            codec_type: "audio",
+            codec_name: "pcm_s16le",
+            channels: 2,
+            channel_layout: "stereo",
+            sample_rate: "44100",
+          },
+        ],
+        format: { format_name: "wav", duration: "60" },
+      };
+
+      const probe = readProbe(output);
+      expect(probe.audioStreams).toHaveLength(1);
+      expect(probe.audioStreams[0]?.channels).toBe(2);
+      expect(probe.audioStreams[0]?.channelLayout).toBe("stereo");
+      expect(probe.audioStreams[0]?.sampleRate).toBe(44100);
+    });
+
+    it("parses 5.1 surround audio streams", () => {
+      const output = {
+        streams: [
+          {
+            index: 0,
+            codec_type: "audio",
+            codec_name: "ac3",
+            channels: 6,
+            channel_layout: "5.1(side)",
+            sample_rate: "48000",
+          },
+        ],
+        format: { format_name: "matroska", duration: "300" },
+      };
+
+      const probe = readProbe(output);
+      expect(probe.audioStreams).toHaveLength(1);
+      expect(probe.audioStreams[0]?.channels).toBe(6);
+      expect(probe.audioStreams[0]?.channelLayout).toBe("5.1(side)");
+    });
+
+    it("handles dual-mono files with two independent mono streams", () => {
+      const output = {
+        streams: [
+          {
+            index: 0,
+            codec_type: "audio",
+            codec_name: "pcm_s24le",
+            channels: 1,
+            channel_layout: "mono",
+            sample_rate: "48000",
+            tags: { handler_name: "Host Mic" },
+          },
+          {
+            index: 1,
+            codec_type: "audio",
+            codec_name: "pcm_s24le",
+            channels: 1,
+            channel_layout: "mono",
+            sample_rate: "48000",
+            tags: { handler_name: "Guest Mic" },
+          },
+        ],
+        format: { format_name: "wav", duration: "90" },
+      };
+
+      const probe = readProbe(output);
+      expect(probe.audioStreams).toHaveLength(2);
+      expect(probe.audioStreams[0]?.title).toBe("Host Mic");
+      expect(probe.audioStreams[1]?.title).toBe("Guest Mic");
+    });
+  });
 });
 

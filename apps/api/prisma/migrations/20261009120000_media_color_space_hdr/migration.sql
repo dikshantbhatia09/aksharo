@@ -4,3 +4,4 @@
 ALTER TABLE "media_assets" ADD COLUMN IF NOT EXISTS "color_transfer" TEXT;
 ALTER TABLE "media_assets" ADD COLUMN IF NOT EXISTS "color_primaries" TEXT;
 ALTER TABLE "media_assets" ADD COLUMN IF NOT EXISTS "color_space" TEXT;
+

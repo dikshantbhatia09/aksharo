@@ -168,3 +168,27 @@ export const importResultSchema = z.object({
   /** The `ai.align` job the import enqueued. */
   jobId: z.string(),
 });
+
+export const mediaAudioTrackSchema = z.object({
+  id: z.string(),
+  mediaAssetId: z.string(),
+  streamIndex: z.number().int(),
+  channelIndex: z.number().int(),
+  label: z.string().nullable(),
+  audioWavUri: z.string(),
+  durationMs: z.number().int(),
+  isDialogue: z.boolean(),
+  speakerName: z.string().nullable(),
+  createdAt: z.string(),
+});
+
+export class MediaAudioTrackDto extends zodDto(mediaAudioTrackSchema) {}
+
+export const updateAudioTrackSchema = z.object({
+  label: z.string().max(255).optional(),
+  isDialogue: z.boolean().optional(),
+  speakerName: z.string().max(255).nullable().optional(),
+});
+
+export class UpdateAudioTrackDto extends zodDto(updateAudioTrackSchema) {}
+

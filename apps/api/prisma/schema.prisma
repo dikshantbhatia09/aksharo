@@ -1282,6 +1282,7 @@ model MediaAsset {
   project             Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
   providerSubmissions ProviderSubmission[]
   audioCleans         AudioClean[]
+  audioTracks         MediaAudioTrack[]
 
   @@index([projectId])
   @@index([contentHash])
@@ -2059,6 +2060,24 @@ model AudioClean {
   @@index([mediaId])
   @@index([projectId, createdAt])
   @@map("audio_cleans")
+}
+
+model MediaAudioTrack {
+  id           String    @id @default(uuid())
+  mediaAssetId String    @map("media_asset_id") @db.Char(26)
+  streamIndex  Int       @map("stream_index")
+  channelIndex Int       @default(0) @map("channel_index")
+  label        String?
+  audioWavUri  String    @map("audio_wav_uri")
+  durationMs   Int       @map("duration_ms")
+  isDialogue   Boolean   @default(true) @map("is_dialogue")
+  speakerName  String?   @map("speaker_name")
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  mediaAsset   MediaAsset @relation(fields: [mediaAssetId], references: [id], onDelete: Cascade)
+
+  @@index([mediaAssetId])
+  @@map("media_audio_tracks")
 }
 
 enum AudioCleanStrength {

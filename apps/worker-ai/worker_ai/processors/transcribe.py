@@ -71,7 +71,7 @@ from worker_ai.lid import (
 from worker_ai.logging_setup import get_logger
 from worker_ai.metrics import METRICS, MetricKey
 from worker_ai.processors.context import JobContext, JobFailureError, ProcessorOutcome
-from worker_ai.processors.media import MediaAudio, load_audio, speech_regions
+from worker_ai.processors.media import MediaAudio, load_audio, load_track_audio, speech_regions
 from worker_ai.providers.base import (
     AlignmentRequest,
     DiarisationRequest,
@@ -137,6 +137,15 @@ class _Run:
 
 async def process_transcribe(context: JobContext) -> ProcessorOutcome:
     """Transcribe one media asset into :class:`TranscriptChunk` values."""
+    raw_tracks = context.envelope.payload.get("audioTracks") or context.envelope.payload.get("audio_tracks")
+    if isinstance(raw_tracks, list) and raw_tracks:
+        dialogue_tracks = [
+            t for t in raw_tracks
+            if isinstance(t, dict) and t.get("isDialogue", True) is not False
+        ]
+        if dialogue_tracks:
+            return await _process_multitrack_transcribe(context, dialogue_tracks)
+
     await context.progress(2, message="fetching audio")
     audio = load_audio(context)
 
@@ -179,6 +188,169 @@ async def process_transcribe(context: JobContext) -> ProcessorOutcome:
     return ProcessorOutcome(
         result=_result(context, audio, chunks, run, results, language, aligner, diarisation),
         usage=transcribe_usage(audio, run, results),
+    )
+
+
+async def _process_multitrack_transcribe(
+    context: JobContext,
+    dialogue_tracks: list[dict[str, Any]],
+) -> ProcessorOutcome:
+    """Transcribe isolated dialogue tracks, assign ground-truth speakers, and merge."""
+    await context.progress(2, message="fetching audio tracks")
+
+    hint = _language_hint(context)
+    run = await _open(context, language=hint, code_mix=is_code_mix_tag(hint))
+    run.pinned = pinned_language(hint)
+
+    # Base audio for duration / sizing / metadata fallback
+    try:
+        base_audio = load_audio(context)
+    except Exception:
+        base_audio = load_track_audio(context, dialogue_tracks[0], 0)
+
+    all_words: list[Word] = []
+    track_results: list[TranscriptionResult] = []
+    detected_languages: list[str] = []
+    aligners: list[Aligner | None] = []
+    all_regions: list[SpeechRegion] = []
+    max_duration_ms = base_audio.duration_ms
+
+    for track_idx, track_info in enumerate(dialogue_tracks):
+        speaker_id = str(
+            track_info.get("speakerLabel")
+            or track_info.get("label")
+            or f"SPEAKER_{track_idx:02d}"
+        )
+        track_audio = load_track_audio(context, track_info, track_idx)
+        if track_audio.duration_ms > max_duration_ms:
+            max_duration_ms = track_audio.duration_ms
+
+        pct = int(5 + (track_idx / len(dialogue_tracks)) * 85)
+        await context.progress(
+            pct,
+            message=f"transcribing track {track_idx + 1}/{len(dialogue_tracks)} ({speaker_id})",
+        )
+
+        # Detect speech regions on this track
+        regions = _supplied_regions(context)
+        if not regions:
+            regions = speech_regions(context, track_audio)
+        if not regions:
+            _log.info(
+                "dialogue track has no speech regions; skipping",
+                extra={
+                    **context.envelope.log_fields(),
+                    "speaker": speaker_id,
+                    "trackIndex": track_idx,
+                },
+            )
+            continue
+        all_regions.extend(regions)
+
+        track_plan = plan_chunks(track_audio.duration_ms, regions)
+        if not track_plan:
+            continue
+
+        progress = _Progress(total=len(track_plan))
+        heartbeat = asyncio.create_task(_beat(context, progress))
+        try:
+            probe: TranscriptionResult | None = None
+            if run.lid is None:
+                probe, run = await _probe_and_route(
+                    context, track_audio, track_plan, regions, run, hint
+                )
+                progress.done = 1 if probe is not None else 0
+
+            results = await _transcribe_all(
+                context, track_audio, track_plan, regions, run, probe, progress
+            )
+        finally:
+            heartbeat.cancel()
+            with suppress(asyncio.CancelledError):
+                await heartbeat
+
+        track_lang = _detected_language(run, results, hint)
+        detected_languages.append(track_lang)
+
+        aligner, results = await _align_results(context, run, results, regions, track_lang)
+        if aligner is not None:
+            aligners.append(aligner)
+
+        for result in results:
+            track_results.append(result)
+            for w in result.words:
+                tagged_word = Word(
+                    s=w.s,
+                    e=w.e,
+                    t=w.t,
+                    c=w.c,
+                    sp=speaker_id,
+                    scripts=w.scripts,
+                    filler=w.filler,
+                )
+                all_words.append(tagged_word)
+
+    if not all_words and not track_results:
+        raise JobFailureError(
+            "worker/empty_media", "no dialogue audio found across tracks", retryable=False
+        )
+
+    all_words.sort(key=lambda w: (w.s, w.e))
+    language = detected_languages[0] if detected_languages else (hint or "en")
+    chosen_aligner = aligners[0] if aligners else None
+
+    # Determine master chunk plan
+    supplied = context.envelope.payload.get("chunkPlan")
+    if isinstance(supplied, list) and supplied:
+        master_plan = _parse_plan(supplied)
+    else:
+        master_plan = plan_chunks(max_duration_ms, tuple(all_regions))
+        if not master_plan:
+            master_plan = (
+                ChunkPlanEntry(chunk_idx=0, start_ms=0, end_ms=max_duration_ms),
+            )
+
+    # Partition words into master plan chunks
+    chunks: list[TranscriptChunk] = []
+    for entry in master_plan:
+        is_last = entry.chunk_idx == len(master_plan) - 1
+        chunk_words = [
+            w
+            for w in all_words
+            if entry.start_ms <= w.s and (w.s < entry.end_ms or is_last)
+        ]
+        chunks.append(
+            assemble_chunk(
+                entry,
+                chunk_words,
+                language=language,
+                post_process=identity_post_process,
+            )
+        )
+
+    # Build turns per speaker from the tagged words
+    turns = _turns_from_words([all_words])
+    diarisation = _Diarisation(
+        diariser="multitrack-demux",
+        turns=turns,
+        speakers=speaker_ids(turns),
+        attribution="ground-truth-isolated-channels",
+    )
+
+    await context.progress(98, message="assembling transcript")
+    results_tuple = tuple(track_results)
+    return ProcessorOutcome(
+        result=_result(
+            context,
+            base_audio,
+            tuple(chunks),
+            run,
+            results_tuple,
+            language,
+            chosen_aligner,
+            diarisation,
+        ),
+        usage=transcribe_usage(base_audio, run, results_tuple),
     )
 
 
