@@ -14,6 +14,7 @@ import {
   STACK_FACE_ROW,
   clipFilter,
   clipFrame,
+  directorCutFilter,
   dynamicCropExpressions,
   fitFilter,
   fitFrame,
@@ -25,6 +26,7 @@ import {
   stackedFrame,
   toSplitScreenConfig,
   type DynamicReframeTrajectory,
+  type LayoutCut,
   type SplitScreenConfig,
 } from "./clip-frame.js";
 import { classifyReadFailure, cutCameOutShort, processClip } from "./clip.js";
@@ -1672,4 +1674,56 @@ describe("splitScreenFrame, splitScreenFilter, toSplitScreenConfig (Pillar 3 §0
     expect(splitScreenFrame({ width: 1080, height: 1920 }, config)).toBeNull();
   });
 });
+
+describe("directorCutFilter (Pillar 3 §03 Multi-Speaker Grid & Dynamic Camera Switcher)", () => {
+  it("builds FFmpeg filtergraphs for SOLO, TRI_PANEL (60%/40%), and GRID_4 (2x2) LayoutCuts", () => {
+    const fullHd = { width: 1920, height: 1080 };
+    const soloCut: LayoutCut = {
+      startSec: 0,
+      endSec: 4,
+      layoutType: "SOLO",
+      activeSpeakerId: "SPEAKER_00",
+      paneAssignments: [
+        {
+          speakerId: "SPEAKER_00",
+          cropRect: { x: 100, y: 140, width: 406, height: 720 },
+          canvasPosition: { x: 0, y: 0, width: 1080, height: 1920 },
+        },
+      ],
+    };
+    const soloFilter = directorCutFilter(fullHd, soloCut);
+    expect(soloFilter).toContain("crop=w=406:h=720:x=100:y=140,scale=1080:1920:flags=bicubic,setsar=1");
+
+    const triPanelCut: LayoutCut = {
+      startSec: 4,
+      endSec: 10,
+      layoutType: "TRI_PANEL",
+      activeSpeakerId: "SPEAKER_00",
+      paneAssignments: [
+        {
+          speakerId: "SPEAKER_00",
+          cropRect: { x: 80, y: 140, width: 676, height: 720 },
+          canvasPosition: { x: 0, y: 0, width: 1080, height: 1152 },
+        },
+        {
+          speakerId: "SPEAKER_01",
+          cropRect: { x: 640, y: 140, width: 506, height: 720 },
+          canvasPosition: { x: 0, y: 1152, width: 540, height: 768 },
+        },
+        {
+          speakerId: "SPEAKER_02",
+          cropRect: { x: 1180, y: 140, width: 506, height: 720 },
+          canvasPosition: { x: 540, y: 1152, width: 540, height: 768 },
+        },
+      ],
+    };
+    const triFilter = directorCutFilter(fullHd, triPanelCut);
+    expect(triFilter).toContain("split=3");
+    expect(triFilter).toContain("scale=1080:1152:flags=bicubic");
+    expect(triFilter).toContain("scale=540:768:flags=bicubic");
+    expect(triFilter).toContain("[bl][br]hstack=inputs=2[bot]");
+    expect(triFilter).toContain("[top][bot]vstack=inputs=2");
+  });
+});
+
 

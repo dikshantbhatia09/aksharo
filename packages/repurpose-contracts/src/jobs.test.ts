@@ -3,7 +3,14 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { SplitScreenConfigSchema, type SplitScreenConfig } from "./formats.js";
+import {
+  DirectorEdlSchema,
+  LayoutCutSchema,
+  LayoutOverrideSchema,
+  SplitScreenConfigSchema,
+  type LayoutCut,
+  type SplitScreenConfig,
+} from "./formats.js";
 import {
   HighlightsPayloadSchema,
   HighlightsResultSchema,
@@ -598,4 +605,91 @@ describe("SplitScreenConfig (Pillar 3 §02)", () => {
     expect(parsed.success).toBe(true);
   });
 });
+
+describe("LayoutCut & DirectorEdl (Pillar 3 §03)", () => {
+  const sampleTriPanelCut: LayoutCut = {
+    startSec: 0,
+    endSec: 4.5,
+    layoutType: "TRI_PANEL",
+    activeSpeakerId: "SPEAKER_00",
+    paneAssignments: [
+      {
+        speakerId: "SPEAKER_00",
+        cropRect: { x: 100, y: 80, width: 640, height: 682 },
+        canvasPosition: { x: 0, y: 0, width: 1080, height: 1152 },
+      },
+      {
+        speakerId: "SPEAKER_01",
+        cropRect: { x: 760, y: 120, width: 500, height: 710 },
+        canvasPosition: { x: 0, y: 1152, width: 540, height: 768 },
+      },
+      {
+        speakerId: "SPEAKER_02",
+        cropRect: { x: 1320, y: 120, width: 500, height: 710 },
+        canvasPosition: { x: 540, y: 1152, width: 540, height: 768 },
+      },
+    ],
+  };
+
+  it("validates SOLO, SPLIT_2, TRI_PANEL, and GRID_4 LayoutCut contracts", () => {
+    const parsed = LayoutCutSchema.safeParse(sampleTriPanelCut);
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data).toEqual(sampleTriPanelCut);
+    }
+
+    const soloCut: LayoutCut = {
+      startSec: 4.5,
+      endSec: 10.0,
+      layoutType: "SOLO",
+      activeSpeakerId: "SPEAKER_01",
+      paneAssignments: [
+        {
+          speakerId: "SPEAKER_01",
+          cropRect: { x: 640, y: 0, width: 608, height: 1080 },
+          canvasPosition: { x: 0, y: 0, width: 1080, height: 1920 },
+        },
+      ],
+    };
+    expect(DirectorEdlSchema.safeParse([sampleTriPanelCut, soloCut]).success).toBe(true);
+    expect(
+      LayoutOverrideSchema.safeParse({
+        timestampSec: 5.2,
+        layoutType: "GRID_4",
+        activeSpeakerId: "SPEAKER_01",
+      }).success,
+    ).toBe(true);
+  });
+
+  it("rejects invalid LayoutCut bounds or empty paneAssignments", () => {
+    expect(
+      LayoutCutSchema.safeParse({
+        ...sampleTriPanelCut,
+        startSec: 5.0,
+        endSec: 3.0,
+      }).success,
+    ).toBe(false);
+
+    expect(
+      LayoutCutSchema.safeParse({
+        ...sampleTriPanelCut,
+        paneAssignments: [],
+      }).success,
+    ).toBe(false);
+  });
+
+  it("allows MediaClipPayloadSchema.reframe to carry optional directorEdl", () => {
+    const base = fixture("media-clip-payload.v1.json");
+    const parsed = MediaClipPayloadSchema.safeParse({
+      ...base,
+      reframe: {
+        centerX: 0.5,
+        basis: "faces",
+        directorEdl: [sampleTriPanelCut],
+      },
+    });
+    expect(parsed.success).toBe(true);
+  });
+});
+
 

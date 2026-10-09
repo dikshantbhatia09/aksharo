@@ -420,3 +420,112 @@ export const SplitScreenSegmentSchema = z.strictObject({
   activeSpeaker: z.enum(["top", "bottom"]).optional(),
 });
 
+/**
+ * Multi-Speaker Grid & Dynamic Camera Switcher Engine (Pillar 3 §03).
+ *
+ * Layout types supported by the Automated Multi-Cam Director Engine:
+ * - `SOLO`: Full-screen active speaker close-up (1080 × 1920)
+ * - `SPLIT_2`: Vertical 2-way split (Top 1080 × 960, Bottom 1080 × 960)
+ * - `TRI_PANEL`: Active Speaker in Top 60% (1080 × 1152), Two Panelists in Bottom 40% (2 × 540 × 768)
+ * - `GRID_4`: 2×2 reaction grid (4 × 540 × 960)
+ */
+export const DIRECTOR_LAYOUT_TYPES = ["SOLO", "SPLIT_2", "TRI_PANEL", "GRID_4"] as const;
+export type DirectorLayoutType = (typeof DIRECTOR_LAYOUT_TYPES)[number];
+
+export interface LayoutPaneAssignment {
+  readonly speakerId: string;
+  readonly cropRect: {
+    readonly x: number;
+    readonly y: number;
+    readonly width: number;
+    readonly height: number;
+  };
+  readonly canvasPosition: {
+    readonly x: number;
+    readonly y: number;
+    readonly width: number;
+    readonly height: number;
+  };
+}
+
+/**
+ * Timed Edit Decision List (EDL) camera cut and multi-pane grid assignment (Pillar 3 §03 §4.1).
+ */
+export interface LayoutCut {
+  readonly startSec: number;
+  readonly endSec: number;
+  readonly layoutType: "SOLO" | "SPLIT_2" | "TRI_PANEL" | "GRID_4";
+  readonly activeSpeakerId: string;
+  readonly paneAssignments: Array<{
+    readonly speakerId: string;
+    readonly cropRect: { x: number; y: number; width: number; height: number };
+    readonly canvasPosition: { x: number; y: number; width: number; height: number };
+  }>;
+}
+
+/**
+ * Manual timestamp layout override set by a creator in the editor (Pillar 3 §03 §5 Step 3).
+ */
+export interface LayoutOverride {
+  readonly timestampSec: number;
+  readonly layoutType: DirectorLayoutType;
+  readonly activeSpeakerId?: string;
+}
+
+export const DIRECTOR_CANVAS = Object.freeze({
+  width: 1080,
+  height: 1920,
+  minShotDurationSec: 2.0,
+  falseSwitchMaxDurationSec: 1.2,
+  leadInPaddingSec: 0.25,
+  leadOutPaddingSec: 0.35,
+  crossfadeDurationSec: 0.15,
+  triPanelTopHeight: 1152, // 60% of 1920
+  triPanelBottomHeight: 768, // 40% of 1920
+  triPanelBottomTileWidth: 540, // 50% of 1080
+  grid4TileWidth: 540,
+  grid4TileHeight: 960,
+});
+
+export const DirectorLayoutTypeSchema = z.enum(DIRECTOR_LAYOUT_TYPES);
+
+export const LayoutRectSchema = z.strictObject({
+  x: z.number().nonnegative(),
+  y: z.number().nonnegative(),
+  width: z.number().positive(),
+  height: z.number().positive(),
+});
+
+export const LayoutPaneAssignmentSchema = z.strictObject({
+  speakerId: z.string().trim().min(1).max(120),
+  cropRect: LayoutRectSchema,
+  canvasPosition: LayoutRectSchema,
+});
+
+export const LayoutCutSchema = z
+  .strictObject({
+    startSec: z.number().nonnegative(),
+    endSec: z.number().nonnegative(),
+    layoutType: DirectorLayoutTypeSchema,
+    activeSpeakerId: z.string().trim().min(1).max(120),
+    paneAssignments: z.array(LayoutPaneAssignmentSchema).min(1).max(8),
+  })
+  .superRefine((value, context) => {
+    if (value.endSec <= value.startSec) {
+      context.addIssue({
+        code: "custom",
+        path: ["endSec"],
+        message: "LayoutCut endSec must be greater than startSec.",
+      });
+    }
+  });
+
+export const LayoutOverrideSchema = z.strictObject({
+  timestampSec: z.number().nonnegative(),
+  layoutType: DirectorLayoutTypeSchema,
+  activeSpeakerId: z.string().trim().min(1).max(120).optional(),
+});
+
+export const DirectorEdlSchema = z.array(LayoutCutSchema).max(500);
+
+

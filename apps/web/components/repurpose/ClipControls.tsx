@@ -30,6 +30,7 @@ import {
 } from "@montaj/api-client";
 import { Badge, Button } from "@montaj/ui";
 
+import { MultiSpeakerGridSwitcher } from "@/components/editor/multispeaker-grid-switcher";
 import { TimelineTrimmer } from "@/components/editor/timeline-trimmer";
 import { STEERING_COPY } from "@/components/repurpose/copy";
 import { formatClock } from "@/components/repurpose/moment-time";
@@ -65,6 +66,7 @@ export function ClipControls({
   const adjust = useAdjustMoment();
   const [editing, setEditing] = React.useState(false);
   const [bypassSnap, setBypassSnap] = React.useState(false);
+  const [layoutChanged, setLayoutChanged] = React.useState(false);
   const saved = React.useMemo(
     () => ({ startMs: candidate.startMs, endMs: candidate.endMs }),
     [candidate.startMs, candidate.endMs],
@@ -75,6 +77,7 @@ export function ClipControls({
   React.useEffect(() => {
     setDraft(saved);
     setBypassSnap(false);
+    setLayoutChanged(false);
   }, [saved]);
   // The video's length bounds the end; read only while the nudges are open.
   const preview = useRepurposePreview(editing ? runId : null);
@@ -84,7 +87,7 @@ export function ClipControls({
   const hasClip = clip !== undefined;
   // A cut in flight would race new times (the server answers `clip_busy`).
   const cutting = clipState === "cutting";
-  const changed = draft.startMs !== saved.startMs || draft.endMs !== saved.endMs;
+  const changed = draft.startMs !== saved.startMs || draft.endMs !== saved.endMs || layoutChanged;
   const refusal = adjust.isError
     ? describeRefusal(adjust.error, "steer").text
     : remove.isError
@@ -125,6 +128,7 @@ export function ClipControls({
               adjust.reset();
               setDraft(saved);
               setBypassSnap(false);
+              setLayoutChanged(false);
               setEditing(!editing);
             }}
             data-testid={`adjust-moment-${candidate.id}`}
@@ -174,6 +178,14 @@ export function ClipControls({
                 startMs: Math.round(nextBounds.startSec * 1000),
                 endMs: Math.round(nextBounds.endSec * 1000),
               });
+            }}
+          />
+          <MultiSpeakerGridSwitcher
+            startSec={draft.startMs / 1000}
+            endSec={draft.endMs / 1000}
+            busy={adjust.isPending}
+            onChange={() => {
+              setLayoutChanged(true);
             }}
           />
           <NudgeRow

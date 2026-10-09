@@ -4,6 +4,7 @@ import {
   type ClipLayout,
   type CropKeyframe,
   type DynamicReframeTrajectory,
+  type LayoutCut,
   type SplitScreenConfig,
   type StackedPerson,
 } from "@montaj/repurpose-contracts";
@@ -62,6 +63,10 @@ export interface ClipReframe {
    * Optional explicit dual crop coordinates for Two-Speaker Split-Screen Layout (Pillar 3 §02).
    */
   readonly splitScreen?: SplitScreenConfig;
+  /**
+   * Optional timed LayoutCut[] EDL for Multi-Speaker Grid & Dynamic Camera Switcher (Pillar 3 §03).
+   */
+  readonly directorEdl?: readonly LayoutCut[];
 }
 
 export const CENTRE_REFRAME: ClipReframe = Object.freeze({ centerX: 0.5, basis: "centre" });

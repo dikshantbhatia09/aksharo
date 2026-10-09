@@ -18,6 +18,7 @@ import {
   MAX_CLIP_HEIGHT,
   clipFilter,
   clipFrame,
+  directorCutFilter,
   dynamicCropExpressions,
   fitFilter,
   fitFrame,
@@ -31,6 +32,7 @@ import {
   type ClipAspect,
   type CropKeyframe,
   type DynamicReframeTrajectory,
+  type LayoutCut,
   type SplitScreenConfig,
   type SplitScreenFrame,
   type StackedPersonInput,
@@ -41,6 +43,7 @@ import type { ProbeContainer } from "../ffmpeg/ffprobe.js";
 import type { JobContext, ProcessorOutcome } from "../runtime.js";
 
 export {
+  directorCutFilter,
   dynamicCropExpressions,
   interpolateTrajectoryAt,
   remotionVideoTransform,
@@ -49,6 +52,7 @@ export {
   toSplitScreenConfig,
   type CropKeyframe,
   type DynamicReframeTrajectory,
+  type LayoutCut,
   type SplitScreenConfig,
   type SplitScreenFrame,
 };
@@ -82,6 +86,7 @@ export interface ClipPayload {
     readonly people?: readonly StackedPersonInput[];
     readonly trajectory?: DynamicReframeTrajectory;
     readonly splitScreen?: SplitScreenConfig;
+    readonly directorEdl?: readonly LayoutCut[];
   };
   /** The shape to cut (2026-09-29); 9:16 when absent. */
   readonly aspect?: ClipAspect;

@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { SplitScreenConfigSchema } from "./formats.js";
+import { DirectorEdlSchema, SplitScreenConfigSchema } from "./formats.js";
 import {
   AspectSchema,
   CANDIDATE_REASON_LABELS,
@@ -317,6 +317,10 @@ export const MediaClipPayloadSchema = z
          * Dual crop coordinates for two-speaker vertical split-screen layout (Pillar 3 §02).
          */
         splitScreen: SplitScreenConfigSchema.optional(),
+        /**
+         * Timed Layout EDL cuts for Multi-Speaker Grid & Dynamic Camera Switcher (Pillar 3 §03).
+         */
+        directorEdl: DirectorEdlSchema.optional(),
       })
       .superRefine((value, context) => {
         if (value.layout === "stacked" && value.people === undefined) {

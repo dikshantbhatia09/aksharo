@@ -769,6 +769,115 @@ export function splitScreenFilter(
   ].join(";");
 }
 
+/**
+ * Multi-Speaker Grid & Dynamic Camera Switcher LayoutCut contract (Pillar 3 §03).
+ */
+export interface LayoutCut {
+  readonly startSec: number;
+  readonly endSec: number;
+  readonly layoutType: "SOLO" | "SPLIT_2" | "TRI_PANEL" | "GRID_4";
+  readonly activeSpeakerId: string;
+  readonly paneAssignments: ReadonlyArray<{
+    readonly speakerId: string;
+    readonly cropRect: {
+      readonly x: number;
+      readonly y: number;
+      readonly width: number;
+      readonly height: number;
+    };
+    readonly canvasPosition: {
+      readonly x: number;
+      readonly y: number;
+      readonly width: number;
+      readonly height: number;
+    };
+  }>;
+}
+
+/**
+ * Build the FFmpeg multi-pane filtergraph for a `LayoutCut` (`SOLO`, `SPLIT_2`,
+ * `TRI_PANEL` Top 60% / Bottom 40%, or `GRID_4` 2×2 Grid).
+ */
+export function directorCutFilter(
+  source: { readonly width: number; readonly height: number },
+  cut: LayoutCut,
+  options: { readonly dividerColor?: string } = {},
+): string {
+  const panes = cut.paneAssignments;
+  const p0 = panes[0];
+  if (p0 === undefined) {
+    return `scale=1080:1920,setsar=1,format=yuv420p`;
+  }
+  const color = sanitizeDividerColor(options.dividerColor);
+
+  const sanitizePane = (
+    p: LayoutCut["paneAssignments"][number],
+  ): {
+    readonly crop: ClipFrame["crop"];
+    readonly canvas: { readonly x: number; readonly y: number; readonly width: number; readonly height: number };
+  } => {
+    const cw = Math.min(floorEven(p.cropRect.width), floorEven(source.width));
+    const ch = Math.min(floorEven(p.cropRect.height), floorEven(source.height));
+    const cx = Math.floor(clamp(Math.round(p.cropRect.x), 0, Math.max(0, source.width - cw)) / 2) * 2;
+    const cy = Math.floor(clamp(Math.round(p.cropRect.y), 0, Math.max(0, source.height - ch)) / 2) * 2;
+    return {
+      crop: { width: cw, height: ch, x: cx, y: cy },
+      canvas: {
+        x: Math.max(0, Math.round(p.canvasPosition.x)),
+        y: Math.max(0, Math.round(p.canvasPosition.y)),
+        width: even(p.canvasPosition.width),
+        height: even(p.canvasPosition.height),
+      },
+    };
+  };
+
+  const s0 = sanitizePane(p0);
+  const stage = (s: ReturnType<typeof sanitizePane>): string =>
+    `crop=w=${String(s.crop.width)}:h=${String(s.crop.height)}:x=${String(s.crop.x)}:y=${String(s.crop.y)},scale=${String(s.canvas.width)}:${String(s.canvas.height)}:flags=bicubic,setsar=1`;
+
+  if (cut.layoutType === "SOLO" || panes.length === 1) {
+    return `scale=${String(source.width)}:${String(source.height)},${stage(s0)},format=yuv420p`;
+  }
+
+  if (cut.layoutType === "SPLIT_2" || panes.length === 2) {
+    const s1 = sanitizePane(panes[1] ?? p0);
+    return [
+      `scale=${String(source.width)}:${String(source.height)},split=2[p0_in][p1_in]`,
+      `[p0_in]${stage(s0)}[p0]`,
+      `[p1_in]${stage(s1)}[p1]`,
+      `[p0][p1]vstack=inputs=2,drawbox=y=${String(Math.max(0, s0.canvas.height - 1))}:color=${color}:width=${String(s0.canvas.width)}:height=2:t=fill,setsar=1,format=yuv420p`,
+    ].join(";");
+  }
+
+  if (cut.layoutType === "TRI_PANEL" || panes.length === 3) {
+    const s1 = sanitizePane(panes[1] ?? p0);
+    const s2 = sanitizePane(panes[2] ?? p0);
+    return [
+      `scale=${String(source.width)}:${String(source.height)},split=3[p0_in][p1_in][p2_in]`,
+      `[p0_in]${stage(s0)}[top]`,
+      `[p1_in]${stage(s1)}[bl]`,
+      `[p2_in]${stage(s2)}[br]`,
+      `[bl][br]hstack=inputs=2[bot]`,
+      `[top][bot]vstack=inputs=2,drawbox=y=${String(Math.max(0, s0.canvas.height - 1))}:color=${color}:width=${String(s0.canvas.width)}:height=2:t=fill,setsar=1,format=yuv420p`,
+    ].join(";");
+  }
+
+  // GRID_4 (2×2 Grid)
+  const s1 = sanitizePane(panes[1] ?? p0);
+  const s2 = sanitizePane(panes[2] ?? p0);
+  const s3 = sanitizePane(panes[3] ?? p0);
+  return [
+    `scale=${String(source.width)}:${String(source.height)},split=4[p0_in][p1_in][p2_in][p3_in]`,
+    `[p0_in]${stage(s0)}[tl]`,
+    `[p1_in]${stage(s1)}[tr]`,
+    `[p2_in]${stage(s2)}[bl]`,
+    `[p3_in]${stage(s3)}[br]`,
+    `[tl][tr]hstack=inputs=2[top_row]`,
+    `[bl][br]hstack=inputs=2[bot_row]`,
+    `[top_row][bot_row]vstack=inputs=2,setsar=1,format=yuv420p`,
+  ].join(";");
+}
+
 /** Round to an even number ≥ 2: H.264 4:2:0 cannot encode odd dimensions. */
 function even(value: number): number {
   return Math.max(2, Math.round(value / 2) * 2);
@@ -782,4 +891,5 @@ function floorEven(value: number): number {
 function clamp(value: number, low: number, high: number): number {
   return Math.min(high, Math.max(low, value));
 }
+
 
