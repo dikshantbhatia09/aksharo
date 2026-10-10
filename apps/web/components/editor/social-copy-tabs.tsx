@@ -20,6 +20,7 @@ import type { PlatformSocialPack, RepurposeClipCopy } from "@montaj/api-client";
 import { buildPlatformSocialPack } from "@montaj/repurpose-contracts";
 import { Badge, Button, cn, toast } from "@montaj/ui";
 
+import { HashtagPicker } from "./hashtag-picker";
 import { copyText } from "@/components/repurpose/copy-text";
 
 export type SocialPlatformId = "youtube" | "instagram" | "tiktok" | "linkedin" | "x";
@@ -176,6 +177,23 @@ export function SocialCopyTabs({
   if (!resolvedPack) {
     return null;
   }
+
+  const currentPlatformTags = React.useMemo(() => {
+    switch (activePlatform) {
+      case "youtube":
+        return resolvedPack.youtube.tags.map((t) => (t.startsWith("#") ? t : `#${t}`));
+      case "instagram":
+        return resolvedPack.instagram.hashtags;
+      case "tiktok":
+        return resolvedPack.tiktok.hashtags;
+      case "linkedin":
+        return resolvedPack.linkedin.hashtags;
+      case "x":
+        return copy?.hashtags ?? [];
+      default:
+        return copy?.hashtags ?? [];
+    }
+  }, [activePlatform, resolvedPack, copy]);
 
   const handleCopy = async (text: string, label: string, key: string): Promise<void> => {
     const success = await copyText(text);
@@ -640,6 +658,16 @@ export function SocialCopyTabs({
             </div>
           </div>
         )}
+      </div>
+
+      {/* 3-Tier Pyramid Hashtag Recommendation Engine (Pillar 7 §03) */}
+      <div className="mt-1 border-t border-border/60 pt-3">
+        <HashtagPicker
+          platform={activePlatform}
+          initialTags={currentPlatformTags}
+          title={copy?.title ?? title}
+          text={copy?.summary ?? copy?.description ?? ""}
+        />
       </div>
     </div>
   );

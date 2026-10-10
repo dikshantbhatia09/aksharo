@@ -91,4 +91,6 @@ export function isHinglish(languageCode: string | undefined): boolean {
 export * from "./transcript-slice.js";
 export * from "./subtitles/serializer.js";
 export * from "./sfx/registry.js";
+export * from "./hashtags/index.js";
+
 

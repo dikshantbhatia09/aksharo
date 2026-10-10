@@ -34,6 +34,7 @@ from typing import Any, Final
 from pydantic import ValidationError
 
 from worker_ai.highlights.contracts import ClipCopy
+from worker_ai.highlights.hashtags import assemble_pyramid_bundle, get_platform_hashtags
 from worker_ai.highlights.text import clean_word, ends_clause, ends_sentence
 from worker_ai.llm.calls import CallLedger, Deadline, complete_json
 from worker_ai.llm.providers.base import LlmProvider, LlmRequest
@@ -807,6 +808,26 @@ def _build_social_pack(
     if not x_post:
         x_post = clean_title or "New clip"
 
+    # Platform-tailored hashtag bundles via 3-Tier Pyramid Recommendation Engine
+    ig_tags = get_platform_hashtags(
+        description or summary or clean_title,
+        title=clean_title,
+        platform="instagram",
+        custom_tags=tags,
+    )
+    tt_tags = get_platform_hashtags(
+        tiktok or hook or clean_title,
+        title=clean_title,
+        platform="tiktok",
+        custom_tags=tags,
+    )
+    li_tags = get_platform_hashtags(
+        linkedin or summary or clean_title,
+        title=clean_title,
+        platform="linkedin",
+        custom_tags=tags,
+    )
+
     return {
         "youtube": {
             "title": yt_title,
@@ -816,15 +837,15 @@ def _build_social_pack(
         "instagram": {
             "caption": ig_caption,
             "callToAction": _cut(ig_cta, 500),
-            "hashtags": list(tags)[:30],
+            "hashtags": list(ig_tags if ig_tags else tags)[:30],
         },
         "tiktok": {
             "caption": tt_caption,
-            "hashtags": list(tags)[:30],
+            "hashtags": list(tt_tags if tt_tags else tags)[:30],
         },
         "linkedin": {
             "postText": li_post,
-            "hashtags": [t for t in tags if not t.casefold().startswith("#fyp")][:30],
+            "hashtags": [t for t in (li_tags if li_tags else tags) if not t.casefold().startswith("#fyp")][:30],
         },
         "twitter": {
             "tweetText": x_post,
@@ -947,7 +968,7 @@ def _sentences(text: str) -> list[str]:
     return sentences
 
 
-def _content_hashtags(text: str, *, limit: int = 5) -> list[str]:
+def _content_hashtags(text: str, *, limit: int = 5, title: str = "") -> list[str]:
     counts: Counter[str] = Counter()
     first: dict[str, int] = {}
     for index, token in enumerate(_tokens(text)):
@@ -957,7 +978,20 @@ def _content_hashtags(text: str, *, limit: int = 5) -> list[str]:
         counts[token] += 1
         first.setdefault(token, index)
     ranked = sorted(counts, key=lambda token: (-counts[token], first[token]))
-    return normalise_hashtags(ranked, limit=limit)
+    content_tags = normalise_hashtags(ranked, limit=limit)
+
+    pyramid = assemble_pyramid_bundle(text=text, title=title, custom_tags=content_tags, limit=limit)
+    pyramid_tags = list(pyramid.all)
+
+    combined: list[str] = []
+    seen: set[str] = set()
+    for tag in content_tags + pyramid_tags:
+        if tag.casefold() not in seen:
+            seen.add(tag.casefold())
+            combined.append(tag)
+        if len(combined) == limit:
+            break
+    return combined or pyramid_tags[:limit]
 
 
 def heuristic_copy(source: ClipSource, style: CopyStyle) -> dict[str, Any]:
@@ -987,7 +1021,7 @@ def heuristic_copy(source: ClipSource, style: CopyStyle) -> dict[str, Any]:
         summary=summary,
         description=description,
         cta=style.cta,
-        hashtags=_content_hashtags(text),
+        hashtags=_content_hashtags(text, title=title),
         instagram="",
         tiktok="",
         linkedin="",
@@ -1283,7 +1317,7 @@ def parse_copies(
         if len(hashtags) < HASHTAGS_MIN:
             extra = [
                 tag
-                for tag in _content_hashtags(source.text)
+                for tag in _content_hashtags(source.text, title=title)
                 if tag.casefold() not in {existing.casefold() for existing in hashtags}
             ]
             hashtags = (hashtags + extra)[: max(HASHTAGS_MIN, len(hashtags))]

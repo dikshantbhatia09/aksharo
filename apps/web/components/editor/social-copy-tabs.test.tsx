@@ -84,7 +84,7 @@ describe("SocialCopyTabs Component (Pillar 7 §02)", () => {
     expect(screen.getByTestId("platform-panel-instagram")).toBeDefined();
     expect(screen.getByText(/Stop doing this in 2026/)).toBeDefined();
     expect(screen.getByText(/Save this reel for later/)).toBeDefined();
-    expect(screen.getByText("#startups")).toBeDefined();
+    expect(screen.getAllByText("#startups").length).toBeGreaterThanOrEqual(1);
   });
 
   it("switches to TikTok tab when clicked", () => {
