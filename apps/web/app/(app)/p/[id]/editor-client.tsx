@@ -993,6 +993,26 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
     });
   }
 
+  function onWordColorChange(wordId: string, color: string | null): void {
+    const word = state.words.get(wordId as never);
+    if (word !== undefined) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (word as any).accentColor = color ?? undefined;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (word as any).customColorHex = color ?? undefined;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (word as any).isEmphasized = color !== null;
+    }
+    const targetSegment = segments.find((s) => wordsOf(s).some((w) => w.wid === wordId));
+    if (targetSegment !== undefined) {
+      const defaultPreset = effectiveStyle.emphasisPresets[0]?.id ?? "accent";
+      const presetId = color === null ? null : defaultPreset;
+      store.submitOp(setEmphasis(targetSegment.id, wordId, presetId, newId), {
+        label: color ? "Set highlight color" : "Clear highlight color",
+      });
+    }
+  }
+
   /**
    * OC3: the transcript card's context menu asking for one of the three ops
    * the editor owns rather than the card. It moves the selection to what the
@@ -1383,6 +1403,11 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
                             onHideToggle={onHideToggle}
                             onInsertWordAfter={onInsertWordAfter}
                             onRequestAction={onSegmentCardAction}
+                            onWordColorChange={onWordColorChange}
+                            paletteAccents={
+                              effectiveStyle.colors.highlightAccents ??
+                              effectiveStyle.colors.palette?.highlightAccents
+                            }
                           />
                         </div>
                       }

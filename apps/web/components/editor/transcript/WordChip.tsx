@@ -20,6 +20,7 @@ import type { Word } from "@montaj/edg";
 
 import { cn } from "@/lib/utils";
 import { InlineEmojiPicker } from "./InlineEmojiPicker";
+import { InlineWordColorPicker } from "./InlineWordColorPicker";
 
 export type DisplayScript = "roman" | "native" | "en";
 
@@ -46,6 +47,9 @@ export interface WordChipProps {
   readonly onFixSpellingEverywhere?: (wordId: string, text: string) => void;
   /** One-click emoji customization: swap or delete emoji. */
   readonly onEmojiChange?: (wordId: string, emoji: string | null) => void;
+  /** One-click dynamic keyword highlight color customization. */
+  readonly onColorChange?: (wordId: string, color: string | null) => void;
+  readonly paletteAccents?: readonly string[];
 }
 
 const DEFAULT_CONFIDENCE_THRESHOLD = 0.6;
@@ -74,12 +78,17 @@ function WordChipImpl({
   onSelect,
   onFixSpellingEverywhere,
   onEmojiChange,
+  onColorChange,
+  paletteAccents,
 }: WordChipProps): React.JSX.Element | null {
   const ref = useRef<HTMLSpanElement | null>(null);
   const [editing, setEditing] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [colorPickerOpen, setColorPickerOpen] = useState(false);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const wordEmoji = (word as any).emoji;
+  const rawWord = word as any;
+  const accentColor: string | undefined = rawWord.accentColor ?? rawWord.customColorHex;
+  const wordEmoji = rawWord.emoji;
   const emojiChar = typeof wordEmoji === "string" ? wordEmoji : wordEmoji?.char;
   // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
   const text = word.scripts?.[script] ?? word.t;
@@ -113,7 +122,7 @@ function WordChipImpl({
   }
 
   return (
-    <span className="relative inline-flex items-center">
+    <span className="relative inline-flex items-center group/chip">
       {emojiChar && (
         <button
           type="button"
@@ -136,6 +145,30 @@ function WordChipImpl({
           onClose={() => setPickerOpen(false)}
         />
       )}
+      {colorPickerOpen && (
+        <InlineWordColorPicker
+          currentColor={accentColor}
+          paletteAccents={paletteAccents}
+          onSelectColor={(col) => onColorChange?.(word.wid, col)}
+          onClose={() => setColorPickerOpen(false)}
+        />
+      )}
+      {(accentColor !== undefined || onColorChange !== undefined) && (
+        <button
+          type="button"
+          data-testid={`word-color-trigger-${word.wid}`}
+          aria-label={accentColor ? `Highlight color ${accentColor}, click to change` : "Add highlight color"}
+          className={cn(
+            "inline-flex items-center justify-center mr-0.5 size-2 rounded-full cursor-pointer select-none transition-all hover:scale-150",
+            accentColor ? "opacity-100 ring-1 ring-white/50" : "opacity-0 group-hover/chip:opacity-60",
+          )}
+          style={{ backgroundColor: accentColor ?? "#FFF000" }}
+          onClick={(event) => {
+            event.stopPropagation();
+            setColorPickerOpen((prev) => !prev);
+          }}
+        />
+      )}
       <span
         ref={ref}
         role="textbox"
@@ -147,6 +180,7 @@ function WordChipImpl({
         data-word-id={word.wid}
         data-filler={word.filler === true ? "true" : undefined}
         data-active={active ? "true" : undefined}
+        style={accentColor ? { color: accentColor } : undefined}
         className={cn(
           "editor-word-chip text-fg-0 inline-block cursor-text rounded-[6px] px-0.5 py-0.5 text-[15px] outline-none transition-colors duration-[160ms]",
           "hover:bg-bg-2 hover:text-fg-0",

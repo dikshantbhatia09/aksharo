@@ -185,11 +185,25 @@ const MatchedEmojiResultSchema = z.object({
   confidence: z.number().optional(),
 });
 
+const MatchedKeywordResultSchema = z.object({
+  wordId: z.string().min(1),
+  text: z.string(),
+  cleanToken: z.string().optional(),
+  tier: z.number().int().optional(),
+  entityType: z.string().optional(),
+  accentIndex: z.number().int().optional(),
+  accentColor: z.string().optional(),
+  startMs: z.number().int().min(0),
+  endMs: z.number().int().min(0),
+  confidence: z.number().optional(),
+});
+
 const TextFxResultSchema = z.object({
   passId: z.string().min(1),
   passType: z.literal("textfx"),
   items: z.array(TextFxItemResultSchema).default([]),
   emojis: z.array(MatchedEmojiResultSchema).default([]),
+  keywords: z.array(MatchedKeywordResultSchema).default([]),
 });
 
 /** A duck curve, or `null` when the cue should never be ducked (D04c). */

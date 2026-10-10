@@ -137,4 +137,35 @@ describe("WordChip", () => {
     fireEvent.click(removeBtn);
     expect(onEmojiChange).toHaveBeenCalledWith("0:0", null);
   });
+
+  it("renders dynamic keyword accent color and allows color swatch picker selection", () => {
+    const onColorChange = vi.fn();
+    const coloredWord = {
+      ...word(),
+      accentColor: "#FFF000",
+    } as unknown as Word;
+
+    render(
+      <WordChip
+        word={coloredWord}
+        script="roman"
+        onCommit={vi.fn()}
+        onColorChange={onColorChange}
+      />,
+    );
+
+    const chip = screen.getByTestId("word-chip-0:0");
+    expect(chip).toHaveStyle({ color: "#FFF000" });
+
+    const colorTrigger = screen.getByTestId("word-color-trigger-0:0");
+    expect(colorTrigger).toBeInTheDocument();
+
+    // Click trigger to open InlineWordColorPicker
+    fireEvent.click(colorTrigger);
+    expect(screen.getByTestId("inline-word-color-picker")).toBeInTheDocument();
+
+    // Click Cyber Green swatch (#00FF66)
+    fireEvent.click(screen.getByTestId("color-swatch-#00FF66"));
+    expect(onColorChange).toHaveBeenCalledWith("0:0", "#00FF66");
+  });
 });

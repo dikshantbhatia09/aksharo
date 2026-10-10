@@ -17,6 +17,8 @@ export const TimedWordSchema = z.object({
   speaker: z.string().optional(),
   isSentenceEnd: z.boolean().optional(),
   isEmphasized: z.boolean().optional(),
+  accentColor: z.string().optional(),
+  accentIndex: z.number().optional(),
   clipRelativeStart: z.number().optional(),
   clipRelativeEnd: z.number().optional(),
 });

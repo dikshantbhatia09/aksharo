@@ -548,6 +548,11 @@ export function layoutSegment(options: LayoutOptions): Layout {
         ...(item.word.emphasisPresetId === undefined
           ? {}
           : { emphasisPresetId: item.word.emphasisPresetId }),
+        ...(item.word.accentColor === undefined ? {} : { accentColor: item.word.accentColor }),
+        ...(item.word.accentIndex === undefined ? {} : { accentIndex: item.word.accentIndex }),
+        ...(item.word.customColorHex === undefined
+          ? {}
+          : { customColorHex: item.word.customColorHex }),
       };
       wordsOnLine.push(word);
       layoutWords.push(word);

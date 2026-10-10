@@ -199,6 +199,26 @@ export const TypographySchema = z.object({
   strikethrough: z.boolean().optional(),
 });
 
+/**
+ * Default multi-tier highlight accents for viral kinetic captions (Pillar 4 §05).
+ * [Accent 1: Neon Yellow, Accent 2: Electric Cyan, Accent 3: Cyber Green, Accent 4: Hot Pink]
+ */
+export const DEFAULT_HIGHLIGHT_ACCENTS: readonly string[] = [
+  "#FFF000",
+  "#00E5FF",
+  "#00FF66",
+  "#FF007F",
+] as const;
+
+/**
+ * Multi-accent color palette for dynamic keyword highlighting and brand theming (Pillar 4 §05).
+ */
+export const ColorPaletteSchema = z.object({
+  textPrimary: ColorSchema.default("#ffffff"),
+  textSecondary: ColorSchema.default("#a0a0a0"),
+  highlightAccents: z.array(ColorSchema).min(1).max(8).default([...DEFAULT_HIGHLIGHT_ACCENTS]),
+});
+
 export const ColorsSchema = z.object({
   /**
    * Resting colour of every word: a plain `#RRGGBB(AA)` string, or (K08) a
@@ -215,6 +235,10 @@ export const ColorsSchema = z.object({
   upcomingText: ColorSchema.optional(),
   /** Colour used by emphasis presets and by the karaoke fill. */
   accent: ColorSchema.optional(),
+  /** Multi-accent color rotation for dynamic keyword highlights. */
+  highlightAccents: z.array(ColorSchema).min(1).max(8).optional(),
+  /** Full brand color palette specification. */
+  palette: ColorPaletteSchema.optional(),
 });
 
 export const BoxSchema = z.object({
@@ -490,6 +514,7 @@ export type GradientStop = z.infer<typeof GradientStopSchema>;
 export type Gradient = z.infer<typeof GradientSchema>;
 export type ScriptScale = z.infer<typeof ScriptScaleSchema>;
 export type Typography = z.infer<typeof TypographySchema>;
+export type ColorPalette = z.infer<typeof ColorPaletteSchema>;
 export type Colors = z.infer<typeof ColorsSchema>;
 export type Box = z.infer<typeof BoxSchema>;
 export type Stroke = z.infer<typeof StrokeSchema>;

@@ -22,6 +22,9 @@ export interface RenderWord {
   readonly sp?: string;
   /** Emphasis preset applied to this word, resolved from `Segment.emphasis`. */
   readonly emphasisPresetId?: string;
+  readonly accentColor?: string;
+  readonly accentIndex?: number;
+  readonly customColorHex?: string;
 }
 
 /** The part of an EDG `Segment` the renderer reads (CONTRACTS §2). */
@@ -72,6 +75,9 @@ export interface LayoutWord {
   readonly runs: readonly PlacedRun[];
   readonly sp?: string;
   readonly emphasisPresetId?: string;
+  readonly accentColor?: string;
+  readonly accentIndex?: number;
+  readonly customColorHex?: string;
 }
 
 export interface LayoutLine {

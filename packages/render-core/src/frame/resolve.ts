@@ -137,6 +137,11 @@ export function resolveWords(options: ResolveTextOptions): RenderWord[] {
       // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
       const text = word.scripts?.[script] ?? word.t;
       const presetId = emphasis.get(word.wid);
+      const rawWord = word as {
+        accentColor?: string;
+        accentIndex?: number;
+        customColorHex?: string;
+      };
       return {
         wid: word.wid,
         t: text,
@@ -144,6 +149,9 @@ export function resolveWords(options: ResolveTextOptions): RenderWord[] {
         e: word.e,
         ...(word.sp === undefined ? {} : { sp: word.sp }),
         ...(presetId === undefined ? {} : { emphasisPresetId: presetId }),
+        ...(rawWord.accentColor === undefined ? {} : { accentColor: rawWord.accentColor }),
+        ...(rawWord.accentIndex === undefined ? {} : { accentIndex: rawWord.accentIndex }),
+        ...(rawWord.customColorHex === undefined ? {} : { customColorHex: rawWord.customColorHex }),
       };
     });
   }
@@ -153,6 +161,11 @@ export function resolveWords(options: ResolveTextOptions): RenderWord[] {
   if (tokens.length === live.length) {
     return live.map((word, index) => {
       const presetId = emphasis.get(word.wid);
+      const rawWord = word as {
+        accentColor?: string;
+        accentIndex?: number;
+        customColorHex?: string;
+      };
       return {
         wid: word.wid,
         // eslint-disable-next-line security/detect-object-injection -- bracket/dynamic-key access on an internal, enum-bounded or already-validated key (schema/manifest/type-narrowed), not attacker-controlled -- reviewed for M06's eslint-plugin-security promotion
@@ -161,6 +174,9 @@ export function resolveWords(options: ResolveTextOptions): RenderWord[] {
         e: word.e,
         ...(word.sp === undefined ? {} : { sp: word.sp }),
         ...(presetId === undefined ? {} : { emphasisPresetId: presetId }),
+        ...(rawWord.accentColor === undefined ? {} : { accentColor: rawWord.accentColor }),
+        ...(rawWord.accentIndex === undefined ? {} : { accentIndex: rawWord.accentIndex }),
+        ...(rawWord.customColorHex === undefined ? {} : { customColorHex: rawWord.customColorHex }),
       };
     });
   }

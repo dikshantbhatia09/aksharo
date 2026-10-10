@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   joinWords,
+  setWordHighlightColor,
   shiftTiming,
   splitLine,
   splitWord,
@@ -21,6 +22,20 @@ describe("timeline-ops", () => {
     confidence: 0.95,
     isEmphasized: false,
   };
+
+  it("sets dynamic keyword highlight color and accent index", () => {
+    const colored = setWordHighlightColor(sampleWord, "#FFF000", 1);
+    expect(colored.isEmphasized).toBe(true);
+    expect(colored.accentColor).toBe("#FFF000");
+    expect(colored.customColorHex).toBe("#FFF000");
+    expect(colored.accentIndex).toBe(1);
+
+    const cleared = setWordHighlightColor(colored, null);
+    expect(cleared.isEmphasized).toBe(false);
+    expect(cleared.accentColor).toBeUndefined();
+    expect(cleared.customColorHex).toBeUndefined();
+    expect(cleared.accentIndex).toBeUndefined();
+  });
 
   it("splits a word into two pieces with distributed timing", () => {
     const [w1, w2] = splitWord(sampleWord, 4);

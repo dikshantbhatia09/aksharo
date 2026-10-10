@@ -51,6 +51,8 @@ export interface TranscriptListProps {
     segmentId: string,
     wordId?: string,
   ) => void;
+  readonly onWordColorChange?: (wordId: string, color: string | null) => void;
+  readonly paletteAccents?: readonly string[];
   readonly className?: string;
 }
 
@@ -81,6 +83,8 @@ export function TranscriptList({
   onInsertWordAfter,
   onRenameSpeakerRequested,
   onRequestAction,
+  onWordColorChange,
+  paletteAccents,
   className,
 }: TranscriptListProps): React.JSX.Element {
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -224,6 +228,8 @@ export function TranscriptList({
                   onInsertWordAfter={onInsertWordAfter}
                   {...(onRenameSpeakerRequested === undefined ? {} : { onRenameSpeakerRequested })}
                   {...(onRequestAction === undefined ? {} : { onRequestAction })}
+                  {...(onWordColorChange === undefined ? {} : { onWordColorChange })}
+                  {...(paletteAccents === undefined ? {} : { paletteAccents })}
                 />
               </MeasuredRow>
             );

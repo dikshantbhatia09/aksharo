@@ -24,6 +24,8 @@ export interface CaptionWord {
   endMs: number;
   confidence: number;
   isEmphasized: boolean;
+  accentColor?: string;
+  accentIndex?: number;
   customColorHex?: string;
   emoji?: {
     char: string;

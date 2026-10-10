@@ -1245,4 +1245,17 @@ describe("emphasisPresets[].underline override (K05)", () => {
       expect(p3Enter.dx).toBeLessThan(0);
     });
   });
+
+  describe("dynamic keyword highlight wordColour (Pillar 4 §05)", () => {
+    it("renders word with direct accentColor when present", () => {
+      const doc = style("plain-white");
+      const wordWithAccent: LayoutWord = {
+        ...WORDS[0]!,
+        accentColor: "#FFF000",
+      };
+      // At tMs=0 (upcoming state or resting state), word should take its direct accentColor
+      const col = wordColour(wordWithAccent, doc, 0);
+      expect(col).toBe("#FFF000");
+    });
+  });
 });

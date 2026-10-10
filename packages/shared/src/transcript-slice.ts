@@ -15,6 +15,8 @@ export interface TimedWord {
   speaker?: string;
   isSentenceEnd?: boolean;
   isEmphasized?: boolean;
+  accentColor?: string;
+  accentIndex?: number;
   clipRelativeStart?: number;
   clipRelativeEnd?: number;
 }

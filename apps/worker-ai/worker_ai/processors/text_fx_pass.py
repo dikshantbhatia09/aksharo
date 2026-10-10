@@ -156,9 +156,14 @@ async def process_text_fx(context: JobContext) -> ProcessorOutcome:
     keyphrases = result.output.get("keyphrases", [])
     events = build_text_fx_events(keyphrases, words, guarded_ranges=guarded)
     from worker_ai.passes.emoji_matcher import match_transcript_emojis
+    from worker_ai.passes.keyword_highlighter import highlight_transcript_keywords
 
     emojis = match_transcript_emojis(words, min_gap_ms=2800)
-    await context.progress(90, message=f"{len(events)} title events proposed, {len(emojis)} emojis matched")
+    keywords = highlight_transcript_keywords(words)
+    await context.progress(
+        90,
+        message=f"{len(events)} title events proposed, {len(emojis)} emojis matched, {len(keywords)} keywords highlighted",
+    )
 
     return ProcessorOutcome(
         result={
@@ -192,6 +197,21 @@ async def process_text_fx(context: JobContext) -> ProcessorOutcome:
                     "confidence": e.confidence,
                 }
                 for e in emojis
+            ],
+            "keywords": [
+                {
+                    "wordId": k.word_id,
+                    "text": k.text,
+                    "cleanToken": k.clean_token,
+                    "tier": k.tier,
+                    "entityType": k.entity_type,
+                    "accentIndex": k.accent_index,
+                    "accentColor": k.accent_color,
+                    "startMs": k.start_ms,
+                    "endMs": k.end_ms,
+                    "confidence": k.confidence,
+                }
+                for k in keywords
             ],
             "providerSubmissions": context.submissions_wire(),
         },

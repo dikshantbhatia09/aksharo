@@ -845,6 +845,69 @@ export function ColorsPanel({ style, scope, onOp, base }: TabProps): React.JSX.E
         <EmphasisGlowField style={style} scope={scope} onOp={onOp} />
         <EmphasisTypographyFields style={style} scope={scope} onOp={onOp} />
       </Section>
+      <Section title="Keyword Accents" defaultOpen={false}>
+        <AccentColourField
+          label="Accent 1 (Metrics)"
+          index={0}
+          style={style}
+          scope={scope}
+          onOp={onOp}
+        />
+        <AccentColourField
+          label="Accent 2 (Entities)"
+          index={1}
+          style={style}
+          scope={scope}
+          onOp={onOp}
+        />
+        <AccentColourField
+          label="Accent 3 (Impact)"
+          index={2}
+          style={style}
+          scope={scope}
+          onOp={onOp}
+        />
+      </Section>
+    </div>
+  );
+}
+
+function AccentColourField({
+  label,
+  index,
+  style,
+  scope,
+  onOp,
+}: {
+  label: string;
+  index: number;
+  style: StyleDoc;
+  scope: PanelScope;
+  onOp: (op: SetStyleOp) => void;
+}): React.JSX.Element {
+  const current = style.colors.highlightAccents ?? ["#FFF000", "#00E5FF", "#00FF66"];
+  const color = current[index] ?? (index === 0 ? "#FFF000" : index === 1 ? "#00E5FF" : "#00FF66");
+  const id = `field-colors-highlight-accent-${index}`;
+  return (
+    <div className="editor-field-row flex min-h-8 items-center justify-between gap-3">
+      <label htmlFor={id} className="text-sm text-fg-1">
+        {label}
+      </label>
+      <div className="editor-field-cluster flex items-center gap-2.5">
+        <span className="text-2xs text-fg-2 tabular-nums uppercase">{color.slice(0, 7)}</span>
+        <input
+          id={id}
+          type="color"
+          value={color.slice(0, 7)}
+          onChange={(event) => {
+            const next = [...current];
+            next[index] = event.target.value;
+            onOp(setStyleField(scope, "colors.highlightAccents", next));
+          }}
+          className="panel-swatch"
+          data-testid={id}
+        />
+      </div>
     </div>
   );
 }

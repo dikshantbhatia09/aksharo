@@ -552,3 +552,32 @@ describe("isGradient / resolveColour (K08)", () => {
     expect(resolveColour(gradient)).toBe("#ff2e63");
   });
 });
+
+describe("ColorPalette and highlightAccents (Pillar 4 §05)", () => {
+  it("validates default highlight accents palette", () => {
+    const doc = draft({
+      colors: {
+        text: "#ffffff",
+        highlightAccents: ["#FFF000", "#00E5FF", "#00FF66"],
+        palette: {
+          textPrimary: "#ffffff",
+          textSecondary: "#a0a0a0",
+          highlightAccents: ["#FFF000", "#00E5FF", "#00FF66"],
+        },
+      },
+    });
+    const parsed = StyleDocSchema.parse(doc);
+    expect(parsed.colors.highlightAccents).toEqual(["#FFF000", "#00E5FF", "#00FF66"]);
+    expect(parsed.colors.palette?.highlightAccents).toEqual(["#FFF000", "#00E5FF", "#00FF66"]);
+  });
+
+  it("rejects invalid hex in highlightAccents", () => {
+    const doc = draft({
+      colors: {
+        text: "#ffffff",
+        highlightAccents: ["invalid-hex"],
+      },
+    });
+    expect(StyleDocSchema.safeParse(doc).success).toBe(false);
+  });
+});

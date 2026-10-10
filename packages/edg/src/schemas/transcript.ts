@@ -41,6 +41,12 @@ export const WordSchema = z
     deleted: z.boolean().optional(),
     /** Kalakar Parity: whether word is emphasized (gold glow/highlight). */
     isEmphasized: z.boolean().optional(),
+    /** Dynamic keyword highlight: accent color (e.g. '#FFF000'). */
+    accentColor: z.string().optional(),
+    /** Dynamic keyword highlight: 1-based palette index (1, 2, 3). */
+    accentIndex: z.number().int().min(0).max(10).optional(),
+    /** Custom color override in hex. */
+    customColorHex: z.string().optional(),
   })
   .meta({
     id: "Word",

@@ -11,6 +11,8 @@ export interface TimelineWord {
   endMs: number;
   confidence?: number;
   isEmphasized?: boolean;
+  accentColor?: string;
+  accentIndex?: number;
   customColorHex?: string;
   emoji?: {
     char: string;
@@ -150,6 +152,23 @@ export function toggleEmphasis<W extends TimelineWord>(word: W): W {
   return {
     ...word,
     isEmphasized: !word.isEmphasized,
+  };
+}
+
+/**
+ * Sets or clears the dynamic highlight accent color on a word chip.
+ */
+export function setWordHighlightColor<W extends TimelineWord>(
+  word: W,
+  color: string | null,
+  accentIndex?: number,
+): W {
+  return {
+    ...word,
+    isEmphasized: color !== null && color !== undefined && color !== "",
+    accentColor: color ?? undefined,
+    customColorHex: color ?? undefined,
+    accentIndex: color ? accentIndex : undefined,
   };
 }
 

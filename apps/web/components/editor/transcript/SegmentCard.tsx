@@ -79,6 +79,8 @@ export interface SegmentCardProps {
     segmentId: string,
     wordId?: string,
   ) => void;
+  readonly onWordColorChange?: (wordId: string, color: string | null) => void;
+  readonly paletteAccents?: readonly string[];
 }
 
 function formatTimestamp(ms: number): string {
@@ -137,6 +139,8 @@ function SegmentCardImpl({
   onInsertWordAfter,
   onRenameSpeakerRequested,
   onRequestAction,
+  onWordColorChange,
+  paletteAccents,
 }: SegmentCardProps): React.JSX.Element {
   // Which word the pointer was over when the menu was summoned. Set on the
   // right button's `pointerdown` — dispatched before the `contextmenu` radix
@@ -233,6 +237,8 @@ function SegmentCardImpl({
                     {...(onSeek === undefined ? {} : { onSeek })}
                     {...(onFixSpellingEverywhere === undefined ? {} : { onFixSpellingEverywhere })}
                     onSelect={handleWordSelect}
+                    {...(onWordColorChange === undefined ? {} : { onColorChange: onWordColorChange })}
+                    {...(paletteAccents === undefined ? {} : { paletteAccents })}
                   />
                 </span>
               ))}

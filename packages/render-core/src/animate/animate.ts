@@ -377,7 +377,8 @@ export function wordColour(
   speakerColours?: Readonly<Record<string, string>>,
 ): string | Gradient {
   const speaker = word.sp === undefined ? undefined : speakerColours?.[word.sp];
-  const base = speaker ?? style.colors.text;
+  const directColor = word.accentColor ?? word.customColorHex;
+  const base = directColor ?? speaker ?? style.colors.text;
   const state = wordState(word, tMs);
   const highlight = style.animation.wordHighlight.type;
 
