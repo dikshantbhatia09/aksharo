@@ -23,12 +23,20 @@ function harness() {
     searchStock: vi.fn(async () => ({ photos: [] })),
     saveStock: vi.fn(async () => ({ item, created: true })),
   };
+  const stockProvider = {
+    searchVideos: vi.fn(async () => []),
+    getCues: vi.fn(async () => []),
+    createCue: vi.fn(async () => ({})),
+    updateCue: vi.fn(async () => ({})),
+    deleteCue: vi.fn(async () => true),
+  };
   const audit = { record: vi.fn(async () => undefined) };
   const controller = new BrollController(
     library as unknown as BrollLibraryService,
+    stockProvider as never,
     audit as unknown as CommonAuditService,
   );
-  return { controller, library, audit, item };
+  return { controller, library, stockProvider, audit, item };
 }
 
 describe("BrollController", () => {

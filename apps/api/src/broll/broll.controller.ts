@@ -39,6 +39,7 @@ import {
   stockSearchViewSchema,
 } from "./broll.dto.js";
 import { BrollLibraryService } from "./broll.service.js";
+import { StockProviderService, type StockVideoCandidate } from "./stock-provider.service.js";
 import { zodBody, zodResponse } from "../auth/dto/openapi.js";
 import { CommonAuditService } from "../common/audit/audit.service.js";
 import {
@@ -74,6 +75,7 @@ import type {
 export class BrollController {
   constructor(
     private readonly library: BrollLibraryService,
+    private readonly stockProvider: StockProviderService,
     private readonly audit: CommonAuditService,
   ) {}
 
@@ -260,5 +262,89 @@ export class BrollController {
       });
     }
     return item;
+  }
+
+  @Get("stock/videos")
+  @Roles("viewer")
+  @ApiOperation({
+    summary: "Search stock videos for B-roll insertion",
+    description: "Returns vertical portrait stock videos matching query with >= 1080p resolution.",
+    operationId: "searchBrollStockVideos",
+  })
+  async searchStockVideos(
+    @Query("query") query: string,
+    @Query("orientation") orientation?: "portrait" | "landscape" | "square",
+    @Query("page") page?: number,
+  ): Promise<StockVideoCandidate[]> {
+    return this.stockProvider.searchVideos({
+      query: query || "broll",
+      orientation: orientation || "portrait",
+      page: page ? Number(page) : 1,
+    });
+  }
+
+  @Get("cues/:projectId")
+  @Roles("viewer")
+  @ApiOperation({
+    summary: "Get B-roll cues for a project",
+    description: "Returns all active B-roll cues ordered by startSec.",
+    operationId: "getProjectBrollCues",
+  })
+  async getCues(@Param("projectId") projectId: string) {
+    return this.stockProvider.getCues(projectId);
+  }
+
+  @Post("cues")
+  @Roles("editor")
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: "Create a B-roll cue for a project",
+    operationId: "createProjectBrollCue",
+  })
+  async createCue(
+    @Body()
+    body: {
+      projectId: string;
+      startSec: number;
+      endSec: number;
+      query: string;
+      stockVideoUri: string;
+      sourceProvider?: string;
+      status?: string;
+    },
+  ) {
+    return this.stockProvider.createCue(body);
+  }
+
+  @Patch("cues/:cueId")
+  @Roles("editor")
+  @ApiOperation({
+    summary: "Update or swap video for a B-roll cue",
+    operationId: "updateProjectBrollCue",
+  })
+  async updateCue(
+    @Param("cueId") cueId: string,
+    @Body()
+    body: {
+      startSec?: number;
+      endSec?: number;
+      query?: string;
+      stockVideoUri?: string;
+      sourceProvider?: string;
+      status?: string;
+    },
+  ) {
+    return this.stockProvider.updateCue(cueId, body);
+  }
+
+  @Delete("cues/:cueId")
+  @Roles("editor")
+  @ApiOperation({
+    summary: "Delete a B-roll cue",
+    operationId: "deleteProjectBrollCue",
+  })
+  async deleteCue(@Param("cueId") cueId: string) {
+    const deleted = await this.stockProvider.deleteCue(cueId);
+    return { deleted };
   }
 }

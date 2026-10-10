@@ -3,6 +3,7 @@ import { Module } from "@nestjs/common";
 import { BrollController } from "./broll.controller.js";
 import { BrollLibraryService } from "./broll.service.js";
 import { PexelsClient, pexelsSetting } from "./pexels.client.js";
+import { StockProviderService } from "./stock-provider.service.js";
 import { WorkspaceMemberGuard } from "../workspaces/workspace-member.guard.js";
 
 /**
@@ -17,9 +18,10 @@ import { WorkspaceMemberGuard } from "../workspaces/workspace-member.guard.js";
   controllers: [BrollController],
   providers: [
     BrollLibraryService,
+    StockProviderService,
     WorkspaceMemberGuard,
     { provide: PexelsClient, useFactory: () => new PexelsClient(pexelsSetting()) },
   ],
-  exports: [BrollLibraryService],
+  exports: [BrollLibraryService, StockProviderService],
 })
 export class BrollModule {}

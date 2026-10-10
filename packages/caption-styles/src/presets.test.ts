@@ -36,10 +36,10 @@ describe("Popular Viral Caption Style Presets Engine (Pillar 4 §06)", () => {
       expect(preset.colorInactive).toMatch(/^(#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\()/);
       expect(preset.colorActive).toMatch(/^(#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\()/);
 
-      if (preset.strokeColor) {
+      if ("strokeColor" in preset && preset.strokeColor) {
         expect(preset.strokeColor).toMatch(/^(#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\()/);
       }
-      if (preset.shadowColor) {
+      if ("shadowColor" in preset && preset.shadowColor) {
         expect(preset.shadowColor).toMatch(/^(#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\()/);
       }
     }

@@ -111,6 +111,7 @@ model Project {
   workspace           Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   exports             ExportJob[]
   clips               Clip[]
+  brollCues           ProjectBrollCue[]
 }
 
 model Clip {
@@ -440,5 +441,27 @@ model MusicTrack {
   clips        Clip[]
 
   @@map("music_tracks")
+}
+
+// -----------------------------------------------------------------------------
+// B-Roll Visual Cues & Generative Insertion (Pillar 6 §01)
+// -----------------------------------------------------------------------------
+
+model ProjectBrollCue {
+  id             String    @id @default(uuid())
+  projectId      String
+  startSec       Float
+  endSec         Float
+  query          String
+  stockVideoUri  String
+  sourceProvider String    // PEXELS, STORYBLOCKS, PIXABAY
+  status         String    @default("ACTIVE") // ACTIVE, MUTED, DELETED
+
+  createdAt      DateTime  @default(now())
+
+  project        Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@map("project_broll_cues")
 }
 

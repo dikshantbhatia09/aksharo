@@ -1191,6 +1191,7 @@ model Project {
   streamVodMetadata     StreamVodMetadata?
   /// Human-curated or native YouTube chapters (Pillar 1 §01).
   transcriptChapters    TranscriptChapter[]
+  brollCues             ProjectBrollCue[]
 
   @@index([workspaceId])
   @@index([lastActivityAt])
@@ -2196,6 +2197,25 @@ model BrollAsset {
   @@unique([workspaceId, source, sourceRef])
   @@index([workspaceId, createdAt])
   @@map("broll_assets")
+}
+
+/// A B-roll video cue for a project (Pillar 6 §01): specifies a moment where
+/// stock B-roll footage illustrates concepts mentioned in the speech.
+model ProjectBrollCue {
+  id             String    @id @default(uuid())
+  projectId      String    @map("project_id") @db.Char(26)
+  startSec       Float     @map("start_sec")
+  endSec         Float     @map("end_sec")
+  query          String
+  stockVideoUri  String    @map("stock_video_uri")
+  sourceProvider String    @map("source_provider") // PEXELS, STORYBLOCKS, PIXABAY
+  status         String    @default("ACTIVE") // ACTIVE, MUTED, DELETED
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  project        Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@map("project_broll_cues")
 }
 
 // ===========================================================================
