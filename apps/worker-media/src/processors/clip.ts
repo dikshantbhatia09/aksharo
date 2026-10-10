@@ -65,6 +65,15 @@ import {
   type CutPipelineResult,
   type TimeInterval,
 } from "../ffmpeg/cut-pipeline.js";
+import {
+  buildSidechainDuckingArgs,
+  buildSidechainDuckingFiltergraph,
+  duckingDbToRatio,
+  runSidechainDucking,
+  validateDialogueDurationMatch,
+  type SidechainDuckingFiltergraphOptions,
+  type SidechainDuckingResult,
+} from "../ffmpeg/audio-mix.js";
 
 import type { ProbeContainer } from "../ffmpeg/ffprobe.js";
 import type { JobContext, ProcessorOutcome } from "../runtime.js";
@@ -75,9 +84,16 @@ export {
   buildCutCrossfadeFiltergraph,
   normalizeCutIntervals,
   retainedIntervalsFromCuts,
+  buildSidechainDuckingArgs,
+  buildSidechainDuckingFiltergraph,
+  duckingDbToRatio,
+  runSidechainDucking,
+  validateDialogueDurationMatch,
   type AudioCrossfadeOptions,
   type CutPipelineResult,
   type TimeInterval,
+  type SidechainDuckingFiltergraphOptions,
+  type SidechainDuckingResult,
   CANVAS_FIT_CENTER_Y_1080P,
   DEFAULT_PIP_BUBBLE_DIAMETER,
   PRESENTATION_FIT_Y,

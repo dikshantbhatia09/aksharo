@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { metricsSummary } from "./AudioPanel";
-import { applyCleanOp, clearCleanOp } from "./use-audio-clean";
+import { applyCleanOp, applyDuckingOp, clearCleanOp } from "./use-audio-clean";
 
 import type { AudioClean } from "./audio-endpoints";
 
@@ -49,5 +49,10 @@ describe("SetAudio op builders", () => {
     const op = clearCleanOp();
     expect(op.clean.enabled).toBe(false);
     expect(op.clean.cleanId).toBeNull();
+  });
+
+  it("builds ducking op with enabled and duckDb", () => {
+    const op = applyDuckingOp(true, -16);
+    expect(op.ducking).toEqual({ enabled: true, duckDb: -16 });
   });
 });

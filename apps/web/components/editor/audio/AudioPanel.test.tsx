@@ -174,6 +174,100 @@ describe("<AudioPanel />", () => {
     expect(player).toHaveAttribute("src", "https://example.test/studio_audio_clean.wav");
   });
 
+  it("renders Smart Auto-Ducking switch and toggles onAutoDuckingChange callback", async () => {
+    const user = userEvent.setup();
+    useAudioCleanMock.mockReturnValue(baseResult());
+    const onAutoDuckingChange = vi.fn();
+    const onSetAudio = vi.fn();
+
+    render(
+      <AudioPanel
+        projectId="p1"
+        onSetAudio={onSetAudio}
+        onAutoDuckingChange={onAutoDuckingChange}
+      />,
+    );
+
+    const duckingSwitch = screen.getByTestId("auto-ducking-switch");
+    expect(duckingSwitch).toBeInTheDocument();
+    expect(duckingSwitch).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByTestId("ducking-intensity-controls")).toBeInTheDocument();
+
+    await user.click(duckingSwitch);
+    expect(onAutoDuckingChange).toHaveBeenCalledWith(false);
+    expect(duckingSwitch).toHaveAttribute("aria-checked", "false");
+    expect(onSetAudio).toHaveBeenCalledWith({
+      ducking: { enabled: false, duckDb: -16 },
+    });
+    expect(screen.queryByTestId("ducking-intensity-controls")).not.toBeInTheDocument();
+  });
+
+  it("adjusts ducking intensity between subtle, standard, and heavy", async () => {
+    const user = userEvent.setup();
+    useAudioCleanMock.mockReturnValue(baseResult());
+    const onDuckingIntensityChange = vi.fn();
+    const onSetAudio = vi.fn();
+
+    render(
+      <AudioPanel
+        projectId="p1"
+        onSetAudio={onSetAudio}
+        onDuckingIntensityChange={onDuckingIntensityChange}
+      />,
+    );
+
+    const subtleBtn = screen.getByTestId("ducking-intensity-subtle");
+    const standardBtn = screen.getByTestId("ducking-intensity-standard");
+    const heavyBtn = screen.getByTestId("ducking-intensity-heavy");
+
+    expect(standardBtn).toHaveAttribute("aria-checked", "true");
+    expect(subtleBtn).toHaveAttribute("aria-checked", "false");
+    expect(heavyBtn).toHaveAttribute("aria-checked", "false");
+
+    await user.click(subtleBtn);
+    expect(onDuckingIntensityChange).toHaveBeenCalledWith(-12);
+    expect(onSetAudio).toHaveBeenCalledWith({
+      ducking: { enabled: true, duckDb: -12 },
+    });
+    expect(subtleBtn).toHaveAttribute("aria-checked", "true");
+
+    await user.click(heavyBtn);
+    expect(onDuckingIntensityChange).toHaveBeenCalledWith(-20);
+    expect(onSetAudio).toHaveBeenCalledWith({
+      ducking: { enabled: true, duckDb: -20 },
+    });
+    expect(heavyBtn).toHaveAttribute("aria-checked", "true");
+  });
+
+  it("supports controlled autoDucking and duckingIntensityDb props", () => {
+    useAudioCleanMock.mockReturnValue(baseResult());
+
+    const { rerender } = render(
+      <AudioPanel
+        projectId="p1"
+        onSetAudio={vi.fn()}
+        autoDucking={false}
+      />,
+    );
+
+    const duckingSwitch = screen.getByTestId("auto-ducking-switch");
+    expect(duckingSwitch).toHaveAttribute("aria-checked", "false");
+    expect(screen.queryByTestId("ducking-intensity-controls")).not.toBeInTheDocument();
+
+    rerender(
+      <AudioPanel
+        projectId="p1"
+        onSetAudio={vi.fn()}
+        autoDucking={true}
+        duckingIntensityDb={-20}
+      />,
+    );
+
+    expect(duckingSwitch).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByTestId("ducking-intensity-controls")).toBeInTheDocument();
+    expect(screen.getByTestId("ducking-intensity-heavy")).toHaveAttribute("aria-checked", "true");
+  });
+
   it("confirms audio-panel.tsx re-export functions identically", () => {
     expect(AudioPanelReExport).toBe(AudioPanel);
   });

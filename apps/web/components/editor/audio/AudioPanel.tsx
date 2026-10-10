@@ -37,6 +37,14 @@ export interface AudioPanelProps {
   readonly studioSound?: boolean;
   /** Feature Blueprint 05-01: Studio Sound toggle callback. */
   readonly onStudioSoundChange?: (enabled: boolean) => void;
+  /** Feature Blueprint 05-05: Smart Auto-Ducking switch state. */
+  readonly autoDucking?: boolean;
+  /** Feature Blueprint 05-05: Smart Auto-Ducking toggle callback. */
+  readonly onAutoDuckingChange?: (enabled: boolean) => void;
+  /** Feature Blueprint 05-05: Ducking intensity in dB (-12, -16, -20). */
+  readonly duckingIntensityDb?: number;
+  /** Feature Blueprint 05-05: Ducking intensity change callback. */
+  readonly onDuckingIntensityChange?: (duckingDb: number) => void;
 }
 
 export type AudioCleanTier = "quick" | "deep";
@@ -95,9 +103,13 @@ export function AudioPanel(props: AudioPanelProps): React.JSX.Element {
   const [tier, setTier] = React.useState<AudioCleanTier>("quick");
   const [abCleaned, setAbCleaned] = React.useState(true);
   const [studioSoundInternal, setStudioSoundInternal] = React.useState(false);
+  const [autoDuckingInternal, setAutoDuckingInternal] = React.useState(true);
+  const [duckingIntensityInternal, setDuckingIntensityInternal] = React.useState<number>(-16);
   const deepCleanEnabled = props.deepCleanEnabled === true;
 
   const isStudioSound = props.studioSound ?? studioSoundInternal;
+  const isAutoDucking = props.autoDucking ?? autoDuckingInternal;
+  const duckingIntensity = props.duckingIntensityDb ?? duckingIntensityInternal;
 
   const latest = latestOf(cleans);
   const applied = latest !== undefined && props.appliedCleanId === latest.id;
@@ -122,6 +134,30 @@ export function AudioPanel(props: AudioPanelProps): React.JSX.Element {
   const handleStudioSoundToggle = (checked: boolean): void => {
     setStudioSoundInternal(checked);
     props.onStudioSoundChange?.(checked);
+  };
+
+  const handleAutoDuckingToggle = (checked: boolean): void => {
+    setAutoDuckingInternal(checked);
+    props.onAutoDuckingChange?.(checked);
+    props.onSetAudio({
+      ducking: {
+        enabled: checked,
+        duckDb: duckingIntensity,
+      },
+    });
+  };
+
+  const handleIntensityChange = (db: number): void => {
+    setDuckingIntensityInternal(db);
+    props.onDuckingIntensityChange?.(db);
+    if (isAutoDucking) {
+      props.onSetAudio({
+        ducking: {
+          enabled: true,
+          duckDb: db,
+        },
+      });
+    }
   };
 
   const previewSrc = isStudioSound
@@ -149,6 +185,77 @@ export function AudioPanel(props: AudioPanelProps): React.JSX.Element {
           aria-label="Studio Sound"
         />
       </label>
+
+      <label className={ROW}>
+        <div className="flex flex-col">
+          <span className={LABEL}>Smart Auto-Ducking</span>
+          <span className="text-2xs text-fg-2">Lower music beneath speech (Recommended)</span>
+        </div>
+        <Switch
+          checked={isAutoDucking}
+          onCheckedChange={handleAutoDuckingToggle}
+          data-testid="auto-ducking-switch"
+          aria-label="Smart Auto-Ducking"
+        />
+      </label>
+
+      {isAutoDucking && (
+        <div className="flex flex-col gap-1.5" data-testid="ducking-intensity-controls">
+          <div className="flex items-center justify-between">
+            <span className={LABEL}>Ducking Intensity</span>
+            <span className="text-2xs text-fg-2 tabular-nums">
+              {duckingIntensity === -12
+                ? "Subtle (-12dB)"
+                : duckingIntensity === -20
+                  ? "Heavy (-20dB)"
+                  : "Standard (-16dB)"}
+            </span>
+          </div>
+          <div className={SEGMENTED_TRACK} role="radiogroup" aria-label="Ducking Intensity">
+            <button
+              type="button"
+              role="radio"
+              aria-checked={duckingIntensity === -12}
+              onClick={() => handleIntensityChange(-12)}
+              data-testid="ducking-intensity-subtle"
+              className={`${segmentedItem(duckingIntensity === -12)} flex-1`}
+            >
+              Subtle -12dB
+            </button>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={duckingIntensity === -16}
+              onClick={() => handleIntensityChange(-16)}
+              data-testid="ducking-intensity-standard"
+              className={`${segmentedItem(duckingIntensity === -16)} flex-1`}
+            >
+              Standard -16dB
+            </button>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={duckingIntensity === -20}
+              onClick={() => handleIntensityChange(-20)}
+              data-testid="ducking-intensity-heavy"
+              className={`${segmentedItem(duckingIntensity === -20)} flex-1`}
+            >
+              Heavy -20dB
+            </button>
+          </div>
+          <input
+            type="range"
+            min="-20"
+            max="-12"
+            step="4"
+            value={duckingIntensity}
+            onChange={(e) => handleIntensityChange(Number(e.target.value))}
+            aria-label="Ducking Intensity"
+            data-testid="ducking-intensity-slider"
+            className="accent-primary w-full cursor-pointer"
+          />
+        </div>
+      )}
       <div className={SEGMENTED_TRACK} role="radiogroup" aria-label="Clean tier">
         <button
           type="button"

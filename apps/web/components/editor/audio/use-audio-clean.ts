@@ -25,13 +25,29 @@ import {
 
 const POLL_MS = 3_000;
 
+export interface SetAudioCleanCleanPayload {
+  readonly enabled: boolean;
+  /** First-class as of B10b (CONTRACTS §2); `null` clears a previously applied clean. */
+  readonly cleanId: string | null;
+  readonly targetLufs: number;
+}
+
+export interface SetAudioDuckingPayload {
+  readonly enabled: boolean;
+  readonly duckDb?: number;
+}
+
 export interface SetAudioCleanOp {
-  readonly clean: {
-    readonly enabled: boolean;
-    /** First-class as of B10b (CONTRACTS §2); `null` clears a previously applied clean. */
-    readonly cleanId: string | null;
-    readonly targetLufs: number;
-  };
+  readonly clean?: SetAudioCleanCleanPayload;
+  readonly ducking?: SetAudioDuckingPayload;
+}
+
+export interface SetAudioCleanOnlyOp extends SetAudioCleanOp {
+  readonly clean: SetAudioCleanCleanPayload;
+}
+
+export interface SetAudioDuckingOnlyOp extends SetAudioCleanOp {
+  readonly ducking: SetAudioDuckingPayload;
 }
 
 /** `TARGET_LUFS` mirrored from `worker_ai.clean.dsp` (brief §1) for the "Apply" op. */
@@ -57,7 +73,7 @@ export interface UseAudioCleanResult {
 }
 
 /** Builds the `SetAudio` op payload for one clean; the caller enqueues it. */
-export function applyCleanOp(clean: AudioClean): SetAudioCleanOp {
+export function applyCleanOp(clean: AudioClean): SetAudioCleanOnlyOp {
   return {
     clean: {
       enabled: true,
@@ -67,8 +83,18 @@ export function applyCleanOp(clean: AudioClean): SetAudioCleanOp {
   };
 }
 
+/** Builds the `SetAudio` op payload for ducking; the caller enqueues it. */
+export function applyDuckingOp(enabled: boolean, duckDb: number = -16): SetAudioDuckingOnlyOp {
+  return {
+    ducking: {
+      enabled,
+      duckDb,
+    },
+  };
+}
+
 /** The op that turns "apply to export" back off. */
-export function clearCleanOp(): SetAudioCleanOp {
+export function clearCleanOp(): SetAudioCleanOnlyOp {
   return { clean: { enabled: false, cleanId: null, targetLufs: 0 } };
 }
 

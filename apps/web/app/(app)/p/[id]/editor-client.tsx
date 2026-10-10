@@ -712,8 +712,22 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
   // `EdgOpQueue` via `store.submitOp`, exactly as `submitPanelOp` does above.
   function onSetAudio(op: SetAudioCleanOp): void {
     store.submitOp(
-      { type: "SetAudio", opId: newId(), clean: op.clean },
-      { label: op.clean.enabled ? "Apply audio clean" : "Remove audio clean" },
+      {
+        type: "SetAudio",
+        opId: newId(),
+        ...(op.clean !== undefined ? { clean: op.clean } : {}),
+        ...(op.ducking !== undefined ? { ducking: op.ducking } : {}),
+      },
+      {
+        label:
+          op.clean !== undefined
+            ? op.clean.enabled
+              ? "Apply audio clean"
+              : "Remove audio clean"
+            : op.ducking?.enabled
+              ? "Enable auto-ducking"
+              : "Disable auto-ducking",
+      },
     );
   }
 
@@ -889,9 +903,12 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
     );
   }
 
-  const audioClean = (state.hot.audio as { clean?: { cleanId?: string | null } } | undefined)
-    ?.clean;
+  const audioHot = state.hot.audio as
+    | { clean?: { cleanId?: string | null }; ducking?: { enabled?: boolean; duckDb?: number } }
+    | undefined;
+  const audioClean = audioHot?.clean;
   const appliedCleanId = typeof audioClean?.cleanId === "string" ? audioClean.cleanId : undefined;
+  const audioDucking = audioHot?.ducking;
 
   function onEditWord(wordId: string, text: string): void {
     store.submitOp(editWord(wordId, text, wordScript, newId), {
@@ -1814,6 +1831,8 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
                 projectId,
                 ...(primaryMedia?.mediaId === undefined ? {} : { mediaId: primaryMedia.mediaId }),
                 ...(appliedCleanId === undefined ? {} : { appliedCleanId }),
+                autoDucking: audioDucking?.enabled,
+                duckingIntensityDb: audioDucking?.duckDb,
                 onSetAudio,
                 deepCleanEnabled,
               }}
