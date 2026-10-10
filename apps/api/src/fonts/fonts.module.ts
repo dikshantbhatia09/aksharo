@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 
 import { BundledFontsService } from "./bundled-fonts.service.js";
+import { FontValidatorService } from "./font-validator.service.js";
 import {
   BundledFontsController,
   FontUploadsController,
@@ -22,7 +23,7 @@ import { WorkspacesModule } from "../workspaces/workspaces.module.js";
 @Module({
   imports: [WorkspacesModule],
   controllers: [BundledFontsController, WorkspaceFontsController, FontUploadsController],
-  providers: [FontsService, BundledFontsService],
-  exports: [FontsService, BundledFontsService],
+  providers: [FontsService, BundledFontsService, FontValidatorService],
+  exports: [FontsService, BundledFontsService, FontValidatorService],
 })
 export class FontsModule {}

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { buildTimeMap, cutEdit } from "@montaj/timemap";
 
@@ -7,6 +7,7 @@ import {
   formatTimestamp,
   isSupportedFormat,
   MIN_CUE_MS,
+  registerCustomFontIfPresent,
   renderSidecar,
   segmentText,
   SubtitleError,
@@ -210,3 +211,60 @@ describe("the formats", () => {
     expect(toMarkdown([])).toBe("# Transcript\n");
   });
 });
+
+describe("registerCustomFontIfPresent (Feature 04-07 Step 3)", () => {
+  it("returns false if styleDoc is null or has no customFontUrl", async () => {
+    const registerFn = vi.fn();
+    expect(await registerCustomFontIfPresent(null, registerFn)).toBe(false);
+    expect(await registerCustomFontIfPresent({}, registerFn)).toBe(false);
+    expect(await registerCustomFontIfPresent({ typography: { fontFamily: "Inter" } }, registerFn)).toBe(false);
+    expect(registerFn).not.toHaveBeenCalled();
+  });
+
+  it("fetches buffer and registers custom font when styleDoc.customFontUrl is present", async () => {
+    const registered: { buffer: Uint8Array; family: string }[] = [];
+    const registerFn = async (buf: Uint8Array, family: string) => {
+      registered.push({ buffer: buf, family });
+    };
+
+    const mockBuffer = new Uint8Array([1, 2, 3, 4, 5]);
+    const fetchFn = vi.fn(async () => mockBuffer);
+
+    const ok = await registerCustomFontIfPresent(
+      {
+        customFontUrl: "https://example.com/BrandFont.otf",
+        typography: { fontFamily: "BrandFont" },
+      },
+      registerFn,
+      fetchFn,
+    );
+
+    expect(ok).toBe(true);
+    expect(fetchFn).toHaveBeenCalledWith("https://example.com/BrandFont.otf");
+    expect(registered).toHaveLength(1);
+    expect(registered[0]?.family).toBe("BrandFont");
+    expect(registered[0]?.buffer).toEqual(mockBuffer);
+  });
+
+  it("registers font when customFontUrl is inside typography object", async () => {
+    const registerFn = vi.fn();
+    const mockBuffer = new Uint8Array([10, 20, 30]);
+    const fetchFn = vi.fn(async () => mockBuffer);
+
+    const ok = await registerCustomFontIfPresent(
+      {
+        typography: {
+          fontFamily: "AgencySans",
+          customFontUrl: "https://example.com/AgencySans.ttf",
+        },
+      },
+      registerFn,
+      fetchFn,
+    );
+
+    expect(ok).toBe(true);
+    expect(fetchFn).toHaveBeenCalledWith("https://example.com/AgencySans.ttf");
+    expect(registerFn).toHaveBeenCalledWith(mockBuffer, "AgencySans");
+  });
+});
+

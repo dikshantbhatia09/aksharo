@@ -127,3 +127,4 @@ describe("PresetCarousel Component (Pillar 4 §06)", () => {
     expect(elapsed).toBeLessThanOrEqual(50);
   });
 });
+

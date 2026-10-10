@@ -223,3 +223,67 @@ export function renderSidecar(format: SubtitleFormat, cues: readonly Cue[]): str
       );
   }
 }
+
+/**
+ * Shape of a StyleDoc that may carry customFontUrl (Feature 04-07).
+ */
+export interface StyleDocWithFont {
+  readonly customFontUrl?: string;
+  readonly typography?: {
+    readonly fontFamily?: string;
+    readonly customFontUrl?: string;
+    readonly fontId?: string;
+    readonly weight?: number;
+    readonly italic?: boolean;
+  };
+}
+
+export type CustomFontRegisterCallback = (fontBuffer: Uint8Array, familyName: string) => Promise<void> | void;
+
+const fontBufferCache = new Map<string, Uint8Array>();
+
+export async function fetchFontBuffer(url: string): Promise<Uint8Array> {
+  const cached = fontBufferCache.get(url);
+  if (cached !== undefined) return cached;
+
+  if (url.startsWith("file://") || (!url.startsWith("http://") && !url.startsWith("https://") && !url.startsWith("s3://"))) {
+    const { readFile } = await import("node:fs/promises");
+    const filePath = url.startsWith("file://") ? new URL(url).pathname : url;
+    const buf = await readFile(filePath);
+    const uint8 = new Uint8Array(buf);
+    fontBufferCache.set(url, uint8);
+    return uint8;
+  }
+
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch custom font from ${url}: HTTP ${response.status} ${response.statusText}`);
+  }
+  const arrayBuffer = await response.arrayBuffer();
+  const uint8 = new Uint8Array(arrayBuffer);
+  fontBufferCache.set(url, uint8);
+  return uint8;
+}
+
+/**
+ * Dynamically fetches and registers a custom font if styleDoc.customFontUrl is present.
+ * Fulfills Feature 04-07 Step 3: Dynamic Font Registration in render Worker.
+ */
+export async function registerCustomFontIfPresent(
+  styleDoc: StyleDocWithFont | null | undefined,
+  registerFont: CustomFontRegisterCallback,
+  fetchFn: (url: string) => Promise<Uint8Array> = fetchFontBuffer,
+): Promise<boolean> {
+  if (!styleDoc) return false;
+  const customUrl = styleDoc.customFontUrl ?? styleDoc.typography?.customFontUrl;
+  if (!customUrl) return false;
+
+  const familyName = styleDoc.typography?.fontFamily ?? "CustomFont";
+  const fontBuffer = await fetchFn(customUrl);
+  await registerFont(fontBuffer, familyName);
+  return true;
+}
+
+export function clearFontBufferCache(): void {
+  fontBufferCache.clear();
+}

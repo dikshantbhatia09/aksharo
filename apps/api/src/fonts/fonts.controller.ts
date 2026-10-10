@@ -1,4 +1,5 @@
-import { Body, Controller, Delete, Get, Header, Param, Post, Res, UseGuards } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Header, Param, Post, Res, UploadedFile, UseGuards, UseInterceptors } from "@nestjs/common";
+import { FileInterceptor } from "@nestjs/platform-express";
 import {
   ApiBearerAuth,
   ApiBody,
@@ -43,6 +44,13 @@ import { WorkspaceMemberGuard } from "../workspaces/workspace-member.guard.js";
 
 import type { FontUploadTicket, FontUrls, WorkspaceFontView } from "./fonts.service.js";
 import type { Response } from "express";
+
+export interface UploadedFontFile {
+  readonly buffer: Buffer;
+  readonly originalname?: string;
+  readonly mimetype?: string;
+  readonly size?: number;
+}
 
 /**
  * The bundled catalogue — the same for every workspace, so no `:id` in sight.
@@ -259,6 +267,33 @@ export class WorkspaceFontsController {
     });
     return result;
   }
+
+  @Post("upload")
+  @Roles("editor")
+  @UseInterceptors(FileInterceptor("file"))
+  @ApiOperation({
+    summary: "Upload a custom font file directly",
+    description: "Accepts a TTF, OTF, or WOFF2 font file via multipart/form-data, sanitizes OpenType tables and registers CustomFont.",
+    operationId: "uploadCustomFont",
+  })
+  async upload(
+    @CurrentWorkspace() workspaceId: string,
+    @CurrentUser("userId") userId: string,
+    @UploadedFile() file: UploadedFontFile,
+    @Body("family") family?: string,
+  ) {
+    return this.fonts.uploadDirect(workspaceId, userId, file, family);
+  }
+
+  @Get("custom")
+  @Roles("viewer")
+  @ApiOperation({
+    summary: "List custom fonts for this workspace",
+    operationId: "listWorkspaceCustomFonts",
+  })
+  async listCustom(@CurrentWorkspace() workspaceId: string) {
+    return this.fonts.listCustomFonts(workspaceId);
+  }
 }
 
 /**
@@ -277,6 +312,33 @@ export class WorkspaceFontsController {
 @Controller("fonts")
 export class FontUploadsController {
   constructor(private readonly fonts: FontsService) {}
+
+  @Post("upload")
+  @Roles("editor")
+  @UseInterceptors(FileInterceptor("file"))
+  @ApiOperation({
+    summary: "Upload a custom font file directly (unscoped form)",
+    description: "Accepts a TTF, OTF, or WOFF2 font file via multipart/form-data, sanitizes OpenType tables and registers CustomFont.",
+    operationId: "uploadCustomFontUnscoped",
+  })
+  async upload(
+    @CurrentWorkspace() workspaceId: string,
+    @CurrentUser("userId") userId: string,
+    @UploadedFile() file: UploadedFontFile,
+    @Body("family") family?: string,
+  ) {
+    return this.fonts.uploadDirect(workspaceId, userId, file, family);
+  }
+
+  @Get("custom")
+  @Roles("viewer")
+  @ApiOperation({
+    summary: "List custom fonts for the active workspace",
+    operationId: "listCustomFonts",
+  })
+  async listCustom(@CurrentWorkspace() workspaceId: string) {
+    return this.fonts.listCustomFonts(workspaceId);
+  }
 
   @Post(":fontId/complete")
   @Roles("editor")

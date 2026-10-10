@@ -172,7 +172,7 @@ export class WebPushChannel implements NotificationChannel, OnModuleInit {
           }),
           ...(topic === undefined ? {} : { Topic: topic }),
         },
-        body,
+        body: new Uint8Array(body),
         redirect: "manual",
         signal: AbortSignal.timeout(PUSH_TIMEOUT_MS),
       });

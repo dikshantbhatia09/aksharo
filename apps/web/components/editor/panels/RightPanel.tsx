@@ -79,6 +79,8 @@ import { StylePreviewCanvas } from "../canvas/StylePreviewCanvas";
 import { helpUrlFor, type HelpSlug } from "@/components/help/help-slug-map";
 import { cn } from "@/lib/utils";
 
+export { TypographyPanel, type TypographyPanelProps } from "../typography-panel";
+
 /**
  * design/09-12: the reference product's four sub-tabs are Text, Templates,
  * Transitions and AI Audio — one fewer than this panel's original six

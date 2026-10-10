@@ -166,6 +166,8 @@ export const TypographySchema = z.object({
   fontFamily: z.string().min(1).max(120),
   /** Subset font id when the family is a workspace upload. */
   fontId: z.string().min(1).max(64).optional(),
+  /** Custom font URL if provided directly (e.g. uploaded S3 or proxy URL). */
+  customFontUrl: z.string().min(1).optional(),
   /** Families tried for glyphs the main family lacks, e.g. Devanagari. */
   fallbacks: z.array(z.string().min(1).max(120)).max(6).optional(),
   weight: z.number().int().min(100).max(900),
@@ -495,6 +497,8 @@ export const StyleDocSchema = z
     parityScore: z.number().min(0).max(1).optional(),
     /** R2 key of the preview clip (CONTRACTS §6). */
     previewKey: z.string().min(1).max(256).optional(),
+    /** Custom font URL if provided directly on the style document. */
+    customFontUrl: z.string().min(1).optional(),
   })
   .check((ctx) => {
     for (const violation of findNamingViolations(ctx.value)) {

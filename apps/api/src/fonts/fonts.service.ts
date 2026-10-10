@@ -16,6 +16,7 @@ import {
   readFontMetrics,
   type FontMetrics,
 } from "./fonts.constants.js";
+import { FontValidatorService } from "./font-validator.service.js";
 import { AppException, PrismaService } from "../common/index.js";
 import {
   DERIVED_STORE,
@@ -112,6 +113,7 @@ export class FontsService {
     private readonly prisma: PrismaService,
     private readonly entitlements: EntitlementService,
     @Inject(DERIVED_STORE) private readonly store: ObjectStore,
+    private readonly validator: FontValidatorService = new FontValidatorService(),
   ) {}
 
   // -------------------------------------------------------------------------
@@ -350,6 +352,16 @@ export class FontsService {
     }
 
     const bytes = new Uint8Array(await this.store.get(font.storageKey));
+    try {
+      this.validator.validate(bytes);
+    } catch (error) {
+      if (error instanceof AppException) {
+        await this.discard(font, error.code);
+        throw error;
+      }
+      throw error;
+    }
+
     let processed: Awaited<ReturnType<typeof processFont>>;
     try {
       processed = await processFont({
@@ -446,6 +458,128 @@ export class FontsService {
     await this.deleteObjects(font);
     await this.prisma.font.delete({ where: { id: font.id } });
     return { deleted: true };
+  }
+
+  /**
+   * Direct font file upload and OpenType registration (Feature 04-07).
+   */
+  async uploadDirect(
+    workspaceId: string,
+    userId: string | undefined,
+    file: { buffer: Buffer; originalname?: string; mimetype?: string; size?: number },
+    customFamily?: string,
+  ): Promise<{
+    id: string;
+    workspaceId: string;
+    family: string;
+    format: string;
+    fontFace: string;
+    fontUrl: string;
+    weight: number;
+    italic: boolean;
+    glyphCount: number;
+    status: "ready";
+  }> {
+    if (!file || !file.buffer) {
+      throw new AppException("fonts/empty", "No font file provided in upload request", HttpStatus.BAD_REQUEST);
+    }
+
+    const validation = this.validator.validate(file.buffer);
+    const family = (customFamily && customFamily.trim().length > 0) ? customFamily.trim() : validation.family;
+    const fontId = ulid();
+    const ext = validation.format === "opentype" ? "otf" : validation.format === "woff2" ? "woff2" : "ttf";
+    const key = fontKey(workspaceId, fontId, ext);
+
+    await this.store.put({
+      key,
+      body: file.buffer,
+      contentType: contentTypeFor(ext),
+      tags: FONT_OBJECT_TAGS,
+    });
+
+    const fontUrl = await this.store.presignGet(key, FONT_DOWNLOAD_URL_TTL_SECONDS * 12 * 7);
+
+    // 1. Create record in CustomFont
+    const customFont = await this.prisma.customFont.create({
+      data: {
+        id: fontId,
+        workspaceId,
+        userId: userId ?? null,
+        family,
+        format: validation.format,
+        fontUrl,
+        fontFace: validation.subfamily,
+      },
+    });
+
+    // 2. Also register in Font table so low-level manifest/render queries can resolve it
+    try {
+      await this.prisma.font.create({
+        data: {
+          id: fontId,
+          workspaceId,
+          family,
+          style: validation.subfamily.toLowerCase(),
+          storageKey: key,
+          sizeBytes: BigInt(file.buffer.length),
+          metrics: {
+            status: "ready",
+            sanitised: true,
+            scripts: ["latn"],
+            wordScripts: ["latn"],
+            weight: validation.weight,
+            italic: validation.italic,
+            numGlyphs: validation.glyphCount,
+            format: validation.format,
+            originalSizeBytes: file.buffer.length,
+            unitsPerEm: validation.unitsPerEm,
+          },
+          servedOnlyToWorkspace: true,
+        },
+      });
+    } catch (err) {
+      this.logger.warn(`Could not sync to Font table: ${String(err)}`);
+    }
+
+    return {
+      id: customFont.id,
+      workspaceId: customFont.workspaceId,
+      family: customFont.family,
+      format: customFont.format,
+      fontFace: customFont.fontFace,
+      fontUrl: customFont.fontUrl,
+      weight: validation.weight,
+      italic: validation.italic,
+      glyphCount: validation.glyphCount,
+      status: "ready",
+    };
+  }
+
+  /**
+   * Lists custom uploaded fonts for a workspace.
+   */
+  async listCustomFonts(workspaceId: string): Promise<Array<{
+    id: string;
+    workspaceId: string;
+    family: string;
+    format: string;
+    fontUrl: string;
+    fontFace: string;
+    createdAt: string;
+  }>> {
+    const fonts = await this.prisma.customFont.findMany({
+      where: { workspaceId },
+      orderBy: { createdAt: "desc" },
+    });
+    return fonts.map((f) => ({
+      id: f.id,
+      workspaceId: f.workspaceId,
+      family: f.family,
+      format: f.format,
+      fontUrl: f.fontUrl,
+      fontFace: f.fontFace,
+      createdAt: f.createdAt.toISOString(),
+    }));
   }
 
   /**

@@ -891,6 +891,7 @@ model Workspace {
   stylePresets           StylePreset[]
   brandKits              BrandKit[]
   fonts                  Font[]
+  customFonts            CustomFont[]
   memoryEntries          MemoryEntry[]
   streakExperiment       StreakExperiment?
   publishEvents          PublishEvent[]
@@ -1577,6 +1578,22 @@ model Font {
 
   @@index([workspaceId])
   @@map("fonts")
+}
+
+model CustomFont {
+  id          String    @id @default(uuid())
+  workspaceId String    @map("workspace_id")
+  userId      String?   @map("user_id")
+  family      String
+  format      String    @default("truetype")
+  fontUrl     String    @map("font_url")
+  fontFace    String    @default("Regular") @map("font_face")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@map("custom_fonts")
 }
 
 /// Personalisation memory. Requires an explicit consent record, expires on a

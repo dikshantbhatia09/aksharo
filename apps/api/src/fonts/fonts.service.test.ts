@@ -96,6 +96,20 @@ function makeService(
       findMany: vi.fn(async () => [stored]),
       count: vi.fn(async () => options.count ?? 0),
     },
+    customFont: {
+      create: vi.fn(async ({ data }: { data: any }) => ({ ...data, createdAt: new Date() })),
+      findMany: vi.fn(async () => [
+        {
+          id: "font-123",
+          workspaceId: WORKSPACE,
+          family: "Anton",
+          format: "truetype",
+          fontUrl: "https://example.com/font.ttf",
+          fontFace: "Regular",
+          createdAt: new Date(),
+        },
+      ]),
+    },
   };
   const entitlements = {
     forWorkspace: vi.fn(async () => entitlement(options.plan ?? {})),
@@ -458,3 +472,21 @@ describe("the attestation record", () => {
     expect(FONT_ATTESTATION.text.toLowerCase()).not.toContain("montaj");
   });
 });
+
+describe("uploadDirect and listCustomFonts", () => {
+  it("rejects an empty upload with fonts/empty", async () => {
+    const { service } = makeService();
+    await expect(
+      service.uploadDirect(WORKSPACE, USER, { buffer: Buffer.alloc(0) }),
+    ).rejects.toMatchObject({ code: "fonts/empty" });
+  });
+
+  it("lists custom fonts for a workspace", async () => {
+    const { service } = makeService();
+    const list = await service.listCustomFonts(WORKSPACE);
+    expect(list).toHaveLength(1);
+    expect(list[0]?.family).toBe("Anton");
+    expect(list[0]?.workspaceId).toBe(WORKSPACE);
+  });
+});
+
