@@ -187,14 +187,14 @@ export class TranscriptsController {
 
   @Get("transcript/export")
   @Roles("viewer")
-  @ApiProduces("application/json", "application/x-subrip", "text/vtt", "text/plain")
+  @ApiProduces("application/json", "application/x-subrip", "text/vtt", "text/plain", "text/x-ssa")
   @ApiOperation({
     summary: "Download the transcript",
     description:
       "**Source time**: cues are where the words were spoken in the uploaded media. Once " +
       "a project has cuts that is no longer the finished video's clock — output-time " +
       "exports are A21's. Cues come from the editing document's captions when it has " +
-      "them, so an export reflects what the user edited.",
+      "them, so an export reflects what the user edited. Supports srt, vtt, ass, json, txt.",
     operationId: "exportProjectTranscript",
   })
   @ApiOkResponse({ description: "The transcript file.", schema: { type: "string" } })
@@ -205,7 +205,7 @@ export class TranscriptsController {
     @Res() response: Response,
   ): Promise<void> {
     const file = await this.transcripts.export({
-      projectId,
+      idOrProjectId: projectId,
       workspaceId: principal.workspaceId,
       format: query.format,
       ...(query.revision === undefined ? {} : { revision: query.revision }),
@@ -319,6 +319,38 @@ export class TranscriptsController {
 @Controller(["transcripts", "api/v1/transcripts"])
 export class TranscriptMutationsController {
   constructor(private readonly transcripts: TranscriptsService) {}
+
+  @Get(":id/export")
+  @Roles("viewer")
+  @ApiProduces("application/json", "application/x-subrip", "text/vtt", "text/plain", "text/x-ssa")
+  @ApiOperation({
+    summary: "Download transcript or subtitles by ID",
+    description:
+      "Exports the transcript by transcript ID or project ID in requested format (srt, vtt, ass, json, txt) in < 150ms.",
+    operationId: "exportTranscriptById",
+  })
+  @ApiOkResponse({ description: "The transcript or subtitle file.", schema: { type: "string" } })
+  async export(
+    @CurrentUser() principal: AuthPrincipal,
+    @Param("id") id: string,
+    @Query() query: ExportQueryDto,
+    @Res() response: Response,
+  ): Promise<void> {
+    const file = await this.transcripts.export({
+      idOrProjectId: id,
+      workspaceId: principal.workspaceId,
+      format: query.format,
+      ...(query.revision === undefined ? {} : { revision: query.revision }),
+      ...(query.dropFillers === undefined ? {} : { dropFillers: query.dropFillers }),
+      ...(query.script === undefined ? {} : { script: query.script }),
+    });
+
+    response
+      .status(HttpStatus.OK)
+      .setHeader("Content-Type", EXPORT_MEDIA_TYPES[query.format])
+      .setHeader("Content-Disposition", `attachment; filename="${file.filename}"`)
+      .send(file.body);
+  }
 
   @Patch(":id/words/:wordId")
   @Roles("editor")

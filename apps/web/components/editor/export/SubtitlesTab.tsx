@@ -16,10 +16,10 @@ const CLIENT_FORMATS: {
   readonly label: string;
   readonly disabled?: boolean;
 }[] = [
-  { value: "srt", label: "SRT" },
-  { value: "vtt", label: "VTT" },
-  { value: "txt", label: "Plain text" },
-  { value: "ass", label: "ASS (not available yet)", disabled: true },
+  { value: "srt", label: "SRT (SubRip for NLE Timelines & YouTube CC)" },
+  { value: "vtt", label: "VTT (WebVTT for HTML5 Web Players)" },
+  { value: "ass", label: "ASS (Advanced SubStation Alpha with Karaoke Tags)" },
+  { value: "txt", label: "Plain text (Raw Transcript)" },
   { value: "md", label: "Markdown (cloud)", disabled: true },
 ];
 
@@ -48,12 +48,12 @@ export function SubtitlesTab({
       readonly label: string;
       readonly disabled?: boolean;
     }[] = [
-      { value: "srt", label: "SRT" },
-      { value: "vtt", label: "VTT" },
-      { value: "txt", label: "Plain text" },
+      { value: "srt", label: "SRT (SubRip for NLE Timelines & YouTube CC)" },
+      { value: "vtt", label: "VTT (WebVTT for HTML5 Web Players)" },
+      { value: "txt", label: "Plain text (Raw Transcript)" },
     ];
     if (assExportable) {
-      list.push({ value: "ass", label: "ASS" });
+      list.push({ value: "ass", label: "ASS (Advanced SubStation Alpha with Karaoke Tags)" });
     }
     list.push({ value: "md", label: "Markdown (cloud)", disabled: true });
     return list;

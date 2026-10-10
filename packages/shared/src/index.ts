@@ -89,4 +89,5 @@ export function isHinglish(languageCode: string | undefined): boolean {
 }
 
 export * from "./transcript-slice.js";
+export * from "./subtitles/serializer.js";
 

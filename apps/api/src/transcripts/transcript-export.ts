@@ -26,7 +26,9 @@ import type { Segment, TranscriptChunk, Word } from "@montaj/edg/schemas";
  * pause — an export must never be empty just because the editor has not run.
  */
 
-export const TRANSCRIPT_EXPORT_FORMATS = ["json", "srt", "vtt", "txt"] as const;
+import { exportToASS, type SubtitleLine } from "@montaj/shared";
+
+export const TRANSCRIPT_EXPORT_FORMATS = ["json", "srt", "vtt", "txt", "ass"] as const;
 export type TranscriptExportFormat = (typeof TRANSCRIPT_EXPORT_FORMATS)[number];
 
 export function isExportFormat(value: unknown): value is TranscriptExportFormat {
@@ -40,6 +42,7 @@ export const EXPORT_MEDIA_TYPES: Readonly<Record<TranscriptExportFormat, string>
   srt: "application/x-subrip; charset=utf-8",
   vtt: "text/vtt; charset=utf-8",
   txt: "text/plain; charset=utf-8",
+  ass: "text/x-ssa; charset=utf-8",
 };
 
 /** One caption's worth of text on the source clock. */
@@ -70,6 +73,8 @@ export interface ExportInput {
    * unaffected.
    */
   readonly script?: string;
+  /** Optional StyleDoc for rich ASS v4+ typography and stroke/color styling. */
+  readonly styleDoc?: unknown;
 }
 
 /** One word's text in `script`, falling back to its primary text `t`. */
@@ -305,9 +310,87 @@ export function toJson(input: ExportInput): string {
   )}\n`;
 }
 
+/**
+ * Advanced SubStation Alpha (ASS v4.00+): rich typography sidecar with embedded
+ * font/stroke styles and karaoke tags ({\k...}) for word-level sync.
+ */
+export function toAss(input: ExportInput): string {
+  const words = liveWords(input);
+  const segments = input.segments ?? [];
+  const lines: SubtitleLine[] = [];
+
+  if (segments.length > 0) {
+    const positions = new Map<string, number>();
+    for (const [index, word] of words.entries()) positions.set(word.wid, index);
+
+    for (const segment of segments) {
+      if (segment.hidden === true) continue;
+      const from = positions.get(segment.startWordId);
+      const to = positions.get(segment.endWordId);
+      if (from === undefined || to === undefined || to < from) continue;
+
+      const run = words.slice(from, to + 1);
+      const override =
+        input.script === undefined
+          ? (segment.textOverrides?.["roman"] ?? segment.textOverrides?.["native"])
+          : segment.textOverrides?.[input.script];
+
+      const lineWords = run.map((w) => ({
+        id: w.wid,
+        text: wordText(w, input.script),
+        startMs: w.s,
+        endMs: w.e,
+        isEmphasized: (w as { isEmphasized?: boolean }).isEmphasized ?? false,
+      }));
+
+      const text = override ?? lineWords.map((w) => w.text).join(" ");
+      if (text.trim() === "") continue;
+
+      lines.push({
+        id: segment.id,
+        startMs: segment.startMs,
+        endMs: Math.max(segment.endMs, segment.startMs + 1),
+        text: text.trim(),
+        words: lineWords,
+        speaker: run[0]?.sp,
+        styleRef: segment.styleRef,
+      });
+    }
+  } else {
+    const cues = toCues(input);
+    let wordIdx = 0;
+    for (const cue of cues) {
+      const cueWords: { id: string; text: string; startMs: number; endMs: number }[] = [];
+      while (wordIdx < words.length) {
+        const w = words[wordIdx];
+        if (!w || w.e > cue.endMs + 50) break;
+        cueWords.push({
+          id: w.wid,
+          text: wordText(w, input.script),
+          startMs: w.s,
+          endMs: w.e,
+        });
+        wordIdx++;
+      }
+      lines.push({
+        startMs: cue.startMs,
+        endMs: cue.endMs,
+        text: cue.text,
+        words: cueWords,
+        speaker: cue.speaker,
+      });
+    }
+  }
+
+  return exportToASS(lines, input.styleDoc, {
+    title: `Aksharo Subtitle Export - ${input.transcriptId}`,
+  });
+}
+
 /** Render one transcript in the requested format. */
 export function renderExport(format: TranscriptExportFormat, input: ExportInput): string {
   if (format === "json") return toJson(input);
+  if (format === "ass") return toAss(input);
   const cues = toCues(input);
   switch (format) {
     case "srt":

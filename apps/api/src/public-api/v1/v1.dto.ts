@@ -44,7 +44,7 @@ export class V1TranscribeAcceptedDto {
   @ApiProperty() status!: string;
 }
 
-export const V1_TRANSCRIPT_FORMATS = ["json", "srt", "vtt"] as const;
+export const V1_TRANSCRIPT_FORMATS = ["json", "srt", "vtt", "ass"] as const;
 const TranscriptQuery = z.object({
   format: z.enum(V1_TRANSCRIPT_FORMATS).default("json"),
 });

@@ -83,6 +83,7 @@ import { EditorCommandPalette } from "@/components/editor/EditorCommandPalette";
 import { EditorMenubar } from "@/components/editor/EditorMenubar";
 import { EditorTopBar } from "@/components/editor/EditorTopBar";
 import { ExportButton } from "@/components/editor/export/ExportButton";
+import { SubtitleExportDropdown } from "@/components/editor/export/SubtitleExportDropdown";
 import {
   buildPresetDoc,
   deleteMyPreset,
@@ -1778,7 +1779,13 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
               {...(hookTitle === undefined ? {} : { hookTitle })}
               {...(brand === undefined ? {} : { brand })}
               footer={
-                <span data-coach-mark="export" className="inline-flex">
+                <span data-coach-mark="export" className="inline-flex items-center gap-2">
+                  <SubtitleExportDropdown
+                    projectId={projectId}
+                    projection={toRenderProjection(state)}
+                    catalogue={catalogue}
+                    script={wordScript === "native" ? "native" : "roman"}
+                  />
                   <ExportButton
                     open={exportOpen}
                     onOpenChange={setExportOpen}

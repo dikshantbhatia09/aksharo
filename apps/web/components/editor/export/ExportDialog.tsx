@@ -39,6 +39,13 @@ import { WatermarkNotice } from "./WatermarkNotice";
 import { LocalModeNotice } from "../local-mode-gate";
 
 import { isBrowserExportEligible } from "@/lib/export";
+import {
+  buildSubtitleCues,
+  downloadFile,
+  renderSubtitleFile,
+  type SubtitleClientFormat,
+} from "@/lib/export/subtitles";
+import type { DisplayScript } from "@montaj/render-core";
 
 export interface ExportDialogProps {
   readonly open: boolean;
@@ -185,18 +192,57 @@ export function ExportDialog(props: ExportDialogProps): React.JSX.Element {
     );
   }, [startExport, video]);
 
-  const onExportSubtitles = React.useCallback(() => {
-    void startExport({
-      kind: "subtitle",
-      subtitle: { formats: subtitles.formats, scripts: subtitles.scripts },
-      mode: "browser",
-    });
-  }, [startExport, subtitles]);
+  const [subtitleDownloaded, setSubtitleDownloaded] = React.useState<string | null>(null);
 
   const currentStyleId = props.projection?.styles?.defaultStyleId;
   const currentStyle =
     currentStyleId && props.catalogue ? props.catalogue.get(currentStyleId) : undefined;
   const assExportable = currentStyle?.assExportable ?? true;
+
+  const onExportSubtitles = React.useCallback(() => {
+    try {
+      const script = (subtitles.scripts[0] as DisplayScript) || "roman";
+      const cues = buildSubtitleCues({
+        projection: props.projection,
+        timemap: null,
+        script,
+        includeWords: true,
+      });
+
+      const MIME_MAP: Record<string, string> = {
+        srt: "application/x-subrip",
+        vtt: "text/vtt",
+        txt: "text/plain",
+        ass: "text/x-ssa",
+        json: "application/json",
+      };
+
+      const downloaded: string[] = [];
+      for (const fmt of subtitles.formats) {
+        if (fmt === "srt" || fmt === "vtt" || fmt === "txt" || fmt === "ass") {
+          const content = renderSubtitleFile(cues, fmt as SubtitleClientFormat, currentStyle);
+          downloadFile(
+            content,
+            `subtitles-${props.projectId || "export"}.${fmt}`,
+            MIME_MAP[fmt] || "text/plain",
+          );
+          downloaded.push(fmt.toUpperCase());
+        }
+      }
+      if (downloaded.length > 0) {
+        setSubtitleDownloaded(`Downloaded ${downloaded.join(", ")} subtitle file(s) instantly.`);
+        return;
+      }
+    } catch {
+      // Fallback to cloud export request if client serialization fails
+    }
+
+    void startExport({
+      kind: "subtitle",
+      subtitle: { formats: subtitles.formats, scripts: subtitles.scripts },
+      mode: "browser",
+    });
+  }, [subtitles, props.projection, props.projectId, currentStyle, startExport]);
 
   return (
     <Dialog
@@ -398,6 +444,12 @@ export function ExportDialog(props: ExportDialogProps): React.JSX.Element {
           <p className="text-accepted mt-4 text-xs" role="status" data-testid="export-done">
             Export finished — {(state.result.sizeBytes / (1024 * 1024)).toFixed(1)} MB,{" "}
             {(state.result.durationMs / 1000).toFixed(1)} s.
+          </p>
+        ) : null}
+
+        {subtitleDownloaded ? (
+          <p className="text-accepted mt-4 text-xs font-medium" role="status" data-testid="subtitles-download-done">
+            {subtitleDownloaded}
           </p>
         ) : null}
 

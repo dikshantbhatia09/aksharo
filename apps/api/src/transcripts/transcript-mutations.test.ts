@@ -283,7 +283,7 @@ describe("Transcript Mutations (08-inline-subtitle-editor)", () => {
 
       expect(result.success).toBe(true);
       expect(result.replacedCount).toBe(1);
-      expect(result.matches[0].after).toBe("bienvenue");
+      expect(result.matches[0]?.after).toBe("bienvenue");
     });
   });
 });

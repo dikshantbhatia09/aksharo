@@ -1,10 +1,13 @@
 /**
- * Subtitle exports (brief §4): SRT/VTT/TXT generated client-side from the
- * projection + timemap. ASS is out for this build — see the note at the
- * bottom of this file — and DOCX/MD go through the cloud endpoint (A21),
- * which this module does not call.
+ * Subtitle exports (Pillar 4 - §10 Subtitle File Exports):
+ * SRT/VTT/TXT/ASS/JSON generated instantly client-side or retrieved from the API.
  */
 
+import {
+  exportToASS,
+  exportToJSON,
+  type SubtitleLine,
+} from "@montaj/shared";
 import {
   resolveWords,
   wordsBetween,
@@ -17,6 +20,12 @@ export interface SubtitleCue {
   readonly startMs: number;
   readonly endMs: number;
   readonly text: string;
+  readonly words?: readonly {
+    readonly id?: string;
+    readonly text: string;
+    readonly startMs: number;
+    readonly endMs: number;
+  }[];
 }
 
 export interface BuildCuesOptions {
@@ -25,6 +34,7 @@ export interface BuildCuesOptions {
   readonly timemap: TimeMap | null;
   readonly script: DisplayScript;
   readonly dropFillers?: boolean;
+  readonly includeWords?: boolean;
 }
 
 /**
@@ -79,7 +89,17 @@ export function buildSubtitleCues(options: BuildCuesOptions): SubtitleCue[] {
       endMs = mapped.outputEndMs;
     }
     if (endMs <= startMs) continue;
-    cues.push({ startMs, endMs, text });
+    if (options.includeWords) {
+      const cueWords = rendered.map((w) => ({
+        id: w.wid,
+        text: w.t,
+        startMs: w.s,
+        endMs: w.e,
+      }));
+      cues.push({ startMs, endMs, text, words: cueWords });
+    } else {
+      cues.push({ startMs, endMs, text });
+    }
   }
   return cues;
 }
@@ -122,11 +142,50 @@ export function toTxt(cues: readonly SubtitleCue[]): string {
   return cues.map((cue) => cue.text).join("\n") + (cues.length > 0 ? "\n" : "");
 }
 
-export type SubtitleClientFormat = "srt" | "vtt" | "txt";
+export type SubtitleClientFormat = "srt" | "vtt" | "txt" | "ass" | "json";
+
+export function toAss(
+  cues: readonly SubtitleCue[],
+  styleDoc?: unknown,
+  options?: { title?: string; canvas?: { width: number; height: number } },
+): string {
+  const lines: SubtitleLine[] = cues.map((cue, index) => ({
+    id: `cue-${index + 1}`,
+    lineIndex: index,
+    startMs: cue.startMs,
+    endMs: cue.endMs,
+    text: cue.text,
+    words: cue.words?.map((w) => ({
+      id: w.id,
+      text: w.text,
+      startMs: w.startMs,
+      endMs: w.endMs,
+    })),
+  }));
+  return exportToASS(lines, styleDoc, options);
+}
+
+export function toJson(cues: readonly SubtitleCue[]): string {
+  const lines: SubtitleLine[] = cues.map((cue, index) => ({
+    id: `cue-${index + 1}`,
+    lineIndex: index,
+    startMs: cue.startMs,
+    endMs: cue.endMs,
+    text: cue.text,
+    words: cue.words?.map((w) => ({
+      id: w.id,
+      text: w.text,
+      startMs: w.startMs,
+      endMs: w.endMs,
+    })),
+  }));
+  return exportToJSON(lines);
+}
 
 export function renderSubtitleFile(
   cues: readonly SubtitleCue[],
   format: SubtitleClientFormat,
+  styleDoc?: unknown,
 ): string {
   switch (format) {
     case "srt":
@@ -135,22 +194,27 @@ export function renderSubtitleFile(
       return toVtt(cues);
     case "txt":
       return toTxt(cues);
+    case "ass":
+      return toAss(cues, styleDoc);
+    case "json":
+      return toJson(cues);
   }
 }
 
-/**
- * ASS export (brief §4: "ASS via `@montaj/ass-exporter` only for
- * `assExportable` styles") is not implemented in this build.
- *
- * `packages/ass-exporter` is still A01's placeholder — `PACKAGE_INFO.implemented`
- * is `false`, `src/index.ts` exports nothing but that flag (checked while
- * reading first per the setup instructions; A18a, which the package README
- * names as the owner, has not landed on `main` as of this branch). There is no
- * ASS writer to call. `assExportableFormats` below always reports `ass` as
- * unavailable so the dialog can grey the option out with an honest reason
- * rather than silently omitting it or throwing at render time; wiring it in is
- * a one-line change once `@montaj/ass-exporter` ships.
- */
+/** Triggers an immediate browser download for generated subtitle content (< 200ms). */
+export function downloadFile(content: string, filename: string, mimeType: string): void {
+  if (typeof window === "undefined") return;
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 export function assExportUnavailableReason(): string {
-  return "ASS export ships with @montaj/ass-exporter (A18a), not yet landed on main.";
+  return "";
 }

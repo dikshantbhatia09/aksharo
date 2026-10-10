@@ -1,4 +1,4 @@
-import { HttpStatus, Injectable, Logger } from "@nestjs/common";
+import { HttpStatus, Injectable, Logger, NotFoundException } from "@nestjs/common";
 
 import { newId, type EdgOp } from "@montaj/edg";
 import type { Segment, TranscriptChunk } from "@montaj/edg/schemas";
@@ -499,7 +499,8 @@ export class TranscriptsService {
    * produced.
    */
   async export(input: {
-    readonly projectId: string;
+    readonly idOrProjectId?: string;
+    readonly projectId?: string;
     readonly workspaceId: string;
     readonly format: TranscriptExportFormat;
     readonly revision?: number;
@@ -507,21 +508,49 @@ export class TranscriptsService {
     /** A22: `roman` | `native` | `en` | `translated`. Omitted keeps the primary script. */
     readonly script?: string;
   }): Promise<{ body: string; filename: string }> {
-    const transcript = await this.transcriptOf(input.projectId, input.workspaceId);
+    const targetId = input.idOrProjectId ?? input.projectId;
+    if (!targetId) {
+      throw new NotFoundException({
+        code: "transcript/not_found",
+        message: "No project or transcript ID provided.",
+      });
+    }
+    const { transcript, project } = await this.resolveTranscript(targetId, input.workspaceId);
     const revision = input.revision ?? transcript.currentRevision;
     const rows = await this.repository.allChunks(transcript.id, revision);
+
+    // Best-effort style resolution for ASS export
+    let styleDoc: unknown = undefined;
+    try {
+      const edgDoc = await this.prisma.edgDocument.findFirst({
+        where: { projectId: project.id },
+      });
+      if (edgDoc?.doc) {
+        const parsed = edgDoc.doc as {
+          styles?: { catalogue?: Record<string, unknown>; defaultStyleId?: string };
+        };
+        const defaultStyleId = parsed.styles?.defaultStyleId;
+        if (defaultStyleId && parsed.styles?.catalogue?.[defaultStyleId]) {
+          styleDoc = parsed.styles.catalogue[defaultStyleId];
+        }
+      }
+    } catch {
+      // Style resolution is best-effort
+    }
 
     const body = renderExport(input.format, {
       transcriptId: transcript.id,
       revision,
       language: transcript.language,
       chunks: rows.map((row) => toChunk(row)),
-      segments: await this.segmentsOf(input.projectId, input.workspaceId),
+      segments: await this.segmentsOf(project.id, input.workspaceId),
       dropFillers: input.dropFillers ?? false,
       ...(input.script === undefined ? {} : { script: input.script }),
+      ...(styleDoc === undefined ? {} : { styleDoc }),
     });
 
-    return { body, filename: `transcript-${transcript.id}.${input.format}` };
+    const safeTitle = (project.title || "transcript").replace(/[^a-zA-Z0-9_-]/g, "_");
+    return { body, filename: `${safeTitle}-${transcript.id}.${input.format}` };
   }
 
   // -------------------------------------------------------------------------

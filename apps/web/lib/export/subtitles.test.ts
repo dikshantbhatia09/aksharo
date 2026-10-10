@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { EdgProjection } from "@montaj/render-core";
 import { buildTimeMap, cutEdit } from "@montaj/timemap";
 
-import { buildSubtitleCues, toSrt, toTxt, toVtt } from "./subtitles";
+import { buildSubtitleCues, renderSubtitleFile, toSrt, toTxt, toVtt } from "./subtitles";
 
 function projection(): EdgProjection {
   return {
@@ -82,5 +82,39 @@ describe("formatters", () => {
   it("formats an empty cue list", () => {
     expect(toTxt([])).toBe("");
     expect(toSrt([])).toBe("");
+  });
+
+  it("formats ASS v4.00+ with karaoke tags and styles", () => {
+    const cuesWithWords = [
+      {
+        startMs: 0,
+        endMs: 1500,
+        text: "hello world",
+        words: [
+          { text: "hello", startMs: 0, endMs: 600 },
+          { text: "world", startMs: 600, endMs: 1500 },
+        ],
+      },
+    ];
+    const ass = renderSubtitleFile(cuesWithWords, "ass", {
+      name: "PunchPop",
+      typography: { fontFamily: "Montserrat", fontSize: 60 },
+    });
+    expect(ass).toContain("[Script Info]");
+    expect(ass).toContain("ScriptType: v4.00+");
+    expect(ass).toContain("[V4+ Styles]");
+    expect(ass).toContain("Style: PunchPop,Montserrat,60");
+    expect(ass).toContain("[Events]");
+    expect(ass).toContain("Dialogue: 0,0:00:00.00,0:00:01.50,PunchPop,,0,0,0,,{\\k60}hello {\\k90}world");
+  });
+
+  it("formats Remotion / Timeline JSON", () => {
+    const jsonStr = renderSubtitleFile(cues, "json");
+    const parsed = JSON.parse(jsonStr);
+    expect(parsed.version).toBe("1.0");
+    expect(parsed.totalLines).toBe(2);
+    expect(parsed.lines[0].text).toBe("hello world");
+    expect(parsed.lines[0].startSec).toBe(0);
+    expect(parsed.lines[0].endSec).toBe(1.5);
   });
 });

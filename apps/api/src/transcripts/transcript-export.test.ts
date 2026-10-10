@@ -49,11 +49,11 @@ const INPUT: ExportInput = {
 };
 
 describe("transcript exports", () => {
-  it("publishes the four formats and their media types", () => {
-    expect(TRANSCRIPT_EXPORT_FORMATS).toEqual(["json", "srt", "vtt", "txt"]);
-    expect(Object.keys(EXPORT_MEDIA_TYPES).sort()).toEqual(["json", "srt", "txt", "vtt"]);
+  it("publishes the five formats and their media types", () => {
+    expect(TRANSCRIPT_EXPORT_FORMATS).toEqual(["json", "srt", "vtt", "txt", "ass"]);
+    expect(Object.keys(EXPORT_MEDIA_TYPES).sort()).toEqual(["ass", "json", "srt", "txt", "vtt"]);
     expect(isExportFormat("srt")).toBe(true);
-    expect(isExportFormat("ass")).toBe(false);
+    expect(isExportFormat("ass")).toBe(true);
   });
 
   it("never includes a tombstoned word, and drops fillers only on request", () => {
@@ -230,6 +230,19 @@ describe("A22: script-aware export", () => {
   it("exports render in the requested script end to end (SRT)", () => {
     const srt = renderExport("srt", { ...SCRIPTED_INPUT, script: "native" });
     expect(srt).toContain("यह video अच्छा");
+  });
+
+  it("exports render in ASS format with script info, styles, and karaoke tags", () => {
+    const ass = renderExport("ass", INPUT);
+    expect(ass).toContain("[Script Info]");
+    expect(ass).toContain("ScriptType: v4.00+");
+    expect(ass).toContain("PlayResX: 1080");
+    expect(ass).toContain("PlayResY: 1920");
+    expect(ass).toContain("[V4+ Styles]");
+    expect(ass).toContain("[Events]");
+    expect(ass).toContain("Dialogue: 0,0:00:00.32,0:00:02.72,Default,,0,0,0,,");
+    expect(ass).toContain("{\\k45}Bhai");
+    expect(ass).toContain("{\\k45}aaj");
   });
 
   describe("segmentSourceTexts", () => {

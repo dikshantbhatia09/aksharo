@@ -32,6 +32,7 @@
     "@montaj/render-core": "workspace:*",
     "@montaj/render-manifest": "workspace:*",
     "@montaj/repurpose-contracts": "workspace:*",
+    "@montaj/shared": "workspace:*",
     "@montaj/timemap": "workspace:*",
     "@montaj/ui": "workspace:^",
     "@sentry/browser": "^10.73.0",

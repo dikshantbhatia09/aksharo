@@ -129,6 +129,56 @@ describe("TranscriptsController and TranscriptMutationsController", () => {
         data: { text: "Aksharo" },
       });
     });
+
+    it("GET projects/:projectId/transcript/export streams subtitle file with attachment headers", async () => {
+      mockTranscriptsService.export = vi.fn().mockResolvedValue({
+        body: "1\n00:00:01,000 --> 00:00:02,000\nHello",
+        filename: "clip.srt",
+      });
+
+      const mockRes: any = {
+        status: vi.fn().mockReturnThis(),
+        setHeader: vi.fn().mockReturnThis(),
+        send: vi.fn(),
+      };
+
+      await transcriptsController.export(mockPrincipal, "proj_123", { format: "srt" } as any, mockRes);
+
+      expect(mockTranscriptsService.export).toHaveBeenCalledWith({
+        idOrProjectId: "proj_123",
+        workspaceId: "ws_1",
+        format: "srt",
+      });
+      expect(mockRes.status).toHaveBeenCalledWith(200);
+      expect(mockRes.setHeader).toHaveBeenCalledWith("Content-Type", "application/x-subrip; charset=utf-8");
+      expect(mockRes.setHeader).toHaveBeenCalledWith("Content-Disposition", 'attachment; filename="clip.srt"');
+      expect(mockRes.send).toHaveBeenCalledWith("1\n00:00:01,000 --> 00:00:02,000\nHello");
+    });
+
+    it("GET :id/export streams ASS subtitle file with attachment headers", async () => {
+      mockTranscriptsService.export = vi.fn().mockResolvedValue({
+        body: "[Script Info]\nTitle: Export\n[Events]\nDialogue: 0,0:00:01.00,0:00:02.00,Default,,0,0,0,,{\\k100}Hello",
+        filename: "clip.ass",
+      });
+
+      const mockRes: any = {
+        status: vi.fn().mockReturnThis(),
+        setHeader: vi.fn().mockReturnThis(),
+        send: vi.fn(),
+      };
+
+      await mutationsController.export(mockPrincipal, "tr_456", { format: "ass" } as any, mockRes);
+
+      expect(mockTranscriptsService.export).toHaveBeenCalledWith({
+        idOrProjectId: "tr_456",
+        workspaceId: "ws_1",
+        format: "ass",
+      });
+      expect(mockRes.status).toHaveBeenCalledWith(200);
+      expect(mockRes.setHeader).toHaveBeenCalledWith("Content-Type", "text/x-ssa; charset=utf-8");
+      expect(mockRes.setHeader).toHaveBeenCalledWith("Content-Disposition", 'attachment; filename="clip.ass"');
+      expect(mockRes.send).toHaveBeenCalledWith(expect.stringContaining("[Script Info]"));
+    });
   });
 });
 
