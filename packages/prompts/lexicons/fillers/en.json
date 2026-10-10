@@ -21,7 +21,11 @@
     { "token": "ok", "scripts": { "roman": "ok" }, "contextRule": "isolated_only", "weight": 0.5 },
     { "token": "i mean", "scripts": { "roman": "i mean" }, "contextRule": "isolated_only", "weight": 0.6 },
     { "token": "you know", "scripts": { "roman": "you know" }, "contextRule": "isolated_only", "weight": 0.6 },
+    { "token": "er", "scripts": { "roman": "er" }, "contextRule": "always", "weight": 0.95 },
+    { "token": "ah", "scripts": { "roman": "ah" }, "contextRule": "always", "weight": 0.92 },
     { "token": "kind of", "scripts": { "roman": "kind of" }, "contextRule": "isolated_only", "weight": 0.55 },
-    { "token": "sort of", "scripts": { "roman": "sort of" }, "contextRule": "isolated_only", "weight": 0.55 }
+    { "token": "sort of", "scripts": { "roman": "sort of" }, "contextRule": "isolated_only", "weight": 0.55 },
+    { "token": "like i mean", "scripts": { "roman": "like i mean" }, "contextRule": "isolated_only", "weight": 0.65 },
+    { "token": "so basically", "scripts": { "roman": "so basically" }, "contextRule": "isolated_only", "weight": 0.65 }
   ]
 }

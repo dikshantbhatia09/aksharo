@@ -51,6 +51,14 @@ export function unrenderableStylesUsed(payload: RenderVideoPayload): string[] {
   return unrenderable;
 }
 
+export {
+  computeCutPunchInKeyframes,
+  DEFAULT_PUNCH_IN_SCALE,
+  isFillerCut,
+  punchInCropRect,
+  type PunchInOptions,
+} from "../render/punch-in.js";
+
 /**
  * Default lower blurred safe-zone Y coordinate (`1450px` on a `1080 × 1920` canvas)
  * for kinetic captions when `layout === 'BLURRED_FIT'` (Pillar 3 §05 §4).

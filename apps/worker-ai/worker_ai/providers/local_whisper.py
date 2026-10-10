@@ -671,6 +671,7 @@ class LocalWhisperProvider(Provider):
                     "word_timestamps": request.word_timestamps,
                     "vad_filter": False,  # the worker has already run VAD (D14)
                     "condition_on_previous_text": False,
+                    "suppress_tokens": [-1],
                     **decode_options,
                 }
                 if whisper_lang:

@@ -175,6 +175,8 @@ class FasterWhisperProvider(LocalWhisperProvider):
             enforced_options["vad_filter"] = self.vad_filter
         if "condition_on_previous_text" not in enforced_options:
             enforced_options["condition_on_previous_text"] = self.condition_on_previous_text
+        if "suppress_tokens" not in enforced_options:
+            enforced_options["suppress_tokens"] = [-1]
 
         updated_request = TranscriptionRequest(
             audio_uri=request.audio_uri,
@@ -187,7 +189,7 @@ class FasterWhisperProvider(LocalWhisperProvider):
 
         result = await super().transcribe(updated_request)
 
-        # Apply hallucination loop and punctuation filter on the returned words
+        # Apply hallucination loop and punctuation filter on the returned words while preserving disfluencies
         filtered_words = filter_hallucination_loops(result.words, max_repeats=3)
 
         return TranscriptionResult(
@@ -205,5 +207,6 @@ class FasterWhisperProvider(LocalWhisperProvider):
                 "conditionOnPreviousText": enforced_options.get(
                     "condition_on_previous_text", self.condition_on_previous_text
                 ),
+                "suppressTokens": enforced_options.get("suppress_tokens", [-1]),
             },
         )

@@ -573,3 +573,60 @@ def test_unknown_preset_falls_back_to_standard() -> None:
         preset="does-not-exist",
     )
     assert autocut_input.preset_config().min_silence_ms == PRESETS["standard"].min_silence_ms
+
+
+def test_phrasal_filler_detection() -> None:
+    """Test detection of multi-word phrasal fillers like 'you know' and 'like I mean'."""
+    words = [
+        word("0:0", 0, 300, "and"),
+        # Clear isolated pause before 'you know'
+        word("0:1", 600, 800, "you"),
+        word("0:2", 820, 1050, "know"),
+        # Pause after
+        word("0:3", 1350, 1700, "this"),
+        word("0:4", 1750, 2100, "works"),
+    ]
+    autocut_input = AutocutInput(
+        words=tuple(words),
+        speech_regions=(SpeechRegion(start_ms=0, end_ms=2100),),
+        duration_ms=5000,
+        preset="tight",
+        min_silence_ms=100_000,
+        lexicon=EN_LEXICON,
+    )
+    result = run_autocut(autocut_input)
+    filler_cuts = [item for item in result.items if item.reason == "filler"]
+    assert len(filler_cuts) >= 1
+    # Check that both 'you' and 'know' word ids were proposed together
+    wids = set(filler_cuts[0].word_ids)
+    assert "0:1" in wids and "0:2" in wids
+    assert filler_cuts[0].start_ms == 600
+    assert filler_cuts[0].end_ms == 1050
+
+
+def test_stutter_repetition_detection() -> None:
+    """Test detection of repeated words ('the the', 'we we') and intra-word stutters."""
+    words = [
+        word("0:0", 0, 200, "the"),
+        word("0:1", 250, 450, "the"),  # immediate repetition
+        word("0:2", 500, 900, "concept"),
+        word("0:3", 1000, 1200, "I-I"),  # intra-word stutter
+        word("0:4", 1250, 1500, "think"),
+    ]
+    autocut_input = AutocutInput(
+        words=tuple(words),
+        speech_regions=(SpeechRegion(start_ms=0, end_ms=1500),),
+        duration_ms=5000,
+        preset="tight",
+        min_silence_ms=100_000,
+        lexicon=EN_LEXICON,
+    )
+    result = run_autocut(autocut_input)
+    filler_cuts = [item for item in result.items if item.reason == "filler"]
+    cut_wids = {wid for item in filler_cuts for wid in item.word_ids}
+    # The first "the" (0:0) should be cut as stutter repetition
+    assert "0:0" in cut_wids
+    # The second "the" (0:1) should be KEPT!
+    assert "0:1" not in cut_wids
+    # The intra-word stutter "I-I" (0:3) should be cut
+    assert "0:3" in cut_wids

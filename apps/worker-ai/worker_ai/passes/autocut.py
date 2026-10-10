@@ -136,6 +136,11 @@ class Lexicon:
         key = _normalise(text)
         return self._index().get(key)
 
+    @property
+    def max_words(self) -> int:
+        """The maximum number of whitespace-separated words in any entry's token."""
+        return max((len(entry.token.split()) for entry in self.entries), default=1)
+
     @cache  # noqa: B019 - one Lexicon per language, process-lifetime
     def _index(self) -> dict[str, LexiconEntry]:
         index: dict[str, LexiconEntry] = {}
@@ -205,6 +210,9 @@ class AutocutInput:
     #: Ranges (ms) covered by a segment with emphasis/textOverrides: silence,
     #: pause and retake candidates overlapping one of these are dropped.
     guarded_ranges: tuple[tuple[int, int], ...] = ()
+    compress_pauses: bool = False
+    lead_decay_ms: int = 120
+    trail_onset_ms: int = 130
 
     def preset_config(self) -> Preset:
         base = PRESETS.get(self.preset, PRESETS["standard"])
@@ -325,8 +333,12 @@ def _detect_pauses(
             continue
         if not _same_region(previous.e, current.s, regions):
             continue  # a gap that straddles a region boundary is already "silence"
-        start = previous.e + padding_ms
-        end = current.s - padding_ms
+        if input_.compress_pauses:
+            start = previous.e + input_.lead_decay_ms
+            end = current.s - input_.trail_onset_ms
+        else:
+            start = previous.e + padding_ms
+            end = current.s - padding_ms
         if end <= start:
             continue
         confidence = _confidence_for_gap(gap, min_silence_ms)
@@ -347,44 +359,153 @@ def _confidence_for_gap(gap_ms: int, min_silence_ms: int) -> float:
     return round(min(0.99, max(0.55, ratio)), 4)
 
 
+def _match_script_phrase(lexicon: Lexicon, phrase_words: list[Word]) -> LexiconEntry | None:
+    if not phrase_words or not all(w.scripts for w in phrase_words):
+        return None
+    keys = phrase_words[0].scripts.keys() if phrase_words[0].scripts else ()
+    for key in keys:
+        if all(w.scripts and key in w.scripts for w in phrase_words):
+            joined = " ".join(w.scripts[key] for w in phrase_words if w.scripts)
+            entry = lexicon.match(joined)
+            if entry is not None:
+                return entry
+    return None
+
+
 def _detect_fillers(
     input_: AutocutInput, lexicon: Lexicon, guarded_word_ids: frozenset[str]
 ) -> list[CutCandidate]:
     words = sorted(input_.words, key=lambda word: word.s)
     candidates: list[CutCandidate] = []
+    max_k = min(lexicon.max_words, 4)
 
-    for index, word in enumerate(words):
-        if word.wid in guarded_word_ids:
-            continue
-        entry = lexicon.match(word.t) or _match_script(lexicon, word)
-        if entry is None:
-            continue
-
-        previous = words[index - 1] if index > 0 else None
-        following = words[index + 1] if index + 1 < len(words) else None
-        gap_before = word.s - previous.e if previous is not None else None
-        gap_after = following.s - word.e if following is not None else None
-        clause_start = previous is None or bool(_SENTENCE_END_RE.search(previous.t))
-
-        if entry.context_rule == "isolated_only":
-            isolated = (
-                clause_start
-                or (gap_before is not None and gap_before >= ISOLATED_PAUSE_MS)
-                or (gap_after is not None and gap_after >= ISOLATED_PAUSE_MS)
-            )
-            if not isolated:
+    index = 0
+    while index < len(words):
+        matched = False
+        for k in range(max_k, 0, -1):
+            if index + k > len(words):
+                continue
+            span_words = words[index : index + k]
+            if any(w.wid in guarded_word_ids for w in span_words):
                 continue
 
-        confidence = entry.weight
-        candidates.append(
-            CutCandidate(
-                start_ms=word.s,
-                end_ms=word.e,
-                reason="filler",
-                confidence=round(confidence, 4),
-                word_ids=(word.wid,),
+            if k > 1:
+                invalid_split = False
+                for step in range(k - 1):
+                    gap = span_words[step + 1].s - span_words[step].e
+                    if gap > 400 or bool(_SENTENCE_END_RE.search(span_words[step].t)):
+                        invalid_split = True
+                        break
+                if invalid_split:
+                    continue
+
+            phrase_text = " ".join(w.t for w in span_words)
+            entry = (
+                lexicon.match(phrase_text)
+                or (lexicon.match(span_words[0].t) if k == 1 else None)
+                or (_match_script(lexicon, span_words[0]) if k == 1 else None)
+                or _match_script_phrase(lexicon, span_words)
             )
-        )
+            if entry is None:
+                continue
+
+            previous = words[index - 1] if index > 0 else None
+            following = words[index + k] if index + k < len(words) else None
+            gap_before = span_words[0].s - previous.e if previous is not None else None
+            gap_after = following.s - span_words[-1].e if following is not None else None
+            clause_start = previous is None or bool(_SENTENCE_END_RE.search(previous.t))
+
+            if entry.context_rule == "isolated_only":
+                isolated = (
+                    clause_start
+                    or (gap_before is not None and gap_before >= ISOLATED_PAUSE_MS)
+                    or (gap_after is not None and gap_after >= ISOLATED_PAUSE_MS)
+                )
+                if not isolated:
+                    continue
+
+            confidence = entry.weight
+            candidates.append(
+                CutCandidate(
+                    start_ms=span_words[0].s,
+                    end_ms=span_words[-1].e,
+                    reason="filler",
+                    confidence=round(confidence, 4),
+                    word_ids=tuple(w.wid for w in span_words),
+                )
+            )
+            index += k
+            matched = True
+            break
+
+        if not matched:
+            index += 1
+
+    return candidates
+
+
+def _detect_stutters(
+    input_: AutocutInput, guarded_word_ids: frozenset[str]
+) -> list[CutCandidate]:
+    """Detect stuttered word repetitions (e.g., 'the the', 'I-I', 'we we')."""
+    words = sorted(input_.words, key=lambda word: word.s)
+    candidates: list[CutCandidate] = []
+
+    index = 0
+    while index < len(words):
+        current = words[index]
+        if current.wid in guarded_word_ids:
+            index += 1
+            continue
+
+        # 1. Immediate consecutive word repetitions (e.g. 'the the', 'we we', 'I I')
+        j = index + 1
+        curr_tokens = _WORD_RE.findall(current.t)
+        curr_token = _normalise(curr_tokens[0]) if curr_tokens else _normalise(current.t)
+        while j < len(words):
+            next_word = words[j]
+            if next_word.wid in guarded_word_ids:
+                break
+            gap = next_word.s - words[j - 1].e
+            if gap > 500 or bool(_SENTENCE_END_RE.search(words[j - 1].t)):
+                break
+            next_tokens = _WORD_RE.findall(next_word.t)
+            next_token = _normalise(next_tokens[0]) if next_tokens else _normalise(next_word.t)
+            if curr_token and next_token == curr_token:
+                j += 1
+            else:
+                break
+
+        if j - index >= 2:
+            stutter_span = words[index : j - 1]
+            candidates.append(
+                CutCandidate(
+                    start_ms=stutter_span[0].s,
+                    end_ms=stutter_span[-1].e,
+                    reason="filler",
+                    confidence=0.96,
+                    word_ids=tuple(w.wid for w in stutter_span),
+                )
+            )
+            index = j - 1
+            continue
+
+        # 2. Intra-word hyphenated stutters (e.g. 'I-I', 'th-the')
+        if "-" in current.t:
+            parts = [p.strip() for p in current.t.split("-") if p.strip()]
+            if len(parts) >= 2 and any(parts[-1].lower().startswith(p.lower()) for p in parts[:-1]):
+                candidates.append(
+                    CutCandidate(
+                        start_ms=current.s,
+                        end_ms=current.e,
+                        reason="filler",
+                        confidence=0.92,
+                        word_ids=(current.wid,),
+                    )
+                )
+
+        index += 1
+
     return candidates
 
 
@@ -589,16 +710,17 @@ def run_autocut(input_: AutocutInput) -> AutocutResult:
     silences = _detect_silences(input_, preset.min_silence_ms, padding_ms)
     pauses = _detect_pauses(input_, preset.min_silence_ms, padding_ms)
     fillers = _detect_fillers(input_, lexicon, input_.guarded_word_ids)
+    stutters = _detect_stutters(input_, input_.guarded_word_ids)
     retakes = _detect_retakes(input_)
 
     counts = {
         "silence": len(silences),
         "pause": len(pauses),
-        "filler": len(fillers),
+        "filler": len(fillers) + len(stutters),
         "retake": len(retakes),
     }
 
-    all_candidates = [*silences, *pauses, *fillers, *retakes]
+    all_candidates = [*silences, *pauses, *fillers, *stutters, *retakes]
     all_candidates = [
         c for c in all_candidates if 0 <= c.start_ms < c.end_ms <= max(input_.duration_ms, c.end_ms)
     ]

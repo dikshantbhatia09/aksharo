@@ -92,6 +92,8 @@ export const ProjectedWordSchema = z.object({
   scripts: z.record(z.string(), z.string()).optional(),
 });
 
+export type ProjectedWord = z.infer<typeof ProjectedWordSchema>;
+
 const HexColourSchema = z.string().regex(/^#[0-9a-fA-F]{6}$/);
 
 /**

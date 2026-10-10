@@ -47,6 +47,7 @@ import {
 import { assertPartnerGrantForTrack, type VerifyPartnerGrant } from "./partner-grant.js";
 import { createRasterPool, defaultPoolSize, type RasterPool } from "./pool.js";
 import { buildRenderTimeMap, parseStyleCatalogue, toEdgProjection } from "./projection.js";
+import { computeCutPunchInKeyframes } from "./punch-in.js";
 import { watermarkCommandFor } from "./watermark.js";
 import { speechRangesFromWords, type MusicMixCue, type SfxMixCue } from "../ffmpeg/audio-mix.js";
 import { runEncode } from "../ffmpeg/encode.js";
@@ -268,8 +269,12 @@ export async function renderVideo(
     const outputPath = join(scratch, `export.${manifest.output.container}`);
     // B20: accepted zoom/reframe curves, decoded and remapped onto the output
     // clock the same way the browser exporter does (`outputCropKeyframesFromTracks`
-    // is the one shared implementation both call).
-    const cropKeyframes = outputCropKeyframesFromTracks(manifest.timemap.keyframes ?? [], timemap);
+    const manualCropKeyframes = outputCropKeyframesFromTracks(manifest.timemap.keyframes ?? [], timemap);
+    const punchInKeyframes =
+      manualCropKeyframes.length === 0
+        ? computeCutPunchInKeyframes(manifest, timemap, payload.projection.words)
+        : [];
+    const cropKeyframes = manualCropKeyframes.length > 0 ? manualCropKeyframes : punchInKeyframes;
     const plan = buildFfmpegArgs({
       manifest,
       sourcePath: manifest.output.kind === "alpha" ? null : sourcePath,

@@ -55,11 +55,29 @@ import {
   type StackedPersonInput,
 } from "./clip-frame.js";
 import { assertKnownClipFields, readAudiogram } from "./clip-payload.js";
+import {
+  buildAudioCrossfadeFiltergraph,
+  buildCrossfadeCutCommand,
+  buildCutCrossfadeFiltergraph,
+  normalizeCutIntervals,
+  retainedIntervalsFromCuts,
+  type AudioCrossfadeOptions,
+  type CutPipelineResult,
+  type TimeInterval,
+} from "../ffmpeg/cut-pipeline.js";
 
 import type { ProbeContainer } from "../ffmpeg/ffprobe.js";
 import type { JobContext, ProcessorOutcome } from "../runtime.js";
 
 export {
+  buildAudioCrossfadeFiltergraph,
+  buildCrossfadeCutCommand,
+  buildCutCrossfadeFiltergraph,
+  normalizeCutIntervals,
+  retainedIntervalsFromCuts,
+  type AudioCrossfadeOptions,
+  type CutPipelineResult,
+  type TimeInterval,
   CANVAS_FIT_CENTER_Y_1080P,
   DEFAULT_PIP_BUBBLE_DIAMETER,
   PRESENTATION_FIT_Y,
