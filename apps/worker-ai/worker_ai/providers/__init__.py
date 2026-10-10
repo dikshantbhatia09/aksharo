@@ -19,6 +19,7 @@ from worker_ai.providers.base import (
     Word,
 )
 from worker_ai.providers.elevenlabs import ElevenLabsScribeProvider
+from worker_ai.providers.faster_whisper import FasterWhisperProvider
 from worker_ai.providers.local_whisper import LocalWhisperProvider
 from worker_ai.providers.mock import MOCK_HINGLISH_SAMPLE, MockProvider
 from worker_ai.providers.registry import (
@@ -37,6 +38,7 @@ __all__ = [
     "DiarisationRequest",
     "DiarisedSpeaker",
     "ElevenLabsScribeProvider",
+    "FasterWhisperProvider",
     "LocalWhisperProvider",
     "MockProvider",
     "Provider",

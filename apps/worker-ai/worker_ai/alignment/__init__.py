@@ -7,11 +7,13 @@ from worker_ai.alignment.ctc import CtcAligner, TokenSpan, forced_align, word_sp
 from worker_ai.alignment.elevenlabs_fa import ElevenLabsForcedAligner
 from worker_ai.alignment.gpu import GpuCtcAligner
 from worker_ai.alignment.indic_wav2vec import IndicWav2VecAligner
+from worker_ai.alignment.mms import MMS_LANGUAGES, MmsAligner, forced_align_words
 from worker_ai.alignment.proportional import ProportionalAligner, distribute
 from worker_ai.alignment.romanisation import to_devanagari
 from worker_ai.alignment.xlsr import XLSR53_LANGUAGES, Xlsr53Aligner
 
 __all__ = [
+    "MMS_LANGUAGES",
     "XLSR53_LANGUAGES",
     "Aligner",
     "AlignerRegistry",
@@ -20,11 +22,13 @@ __all__ = [
     "ElevenLabsForcedAligner",
     "GpuCtcAligner",
     "IndicWav2VecAligner",
+    "MmsAligner",
     "ProportionalAligner",
     "TokenSpan",
     "Xlsr53Aligner",
     "distribute",
     "forced_align",
+    "forced_align_words",
     "to_devanagari",
     "word_spans",
 ]

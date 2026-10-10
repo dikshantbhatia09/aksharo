@@ -43,9 +43,9 @@ import tempfile
 import time
 from collections.abc import Callable, Iterable
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Final, Protocol
 
-from worker_ai.highlights.text import sanitize_transcript_text
+from worker_ai.highlights.text import filter_hallucination_loops, sanitize_transcript_text
 from worker_ai.languages import whisper_language
 from worker_ai.logging_setup import get_logger
 from worker_ai.providers.base import (
@@ -211,7 +211,7 @@ def words_from_segments(segments: Iterable[Any], offset_ms: int) -> tuple[Word, 
                         t=text,
                     )
                 )
-    return tuple(words)
+    return tuple(filter_hallucination_loops(words))
 
 
 def _prepare_cleaned_audio(audio_uri: str) -> tuple[str, bool]:
@@ -670,6 +670,7 @@ class LocalWhisperProvider(Provider):
                     "beam_size": self.beam_size,
                     "word_timestamps": request.word_timestamps,
                     "vad_filter": False,  # the worker has already run VAD (D14)
+                    "condition_on_previous_text": False,
                     **decode_options,
                 }
                 if whisper_lang:

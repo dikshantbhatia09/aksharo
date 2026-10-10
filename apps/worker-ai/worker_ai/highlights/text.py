@@ -14,7 +14,7 @@ from __future__ import annotations
 import re
 import unicodedata
 from collections.abc import Sequence
-from typing import Final
+from typing import Any, Final
 
 __all__ = [
     "EXCERPT_MAX_CHARS",
@@ -24,8 +24,11 @@ __all__ = [
     "ends_clause",
     "ends_sentence",
     "ends_sentence_before",
+    "filter_hallucinated_tokens",
+    "filter_hallucination_loops",
     "is_exclamation",
     "is_latin_capitalised",
+    "is_punctuation_hallucination",
     "is_question",
     "is_speech",
     "make_excerpt",
@@ -294,11 +297,10 @@ def sanitize_numerals(text: str) -> str:
                 shortened = digits[:-6]
                 if shortened:
                     return f"{shortened} {match.group(2)}"
-        elif scale == "trillion":
-            if digits.endswith("000000000000"):
-                shortened = digits[:-12]
-                if shortened:
-                    return f"{shortened} {match.group(2)}"
+        elif scale == "trillion" and digits.endswith("000000000000"):
+            shortened = digits[:-12]
+            if shortened:
+                return f"{shortened} {match.group(2)}"
         return match.group(0)
 
     # Match numbers with commas followed by billion/million/trillion
@@ -350,4 +352,94 @@ def sanitize_ai_terms(text: str) -> str:
 def sanitize_transcript_text(text: str) -> str:
     """Combined numeral and domain term sanitization for transcripts and subtitles."""
     return sanitize_ai_terms(sanitize_numerals(text))
+
+
+def is_punctuation_hallucination(text: str) -> bool:
+    """True when a token has no speech characters (letters or digits in any script).
+
+    Whisper on muffled audio or background noise frequently emits loops of
+    punctuation tokens such as '...', '..', '.', '???', '---', ',,,'.
+    """
+    stripped = text.strip()
+    if not stripped:
+        return True
+    return not any(unicodedata.category(char)[0] in ("L", "N") for char in stripped)
+
+
+def _item_text(item: Any) -> str:
+    return str(item.t if hasattr(item, "t") else item)
+
+
+def filter_hallucination_loops(words: Sequence[Any], max_repeats: int = 3) -> tuple[Any, ...]:
+    """Filter out Whisper hallucination loops (repeated tokens > 3 times, punctuation loops).
+
+    Handles both sequences of `Word` objects and string tokens.
+    """
+    if not words:
+        return ()
+
+    cleaned: list[Any] = []
+    consecutive_count = 0
+    last_normalized = ""
+
+    for item in words:
+        text = _item_text(item)
+        # 1. Filter out isolated punctuation hallucinations (e.g. '...', '???', '---')
+        if is_punctuation_hallucination(text):
+            continue
+
+        normalized = normalise(text)
+        if normalized and normalized == last_normalized:
+            consecutive_count += 1
+            if consecutive_count > max_repeats:
+                # Truncate runaway repetition loop
+                continue
+        else:
+            consecutive_count = 1
+            last_normalized = normalized
+
+        cleaned.append(item)
+
+    # 2. Filter 2-gram or 3-gram phrase loops (e.g. "thank you thank you thank you thank you")
+    if len(cleaned) >= 6:
+        filtered: list[Any] = []
+        i = 0
+        n = len(cleaned)
+        while i < n:
+            # Check 2-word loop
+            if i + 4 <= n:
+                w1 = normalise(_item_text(cleaned[i]))
+                w2 = normalise(_item_text(cleaned[i + 1]))
+                w3 = normalise(_item_text(cleaned[i + 2]))
+                w4 = normalise(_item_text(cleaned[i + 3]))
+                if w1 and w2 and (w1, w2) == (w3, w4):
+                    # Found 2-gram repeat cycle
+                    cycle_len = 2
+                    repeat_count = 1
+                    j = i + cycle_len
+                    while j + cycle_len <= n:
+                        next_cycle = tuple(
+                            normalise(_item_text(cleaned[k]))
+                            for k in range(j, j + cycle_len)
+                        )
+                        if next_cycle == (w1, w2):
+                            repeat_count += 1
+                            j += cycle_len
+                        else:
+                            break
+                    if repeat_count > max_repeats:
+                        # Append up to max_repeats cycles and skip the rest
+                        filtered.extend(cleaned[i : i + cycle_len * max_repeats])
+                        i = j
+                        continue
+            filtered.append(cleaned[i])
+            i += 1
+        return tuple(filtered)
+
+    return tuple(cleaned)
+
+
+def filter_hallucinated_tokens(tokens: Sequence[str], max_repeats: int = 3) -> tuple[str, ...]:
+    """Filter string tokens removing punctuation hallucinations and token repetition loops."""
+    return filter_hallucination_loops(tokens, max_repeats=max_repeats)
 

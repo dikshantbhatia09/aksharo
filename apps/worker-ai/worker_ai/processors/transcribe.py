@@ -57,6 +57,7 @@ from worker_ai.chunking import ChunkPlanEntry, plan_chunks
 from worker_ai.diarisation.base import DiarisationUnavailableError
 from worker_ai.diarisation.mapping import assign_speakers, speaker_ids
 from worker_ai.diarisation.pyannote import PYANNOTE_ATTRIBUTION, PyannoteCommunityDiariser
+from worker_ai.highlights.text import filter_hallucination_loops
 from worker_ai.hints import prepare_hints
 from worker_ai.languages import base_tag, is_code_mix_tag
 from worker_ai.lid import (
@@ -1005,6 +1006,18 @@ async def _align_results(
     await context.progress(90, message="aligning with " + aligner.name)
     aligned: list[TranscriptionResult] = []
     for result in results:
+        if result.words:
+            cleaned_words = tuple(filter_hallucination_loops(result.words))
+            if len(cleaned_words) != len(result.words):
+                result = TranscriptionResult(
+                    words=cleaned_words,
+                    language=result.language,
+                    language_confidence=result.language_confidence,
+                    usage=result.usage,
+                    segments=result.segments,
+                    submissions=result.submissions,
+                    raw=result.raw,
+                )
         if result.words or not result.segments:
             aligned.append(result)
             continue
