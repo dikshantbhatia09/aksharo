@@ -43,15 +43,19 @@ export const trimClipSchema = z
     endMs: z.number().finite().optional(),
     isManualOverride: z.boolean().optional(),
     bypassSnap: z.boolean().optional(),
+    musicTrackId: z.string().nullable().optional(),
+    musicVolume: z.number().min(0).max(1).optional(),
   })
   .refine(
     (val) =>
       (val.startSec !== undefined && val.endSec !== undefined) ||
       (val.manualStartSec !== undefined && val.manualEndSec !== undefined) ||
-      (val.startMs !== undefined && val.endMs !== undefined),
+      (val.startMs !== undefined && val.endMs !== undefined) ||
+      val.musicTrackId !== undefined ||
+      val.musicVolume !== undefined,
     {
       message:
-        "Provide startSec & endSec, manualStartSec & manualEndSec, or startMs & endMs.",
+        "Provide startSec & endSec, manualStartSec & manualEndSec, startMs & endMs, or musicTrackId/musicVolume.",
     },
   );
 export class TrimClipDto extends zodDto(trimClipSchema) {}

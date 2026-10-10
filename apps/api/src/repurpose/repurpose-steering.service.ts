@@ -453,11 +453,11 @@ export class RepurposeSteeringService {
     const startSec =
       input.startSec ??
       input.manualStartSec ??
-      (input.startMs === undefined ? Number.NaN : input.startMs / 1000);
+      (input.startMs === undefined ? candidate.startMs / 1000 : input.startMs / 1000);
     const endSec =
       input.endSec ??
       input.manualEndSec ??
-      (input.endMs === undefined ? Number.NaN : input.endMs / 1000);
+      (input.endMs === undefined ? candidate.endMs / 1000 : input.endMs / 1000);
 
     if (
       !Number.isFinite(startSec) ||
@@ -510,6 +510,16 @@ export class RepurposeSteeringService {
     const slicedWords = sliceTranscriptWords(timedWords, finalStartSec, finalEndSec);
     const slicedLines = sliceTranscriptLines(timedWords, finalStartSec, finalEndSec);
     const resolvedClipId = steeringResult.clip?.id ?? clipId;
+
+    if (resolvedClipId && (input.musicTrackId !== undefined || input.musicVolume !== undefined)) {
+      const musicData: Record<string, unknown> = {};
+      if (input.musicTrackId !== undefined) musicData.musicTrackId = input.musicTrackId;
+      if (input.musicVolume !== undefined) musicData.musicVolume = input.musicVolume;
+      await this.prisma.repurposeClip.update({
+        where: { id: resolvedClipId },
+        data: musicData,
+      });
+    }
 
     return {
       clipId: resolvedClipId,

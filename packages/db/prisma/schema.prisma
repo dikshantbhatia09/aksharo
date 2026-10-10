@@ -122,10 +122,13 @@ model Clip {
   isManualOverride Boolean  @default(false)
   manualStartSec   Float?
   manualEndSec     Float?
+  musicTrackId     String?
+  musicVolume      Float?   @default(0.15)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
   project          Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  musicTrack       MusicTrack? @relation(fields: [musicTrackId], references: [id], onDelete: SetNull)
 
   @@index([projectId])
 }
@@ -418,5 +421,24 @@ model PodcastEpisode {
   createdAt    DateTime     @default(now())
 
   show         PodcastShow  @relation(fields: [showId], references: [id], onDelete: Cascade)
+}
+
+model MusicTrack {
+  id           String      @id @default(uuid())
+  title        String
+  artist       String      @default("Aksharo Originals")
+  mood         String      // ENERGETIC, CHILL, DRAMATIC, CORPORATE, INSPIRATIONAL, MYSTERIOUS
+  tempo        String      // SLOW, MEDIUM, FAST
+  bpm          Int?
+  durationSec  Float
+  previewUri   String      // CDN 128kbps MP3
+  masterUri    String      // CDN 320kbps WAV
+  waveformJson String?     // JSON peaks for UI player
+  isPublic     Boolean     @default(true)
+  createdAt    DateTime    @default(now())
+
+  clips        Clip[]
+
+  @@map("music_tracks")
 }
 

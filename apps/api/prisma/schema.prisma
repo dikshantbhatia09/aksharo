@@ -4030,12 +4030,16 @@ model RepurposeClip {
   isManualOverride    Boolean          @default(false) @map("is_manual_override")
   manualStartSec      Float?           @map("manual_start_sec")
   manualEndSec        Float?           @map("manual_end_sec")
+  /// Royalty-free background music bed (Pillar 5 §04).
+  musicTrackId        String?          @map("music_track_id")
+  musicVolume         Float?           @default(0.15) @map("music_volume")
   createdAt           DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt           DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   run            RepurposeRun      @relation(fields: [runId], references: [id], onDelete: Cascade)
   candidate      ClipCandidate     @relation(fields: [candidateId], references: [id], onDelete: Cascade)
   mezzanineJob   Job?              @relation(fields: [mezzanineJobId], references: [id], onDelete: SetNull)
+  musicTrack     MusicTrack?       @relation(fields: [musicTrackId], references: [id], onDelete: SetNull)
   variants       ClipVariant[]
   publishTargets PublishTarget[]
   /// Clip review (2026-10-03): where the clip stands, how it got there, what was said.
@@ -5081,6 +5085,25 @@ model PodcastEpisode {
   @@index([showId])
   @@index([isProcessed])
   @@map("podcast_episodes")
+}
+
+model MusicTrack {
+  id           String          @id @default(uuid())
+  title        String
+  artist       String          @default("Aksharo Originals")
+  mood         String          // ENERGETIC, CHILL, DRAMATIC, CORPORATE, INSPIRATIONAL, MYSTERIOUS
+  tempo        String          // SLOW, MEDIUM, FAST
+  bpm          Int?
+  durationSec  Float           @map("duration_sec")
+  previewUri   String          @map("preview_uri")
+  masterUri    String          @map("master_uri")
+  waveformJson String?         @map("waveform_json")
+  isPublic     Boolean         @default(true) @map("is_public")
+  createdAt    DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  repurposeClips RepurposeClip[]
+
+  @@map("music_tracks")
 }
 
 

@@ -101,6 +101,7 @@ import {
 } from "@/components/editor/rail/editor-broll";
 import { EditorRail, type EditorRailTab } from "@/components/editor/rail/EditorRail";
 import { LibraryPanel } from "@/components/editor/rail/LibraryPanel";
+import { MusicPickerDrawer } from "@/components/editor/music-picker-drawer";
 import { RetranscribeDialog } from "@/components/editor/RetranscribeDialog";
 import { ShareDialog } from "@/components/editor/ShareDialog";
 import {
@@ -1453,6 +1454,13 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
                             );
                           }}
                           onSeek={(ms) => playhead.seek(ms)}
+                        />
+                      }
+                      music={
+                        <MusicPickerDrawer
+                          projectId={projectId}
+                          clipId={selectedSegmentId}
+                          appliedVolume={0.15}
                         />
                       }
                     />

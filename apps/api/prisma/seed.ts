@@ -46,6 +46,7 @@ import {
   seedUlid,
   type StyleSource,
 } from "./seed-data.js";
+import { seedMusicTracks } from "./seed-music.js";
 import { loadRepoDotenv } from "../src/config/dotenv.js";
 
 export interface ReferenceSeedResult {
@@ -53,6 +54,7 @@ export interface ReferenceSeedResult {
   readonly styles: number;
   readonly styleSource: StyleSource;
   readonly featureFlags: number;
+  readonly musicTracks?: number;
 }
 
 export interface DemoSeedResult {
@@ -193,11 +195,15 @@ export async function seedReferenceData(prisma: PrismaClient): Promise<Reference
     });
   }
 
+  // --- Royalty-free music library (Pillar 5 §04) -------------------------
+  const musicCount = await seedMusicTracks(prisma);
+
   return {
     plans: PLAN_SEEDS.length,
     styles: styles.length,
     styleSource,
     featureFlags: FEATURE_FLAG_SEEDS.length,
+    musicTracks: musicCount,
   };
 }
 
