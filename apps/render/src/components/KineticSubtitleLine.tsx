@@ -46,10 +46,13 @@ export interface KineticSubtitleLineProps {
   readonly curve?: KineticAnimationCurve;
   readonly fontSize?: number;
   readonly fontFamily?: string;
+  readonly textTransform?: "none" | "uppercase" | "lowercase" | "capitalize";
   readonly baseMargin?: number;
   readonly activeColor?: string;
   readonly inactiveColor?: string;
   readonly glowColor?: string;
+  readonly strokeColor?: string;
+  readonly strokeWidth?: number;
   readonly maxWidthPx?: number;
   readonly placement?: "divider" | "center" | "lower-third" | "top";
   readonly topPx?: number;
@@ -71,6 +74,8 @@ export interface SkiaKineticWordPath {
   readonly isActive: boolean;
   readonly shadowSigma: number;
   readonly shadowColor: string;
+  readonly karaokeProgress?: number;
+  readonly clipRightX?: number;
 }
 
 /**
@@ -135,21 +140,61 @@ export function KineticSubtitleLine(props: KineticSubtitleLineProps): SplitScree
       }
     }
 
+    const textTransform = props.textTransform ?? "none";
+    let displayText = word.text;
+    if (textTransform === "uppercase") {
+      displayText = word.text.toUpperCase();
+    } else if (textTransform === "lowercase") {
+      displayText = word.text.toLowerCase();
+    } else if (textTransform === "capitalize") {
+      displayText = word.text.replace(/(^|\s)(\S)/gu, (_, lead, first) => lead + first.toUpperCase());
+    }
+
     const marginRight = computeWordMargin(fontSize, isActive, baseMargin);
-    const wordColor = isActive ? (word.highlightColor ?? activeColor) : inactiveColor;
+    const isKaraokeFill = curve === "karaoke-fill";
+    const wordColor = isKaraokeFill && (isActive || isPast)
+      ? (word.highlightColor ?? activeColor)
+      : isActive
+        ? (word.highlightColor ?? activeColor)
+        : inactiveColor;
     const textShadow = isActive
       ? `0 0 22px ${glowColor}, 0 2px 4px rgba(0, 0, 0, 0.85)`
       : "0 2px 4px rgba(0, 0, 0, 0.85)";
+
+    let fillProgress = 0;
+    if (isKaraokeFill) {
+      if (isPast) {
+        fillProgress = 1.0;
+      } else if (isActive) {
+        fillProgress = computeKaraokeFillProgress(currentTimeSec, word.startSec, word.endSec);
+      }
+    }
+
+    const karaokeStyle =
+      isKaraokeFill && isActive
+        ? {
+            backgroundImage: `linear-gradient(90deg, ${wordColor} 0%, ${wordColor} ${(fillProgress * 100).toFixed(1)}%, ${inactiveColor} ${(fillProgress * 100).toFixed(1)}%, ${inactiveColor} 100%)`,
+            WebkitBackgroundClip: "text",
+            WebkitTextFillColor: "transparent",
+            backgroundClip: "text",
+          }
+        : isKaraokeFill && isPast
+          ? { color: wordColor }
+          : isKaraokeFill && isUpcoming
+            ? { color: inactiveColor }
+            : {};
 
     return (
       <span
         key={index}
         data-testid="kinetic-word"
         data-word={word.text}
+        data-display-text={displayText}
         data-index={index}
         data-active={isActive ? "true" : "false"}
         data-scale={scale.toFixed(3)}
         data-y-offset={yOffset.toFixed(2)}
+        data-fill-progress={isKaraokeFill ? fillProgress.toFixed(3) : undefined}
         style={{
           position: "relative",
           display: "inline-block",
@@ -160,8 +205,10 @@ export function KineticSubtitleLine(props: KineticSubtitleLineProps): SplitScree
           opacity,
           fontWeight: 800,
           lineHeight: 1.22,
+          textTransform: textTransform !== "none" ? textTransform : undefined,
           transition: "color 33ms ease",
           willChange: "transform, color",
+          ...karaokeStyle,
         }}
       >
         {word.emoji && (
@@ -176,7 +223,7 @@ export function KineticSubtitleLine(props: KineticSubtitleLineProps): SplitScree
             offsetYPx={-(fontSize * 1.15)}
           />
         )}
-        {word.text}
+        {displayText}
       </span>
     );
   });
@@ -227,12 +274,19 @@ export function computeKineticSkiaLayout(
   fontSize = 48,
   fps = 60,
   baseMargin = 8,
+  curve: KineticAnimationCurve = "pop-bounce",
+  textTransform: "none" | "uppercase" | "lowercase" | "capitalize" = "none",
 ): SkiaKineticWordPath[] {
   if (words.length === 0) return [];
 
   // Approximate character width for horizontal layout packing
   const charWidth = fontSize * 0.58;
-  const wordWidths = words.map((w) => w.text.length * charWidth);
+  const wordWidths = words.map((w) => {
+    let t = w.text;
+    if (textTransform === "uppercase") t = w.text.toUpperCase();
+    else if (textTransform === "lowercase") t = w.text.toLowerCase();
+    return t.length * charWidth;
+  });
 
   // Compute margins with dynamic safe clearance
   const margins = words.map((w, index) => {
@@ -265,8 +319,27 @@ export function computeKineticSkiaLayout(
     const shadowSigma = isActive ? fontSize * 0.4 : fontSize * 0.08;
     const shadowColor = isActive ? "#00FFA3" : "rgba(0,0,0,0.85)";
 
+    const isKaraoke = curve === "karaoke-fill";
+    let karaokeProgress: number | undefined;
+    let clipRightX: number | undefined;
+    if (isKaraoke) {
+      karaokeProgress = isPast
+        ? 1.0
+        : isActive
+          ? computeKaraokeFillProgress(currentTimeSec, word.startSec, word.endSec)
+          : 0.0;
+      clipRightX = currentX + width * karaokeProgress;
+    }
+
+    let text = word.text;
+    if (textTransform === "uppercase") text = word.text.toUpperCase();
+    else if (textTransform === "lowercase") text = word.text.toLowerCase();
+    else if (textTransform === "capitalize") {
+      text = word.text.replace(/(^|\s)(\S)/gu, (_, lead, first) => lead + first.toUpperCase());
+    }
+
     paths.push({
-      text: word.text,
+      text,
       index: i,
       x: currentX,
       y: baselineY + yOffset,
@@ -278,6 +351,8 @@ export function computeKineticSkiaLayout(
       isActive,
       shadowSigma,
       shadowColor,
+      karaokeProgress,
+      clipRightX,
     });
 
     currentX += width + margin;

@@ -37,3 +37,20 @@ export const DEFAULT_PICKABLE_STYLE_ID = "punch-pop";
 export function isPickableStyle(id: string): boolean {
   return PICKABLE_STYLE_IDS.includes(id);
 }
+
+export const VIRAL_PRESET_IDS = [
+  "hormozi_neon",
+  "editorial_ghost",
+  "karaoke_cyan",
+  "mrbeast_comic",
+  "neon_pulse",
+] as const;
+
+export type ViralPresetId = (typeof VIRAL_PRESET_IDS)[number];
+
+/** Whether an identifier is a registered popular viral style preset */
+export function isViralPreset(id: string): boolean {
+  return (VIRAL_PRESET_IDS as readonly string[]).includes(id);
+}
+
+export * from "./presets.js";

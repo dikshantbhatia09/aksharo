@@ -241,4 +241,89 @@ describe("KineticSubtitleLine Remotion Component & Kinetic Engine (Pillar 4 §01
       expect(emojiNodes[0]?.props["data-visible"]).toBe("true");
     });
   });
+
+  describe("Karaoke Sweep Shader & TextTransform Normalization (Pillar 4 §06)", () => {
+    it("renders karaoke-fill with progressive text clipping gradient", () => {
+      // At t = 0.7s: "LOOK" is active (interval 0.5s -> 0.9s, progress = (0.7 - 0.5) / 0.4 = 50%)
+      const tree = (
+        <KineticSubtitleLine
+          words={SAMPLE_WORDS}
+          currentTimeSec={0.7}
+          curve="karaoke-fill"
+          activeColor="#00FFA3"
+          inactiveColor="#8E8E93"
+        />
+      );
+
+      const wordNodes = findVNodesByType(tree, "span");
+      const activeWord = wordNodes[2]!;
+      expect(activeWord.props["data-word"]).toBe("LOOK");
+      expect(activeWord.props["data-active"]).toBe("true");
+      expect(activeWord.props["data-fill-progress"]).toBe("0.500");
+
+      // Verify progressive wipe background gradient
+      const bgImage = String(activeWord.props.style?.backgroundImage);
+      expect(bgImage).toContain("linear-gradient(90deg");
+      expect(bgImage).toContain("#00FFA3");
+      expect(bgImage).toContain("50.0%");
+      expect(activeWord.props.style?.WebkitBackgroundClip).toBe("text");
+      expect(activeWord.props.style?.WebkitTextFillColor).toBe("transparent");
+
+      // Word 0 ("DO") is past -> fully active color
+      const pastWord = wordNodes[0]!;
+      expect(pastWord.props["data-fill-progress"]).toBe("1.000");
+      expect(pastWord.props.style?.color).toBe("#00FFA3");
+
+      // Word 3 ("AWAY!") is upcoming -> inactive color
+      const upcomingWord = wordNodes[3]!;
+      expect(upcomingWord.props["data-fill-progress"]).toBe("0.000");
+      expect(upcomingWord.props.style?.color).toBe("#8E8E93");
+    });
+
+    it("normalizes typography textTransform for all-caps viral caption styles", () => {
+      const lowerWords: readonly KineticCaptionWord[] = [
+        { text: "viral", startSec: 0.0, endSec: 0.5 },
+        { text: "captions", startSec: 0.5, endSec: 1.0 },
+      ];
+
+      const tree = (
+        <KineticSubtitleLine
+          words={lowerWords}
+          currentTimeSec={0.2}
+          textTransform="uppercase"
+        />
+      );
+
+      const wordNodes = findVNodesByType(tree, "span");
+      expect(wordNodes[0]?.props["data-display-text"]).toBe("VIRAL");
+      expect(wordNodes[1]?.props["data-display-text"]).toBe("CAPTIONS");
+      expect(wordNodes[0]?.props.style?.textTransform).toBe("uppercase");
+    });
+
+    it("computes Skia clipping boundaries and karaokeProgress in computeKineticSkiaLayout", () => {
+      const paths = computeKineticSkiaLayout(
+        SAMPLE_WORDS,
+        0.7, // 50% into "LOOK" (0.5 - 0.9s)
+        1080,
+        960,
+        48,
+        60,
+        8,
+        "karaoke-fill",
+        "uppercase",
+      );
+
+      expect(paths).toHaveLength(4);
+      const activePath = paths[2]!;
+      expect(activePath.text).toBe("LOOK");
+      expect(activePath.karaokeProgress).toBeCloseTo(0.5, 2);
+      expect(activePath.clipRightX).toBeGreaterThan(activePath.x);
+      expect(activePath.clipRightX).toBeLessThan(activePath.x + activePath.width);
+
+      // Past word has 1.0 progress
+      expect(paths[0]?.karaokeProgress).toBe(1.0);
+      // Upcoming word has 0.0 progress
+      expect(paths[3]?.karaokeProgress).toBe(0.0);
+    });
+  });
 });

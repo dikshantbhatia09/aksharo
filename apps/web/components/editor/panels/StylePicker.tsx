@@ -17,6 +17,7 @@ import type { StyleCategory, StyleDoc } from "@montaj/caption-styles";
 import { type PanelScope, setStyleRef, type SetStyleOp } from "./ops";
 import { type CanvasSize, fitPreview } from "../canvas/stage-fit";
 import { StylePreviewCanvas } from "../canvas/StylePreviewCanvas";
+import { PresetCarousel } from "../preset-carousel";
 
 import { cn } from "@/lib/utils";
 
@@ -152,6 +153,15 @@ export function StylePicker({
             My Presets ({myPresets?.length ?? 0})
           </button>
         </div>
+      ) : null}
+
+      {source === "builtin" ? (
+        <PresetCarousel
+          selectedStyleId={selectedStyleId}
+          scope={scope}
+          onOp={onOp}
+          canvas={canvas}
+        />
       ) : null}
 
       <div className="relative">
