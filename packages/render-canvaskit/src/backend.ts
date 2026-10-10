@@ -230,10 +230,12 @@ export class CanvasKitBackend {
     const scale = options.fontSizePx / shaped.upem;
     const glyphs: number[] = [];
     const positions: number[] = [];
+    const clusters: number[] = [];
     let currentX = 0;
     for (const glyph of shaped.glyphs) {
       glyphs.push(glyph.id);
       positions.push(currentX + glyph.xOffset * scale, glyph.yOffset * scale);
+      clusters.push(glyph.cluster);
       currentX += glyph.xAdvance * scale;
     }
     return {
@@ -241,7 +243,8 @@ export class CanvasKitBackend {
       fontSizePx: options.fontSizePx,
       glyphs,
       positions,
-      advancePx: shaped.advance * scale,
+      clusters,
+      text: options.text,
     };
   }
 
