@@ -460,6 +460,27 @@ export const EmphasisPresetSchema = z.object({
     .optional(),
 });
 
+/**
+ * Dynamic Animated Progress Bars & Timers (Pillar 6 §05).
+ */
+export const ProgressBarTypeSchema = z.enum(["SLIM_LINE", "NEON_GRADIENT", "RADIAL_DIAL"]);
+export const ProgressBarPositionSchema = z.enum(["TOP", "BOTTOM_SAFE", "BELOW_VIDEO"]);
+
+export const ProgressBarSchema = z.object({
+  enabled: z.boolean(),
+  type: ProgressBarTypeSchema.default("SLIM_LINE"),
+  position: ProgressBarPositionSchema.default("BOTTOM_SAFE"),
+  heightPx: z.number().min(1).max(100).default(6),
+  fillColor: z.string().default("#00FFA3"),
+  trackColor: z.string().optional().default("rgba(255, 255, 255, 0.2)"),
+  paddingSafePx: z.number().optional().default(24),
+  glow: z.boolean().optional().default(false),
+});
+
+export type ProgressBarType = z.infer<typeof ProgressBarTypeSchema>;
+export type ProgressBarPosition = z.infer<typeof ProgressBarPositionSchema>;
+export type ProgressBarSettings = z.infer<typeof ProgressBarSchema>;
+
 /** The StyleDoc schema generation, exactly as `EdgHot.meta.schemaVersion` gates the EDG. */
 export const STYLE_DOC_VERSION = 2;
 
@@ -482,6 +503,11 @@ export const StyleDocSchema = z
      * disabled, exactly like a style drawn before this field existed.
      */
     depth3d: Depth3dSchema.optional(),
+    /**
+     * Dynamic animated progress bar and countdown indicator (Pillar 6 §05).
+     * Additive and optional: absent means disabled.
+     */
+    progressBar: ProgressBarSchema.optional(),
     layout: LayoutSchema,
     animation: AnimationSchema,
     emphasisPresets: z.array(EmphasisPresetSchema).max(12),

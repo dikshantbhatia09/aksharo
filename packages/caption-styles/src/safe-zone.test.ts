@@ -3,11 +3,15 @@ import { describe, expect, it } from "vitest";
 import { loadSystemStyles } from "./registry.js";
 import {
   clampBoxToSafeZone,
+  calculateProgressBarPlacement,
   DEFAULT_BOTTOM_CAPTION_Y,
   DEFAULT_BOTTOM_Y_NORMALIZED,
+  DEFAULT_PROGRESS_BAR_SAFE_Y,
+  DEFAULT_PROGRESS_BAR_TOP_Y,
   enforceSafeZoneConstraints,
   getPlatformExclusions,
   getSafeZoneBounds,
+  isProgressBarSafeFromOcclusion,
   isWithinSafeZone,
   MAX_BOTTOM_BASELINE_Y_PX,
   MAX_SAFE_CAPTION_WIDTH_PCT,
@@ -171,4 +175,46 @@ describe("Social Media Safe-Zone & UI Avoidance Engine (Pillar 3 §08)", () => {
     expect(isWithinSafeZone(clampedBottom, "universal")).toBe(true);
     expect(clampedBottom[3]).toBeLessThanOrEqual(1480);
   });
+
+  describe("Animated Progress Bar Safe-Zone & Occlusion Engine (Pillar 6 §05)", () => {
+    it("calculates BOTTOM_SAFE progress bar placement cleanly above TikTok occlusion zone", () => {
+      const placement = calculateProgressBarPlacement({
+        position: "BOTTOM_SAFE",
+        heightPx: 6,
+        canvas: REFERENCE_CANVAS,
+        platform: "tiktok",
+      });
+
+      expect(placement.x).toBe(0);
+      expect(placement.width).toBe(1080);
+      expect(placement.height).toBe(6);
+      expect(placement.y).toBe(DEFAULT_PROGRESS_BAR_SAFE_Y); // 1450
+      expect(placement.y + placement.height).toBeLessThanOrEqual(1480); // Strict TikTok safe limit
+      expect(placement.isOccluded).toBe(false);
+    });
+
+    it("calculates TOP progress bar placement respecting status bar safe margin", () => {
+      const placement = calculateProgressBarPlacement({
+        position: "TOP",
+        heightPx: 8,
+        canvas: REFERENCE_CANVAS,
+        platform: "universal",
+      });
+
+      expect(placement.y).toBe(DEFAULT_PROGRESS_BAR_TOP_Y); // 160
+      expect(placement.isOccluded).toBe(false);
+    });
+
+    it("detects when a progress bar is occluded in social media chrome", () => {
+      // Y = 1550 is inside TikTok's 1480-1920 bottom chrome
+      expect(isProgressBarSafeFromOcclusion(1550, 6, "tiktok", REFERENCE_CANVAS)).toBe(false);
+
+      // Y = 50 is inside TikTok's 0-160 top search/nav chrome
+      expect(isProgressBarSafeFromOcclusion(50, 6, "tiktok", REFERENCE_CANVAS)).toBe(false);
+
+      // Y = 1450 is strictly safe
+      expect(isProgressBarSafeFromOcclusion(1450, 6, "tiktok", REFERENCE_CANVAS)).toBe(true);
+    });
+  });
 });
+

@@ -237,3 +237,84 @@ export function clampBoxToSafeZone(
 
   return [left, top, left + width, top + height];
 }
+
+/** Default safe baseline Y coordinate for bottom progress bars on a 1920 canvas (Pillar 6 §05). */
+export const DEFAULT_PROGRESS_BAR_SAFE_Y = 1450;
+
+/** Default safe top Y coordinate for top progress bars on a 1920 canvas. */
+export const DEFAULT_PROGRESS_BAR_TOP_Y = 160;
+
+export interface ProgressBarPlacementOptions {
+  readonly position?: "TOP" | "BOTTOM_SAFE" | "BELOW_VIDEO";
+  readonly heightPx?: number;
+  readonly canvas?: { readonly width: number; readonly height: number };
+  readonly platform?: SafeZonePlatform;
+  readonly customY?: number;
+}
+
+export interface ProgressBarPlacement {
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+  readonly isOccluded: boolean;
+}
+
+/**
+ * Calculates pixel-precise coordinates for an animated progress bar respecting platform safe zones.
+ * When `position === 'BOTTOM_SAFE'`, clamps to `y = 1450px` on a 1080x1920 canvas (safely above TikTok's 1480px bottom chrome).
+ */
+export function calculateProgressBarPlacement(
+  options: ProgressBarPlacementOptions = {},
+): ProgressBarPlacement {
+  const {
+    position = "BOTTOM_SAFE",
+    heightPx = 6,
+    canvas = REFERENCE_CANVAS,
+    platform = "universal",
+    customY,
+  } = options;
+
+  const bounds = getSafeZoneBounds(platform, canvas);
+  const heightRatio = canvas.height / REFERENCE_CANVAS.height;
+
+  let y: number;
+  if (customY !== undefined) {
+    y = customY;
+  } else if (position === "TOP") {
+    y = Math.round(DEFAULT_PROGRESS_BAR_TOP_Y * heightRatio);
+  } else if (position === "BELOW_VIDEO") {
+    // For 16:9 letterbox in 9:16 vertical canvas, slide/video ends around y = 1264
+    y = Math.round(1264 * heightRatio);
+  } else {
+    // BOTTOM_SAFE: 1450px scaled, strictly clamped so y + heightPx <= bounds.bottom
+    const targetY = Math.round(DEFAULT_PROGRESS_BAR_SAFE_Y * heightRatio);
+    y = Math.min(targetY, bounds.bottom - heightPx);
+  }
+
+  const isOccluded = !isProgressBarSafeFromOcclusion(y, heightPx, platform, canvas);
+
+  return {
+    x: 0,
+    y,
+    width: canvas.width,
+    height: heightPx,
+    isOccluded,
+  };
+}
+
+/**
+ * Validates that a progress bar never renders inside social media bottom or top occlusion zones.
+ */
+export function isProgressBarSafeFromOcclusion(
+  y: number,
+  heightPx: number,
+  platform: SafeZonePlatform = "universal",
+  canvas: { width: number; height: number } = REFERENCE_CANVAS,
+): boolean {
+  const bounds = getSafeZoneBounds(platform, canvas);
+  const topSafe = y >= bounds.top;
+  const bottomSafe = y + heightPx <= bounds.bottom;
+  return topSafe && bottomSafe;
+}
+

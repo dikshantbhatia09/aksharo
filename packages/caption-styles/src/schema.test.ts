@@ -7,6 +7,9 @@ import { STYLES_DIR } from "./registry.js";
 import {
   GradientSchema,
   isGradient,
+  ProgressBarPositionSchema,
+  ProgressBarSchema,
+  ProgressBarTypeSchema,
   resolveColour,
   STYLE_DOC_VERSION,
   StyleDocSchema,
@@ -579,5 +582,72 @@ describe("ColorPalette and highlightAccents (Pillar 4 §05)", () => {
       },
     });
     expect(StyleDocSchema.safeParse(doc).success).toBe(false);
+  });
+});
+
+describe("ProgressBarSchema & Animated Progress Bars (Pillar 6 §05)", () => {
+  it("validates default progress bar configuration", () => {
+    const defaultBar = ProgressBarSchema.parse({ enabled: true });
+    expect(defaultBar.enabled).toBe(true);
+    expect(defaultBar.type).toBe("SLIM_LINE");
+    expect(defaultBar.position).toBe("BOTTOM_SAFE");
+    expect(defaultBar.heightPx).toBe(6);
+    expect(defaultBar.fillColor).toBe("#00FFA3");
+    expect(defaultBar.trackColor).toBe("rgba(255, 255, 255, 0.2)");
+    expect(defaultBar.paddingSafePx).toBe(24);
+    expect(defaultBar.glow).toBe(false);
+  });
+
+  it("validates all supported bar types and positions", () => {
+    expect(ProgressBarTypeSchema.parse("SLIM_LINE")).toBe("SLIM_LINE");
+    expect(ProgressBarTypeSchema.parse("NEON_GRADIENT")).toBe("NEON_GRADIENT");
+    expect(ProgressBarTypeSchema.parse("RADIAL_DIAL")).toBe("RADIAL_DIAL");
+    expect(ProgressBarTypeSchema.safeParse("UNKNOWN_BAR").success).toBe(false);
+
+    expect(ProgressBarPositionSchema.parse("TOP")).toBe("TOP");
+    expect(ProgressBarPositionSchema.parse("BOTTOM_SAFE")).toBe("BOTTOM_SAFE");
+    expect(ProgressBarPositionSchema.parse("BELOW_VIDEO")).toBe("BELOW_VIDEO");
+    expect(ProgressBarPositionSchema.safeParse("MIDDLE_SCREEN").success).toBe(false);
+  });
+
+  it("parses custom neon gradient progress bar embedded in StyleDoc", () => {
+    const doc = draft({
+      progressBar: {
+        enabled: true,
+        type: "NEON_GRADIENT",
+        position: "BOTTOM_SAFE",
+        heightPx: 8,
+        fillColor: "#00FFA3",
+        glow: true,
+      },
+    });
+    const parsed = StyleDocSchema.parse(doc);
+    expect(parsed.progressBar?.enabled).toBe(true);
+    expect(parsed.progressBar?.type).toBe("NEON_GRADIENT");
+    expect(parsed.progressBar?.heightPx).toBe(8);
+    expect(parsed.progressBar?.glow).toBe(true);
+  });
+
+  it("parses radial dial countdown clock in StyleDoc", () => {
+    const doc = draft({
+      progressBar: {
+        enabled: true,
+        type: "RADIAL_DIAL",
+        position: "TOP",
+        heightPx: 12,
+        fillColor: "#00E5FF",
+      },
+    });
+    const parsed = StyleDocSchema.parse(doc);
+    expect(parsed.progressBar?.type).toBe("RADIAL_DIAL");
+    expect(parsed.progressBar?.position).toBe("TOP");
+    expect(parsed.progressBar?.fillColor).toBe("#00E5FF");
+  });
+
+  it("ensures backward-compatibility when progressBar is omitted", () => {
+    const doc = draft();
+    delete doc["progressBar"];
+    const parsed = StyleDocSchema.parse(doc);
+    expect(parsed.progressBar).toBeUndefined();
   });
 });

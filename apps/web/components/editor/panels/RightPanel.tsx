@@ -80,6 +80,7 @@ import { helpUrlFor, type HelpSlug } from "@/components/help/help-slug-map";
 import { cn } from "@/lib/utils";
 
 export { TypographyPanel, type TypographyPanelProps } from "../typography-panel";
+import { VisualElementsPanel } from "../visual-elements-panel";
 
 /**
  * design/09-12: the reference product's four sub-tabs are Text, Templates,
@@ -438,6 +439,29 @@ export function RightPanel({
                 onOp={onOp}
                 {...(base === undefined ? {} : { base })}
               />
+              <Section title="Progress Bar" defaultOpen={false}>
+                <VisualElementsPanel
+                  settings={style.progressBar}
+                  onSettingsChange={(next) => {
+                    onOp(setStyleField(scope, "progressBar", next));
+                  }}
+                  onToggle={(enabled) => {
+                    onOp(setStyleField(scope, "progressBar.enabled", enabled));
+                  }}
+                  onTypeChange={(t) => {
+                    onOp(setStyleField(scope, "progressBar.type", t));
+                  }}
+                  onPositionChange={(p) => {
+                    onOp(setStyleField(scope, "progressBar.position", p));
+                  }}
+                  onColorChange={(c) => {
+                    onOp(setStyleField(scope, "progressBar.fillColor", c));
+                  }}
+                  onHeightChange={(h) => {
+                    onOp(setStyleField(scope, "progressBar.heightPx", h));
+                  }}
+                />
+              </Section>
             </>
           ) : null}
           {tab === "anim" ? (

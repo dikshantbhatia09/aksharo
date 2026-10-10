@@ -59,6 +59,23 @@ export {
   type PunchInOptions,
 } from "../render/punch-in.js";
 
+export {
+  DynamicZoomVideo,
+  buildZoompanFilter,
+  computeZoomTransform,
+  type ZoomKeyframe,
+} from "../components/DynamicZoomVideo.js";
+
+export {
+  AnimatedProgressBar,
+  computeProgress,
+  computeProgressBarWidth,
+  computeRadialDashOffset,
+  computeProgressBarY,
+  validateSafeZoneCompliance,
+  type AnimatedProgressBarProps,
+} from "../components/AnimatedProgressBar.js";
+
 /**
  * Default lower blurred safe-zone Y coordinate (`1450px` on a `1080 × 1920` canvas)
  * for kinetic captions when `layout === 'BLURRED_FIT'` (Pillar 3 §05 §4).

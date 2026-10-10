@@ -126,6 +126,11 @@ declare global {
       readonly div: Record<string, unknown>;
       readonly span: Record<string, unknown>;
       readonly img: Record<string, unknown>;
+      readonly svg: Record<string, unknown>;
+      readonly circle: Record<string, unknown>;
+      readonly rect: Record<string, unknown>;
+      readonly path: Record<string, unknown>;
+      readonly text: Record<string, unknown>;
     }
   }
 }
