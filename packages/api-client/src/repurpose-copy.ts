@@ -32,6 +32,14 @@ import type {
 /** Who wrote the copy: the language model, the rule-based fallback, or a person. */
 export type RepurposeCopySource = "model" | "heuristic" | "person";
 
+export interface PlatformSocialPack {
+  youtube: { title: string; description: string; tags: string[] };
+  instagram: { caption: string; callToAction: string; hashtags: string[] };
+  tiktok: { caption: string; hashtags: string[] };
+  linkedin: { postText: string; hashtags: string[] };
+  twitter: { tweetText: string };
+}
+
 /** `ClipCopySchema` (`@montaj/repurpose-contracts`), as the page reads it. */
 export interface RepurposeClipCopy {
   summary: string;
@@ -51,6 +59,7 @@ export interface RepurposeClipCopy {
     x?: { text: string };
     facebook?: { text: string };
   };
+  socialPack?: PlatformSocialPack;
   source?: RepurposeCopySource;
 }
 

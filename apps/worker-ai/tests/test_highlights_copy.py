@@ -393,3 +393,61 @@ def test_hashtags_are_normalised() -> None:
     assert normalise_hashtags(["#हिंदी", "#पैसा"]) == ["#हिंदी", "#पैसा"]
     assert len(normalise_hashtags([f"#tag{index}" for index in range(20)])) == 6
     assert normalise_hashtags(None) == []
+
+
+# ---------------------------------------------------------------------------
+# Platform-Tailored Social Copywriting Pack (Feature Blueprint §02)
+# ---------------------------------------------------------------------------
+
+
+async def test_social_pack_generated_with_platform_personas_and_constraints() -> None:
+    fake = FakeLlm(copywriter(HINGLISH_COPY))
+
+    copy = only_copy(await with_copy(fake, "hi-Latn", "roman"))
+
+    assert "socialPack" in copy
+    pack = copy["socialPack"]
+
+    # 1. YouTube Shorts: Keyword-dense title (< 70 chars) with #Shorts
+    assert len(pack["youtube"]["title"]) <= 70
+    assert "#shorts" in pack["youtube"]["title"].casefold()
+    assert len(pack["youtube"]["description"]) > 0
+    assert isinstance(pack["youtube"]["tags"], list)
+
+    # 2. Instagram: Pre-fold hook + bullet takeaways + save CTA
+    assert len(pack["instagram"]["caption"]) <= 2_200
+    assert len(pack["instagram"]["callToAction"]) > 0
+    assert len(pack["instagram"]["hashtags"]) >= 3
+
+    # 3. TikTok: Ultra-casual curiosity one-liner with viral community tags
+    assert len(pack["tiktok"]["caption"]) <= 2_200
+    assert isinstance(pack["tiktok"]["hashtags"], list)
+
+    # 4. LinkedIn: High-context professional thought-leadership
+    assert len(pack["linkedin"]["postText"]) <= 3_000
+    assert isinstance(pack["linkedin"]["hashtags"], list)
+
+    # 5. X / Twitter: Contrarian hook tweet strictly <= 280 chars
+    assert utf16_length(pack["twitter"]["tweetText"]) <= 280
+
+
+def test_social_pack_truncates_long_titles_and_tweets() -> None:
+    source = ClipSource(
+        key="w-00002",
+        text="This is an extraordinarily long text designed to test that our copywriting engine "
+        "enforces hard character constraints for YouTube Shorts title under 70 characters and "
+        "X tweets under 280 characters no matter how verbosely the user or model speaks. " * 5,
+        title="Extraordinarily Long Title Exceeding Seventy Characters That Must Be Programmatically Cut",
+    )
+    copy = heuristic_copy(source, resolve_style("en", "auto"))
+    pack = copy["socialPack"]
+
+    # YouTube title must strictly stay under 70 characters
+    assert len(pack["youtube"]["title"]) <= 70
+    assert utf16_length(pack["youtube"]["title"]) <= 70
+    assert "#shorts" in pack["youtube"]["title"].casefold()
+
+    # Twitter / X must strictly stay under 280 characters
+    assert len(pack["twitter"]["tweetText"]) <= 280
+    assert utf16_length(pack["twitter"]["tweetText"]) <= 280
+

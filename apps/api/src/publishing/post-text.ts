@@ -67,30 +67,47 @@ function text(value: unknown): string | null {
 export function readCopy(raw: unknown): ReadCopy {
   const copy = record(raw);
   const platforms = record(copy["platforms"]);
+  const socialPack = record(copy["socialPack"]);
+  const spYoutube = record(socialPack["youtube"]);
+  const spInstagram = record(socialPack["instagram"]);
+  const spTiktok = record(socialPack["tiktok"]);
+  const spLinkedin = record(socialPack["linkedin"]);
+  const spTwitter = record(socialPack["twitter"]);
+
   const youtube = record(platforms["youtube"]);
-  const hashtags = Array.isArray(copy["hashtags"])
-    ? [
-        ...new Set(
-          copy["hashtags"].filter(
-            (tag): tag is string => typeof tag === "string" && HASHTAG.test(tag),
-          ),
-        ),
-      ]
-    : [];
+  const rawTags = Array.isArray(copy["hashtags"])
+    ? copy["hashtags"]
+    : Array.isArray(spInstagram["hashtags"])
+      ? spInstagram["hashtags"]
+      : [];
+  const hashtags = [
+    ...new Set(
+      rawTags.filter((tag): tag is string => typeof tag === "string" && HASHTAG.test(tag)),
+    ),
+  ];
+
+  const ytTitle = text(spYoutube["title"]) ?? text(youtube["title"]);
+  const ytDesc = text(spYoutube["description"]) ?? text(youtube["description"]);
+  const igCaption = text(spInstagram["caption"]) ?? text(record(platforms["instagram"])["caption"]);
+  const ttCaption = text(spTiktok["caption"]) ?? text(record(platforms["tiktok"])["caption"]);
+  const liText = text(spLinkedin["postText"]) ?? text(record(platforms["linkedin"])["text"]);
+  const xText = text(spTwitter["tweetText"]) ?? text(record(platforms["x"])["text"]);
+  const fbText = text(record(platforms["facebook"])["text"]);
+
   return {
-    title: text(copy["title"]),
+    title: text(copy["title"]) ?? ytTitle,
     hook: text(copy["hook"]),
     summary: text(copy["summary"]),
     description: text(copy["description"]),
-    cta: text(copy["cta"]),
+    cta: text(spInstagram["callToAction"]) ?? text(copy["cta"]),
     hashtags,
     platform: {
-      youtube: { title: text(youtube["title"]), description: text(youtube["description"]) },
-      instagram: text(record(platforms["instagram"])["caption"]),
-      tiktok: text(record(platforms["tiktok"])["caption"]),
-      linkedin: text(record(platforms["linkedin"])["text"]),
-      x: text(record(platforms["x"])["text"]),
-      facebook: text(record(platforms["facebook"])["text"]),
+      youtube: { title: ytTitle, description: ytDesc },
+      instagram: igCaption,
+      tiktok: ttCaption,
+      linkedin: liText,
+      x: xText,
+      facebook: fbText,
     },
   };
 }

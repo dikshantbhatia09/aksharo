@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   ClipCandidateSchema,
+  ClipCopySchema,
   ClipLengthPresetSchema,
   ClipVariantViewSchema,
   CreateRunRequestSchema,
@@ -14,11 +15,13 @@ import {
   DurationBinSchema,
   DurationCustomRangeSchema,
   ManualCandidateRequestSchema,
+  PlatformSocialPackSchema,
   RepurposeClipViewSchema,
   RunConfigSchema,
   SAFE_ERROR_CODES,
   StageProgressSchema,
   ViralityDiagnosticSchema,
+  buildPlatformSocialPack,
   resolveDurationBin,
   validateDurationRange,
 } from "./schema.js";
@@ -362,5 +365,74 @@ describe("repurpose@1 fixture contracts", () => {
     expect(validateDurationRange(0, 60)).toBe(false);
     expect(validateDurationRange(75, 45)).toBe(false);
     expect(validateDurationRange(30, 301)).toBe(false);
+  });
+
+  it("validates PlatformSocialPackSchema character limits and compliance", () => {
+    const validPack = {
+      youtube: {
+        title: "How We Scaled to $1M ARR #Shorts",
+        description: "Full breakdown of our bootstrapped SaaS journey.",
+        tags: ["Shorts", "SaaS", "Startups"],
+      },
+      instagram: {
+        caption: "Stop doing this in 2026 🛑\n\nSave this breakdown.",
+        callToAction: "Save this reel for later",
+        hashtags: ["#startups", "#saas"],
+      },
+      tiktok: {
+        caption: "the brutal truth about startups #fyp #techtok",
+        hashtags: ["#fyp", "#techtok"],
+      },
+      linkedin: {
+        postText: "A critical shift in B2B SaaS architecture:\n\n1. Problem\n2. Solution",
+        hashtags: ["#leadership", "#technology"],
+      },
+      twitter: {
+        tweetText: "Most founders get customer acquisition wrong. Here is why:",
+      },
+    };
+
+    expect(PlatformSocialPackSchema.safeParse(validPack).success).toBe(true);
+
+    // YouTube title must be <= 70 chars
+    const tooLongYt = {
+      ...validPack,
+      youtube: { ...validPack.youtube, title: "A".repeat(71) },
+    };
+    expect(PlatformSocialPackSchema.safeParse(tooLongYt).success).toBe(false);
+
+    // Twitter must be <= 280 chars
+    const tooLongTweet = {
+      ...validPack,
+      twitter: { tweetText: "A".repeat(281) },
+    };
+    expect(PlatformSocialPackSchema.safeParse(tooLongTweet).success).toBe(false);
+
+    // ClipCopySchema accepts socialPack
+    const copyWithPack = {
+      summary: "A great clip",
+      hook: "Watch this",
+      cta: "Follow for more",
+      hashtags: ["#tech"],
+      locale: "en",
+      socialPack: validPack,
+    };
+    expect(ClipCopySchema.safeParse(copyWithPack).success).toBe(true);
+
+    // buildPlatformSocialPack builds valid PlatformSocialPack
+    const derived = buildPlatformSocialPack({
+      title: "Very Long Title That Would Normally Exceed YouTube Character Limits For Shorts Title",
+      hook: "Watch this immediately",
+      summary: "Summary of the video clip",
+      description: "Full description of the clip",
+      cta: "Follow for more updates",
+      hashtags: ["#shorts", "#tech", "#ai"],
+    });
+
+    expect(PlatformSocialPackSchema.safeParse(derived).success).toBe(true);
+    expect(derived.youtube.title.length).toBeLessThanOrEqual(70);
+    expect(derived.youtube.title.toLowerCase()).toContain("#shorts");
+    expect(derived.twitter.tweetText.length).toBeLessThanOrEqual(280);
+    expect(derived.instagram.hashtags).toContain("#tech");
   });
 });

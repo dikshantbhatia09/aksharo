@@ -491,6 +491,118 @@ export const PlatformCopySchema = z.strictObject({
   facebook: z.strictObject({ text: z.string().trim().min(1).max(5_000) }).optional(),
 });
 
+export interface PlatformSocialPack {
+  readonly youtube: { readonly title: string; readonly description: string; readonly tags: string[] };
+  readonly instagram: { readonly caption: string; readonly callToAction: string; readonly hashtags: string[] };
+  readonly tiktok: { readonly caption: string; readonly hashtags: string[] };
+  readonly linkedin: { readonly postText: string; readonly hashtags: string[] };
+  readonly twitter: { readonly tweetText: string };
+}
+
+export const PlatformSocialPackSchema = z.strictObject({
+  youtube: z.strictObject({
+    title: z.string().trim().min(1).max(70),
+    description: z.string().trim().max(5_000),
+    tags: z.array(z.string().trim()).max(30),
+  }),
+  instagram: z.strictObject({
+    caption: z.string().trim().min(1).max(2_200),
+    callToAction: z.string().trim().max(500),
+    hashtags: z.array(z.string().trim()).max(30),
+  }),
+  tiktok: z.strictObject({
+    caption: z.string().trim().min(1).max(2_200),
+    hashtags: z.array(z.string().trim()).max(30),
+  }),
+  linkedin: z.strictObject({
+    postText: z.string().trim().min(1).max(3_000),
+    hashtags: z.array(z.string().trim()).max(30),
+  }),
+  twitter: z.strictObject({
+    tweetText: z.string().trim().min(1).max(280),
+  }),
+});
+
+export function buildPlatformSocialPack(copy: {
+  title?: string;
+  hook: string;
+  summary: string;
+  description?: string;
+  cta: string;
+  hashtags: readonly string[];
+  platforms?: {
+    youtube?: { title: string; description: string };
+    instagram?: { caption: string };
+    tiktok?: { caption: string };
+    linkedin?: { text: string };
+    x?: { text: string };
+  };
+  socialPack?: PlatformSocialPack;
+}): PlatformSocialPack {
+  if (copy.socialPack) {
+    return copy.socialPack;
+  }
+  const baseTitle = (copy.title ?? copy.hook ?? "Clip").trim();
+  let ytTitle = copy.platforms?.youtube?.title?.trim() || baseTitle;
+  if (!ytTitle.toLowerCase().includes("#shorts")) {
+    if (ytTitle.length > 61) {
+      ytTitle = ytTitle.slice(0, 61).trimEnd();
+    }
+    ytTitle = `${ytTitle} #Shorts`;
+  } else if (ytTitle.length > 70) {
+    ytTitle = ytTitle.slice(0, 70).trimEnd();
+  }
+  const ytDescription = (
+    copy.platforms?.youtube?.description ||
+    copy.description ||
+    copy.summary ||
+    ""
+  ).trim();
+  const tags = copy.hashtags.map((t) => t.replace(/^#/, "").trim()).filter(Boolean);
+
+  const igCaption = (
+    copy.platforms?.instagram?.caption ||
+    [copy.hook, copy.description ?? copy.summary, copy.cta].filter(Boolean).join("\n\n")
+  ).trim();
+  const igCta = copy.cta || "Save this reel for later";
+
+  const ttCaption = (copy.platforms?.tiktok?.caption || copy.hook || baseTitle).trim();
+
+  const liPost = (
+    copy.platforms?.linkedin?.text ||
+    [copy.summary, copy.description, copy.cta].filter(Boolean).join("\n\n")
+  ).trim();
+
+  let tweetText = (copy.platforms?.x?.text || copy.hook || baseTitle).trim();
+  if (tweetText.length > 280) {
+    tweetText = tweetText.slice(0, 279).trimEnd() + "…";
+  }
+
+  return {
+    youtube: {
+      title: ytTitle,
+      description: ytDescription,
+      tags,
+    },
+    instagram: {
+      caption: igCaption,
+      callToAction: igCta,
+      hashtags: [...copy.hashtags],
+    },
+    tiktok: {
+      caption: ttCaption,
+      hashtags: [...copy.hashtags],
+    },
+    linkedin: {
+      postText: liPost,
+      hashtags: [...copy.hashtags],
+    },
+    twitter: {
+      tweetText,
+    },
+  };
+}
+
 export const ClipCopySchema = z.strictObject({
   summary: z.string().trim().max(2_000),
   /** The on-screen hook for the first seconds: 7 words at most. */
@@ -501,6 +613,7 @@ export const ClipCopySchema = z.strictObject({
   title: z.string().trim().min(1).max(160).optional(),
   description: z.string().trim().max(2_000).optional(),
   platforms: PlatformCopySchema.optional(),
+  socialPack: PlatformSocialPackSchema.optional(),
   source: z.enum(["model", "heuristic", "person"]).optional(),
 });
 

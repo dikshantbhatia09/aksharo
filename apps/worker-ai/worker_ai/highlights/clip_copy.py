@@ -755,6 +755,83 @@ def _ground_text(text: str) -> str:
     return text
 
 
+def _build_social_pack(
+    *,
+    title: str,
+    hook: str,
+    summary: str,
+    description: str,
+    cta: str,
+    tags: Sequence[str],
+    instagram: str,
+    tiktok: str,
+    linkedin: str,
+    x: str,
+    style: CopyStyle,
+) -> dict[str, Any]:
+    clean_title = title.strip()
+    if "#shorts" not in clean_title.casefold():
+        base_title = _cut(clean_title, 61, ellipsis=False).rstrip()
+        yt_title = f"{base_title} #Shorts" if base_title else "Clip #Shorts"
+    else:
+        yt_title = _cut(clean_title, 69, ellipsis=False).rstrip()
+    if utf16_length(yt_title) > 69:
+        yt_title = _cut(yt_title, 69, ellipsis=False)
+
+    yt_desc = _cut(
+        "\n\n".join(part for part in (description or summary, " ".join(tags[:3])) if part),
+        5_000,
+    )
+    raw_tags = [t.lstrip("#") for t in tags if t]
+    if not raw_tags:
+        raw_tags = ["Shorts"]
+
+    # Instagram: Pre-fold hook (< 125 chars) + bullet points + save CTA
+    ig_hook = _cut(hook or clean_title, 120, ellipsis=False)
+    ig_cta = cta or style.cta or "Save this reel for later"
+    ig_body = instagram or "\n\n".join(part for part in (ig_hook, summary, ig_cta) if part)
+    ig_caption = _cut(ig_body or clean_title, 2_200)
+
+    # TikTok: Ultra-casual curiosity one-liner with viral community tags
+    tt_caption = _cut(tiktok or hook or clean_title, 2_200)
+
+    # LinkedIn: High-context professional breakdown (Problem -> Framework -> Question)
+    li_post = _cut(
+        linkedin or "\n\n".join(part for part in (summary, cta) if part) or clean_title, 3_000
+    )
+
+    # Twitter / X: Contrarian hook tweet (< 280 chars)
+    x_post = _x_text(x or hook or clean_title, tags)
+    if utf16_length(x_post) > 280:
+        x_post = _cut(x_post, 280, ellipsis=True)
+    if not x_post:
+        x_post = clean_title or "New clip"
+
+    return {
+        "youtube": {
+            "title": yt_title,
+            "description": yt_desc,
+            "tags": raw_tags[:30],
+        },
+        "instagram": {
+            "caption": ig_caption,
+            "callToAction": _cut(ig_cta, 500),
+            "hashtags": list(tags)[:30],
+        },
+        "tiktok": {
+            "caption": tt_caption,
+            "hashtags": list(tags)[:30],
+        },
+        "linkedin": {
+            "postText": li_post,
+            "hashtags": [t for t in tags if not t.casefold().startswith("#fyp")][:30],
+        },
+        "twitter": {
+            "tweetText": x_post,
+        },
+    }
+
+
 def _compose(
     *,
     style: CopyStyle,
@@ -801,6 +878,19 @@ def _compose(
         "x": {"text": _x_text(x, tags)},
         "facebook": {"text": _cut("\n\n".join(p for p in (description, cta) if p), 5_000)},
     }
+    social_pack = _build_social_pack(
+        title=title,
+        hook=hook,
+        summary=summary,
+        description=description,
+        cta=cta,
+        tags=tags,
+        instagram=instagram,
+        tiktok=tiktok,
+        linkedin=linkedin,
+        x=x,
+        style=style,
+    )
     return {
         "title": title,
         "hook": hook,
@@ -810,6 +900,7 @@ def _compose(
         "hashtags": tags,
         "locale": style.locale,
         "platforms": platforms,
+        "socialPack": social_pack,
         "source": source,
     }
 

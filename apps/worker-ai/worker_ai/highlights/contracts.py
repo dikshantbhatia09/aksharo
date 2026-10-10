@@ -46,6 +46,7 @@ __all__ = [
     "PerformanceLength",
     "PerformanceSignal",
     "PlatformCopy",
+    "PlatformSocialPack",
     "ProposalReason",
     "ScoreBreakdown",
     "StorageObject",
@@ -339,6 +340,40 @@ class PlatformCopy(_Strict):
     facebook: _TextCopy | None = None
 
 
+class _SocialYouTube(_Strict):
+    title: Annotated[str, _trimmed(1, 70)]
+    description: Annotated[str, _trimmed(0, 5_000)]
+    tags: tuple[Annotated[str, _trimmed(1, 100)], ...] = Field(default=(), max_length=30)
+
+
+class _SocialInstagram(_Strict):
+    caption: Annotated[str, _trimmed(1, 2_200)]
+    call_to_action: Annotated[str, _trimmed(0, 500)] = Field(alias="callToAction")
+    hashtags: tuple[Annotated[str, _trimmed(1, 100)], ...] = Field(default=(), max_length=30)
+
+
+class _SocialTikTok(_Strict):
+    caption: Annotated[str, _trimmed(1, 2_200)]
+    hashtags: tuple[Annotated[str, _trimmed(1, 100)], ...] = Field(default=(), max_length=30)
+
+
+class _SocialLinkedIn(_Strict):
+    post_text: Annotated[str, _trimmed(1, 3_000)] = Field(alias="postText")
+    hashtags: tuple[Annotated[str, _trimmed(1, 100)], ...] = Field(default=(), max_length=30)
+
+
+class _SocialTwitter(_Strict):
+    tweet_text: Annotated[str, _trimmed(1, 280)] = Field(alias="tweetText")
+
+
+class PlatformSocialPack(_Strict):
+    youtube: _SocialYouTube
+    instagram: _SocialInstagram
+    tiktok: _SocialTikTok
+    linkedin: _SocialLinkedIn
+    twitter: _SocialTwitter
+
+
 class ClipCopy(_Strict):
     """Mirrors ``ClipCopySchema``: the words that go with a clip when posted."""
 
@@ -350,6 +385,7 @@ class ClipCopy(_Strict):
     title: Annotated[str, _trimmed(1, 160)] | None = None
     description: Annotated[str, _trimmed(0, 2_000)] | None = None
     platforms: PlatformCopy | None = None
+    social_pack: PlatformSocialPack | None = Field(default=None, alias="socialPack")
     source: Literal["model", "heuristic", "person"] | None = None
 
 

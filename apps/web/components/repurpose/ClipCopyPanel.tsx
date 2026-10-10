@@ -14,6 +14,7 @@ import * as React from "react";
 
 import type { RepurposeClipCopy } from "@montaj/api-client";
 
+import { SocialCopyTabs } from "@/components/editor/social-copy-tabs";
 import { CopyTextButton } from "@/components/repurpose/copy-text";
 
 export const CLIP_COPY_COPY = Object.freeze({
@@ -165,6 +166,9 @@ export function ClipCopyPanel({
             </ul>
           </section>
         )}
+        <div className="border-t border-border/60 pt-3">
+          <SocialCopyTabs copy={copy} title={title} />
+        </div>
       </div>
     </details>
   );

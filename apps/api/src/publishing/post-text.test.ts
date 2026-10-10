@@ -97,6 +97,57 @@ describe("defaultPostText with the clip's copy", () => {
     const threads = defaultPostText("threads", words).body;
     expect(hashtagsIn(threads).length).toBeLessThanOrEqual(1);
   });
+
+  it("reads platform-tailored copy from socialPack when present", () => {
+    const packWords = {
+      title: "Base title",
+      copy: {
+        summary: "Base summary",
+        hook: "Base hook",
+        cta: "Base cta",
+        hashtags: ["#money"],
+        locale: "en",
+        socialPack: {
+          youtube: {
+            title: "Scaling to $1M ARR #Shorts",
+            description: "Deep dive into SaaS growth.",
+            tags: ["Shorts", "SaaS"],
+          },
+          instagram: {
+            caption: "Stop doing this in 2026 🛑",
+            callToAction: "Save this reel",
+            hashtags: ["#startups", "#saas"],
+          },
+          tiktok: {
+            caption: "Brutal truth about startups #fyp",
+            hashtags: ["#fyp"],
+          },
+          linkedin: {
+            postText: "Strategic problem -> framework -> question.",
+            hashtags: ["#leadership"],
+          },
+          twitter: {
+            tweetText: "Most founders get customer acquisition wrong.",
+          },
+        },
+      },
+      sourceUrl: null,
+    };
+
+    const parsed = readCopy(packWords.copy);
+    expect(parsed.platform.youtube.title).toBe("Scaling to $1M ARR #Shorts");
+    expect(parsed.platform.instagram).toBe("Stop doing this in 2026 🛑");
+    expect(parsed.platform.tiktok).toBe("Brutal truth about startups #fyp");
+    expect(parsed.platform.linkedin).toBe("Strategic problem -> framework -> question.");
+    expect(parsed.platform.x).toBe("Most founders get customer acquisition wrong.");
+
+    const ytPost = defaultPostText("youtube", packWords);
+    expect(ytPost.title).toBe("Scaling to $1M ARR #Shorts");
+    expect(ytPost.body).toBe("Deep dive into SaaS growth.");
+
+    const tweetPost = defaultPostText("x", packWords);
+    expect(tweetPost.body).toBe("Most founders get customer acquisition wrong.");
+  });
 });
 
 describe("fitting X's 280", () => {
