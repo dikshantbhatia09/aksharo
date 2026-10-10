@@ -103,6 +103,8 @@ export const queryKeys = {
   audioAssetUrl: (assetId: string) => ["audioAssets", assetId, "url"] as const,
   zoomIntegration: (workspaceId: string) => ["ws", workspaceId, "integrations", "zoom"] as const,
   zoomEvents: (workspaceId: string) => ["ws", workspaceId, "integrations", "zoom", "events"] as const,
+  projectShowNotes: (workspaceId: string, projectId: string) =>
+    ["ws", workspaceId, "projects", projectId, "showNotes"] as const,
 } as const;
 
 export type QueryKeys = typeof queryKeys;

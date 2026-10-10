@@ -1866,3 +1866,37 @@ export interface GoogleMeetImportRequest {
   recordingFileId: string;
   title?: string;
 }
+
+export interface YouTubeChapter {
+  timestamp: string;
+  title: string;
+  startSec: number;
+}
+
+export interface NotableQuote {
+  speaker: string;
+  quote: string;
+  timestampSec: number;
+}
+
+export interface ProjectShowNotes {
+  id: string;
+  projectId: string;
+  summary: string;
+  keyTakeaways: string[];
+  notableQuotes: NotableQuote[];
+  youtubeChapters: YouTubeChapter[];
+  createdAt: string;
+}
+
+export interface GenerateShowNotesRequest {
+  forceRegenerate?: boolean;
+}
+
+export interface UpdateShowNotesRequest {
+  summary?: string;
+  keyTakeaways?: string[];
+  notableQuotes?: NotableQuote[];
+  youtubeChapters?: YouTubeChapter[];
+}
+

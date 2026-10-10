@@ -58,6 +58,7 @@ import { ClipReviewModule } from "./repurpose/review/clip-review.module.js";
 import { SchedulerTasksModule } from "./scheduler/scheduler-tasks.module.js";
 import { ShareModule } from "./share/share.module.js";
 import { StockModule } from "./stock/stock.module.js";
+import { ShowNotesModule } from "./show-notes/show-notes.module.js";
 import { StickersModule } from "./stickers/stickers.module.js";
 import { StreakModule } from "./streak/streak.module.js";
 import { StylesModule } from "./styles/styles.module.js";
@@ -255,6 +256,8 @@ import { WorkspacesModule } from "./workspaces/workspaces.module.js";
     RepurposeBundleModule,
     // Pillar 1 §06: Podcast RSS Ingestion & Automated Episode Watcher
     PodcastsModule,
+    // Pillar 7 §04: Automated Show Notes, Chapters & Timestamp Generator
+    ShowNotesModule,
   ],
 })
 export class AppModule {}

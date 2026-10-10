@@ -24,6 +24,7 @@ from worker_ai.processors.studio_sound import (
 from worker_ai.processors.transcribe import process_transcribe
 from worker_ai.processors.translate import process_translate
 from worker_ai.processors.transliterate import process_transliterate
+from worker_ai.processors.show_notes import generate_show_notes
 from worker_ai.processors.vad import process_vad
 
 __all__ = [
@@ -34,6 +35,7 @@ __all__ = [
     "Services",
     "StudioSoundMetrics",
     "StudioSoundPipeline",
+    "generate_show_notes",
     "process_align",
     "process_diarise",
     "process_director",

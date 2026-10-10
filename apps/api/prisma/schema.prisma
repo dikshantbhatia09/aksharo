@@ -1193,6 +1193,7 @@ model Project {
   /// Human-curated or native YouTube chapters (Pillar 1 §01).
   transcriptChapters    TranscriptChapter[]
   brollCues             ProjectBrollCue[]
+  showNotes             ProjectShowNotes?
 
   @@index([workspaceId])
   @@index([lastActivityAt])
@@ -5144,5 +5145,24 @@ model MusicTrack {
 
   @@map("music_tracks")
 }
+
+// -----------------------------------------------------------------------------
+// Automated Show Notes, Chapters & Timestamp Generator (Pillar 7 §04)
+// -----------------------------------------------------------------------------
+
+model ProjectShowNotes {
+  id              String   @id @default(uuid())
+  projectId       String   @unique
+  summary         String
+  keyTakeaways    String[]
+  notableQuotes   Json     @default("[]") @db.JsonB
+  youtubeChapters Json     @default("[]") @db.JsonB
+  createdAt       DateTime @default(now())
+
+  project         Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("project_show_notes")
+}
+
 
 

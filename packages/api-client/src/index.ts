@@ -272,6 +272,11 @@ export type {
   DiagnosticSentiment,
   DiagnosticItem,
   ViralityDiagnostic,
+  ProjectShowNotes,
+  YouTubeChapter,
+  NotableQuote,
+  GenerateShowNotesRequest,
+  UpdateShowNotesRequest,
 } from "./types.js";
 
 /** Build-time identity of this package, used by diagnostics bundles. */

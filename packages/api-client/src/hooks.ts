@@ -147,6 +147,9 @@ import type {
   ZoomOAuthCallbackRequest,
   RiversideStudioImportRequest,
   GoogleMeetImportRequest,
+  ProjectShowNotes,
+  GenerateShowNotesRequest,
+  UpdateShowNotesRequest,
 } from "./types.js";
 import type {
   InfiniteData,
@@ -2731,4 +2734,79 @@ export function useImportGoogleMeet(): UseMutationResult<
     },
   });
 }
+
+export function useProjectShowNotes(
+  projectId: string | null,
+): UseQueryResult<ProjectShowNotes | null, unknown> {
+  const client = useApiClient();
+  const workspaceId = useWorkspaceId();
+  return useQuery({
+    queryKey: workspaceId && projectId ? queryKeys.projectShowNotes(workspaceId, projectId) : ["showNotes", "disabled"],
+    queryFn: () =>
+      workspaceId && projectId
+        ? client.call(endpoints.projects.getShowNotes, { params: { projectId } })
+        : Promise.resolve(null),
+    enabled: Boolean(workspaceId && projectId),
+  });
+}
+
+export function useGenerateProjectShowNotes(
+  projectId: string,
+): UseMutationResult<ProjectShowNotes, unknown, GenerateShowNotesRequest | void> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  const workspaceId = useWorkspaceId();
+  return useMutation({
+    mutationFn: (body?: GenerateShowNotesRequest | void) =>
+      client.call(endpoints.projects.generateShowNotes, {
+        params: { projectId },
+        body: body ?? undefined,
+      }),
+    onSuccess: (data) => {
+      if (workspaceId) {
+        queryClient.setQueryData(queryKeys.projectShowNotes(workspaceId, projectId), data);
+      }
+    },
+  });
+}
+
+export function useUpdateProjectShowNotes(
+  projectId: string,
+): UseMutationResult<ProjectShowNotes, unknown, UpdateShowNotesRequest> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  const workspaceId = useWorkspaceId();
+  return useMutation({
+    mutationFn: (body: UpdateShowNotesRequest) =>
+      client.call(endpoints.projects.updateShowNotes, {
+        params: { projectId },
+        body,
+      }),
+    onSuccess: (data) => {
+      if (workspaceId) {
+        queryClient.setQueryData(queryKeys.projectShowNotes(workspaceId, projectId), data);
+      }
+    },
+  });
+}
+
+export function useDeleteProjectShowNotes(
+  projectId: string,
+): UseMutationResult<{ success: boolean }, unknown, void> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  const workspaceId = useWorkspaceId();
+  return useMutation({
+    mutationFn: () =>
+      client.call(endpoints.projects.deleteShowNotes, {
+        params: { projectId },
+      }),
+    onSuccess: () => {
+      if (workspaceId) {
+        queryClient.setQueryData(queryKeys.projectShowNotes(workspaceId, projectId), null);
+      }
+    },
+  });
+}
+
 

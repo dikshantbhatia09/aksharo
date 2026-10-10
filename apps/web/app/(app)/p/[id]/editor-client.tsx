@@ -106,6 +106,7 @@ import { StickerOverlayCanvas } from "@/components/editor/sticker-overlay-canvas
 import { StickersDrawer } from "@/components/editor/stickers-drawer";
 import type { StickerAssetItem } from "@/components/editor/stickers/use-stickers-library";
 import { StockDrawer } from "@/components/editor/stock-drawer";
+import { ShowNotesDrawer } from "@/components/editor/show-notes-drawer";
 import { RetranscribeDialog } from "@/components/editor/RetranscribeDialog";
 import { ShareDialog } from "@/components/editor/ShareDialog";
 import {
@@ -1537,6 +1538,12 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
                           projectId={projectId}
                           transcriptText={allLiveWords.map((w) => w.t).join(" ")}
                           onInsertSticker={onInsertSticker}
+                        />
+                      }
+                      shownotes={
+                        <ShowNotesDrawer
+                          projectId={projectId}
+                          onSeek={(ms) => playhead.seek(ms)}
                         />
                       }
                     />

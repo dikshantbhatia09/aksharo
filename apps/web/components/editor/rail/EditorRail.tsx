@@ -13,14 +13,14 @@
  * "Captions" renders (`children`), so relocating it here changes nothing
  * about caption-editing behaviour.
  */
-import { Captions, Film, FolderOpen, Images, Music, Smile, Type } from "lucide-react";
+import { BookOpen, Captions, Film, FolderOpen, Images, Music, Smile, Type } from "lucide-react";
 import * as React from "react";
 
 import { cn, Tooltip, TooltipContent, TooltipTrigger } from "@montaj/ui";
 
 import type { LucideIcon } from "lucide-react";
 
-export type EditorRailTab = "captions" | "fonts" | "library" | "broll" | "music" | "stock" | "stickers";
+export type EditorRailTab = "captions" | "fonts" | "library" | "broll" | "music" | "stock" | "stickers" | "shownotes";
 
 const TABS: readonly {
   readonly id: EditorRailTab;
@@ -38,6 +38,8 @@ const TABS: readonly {
   { id: "stock", label: "Stock", icon: Film },
   // Animated stickers, GIFs and reaction memes (Pillar 6 §04).
   { id: "stickers", label: "Stickers", icon: Smile },
+  // AI Show Notes & Timestamps (Pillar 7 §04).
+  { id: "shownotes", label: "Show notes", icon: BookOpen },
 ];
 
 export interface EditorRailProps {
@@ -55,6 +57,8 @@ export interface EditorRailProps {
   readonly stock?: React.ReactNode;
   /** The Stickers & Memes tab's content (Pillar 6 §04); without it the tab is not offered. */
   readonly stickers?: React.ReactNode;
+  /** The Show Notes & Timestamps tab's content (Pillar 7 §04); without it the tab is not offered. */
+  readonly shownotes?: React.ReactNode;
   readonly className?: string;
 }
 
@@ -68,6 +72,7 @@ export function EditorRail({
   music,
   stock,
   stickers,
+  shownotes,
   className,
 }: EditorRailProps): React.JSX.Element {
   const tabs = TABS.filter((tab) => {
@@ -75,6 +80,7 @@ export function EditorRail({
     if (tab.id === "music") return music !== undefined;
     if (tab.id === "stock") return stock !== undefined;
     if (tab.id === "stickers") return stickers !== undefined;
+    if (tab.id === "shownotes") return shownotes !== undefined;
     return true;
   });
   return (
@@ -147,6 +153,11 @@ export function EditorRail({
         {stickers === undefined ? null : (
           <div role="tabpanel" hidden={active !== "stickers"} className="h-full">
             {stickers}
+          </div>
+        )}
+        {shownotes === undefined ? null : (
+          <div role="tabpanel" hidden={active !== "shownotes"} className="h-full">
+            {shownotes}
           </div>
         )}
       </div>

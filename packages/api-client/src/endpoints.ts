@@ -146,6 +146,11 @@ import type {
   ZoomRecordingEventView,
   RiversideStudioImportRequest,
   GoogleMeetImportRequest,
+  ProjectShowNotes,
+  GenerateShowNotesRequest,
+  UpdateShowNotesRequest,
+  YouTubeChapter,
+  NotableQuote,
 } from "./types.js";
 
 /** Auth (A04). */
@@ -629,6 +634,30 @@ export const projectEndpoints = {
     path: "/projects/{projectId}",
     auth: "bearer",
     operationId: "deleteProject",
+  }),
+  getShowNotes: defineEndpoint<void, ProjectShowNotes | null>({
+    method: "GET",
+    path: "/projects/{projectId}/show-notes",
+    auth: "bearer",
+    operationId: "getProjectShowNotes",
+  }),
+  generateShowNotes: defineEndpoint<GenerateShowNotesRequest | void, ProjectShowNotes>({
+    method: "POST",
+    path: "/projects/{projectId}/show-notes/generate",
+    auth: "bearer",
+    operationId: "generateProjectShowNotes",
+  }),
+  updateShowNotes: defineEndpoint<UpdateShowNotesRequest, ProjectShowNotes>({
+    method: "PATCH",
+    path: "/projects/{projectId}/show-notes",
+    auth: "bearer",
+    operationId: "updateProjectShowNotes",
+  }),
+  deleteShowNotes: defineEndpoint<void, { success: boolean }>({
+    method: "DELETE",
+    path: "/projects/{projectId}/show-notes",
+    auth: "bearer",
+    operationId: "deleteProjectShowNotes",
   }),
 } as const;
 
