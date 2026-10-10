@@ -32,4 +32,5 @@ export * from "./naming.js";
 export * from "./catalogue.js";
 export * from "./scaling.js";
 export * from "./safe-zone.js";
+export * from "./animations/index.js";
 

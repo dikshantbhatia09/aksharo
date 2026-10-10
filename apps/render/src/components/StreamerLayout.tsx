@@ -17,6 +17,12 @@
  */
 
 import {
+  computeWordMargin,
+  computeWordSpringScale,
+  computeWordYOffset,
+} from "@montaj/caption-styles";
+
+import {
   Fragment,
   OffthreadVideo,
   computePaneVideoLayout,
@@ -110,19 +116,30 @@ export function StreamerLayout(props: StreamerLayoutProps): SplitScreenVNode {
     { width: canvasWidth, height: bottomPaneHeight, top: topPaneHeight, left: 0 },
   );
 
-  const activeWords = (props.captionWords ?? []).map((word) => {
+  const activeWords = (props.captionWords ?? []).map((word, index, list) => {
     const t = props.currentTimeSec ?? 0;
-    const isCurrent = t >= word.startSec && t <= word.endSec;
+    const isPast = index === list.length - 1 ? t > word.endSec : t >= word.endSec;
+    const isCurrent = t >= word.startSec && !isPast;
+    const scale = isCurrent ? computeWordSpringScale(t, word.startSec) : 1;
+    const yOffset = isCurrent ? computeWordYOffset(t, word.startSec, 60, -4) : 0;
+    const margin = computeWordMargin(48, isCurrent, 8);
     return (
       <span
+        key={index}
         data-active={isCurrent ? "true" : "false"}
+        data-scale={scale.toFixed(3)}
         style={{
           display: "inline-block",
-          marginRight: 8,
+          marginRight: `${margin.toFixed(1)}px`,
           color: isCurrent ? (word.highlightColor ?? "#00FFA3") : "#FFFFFF",
-          transform: isCurrent ? "scale(1.10)" : "scale(1)",
+          transform: isCurrent
+            ? `translate3d(0, ${yOffset.toFixed(2)}px, 0) scale(${scale.toFixed(3)})`
+            : "scale(1)",
           fontWeight: 900,
-          textShadow: "0 2px 8px rgba(0, 0, 0, 0.85)",
+          textShadow: isCurrent
+            ? "0 0 20px #00FFA3, 0 2px 8px rgba(0, 0, 0, 0.85)"
+            : "0 2px 8px rgba(0, 0, 0, 0.85)",
+          willChange: "transform, color",
         }}
       >
         {word.text}

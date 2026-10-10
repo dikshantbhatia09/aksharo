@@ -19,6 +19,12 @@
  */
 
 import {
+  computeWordMargin,
+  computeWordSpringScale,
+  computeWordYOffset,
+} from "@montaj/caption-styles";
+
+import {
   DEFAULT_DIVIDER_COLOR,
   Fragment,
   OffthreadVideo,
@@ -577,17 +583,29 @@ export function DirectorLayout(props: DirectorLayoutProps): SplitScreenVNode {
   const transitionAlpha = resolved?.transitionAlpha ?? 1;
   const previousCut = resolved?.previousCut ?? null;
 
-  const activeWords = (props.captionWords ?? []).map((word) => {
-    const isCurrent = currentTimeSec >= word.startSec && currentTimeSec <= word.endSec;
+  const activeWords = (props.captionWords ?? []).map((word, index, list) => {
+    const isPast = index === list.length - 1 ? currentTimeSec > word.endSec : currentTimeSec >= word.endSec;
+    const isCurrent = currentTimeSec >= word.startSec && !isPast;
+    const scale = isCurrent ? computeWordSpringScale(currentTimeSec, word.startSec) : 1;
+    const yOffset = isCurrent ? computeWordYOffset(currentTimeSec, word.startSec, 60, -4) : 0;
+    const margin = computeWordMargin(48, isCurrent, 8);
     return (
       <span
+        key={index}
         data-active={isCurrent ? "true" : "false"}
+        data-scale={scale.toFixed(3)}
         style={{
           display: "inline-block",
-          marginRight: 8,
+          marginRight: `${margin.toFixed(1)}px`,
           color: isCurrent ? (word.highlightColor ?? "#FFD700") : "#FFFFFF",
-          transform: isCurrent ? "scale(1.08)" : "scale(1)",
+          transform: isCurrent
+            ? `translate3d(0, ${yOffset.toFixed(2)}px, 0) scale(${scale.toFixed(3)})`
+            : "scale(1)",
+          textShadow: isCurrent
+            ? `0 0 20px ${word.highlightColor ?? "#FFD700"}, 0 2px 4px rgba(0,0,0,0.85)`
+            : "0 2px 4px rgba(0,0,0,0.85)",
           fontWeight: 800,
+          willChange: "transform, color",
         }}
       >
         {word.text}

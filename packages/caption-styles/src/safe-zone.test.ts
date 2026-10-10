@@ -22,6 +22,7 @@ describe("Social Media Safe-Zone & UI Avoidance Engine (Pillar 3 §08)", () => {
   it("defines pixel-precise specs for TikTok, Reels, Shorts, and Universal on 1080x1920", () => {
     const platforms: SafeZonePlatform[] = ["tiktok", "reels", "shorts", "universal"];
     for (const p of platforms) {
+      // eslint-disable-next-line security/detect-object-injection -- platform key is type-narrowed SafeZonePlatform enum value
       const spec = PLATFORM_SAFE_ZONES[p];
       expect(spec).toBeDefined();
       expect(spec.topMarginPx).toBeGreaterThanOrEqual(120);
@@ -114,6 +115,9 @@ describe("Social Media Safe-Zone & UI Avoidance Engine (Pillar 3 §08)", () => {
       version: 2,
       category: "bold",
       minPlan: "free",
+      assRenderable: false,
+      assExportable: false,
+      requiresLayoutMetrics: false,
       typography: {
         fontFamily: "Inter",
         weight: 700,
@@ -139,6 +143,7 @@ describe("Social Media Safe-Zone & UI Avoidance Engine (Pillar 3 §08)", () => {
         in: { type: "none", durationMs: 0 },
         out: { type: "none", durationMs: 0 },
         wordHighlight: { type: "none", durationMs: 0 },
+        perWord: false,
       },
       emphasisPresets: [{ id: "accent", color: "#ffff00" }],
     };

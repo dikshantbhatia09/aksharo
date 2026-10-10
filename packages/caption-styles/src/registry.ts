@@ -3,6 +3,7 @@ import { join } from "node:path";
 
 import { z } from "zod";
 
+import { enforceSafeZoneConstraints } from "./safe-zone.js";
 import {
   type StyleCategory,
   StyleCategorySchema,
@@ -10,7 +11,6 @@ import {
   StyleDocSchema,
   StyleIdSchema,
 } from "./schema.js";
-import { enforceSafeZoneConstraints } from "./safe-zone.js";
 
 export * from "./safe-zone.js";
 

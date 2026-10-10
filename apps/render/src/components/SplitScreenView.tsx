@@ -17,6 +17,12 @@
  *   `SOLO_FULL_SCREEN` during extended monologues.
  */
 
+import {
+  computeWordMargin,
+  computeWordSpringScale,
+  computeWordYOffset,
+} from "@montaj/caption-styles";
+
 export interface SplitScreenCrop {
   readonly x: number;
   readonly y: number;
@@ -282,18 +288,30 @@ export function SplitScreenView(props: SplitScreenViewProps): SplitScreenVNode {
     { isActiveSpeaker: bottomIsActive, activeSpeakerHighlight: highlightEnabled },
   );
 
-  const activeWords = (props.captionWords ?? []).map((word) => {
+  const activeWords = (props.captionWords ?? []).map((word, index, list) => {
     const t = props.currentTimeSec ?? 0;
-    const isCurrent = t >= word.startSec && t <= word.endSec;
+    const isPast = index === list.length - 1 ? t > word.endSec : t >= word.endSec;
+    const isCurrent = t >= word.startSec && !isPast;
+    const scale = isCurrent ? computeWordSpringScale(t, word.startSec) : 1;
+    const yOffset = isCurrent ? computeWordYOffset(t, word.startSec, 60, -4) : 0;
+    const margin = computeWordMargin(48, isCurrent, 8);
     return (
       <span
+        key={index}
         data-active={isCurrent ? "true" : "false"}
+        data-scale={scale.toFixed(3)}
         style={{
           display: "inline-block",
-          marginRight: 8,
+          marginRight: `${margin.toFixed(1)}px`,
           color: isCurrent ? (word.highlightColor ?? "#FFD700") : "#FFFFFF",
-          transform: isCurrent ? "scale(1.08)" : "scale(1)",
+          transform: isCurrent
+            ? `translate3d(0, ${yOffset.toFixed(2)}px, 0) scale(${scale.toFixed(3)})`
+            : "scale(1)",
+          textShadow: isCurrent
+            ? `0 0 20px ${word.highlightColor ?? "#FFD700"}, 0 2px 4px rgba(0,0,0,0.85)`
+            : "0 2px 4px rgba(0,0,0,0.85)",
           fontWeight: 800,
+          willChange: "transform, color",
         }}
       >
         {word.text}
