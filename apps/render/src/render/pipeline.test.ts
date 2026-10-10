@@ -774,4 +774,51 @@ describe("D04e: an accepted sfx cue downloads and mixes end-to-end", () => {
     const audio = streams(probe).find((stream) => stream.codec_type === "audio");
     expect(audio?.codec_name).toBe("aac");
   });
+
+  it("Pillar 5 / Feature 07: normalizes export audio to platform target (-14.0 LUFS for YouTube Shorts)", async () => {
+    const payload = await samplePayload(
+      SECRET,
+      {
+        ...baseOverrides(),
+        output: {
+          kind: "video",
+          preset: "shorts",
+          aspect: "9:16",
+          width: WIDTH,
+          height: HEIGHT,
+          fps: FPS,
+          container: "mp4",
+          videoCodec: "h264",
+        },
+        audio: {
+          strategy: "passthrough",
+          codec: "aac",
+          bitrateKbps: 192,
+          loudness: {
+            enabled: true,
+            platform: "youtube-shorts",
+            targetI: -14.0,
+            targetTp: -1.0,
+            targetLra: 7.0,
+            linear: true,
+          },
+        },
+      },
+      CLIP_SECONDS * 1000,
+    );
+
+    const outcome = await renderVideo(payload, FIXTURE_IDS.workspaceId, dependencies());
+
+    expect(outcome.loudness).toBeDefined();
+    expect(outcome.loudness?.targetI).toBe(-14.0);
+    expect(outcome.loudness?.targetTp).toBe(-1.0);
+    expect(outcome.filterGraph).toContain("loudnorm=I=-14.0:tp=-1.0:LRA=7.0");
+    expect(outcome.filterGraph).toContain("linear=true");
+    expect(outcome.ffmpegSummary).toContain("loudnorm -14.0 LUFS");
+
+    const probe = await ffprobe(derivedStore.pathFor(outcome.outputKey));
+    const audio = streams(probe).find((stream) => stream.codec_type === "audio");
+    expect(audio?.codec_name).toBe("aac");
+  });
 });
+

@@ -569,3 +569,58 @@ describe("4K HDR ingestion & dual-resolution render pipeline (07)", () => {
   });
 });
 
+describe("Pillar 5 / Feature 07: Loudness Normalization Engine", () => {
+  it("omits loudnorm filter when loudnorm option is absent", () => {
+    const plan = graph();
+    expect(plan.filterGraph).not.toContain("loudnorm=");
+  });
+
+  it("appends Pass 2 loudnorm filter with measured parameters and linear=true", () => {
+    const plan = graph(
+      {},
+      {
+        loudnorm: {
+          target: { targetI: -14.0, targetTp: -1.0, targetLra: 7.0 },
+          stats: {
+            inputI: -22.4,
+            inputTp: -2.1,
+            inputLra: 9.2,
+            inputThresh: -33.5,
+            targetOffset: 0.2,
+          },
+          linear: true,
+        },
+      },
+    );
+
+    expect(plan.filterGraph).toContain("loudnorm=I=-14.0:tp=-1.0:LRA=7.0");
+    expect(plan.filterGraph).toContain("measured_I=-22.40:measured_tp=-2.10");
+    expect(plan.filterGraph).toContain("linear=true");
+    expect(plan.summary).toContain("loudnorm -14.0 LUFS");
+    expect(plan.args.join(" ")).toContain("-c:a aac");
+    expect(plan.args.join(" ")).not.toContain("-c:a copy");
+  });
+
+  it("normalizes audio for TikTok/Reels target -15.0 LUFS", () => {
+    const plan = graph(
+      { output: { preset: "reels", aspect: "9:16", width: 1080, height: 1920, fps: 30, kind: "video", container: "mp4", videoCodec: "h264" } },
+      {
+        loudnorm: {
+          target: { targetI: -15.0, targetTp: -1.0, targetLra: 7.0 },
+          stats: {
+            inputI: -18.0,
+            inputTp: -1.5,
+            inputLra: 6.0,
+            inputThresh: -28.0,
+            targetOffset: 0.0,
+          },
+        },
+      },
+    );
+
+    expect(plan.filterGraph).toContain("loudnorm=I=-15.0:tp=-1.0:LRA=7.0");
+    expect(plan.summary).toContain("loudnorm -15.0 LUFS");
+  });
+});
+
+

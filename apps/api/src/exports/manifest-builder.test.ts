@@ -105,6 +105,36 @@ describe("buildRenderManifest", () => {
     expect(green.output.chromaKey).toBe("#00FF00");
   });
 
+  it("populates platform loudness normalization configuration for video exports", () => {
+    const reelsManifest = buildRenderManifest(baseInput({ preset: "reels" })).manifest;
+    expect(reelsManifest.audio.loudness).toEqual({
+      enabled: true,
+      platform: "reels",
+      targetI: -15.0,
+      targetTp: -1.0,
+      targetLra: 7.0,
+      linear: true,
+    });
+
+    const shortsManifest = buildRenderManifest(baseInput({ preset: "shorts" })).manifest;
+    expect(shortsManifest.audio.loudness).toEqual({
+      enabled: true,
+      platform: "youtube-shorts",
+      targetI: -14.0,
+      targetTp: -1.0,
+      targetLra: 7.0,
+      linear: true,
+    });
+
+    const alphaManifest = buildRenderManifest(
+      baseInput({
+        outputKind: "alpha",
+        decision: decisionFor({ outputKind: "alpha", requestedMode: "cloud" }),
+      }),
+    ).manifest;
+    expect(alphaManifest.audio.loudness).toBeUndefined();
+  });
+
   it("uses the bundled Free-tier mark when the decision says watermark", () => {
     const { manifest } = buildRenderManifest(baseInput({ decision: decisionFor() }));
     expect(manifest.watermark).toEqual({

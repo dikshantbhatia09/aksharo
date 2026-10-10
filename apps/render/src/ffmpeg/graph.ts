@@ -45,6 +45,11 @@ import {
   type SpeechRange,
 } from "./audio-mix.js";
 import { buildDynamicCropFilter } from "./crop-expr.js";
+import {
+  buildLoudnormPass2Filter,
+  type LoudnessTargetSpec,
+  type LoudnormStats,
+} from "./loudness.js";
 
 /** Encoders the service can select between; `05 §5.2`'s NVENC hook. */
 export const VIDEO_ENCODERS = ["libx264", "h264_nvenc"] as const;
@@ -130,6 +135,15 @@ export interface GraphInput {
    * map (an unedited render).
    */
   readonly timemap?: TimeQuery | null;
+  /**
+   * Optional loudness normalization pass (ITU-R BS.1770-4 / EBU R128).
+   * When provided, appends the measured two-pass loudnorm filter to the composited audio stream.
+   */
+  readonly loudnorm?: {
+    readonly target: LoudnessTargetSpec;
+    readonly stats: LoudnormStats;
+    readonly linear?: boolean;
+  };
 }
 
 export interface GraphPlan {
@@ -535,6 +549,21 @@ export function buildFfmpegArgs(input: GraphInput): GraphPlan {
     }
   }
 
+  // Pillar 5 / Feature 07: Automated Platform Loudness Normalization Engine.
+  // Applies ITU-R BS.1770-4 / EBU R128 linear loudness normalization (Pass 2)
+  // to the composited audio bus right before final muxing.
+  if (outputHasAudio && audioLabel !== null && input.loudnorm) {
+    const normFilter = buildLoudnormPass2Filter(
+      input.loudnorm.target,
+      input.loudnorm.stats,
+      input.loudnorm.linear ?? true,
+    );
+    const normIn = audioLabel.startsWith("[") ? audioLabel : `[${audioLabel}]`;
+    const normOut = "normaout";
+    filters.push(`${normIn}${normFilter}[${normOut}]`);
+    audioLabel = normOut;
+  }
+
   const filterGraph = filters.join(";");
   if (filterGraph !== "") args.push("-filter_complex", filterGraph);
 
@@ -548,8 +577,13 @@ export function buildFfmpegArgs(input: GraphInput): GraphPlan {
     ...audioCodecArgs(
       manifest,
       // A copy is only possible when nothing touched the samples — a mixed
-      // cue bus never qualifies, whatever `isUnedited` says about the cuts.
-      outputHasAudio && !replacing && audioLabel === "0:a" && isUnedited(input.spans),
+      // cue bus or a loudness normalization pass never qualifies, whatever
+      // `isUnedited` says about the cuts.
+      outputHasAudio &&
+        !replacing &&
+        audioLabel === "0:a" &&
+        isUnedited(input.spans) &&
+        input.loudnorm === undefined,
     ),
   );
   if (!outputHasAudio) {
@@ -573,6 +607,7 @@ export function buildFfmpegArgs(input: GraphInput): GraphPlan {
       `${output.videoCodec} (${input.encoder}) → ${output.container}` +
       `${outputHasAudio ? `, audio ${audio.strategy}/${audio.codec}` : ", no audio"}` +
       `${sfxCues.length + musicCues.length > 0 ? `, ${String(sfxCues.length)} sfx + ${String(musicCues.length)} music cue(s) mixed` : ""}` +
+      `${input.loudnorm ? `, loudnorm ${input.loudnorm.target.targetI.toFixed(1)} LUFS` : ""}` +
       `, ${String(overlayFrames)} overlay frames`,
   };
 }

@@ -306,6 +306,32 @@ export const OutputSpecSchema = z.object({
 });
 export type OutputSpec = z.infer<typeof OutputSpecSchema>;
 
+export const LOUDNESS_TARGET_PLATFORMS = [
+  "youtube-shorts",
+  "youtube",
+  "shorts",
+  "youtube-4k",
+  "tiktok",
+  "reels",
+  "instagram",
+  "instagram-story",
+  "instagram-feed",
+  "custom",
+  "default",
+] as const;
+export const LoudnessTargetPlatformSchema = z.enum(LOUDNESS_TARGET_PLATFORMS);
+export type LoudnessTargetPlatform = z.infer<typeof LoudnessTargetPlatformSchema>;
+
+export const LoudnessNormalizationSchema = z.object({
+  enabled: z.boolean().default(true),
+  platform: LoudnessTargetPlatformSchema.optional(),
+  targetI: z.number().min(-70).max(-5).default(-14),
+  targetTp: z.number().min(-10).max(0).default(-1.0),
+  targetLra: z.number().min(1).max(50).default(7.0),
+  linear: z.boolean().default(true),
+});
+export type LoudnessNormalization = z.infer<typeof LoudnessNormalizationSchema>;
+
 export const AudioSpecSchema = z.object({
   strategy: AudioStrategySchema,
   /** The `ai.clean` result to use as the replacement track. */
@@ -314,6 +340,8 @@ export const AudioSpecSchema = z.object({
   cleanKey: z.string().min(1).max(1024).optional(),
   codec: z.enum(["aac", "pcm", "opus", "copy"]).default("aac"),
   bitrateKbps: z.number().int().min(32).max(512).default(192),
+  /** Platform loudness normalization specification (ITU-R BS.1770-4 / EBU R128). */
+  loudness: LoudnessNormalizationSchema.optional(),
 });
 export type AudioSpec = z.infer<typeof AudioSpecSchema>;
 

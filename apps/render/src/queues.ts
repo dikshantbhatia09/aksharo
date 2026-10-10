@@ -363,6 +363,13 @@ export interface RenderVideoResult {
   readonly watermarked: boolean;
   /** Wall-clock seconds, so the benchmark can be reproduced from a job row. */
   readonly wallClockSeconds: number;
+  /** Platform loudness normalization metrics applied to output audio. */
+  readonly loudness?: {
+    readonly targetI: number;
+    readonly targetTp: number;
+    readonly measuredI: number;
+    readonly measuredTp: number;
+  };
 }
 
 /** What a finished `render.subtitle` job reports back. */

@@ -136,7 +136,7 @@ async function upload(
 
   const put = await fetch(ticket.url, {
     method: "PUT",
-    body: bytes,
+    body: bytes as any,
     headers: { "content-type": "font/ttf" },
   });
   expect(put.ok, `the presigned PUT failed: ${String(put.status)}`).toBe(true);

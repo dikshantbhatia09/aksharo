@@ -262,7 +262,7 @@ async function uploadParts(ticket: UploadTicketBody, body: Buffer): Promise<stri
   for (const part of ticket.parts) {
     const start = (part.partNumber - 1) * ticket.partSizeBytes;
     const chunk = body.subarray(start, start + ticket.partSizeBytes);
-    const response = await fetch(part.url, { method: "PUT", body: chunk });
+    const response = await fetch(part.url, { method: "PUT", body: chunk as any });
     if (!response.ok) {
       throw new Error(`part ${String(part.partNumber)} failed: ${String(response.status)}`);
     }

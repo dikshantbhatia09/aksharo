@@ -235,6 +235,7 @@ export async function processRenderVideo(
       renderedAt: new Date().toISOString(),
       watermarked: outcome.manifest.watermark !== null,
       wallClockSeconds: Math.round(outcome.wallClockMs) / 1000,
+      ...(outcome.loudness !== undefined ? { loudness: outcome.loudness } : {}),
     };
 
     await context.callbacks.complete(envelope.jobId, envelope.attemptId, {

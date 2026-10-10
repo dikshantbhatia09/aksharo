@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
 
+import { RenderManifestSchema, withSignature } from "@montaj/render-manifest";
+import { fixtureManifest } from "@montaj/render-manifest/testing";
+import { buildTimeMap } from "@montaj/timemap";
+
 import {
   computeCutPunchInKeyframes,
   DEFAULT_PUNCH_IN_SCALE,
@@ -7,8 +11,6 @@ import {
   punchInCropRect,
 } from "./punch-in.js";
 
-import type { RenderManifest } from "@montaj/render-manifest";
-import type { TimeMap } from "@montaj/timemap";
 import type { ProjectedWord } from "../queues.js";
 
 describe("punch-in camera zoom jump cut masking", () => {
@@ -46,50 +48,23 @@ describe("punch-in camera zoom jump cut masking", () => {
   });
 
   describe("computeCutPunchInKeyframes", () => {
-    const mockManifest: RenderManifest = {
-      exportId: "01JCEXPORT000000000000000",
-      workspaceId: "01JCWS00000000000000000",
-      projectId: "01JCPROJ000000000000000",
-      revision: 1,
-      source: { key: "source.mp4", durationMs: 10000, width: 1080, height: 1920 },
-      output: {
-        container: "mp4",
-        videoCodec: "h264",
-        width: 1080,
-        height: 1920,
-        fps: 30,
-        kind: "video",
-      },
-      audio: { strategy: "source", codec: "aac", bitrateKbps: 192 },
-      styles: { defaultStyleId: "default" },
-      watermark: null,
-      timemap: {
-        sourceDurationMs: 10000,
-        edits: [{ type: "cut", sourceStartMs: 2000, sourceEndMs: 3000 }],
-      },
-    };
+    const mockManifest = RenderManifestSchema.parse(
+      withSignature(
+        fixtureManifest({
+          timemap: {
+            sourceDurationMs: 10000,
+            edits: [{ kind: "cut", startMs: 2000, endMs: 3000 }],
+          },
+        }),
+        "test-secret",
+      ),
+    );
 
     it("returns empty keyframes for unedited timemap with 1 retained span", () => {
-      const mockTimemap: TimeMap = {
+      const mockTimemap = buildTimeMap({
         sourceDurationMs: 10000,
-        outputDurationMs: 10000,
-        spans: [
-          {
-            index: 0,
-            kind: "retained",
-            sourceStart: 0,
-            sourceEnd: 10000,
-            outputStart: 0,
-            outputEnd: 10000,
-            factor: 1,
-          },
-        ],
-        keyframes: [],
-        mapTime: (t) => t,
-        unmapTime: (t) => t,
-        mapRange: (s, e) => [s, e],
-        unmapRange: (s, e) => [s, e],
-      };
+        edits: [],
+      });
 
       const keyframes = computeCutPunchInKeyframes(mockManifest, mockTimemap);
       expect(keyframes).toEqual([]);
@@ -97,37 +72,10 @@ describe("punch-in camera zoom jump cut masking", () => {
 
     it("toggles scale from 1.0x to 1.15x at the exact cut frame", () => {
       // 1 cut from 2000ms to 3000ms (1000ms cut).
-      // Span 1: source 0..2000 -> output 0..2000
-      // Span 2: source 3000..6000 -> output 2000..5000
-      const mockTimemap: TimeMap = {
+      const mockTimemap = buildTimeMap({
         sourceDurationMs: 6000,
-        outputDurationMs: 5000,
-        spans: [
-          {
-            index: 0,
-            kind: "retained",
-            sourceStart: 0,
-            sourceEnd: 2000,
-            outputStart: 0,
-            outputEnd: 2000,
-            factor: 1,
-          },
-          {
-            index: 1,
-            kind: "retained",
-            sourceStart: 3000,
-            sourceEnd: 6000,
-            outputStart: 2000,
-            outputEnd: 5000,
-            factor: 1,
-          },
-        ],
-        keyframes: [],
-        mapTime: (t) => t,
-        unmapTime: (t) => t,
-        mapRange: (s, e) => [s, e],
-        unmapRange: (s, e) => [s, e],
-      };
+        edits: [{ kind: "cut", startMs: 2000, endMs: 3000 }],
+      });
 
       const keyframes = computeCutPunchInKeyframes(mockManifest, mockTimemap, undefined, {
         forceAllCuts: true,
@@ -155,45 +103,14 @@ describe("punch-in camera zoom jump cut masking", () => {
     });
 
     it("toggles 1.0x -> 1.15x -> 1.0x across multiple cut frames", () => {
-      // 2 cuts at output time 2000ms and 4000ms
-      const mockTimemap: TimeMap = {
+      // 2 cuts at source time 2000-3000ms and 5000-6000ms
+      const mockTimemap = buildTimeMap({
         sourceDurationMs: 8000,
-        outputDurationMs: 6000,
-        spans: [
-          {
-            index: 0,
-            kind: "retained",
-            sourceStart: 0,
-            sourceEnd: 2000,
-            outputStart: 0,
-            outputEnd: 2000,
-            factor: 1,
-          },
-          {
-            index: 1,
-            kind: "retained",
-            sourceStart: 3000,
-            sourceEnd: 5000,
-            outputStart: 2000,
-            outputEnd: 4000,
-            factor: 1,
-          },
-          {
-            index: 2,
-            kind: "retained",
-            sourceStart: 6000,
-            sourceEnd: 8000,
-            outputStart: 4000,
-            outputEnd: 6000,
-            factor: 1,
-          },
+        edits: [
+          { kind: "cut", startMs: 2000, endMs: 3000 },
+          { kind: "cut", startMs: 5000, endMs: 6000 },
         ],
-        keyframes: [],
-        mapTime: (t) => t,
-        unmapTime: (t) => t,
-        mapRange: (s, e) => [s, e],
-        unmapRange: (s, e) => [s, e],
-      };
+      });
 
       const keyframes = computeCutPunchInKeyframes(mockManifest, mockTimemap, undefined, {
         forceAllCuts: true,

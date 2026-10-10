@@ -251,6 +251,32 @@ export function buildRenderManifest(input: BuildManifestInput): BuiltManifest {
         : { cleanId: input.audioClean.cleanId, cleanKey: input.audioClean.cleanKey }),
       codec: "aac",
       bitrateKbps: 192,
+      ...(input.outputKind === "alpha" || input.outputKind === "greenscreen"
+        ? {}
+        : {
+            loudness: {
+              enabled: true,
+              platform:
+                input.preset === "shorts"
+                  ? "youtube-shorts"
+                  : input.preset === "reels" ||
+                      input.preset === "instagram-story" ||
+                      input.preset === "instagram-feed"
+                    ? "reels"
+                    : input.preset === "youtube-4k"
+                      ? "youtube-4k"
+                      : "default",
+              targetI:
+                input.preset === "reels" ||
+                input.preset === "instagram-story" ||
+                input.preset === "instagram-feed"
+                  ? -15.0
+                  : -14.0,
+              targetTp: -1.0,
+              targetLra: 7.0,
+              linear: true,
+            },
+          }),
     },
     watermark: watermarkFor(input),
     caps: {

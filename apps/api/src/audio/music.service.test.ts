@@ -121,9 +121,9 @@ describe("MusicService", () => {
       });
 
       expect(result.tracks).toHaveLength(1);
-      expect(result.tracks[0].id).toBe("track-1");
-      expect(result.tracks[0].title).toBe("Tech Cyber Pulse");
-      expect(result.tracks[0].waveform).toEqual([0.1, 0.4, 0.8, 0.2]);
+      expect(result.tracks[0]!.id).toBe("track-1");
+      expect(result.tracks[0]!.title).toBe("Tech Cyber Pulse");
+      expect(result.tracks[0]!.waveform).toEqual([0.1, 0.4, 0.8, 0.2]);
       expect(result.total).toBe(1);
     });
   });

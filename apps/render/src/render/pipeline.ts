@@ -52,6 +52,13 @@ import { watermarkCommandFor } from "./watermark.js";
 import { speechRangesFromWords, type MusicMixCue, type SfxMixCue } from "../ffmpeg/audio-mix.js";
 import { runEncode } from "../ffmpeg/encode.js";
 import { buildFfmpegArgs, type VideoEncoder } from "../ffmpeg/graph.js";
+import {
+  buildAudioPass1Plan,
+  measureAudioLoudnormPass1,
+  resolveLoudnessTarget,
+  type LoudnessTargetSpec,
+  type LoudnormStats,
+} from "../ffmpeg/loudness.js";
 import { probeAudioAsset, probeMedia } from "../ffmpeg/probe.js";
 import { brandAssetKey, contentTypeFor, exportKey, type ObjectStore } from "../storage.js";
 
@@ -120,6 +127,13 @@ export interface RenderOutcome {
   readonly fontSource: "pack" | "fixtures";
   /** Threads that actually rasterised; `0` when it ran inline. */
   readonly rasterWorkers: number;
+  /** Platform loudness normalization metrics applied to output audio. */
+  readonly loudness?: {
+    readonly targetI: number;
+    readonly targetTp: number;
+    readonly measuredI: number;
+    readonly measuredTp: number;
+  };
 }
 
 /** Renders one `render.video` job. */
@@ -275,6 +289,59 @@ export async function renderVideo(
         ? computeCutPunchInKeyframes(manifest, timemap, payload.projection.words)
         : [];
     const cropKeyframes = manualCropKeyframes.length > 0 ? manualCropKeyframes : punchInKeyframes;
+
+    // Pillar 5 / Feature 07: Automated Platform Loudness Normalization Engine.
+    // When audio is present and loudness normalization is active, execute Pass 1
+    // across the composited audio bus to extract ITU-R BS.1770 / EBU R128 metrics,
+    // then inject measured parameters with linear=true into Pass 2.
+    const wantsLoudnorm =
+      manifest.audio.strategy !== "none" &&
+      manifest.audio.loudness?.enabled === true &&
+      (probe.audio !== null || cleanAudioPath !== null || sfxCues.length > 0 || musicCues.length > 0);
+
+    let loudnormPlan: { target: LoudnessTargetSpec; stats: LoudnormStats } | undefined;
+    if (wantsLoudnorm) {
+      const targetPlatform = manifest.audio.loudness?.platform ?? manifest.output.preset;
+      const baseTarget = resolveLoudnessTarget(targetPlatform);
+      const target: LoudnessTargetSpec = {
+        targetI: manifest.audio.loudness?.targetI ?? baseTarget.targetI,
+        targetTp: manifest.audio.loudness?.targetTp ?? baseTarget.targetTp,
+        targetLra: manifest.audio.loudness?.targetLra ?? baseTarget.targetLra,
+      };
+
+      const pass1Plan = buildAudioPass1Plan({
+        manifest,
+        sourcePath: manifest.output.kind === "alpha" ? null : sourcePath,
+        cleanAudioPath,
+        sourceHasAudio: probe.audio !== null,
+        spans: timemap.spans,
+        outputDurationMs: timemap.outputDurationMs,
+        target,
+        ...(sfxCues.length === 0 && musicCues.length === 0
+          ? {}
+          : { sfxCues, musicCues, timemap, speechRanges }),
+      });
+
+      if (pass1Plan !== null) {
+        dependencies.onProgress?.(0.025, "measuring loudness (Pass 1)");
+        try {
+          const stats = await measureAudioLoudnormPass1({
+            plan: pass1Plan,
+            ...(dependencies.signal === undefined ? {} : { signal: dependencies.signal }),
+          });
+          if (stats !== null) {
+            loudnormPlan = { target, stats };
+          }
+        } catch (error) {
+          dependencies.onWarning?.(
+            `loudness pass 1 measurement failed, proceeding without normalization: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          );
+        }
+      }
+    }
+
     const plan = buildFfmpegArgs({
       manifest,
       sourcePath: manifest.output.kind === "alpha" ? null : sourcePath,
@@ -291,6 +358,7 @@ export async function renderVideo(
       ...(sfxCues.length === 0 && musicCues.length === 0
         ? {}
         : { sfxCues, musicCues, timemap, speechRanges }),
+      ...(loudnormPlan === undefined ? {} : { loudnorm: loudnormPlan }),
       ...(dependencies.ffmpegLogLevel === undefined
         ? {}
         : { logLevel: dependencies.ffmpegLogLevel }),
@@ -440,6 +508,16 @@ export async function renderVideo(
       filterGraph: plan.filterGraph,
       fontSource: fonts.source,
       rasterWorkers: pool?.size ?? 0,
+      ...(loudnormPlan === undefined
+        ? {}
+        : {
+            loudness: {
+              targetI: loudnormPlan.target.targetI,
+              targetTp: loudnormPlan.target.targetTp,
+              measuredI: loudnormPlan.stats.inputI,
+              measuredTp: loudnormPlan.stats.inputTp,
+            },
+          }),
     };
   } finally {
     await rm(scratch, { recursive: true, force: true });

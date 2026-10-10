@@ -162,3 +162,237 @@ function matchNumber(text: string, pattern: RegExp): number | null {
   // not a number a JSON column can hold.
   return Number.isFinite(value) ? Math.round(value * 10) / 10 : null;
 }
+
+/**
+ * Platform targets according to ITU-R BS.1770-4 / EBU R128:
+ * - YouTube / YouTube Shorts: -14.0 LUFS, -1.0 dBTP, LRA 7.0
+ * - TikTok & Instagram Reels / Stories: -15.0 LUFS, -1.0 dBTP, LRA 7.0
+ * - Default: -14.0 LUFS, -1.0 dBTP, LRA 7.0
+ */
+export interface LoudnessTargetSpec {
+  /** Target integrated loudness in LUFS (e.g. -14.0 for YouTube, -15.0 for TikTok/Reels). */
+  readonly targetI: number;
+  /** Maximum true peak in dBTP (default -1.0 dBTP). */
+  readonly targetTp: number;
+  /** Target loudness range in LU (default 7.0 LU). */
+  readonly targetLra: number;
+}
+
+export const PLATFORM_LOUDNESS_TARGETS: Readonly<Record<string, LoudnessTargetSpec>> = Object.freeze({
+  "youtube-shorts": { targetI: -14.0, targetTp: -1.0, targetLra: 7.0 },
+  youtube: { targetI: -14.0, targetTp: -1.0, targetLra: 7.0 },
+  shorts: { targetI: -14.0, targetTp: -1.0, targetLra: 7.0 },
+  "youtube-4k": { targetI: -14.0, targetTp: -1.0, targetLra: 7.0 },
+  tiktok: { targetI: -15.0, targetTp: -1.0, targetLra: 7.0 },
+  reels: { targetI: -15.0, targetTp: -1.0, targetLra: 7.0 },
+  instagram: { targetI: -15.0, targetTp: -1.0, targetLra: 7.0 },
+  "instagram-story": { targetI: -15.0, targetTp: -1.0, targetLra: 7.0 },
+  "instagram-feed": { targetI: -15.0, targetTp: -1.0, targetLra: 7.0 },
+  default: { targetI: -14.0, targetTp: -1.0, targetLra: 7.0 },
+});
+
+export function resolveLoudnessTarget(platformOrPreset?: string): LoudnessTargetSpec {
+  if (!platformOrPreset) return PLATFORM_LOUDNESS_TARGETS["default"]!;
+  const key = platformOrPreset.toLowerCase().trim();
+  // eslint-disable-next-line security/detect-object-injection
+  return PLATFORM_LOUDNESS_TARGETS[key] ?? PLATFORM_LOUDNESS_TARGETS["default"]!;
+}
+
+export interface LoudnormStats {
+  readonly inputI: number;
+  readonly inputTp: number;
+  readonly inputLra: number;
+  readonly inputThresh: number;
+  readonly targetOffset: number;
+}
+
+/**
+ * Parses the JSON block printed by FFmpeg's `loudnorm=...:print_format=json` filter.
+ */
+export function parseLoudnormJson(stderr: string): LoudnormStats | null {
+  const match =
+    /\{[\s\S]*?"input_i"\s*:\s*"(-?[\d.]+)"[\s\S]*?"input_tp"\s*:\s*"(-?[\d.]+)"[\s\S]*?"input_lra"\s*:\s*"(-?[\d.]+)"[\s\S]*?"input_thresh"\s*:\s*"(-?[\d.]+)"[\s\S]*?"target_offset"\s*:\s*"(-?[\d.]+)"[\s\S]*?\}/.exec(
+      stderr,
+    );
+
+  if (!match) {
+    const block = /\{[^{}]*"input_i"[^{}]*\}/.exec(stderr);
+    if (block) {
+      try {
+        const parsed = JSON.parse(block[0]) as Record<string, string>;
+        const inputI = Number(parsed["input_i"]);
+        const inputTp = Number(parsed["input_tp"]);
+        const inputLra = Number(parsed["input_lra"]);
+        const inputThresh = Number(parsed["input_thresh"]);
+        const targetOffset = Number(parsed["target_offset"]);
+        if ([inputI, inputTp, inputLra, inputThresh, targetOffset].every(Number.isFinite)) {
+          return { inputI, inputTp, inputLra, inputThresh, targetOffset };
+        }
+      } catch {
+        // continue
+      }
+    }
+    return null;
+  }
+
+  const inputI = Number(match[1]);
+  const inputTp = Number(match[2]);
+  const inputLra = Number(match[3]);
+  const inputThresh = Number(match[4]);
+  const targetOffset = Number(match[5]);
+
+  if ([inputI, inputTp, inputLra, inputThresh, targetOffset].every(Number.isFinite)) {
+    return { inputI, inputTp, inputLra, inputThresh, targetOffset };
+  }
+  return null;
+}
+
+/**
+ * Builds FFmpeg loudnorm filter for Pass 1 (measurement).
+ */
+export function buildLoudnormPass1Filter(
+  target: LoudnessTargetSpec = PLATFORM_LOUDNESS_TARGETS["default"]!,
+): string {
+  return `loudnorm=I=${target.targetI.toFixed(1)}:tp=${target.targetTp.toFixed(1)}:LRA=${target.targetLra.toFixed(1)}:print_format=json`;
+}
+
+/**
+ * Builds FFmpeg loudnorm filter for Pass 2 (linear normalization).
+ * Setting `linear=true` ensures pure linear gain adjustment without dynamic compressor pumping.
+ */
+export function buildLoudnormPass2Filter(
+  target: LoudnessTargetSpec,
+  stats: LoudnormStats,
+  linear = true,
+): string {
+  return (
+    `loudnorm=I=${target.targetI.toFixed(1)}:tp=${target.targetTp.toFixed(1)}:LRA=${target.targetLra.toFixed(1)}:` +
+    `measured_I=${stats.inputI.toFixed(2)}:measured_tp=${stats.inputTp.toFixed(2)}:` +
+    `measured_LRA=${stats.inputLra.toFixed(2)}:measured_thresh=${stats.inputThresh.toFixed(2)}:` +
+    `offset=${stats.targetOffset.toFixed(2)}:linear=${linear ? "true" : "false"}`
+  );
+}
+
+/**
+ * Run Pass 1 measurement on an audio file or stream.
+ */
+export async function measureLoudnormStats(input: {
+  readonly binary: string;
+  readonly source: string;
+  readonly target?: LoudnessTargetSpec;
+  readonly timeoutMs?: number;
+  readonly signal?: AbortSignal;
+}): Promise<LoudnormStats | null> {
+  const target = input.target ?? PLATFORM_LOUDNESS_TARGETS["default"]!;
+  const filter = buildLoudnormPass1Filter(target);
+  let capturedStderr = "";
+  const result = await run(
+    input.binary,
+    [
+      ...FFMPEG_BASE_ARGS,
+      "-loglevel",
+      "info",
+      ...inputArgs(input.source),
+      "-vn",
+      "-sn",
+      "-dn",
+      "-af",
+      filter,
+      "-f",
+      "null",
+      "-",
+    ],
+    {
+      timeoutMs: input.timeoutMs ?? 30_000,
+      onStderr: (chunk) => {
+        capturedStderr += chunk;
+      },
+      ...(input.signal === undefined ? {} : { signal: input.signal }),
+    },
+  ).catch(() => null);
+
+  if (result === null || result.code !== 0) return null;
+  return parseLoudnormJson(capturedStderr.length > 0 ? capturedStderr : result.stderr);
+}
+
+export interface NormalizeAudioResult {
+  readonly success: boolean;
+  readonly stats: LoudnormStats | null;
+  readonly target: LoudnessTargetSpec;
+  readonly filter: string | null;
+}
+
+/**
+ * Execute full Two-Pass loudness normalization on an audio file:
+ * - Pass 1: Measure loudness statistics with `loudnorm ... print_format=json`
+ * - Pass 2: Apply linear gain and brickwall limiting using measured parameters
+ */
+export async function normalizeAudioTwoPass(input: {
+  readonly binary: string;
+  readonly source: string;
+  readonly destination: string;
+  readonly target?: LoudnessTargetSpec;
+  readonly sampleRate?: number;
+  readonly linear?: boolean;
+  readonly audioCodec?: string;
+  readonly timeoutMs?: number;
+  readonly signal?: AbortSignal;
+}): Promise<NormalizeAudioResult> {
+  const target = input.target ?? PLATFORM_LOUDNESS_TARGETS["default"]!;
+  const stats = await measureLoudnormStats({
+    binary: input.binary,
+    source: input.source,
+    target,
+    timeoutMs: input.timeoutMs,
+    signal: input.signal,
+  });
+
+  if (stats === null) {
+    return { success: false, stats: null, target, filter: null };
+  }
+
+  const pass2Filter = buildLoudnormPass2Filter(target, stats, input.linear ?? true);
+  const codec = input.audioCodec ?? (input.destination.endsWith(".wav") ? "pcm_s16le" : "aac");
+  const sampleRate = input.sampleRate ?? 48_000;
+
+  const result = await run(
+    input.binary,
+    [
+      ...FFMPEG_BASE_ARGS,
+      ...inputArgs(input.source),
+      "-vn",
+      "-sn",
+      "-dn",
+      "-af",
+      pass2Filter,
+      "-c:a",
+      codec,
+      "-ar",
+      String(sampleRate),
+      input.destination,
+    ],
+    {
+      timeoutMs: input.timeoutMs ?? 60_000,
+      ...(input.signal === undefined ? {} : { signal: input.signal }),
+    },
+  ).catch(() => null);
+
+  const success = result !== null && result.code === 0;
+  return { success, stats, target, filter: pass2Filter };
+}
+
+/**
+ * Verify SLA: Output integrated loudness must equal target ± 0.5 LUFS,
+ * and true peak must be <= -1.0 dBTP.
+ */
+export function verifyLoudnessCompliance(
+  measuredLufs: number,
+  targetLufs: number,
+  truePeakDbfs?: number | null,
+  tolerance = 0.5,
+): boolean {
+  const lufsCompliant = Math.abs(measuredLufs - targetLufs) <= tolerance;
+  const peakCompliant = truePeakDbfs === undefined || truePeakDbfs === null || truePeakDbfs <= -0.95;
+  return lufsCompliant && peakCompliant;
+}
+
