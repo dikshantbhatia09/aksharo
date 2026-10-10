@@ -39,9 +39,15 @@ __all__ = [
 # Hindi / Devanagari
 # ---------------------------------------------------------------------------
 
+from worker_ai.transliterate.hinglish import (
+    HINGLISH_DEVANAGARI_TO_ROMAN,
+    HINGLISH_ROMAN_TO_DEVANAGARI,
+)
+
 #: Common Hinglish/Hindi words the golden tests exercise, Roman -> Devanagari.
 #: Lower-case keys; looked up case-insensitively.
 HINDI_ROMAN_TO_DEVANAGARI: dict[str, str] = {
+    **HINGLISH_ROMAN_TO_DEVANAGARI,
     "toh": "तो",
     "aaj": "आज",
     "hum": "हम",
@@ -55,6 +61,7 @@ HINDI_ROMAN_TO_DEVANAGARI: dict[str, str] = {
     "yeh": "यह",
     "video": "वीडियो",
     "bahut": "बहुत",
+    "bohot": "बहुत",
     "hai": "है",
     "namaste": "नमस्ते",
     "dosto": "दोस्तों",
@@ -65,6 +72,7 @@ HINDI_ROMAN_TO_DEVANAGARI: dict[str, str] = {
     "hoon": "हूँ",
     "acha": "अच्छा",
     "accha": "अच्छा",
+    "achha": "अच्छा",
     "theek": "ठीक",
     "nahi": "नहीं",
     "nahin": "नहीं",
@@ -77,17 +85,24 @@ HINDI_ROMAN_TO_DEVANAGARI: dict[str, str] = {
     "milte": "मिलते",
     "subscribe": "subscribe",
     "karo": "करो",
+    "karna": "करना",
+    "hona": "होना",
+    "chahiye": "चाहिए",
     "dekho": "देखो",
     "suniye": "सुनिए",
     "shukriya": "शुक्रिया",
     "dhanyavaad": "धन्यवाद",
+    "jugaad": "जुगाड़",
+    "dhandha": "धंधा",
 }
 
 #: Reverse of the dictionary above, Devanagari -> Roman. Built once, at import
 #: time, from the same source so the two directions can never drift apart.
 _HINDI_DEVANAGARI_TO_ROMAN: dict[str, str] = {
-    native: roman for roman, native in HINDI_ROMAN_TO_DEVANAGARI.items() if native != roman
+    **{native: roman for roman, native in HINDI_ROMAN_TO_DEVANAGARI.items() if native != roman},
+    **HINGLISH_DEVANAGARI_TO_ROMAN,
 }
+
 
 HINDI_VOWELS: dict[str, str] = {
     "a": "अ",
@@ -445,8 +460,8 @@ _DEVA_SPECIAL_WORDS: dict[str, str] = {
     "आपकी": "aapki",
     "आपका": "aapka",
     "आपके": "aapke",
-    "कर": "kar",
     "करना": "karna",
+    "होना": "hona",
     "बहुत": "bahut",
     "सब": "sab",
     "कुछ": "kuch",
@@ -455,7 +470,16 @@ _DEVA_SPECIAL_WORDS: dict[str, str] = {
     "मकान": "makan",
     "अच्छा": "accha",
     "ठीक": "theek",
+    "चाहिए": "chahiye",
+    "सकते": "sakte",
+    "सकता": "sakta",
+    "सकती": "sakti",
+    "जुगाड़": "jugaad",
+    "धंधा": "dhandha",
+    "पैसा": "paisa",
+    "पैसे": "paise",
 }
+
 
 
 def _romanise_devanagari(word: str) -> str:

@@ -9,7 +9,16 @@
  * differs, which is why the fallback is a warning and not an error.
  */
 
-import type { DrawCommand, FontResource } from "@montaj/render-core";
+import type {
+  DrawCommand,
+  Fill,
+  FontResource,
+  GlyphRun,
+  Shaper,
+  Stroke,
+  WordScript,
+} from "@montaj/render-core";
+import { createFontRegistry, createHarfBuzzShaper } from "@montaj/render-core";
 
 import { Arena } from "./arena.js";
 import { loadCanvasKit, type LoadCanvasKitOptions } from "./canvaskit.js";
@@ -32,6 +41,8 @@ export interface CanvasKitBackendOptions extends LoadCanvasKitOptions {
   readonly fonts?: readonly FontResource[];
   /** An already-initialised CanvasKit, e.g. one a worker shares. */
   readonly canvasKit?: CanvasKit;
+  /** Optional HarfBuzz shaper instance for complex text shaping */
+  readonly shaper?: Shaper;
 }
 
 export interface DrawFrameOptions {
@@ -54,13 +65,17 @@ export class CanvasKitBackend {
   readonly #typefaces = new Map<string, Typeface>();
   readonly #images = new Map<string, Image>();
   readonly #fonts = new Map<string, Font>();
+  readonly #fontResources = new Map<string, FontResource>();
+  #shaper: Shaper | undefined;
   #missing: MissingResource[] = [];
 
-  private constructor(readonly ck: CanvasKit) {}
+  private constructor(readonly ck: CanvasKit, shaper?: Shaper) {
+    this.#shaper = shaper;
+  }
 
   static async create(options: CanvasKitBackendOptions = {}): Promise<CanvasKitBackend> {
     const ck = options.canvasKit ?? (await loadCanvasKit(options));
-    const backend = new CanvasKitBackend(ck);
+    const backend = new CanvasKitBackend(ck, options.shaper);
     for (const font of options.fonts ?? []) backend.registerFont(font);
     return backend;
   }
@@ -71,7 +86,9 @@ export class CanvasKitBackend {
    * the only thing tying a glyph id to a face.
    */
   registerFont(font: FontResource): void {
+    this.#fontResources.set(font.id, font);
     const existing = this.#typefaces.get(font.id);
+
     if (existing !== undefined) existing.delete();
     const buffer = font.data.buffer.slice(
       font.data.byteOffset,
@@ -180,8 +197,150 @@ export class CanvasKitBackend {
     }
   }
 
+  /**
+   * Returns a HarfBuzz shaper configured with every registered font.
+   * Lazily initialized and cached across calls.
+   */
+  async getShaper(): Promise<Shaper> {
+    if (this.#shaper !== undefined) return this.#shaper;
+    const registry = createFontRegistry([...this.#fontResources.values()]);
+    this.#shaper = await createHarfBuzzShaper(registry);
+    return this.#shaper;
+  }
+
+  /**
+   * Shapes text using HarfBuzz complex text shaping for Devanagari and Dravidian scripts.
+   * Returns a `GlyphRun` with accurate conjunct ligatures and advances in canvas pixels.
+   */
+  async shapeComplexText(options: {
+    readonly text: string;
+    readonly fontId: string;
+    readonly fontSizePx: number;
+    readonly script?: WordScript | string;
+    readonly language?: string;
+  }): Promise<GlyphRun> {
+    const shaper = await this.getShaper();
+    const resolvedScript = (options.script ?? "devanagari") as WordScript;
+    const shaped = shaper.shape({
+      text: options.text,
+      fontId: options.fontId,
+      script: resolvedScript,
+      language: options.language,
+    });
+    const scale = options.fontSizePx / shaped.upem;
+    const glyphs: number[] = [];
+    const positions: number[] = [];
+    let currentX = 0;
+    for (const glyph of shaped.glyphs) {
+      glyphs.push(glyph.id);
+      positions.push(currentX + glyph.xOffset * scale, glyph.yOffset * scale);
+      currentX += glyph.xAdvance * scale;
+    }
+    return {
+      fontId: options.fontId,
+      fontSizePx: options.fontSizePx,
+      glyphs,
+      positions,
+      advancePx: shaped.advance * scale,
+    };
+  }
+
+  /**
+   * Shapes and draws complex Indic or multilingual text onto a Skia Canvas.
+   */
+  async drawComplexText(
+    canvas: Canvas,
+    options: {
+      readonly text: string;
+      readonly fontId: string;
+      readonly fontSizePx: number;
+      readonly x: number;
+      readonly y: number;
+      readonly fill?: Fill;
+      readonly stroke?: Stroke;
+      readonly script?: WordScript | string;
+      readonly language?: string;
+    },
+  ): Promise<GlyphRun> {
+    const run = await this.shapeComplexText({
+      text: options.text,
+      fontId: options.fontId,
+      fontSizePx: options.fontSizePx,
+      script: options.script,
+      language: options.language,
+    });
+    const placedPositions: number[] = [];
+    for (let i = 0; i < run.positions.length; i += 2) {
+      placedPositions.push(run.positions[i]! + options.x, run.positions[i + 1]! + options.y);
+    }
+    const placedRun: GlyphRun = {
+      ...run,
+      positions: placedPositions,
+    };
+    const commands: DrawCommand[] = [
+      {
+        kind: "text",
+        run: placedRun,
+        fill: options.fill ?? { paint: { type: "solid", color: "#ffffffff" } },
+        ...(options.stroke !== undefined ? { stroke: options.stroke } : {}),
+      },
+    ];
+    this.drawFrame(canvas, commands);
+    return placedRun;
+  }
+
+  /**
+   * Validates that complex Indic consonant conjuncts render without tofu (glyph ID 0)
+   * or broken ligatures using HarfBuzz in CanvasKit.
+   */
+  async verifyIndicConjuncts(
+    fontId: string,
+    conjuncts: readonly string[],
+    script: WordScript | string = "devanagari",
+  ): Promise<{
+    readonly total: number;
+    readonly passed: number;
+    readonly tofuCount: number;
+    readonly details: readonly {
+      readonly conjunct: string;
+      readonly glyphCount: number;
+      readonly hasTofu: boolean;
+      readonly glyphIds: readonly number[];
+    }[];
+  }> {
+    const shaper = await this.getShaper();
+    const details = [];
+    let passed = 0;
+    let tofuCount = 0;
+
+    for (const conjunct of conjuncts) {
+      const shaped = shaper.shape({
+        text: conjunct,
+        fontId,
+        script: script as WordScript,
+      });
+      const glyphIds = shaped.glyphs.map((g) => g.id);
+      // Tofu is glyph 0 (.notdef) or U+FFFD
+      const hasTofu = glyphIds.some((id) => id === 0);
+      if (hasTofu) {
+        tofuCount++;
+      } else {
+        passed++;
+      }
+      details.push({
+        conjunct,
+        glyphCount: glyphIds.length,
+        hasTofu,
+        glyphIds,
+      });
+    }
+
+    return { total: conjuncts.length, passed, tofuCount, details };
+  }
+
   /** Frees every typeface, image and cached font. */
   dispose(): void {
+
     for (const font of this.#fonts.values()) font.delete();
     this.#fonts.clear();
     for (const typeface of this.#typefaces.values()) typeface.delete();

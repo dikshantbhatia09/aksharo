@@ -158,9 +158,11 @@ class SarvamSaarasProvider(Provider):
     #: ₹0.50 per media minute plus ₹0.03 for the mandatory alignment (`09 §1`).
     cost_per_minute_inr = 0.53
 
-    model = "saaras:v4"
+    model = "saaras:v2"
     #: `mode=codemix` is what makes the Hinglish lane a code-mix lane.
     default_mode = "codemix"
+    #: Default prompt guiding Sarvam's code-mixed speech recognition for tech terms
+    default_prompt = "Code-mixed conversational Hinglish with tech terms"
 
     #: A batch job is one request for the whole file, so there is nothing to fan
     #: out; the ceiling exists only so a pool of workers cannot exceed the 60
@@ -196,10 +198,21 @@ class SarvamSaarasProvider(Provider):
     async def transcribe(self, request: TranscriptionRequest) -> TranscriptionResult:
         """Run one Batch job over one file and return its chunk-level segments."""
         mode = _mode(request.options)
+        model = str(request.options.get("model") or self.model)
+        prompt = str(
+            request.options.get("prompt")
+            or (self.default_prompt if mode == "codemix" else "")
+        ).strip()
         name = Path(request.audio_uri).name or "audio.wav"
         submissions: list[ProviderSubmission] = []
 
-        job = await self._create_job(mode=mode, language=request.language, hints=request.hints)
+        job = await self._create_job(
+            mode=mode,
+            language=request.language,
+            hints=request.hints,
+            model=model,
+            prompt=prompt or None,
+        )
         job_id = str(job.get("job_id") or "")
         if not job_id:
             raise ProviderError(
@@ -244,21 +257,27 @@ class SarvamSaarasProvider(Provider):
             usage=ProviderUsage(
                 media_seconds=seconds,
                 provider=self.name,
-                model=self.model,
+                model=model,
                 cost_minor=self.cost_estimate(seconds).minor,
             ),
             segments=segments,
             submissions=tuple(submissions),
-            raw={"model": self.model, "mode": mode, "jobId": job_id, "alignmentRequired": True},
+            raw={"model": model, "mode": mode, "jobId": job_id, "alignmentRequired": True},
         )
 
     # -- the six Batch phases -----------------------------------------------
 
     async def _create_job(
-        self, *, mode: str, language: str | None, hints: tuple[str, ...]
+        self,
+        *,
+        mode: str,
+        language: str | None,
+        hints: tuple[str, ...],
+        model: str | None = None,
+        prompt: str | None = None,
     ) -> dict[str, Any]:
         parameters: dict[str, Any] = {
-            "model": self.model,
+            "model": model or self.model,
             "mode": mode,
             "language_code": _vendor_language(language),
             "with_timestamps": True,
@@ -266,12 +285,15 @@ class SarvamSaarasProvider(Provider):
             # chunk-level answer would be worse and dearer.
             "with_diarization": False,
         }
+        if prompt:
+            parameters["prompt"] = prompt
         if hints:
             # Custom vocabulary where the vendor supports it (`09 §3`).
             parameters["keyterms"] = list(hints)
         return await self._http.json(
             "POST", "/speech-to-text/job/v1", json_body={"job_parameters": parameters}
         )
+
 
     async def _upload_url(self, job_id: str, name: str) -> str:
         """Ask the job for a presigned PUT URL for ``name`` (Azure blob SAS)."""
@@ -283,11 +305,16 @@ class SarvamSaarasProvider(Provider):
         return _presigned_url(payload, "upload_urls", name, self.name)
 
     async def _upload(self, upload_url: str, audio_uri: str) -> None:
+        data = _read(audio_uri, self.name)
         await self._http.content(
             "PUT",
             upload_url,
-            body=_read(audio_uri, self.name),
-            headers={"x-ms-blob-type": "BlockBlob", "content-type": "audio/wav"},
+            body=data,
+            headers={
+                "x-ms-blob-type": "BlockBlob",
+                "content-type": "audio/wav",
+                "content-length": str(len(data)),
+            },
         )
 
     async def _start(self, job_id: str) -> None:
@@ -306,6 +333,22 @@ class SarvamSaarasProvider(Provider):
             )
             state = str(payload.get("job_state") or "").lower()
             if state in {"failed", "error", "cancelled"}:
+                reason_text = _reason(payload).lower()
+                is_rate_limited = any(
+                    token in reason_text
+                    for token in ("rate limit", "429", "too many requests", "quota exceeded", "throttled")
+                )
+                if is_rate_limited:
+                    _log.warning(
+                        "Sarvam rate limit or quota throttle reported: %s",
+                        reason_text,
+                        extra={"provider": self.name, "jobId": job_id},
+                    )
+                    raise ProviderError(
+                        "the Saaras job was rate-limited: " + _reason(payload),
+                        provider=self.name,
+                        retryable=True,
+                    )
                 raise ProviderError(
                     "the Saaras job failed: " + _reason(payload),
                     provider=self.name,
@@ -314,6 +357,7 @@ class SarvamSaarasProvider(Provider):
                     retryable=False,
                 )
             return state in {"completed", "partiallycompleted"}, payload
+
 
         payload = await self._http.poll(
             check=check,

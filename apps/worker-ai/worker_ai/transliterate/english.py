@@ -30,6 +30,8 @@ import re
 
 __all__ = ["ENGLISH_MORPHOLOGY_SUFFIXES", "ENGLISH_WORDS", "is_english_token"]
 
+from worker_ai.transliterate.hinglish import TECH_AND_CREATOR_TERMS
+
 #: Common English tokens in creator/Hinglish speech. Lower-case; matched
 #: case-insensitively. Not exhaustive by design — the morphology check below
 #: covers what the dictionary misses.
@@ -40,6 +42,7 @@ ENGLISH_WORDS: frozenset[str] = frozenset(
         "channel",
         "subscribe",
         "subscribers",
+        "subscriber",
         "like",
         "comment",
         "comments",
@@ -86,8 +89,61 @@ ENGLISH_WORDS: frozenset[str] = frozenset(
         "brand",
         "product",
         "review",
+        # Tech and creator vocabulary (Gap 2)
+        "fundraise",
+        "fundraising",
+        "fundings",
+        "funding",
+        "architecture",
+        "latency",
+        "scalable",
+        "scalability",
+        "optimize",
+        "optimization",
+        "pipeline",
+        "backend",
+        "frontend",
+        "database",
+        "server",
+        "servers",
+        "code",
+        "coding",
+        "developer",
+        "developers",
+        "production",
+        "stack",
+        "deploy",
+        "deployment",
+        "feature",
+        "features",
+        "bug",
+        "bugs",
+        "release",
+        "releases",
+        "founder",
+        "founders",
+        "investor",
+        "investors",
+        "pitch",
+        "valuation",
+        "equity",
+        "revenue",
+        "profit",
+        "burn",
+        "runway",
+        "growth",
+        "bootstrapped",
+        "seed",
+        "saas",
+        "monetize",
+        "monetization",
+        "sponsorship",
+        "collab",
+        "hook",
+        "retention",
     }
-)
+).union(TECH_AND_CREATOR_TERMS)
+
 
 #: Suffixes strongly associated with English inflection/derivation.
 ENGLISH_MORPHOLOGY_SUFFIXES: tuple[str, ...] = (

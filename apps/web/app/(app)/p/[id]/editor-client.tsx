@@ -1334,13 +1334,21 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
                             }}
                           >
                             <EditorMenubar ctx={editorActionContext} />
+                            <BulkActionsBar
+                              onMergeShort={onMergeShort}
+                              onSplitLong={onSplitLong}
+                              onResegment={(params) => void onResegment(params)}
+                              defaultParams={DEFAULT_RESEGMENT_PARAMS}
+                            />
+                          </CaptionsPanelHeader>
+                          <div className="editor-script-toolbar mb-2.5 flex shrink-0 items-center justify-between gap-2 border-b border-border/40 pb-2.5">
                             <ScriptTabs
                               projectId={projectId}
                               activeScript={script}
                               onScriptChange={setScript}
                               onAvailable={onScriptsAvailable}
                             />
-                            <label className="text-fg-1 flex items-center gap-2 text-xs">
+                            <label className="text-fg-1 flex shrink-0 select-none items-center gap-2 text-xs">
                               <input
                                 type="checkbox"
                                 checked={hideFillers}
@@ -1349,13 +1357,7 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
                               />
                               Hide fillers
                             </label>
-                            <BulkActionsBar
-                              onMergeShort={onMergeShort}
-                              onSplitLong={onSplitLong}
-                              onResegment={(params) => void onResegment(params)}
-                              defaultParams={DEFAULT_RESEGMENT_PARAMS}
-                            />
-                          </CaptionsPanelHeader>
+                          </div>
                           <TranscriptList
                             className="flex-1"
                             segments={segments}
