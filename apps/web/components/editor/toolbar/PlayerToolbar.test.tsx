@@ -87,4 +87,24 @@ describe("<PlayerToolbar />", () => {
     await user.click(reelsBtn);
     expect(onPlatformChange).toHaveBeenCalledWith("reels");
   });
+
+  it("renders Find & Replace trigger when onFindReplaceClick is provided", async () => {
+    const user = userEvent.setup();
+    const onFindReplace = vi.fn();
+    renderWithProviders(
+      <PlayerToolbar
+        canvas={{ width: 1080, height: 1920, aspect: "9:16" }}
+        safeZonesOn
+        onSafeZonesChange={vi.fn()}
+        projectId="01JPROJECT"
+        mediaId="01JMEDIA"
+        onFindReplaceClick={onFindReplace}
+      />,
+    );
+    const btn = screen.getByTestId("toolbar-find-replace-trigger");
+    expect(btn).toBeInTheDocument();
+    await user.click(btn);
+    expect(onFindReplace).toHaveBeenCalledOnce();
+  });
 });
+

@@ -50,6 +50,16 @@ export interface WordChipProps {
   /** One-click dynamic keyword highlight color customization. */
   readonly onColorChange?: (wordId: string, color: string | null) => void;
   readonly paletteAccents?: readonly string[];
+  /** Move to next word (Tab shortcut). */
+  readonly onNavigateNext?: (wordId: string) => void;
+  /** Move to previous word (Shift+Tab shortcut). */
+  readonly onNavigatePrev?: (wordId: string) => void;
+  /** Split line at this word (Enter / Shift+Enter shortcut). */
+  readonly onSplitLine?: (wordId: string) => void;
+  /** Merge line with previous (Backspace on first word). */
+  readonly onMergeWithPrev?: (wordId: string) => void;
+  /** Whether this word is the first word in its line. */
+  readonly isFirstInLine?: boolean;
 }
 
 const DEFAULT_CONFIDENCE_THRESHOLD = 0.6;
@@ -80,6 +90,11 @@ function WordChipImpl({
   onEmojiChange,
   onColorChange,
   paletteAccents,
+  onNavigateNext,
+  onNavigatePrev,
+  onSplitLine,
+  onMergeWithPrev,
+  isFirstInLine,
 }: WordChipProps): React.JSX.Element | null {
   const ref = useRef<HTMLSpanElement | null>(null);
   const [editing, setEditing] = useState(false);
@@ -210,18 +225,62 @@ function WordChipImpl({
         }}
         onKeyDown={(event) => {
           if (editing) {
+            if (event.key === "Tab") {
+              event.preventDefault();
+              commit();
+              if (event.shiftKey) {
+                onNavigatePrev?.(word.wid);
+              } else {
+                onNavigateNext?.(word.wid);
+              }
+              return;
+            }
             if (event.key === "Enter") {
               event.preventDefault();
               commit();
+              if (event.shiftKey && onSplitLine) {
+                onSplitLine(word.wid);
+              }
+              return;
             } else if (event.key === "Escape") {
               event.preventDefault();
               cancel();
+              return;
+            } else if (
+              event.key === "Backspace" &&
+              (ref.current?.textContent ?? "").trim() === "" &&
+              isFirstInLine &&
+              onMergeWithPrev
+            ) {
+              event.preventDefault();
+              cancel();
+              onMergeWithPrev(word.wid);
+              return;
+            }
+            return;
+          }
+          if (event.key === "Tab") {
+            event.preventDefault();
+            if (event.shiftKey) {
+              onNavigatePrev?.(word.wid);
+            } else {
+              onNavigateNext?.(word.wid);
             }
             return;
           }
           if (event.key === "Enter") {
             event.preventDefault();
-            setEditing(true);
+            if (event.shiftKey && onSplitLine) {
+              onSplitLine(word.wid);
+            } else {
+              setEditing(true);
+            }
+            return;
+          }
+          if (event.key === "Backspace" && isFirstInLine && onMergeWithPrev) {
+            event.preventDefault();
+            onMergeWithPrev(word.wid);
+            return;
           }
         }}
       >

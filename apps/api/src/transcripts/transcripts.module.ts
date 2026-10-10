@@ -4,7 +4,7 @@ import { MemoryGlossarySource } from "./postprocess/index.js";
 import { RunCaptionsAligner } from "./run-captions.aligner.js";
 import { TranscribeCompletionHandler } from "./transcribe.handler.js";
 import { TranscriptDocumentService } from "./transcript-document.service.js";
-import { TranscriptsController } from "./transcripts.controller.js";
+import { TranscriptMutationsController, TranscriptsController } from "./transcripts.controller.js";
 import { TranscriptsRepository } from "./transcripts.repository.js";
 import { TranscriptsService } from "./transcripts.service.js";
 import { EdgModule } from "../edg/index.js";
@@ -39,7 +39,7 @@ import { WorkspaceMemberGuard } from "../workspaces/workspace-member.guard.js";
  */
 @Module({
   imports: [JobsModule, EdgModule, MemoryModule],
-  controllers: [TranscriptsController],
+  controllers: [TranscriptsController, TranscriptMutationsController],
   providers: [
     TranscriptsService,
     TranscriptsRepository,

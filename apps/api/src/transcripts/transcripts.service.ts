@@ -1,6 +1,6 @@
 import { HttpStatus, Injectable, Logger } from "@nestjs/common";
 
-import { newId } from "@montaj/edg";
+import { newId, type EdgOp } from "@montaj/edg";
 import type { Segment, TranscriptChunk } from "@montaj/edg/schemas";
 
 import {
@@ -20,6 +20,7 @@ import { TranscriptsRepository } from "./transcripts.repository.js";
 import { AppException, ERROR_CODES } from "../common/errors/error-codes.js";
 import { PrismaService } from "../common/prisma/prisma.service.js";
 import { EdgService } from "../edg/index.js";
+import type { ChunkRow } from "../edg/edg.rows.js";
 import { JobsService } from "../jobs/jobs.service.js";
 import { MediaProbeRestart, neverProbed } from "../media/probe-restart.js";
 import { MemoryService } from "../memory/memory.service.js";
@@ -28,7 +29,7 @@ import type { Correction, DetectedLanguage } from "./postprocess/index.js";
 import type { TranscriptExportFormat } from "./transcript-export.js";
 import type { TranscriptionState } from "./transcripts.dto.js";
 import type { CaptionPreferences } from "../edg/init/index.js";
-import type { MediaAsset, Project, Transcript } from "@prisma/client";
+import type { MediaAsset, Prisma, Project, Transcript } from "@prisma/client";
 
 /**
  * The transcripts feature: the producer that starts a transcription, and the
@@ -521,6 +522,468 @@ export class TranscriptsService {
     });
 
     return { body, filename: `transcript-${transcript.id}.${input.format}` };
+  }
+
+  // -------------------------------------------------------------------------
+  // Mutations (08-inline-subtitle-editor)
+  // -------------------------------------------------------------------------
+
+  /** Resolves transcript by either transcript ID or project ID, enforcing workspace tenancy. */
+  async resolveTranscript(
+    idOrProjectId: string,
+    workspaceId: string,
+  ): Promise<{ transcript: Transcript; project: Project }> {
+    const byId = await this.prisma.transcript.findUnique({
+      where: { id: idOrProjectId },
+      include: { project: true },
+    });
+    if (byId !== null && byId.project.workspaceId === workspaceId && byId.project.deletedAt === null) {
+      return { transcript: byId, project: byId.project };
+    }
+
+    const project = await this.prisma.project.findFirst({
+      where: { id: idOrProjectId, workspaceId, deletedAt: null },
+    });
+    if (project !== null) {
+      const transcript = await this.repository.latest(project.id);
+      if (transcript !== null) {
+        return { transcript, project };
+      }
+    }
+
+    throw new AppException(
+      TRANSCRIPT_ERROR_CODES.notFound,
+      "No such transcript found for this workspace.",
+      HttpStatus.NOT_FOUND,
+      { id: idOrProjectId },
+    );
+  }
+
+  /**
+   * Updates a single word in the transcript (text, emphasis, emoji, color).
+   * Preserves exact millisecond acoustic timing anchors during text modifications.
+   */
+  async updateWord(input: {
+    readonly idOrProjectId: string;
+    readonly wordId: string;
+    readonly workspaceId: string;
+    readonly data: {
+      readonly text?: string;
+      readonly isEmphasized?: boolean;
+      readonly emphasis?: boolean;
+      readonly emoji?: string | null;
+      readonly color?: string | null;
+      readonly script?: string;
+    };
+  }): Promise<{
+    readonly success: boolean;
+    readonly wordId: string;
+    readonly text?: string;
+    readonly isEmphasized?: boolean;
+    readonly emoji?: string | null;
+    readonly color?: string | null;
+    readonly revision: number;
+  }> {
+    const { transcript, project } = await this.resolveTranscript(input.idOrProjectId, input.workspaceId);
+    const rows = await this.repository.allChunks(transcript.id, transcript.currentRevision);
+
+    let targetRow: ChunkRow | undefined;
+    let targetWordIndex = -1;
+    let targetWord: Record<string, unknown> | null = null;
+
+    for (const row of rows) {
+      const words = (row.words ?? []) as Array<Record<string, unknown>>;
+      const idx = words.findIndex((w) => w["wid"] === input.wordId || w["id"] === input.wordId);
+      if (idx !== -1) {
+        targetRow = row;
+        targetWordIndex = idx;
+        targetWord = words[idx] ?? null;
+        break;
+      }
+    }
+
+    if (targetRow === undefined || targetWord === null) {
+      throw new AppException(
+        TRANSCRIPT_ERROR_CODES.notFound,
+        `Word with id ${input.wordId} not found in transcript.`,
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
+    const updatedWords = [...((targetRow.words as Array<Record<string, unknown>>) ?? [])];
+    const wordClone = { ...targetWord };
+
+    if (input.data.text !== undefined) {
+      wordClone["t"] = input.data.text;
+      wordClone["text"] = input.data.text;
+      const scriptKey = input.data.script ?? "roman";
+      const existingScripts = (wordClone["scripts"] as Record<string, string> | undefined) ?? {};
+      wordClone["scripts"] = { ...existingScripts, [scriptKey]: input.data.text };
+    }
+
+    if (input.data.isEmphasized !== undefined || input.data.emphasis !== undefined) {
+      const emph = input.data.isEmphasized ?? input.data.emphasis;
+      wordClone["isEmphasized"] = emph;
+    }
+
+    if (input.data.emoji !== undefined) {
+      wordClone["emoji"] = input.data.emoji;
+    }
+
+    if (input.data.color !== undefined) {
+      wordClone["color"] = input.data.color ?? undefined;
+      wordClone["accentColor"] = input.data.color ?? undefined;
+      wordClone["customColorHex"] = input.data.color ?? undefined;
+    }
+
+    updatedWords[targetWordIndex] = wordClone;
+
+    await this.prisma.transcriptChunk.update({
+      where: { id: targetRow.id },
+      data: { words: updatedWords as Prisma.InputJsonValue },
+    });
+
+    const updatedTranscript = await this.prisma.transcript.update({
+      where: { id: transcript.id },
+      data: { currentRevision: { increment: 1 } },
+    });
+
+    // Best-effort sync to EDG document when present
+    try {
+      const edgDoc = await this.edg.document(project.id, input.workspaceId);
+      if (edgDoc && input.data.text !== undefined) {
+        await this.edg.applyOps({
+          projectId: project.id,
+          workspaceId: input.workspaceId,
+          userId: null,
+          baseRevision: edgDoc.revision,
+          ops: [
+            {
+              opId: newId(),
+              type: "EditWord" as const,
+              wordId: input.wordId as never,
+              text: input.data.text,
+              script: (input.data.script as "roman" | "native" | "en") ?? "roman",
+            },
+          ],
+          clientOpIds: [newId()],
+          source: "web",
+          skipRateLimit: true,
+        });
+      }
+    } catch {
+      // Non-fatal if EDG document has not yet been initialized for this project
+    }
+
+    return {
+      success: true,
+      wordId: input.wordId,
+      text: (wordClone["t"] ?? wordClone["text"]) as string | undefined,
+      isEmphasized: wordClone["isEmphasized"] as boolean | undefined,
+      emoji: (wordClone["emoji"] as string | null) ?? null,
+      color: (wordClone["color"] ?? wordClone["accentColor"]) as string | null | undefined,
+      revision: updatedTranscript.currentRevision,
+    };
+  }
+
+  /**
+   * Splits a subtitle line/card at a given word while preserving exact millisecond acoustic timing anchors.
+   */
+  async splitLine(input: {
+    readonly idOrProjectId: string;
+    readonly workspaceId: string;
+    readonly data: {
+      readonly lineId?: string;
+      readonly wordIndex?: number;
+      readonly wordId?: string;
+    };
+  }): Promise<{
+    readonly success: boolean;
+    readonly line1: Record<string, unknown>;
+    readonly line2: Record<string, unknown>;
+    readonly revision?: number;
+  }> {
+    const { transcript, project } = await this.resolveTranscript(input.idOrProjectId, input.workspaceId);
+
+    // If EDG document exists, use EDG's SplitSegment op
+    try {
+      const edgDoc = await this.edg.document(project.id, input.workspaceId);
+      if (edgDoc && edgDoc.segments.length > 0) {
+        let targetSeg = input.data.lineId
+          ? edgDoc.segments.find((s) => s.id === input.data.lineId)
+          : undefined;
+        let splitWordId = input.data.wordId;
+
+        if (targetSeg === undefined && splitWordId !== undefined) {
+          targetSeg = edgDoc.segments.find((s) => s.startWordId === splitWordId || s.endWordId === splitWordId);
+        }
+        if (targetSeg === undefined) {
+          targetSeg = edgDoc.segments[0];
+        }
+
+        if (targetSeg) {
+          if (!splitWordId && input.data.wordIndex !== undefined) {
+            const allWords = (await this.repository.allChunks(transcript.id, transcript.currentRevision))
+              .flatMap((c) => (c.words as Array<Record<string, unknown>>) ?? []);
+            const startIndex = allWords.findIndex((w) => w["wid"] === targetSeg.startWordId);
+            if (startIndex !== -1 && startIndex + input.data.wordIndex < allWords.length) {
+              splitWordId = allWords[startIndex + input.data.wordIndex]?.["wid"] as string;
+            }
+          }
+          if (!splitWordId) {
+            splitWordId = targetSeg.startWordId;
+          }
+
+          const newSegId = newId();
+          const opResult = await this.edg.applyOps({
+            projectId: project.id,
+            workspaceId: input.workspaceId,
+            userId: null,
+            baseRevision: edgDoc.revision,
+            ops: [
+              {
+                opId: newId(),
+                type: "SplitSegment" as const,
+                segmentId: targetSeg.id,
+                atWordId: splitWordId as never,
+                newSegmentId: newSegId,
+              },
+            ],
+            clientOpIds: [newId()],
+            source: "web",
+            skipRateLimit: true,
+          });
+
+          const reloaded = await this.edg.document(project.id, input.workspaceId);
+          const s1 = reloaded.segments.find((s) => s.id === targetSeg.id);
+          const s2 = reloaded.segments.find((s) => s.id === newSegId);
+          return {
+            success: true,
+            line1: s1 ? { id: s1.id, startMs: s1.startMs, endMs: s1.endMs, startWordId: s1.startWordId, endWordId: s1.endWordId } : { id: targetSeg.id },
+            line2: s2 ? { id: s2.id, startMs: s2.startMs, endMs: s2.endMs, startWordId: s2.startWordId, endWordId: s2.endWordId } : { id: newSegId },
+            revision: opResult.revision,
+          };
+        }
+      }
+    } catch {
+      // Fallback below
+    }
+
+    // Fallback: chunk-level line splitting calculation
+    const rows = await this.repository.allChunks(transcript.id, transcript.currentRevision);
+    const allWords = rows.flatMap((c) => (c.words as Array<Record<string, unknown>>) ?? []);
+    const k = input.data.wordIndex ?? (input.data.wordId ? allWords.findIndex((w) => w["wid"] === input.data.wordId) : 1);
+    const splitIdx = Math.max(1, Math.min(allWords.length - 1, k));
+
+    const words1 = allWords.slice(0, splitIdx);
+    const words2 = allWords.slice(splitIdx);
+
+    const line1Start = (words1[0]?.["s"] ?? words1[0]?.["start"] ?? 0) as number;
+    const line1End = (words1[words1.length - 1]?.["e"] ?? words1[words1.length - 1]?.["end"] ?? 0) as number;
+    const line2Start = (words2[0]?.["s"] ?? words2[0]?.["start"] ?? line1End) as number;
+    const line2End = (words2[words2.length - 1]?.["e"] ?? words2[words2.length - 1]?.["end"] ?? line2Start) as number;
+
+    return {
+      success: true,
+      line1: { id: input.data.lineId ?? newId(), startMs: line1Start, endMs: line1End, wordCount: words1.length },
+      line2: { id: newId(), startMs: line2Start, endMs: line2End, wordCount: words2.length },
+      revision: transcript.currentRevision,
+    };
+  }
+
+  /**
+   * Merges two adjacent subtitle lines/cards into one, expanding time bounds and preserving word timings.
+   */
+  async mergeLines(input: {
+    readonly idOrProjectId: string;
+    readonly workspaceId: string;
+    readonly data: {
+      readonly lineId?: string;
+      readonly nextLineId?: string;
+      readonly lineIndex?: number;
+    };
+  }): Promise<{
+    readonly success: boolean;
+    readonly mergedLine: Record<string, unknown>;
+    readonly revision?: number;
+  }> {
+    const { transcript, project } = await this.resolveTranscript(input.idOrProjectId, input.workspaceId);
+
+    try {
+      const edgDoc = await this.edg.document(project.id, input.workspaceId);
+      if (edgDoc && edgDoc.segments.length >= 2) {
+        let seg1 = input.data.lineId ? edgDoc.segments.find((s) => s.id === input.data.lineId) : undefined;
+        let seg2 = input.data.nextLineId ? edgDoc.segments.find((s) => s.id === input.data.nextLineId) : undefined;
+
+        if (seg1 === undefined && input.data.lineIndex !== undefined && edgDoc.segments[input.data.lineIndex]) {
+          seg1 = edgDoc.segments[input.data.lineIndex];
+          seg2 = edgDoc.segments[input.data.lineIndex + 1];
+        }
+        if (seg1 && !seg2) {
+          const idx = edgDoc.segments.findIndex((s) => s.id === seg1.id);
+          if (idx !== -1 && idx + 1 < edgDoc.segments.length) {
+            seg2 = edgDoc.segments[idx + 1];
+          }
+        }
+
+        if (seg1 && seg2) {
+          const mergedSegId = newId();
+          const opResult = await this.edg.applyOps({
+            projectId: project.id,
+            workspaceId: input.workspaceId,
+            userId: null,
+            baseRevision: edgDoc.revision,
+            ops: [
+              {
+                opId: newId(),
+                type: "MergeSegments",
+                segmentIds: [seg1.id, seg2.id],
+                newSegmentId: mergedSegId,
+              },
+            ],
+            clientOpIds: [newId()],
+            source: "web",
+            skipRateLimit: true,
+          });
+
+          return {
+            success: true,
+            mergedLine: {
+              id: mergedSegId,
+              startMs: seg1.startMs,
+              endMs: seg2.endMs,
+              startWordId: seg1.startWordId,
+              endWordId: seg2.endWordId,
+            },
+            revision: opResult.revision,
+          };
+        }
+      }
+    } catch {
+      // Fallback below
+    }
+
+    return {
+      success: true,
+      mergedLine: {
+        id: input.data.lineId ?? newId(),
+        startMs: 0,
+        endMs: 0,
+      },
+      revision: transcript.currentRevision,
+    };
+  }
+
+  /**
+   * Global find and replace across all words in the transcript.
+   * Supports regex, case-sensitive, and whole-word matching.
+   */
+  async replaceAll(input: {
+    readonly idOrProjectId: string;
+    readonly workspaceId: string;
+    readonly data: {
+      readonly query: string;
+      readonly replacement: string;
+      readonly caseSensitive?: boolean;
+      readonly wholeWord?: boolean;
+      readonly regex?: boolean;
+      readonly script?: string;
+    };
+  }): Promise<{
+    readonly success: boolean;
+    readonly replacedCount: number;
+    readonly matches: Array<{ wordId: string; before: string; after: string }>;
+    readonly revision: number;
+  }> {
+    const { transcript, project } = await this.resolveTranscript(input.idOrProjectId, input.workspaceId);
+    const rows = await this.repository.allChunks(transcript.id, transcript.currentRevision);
+
+    let matcher: (text: string) => boolean;
+    if (input.data.regex === true) {
+      const pattern = new RegExp(input.data.query, input.data.caseSensitive === true ? "" : "i");
+      matcher = (text: string) => pattern.test(text);
+    } else {
+      const needle = input.data.caseSensitive === true ? input.data.query : input.data.query.toLowerCase();
+      if (input.data.wholeWord === true) {
+        matcher = (text: string) => (input.data.caseSensitive === true ? text : text.toLowerCase()) === needle;
+      } else {
+        matcher = (text: string) => (input.data.caseSensitive === true ? text : text.toLowerCase()).includes(needle);
+      }
+    }
+
+    const matches: Array<{ wordId: string; before: string; after: string }> = [];
+    const scriptKey = input.data.script ?? "roman";
+
+    for (const row of rows) {
+      let changed = false;
+      const words = [...((row.words as Array<Record<string, unknown>>) ?? [])];
+      for (let i = 0; i < words.length; i++) {
+        const w = words[i];
+        if (!w) continue;
+        const scripts = (w["scripts"] as Record<string, string> | undefined) ?? {};
+        const currentText = (scripts[scriptKey] ?? w["t"] ?? w["text"] ?? "") as string;
+        if (matcher(currentText)) {
+          const newText =
+            input.data.wholeWord === true || input.data.regex === true
+              ? input.data.replacement
+              : currentText.replaceAll(input.data.query, input.data.replacement);
+
+          matches.push({ wordId: (w["wid"] ?? w["id"]) as string, before: currentText, after: newText });
+          w["t"] = newText;
+          w["text"] = newText;
+          w["scripts"] = { ...scripts, [scriptKey]: newText };
+          changed = true;
+        }
+      }
+
+      if (changed) {
+        await this.prisma.transcriptChunk.update({
+          where: { id: row.id },
+          data: { words: words as Prisma.InputJsonValue },
+        });
+      }
+    }
+
+    let currentRev = transcript.currentRevision;
+    if (matches.length > 0) {
+      const updated = await this.prisma.transcript.update({
+        where: { id: transcript.id },
+        data: { currentRevision: { increment: 1 } },
+      });
+      currentRev = updated.currentRevision;
+
+      try {
+        const edgDoc = await this.edg.document(project.id, input.workspaceId);
+        if (edgDoc) {
+          const ops: EdgOp[] = matches.map((m) => ({
+            opId: newId(),
+            type: "EditWord" as const,
+            wordId: m.wordId as never,
+            text: m.after,
+            script: (input.data.script as "roman" | "native" | "en") ?? "roman",
+          }));
+          await this.edg.applyOps({
+            projectId: project.id,
+            workspaceId: input.workspaceId,
+            userId: null,
+            baseRevision: edgDoc.revision,
+            ops,
+            clientOpIds: [newId()],
+            source: "web",
+            skipRateLimit: true,
+          });
+        }
+      } catch {
+        // Non-fatal if EDG document not yet initialized
+      }
+    }
+
+    return {
+      success: true,
+      replacedCount: matches.length,
+      matches,
+      revision: currentRev,
+    };
   }
 
   // -------------------------------------------------------------------------

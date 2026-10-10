@@ -32,10 +32,11 @@ export function FindReplaceDialog({
   const [replacement, setReplacement] = useState("");
   const [regex, setRegex] = useState(false);
   const [caseSensitive, setCaseSensitive] = useState(false);
+  const [wholeWord, setWholeWord] = useState(false);
 
   const matches = useMemo(
-    () => findMatches(words, query, script, { regex, caseSensitive }),
-    [words, query, script, regex, caseSensitive],
+    () => findMatches(words, query, script, { regex, caseSensitive, wholeWord }),
+    [words, query, script, regex, caseSensitive, wholeWord],
   );
 
   if (!open) return null;
@@ -110,6 +111,18 @@ export function FindReplaceDialog({
             data-testid="find-replace-case-sensitive"
             onChange={(event) => {
               setCaseSensitive(event.target.checked);
+            }}
+            className="panel-switch"
+          />
+        </label>
+        <label className="text-fg-1 flex min-h-8 items-center justify-between gap-3 text-sm">
+          Whole word
+          <input
+            type="checkbox"
+            checked={wholeWord}
+            data-testid="find-replace-whole-word"
+            onChange={(event) => {
+              setWholeWord(event.target.checked);
             }}
             className="panel-switch"
           />

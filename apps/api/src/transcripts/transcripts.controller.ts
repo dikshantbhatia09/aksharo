@@ -5,6 +5,7 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  Patch,
   Post,
   Query,
   Res,
@@ -25,12 +26,20 @@ import {
 import { EXPORT_MEDIA_TYPES } from "./transcript-export.js";
 import {
   ExportQueryDto,
+  MergeLinesDto,
+  MergeLinesResponseDto,
+  ReplaceAllDto,
+  ReplaceAllResponseDto,
   RetranscribeRequestDto,
+  SplitLineDto,
+  SplitLineResponseDto,
   TranscribeAcceptedDto,
   TranscribeRequestDto,
   TranscriptChunkPageDto,
   TranscriptionStateDto,
   TranscriptQueryDto,
+  UpdateWordDto,
+  UpdatedWordResponseDto,
 } from "./transcripts.dto.js";
 import { TranscriptsService } from "./transcripts.service.js";
 import { CurrentUser, JwtAuthGuard, Roles, RolesGuard } from "../common/guards/index.js";
@@ -212,4 +221,188 @@ export class TranscriptsController {
       .setHeader("Content-Disposition", `attachment; filename="${file.filename}"`)
       .send(file.body);
   }
+
+  @Patch("transcript/words/:wordId")
+  @Roles("editor")
+  @ApiOperation({
+    summary: "Update word text, emphasis, emoji, or styling",
+    operationId: "updateProjectTranscriptWord",
+  })
+  @ApiOkResponse({ type: UpdatedWordResponseDto })
+  async updateWord(
+    @CurrentUser() principal: AuthPrincipal,
+    @Param("projectId") projectId: string,
+    @Param("wordId") wordId: string,
+    @Body() body: UpdateWordDto,
+  ): Promise<UpdatedWordResponseDto> {
+    return this.transcripts.updateWord({
+      idOrProjectId: projectId,
+      wordId,
+      workspaceId: principal.workspaceId,
+      data: body,
+    });
+  }
+
+  @Post("transcript/lines/split")
+  @Roles("editor")
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: "Split a line/segment at a word index or word ID",
+    operationId: "splitProjectTranscriptLine",
+  })
+  @ApiOkResponse({ type: SplitLineResponseDto })
+  async splitLine(
+    @CurrentUser() principal: AuthPrincipal,
+    @Param("projectId") projectId: string,
+    @Body() body: SplitLineDto,
+  ): Promise<SplitLineResponseDto> {
+    return this.transcripts.splitLine({
+      idOrProjectId: projectId,
+      workspaceId: principal.workspaceId,
+      data: body,
+    });
+  }
+
+  @Post("transcript/lines/merge")
+  @Roles("editor")
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: "Merge two adjacent subtitle lines/cards",
+    operationId: "mergeProjectTranscriptLines",
+  })
+  @ApiOkResponse({ type: MergeLinesResponseDto })
+  async mergeLines(
+    @CurrentUser() principal: AuthPrincipal,
+    @Param("projectId") projectId: string,
+    @Body() body: MergeLinesDto,
+  ): Promise<MergeLinesResponseDto> {
+    return this.transcripts.mergeLines({
+      idOrProjectId: projectId,
+      workspaceId: principal.workspaceId,
+      data: body,
+    });
+  }
+
+  @Post("transcript/replace-all")
+  @Roles("editor")
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: "Global find and replace across all transcript words",
+    operationId: "replaceAllProjectTranscriptWords",
+  })
+  @ApiOkResponse({ type: ReplaceAllResponseDto })
+  async replaceAll(
+    @CurrentUser() principal: AuthPrincipal,
+    @Param("projectId") projectId: string,
+    @Body() body: ReplaceAllDto,
+  ): Promise<ReplaceAllResponseDto> {
+    return this.transcripts.replaceAll({
+      idOrProjectId: projectId,
+      workspaceId: principal.workspaceId,
+      data: body,
+    });
+  }
 }
+
+/**
+ * Dedicated mutation surface for transcript word edits, line splits, and merges:
+ * `PATCH /api/v1/transcripts/:id/words/:wordId`
+ * `POST /api/v1/transcripts/:id/lines/split`
+ * `POST /api/v1/transcripts/:id/lines/merge`
+ * `POST /api/v1/transcripts/:id/replace-all`
+ */
+@ApiTags("transcripts")
+@ApiBearerAuth("access-token")
+@ApiUnauthorizedResponse({ description: "Missing or invalid access token." })
+@ApiNotFoundResponse({ description: "`common/not_found`, or `transcript/not_found`." })
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Controller(["transcripts", "api/v1/transcripts"])
+export class TranscriptMutationsController {
+  constructor(private readonly transcripts: TranscriptsService) {}
+
+  @Patch(":id/words/:wordId")
+  @Roles("editor")
+  @ApiOperation({
+    summary: "Update word text, emphasis, emoji, or styling",
+    description: "Updates a single word while preserving acoustic millisecond timing anchors.",
+    operationId: "updateTranscriptWord",
+  })
+  @ApiOkResponse({ type: UpdatedWordResponseDto })
+  async updateWord(
+    @CurrentUser() principal: AuthPrincipal,
+    @Param("id") id: string,
+    @Param("wordId") wordId: string,
+    @Body() body: UpdateWordDto,
+  ): Promise<UpdatedWordResponseDto> {
+    return this.transcripts.updateWord({
+      idOrProjectId: id,
+      wordId,
+      workspaceId: principal.workspaceId,
+      data: body,
+    });
+  }
+
+  @Post(":id/lines/split")
+  @Roles("editor")
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: "Split a line/segment at a word index or word ID",
+    description: "Splits a subtitle card into two consecutive cards, maintaining exact timing continuity.",
+    operationId: "splitTranscriptLine",
+  })
+  @ApiOkResponse({ type: SplitLineResponseDto })
+  async splitLine(
+    @CurrentUser() principal: AuthPrincipal,
+    @Param("id") id: string,
+    @Body() body: SplitLineDto,
+  ): Promise<SplitLineResponseDto> {
+    return this.transcripts.splitLine({
+      idOrProjectId: id,
+      workspaceId: principal.workspaceId,
+      data: body,
+    });
+  }
+
+  @Post(":id/lines/merge")
+  @Roles("editor")
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: "Merge two adjacent subtitle lines/cards",
+    description: "Concatenates words of adjacent cards and expands time bounds while preserving word timings.",
+    operationId: "mergeTranscriptLines",
+  })
+  @ApiOkResponse({ type: MergeLinesResponseDto })
+  async mergeLines(
+    @CurrentUser() principal: AuthPrincipal,
+    @Param("id") id: string,
+    @Body() body: MergeLinesDto,
+  ): Promise<MergeLinesResponseDto> {
+    return this.transcripts.mergeLines({
+      idOrProjectId: id,
+      workspaceId: principal.workspaceId,
+      data: body,
+    });
+  }
+
+  @Post(":id/replace-all")
+  @Roles("editor")
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: "Global find and replace across all transcript words",
+    description: "Replaces query occurrences across all words while preserving timing anchors.",
+    operationId: "replaceAllTranscriptWords",
+  })
+  @ApiOkResponse({ type: ReplaceAllResponseDto })
+  async replaceAll(
+    @CurrentUser() principal: AuthPrincipal,
+    @Param("id") id: string,
+    @Body() body: ReplaceAllDto,
+  ): Promise<ReplaceAllResponseDto> {
+    return this.transcripts.replaceAll({
+      idOrProjectId: id,
+      workspaceId: principal.workspaceId,
+      data: body,
+    });
+  }
+}
+

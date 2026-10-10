@@ -1669,6 +1669,8 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
                       showSafeZones={safeZonesOn}
                       safeZonePlatform={safeZonePlatform}
                       {...(selectedSegmentId === undefined ? {} : { selectedSegmentId })}
+                      onEditWord={onEditWord}
+                      onSelectWord={(wordId) => setSelectedWordId(wordId)}
                       onOp={(op) => {
                         // The stage's drag op arrives with the panel module's
                         // `panel-${n}` placeholder id (see `submitPanelOp`); the
@@ -1699,6 +1701,7 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
                       onSafeZonePlatformChange={setSafeZonePlatform}
                       projectId={projectId}
                       mediaId={primaryMedia?.mediaId}
+                      onFindReplaceClick={() => setFindOpen(true)}
                     />
                   </div>
                 </div>

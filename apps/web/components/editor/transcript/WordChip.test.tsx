@@ -168,4 +168,62 @@ describe("WordChip", () => {
     fireEvent.click(screen.getByTestId("color-swatch-#00FF66"));
     expect(onColorChange).toHaveBeenCalledWith("0:0", "#00FF66");
   });
+
+  it("Tab and Shift+Tab trigger word navigation", () => {
+    const onNavigateNext = vi.fn();
+    const onNavigatePrev = vi.fn();
+    render(
+      <WordChip
+        word={word()}
+        script="roman"
+        onCommit={vi.fn()}
+        onNavigateNext={onNavigateNext}
+        onNavigatePrev={onNavigatePrev}
+      />,
+    );
+    const chip = screen.getByTestId("word-chip-0:0");
+    chip.focus();
+
+    fireEvent.keyDown(chip, { key: "Tab" });
+    expect(onNavigateNext).toHaveBeenCalledWith("0:0");
+
+    fireEvent.keyDown(chip, { key: "Tab", shiftKey: true });
+    expect(onNavigatePrev).toHaveBeenCalledWith("0:0");
+  });
+
+  it("Shift+Enter triggers line splitting", () => {
+    const onSplitLine = vi.fn();
+    render(
+      <WordChip
+        word={word()}
+        script="roman"
+        onCommit={vi.fn()}
+        onSplitLine={onSplitLine}
+      />,
+    );
+    const chip = screen.getByTestId("word-chip-0:0");
+    chip.focus();
+
+    fireEvent.keyDown(chip, { key: "Enter", shiftKey: true });
+    expect(onSplitLine).toHaveBeenCalledWith("0:0");
+  });
+
+  it("Backspace on first word of line triggers onMergeWithPrev", () => {
+    const onMergeWithPrev = vi.fn();
+    render(
+      <WordChip
+        word={word()}
+        script="roman"
+        onCommit={vi.fn()}
+        isFirstInLine={true}
+        onMergeWithPrev={onMergeWithPrev}
+      />,
+    );
+    const chip = screen.getByTestId("word-chip-0:0");
+    chip.focus();
+
+    fireEvent.keyDown(chip, { key: "Backspace" });
+    expect(onMergeWithPrev).toHaveBeenCalledWith("0:0");
+  });
 });
+

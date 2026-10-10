@@ -108,6 +108,7 @@ function service(media: Partial<MediaRow> = {}) {
       })),
     },
     mediaAsset: { findFirst: vi.fn(async () => row) },
+    mediaAudioTrack: { findMany: vi.fn(async () => []) },
     edgDocument: { findUnique: vi.fn(async () => ({ revision: 1 })) },
   } as unknown as PrismaService;
   const transcripts = new TranscriptsService(

@@ -64,6 +64,7 @@ export interface SegmentCardProps {
   readonly onEditWord: (wordId: string, text: string) => void;
   readonly onFixSpellingEverywhere?: (wordId: string, text: string) => void;
   readonly onMergeWithNext?: (segmentId: string) => void;
+  readonly onMergeWithPrev?: (segmentId: string) => void;
   readonly onHideToggle?: (segmentId: string, hidden: boolean) => void;
   readonly onInsertWordAfter: (afterWordId: string, text: string) => void;
   readonly onRenameSpeakerRequested?: (speakerId: string) => void;
@@ -135,6 +136,7 @@ function SegmentCardImpl({
   onEditWord,
   onFixSpellingEverywhere,
   onMergeWithNext,
+  onMergeWithPrev,
   onHideToggle,
   onInsertWordAfter,
   onRenameSpeakerRequested,
@@ -216,7 +218,7 @@ function SegmentCardImpl({
               className="editor-caption-words flex min-w-0 flex-1 flex-wrap items-center gap-x-1 gap-y-1 text-[15px] leading-6"
               data-testid={`segment-words-${segment.id}`}
             >
-              {words.map((word) => (
+              {words.map((word, wordIdx) => (
                 <span
                   key={word.wid}
                   onPointerDown={(event) => {
@@ -233,10 +235,21 @@ function SegmentCardImpl({
                       segment.emphasis?.some((entry) => entry.wordId === word.wid) === true
                     }
                     hideFillers={hideFillers}
+                    isFirstInLine={wordIdx === 0}
                     onCommit={onEditWord}
                     {...(onSeek === undefined ? {} : { onSeek })}
                     {...(onFixSpellingEverywhere === undefined ? {} : { onFixSpellingEverywhere })}
                     onSelect={handleWordSelect}
+                    onNavigateNext={() => {
+                      const nextWord = words[wordIdx + 1];
+                      if (nextWord) handleWordSelect(nextWord.wid);
+                    }}
+                    onNavigatePrev={() => {
+                      const prevWord = words[wordIdx - 1];
+                      if (prevWord) handleWordSelect(prevWord.wid);
+                    }}
+                    onSplitLine={(wid) => onRequestAction?.("split", segment.id, wid)}
+                    onMergeWithPrev={() => onMergeWithPrev?.(segment.id)}
                     {...(onWordColorChange === undefined ? {} : { onColorChange: onWordColorChange })}
                     {...(paletteAccents === undefined ? {} : { paletteAccents })}
                   />

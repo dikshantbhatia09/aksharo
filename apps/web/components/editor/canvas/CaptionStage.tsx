@@ -25,7 +25,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import type { SafeZonePlatform, StyleDoc } from "@montaj/caption-styles";
 import type { CanvasKitBackend } from "@montaj/render-canvaskit";
 import { layoutFrame, PlacementCache, renderFrame } from "@montaj/render-core";
-import type { CanvasFaceTrack, DisplayScript, EdgProjection } from "@montaj/render-core";
+import type { CanvasFaceTrack, DisplayScript, EdgProjection, LayoutWord } from "@montaj/render-core";
 
 import {
   type Anchor,
@@ -204,6 +204,10 @@ export interface CaptionStageProps {
    */
   readonly backdrop?: React.ReactNode;
   readonly className?: string;
+  /** Direct in-line word edit from clicking a word on the video canvas. */
+  readonly onEditWord?: (wordId: string, text: string) => void;
+  /** Select a word when clicked on canvas. */
+  readonly onSelectWord?: (wordId: string) => void;
   /**
    * Extra layers (B20's proposal overlays) drawn above the caption overlay.
    * A plain node for a layer that draws its own geometry, or a function for
@@ -251,6 +255,8 @@ export function CaptionStage({
   safeZonePlatform = "universal",
   images,
   backdrop,
+  onEditWord,
+  onSelectWord,
   className,
   children,
 }: CaptionStageProps): React.JSX.Element {
@@ -269,6 +275,11 @@ export function CaptionStage({
   const [dragPreview, setDragPreview] = useState<SegmentPosition | undefined>(undefined);
   const [snapTooltip, setSnapTooltip] = useState<string | undefined>(undefined);
   const [captionBox, setCaptionBox] = useState<Box | undefined>(undefined);
+  const [canvasWords, setCanvasWords] = useState<readonly LayoutWord[]>([]);
+  const [canvasFontSize, setCanvasFontSize] = useState<number>(24);
+  const [editingWordId, setEditingWordId] = useState<string | null>(null);
+  const [editingWordText, setEditingWordText] = useState<string>("");
+  const cancelledWordEditRef = useRef(false);
   const [isLocked, setIsLocked] = useState(true);
 
   // Fit the stage to whatever box the editor gives it.
@@ -428,6 +439,8 @@ export function CaptionStage({
         ? laid[0]
         : laid.find((entry) => entry.layout.segmentId === selectedSegmentId);
     setCaptionBox(selected === undefined ? undefined : (selected.layout.paddedBox as Box));
+    setCanvasWords(selected === undefined ? [] : selected.layout.words);
+    setCanvasFontSize(selected === undefined ? 24 : selected.layout.fontSizePx);
   }, [
     backend,
     engine,
@@ -667,6 +680,96 @@ export function CaptionStage({
             className="absolute -bottom-1 -right-1 size-2 rounded-full border border-ink bg-fg-0 shadow"
             aria-hidden="true"
           />
+        </div>
+      ) : null}
+      {canvasWords.length > 0 ? (
+        <div
+          className="pointer-events-none absolute inset-0"
+          data-testid="canvas-word-overlays"
+        >
+          {canvasWords.map((word) => {
+            const css = boxToCss(word.box, fit);
+            const left = Number.isNaN(css.left) ? 0 : css.left;
+            const top = Number.isNaN(css.top) ? 0 : css.top;
+            const width = Number.isNaN(css.width) ? 60 : css.width;
+            const height = Number.isNaN(css.height) ? 24 : css.height;
+            const isEditingThis = editingWordId === word.wid;
+
+            if (isEditingThis) {
+              return (
+                <input
+                  key={word.wid}
+                  data-testid={`canvas-word-input-${word.wid}`}
+                  type="text"
+                  autoFocus
+                  value={editingWordText}
+                  onChange={(e) => {
+                    setEditingWordText(e.target.value);
+                  }}
+                  onBlur={() => {
+                    if (!cancelledWordEditRef.current && editingWordText.trim() !== "" && editingWordText !== word.text) {
+                      onEditWord?.(word.wid, editingWordText.trim());
+                    }
+                    setEditingWordId(null);
+                    cancelledWordEditRef.current = false;
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      if (!cancelledWordEditRef.current && editingWordText.trim() !== "" && editingWordText !== word.text) {
+                        onEditWord?.(word.wid, editingWordText.trim());
+                      }
+                      setEditingWordId(null);
+                    } else if (e.key === "Escape") {
+                      e.preventDefault();
+                      cancelledWordEditRef.current = true;
+                      setEditingWordId(null);
+                    }
+                  }}
+                  className="pointer-events-auto bg-bg-0 text-fg-0 border-accent absolute z-30 rounded border px-1.5 font-bold shadow-xl outline-none"
+                  style={{
+                    left: left - 4,
+                    top: top - 2,
+                    minWidth: Math.max(width + 12, 60),
+                    height: Math.max(height + 4, 28),
+                    fontSize: `${Math.max(12, Math.round(canvasFontSize * (fit.scale || 1)))}px`,
+                    lineHeight: `${Math.max(height, 24)}px`,
+                  }}
+                />
+              );
+            }
+
+            return (
+              <div
+                key={word.wid}
+                data-testid={`canvas-word-${word.wid}`}
+                role="button"
+                tabIndex={0}
+                aria-label={`Edit word "${word.text}" directly on canvas`}
+                className="pointer-events-auto hover:ring-accent/70 hover:bg-accent/10 absolute z-20 cursor-text rounded transition-all hover:ring-2"
+                style={{
+                  left,
+                  top,
+                  width,
+                  height,
+                }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSelectWord?.(word.wid);
+                  setEditingWordId(word.wid);
+                  setEditingWordText(word.text);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    onSelectWord?.(word.wid);
+                    setEditingWordId(word.wid);
+                    setEditingWordText(word.text);
+                  }
+                }}
+              />
+            );
+          })}
         </div>
       ) : null}
       {typeof children === "function" ? children({ fit, canvas: surfaceCanvas }) : children}

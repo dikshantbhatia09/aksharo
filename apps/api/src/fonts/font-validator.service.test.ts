@@ -68,7 +68,7 @@ describe("FontValidatorService", () => {
       service.validate(oversizedBuffer);
     } catch (error) {
       expect(error).toBeInstanceOf(AppException);
-      expect((error as AppException).status).toBe(413);
+      expect((error as AppException).getStatus()).toBe(413);
     }
   });
 });

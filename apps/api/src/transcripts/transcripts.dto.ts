@@ -261,3 +261,76 @@ export class TranscriptionStateDto {
   @ApiPropertyOptional({ description: "Failure detail for status=failed." })
   error?: string;
 }
+
+// ---------------------------------------------------------------------------
+// Transcript mutation shapes (08-inline-subtitle-editor)
+// ---------------------------------------------------------------------------
+
+const UpdateWordRequest = z.object({
+  text: z.string().optional(),
+  isEmphasized: z.boolean().optional(),
+  emphasis: z.boolean().optional(),
+  emoji: z.union([z.string(), z.null()]).optional(),
+  color: z.union([z.string(), z.null()]).optional(),
+  script: z.enum(["roman", "native", "en"]).optional(),
+});
+
+export class UpdateWordDto extends zodDto(UpdateWordRequest) {}
+
+const SplitLineRequest = z.object({
+  lineId: z.string().optional(),
+  wordIndex: z.number().int().min(0).optional(),
+  wordId: z.string().optional(),
+});
+
+export class SplitLineDto extends zodDto(SplitLineRequest) {}
+
+const MergeLinesRequest = z.object({
+  lineId: z.string().optional(),
+  nextLineId: z.string().optional(),
+  lineIndex: z.number().int().min(0).optional(),
+});
+
+export class MergeLinesDto extends zodDto(MergeLinesRequest) {}
+
+const ReplaceAllRequest = z.object({
+  query: z.string().min(1),
+  replacement: z.string(),
+  caseSensitive: z.boolean().optional(),
+  wholeWord: z.boolean().optional(),
+  regex: z.boolean().optional(),
+  script: z.enum(["roman", "native", "en"]).optional(),
+});
+
+export class ReplaceAllDto extends zodDto(ReplaceAllRequest) {}
+
+export class UpdatedWordResponseDto {
+  @ApiProperty() success!: boolean;
+  @ApiProperty() wordId!: string;
+  @ApiPropertyOptional() text?: string;
+  @ApiPropertyOptional() isEmphasized?: boolean;
+  @ApiPropertyOptional({ nullable: true }) emoji?: string | null;
+  @ApiPropertyOptional({ nullable: true }) color?: string | null;
+  @ApiPropertyOptional() revision?: number;
+}
+
+export class SplitLineResponseDto {
+  @ApiProperty() success!: boolean;
+  @ApiProperty({ type: "object", additionalProperties: true }) line1!: Record<string, unknown>;
+  @ApiProperty({ type: "object", additionalProperties: true }) line2!: Record<string, unknown>;
+  @ApiPropertyOptional() revision?: number;
+}
+
+export class MergeLinesResponseDto {
+  @ApiProperty() success!: boolean;
+  @ApiProperty({ type: "object", additionalProperties: true }) mergedLine!: Record<string, unknown>;
+  @ApiPropertyOptional() revision?: number;
+}
+
+export class ReplaceAllResponseDto {
+  @ApiProperty() success!: boolean;
+  @ApiProperty() replacedCount!: number;
+  @ApiProperty({ type: "array", items: { type: "object", additionalProperties: true } }) matches!: unknown[];
+  @ApiPropertyOptional() revision?: number;
+}
+

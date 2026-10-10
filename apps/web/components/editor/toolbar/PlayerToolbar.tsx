@@ -17,7 +17,7 @@
  * asked for, this keeps the real, working boolean toggle (`Switch`), just
  * small enough to sit inside the same pill shape instead of a caret.
  */
-import { Check, ChevronDown } from "lucide-react";
+import { Check, ChevronDown, Search } from "lucide-react";
 import * as React from "react";
 
 import type { SafeZonePlatform } from "@montaj/caption-styles";
@@ -42,6 +42,7 @@ export interface PlayerToolbarProps {
   readonly onSafeZonePlatformChange?: (platform: SafeZonePlatform) => void;
   readonly projectId: string;
   readonly mediaId: string | undefined;
+  readonly onFindReplaceClick?: () => void;
   readonly className?: string;
 }
 
@@ -63,6 +64,7 @@ export function PlayerToolbar({
   onSafeZonePlatformChange,
   projectId,
   mediaId,
+  onFindReplaceClick,
   className,
 }: PlayerToolbarProps): React.JSX.Element {
   return (
@@ -75,6 +77,19 @@ export function PlayerToolbar({
       </div>
 
       <div className="pointer-events-auto absolute top-4 right-4 flex items-center gap-2">
+        {onFindReplaceClick && (
+          <button
+            type="button"
+            className={PILL}
+            data-testid="toolbar-find-replace-trigger"
+            aria-label="Find and replace (Ctrl+F)"
+            title="Find and replace (Ctrl+F)"
+            onClick={onFindReplaceClick}
+          >
+            <Search className="size-3.5 text-fg-2" aria-hidden="true" />
+            <span>Find &amp; Replace</span>
+          </button>
+        )}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button

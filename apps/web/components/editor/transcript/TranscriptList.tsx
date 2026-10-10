@@ -224,6 +224,12 @@ export function TranscriptList({
                   onEditWord={onEditWord}
                   {...(onFixSpellingEverywhere === undefined ? {} : { onFixSpellingEverywhere })}
                   {...(onMergeWithNext === undefined ? {} : { onMergeWithNext })}
+                  onMergeWithPrev={() => {
+                    const prevSegment = segments[index - 1];
+                    if (index > 0 && prevSegment) {
+                      onMergeWithNext?.(prevSegment.id);
+                    }
+                  }}
                   {...(onHideToggle === undefined ? {} : { onHideToggle })}
                   onInsertWordAfter={onInsertWordAfter}
                   {...(onRenameSpeakerRequested === undefined ? {} : { onRenameSpeakerRequested })}
