@@ -13,10 +13,12 @@ function Harness({
   initial = "captions" as EditorRailTab,
   broll = false,
   music = false,
+  stock = false,
 }: {
   readonly initial?: EditorRailTab;
   readonly broll?: boolean;
   readonly music?: boolean;
+  readonly stock?: boolean;
 }): React.JSX.Element {
   const [active, setActive] = React.useState<EditorRailTab>(initial);
   return (
@@ -29,6 +31,7 @@ function Harness({
         library={<div data-testid="library-content">Library body</div>}
         {...(broll ? { broll: <div data-testid="broll-content">B-roll body</div> } : {})}
         {...(music ? { music: <div data-testid="music-content">Music body</div> } : {})}
+        {...(stock ? { stock: <div data-testid="stock-content">Stock body</div> } : {})}
       />
     </TooltipProvider>
   );
@@ -109,6 +112,18 @@ describe("<EditorRail />", () => {
     expect(screen.getByTestId("editor-rail-tab-music")).toBeInTheDocument();
     await user.click(screen.getByTestId("editor-rail-tab-music"));
     expect(screen.getByTestId("music-content")).toBeVisible();
+    expect(screen.getByTestId("captions-content").closest('[role="tabpanel"]')).not.toBeVisible();
+  });
+
+  it("offers the Stock tab and switches to it on click (Pillar 6 §02)", async () => {
+    const user = userEvent.setup();
+    const { unmount } = render(<Harness />);
+    expect(screen.queryByTestId("editor-rail-tab-stock")).toBeNull();
+    unmount();
+    render(<Harness stock />);
+    expect(screen.getByTestId("editor-rail-tab-stock")).toBeInTheDocument();
+    await user.click(screen.getByTestId("editor-rail-tab-stock"));
+    expect(screen.getByTestId("stock-content")).toBeVisible();
     expect(screen.getByTestId("captions-content").closest('[role="tabpanel"]')).not.toBeVisible();
   });
 });

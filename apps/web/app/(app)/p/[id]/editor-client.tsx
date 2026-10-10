@@ -102,6 +102,7 @@ import {
 import { EditorRail, type EditorRailTab } from "@/components/editor/rail/EditorRail";
 import { LibraryPanel } from "@/components/editor/rail/LibraryPanel";
 import { MusicPickerDrawer } from "@/components/editor/music-picker-drawer";
+import { StockDrawer } from "@/components/editor/stock-drawer";
 import { RetranscribeDialog } from "@/components/editor/RetranscribeDialog";
 import { ShareDialog } from "@/components/editor/ShareDialog";
 import {
@@ -1478,6 +1479,14 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
                           projectId={projectId}
                           clipId={selectedSegmentId}
                           appliedVolume={0.15}
+                        />
+                      }
+                      stock={
+                        <StockDrawer
+                          projectId={projectId}
+                          onInsertAsset={(asset) => {
+                            toast.success(`Inserted stock clip "${asset.title}"`);
+                          }}
                         />
                       }
                     />

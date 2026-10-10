@@ -13,14 +13,14 @@
  * "Captions" renders (`children`), so relocating it here changes nothing
  * about caption-editing behaviour.
  */
-import { Captions, FolderOpen, Images, Music, Type } from "lucide-react";
+import { Captions, Film, FolderOpen, Images, Music, Type } from "lucide-react";
 import * as React from "react";
 
 import { cn, Tooltip, TooltipContent, TooltipTrigger } from "@montaj/ui";
 
 import type { LucideIcon } from "lucide-react";
 
-export type EditorRailTab = "captions" | "fonts" | "library" | "broll" | "music";
+export type EditorRailTab = "captions" | "fonts" | "library" | "broll" | "music" | "stock";
 
 const TABS: readonly {
   readonly id: EditorRailTab;
@@ -34,6 +34,8 @@ const TABS: readonly {
   { id: "broll", label: "B-roll", icon: Images },
   // Royalty-free background music library (Pillar 5 §04).
   { id: "music", label: "Music", icon: Music },
+  // Integrated stock media library (Pillar 6 §02: Pexels, Pixabay, Storyblocks).
+  { id: "stock", label: "Stock", icon: Film },
 ];
 
 export interface EditorRailProps {
@@ -47,6 +49,8 @@ export interface EditorRailProps {
   readonly broll?: React.ReactNode;
   /** The Music tab's content (Pillar 5 §04); without it the tab is not offered. */
   readonly music?: React.ReactNode;
+  /** The Stock tab's content (Pillar 6 §02); without it the tab is not offered. */
+  readonly stock?: React.ReactNode;
   readonly className?: string;
 }
 
@@ -58,11 +62,13 @@ export function EditorRail({
   library,
   broll,
   music,
+  stock,
   className,
 }: EditorRailProps): React.JSX.Element {
   const tabs = TABS.filter((tab) => {
     if (tab.id === "broll") return broll !== undefined;
     if (tab.id === "music") return music !== undefined;
+    if (tab.id === "stock") return stock !== undefined;
     return true;
   });
   return (
@@ -125,6 +131,11 @@ export function EditorRail({
         {music === undefined ? null : (
           <div role="tabpanel" hidden={active !== "music"} className="h-full">
             {music}
+          </div>
+        )}
+        {stock === undefined ? null : (
+          <div role="tabpanel" hidden={active !== "stock"} className="h-full">
+            {stock}
           </div>
         )}
       </div>

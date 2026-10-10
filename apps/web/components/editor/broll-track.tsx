@@ -117,6 +117,7 @@ export interface BrollTrackProps {
   readonly onDeleteCue?: (cueId: string) => void;
   readonly onSeek?: (sec: number) => void;
   readonly onSearchStock?: (query: string) => Promise<StockAlternative[]>;
+  readonly onOpenStockDrawer?: () => void;
   readonly className?: string;
 }
 
@@ -131,6 +132,7 @@ export function BrollTrack({
   onDeleteCue,
   onSeek,
   onSearchStock,
+  onOpenStockDrawer,
   className = "",
 }: BrollTrackProps) {
   const [selectedCueId, setSelectedCueId] = useState<string | null>(null);
@@ -333,6 +335,23 @@ export function BrollTrack({
                 {isSearching ? "Searching..." : "Search"}
               </button>
             </form>
+
+            {onOpenStockDrawer ? (
+              <div className="mt-2.5 flex justify-end">
+                <button
+                  type="button"
+                  data-testid="broll-open-stock-drawer-btn"
+                  onClick={() => {
+                    handleCloseSwapModal();
+                    onOpenStockDrawer();
+                  }}
+                  className="flex items-center gap-1 text-[11px] font-medium text-indigo-400 hover:text-indigo-300 transition"
+                >
+                  <Film className="h-3 w-3" />
+                  <span>Browse Full Stock Library (Pexels, Pixabay, Storyblocks) →</span>
+                </button>
+              </div>
+            ) : null}
 
             {/* 6 Alternative Stock Video Grid */}
             <div className="mt-4">

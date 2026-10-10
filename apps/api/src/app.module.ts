@@ -57,6 +57,7 @@ import { RepurposeModule } from "./repurpose/repurpose.module.js";
 import { ClipReviewModule } from "./repurpose/review/clip-review.module.js";
 import { SchedulerTasksModule } from "./scheduler/scheduler-tasks.module.js";
 import { ShareModule } from "./share/share.module.js";
+import { StockModule } from "./stock/stock.module.js";
 import { StreakModule } from "./streak/streak.module.js";
 import { StylesModule } from "./styles/styles.module.js";
 import { SupportModule } from "./support/support.module.js";
@@ -153,6 +154,8 @@ import { WorkspacesModule } from "./workspaces/workspaces.module.js";
     // 2026-10-05: a workspace's B-roll library (`/broll`), the pictures a B-roll
     // cutaway draws; stock photos only when `PEXELS_API_KEY` is set.
     BrollModule,
+    // Pillar 6 §02: Integrated stock media library (Pexels, Pixabay, Storyblocks)
+    StockModule,
     ExportsModule,
     ReferralsModule,
     // B12: Academy tracks/progress/rewards + What's-new (`AcademyModule`), and
