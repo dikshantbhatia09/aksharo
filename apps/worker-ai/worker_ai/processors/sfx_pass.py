@@ -137,6 +137,60 @@ def _read_emphasis_words(payload: dict[str, Any]) -> list[tuple[int, str]]:
     return words
 
 
+def _read_keyframes(payload: dict[str, Any]) -> list[tuple[int, ...]]:
+    raw = payload.get("keyframes")
+    if not isinstance(raw, list):
+        return []
+    keyframes: list[tuple[int, ...]] = []
+    for item in raw:
+        if isinstance(item, (int, float)):
+            keyframes.append((int(item),))
+        elif isinstance(item, dict):
+            t_ms = _int(
+                item.get("tMs")
+                or item.get("startMs")
+                or item.get("t")
+                or item.get("timeMs"),
+                default=0,
+            )
+            keyframes.append((t_ms,))
+        elif isinstance(item, (list, tuple)) and len(item) > 0:
+            keyframes.append((_int(item[0], default=0),))
+    return keyframes
+
+
+def _read_emojis(payload: dict[str, Any]) -> list[tuple[int, str]]:
+    raw = payload.get("emojis")
+    if not isinstance(raw, list):
+        return []
+    emojis: list[tuple[int, str]] = []
+    for item in raw:
+        if isinstance(item, dict):
+            t_ms = _int(item.get("tMs") or item.get("startMs") or item.get("t"), default=0)
+            char = str(item.get("char") or item.get("emoji") or item.get("assetKey") or "")
+            if char:
+                emojis.append((t_ms, char))
+        elif isinstance(item, (list, tuple)) and len(item) >= 2:
+            emojis.append((_int(item[0], default=0), str(item[1])))
+    return emojis
+
+
+def _read_words(payload: dict[str, Any]) -> list[tuple[int, str]]:
+    raw = payload.get("words")
+    if not isinstance(raw, list):
+        return []
+    words: list[tuple[int, str]] = []
+    for item in raw:
+        if isinstance(item, dict):
+            t_ms = _int(item.get("s") or item.get("startMs") or item.get("tMs"), default=0)
+            text = str(item.get("t") or item.get("text") or "")
+            if text:
+                words.append((t_ms, text))
+        elif isinstance(item, (list, tuple)) and len(item) >= 2:
+            words.append((_int(item[0], default=0), str(item[1])))
+    return words
+
+
 def _read_catalogue(payload: dict[str, Any]) -> tuple[list[CatalogueAsset], dict[str, str]]:
     raw = payload.get("catalogue")
     if not isinstance(raw, list):
@@ -183,7 +237,7 @@ def _item_wire(item: SfxItem, pack_id: str, cue_kind: str) -> dict[str, Any]:
         "gainDb": item.gain_db,
         "fadeInMs": 0,
         "fadeOutMs": 0,
-        "duck": None if cue_kind == "silence_gap" else dict(_DEFAULT_DUCK),
+        "duck": None if cue_kind in ("silence_gap", "zoom") else dict(_DEFAULT_DUCK),
         "licenceSnapshot": item.licence_snapshot,
         "cueReason": item.reason,
         "confidence": item.confidence,
@@ -202,6 +256,9 @@ async def process_sfx(context: JobContext) -> ProcessorOutcome:
     cut_ranges = _read_ranges(payload.get("cutRanges"))
     protected_ranges = _read_ranges(payload.get("protectedRanges"))
     catalogue, pack_by_asset = _read_catalogue(payload)
+    keyframes = _read_keyframes(payload)
+    emojis = _read_emojis(payload)
+    words = _read_words(payload)
 
     rms_by_ms: list[tuple[int, float]]
     if _needs_rms_sampling(payload):
@@ -217,6 +274,9 @@ async def process_sfx(context: JobContext) -> ProcessorOutcome:
         emphasis_words=emphasis_words,
         sentences=sentences,
         speech_ranges=speech_ranges,
+        keyframes=keyframes,
+        emojis=emojis,
+        words=words,
     )
 
     if not catalogue:

@@ -32,7 +32,7 @@ import itertools
 import math
 import statistics
 from dataclasses import dataclass
-from typing import Literal, Protocol
+from typing import Any, Literal, Protocol
 
 __all__ = [
     "CUE_TAXONOMY",
@@ -46,8 +46,12 @@ __all__ = [
     "detect_cues",
     "detect_emphasis_cues",
     "detect_energy_cues",
+    "detect_hook_cues",
+    "detect_emoji_cues",
+    "detect_money_cues",
     "detect_question_cues",
     "detect_silence_gap_cues",
+    "detect_zoom_cues",
     "rank_assets",
 ]
 
@@ -63,9 +67,11 @@ CUE_TAXONOMY: tuple[str, ...] = (
     "notification",
 )
 
-MIN_CUE_GAP_MS = 4_000
+MIN_CUE_GAP_MS = 2_500
 
-CueKind = Literal["energy", "emphasis", "question", "silence_gap"]
+CueKind = Literal[
+    "energy", "emphasis", "question", "silence_gap", "zoom", "emoji", "money", "hook"
+]
 
 
 class TextEmbedder(Protocol):
@@ -204,15 +210,172 @@ def detect_silence_gap_cues(
     return cues
 
 
+def detect_zoom_cues(
+    keyframes: list[dict[str, Any] | tuple[int, ...] | int],
+) -> list[Cue]:
+    """Camera zoom punch-in or ramp transition starts — cued toward `whoosh`."""
+    cues: list[Cue] = []
+    for item in keyframes:
+        t_ms: int
+        if isinstance(item, (int, float)):
+            t_ms = int(item)
+        elif isinstance(item, (tuple, list)) and len(item) > 0:
+            t_ms = int(item[0])
+        elif isinstance(item, dict):
+            raw = (
+                item.get("tMs")
+                or item.get("startMs")
+                or item.get("t")
+                or item.get("timeMs")
+                or 0
+            )
+            t_ms = int(raw)
+        else:
+            continue
+        cues.append(
+            Cue(
+                t_ms=t_ms,
+                kind="zoom",
+                confidence=0.88,
+                reason="zoom-transition",
+                tag_hint="whoosh",
+                text_query="whoosh camera zoom punch transition sound effect",
+            )
+        )
+    return cues
+
+
+_MONEY_EMOJIS = {"💰", "💵", "💸", "💲", "🤑", "🪙", "💳"}
+_MONEY_KEYWORDS = {
+    "$",
+    "dollar",
+    "dollars",
+    "cash",
+    "money",
+    "crypto",
+    "bitcoin",
+    "profit",
+    "revenue",
+    "million",
+    "billion",
+    "rich",
+    "wealth",
+    "paid",
+    "payment",
+    "sales",
+    "income",
+    "funds",
+}
+
+
+def detect_emoji_cues(
+    emojis: list[tuple[int, str] | dict[str, Any]],
+) -> list[Cue]:
+    """Visual emoji pop-ins — cued toward `pop` (wooden pop / bubble) or `ding`/`cash` if financial."""
+    cues: list[Cue] = []
+    for item in emojis:
+        t_ms: int
+        emoji_str: str
+        if isinstance(item, (tuple, list)) and len(item) >= 2:
+            t_ms = int(item[0])
+            emoji_str = str(item[1])
+        elif isinstance(item, dict):
+            t_ms = int(item.get("tMs") or item.get("startMs") or item.get("t") or 0)
+            emoji_str = str(item.get("char") or item.get("emoji") or item.get("assetKey") or "")
+        else:
+            continue
+
+        if not emoji_str:
+            continue
+
+        is_money = (
+            any(m in emoji_str for m in _MONEY_EMOJIS)
+            or "money" in emoji_str.lower()
+            or "dollar" in emoji_str.lower()
+        )
+        if is_money:
+            cues.append(
+                Cue(
+                    t_ms=t_ms,
+                    kind="money",
+                    confidence=0.92,
+                    reason=f"money-emoji:{emoji_str}",
+                    tag_hint="ding",
+                    text_query="cash register coin ka-ching sound effect",
+                )
+            )
+        else:
+            cues.append(
+                Cue(
+                    t_ms=t_ms,
+                    kind="emoji",
+                    confidence=0.82,
+                    reason=f"emoji-pop:{emoji_str}",
+                    tag_hint="pop",
+                    text_query="pop bubble wooden pop sound effect",
+                )
+            )
+    return cues
+
+
+def detect_money_cues(
+    words: list[tuple[int, str]],
+) -> list[Cue]:
+    """Transcript financial/money keyword mentions — cued toward cash register / ka-ching `ding`."""
+    cues: list[Cue] = []
+    for t_ms, word_text in words:
+        cleaned = "".join(c.lower() for c in word_text if c.isalnum() or c == "$")
+        if cleaned in _MONEY_KEYWORDS or cleaned.startswith("$"):
+            cues.append(
+                Cue(
+                    t_ms=t_ms,
+                    kind="money",
+                    confidence=0.86,
+                    reason=f"money-mention:{cleaned}",
+                    tag_hint="ding",
+                    text_query="cash register ka-ching money sound effect",
+                )
+            )
+    return cues
+
+
+def detect_hook_cues(
+    sentences: list[tuple[int, int, str]],
+) -> list[Cue]:
+    """Opening sentence hook or contrarian claim — cued toward cinematic sub `impact`."""
+    cues: list[Cue] = []
+    if sentences:
+        start_ms, _end_ms, _text = sentences[0]
+        if start_ms <= 3000:
+            cues.append(
+                Cue(
+                    t_ms=start_ms,
+                    kind="hook",
+                    confidence=0.95,
+                    reason="sentence-1-hook",
+                    tag_hint="impact",
+                    text_query="cinematic sub impact hit boom sound effect",
+                )
+            )
+    return cues
+
+
 def detect_cues(
     *,
     rms_by_ms: list[tuple[int, float]] | None = None,
     emphasis_words: list[tuple[int, str]] | None = None,
     sentences: list[tuple[int, int, str]] | None = None,
     speech_ranges: list[tuple[int, int]] | None = None,
+    keyframes: list[Any] | None = None,
+    emojis: list[Any] | None = None,
+    words: list[tuple[int, str]] | None = None,
 ) -> list[Cue]:
     """Every signal, merged and time-ordered (ties by descending confidence)."""
     cues: list[Cue] = []
+    cues += detect_hook_cues(sentences or [])
+    cues += detect_zoom_cues(keyframes or [])
+    cues += detect_emoji_cues(emojis or [])
+    cues += detect_money_cues(words or [])
     cues += detect_energy_cues(rms_by_ms or [])
     cues += detect_emphasis_cues(emphasis_words or [])
     cues += detect_question_cues(sentences or [])
@@ -255,7 +418,7 @@ def build_sfx_items(
     accepted_cut_ranges: list[tuple[int, int]] | None = None,
     min_gap_ms: int = MIN_CUE_GAP_MS,
     cue_duration_ms: int = 600,
-    gain_db: float = -6.0,
+    gain_db: float = -18.0,
 ) -> list[SfxItem]:
     """Cues → retrieval → rate-limited, guard-respecting `SfxItem`s.
 

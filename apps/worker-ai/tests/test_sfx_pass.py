@@ -161,3 +161,89 @@ def test_build_sfx_items_empty_catalogue_yields_no_items() -> None:
     embedder = StubEmbedder()
     cues = [_impact_cue(0)]
     assert build_sfx_items(cues, [], embedder) == []
+
+
+def test_detect_zoom_cues_triggers_whoosh_sound() -> None:
+    from worker_ai.passes.sfx import detect_zoom_cues
+
+    keyframes = [{"tMs": 1500}, (4200,), 8000]
+    cues = detect_zoom_cues(keyframes)
+    assert len(cues) == 3
+    assert [c.t_ms for c in cues] == [1500, 4200, 8000]
+    assert all(c.kind == "zoom" for c in cues)
+    assert all(c.tag_hint == "whoosh" for c in cues)
+
+
+def test_detect_emoji_cues_distinguishes_standard_and_money_emojis() -> None:
+    from worker_ai.passes.sfx import detect_emoji_cues
+
+    emojis = [(1000, "🔥"), (3000, "💰"), (6000, "rocket"), (9000, "💵")]
+    cues = detect_emoji_cues(emojis)
+    assert len(cues) == 4
+    # Standard emoji pops -> pop
+    assert cues[0].kind == "emoji"
+    assert cues[0].tag_hint == "pop"
+    # Money emoji -> money / ding
+    assert cues[1].kind == "money"
+    assert cues[1].tag_hint == "ding"
+    assert "money" in cues[1].reason
+
+    assert cues[2].kind == "emoji"
+    assert cues[2].tag_hint == "pop"
+
+    assert cues[3].kind == "money"
+    assert cues[3].tag_hint == "ding"
+
+
+def test_detect_money_cues_matches_financial_keywords() -> None:
+    from worker_ai.passes.sfx import detect_money_cues
+
+    words = [(1000, "hello"), (2000, "$100"), (4000, "profit"), (5000, "crypto")]
+    cues = detect_money_cues(words)
+    assert len(cues) == 3
+    assert [c.t_ms for c in cues] == [2000, 4000, 5000]
+    assert all(c.kind == "money" for c in cues)
+    assert all(c.tag_hint == "ding" for c in cues)
+
+
+def test_detect_hook_cues_fires_on_sentence_one() -> None:
+    from worker_ai.passes.sfx import detect_hook_cues
+
+    sentences = [
+        (0, 2500, "Nobody is talking about this secret."),
+        (3500, 6000, "Here is the proof."),
+    ]
+    cues = detect_hook_cues(sentences)
+    assert len(cues) == 1
+    assert cues[0].t_ms == 0
+    assert cues[0].kind == "hook"
+    assert cues[0].tag_hint == "impact"
+
+
+def test_anti_fatigue_throttle_enforces_2500ms_spacing() -> None:
+    embedder = StubEmbedder()
+    catalogue = [_asset("a", "whoosh", tuple(embedder.embed_text("whoosh sound effect")))]
+    # Cues at 0, 1000, 2600, 4000, 5500
+    cues = [
+        Cue(0, "zoom", 0.9, "z", "whoosh", "whoosh"),
+        Cue(1000, "zoom", 0.9, "z", "whoosh", "whoosh"),  # skipped (< 2500ms)
+        Cue(2600, "zoom", 0.9, "z", "whoosh", "whoosh"),  # kept (2600 - 0 >= 2500ms)
+        Cue(4000, "zoom", 0.9, "z", "whoosh", "whoosh"),  # skipped (4000 - 2600 < 2500ms)
+        Cue(5500, "zoom", 0.9, "z", "whoosh", "whoosh"),  # kept (5500 - 2600 >= 2500ms)
+    ]
+    items = build_sfx_items(cues, catalogue, embedder)  # default min_gap_ms = 2500
+    assert [item.start_ms for item in items] == [0, 2600, 5500]
+
+
+def test_visual_auditory_sync_accuracy_within_one_frame() -> None:
+    """SLA: Visual-to-auditory sync accuracy <= 16.6 ms (frame-accurate at 60 fps)."""
+    embedder = StubEmbedder()
+    catalogue = [_asset("whoosh-1", "whoosh", tuple(embedder.embed_text("whoosh sound effect")))]
+    zoom_time_ms = 1250  # Exactly frame 75 at 60 fps (75 * 1000/60 = 1250ms)
+    cues = [Cue(zoom_time_ms, "zoom", 0.9, "zoom-transition", "whoosh", "whoosh sound effect")]
+    items = build_sfx_items(cues, catalogue, embedder)
+    assert len(items) == 1
+    # Check that item start_ms is exactly synchronous with visual zoom event (diff <= 16.6 ms)
+    time_diff = abs(items[0].start_ms - zoom_time_ms)
+    assert time_diff <= 16.6
+    assert items[0].gain_db == -18.0

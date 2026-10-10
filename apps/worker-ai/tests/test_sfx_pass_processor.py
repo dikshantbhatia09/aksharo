@@ -193,3 +193,41 @@ async def test_sfx_pass_never_ducks_a_silence_gap_transition_cue() -> None:
     items = outcome.result["items"]
     assert len(items) == 1
     assert items[0]["duck"] is None
+
+
+async def test_sfx_pass_fires_whoosh_for_visual_zoom_keyframes() -> None:
+    payload = _payload(
+        sentences=[],
+        emphasisWords=[],
+        speechRanges=[],
+        keyframes=[{"tMs": 1500}],
+        catalogue=[_catalogue_entry("01JASSET0000000000000000A5", "whoosh")],
+    )
+    context = _context(**payload)
+    outcome = await process_pass(context)
+    items = outcome.result["items"]
+    assert len(items) == 1
+    assert items[0]["startMs"] == 1500
+    assert "zoom" in items[0]["cueReason"]
+    assert items[0]["gainDb"] == -18.0
+
+
+async def test_sfx_pass_fires_pop_and_cash_for_emojis() -> None:
+    payload = _payload(
+        sentences=[],
+        emphasisWords=[],
+        speechRanges=[],
+        emojis=[{"tMs": 1000, "char": "🔥"}, {"tMs": 5000, "char": "💰"}],
+        catalogue=[
+            _catalogue_entry("01JASSET0000000000000000A6", "pop"),
+            _catalogue_entry("01JASSET0000000000000000A7", "ding"),
+        ],
+    )
+    context = _context(**payload)
+    outcome = await process_pass(context)
+    items = outcome.result["items"]
+    assert len(items) == 2
+    assert items[0]["startMs"] == 1000
+    assert "emoji-pop" in items[0]["cueReason"]
+    assert items[1]["startMs"] == 5000
+    assert "money-emoji" in items[1]["cueReason"]

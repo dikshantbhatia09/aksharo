@@ -486,6 +486,15 @@ export class PassesService {
     const storedProtected = await this.storedProtectedRangesOf(project.id, request.workspaceId);
     const guardedRanges = await this.guardedRangesOf(project.id, request.workspaceId);
     const catalogue = await this.sfxCatalogueOf(request.workspaceId);
+    const keyframes = await this.acceptedZoomKeyframesOf(project.id, request.workspaceId);
+    const wireWords = words.map((w) => ({ s: w.s, t: w.t }));
+    const emojiRegex = /[\p{Extended_Pictographic}]/u;
+    const emojis: { tMs: number; char: string }[] = [];
+    for (const w of words) {
+      if (emojiRegex.test(w.t)) {
+        emojis.push({ tMs: w.s, char: w.t });
+      }
+    }
 
     const jobKey = `ai.pass:sfx:${project.id}`;
     const { job, deduplicated } = await this.jobs.enqueue({
@@ -513,6 +522,9 @@ export class PassesService {
         cutRanges,
         protectedRanges: [...storedProtected, ...guardedRanges],
         catalogue,
+        keyframes,
+        emojis,
+        words: wireWords,
       },
     });
 
@@ -1014,6 +1026,30 @@ export class PassesService {
       }
     }
     return ranges;
+  }
+
+  /**
+   * Accepted zoom transition keyframes — cued for sfx whoosh transitions (Pillar 5 §06).
+   */
+  private async acceptedZoomKeyframesOf(
+    projectId: string,
+    workspaceId: string,
+  ): Promise<{ tMs: number }[]> {
+    let passes: Pass[];
+    try {
+      passes = await this.edg.passes(projectId, workspaceId);
+    } catch {
+      return [];
+    }
+    const keyframes: { tMs: number }[] = [];
+    for (const pass of passes) {
+      for (const item of pass.items) {
+        if (item.kind === "zoom" && item.state === "accepted") {
+          keyframes.push({ tMs: item.startMs });
+        }
+      }
+    }
+    return keyframes;
   }
 
   /**
