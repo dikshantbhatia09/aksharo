@@ -24,7 +24,7 @@ import {
   useSession,
   useStyles,
 } from "@montaj/api-client";
-import type { StyleDoc } from "@montaj/caption-styles";
+import type { SafeZonePlatform, StyleDoc } from "@montaj/caption-styles";
 import {
   blockedBrollSpans,
   brollOverlaysOf,
@@ -486,6 +486,7 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
     panelOnMount?.inspector === undefined ? undefined : { tab: panelOnMount.inspector },
   );
   const [safeZonesOn, setSafeZonesOn] = useState(true);
+  const [safeZonePlatform, setSafeZonePlatform] = useState<SafeZonePlatform>("tiktok");
   const [playerMuted, setPlayerMuted] = useState(false);
   const stageBoxRef = useRef<HTMLDivElement | null>(null);
   const outerLayout = usePersistedLayout("montaj-editor-outer-design-v4");
@@ -1639,6 +1640,7 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
                       catalogue={catalogue}
                       script={script}
                       showSafeZones={safeZonesOn}
+                      safeZonePlatform={safeZonePlatform}
                       {...(selectedSegmentId === undefined ? {} : { selectedSegmentId })}
                       onOp={(op) => {
                         // The stage's drag op arrives with the panel module's
@@ -1666,6 +1668,8 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
                       canvas={state.hot.canvas}
                       safeZonesOn={safeZonesOn}
                       onSafeZonesChange={setSafeZonesOn}
+                      safeZonePlatform={safeZonePlatform}
+                      onSafeZonePlatformChange={setSafeZonePlatform}
                       projectId={projectId}
                       mediaId={primaryMedia?.mediaId}
                     />

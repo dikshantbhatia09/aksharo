@@ -10,6 +10,9 @@ import {
   StyleDocSchema,
   StyleIdSchema,
 } from "./schema.js";
+import { enforceSafeZoneConstraints } from "./safe-zone.js";
+
+export * from "./safe-zone.js";
 
 /**
  * The system style catalogue: JSON documents under `styles/`, plus
@@ -84,7 +87,7 @@ export function loadSystemStyles(dir: string = STYLES_DIR): StyleDoc[] {
         `styles/${file} declares id "${parsed.data.id}"; the file must be <id>.json`,
       );
     }
-    return parsed.data;
+    return enforceSafeZoneConstraints(parsed.data);
   });
 }
 

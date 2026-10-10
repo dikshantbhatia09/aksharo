@@ -108,6 +108,13 @@ export interface DragOptions {
   readonly anchor: Anchor;
   /** Safe-area margin as a percentage of the canvas's **short side**. */
   readonly safeAreaPct?: number;
+  /** Whether to enable magnetic safe-zone snap (default: true for vertical canvases). */
+  readonly enableSafeZoneSnap?: boolean;
+}
+
+export interface DragPositionResult extends SegmentPosition {
+  readonly snappedToSafeZone?: boolean;
+  readonly snapMessage?: string;
 }
 
 /**
@@ -116,9 +123,14 @@ export interface DragOptions {
  * The box is clamped, not the anchor point: dragging a wide caption to the edge
  * should stop when its *edge* reaches the safe area, which is what a creator
  * expects and what the renderer will do anyway.
+ *
+ * Implements Magnetic Safe-Zone Snap (Pillar 3 §08 Step 3):
+ * If dragged below Y = 1440 px on a vertical canvas, snaps vertical position
+ * back into the universal safe zone (baseline Y = 1380 px) with a warning tooltip.
  */
-export function positionFromDrag(delta: Point, options: DragOptions): SegmentPosition {
-  const { box, canvas, anchor } = options;
+export function positionFromDrag(delta: Point, options: DragOptions): DragPositionResult {
+  const { box, canvas, anchor, enableSafeZoneSnap = false } = options;
+  const isVertical = canvas.height > canvas.width;
   // Percent of the SHORT side, both axes: height-based margins on a 9:16 canvas
   // made the horizontal clamp nearly 2× the intended zone (1920-derived margin on
   // a 1080-wide frame) — the audit's "far too aggressive horizontally".
@@ -131,8 +143,30 @@ export function positionFromDrag(delta: Point, options: DragOptions): SegmentPos
   const minTop = margin;
   const maxTop = Math.max(minTop, canvas.height - margin - height);
 
-  const left = clamp(box[0] + delta.x, minLeft, maxLeft);
-  const top = clamp(box[1] + delta.y, minTop, maxTop);
+  const rawLeft = Number.isNaN(delta.x) ? box[0] : box[0] + delta.x;
+  const rawTop = Number.isNaN(delta.y) ? box[1] : box[1] + delta.y;
+
+  let left = clamp(rawLeft, minLeft, maxLeft);
+  let top = clamp(rawTop, minTop, maxTop);
+  let snappedToSafeZone = false;
+  let snapMessage: string | undefined;
+
+  // Step 3 (08 §5): Magnetic Safe-Zone Snap on vertical 9:16 canvases
+  // Snap vertical position back into safe zone if dragged below Y = 1440px
+  if (isVertical && enableSafeZoneSnap) {
+    const heightScale = canvas.height / 1920;
+    const snapThresholdY = 1440 * heightScale;
+    const safeBaselineY = 1380 * heightScale;
+    const proposedBottom = top + height;
+
+    if (proposedBottom > snapThresholdY) {
+      snappedToSafeZone = true;
+      snapMessage = "Snapped to TikTok safe zone";
+      // Snap the box so its bottom aligns with the safe caption baseline
+      top = Math.max(minTop, safeBaselineY - height);
+    }
+  }
+
   const moved: Box = [left, top, left + width, top + height];
   const point = anchorPointOf(moved, anchor);
 
@@ -140,6 +174,7 @@ export function positionFromDrag(delta: Point, options: DragOptions): SegmentPos
     x: round(clamp(point.x / canvas.width, 0, 1)),
     y: round(clamp(point.y / canvas.height, 0, 1)),
     anchor,
+    ...(snappedToSafeZone ? { snappedToSafeZone: true, snapMessage } : {}),
   };
 }
 
@@ -178,6 +213,29 @@ export function safeZonesFor(canvas: Size, safeAreaPct: number): SafeZones {
     safe: [margin, margin, canvas.width - margin, canvas.height - margin],
     top: [0, 0, canvas.width, margin],
     bottom: [0, canvas.height - margin, canvas.width, canvas.height],
+  };
+}
+
+/** Pixel-precise safe zones and exclusion zones for specific social media platforms (08 §4.1). */
+export function platformSafeZonesFor(
+  canvas: Size,
+  platform: "tiktok" | "reels" | "shorts" | "universal" = "universal",
+): SafeZones {
+  const widthRatio = canvas.width / 1080;
+  const heightRatio = canvas.height / 1920;
+  const top = Math.round(160 * heightRatio);
+  const bottomMargin = Math.round(
+    (platform === "shorts" ? 340 : platform === "reels" ? 380 : 440) * heightRatio,
+  );
+  const rightMargin = Math.round(
+    (platform === "reels" ? 110 : platform === "shorts" ? 120 : 130) * widthRatio,
+  );
+  const leftMargin = Math.round(50 * widthRatio);
+
+  return {
+    safe: [leftMargin, top, canvas.width - rightMargin, canvas.height - bottomMargin],
+    top: [0, 0, canvas.width, top],
+    bottom: [0, canvas.height - bottomMargin, canvas.width, canvas.height],
   };
 }
 

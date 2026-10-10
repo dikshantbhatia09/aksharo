@@ -55,10 +55,10 @@ export const ASPECT_SAFE_ZONE_RULES: Readonly<Record<CaptionAspectRatio, AspectS
     "9:16": Object.freeze({
       baseFontSizePx: 54,
       lineHeight: 1.22,
-      safeBottomPct: 18,
-      safeTopPct: 12,
-      defaultYNormalized: 0.78,
-      maxWidthPct: 84,
+      safeBottomPct: 22.92,
+      safeTopPct: 8.33,
+      defaultYNormalized: 0.7188,
+      maxWidthPct: 81.48,
     }),
     "4:5": Object.freeze({
       baseFontSizePx: 48,

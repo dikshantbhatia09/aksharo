@@ -27,6 +27,7 @@ export function SubtitlesTab({
   value,
   onChange,
   disabled,
+  assExportable = true,
 }: {
   readonly value: SubtitlesTabValue;
   readonly onChange: (value: SubtitlesTabValue) => void;
@@ -41,9 +42,26 @@ export function SubtitlesTab({
     });
   };
 
+  const formats = React.useMemo(() => {
+    const list: {
+      readonly value: SubtitleFormat;
+      readonly label: string;
+      readonly disabled?: boolean;
+    }[] = [
+      { value: "srt", label: "SRT" },
+      { value: "vtt", label: "VTT" },
+      { value: "txt", label: "Plain text" },
+    ];
+    if (assExportable) {
+      list.push({ value: "ass", label: "ASS" });
+    }
+    list.push({ value: "md", label: "Markdown (cloud)", disabled: true });
+    return list;
+  }, [assExportable]);
+
   return (
     <div className="space-y-2 py-2" data-testid="export-subtitles-tab">
-      {CLIENT_FORMATS.map((format) => (
+      {formats.map((format) => (
         <label key={format.value} className="text-fg-2 flex items-center gap-1.5 text-xs">
           <input
             type="checkbox"
@@ -55,9 +73,15 @@ export function SubtitlesTab({
           {format.label}
         </label>
       ))}
-      <p className="text-fg-2 text-[11px] opacity-70" title={assExportUnavailableReason()}>
-        ASS export ships once @montaj/ass-exporter lands.
-      </p>
+      {!assExportable ? (
+        <p
+          className="text-fg-2 text-[11px] opacity-70"
+          data-testid="ass-export-unsupported-note"
+          title={assExportUnavailableReason()}
+        >
+          ASS export is not available for this style.
+        </p>
+      ) : null}
     </div>
   );
 }

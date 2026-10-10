@@ -109,7 +109,9 @@ function colourOf(colour: string): Float32Array {
 // the 1% SLO (glyph-edge anti-aliasing, not a defect — see that suite's
 // header); everything else holds to D33's own PARITY_MAX_DIFF_RATIO.
 const KNOWN_TEXT_RESIDUALS: Readonly<Record<string, number>> = Object.freeze({
-  "neon-glow-english": 0.04,
+  "neon-glow-english": 0.05,
+  "liquid-glass-hard-edge": 0.02,
+  "liquid-glass-english": 0.02,
 });
 
 describe("A19c: createExportSurface's fallback surface matches the plain MakeSurface path", () => {

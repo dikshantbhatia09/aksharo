@@ -8,6 +8,7 @@ import {
   cropRectToBox,
   fitStage,
   positionFromDrag,
+  platformSafeZonesFor,
   safeZonesFor,
   samePosition,
   toProjectPoint,
@@ -242,5 +243,47 @@ describe("cropRectToBox (B20b: the scrub-preview crop-window overlay)", () => {
     const fit = fitStage({ width: 540, height: 960 }, CANVAS);
     const projectBox = cropRectToBox({ x: 0.5, y: 0.5, w: 0.25, h: 0.25 }, CANVAS);
     expect(boxToCss(projectBox, fit)).toEqual({ left: 270, top: 480, width: 135, height: 240 });
+  });
+});
+
+describe("magnetic safe-zone snap (Pillar 3 §08 Step 3)", () => {
+  const box: Box = [100, 1000, 980, 1100]; // 100px tall caption
+
+  it("snaps caption back to safe zone if dragged below Y = 1440px on vertical canvas", () => {
+    // Dragging down by 400px would put bottom at 1500px (> 1440px threshold)
+    const result = positionFromDrag(
+      { x: 0, y: 400 },
+      { box, canvas: CANVAS, anchor: "bottom-center", enableSafeZoneSnap: true },
+    );
+
+    expect(result.snappedToSafeZone).toBe(true);
+    expect(result.snapMessage).toBe("Snapped to TikTok safe zone");
+    // Snaps so bottom of box is at safe baseline 1380px (1380 / 1920 = 0.7188 -> 1380.1 px)
+    expect(result.y * CANVAS.height).toBeCloseTo(1380, 0);
+  });
+
+  it("does not snap when dragged within safe bounds (below 1440px threshold)", () => {
+    // Dragging to Y = 1200px (bottom at 1300px <= 1440px)
+    const result = positionFromDrag(
+      { x: 0, y: 200 },
+      { box, canvas: CANVAS, anchor: "bottom-center", enableSafeZoneSnap: true },
+    );
+
+    expect(result.snappedToSafeZone).toBeUndefined();
+    expect(result.snapMessage).toBeUndefined();
+    expect(result.y * CANVAS.height).toBeCloseTo(1300, 1);
+  });
+
+  it("computes platform-specific safe zones and margins", () => {
+    const tiktok = platformSafeZonesFor(CANVAS, "tiktok");
+    expect(tiktok.safe).toEqual([50, 160, 950, 1480]);
+    expect(tiktok.top).toEqual([0, 0, 1080, 160]);
+    expect(tiktok.bottom).toEqual([0, 1480, 1080, 1920]);
+
+    const reels = platformSafeZonesFor(CANVAS, "reels");
+    expect(reels.safe).toEqual([50, 160, 970, 1540]);
+
+    const shorts = platformSafeZonesFor(CANVAS, "shorts");
+    expect(shorts.safe).toEqual([50, 160, 960, 1580]);
   });
 });

@@ -435,7 +435,8 @@ describe("<SourceStartForm />", () => {
 
   it("does not put aspect ratios, music or networks on the first screen", () => {
     render(<Harness onSubmit={() => undefined} />);
-    const forbidden = /9:16|aspect|music|instagram|tiktok|b-roll/i;
+    // TikTok monetization badges are duration options, but network publishing / aspect / music / b-roll shouldn't appear on screen 1
+    const forbidden = /9:16|aspect|music|instagram|b-roll/i;
     expect(screen.queryByText(forbidden)).toBeNull();
   });
 });

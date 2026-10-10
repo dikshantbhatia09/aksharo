@@ -66,4 +66,25 @@ describe("<PlayerToolbar />", () => {
     expect(button).toBeDisabled();
     expect(button).toHaveAttribute("title", expect.stringContaining("no source media"));
   });
+
+  it("allows switching platform simulator overlay presets (TikTok, Reels, Shorts, Universal)", async () => {
+    const user = userEvent.setup();
+    const onPlatformChange = vi.fn();
+    renderWithProviders(
+      <PlayerToolbar
+        canvas={{ width: 1080, height: 1920, aspect: "9:16" }}
+        safeZonesOn
+        onSafeZonesChange={vi.fn()}
+        safeZonePlatform="tiktok"
+        onSafeZonePlatformChange={onPlatformChange}
+        projectId="01JPROJECT"
+        mediaId="01JMEDIA"
+      />,
+    );
+    await user.click(screen.getByTestId("safe-zone-toggle"));
+    const reelsBtn = screen.getByTestId("safe-zone-platform-reels");
+    expect(reelsBtn).toBeInTheDocument();
+    await user.click(reelsBtn);
+    expect(onPlatformChange).toHaveBeenCalledWith("reels");
+  });
 });

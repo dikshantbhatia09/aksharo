@@ -49,9 +49,9 @@
   "layout": {
     "anchor": "bottom-center",
     "x": 0.5,
-    "y": 0.85,
+    "y": 0.7188,
     "align": "center",
-    "maxWidthPct": 85,
+    "maxWidthPct": 81.48,
     "maxLines": 2,
     "safeAreaPct": 8
   },

@@ -22,7 +22,7 @@
 import { Lock, Unlock } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
-import type { StyleDoc } from "@montaj/caption-styles";
+import type { SafeZonePlatform, StyleDoc } from "@montaj/caption-styles";
 import type { CanvasKitBackend } from "@montaj/render-canvaskit";
 import { layoutFrame, PlacementCache, renderFrame } from "@montaj/render-core";
 import type { CanvasFaceTrack, DisplayScript, EdgProjection } from "@montaj/render-core";
@@ -41,6 +41,7 @@ import {
 } from "./stage-geometry";
 import { useRenderer } from "./use-canvaskit";
 import { setSegmentPosition, type SetSegmentPositionOp } from "../panels/ops";
+import { SafeZoneOverlay } from "../safe-zone-overlay";
 
 import type { Surface } from "canvaskit-wasm";
 
@@ -187,6 +188,7 @@ export interface CaptionStageProps {
    */
   readonly script?: string;
   readonly showSafeZones?: boolean;
+  readonly safeZonePlatform?: SafeZonePlatform | "none";
   /**
    * The images the projection's overlays draw - brand logos (2026-10-02) and
    * B-roll pictures (2026-10-05) - asset id to a URL for its bytes: `GET
@@ -246,6 +248,7 @@ export function CaptionStage({
   onMediaError,
   script,
   showSafeZones = true,
+  safeZonePlatform = "universal",
   images,
   backdrop,
   className,
@@ -264,6 +267,7 @@ export function CaptionStage({
   const [fit, setFit] = useState<StageFit>({ width: 0, height: 0, left: 0, top: 0, scale: 0 });
   const [outputMs, setOutputMs] = useState(0);
   const [dragPreview, setDragPreview] = useState<SegmentPosition | undefined>(undefined);
+  const [snapTooltip, setSnapTooltip] = useState<string | undefined>(undefined);
   const [captionBox, setCaptionBox] = useState<Box | undefined>(undefined);
   const [isLocked, setIsLocked] = useState(true);
 
@@ -484,17 +488,22 @@ export function CaptionStage({
         { x: rect.left, y: rect.top },
         fit,
       );
-      setDragPreview(
-        positionFromDrag(
-          { x: point.x - drag.origin.x, y: point.y - drag.origin.y },
-          {
-            box: drag.box,
-            canvas: surfaceCanvas,
-            anchor: drag.anchor,
-            safeAreaPct: drag.safeAreaPct,
-          },
-        ),
+      const nextPos = positionFromDrag(
+        { x: point.x - drag.origin.x, y: point.y - drag.origin.y },
+        {
+          box: drag.box,
+          canvas: surfaceCanvas,
+          anchor: drag.anchor,
+          safeAreaPct: drag.safeAreaPct,
+          enableSafeZoneSnap: true,
+        },
       );
+      setDragPreview(nextPos);
+      if (nextPos.snappedToSafeZone && nextPos.snapMessage) {
+        setSnapTooltip(nextPos.snapMessage);
+      } else {
+        setSnapTooltip(undefined);
+      }
     },
     [fit, surfaceCanvas],
   );
@@ -510,6 +519,7 @@ export function CaptionStage({
         onOp?.(setSegmentPosition(selectedSegmentId, dragPreview));
       }
       setDragPreview(undefined);
+      setSnapTooltip(undefined);
     },
     [dragPreview, onOp, selectedSegmentId],
   );
@@ -564,6 +574,16 @@ export function CaptionStage({
         style={{ left: fit.left, top: fit.top, width: fit.width, height: fit.height }}
         data-testid="caption-stage-overlay"
       />
+      {showSafeZones && safeZonePlatform !== "none" ? (
+        <SafeZoneOverlay
+          fit={fit}
+          canvas={surfaceCanvas}
+          platform={safeZonePlatform}
+          showGuides={true}
+          showChrome={safeZonePlatform !== "universal"}
+          snapTooltip={snapTooltip}
+        />
+      ) : null}
       {showSafeZones && safeAreaPct > 0 ? (
         <div
           className="border-fg-0/20 pointer-events-none absolute border border-dashed"

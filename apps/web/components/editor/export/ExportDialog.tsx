@@ -78,7 +78,10 @@ const DEFAULT_SUBTITLES: SubtitlesTabValue = { formats: ["srt"], scripts: ["roma
 
 export function ExportDialog(props: ExportDialogProps): React.JSX.Element {
   const { open, onOpenChange } = props;
-  const [tab, setTab] = React.useState<"video" | "subtitles" | "to-editor">("video");
+  const hasVideo = props.hasVideo !== false;
+  const [tab, setTab] = React.useState<"video" | "subtitles" | "to-editor">(
+    hasVideo ? "video" : "subtitles",
+  );
   const [video, setVideo] = React.useState<VideoTabValue>(DEFAULT_VIDEO);
   const [subtitles, setSubtitles] = React.useState<SubtitlesTabValue>(DEFAULT_SUBTITLES);
 
@@ -190,6 +193,11 @@ export function ExportDialog(props: ExportDialogProps): React.JSX.Element {
     });
   }, [startExport, subtitles]);
 
+  const currentStyleId = props.projection?.styles?.defaultStyleId;
+  const currentStyle =
+    currentStyleId && props.catalogue ? props.catalogue.get(currentStyleId) : undefined;
+  const assExportable = currentStyle?.assExportable ?? true;
+
   return (
     <Dialog
       open={open}
@@ -206,6 +214,7 @@ export function ExportDialog(props: ExportDialogProps): React.JSX.Element {
         <Tabs
           value={tab}
           onValueChange={(value) => {
+            if (value === "video" && !hasVideo) return;
             // The result/error banner below is rendered once for the whole
             // dialog, not per tab (it sits outside `TabsContent`), so a failed
             // Video attempt -- "the source has no video track" for an
@@ -219,7 +228,7 @@ export function ExportDialog(props: ExportDialogProps): React.JSX.Element {
           }}
         >
           <TabsList>
-            <TabsTrigger value="video" data-testid="export-tab-video">
+            <TabsTrigger value="video" data-testid="export-tab-video" disabled={!hasVideo}>
               Video
             </TabsTrigger>
             <TabsTrigger value="subtitles" data-testid="export-tab-subtitles">
@@ -229,6 +238,12 @@ export function ExportDialog(props: ExportDialogProps): React.JSX.Element {
               To editor
             </TabsTrigger>
           </TabsList>
+
+          {!hasVideo ? (
+            <p className="text-fg-2 mt-2 text-xs" data-testid="export-no-video-reason">
+              Cannot export a video from an audio-only source.
+            </p>
+          ) : null}
 
           <TabsContent value="video">
             <VideoTab value={video} onChange={onVideoChange} disabled={busy} />
@@ -259,7 +274,12 @@ export function ExportDialog(props: ExportDialogProps): React.JSX.Element {
           </TabsContent>
 
           <TabsContent value="subtitles">
-            <SubtitlesTab value={subtitles} onChange={setSubtitles} disabled={busy} />
+            <SubtitlesTab
+              value={subtitles}
+              onChange={setSubtitles}
+              disabled={busy}
+              assExportable={assExportable}
+            />
           </TabsContent>
 
           <TabsContent value="to-editor">

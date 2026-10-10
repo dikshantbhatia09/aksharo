@@ -11,4 +11,5 @@ export * from "./naming.js";
 export * from "./catalogue.js";
 export * from "./registry.js";
 export * from "./scaling.js";
+export * from "./safe-zone.js";
 

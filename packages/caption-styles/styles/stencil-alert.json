@@ -6,7 +6,11 @@
   "minPlan": "free",
   "typography": {
     "fontFamily": "Black Ops One",
-    "fallbacks": ["Noto Sans Devanagari", "Noto Sans Tamil", "Noto Sans"],
+    "fallbacks": [
+      "Noto Sans Devanagari",
+      "Noto Sans Tamil",
+      "Noto Sans"
+    ],
     "weight": 400,
     "italic": false,
     "sizePct": 5.4,
@@ -48,7 +52,7 @@
     "x": 0.5,
     "y": 0.5,
     "align": "center",
-    "maxWidthPct": 86,
+    "maxWidthPct": 81.48,
     "maxLines": 2,
     "wordsPerCue": 4,
     "safeAreaPct": 8

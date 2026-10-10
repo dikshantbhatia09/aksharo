@@ -6,7 +6,11 @@
   "minPlan": "creator",
   "typography": {
     "fontFamily": "Montserrat",
-    "fallbacks": ["Noto Sans Devanagari", "Noto Sans Tamil", "Noto Sans"],
+    "fallbacks": [
+      "Noto Sans Devanagari",
+      "Noto Sans Tamil",
+      "Noto Sans"
+    ],
     "weight": 600,
     "italic": false,
     "sizePct": 3.6,
@@ -46,7 +50,7 @@
   "layout": {
     "anchor": "bottom-left",
     "x": 0.08,
-    "y": 0.86,
+    "y": 0.7188,
     "align": "left",
     "maxWidthPct": 72,
     "maxLines": 2,

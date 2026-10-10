@@ -6,7 +6,11 @@
   "minPlan": "free",
   "typography": {
     "fontFamily": "Poppins",
-    "fallbacks": ["Noto Sans Devanagari", "Noto Sans Tamil", "Noto Sans"],
+    "fallbacks": [
+      "Noto Sans Devanagari",
+      "Noto Sans Tamil",
+      "Noto Sans"
+    ],
     "weight": 800,
     "italic": false,
     "sizePct": 8.2,
@@ -44,7 +48,7 @@
     "x": 0.5,
     "y": 0.56,
     "align": "center",
-    "maxWidthPct": 88,
+    "maxWidthPct": 81.48,
     "maxLines": 1,
     "wordsPerCue": 1,
     "safeAreaPct": 12
