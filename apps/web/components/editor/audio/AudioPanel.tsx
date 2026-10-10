@@ -29,6 +29,14 @@ export interface AudioPanelProps {
   readonly isLocalProject?: boolean;
   readonly onUploadToCloud?: () => void;
   readonly uploadingToCloud?: boolean;
+  /** Feature Blueprint 05-01: Direct raw audio source URL. */
+  readonly audioWavUri?: string;
+  /** Feature Blueprint 05-01: Direct cleaned/studio audio source URL. */
+  readonly audioCleanUri?: string;
+  /** Feature Blueprint 05-01: Controlled Studio Sound switch state. */
+  readonly studioSound?: boolean;
+  /** Feature Blueprint 05-01: Studio Sound toggle callback. */
+  readonly onStudioSoundChange?: (enabled: boolean) => void;
 }
 
 export type AudioCleanTier = "quick" | "deep";
@@ -86,7 +94,10 @@ export function AudioPanel(props: AudioPanelProps): React.JSX.Element {
   const [target, setTarget] = React.useState<AudioCleanTarget>("social");
   const [tier, setTier] = React.useState<AudioCleanTier>("quick");
   const [abCleaned, setAbCleaned] = React.useState(true);
+  const [studioSoundInternal, setStudioSoundInternal] = React.useState(false);
   const deepCleanEnabled = props.deepCleanEnabled === true;
+
+  const isStudioSound = props.studioSound ?? studioSoundInternal;
 
   const latest = latestOf(cleans);
   const applied = latest !== undefined && props.appliedCleanId === latest.id;
@@ -108,7 +119,14 @@ export function AudioPanel(props: AudioPanelProps): React.JSX.Element {
     else props.onSetAudio(clearCleanOp());
   };
 
-  const previewSrc = abCleaned ? latest?.previewCleanedUrl : latest?.previewOriginalUrl;
+  const handleStudioSoundToggle = (checked: boolean): void => {
+    setStudioSoundInternal(checked);
+    props.onStudioSoundChange?.(checked);
+  };
+
+  const previewSrc = isStudioSound
+    ? (props.audioCleanUri ?? latest?.previewCleanedUrl ?? latest?.cleanedAudioUrl)
+    : (props.audioWavUri ?? (abCleaned ? latest?.previewCleanedUrl : latest?.previewOriginalUrl));
 
   return (
     <section aria-label="Audio clean" className="flex flex-col gap-3 p-3">
@@ -118,6 +136,19 @@ export function AudioPanel(props: AudioPanelProps): React.JSX.Element {
           Remove background noise and even out the voice. Preview before and after, then apply.
         </p>
       </div>
+
+      <label className={ROW}>
+        <div className="flex flex-col">
+          <span className={LABEL}>Studio Sound</span>
+          <span className="text-2xs text-fg-2">Voice isolation & broadcast warmth</span>
+        </div>
+        <Switch
+          checked={isStudioSound}
+          onCheckedChange={handleStudioSoundToggle}
+          data-testid="studio-sound-switch"
+          aria-label="Studio Sound"
+        />
+      </label>
       <div className={SEGMENTED_TRACK} role="radiogroup" aria-label="Clean tier">
         <button
           type="button"
@@ -264,10 +295,24 @@ export function AudioPanel(props: AudioPanelProps): React.JSX.Element {
 
               <label className={ROW}>
                 <span className={LABEL}>Apply to export</span>
-                <Switch checked={applied} onCheckedChange={handleApplyToggle} />
+                <Switch
+                  checked={applied}
+                  onCheckedChange={handleApplyToggle}
+                  data-testid="apply-to-export-switch"
+                  aria-label="Apply to export"
+                />
               </label>
             </>
           )}
+        </div>
+      ) : previewSrc !== undefined ? (
+        <div className="flex flex-col gap-2" data-testid="audio-preview-standalone">
+          <audio
+            controls
+            src={previewSrc}
+            data-testid="ab-preview-player"
+            className="w-full"
+          />
         </div>
       ) : (
         <p className="text-2xs text-fg-2">No clean run yet.</p>

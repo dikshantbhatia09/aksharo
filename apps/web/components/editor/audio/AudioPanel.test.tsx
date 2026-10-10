@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { AudioPanel } from "./AudioPanel";
+import { AudioPanel as AudioPanelReExport } from "../audio-panel";
 
 import type { AudioClean } from "./audio-endpoints";
 import type * as UseAudioCleanModule from "./use-audio-clean";
@@ -88,7 +89,7 @@ describe("<AudioPanel />", () => {
     const onSetAudio = vi.fn();
     render(<AudioPanel projectId="p1" onSetAudio={onSetAudio} />);
 
-    await user.click(screen.getByRole("switch"));
+    await user.click(screen.getByRole("switch", { name: /apply to export/i }));
     expect(onSetAudio).toHaveBeenCalledWith({
       clean: { enabled: true, cleanId: succeeded.id, targetLufs: -16 },
     });
@@ -100,9 +101,80 @@ describe("<AudioPanel />", () => {
     const onSetAudio = vi.fn();
     render(<AudioPanel projectId="p1" onSetAudio={onSetAudio} appliedCleanId={succeeded.id} />);
 
-    await user.click(screen.getByRole("switch"));
+    await user.click(screen.getByRole("switch", { name: /apply to export/i }));
     expect(onSetAudio).toHaveBeenCalledWith({
       clean: { enabled: false, cleanId: null, targetLufs: 0 },
     });
+  });
+
+  it("renders Studio Sound switch and toggles onStudioSoundChange callback", async () => {
+    const user = userEvent.setup();
+    useAudioCleanMock.mockReturnValue(baseResult());
+    const onStudioSoundChange = vi.fn();
+
+    render(
+      <AudioPanel
+        projectId="p1"
+        onSetAudio={vi.fn()}
+        onStudioSoundChange={onStudioSoundChange}
+      />,
+    );
+
+    const switchEl = screen.getByTestId("studio-sound-switch");
+    expect(switchEl).toBeInTheDocument();
+    expect(switchEl).toHaveAttribute("aria-checked", "false");
+
+    await user.click(switchEl);
+    expect(onStudioSoundChange).toHaveBeenCalledWith(true);
+    expect(switchEl).toHaveAttribute("aria-checked", "true");
+  });
+
+  it("switches preview player audio source from audioWavUri to audioCleanUri when Studio Sound is toggled", async () => {
+    const user = userEvent.setup();
+    useAudioCleanMock.mockReturnValue(baseResult());
+
+    const { rerender } = render(
+      <AudioPanel
+        projectId="p1"
+        onSetAudio={vi.fn()}
+        audioWavUri="https://example.test/raw_audio.wav"
+        audioCleanUri="https://example.test/studio_audio_clean.wav"
+      />,
+    );
+
+    const player = screen.getByTestId("ab-preview-player");
+    expect(player).toHaveAttribute("src", "https://example.test/raw_audio.wav");
+
+    const switchEl = screen.getByTestId("studio-sound-switch");
+    await user.click(switchEl);
+
+    expect(player).toHaveAttribute("src", "https://example.test/studio_audio_clean.wav");
+
+    // Also supports controlled studioSound prop
+    rerender(
+      <AudioPanel
+        projectId="p1"
+        onSetAudio={vi.fn()}
+        audioWavUri="https://example.test/raw_audio.wav"
+        audioCleanUri="https://example.test/studio_audio_clean.wav"
+        studioSound={false}
+      />,
+    );
+    expect(player).toHaveAttribute("src", "https://example.test/raw_audio.wav");
+
+    rerender(
+      <AudioPanel
+        projectId="p1"
+        onSetAudio={vi.fn()}
+        audioWavUri="https://example.test/raw_audio.wav"
+        audioCleanUri="https://example.test/studio_audio_clean.wav"
+        studioSound={true}
+      />,
+    );
+    expect(player).toHaveAttribute("src", "https://example.test/studio_audio_clean.wav");
+  });
+
+  it("confirms audio-panel.tsx re-export functions identically", () => {
+    expect(AudioPanelReExport).toBe(AudioPanel);
   });
 });

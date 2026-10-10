@@ -104,7 +104,15 @@ def _load_48k(context: JobContext) -> Pcm:
         ) from error
 
 
-def _clean_one_window(pcm: Pcm, *, dereverb: bool, deesser: bool) -> Pcm:
+def _clean_one_window(
+    pcm: Pcm, *, dereverb: bool, deesser: bool, studio_sound: bool = False
+) -> Pcm:
+    if studio_sound:
+        from worker_ai.processors.studio_sound import StudioSoundPipeline
+
+        pipeline = StudioSoundPipeline()
+        return pipeline.process_chunk(pcm)
+
     cleaned = spectral_gate_denoise(pcm)
     if dereverb:
         cleaned = suppress_reverb(cleaned)
@@ -120,6 +128,7 @@ def run_clean_chain(
     target: Literal["social", "youtube", "podcast"],
     dereverb: bool,
     deesser: bool,
+    studio_sound: bool = False,
     window_ms: int = CHUNK_WINDOW_MS,
     crossfade_ms: int = CHUNK_CROSSFADE_MS,
 ) -> tuple[Pcm, CleanMetrics]:
@@ -143,7 +152,9 @@ def run_clean_chain(
     while cursor < total or (cursor == 0 and total == 0):
         end = min(cursor + window_samples + crossfade_samples, total)
         window = Pcm(samples=original.samples[cursor:end], sample_rate=sample_rate)
-        cleaned = _clean_one_window(window, dereverb=dereverb, deesser=deesser)
+        cleaned = _clean_one_window(
+            window, dereverb=dereverb, deesser=deesser, studio_sound=studio_sound
+        )
         blended = mix(window, cleaned, ratio)
         processed_chunks.append(blended)
         if end >= total:
@@ -266,6 +277,8 @@ async def process_clean(context: JobContext) -> ProcessorOutcome:
     target_raw = context.payload_str("target", default="social")
     dereverb = bool(context.envelope.payload.get("dereverb", False))
     deesser = bool(context.envelope.payload.get("deesser", False))
+    tier = context.payload_str("tier", default="quick")
+    studio_sound = bool(context.envelope.payload.get("studioSound", False)) or (tier == "deep")
 
     if strength_raw not in STRENGTH_MIX_RATIO:
         raise JobFailureError(
@@ -283,7 +296,12 @@ async def process_clean(context: JobContext) -> ProcessorOutcome:
 
     await context.progress(20, message="denoising")
     normalized, metrics = run_clean_chain(
-        original, strength=strength, target=target, dereverb=dereverb, deesser=deesser
+        original,
+        strength=strength,
+        target=target,
+        dereverb=dereverb,
+        deesser=deesser,
+        studio_sound=studio_sound,
     )
     await context.progress(70, message="rendering previews")
 
