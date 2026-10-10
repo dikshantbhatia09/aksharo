@@ -309,7 +309,7 @@ export function SocialCopyTabs({
                     YouTube Shorts Title
                   </span>
                   <Badge
-                    tone={resolvedPack.youtube.title.length <= 70 ? "positive" : "warning"}
+                    tone={resolvedPack.youtube.title.length <= 70 ? "accepted" : "warning"}
                     className="px-1.5 py-0 text-3xs font-mono"
                     data-testid="yt-title-limit-badge"
                   >
@@ -609,7 +609,7 @@ export function SocialCopyTabs({
                     X Hook Tweet
                   </span>
                   <Badge
-                    tone={resolvedPack.twitter.tweetText.length <= 280 ? "positive" : "warning"}
+                    tone={resolvedPack.twitter.tweetText.length <= 280 ? "accepted" : "warning"}
                     className="px-1.5 py-0 text-3xs font-mono"
                     data-testid="x-tweet-limit-badge"
                   >
