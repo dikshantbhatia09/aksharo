@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="100%" height="100%">
+  <defs>
+    <linearGradient id="trophyGold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FDE047" />
+      <stop offset="60%" stop-color="#EAB308" />
+      <stop offset="100%" stop-color="#854D0E" />
+    </linearGradient>
+  </defs>
+  <!-- Cup -->
+  <path d="M 36 24 L 92 24 C 92 56 78 72 64 74 C 50 72 36 56 36 24 Z" fill="url(#trophyGold)" />
+  <!-- Handles -->
+  <path d="M 36 32 C 18 32 18 56 36 60" fill="none" stroke="#CA8A04" stroke-width="6" stroke-linecap="round" />
+  <path d="M 92 32 C 110 32 110 56 92 60" fill="none" stroke="#CA8A04" stroke-width="6" stroke-linecap="round" />
+  <!-- Stem & Base -->
+  <rect x="58" y="74" width="12" height="22" fill="#A16207" />
+  <rect x="40" y="96" width="48" height="18" rx="4" fill="#475569" />
+</svg>

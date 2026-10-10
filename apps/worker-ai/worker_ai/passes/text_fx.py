@@ -78,6 +78,8 @@ class TextFxEvent:
     motion_preset: str
     confidence: float
     reason: str
+    emoji: str | None = None
+    emoji_asset_key: str | None = None
 
 
 def classify_intent(phrase: str) -> TextFxIntent:
@@ -185,6 +187,19 @@ def build_text_fx_events(
             continue
 
         intent = classify_intent(phrase)
+        from worker_ai.passes.emoji_matcher import match_word_emoji
+
+        matched_emoji: tuple[str, str, str, str] | None = match_word_emoji(phrase)
+        if matched_emoji is None:
+            # Check individual words in phrase
+            for token in phrase.split():
+                matched_emoji = match_word_emoji(token)
+                if matched_emoji is not None:
+                    break
+
+        emoji_char = matched_emoji[1] if matched_emoji else None
+        emoji_key = matched_emoji[0] if matched_emoji else None
+
         events.append(
             TextFxEvent(
                 text=phrase,
@@ -195,6 +210,8 @@ def build_text_fx_events(
                 motion_preset=_PRESET_BY_INTENT[intent],
                 confidence=0.7,
                 reason="keyphrase",
+                emoji=emoji_char,
+                emoji_asset_key=emoji_key,
             )
         )
         accepted_starts.append(start_ms)

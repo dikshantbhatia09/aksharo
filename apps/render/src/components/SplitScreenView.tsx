@@ -43,6 +43,11 @@ export interface KineticCaptionWord {
   readonly startSec: number;
   readonly endSec: number;
   readonly highlightColor?: string;
+  readonly emoji?: {
+    readonly char: string;
+    readonly assetKey?: string;
+    readonly position?: "above" | "before" | "after";
+  };
 }
 
 export interface SplitScreenStyle {
@@ -120,6 +125,7 @@ declare global {
     interface IntrinsicElements {
       readonly div: Record<string, unknown>;
       readonly span: Record<string, unknown>;
+      readonly img: Record<string, unknown>;
     }
   }
 }

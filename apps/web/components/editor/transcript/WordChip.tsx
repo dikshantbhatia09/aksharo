@@ -19,6 +19,7 @@ import { memo, useEffect, useRef, useState } from "react";
 import type { Word } from "@montaj/edg";
 
 import { cn } from "@/lib/utils";
+import { InlineEmojiPicker } from "./InlineEmojiPicker";
 
 export type DisplayScript = "roman" | "native" | "en";
 
@@ -43,6 +44,8 @@ export interface WordChipProps {
   readonly onSelect?: (wordId: string) => void;
   /** Double-click: "Fix spelling everywhere". */
   readonly onFixSpellingEverywhere?: (wordId: string, text: string) => void;
+  /** One-click emoji customization: swap or delete emoji. */
+  readonly onEmojiChange?: (wordId: string, emoji: string | null) => void;
 }
 
 const DEFAULT_CONFIDENCE_THRESHOLD = 0.6;
@@ -70,9 +73,14 @@ function WordChipImpl({
   onSeek,
   onSelect,
   onFixSpellingEverywhere,
+  onEmojiChange,
 }: WordChipProps): React.JSX.Element | null {
   const ref = useRef<HTMLSpanElement | null>(null);
   const [editing, setEditing] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const wordEmoji = (word as any).emoji;
+  const emojiChar = typeof wordEmoji === "string" ? wordEmoji : wordEmoji?.char;
   // eslint-disable-next-line security/detect-object-injection -- bracket access on a typed/enumerated key, not attacker-controlled -- reviewed for docs/security/threat-model-audit-2026-09-03.md's eslint-plugin-security follow-up
   const text = word.scripts?.[script] ?? word.t;
   const lowConfidence = word.c !== undefined && word.c < confidenceThreshold;
@@ -105,62 +113,86 @@ function WordChipImpl({
   }
 
   return (
-    <span
-      ref={ref}
-      role="textbox"
-      aria-label={`Word "${text}"`}
-      contentEditable={editing}
-      suppressContentEditableWarning
-      tabIndex={0}
-      data-testid={`word-chip-${word.wid}`}
-      data-word-id={word.wid}
-      data-filler={word.filler === true ? "true" : undefined}
-      data-active={active ? "true" : undefined}
-      className={cn(
-        "editor-word-chip text-fg-0 inline-block cursor-text rounded-[6px] px-0.5 py-0.5 text-[15px] outline-none transition-colors duration-[160ms]",
-        "hover:bg-bg-2 hover:text-fg-0",
-        "focus-visible:ring-2 focus-visible:ring-accent",
-        active &&
-          "bg-accent-900 text-accent-200 hover:bg-accent-900 hover:text-accent-200 ring-1 ring-accent",
-        selected && !active && "ring-1 ring-accent",
-        emphasized && "editor-word-emphasis",
-        // Fillers are content, not disabled controls: fg-2 (6.1:1) plus italics,
-        // so they read as quieter without falling under 4.5:1.
-        word.filler === true && "text-fg-2 italic",
-        lowConfidence &&
-          "text-proposed underline decoration-proposed decoration-dotted underline-offset-2",
+    <span className="relative inline-flex items-center">
+      {emojiChar && (
+        <button
+          type="button"
+          data-testid={`word-emoji-trigger-${word.wid}`}
+          aria-label={`Emoji ${emojiChar}, click to change`}
+          className="inline-flex items-center justify-center mr-0.5 text-xs hover:scale-125 transition-transform cursor-pointer select-none"
+          onClick={(event) => {
+            event.stopPropagation();
+            setPickerOpen((prev) => !prev);
+          }}
+        >
+          {emojiChar}
+        </button>
       )}
-      onDoubleClick={(event) => {
-        if (editing) return;
-        event.preventDefault();
-        onFixSpellingEverywhere?.(word.wid, text);
-      }}
-      onClick={(event) => {
-        if (editing) return;
-        onSelect?.(word.wid);
-        if (!event.shiftKey) onSeek?.(word.s);
-      }}
-      onBlur={() => {
-        if (editing) commit();
-      }}
-      onKeyDown={(event) => {
-        if (editing) {
+      {pickerOpen && (
+        <InlineEmojiPicker
+          currentEmoji={emojiChar}
+          onSelect={(em) => onEmojiChange?.(word.wid, em)}
+          onRemove={() => onEmojiChange?.(word.wid, null)}
+          onClose={() => setPickerOpen(false)}
+        />
+      )}
+      <span
+        ref={ref}
+        role="textbox"
+        aria-label={`Word "${text}"`}
+        contentEditable={editing}
+        suppressContentEditableWarning
+        tabIndex={0}
+        data-testid={`word-chip-${word.wid}`}
+        data-word-id={word.wid}
+        data-filler={word.filler === true ? "true" : undefined}
+        data-active={active ? "true" : undefined}
+        className={cn(
+          "editor-word-chip text-fg-0 inline-block cursor-text rounded-[6px] px-0.5 py-0.5 text-[15px] outline-none transition-colors duration-[160ms]",
+          "hover:bg-bg-2 hover:text-fg-0",
+          "focus-visible:ring-2 focus-visible:ring-accent",
+          active &&
+            "bg-accent-900 text-accent-200 hover:bg-accent-900 hover:text-accent-200 ring-1 ring-accent",
+          selected && !active && "ring-1 ring-accent",
+          emphasized && "editor-word-emphasis",
+          // Fillers are content, not disabled controls: fg-2 (6.1:1) plus italics,
+          // so they read as quieter without falling under 4.5:1.
+          word.filler === true && "text-fg-2 italic",
+          lowConfidence &&
+            "text-proposed underline decoration-proposed decoration-dotted underline-offset-2",
+        )}
+        onDoubleClick={(event) => {
+          if (editing) return;
+          event.preventDefault();
+          onFixSpellingEverywhere?.(word.wid, text);
+        }}
+        onClick={(event) => {
+          if (editing) return;
+          onSelect?.(word.wid);
+          if (!event.shiftKey) onSeek?.(word.s);
+        }}
+        onBlur={() => {
+          if (editing) commit();
+        }}
+        onKeyDown={(event) => {
+          if (editing) {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              commit();
+            } else if (event.key === "Escape") {
+              event.preventDefault();
+              cancel();
+            }
+            return;
+          }
           if (event.key === "Enter") {
             event.preventDefault();
-            commit();
-          } else if (event.key === "Escape") {
-            event.preventDefault();
-            cancel();
+            setEditing(true);
           }
-          return;
-        }
-        if (event.key === "Enter") {
-          event.preventDefault();
-          setEditing(true);
-        }
-      }}
-    >
-      {editing ? null : text}
+        }}
+      >
+        {editing ? null : text}
+      </span>
     </span>
   );
 }

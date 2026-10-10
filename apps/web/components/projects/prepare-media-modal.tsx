@@ -201,13 +201,12 @@ export function PrepareMediaModal({
               <OptionRow
                 icon={<Smile aria-hidden="true" />}
                 title="Emojis"
-                description="Add emojis that fit what is said. Not available yet."
+                description="Add animated contextual emojis that fit what is said."
                 control={
                   <Switch
                     checked={autoEmojis}
                     onCheckedChange={setAutoEmojis}
-                    disabled
-                    aria-label="Emojis (not available yet)"
+                    aria-label="Emojis"
                     data-testid="toggle-emojis"
                   />
                 }

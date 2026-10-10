@@ -169,12 +169,27 @@ const TextFxItemResultSchema = z.object({
   motionPreset: z.enum(["pop", "slide-up", "typewriter", "underline", "count-up", "fade"]),
   confidence: z.number().min(0).max(1),
   reason: z.string().min(1),
+  emoji: z.string().nullable().optional(),
+  emojiAssetKey: z.string().nullable().optional(),
+});
+
+const MatchedEmojiResultSchema = z.object({
+  wordId: z.string(),
+  text: z.string(),
+  startMs: z.number().int().min(0),
+  endMs: z.number().int().min(0),
+  emoji: z.string(),
+  assetKey: z.string(),
+  assetSvg: z.string(),
+  category: z.string().optional(),
+  confidence: z.number().optional(),
 });
 
 const TextFxResultSchema = z.object({
   passId: z.string().min(1),
   passType: z.literal("textfx"),
   items: z.array(TextFxItemResultSchema).default([]),
+  emojis: z.array(MatchedEmojiResultSchema).default([]),
 });
 
 /** A duck curve, or `null` when the cue should never be ducked (D04c). */

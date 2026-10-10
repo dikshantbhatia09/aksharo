@@ -25,6 +25,7 @@ import {
   packMicroPacingLines,
 } from "@montaj/caption-styles";
 
+import { AnimatedEmoji } from "./AnimatedEmoji.js";
 import {
   Fragment as _Fragment,
   h as _h,
@@ -150,6 +151,7 @@ export function KineticSubtitleLine(props: KineticSubtitleLineProps): SplitScree
         data-scale={scale.toFixed(3)}
         data-y-offset={yOffset.toFixed(2)}
         style={{
+          position: "relative",
           display: "inline-block",
           transform: `translate3d(0, ${yOffset.toFixed(2)}px, 0) scale(${scale.toFixed(3)})`,
           color: wordColor,
@@ -162,6 +164,18 @@ export function KineticSubtitleLine(props: KineticSubtitleLineProps): SplitScree
           willChange: "transform, color",
         }}
       >
+        {word.emoji && (
+          <AnimatedEmoji
+            emoji={word.emoji.char}
+            assetKey={word.emoji.assetKey}
+            currentTimeSec={currentTimeSec}
+            startSec={word.startSec}
+            endSec={word.endSec}
+            fps={fps}
+            sizePx={Math.max(36, fontSize * 1.0)}
+            offsetYPx={-(fontSize * 1.15)}
+          />
+        )}
         {word.text}
       </span>
     );

@@ -104,4 +104,37 @@ describe("WordChip", () => {
     render(<WordChip word={word({ c: 0.95 })} script="roman" onCommit={vi.fn()} />);
     expect(screen.getByTestId("word-chip-0:0").className).not.toMatch(/decoration-proposed/);
   });
+
+  it("renders contextual emoji button and allows one-click swap or removal", () => {
+    const onEmojiChange = vi.fn();
+    // Word with existing emoji
+    const emojiWord = { ...word(), emoji: { char: "🔥", position: "above" } } as unknown as Word;
+
+    render(
+      <WordChip
+        word={emojiWord}
+        script="roman"
+        onCommit={vi.fn()}
+        onEmojiChange={onEmojiChange}
+      />,
+    );
+
+    const trigger = screen.getByTestId("word-emoji-trigger-0:0");
+    expect(trigger).toHaveTextContent("🔥");
+
+    // Click to open InlineEmojiPicker
+    fireEvent.click(trigger);
+    expect(screen.getByTestId("inline-emoji-picker")).toBeInTheDocument();
+
+    // Click swap emoji (e.g. 💸)
+    const moneyOption = screen.getByTestId("emoji-option-💸");
+    fireEvent.click(moneyOption);
+    expect(onEmojiChange).toHaveBeenCalledWith("0:0", "💸");
+
+    // Re-open and click Remove
+    fireEvent.click(trigger);
+    const removeBtn = screen.getByTestId("emoji-picker-remove");
+    fireEvent.click(removeBtn);
+    expect(onEmojiChange).toHaveBeenCalledWith("0:0", null);
+  });
 });

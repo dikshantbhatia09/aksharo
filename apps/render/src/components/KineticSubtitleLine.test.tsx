@@ -204,4 +204,41 @@ describe("KineticSubtitleLine Remotion Component & Kinetic Engine (Pillar 4 §01
       expect(nextWords[2]?.props["data-active"]).toBe("true");
     });
   });
+
+  describe("Contextual Animated Emoji Integration (Pillar 4 §04)", () => {
+    it("renders AnimatedEmoji centered above active word with emoji metadata", () => {
+      const wordsWithEmoji: readonly KineticCaptionWord[] = [
+        { text: "EARNED", startSec: 0.0, endSec: 0.4 },
+        {
+          text: "MILLIONS!",
+          startSec: 0.4,
+          endSec: 1.0,
+          emoji: { char: "💸", assetKey: "money", position: "above" },
+        },
+      ];
+
+      // At t = 0.6s: "MILLIONS!" is active
+      const tree = (
+        <KineticSubtitleLine
+          words={wordsWithEmoji}
+          currentTimeSec={0.6}
+          fontSize={48}
+        />
+      );
+
+      const wordNodes = findVNodesByType(tree, "span");
+      expect(wordNodes).toHaveLength(2);
+
+      const millionsSpan = wordNodes[1]!;
+      expect(millionsSpan.props["data-word"]).toBe("MILLIONS!");
+      expect(millionsSpan.props["data-active"]).toBe("true");
+
+      const emojiNodes = findVNodesByType(millionsSpan, "div");
+      expect(emojiNodes).toHaveLength(1);
+      expect(emojiNodes[0]?.props["data-testid"]).toBe("animated-emoji");
+      expect(emojiNodes[0]?.props["data-emoji"]).toBe("💸");
+      expect(emojiNodes[0]?.props["data-asset-key"]).toBe("money");
+      expect(emojiNodes[0]?.props["data-visible"]).toBe("true");
+    });
+  });
 });

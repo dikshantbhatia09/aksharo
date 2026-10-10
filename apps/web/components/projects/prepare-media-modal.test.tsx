@@ -99,6 +99,28 @@ describe("<PrepareMediaModal /> — the language+script form", () => {
     expect(onGenerate).toHaveBeenCalledWith("ta", "roman");
   });
 
+  it("exposes the enabled Auto-Emojis switch and allows toggling", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(
+      <PrepareMediaModal
+        open
+        onOpenChange={vi.fn()}
+        file={clip()}
+        item={undefined}
+        initialLanguage="en"
+        initialScript="roman"
+        onGenerate={vi.fn()}
+      />,
+    );
+    const modal = within(await screen.findByTestId("prepare-media-modal"));
+    const toggle = modal.getByTestId("toggle-emojis");
+    expect(toggle).toBeEnabled();
+    expect(toggle).not.toBeChecked();
+
+    await user.click(toggle);
+    expect(toggle).toBeChecked();
+  });
+
   it("calls onGenerate with an explicitly chosen script", async () => {
     const user = userEvent.setup();
     const onGenerate = vi.fn();

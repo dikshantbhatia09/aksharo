@@ -13,4 +13,5 @@ export * from "./registry.js";
 export * from "./scaling.js";
 export * from "./safe-zone.js";
 export * from "./animations/index.js";
+export * from "./emojis/index.js";
 

@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="100%" height="100%">
+  <defs>
+    <linearGradient id="rocketBody" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" />
+      <stop offset="60%" stop-color="#E2E8F0" />
+      <stop offset="100%" stop-color="#94A3B8" />
+    </linearGradient>
+    <linearGradient id="rocketFin" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#EF4444" />
+      <stop offset="100%" stop-color="#B91C1C" />
+    </linearGradient>
+    <linearGradient id="flameGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFEA00" />
+      <stop offset="100%" stop-color="#FF3D00" />
+    </linearGradient>
+    <filter id="rocketShadow">
+      <feDropShadow dx="0" dy="6" stdDeviation="6" flood-color="#000000" flood-opacity="0.4" />
+    </filter>
+  </defs>
+  <g filter="url(#rocketShadow)">
+    <!-- Exhaust Flame -->
+    <path d="M 36 94 C 28 108 22 124 16 122 C 26 114 36 102 44 92 Z" fill="url(#flameGrad)" />
+    <!-- Left Fin -->
+    <path d="M 32 72 L 20 96 L 46 90 Z" fill="url(#rocketFin)" />
+    <!-- Right Fin -->
+    <path d="M 68 106 L 94 118 L 88 92 Z" fill="url(#rocketFin)" />
+    <!-- Main Fuselage -->
+    <path d="M 112 16 C 88 18 56 38 42 66 L 72 96 C 100 82 120 50 112 16 Z" fill="url(#rocketBody)" />
+    <!-- Nose Tip -->
+    <path d="M 112 16 C 104 18 94 24 88 32 L 104 48 C 112 42 118 32 112 16 Z" fill="url(#rocketFin)" />
+    <!-- Porthole Window -->
+    <circle cx="78" cy="50" r="10" fill="#38BDF8" stroke="#0284C7" stroke-width="2" />
+    <circle cx="75" cy="47" r="3" fill="#FFFFFF" opacity="0.8" />
+  </g>
+</svg>

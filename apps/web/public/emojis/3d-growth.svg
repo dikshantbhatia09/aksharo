@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="100%" height="100%">
+  <defs>
+    <linearGradient id="chartLine" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#10B981" />
+      <stop offset="100%" stop-color="#00FFA3" />
+    </linearGradient>
+    <filter id="chartGlow">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#10B981" flood-opacity="0.5" />
+    </filter>
+  </defs>
+  <g filter="url(#chartGlow)">
+    <!-- Grid Frame -->
+    <rect x="14" y="14" width="100" height="100" rx="12" fill="#0F172A" stroke="#334155" stroke-width="2" />
+    <line x1="24" y1="98" x2="104" y2="98" stroke="#334155" stroke-width="2" />
+    <line x1="24" y1="64" x2="104" y2="64" stroke="#334155" stroke-width="1" stroke-dasharray="4 4" />
+    <!-- Trend Line -->
+    <polyline points="26,90 50,72 74,80 102,34" fill="none" stroke="url(#chartLine)" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" />
+    <!-- Arrowhead -->
+    <polygon points="104,26 106,44 92,36" fill="#00FFA3" />
+  </g>
+</svg>

@@ -155,7 +155,10 @@ async def process_text_fx(context: JobContext) -> ProcessorOutcome:
     await context.progress(60, message="building title events")
     keyphrases = result.output.get("keyphrases", [])
     events = build_text_fx_events(keyphrases, words, guarded_ranges=guarded)
-    await context.progress(90, message=f"{len(events)} title events proposed")
+    from worker_ai.passes.emoji_matcher import match_transcript_emojis
+
+    emojis = match_transcript_emojis(words, min_gap_ms=2800)
+    await context.progress(90, message=f"{len(events)} title events proposed, {len(emojis)} emojis matched")
 
     return ProcessorOutcome(
         result={
@@ -171,8 +174,24 @@ async def process_text_fx(context: JobContext) -> ProcessorOutcome:
                     "motionPreset": event.motion_preset,
                     "confidence": event.confidence,
                     "reason": event.reason,
+                    "emoji": event.emoji,
+                    "emojiAssetKey": event.emoji_asset_key,
                 }
                 for event in events
+            ],
+            "emojis": [
+                {
+                    "wordId": e.word_id,
+                    "text": e.text,
+                    "startMs": e.start_ms,
+                    "endMs": e.end_ms,
+                    "emoji": e.emoji,
+                    "assetKey": e.asset_key,
+                    "assetSvg": e.asset_svg,
+                    "category": e.category,
+                    "confidence": e.confidence,
+                }
+                for e in emojis
             ],
             "providerSubmissions": context.submissions_wire(),
         },

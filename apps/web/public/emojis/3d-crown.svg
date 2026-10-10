@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="100%" height="100%">
+  <defs>
+    <linearGradient id="goldCrown" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FEF08A" />
+      <stop offset="40%" stop-color="#EAB308" />
+      <stop offset="100%" stop-color="#A16207" />
+    </linearGradient>
+  </defs>
+  <path d="M 18 94 L 26 38 L 48 64 L 64 26 L 80 64 L 102 38 L 110 94 Z" fill="url(#goldCrown)" stroke="#78350F" stroke-width="3" stroke-linejoin="round" />
+  <!-- Jewels -->
+  <circle cx="26" cy="34" r="5" fill="#EF4444" />
+  <circle cx="64" cy="22" r="6" fill="#3B82F6" />
+  <circle cx="102" cy="34" r="5" fill="#10B981" />
+  <rect x="22" y="94" width="84" height="12" rx="4" fill="#CA8A04" />
+</svg>
