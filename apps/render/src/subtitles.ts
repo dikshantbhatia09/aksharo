@@ -143,6 +143,55 @@ export function buildCues(options: BuildCuesOptions): Cue[] {
   return collected.map((cue, index) => ({ ...cue, index: index + 1 }));
 }
 
+export interface BuildBilingualCuesOptions {
+  readonly projection: RenderProjection;
+  readonly timemap: TimeQuery | null;
+  readonly originalScript: SubtitleScript;
+  readonly translatedScript: SubtitleScript;
+  readonly dropFillers?: boolean;
+  readonly minCueMs?: number;
+}
+
+/** Bilingual stacked cues (Native on top, Translated on bottom). */
+export function buildBilingualCues(options: BuildBilingualCuesOptions): Cue[] {
+  const { projection, timemap } = options;
+  const minCueMs = options.minCueMs ?? MIN_CUE_MS;
+  const dropFillers = options.dropFillers ?? false;
+
+  const collected: { startMs: number; endMs: number; text: string; speaker?: string }[] = [];
+
+  for (const [index, segment] of projection.segments.entries()) {
+    if (segment.hidden === true) continue;
+    const orig = segmentText(projection, index, options.originalScript, dropFillers);
+    const trans = segmentText(projection, index, options.translatedScript, dropFillers);
+    if (orig.text === "" && trans.text === "") continue;
+
+    const combinedText =
+      orig.text && trans.text ? `${orig.text}\n${trans.text}` : orig.text || trans.text;
+
+    const ranges =
+      timemap === null
+        ? [{ outputStart: segment.startMs, outputEnd: segment.endMs }]
+        : timemap
+            .mapRange(segment.startMs, segment.endMs)
+            .map((range) => ({ outputStart: range.outputStart, outputEnd: range.outputEnd }));
+
+    for (const range of ranges) {
+      if (range.outputEnd - range.outputStart < minCueMs) continue;
+      collected.push({
+        startMs: range.outputStart,
+        endMs: range.outputEnd,
+        text: combinedText,
+        ...(trans.speaker !== undefined ? { speaker: trans.speaker } : orig.speaker !== undefined ? { speaker: orig.speaker } : {}),
+      });
+    }
+  }
+
+  collected.sort((a, b) => a.startMs - b.startMs || a.endMs - b.endMs);
+  return collected.map((cue, index) => ({ ...cue, index: index + 1 }));
+}
+
+
 /** `HH:MM:SS,mmm` for SRT; `HH:MM:SS.mmm` for VTT. */
 export function formatTimestamp(ms: number, separator: "," | "."): string {
   const clamped = Math.max(0, Math.round(ms));

@@ -31,7 +31,7 @@ async def process_translate(context: JobContext) -> ProcessorOutcome:
     target_language = context.payload_str("targetLanguage", required=True)
     base_revision = _read_base_revision(context)
     glossary = _read_glossary(context)
-    segments = _read_segments(context)
+    segments, timing = _read_segments_with_timing(context)
 
     if context.envelope.project_id is None:
         raise JobFailureError(
@@ -52,6 +52,7 @@ async def process_translate(context: JobContext) -> ProcessorOutcome:
             source_language=source_language,
             target_language=target_language,
             glossary=glossary,
+            timing=timing if timing else None,
         )
     except AllProvidersFailedError as error:
         raise JobFailureError(
@@ -92,6 +93,15 @@ async def process_translate(context: JobContext) -> ProcessorOutcome:
         raise
 
     await context.progress(100, message="done")
+    timed_segments = [
+        {
+            "segmentId": segment.segment_id,
+            "text": segment.text,
+            "words": [w.to_dict() for w in segment.words],
+        }
+        for segment in result.segments
+        if segment.words
+    ]
     return ProcessorOutcome(
         result={
             "targetLanguage": target_language,
@@ -101,6 +111,7 @@ async def process_translate(context: JobContext) -> ProcessorOutcome:
             "truncated": result.truncated,
             "applied": ack.applied,
             "providerSubmissions": context.submissions_wire(),
+            "timedSegments": timed_segments,
         },
         usage=JobUsage(provider=result.provider, cost_minor=0),
     )
@@ -124,7 +135,9 @@ def _read_glossary(context: JobContext) -> tuple[str, ...]:
     return tuple(term for term in raw if isinstance(term, str) and term.strip())
 
 
-def _read_segments(context: JobContext) -> tuple[tuple[str, str], ...]:
+def _read_segments_with_timing(
+    context: JobContext,
+) -> tuple[tuple[tuple[str, str], ...], dict[str, tuple[int, int]]]:
     raw = context.envelope.payload.get("segments")
     if not isinstance(raw, list) or not raw:
         raise JobFailureError(
@@ -133,6 +146,7 @@ def _read_segments(context: JobContext) -> tuple[tuple[str, str], ...]:
             retryable=False,
         )
     segments: list[tuple[str, str]] = []
+    timing: dict[str, tuple[int, int]] = {}
     for entry in raw:
         if not isinstance(entry, dict):
             raise JobFailureError(
@@ -149,4 +163,14 @@ def _read_segments(context: JobContext) -> tuple[tuple[str, str], ...]:
                 retryable=False,
             )
         segments.append((segment_id, text))
-    return tuple(segments)
+        start_ms = entry.get("startMs")
+        end_ms = entry.get("endMs")
+        if isinstance(start_ms, (int, float)) and isinstance(end_ms, (int, float)):
+            timing[segment_id] = (int(round(start_ms)), int(round(end_ms)))
+        elif "startSec" in entry and "endSec" in entry:
+            start_sec = entry.get("startSec")
+            end_sec = entry.get("endSec")
+            if isinstance(start_sec, (int, float)) and isinstance(end_sec, (int, float)):
+                timing[segment_id] = (int(round(start_sec * 1000)), int(round(end_sec * 1000)))
+    return tuple(segments), timing
+

@@ -291,3 +291,71 @@ export function packMicroPacingLines<T extends { startSec: number; endSec: numbe
 
   return lines;
 }
+
+/**
+ * Cross-Lingual Word Timing Allocator (Pillar 4 §09).
+ *
+ * Distributes sentence clause duration [startSec, endSec] across translated words
+ * using token length and punctuation bonuses (Section 2.1):
+ *   weight(w_i) = len(w_i) + bonus(punctuation)
+ *   Delta t_i = (endSec - startSec) * (weight(w_i) / sum(weights))
+ *
+ * Guarantees that the final word strictly ends at endSec (zero drift).
+ */
+export function allocateCrossLingualWordTiming(
+  translatedText: string,
+  startSec: number,
+  endSec: number,
+): TimedWordItem[] {
+  const tokens = translatedText.trim().split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) return [];
+
+  const safeStart = startSec;
+  const safeEnd = endSec < startSec ? startSec : endSec;
+  const totalDuration = safeEnd - safeStart;
+
+  if (totalDuration <= 0) {
+    return tokens.map((token) => ({
+      text: token,
+      startSec: safeStart,
+      endSec: safeEnd,
+    }));
+  }
+
+  const weights = tokens.map((token) => {
+    const stripped = token.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?"'–—«»""'']/g, "");
+    const baseLen = Math.max(1, stripped.length);
+    let bonus = 0;
+    if (/[.?!।॥]$/.test(token)) {
+      bonus = 2;
+    } else if (/[,;:—–]$/.test(token)) {
+      bonus = 1;
+    }
+    return baseLen + bonus;
+  });
+
+  const totalWeight = weights.reduce((a, b) => a + b, 0) || 1;
+  const result: TimedWordItem[] = [];
+  let currentStart = safeStart;
+
+  for (let i = 0; i < tokens.length; i++) {
+    const token = tokens[i]!;
+    let currentEnd: number;
+    if (i === tokens.length - 1) {
+      currentEnd = safeEnd;
+    } else {
+      const duration = totalDuration * (weights[i]! / totalWeight);
+      currentEnd = Math.min(safeEnd, currentStart + duration);
+    }
+
+    result.push({
+      text: token,
+      startSec: currentStart,
+      endSec: currentEnd,
+    });
+    currentStart = currentEnd;
+  }
+
+  return result;
+}
+

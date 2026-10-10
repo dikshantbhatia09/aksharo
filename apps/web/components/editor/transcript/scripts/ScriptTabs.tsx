@@ -55,6 +55,8 @@ import {
   TooltipTrigger,
 } from "@montaj/ui";
 
+import { SubtitleLanguageModal } from "../../subtitle-language-modal";
+
 import { RegenerateTranslationDialog } from "./RegenerateTranslationDialog";
 
 import { cn } from "@/lib/utils";
@@ -109,6 +111,7 @@ export function ScriptTabs({
   const translate = useTranslateTranscript(projectId);
   const [pendingRegenerate, setPendingRegenerate] = React.useState<string | null>(null);
   const [addingTranslation, setAddingTranslation] = React.useState(false);
+  const [languageModalOpen, setLanguageModalOpen] = React.useState(false);
 
   const scripts = data?.scripts ?? [];
   const translated = scripts.find((row) => row.script === "translated");
@@ -251,6 +254,15 @@ export function ScriptTabs({
                   {option.label}
                 </DropdownMenuItem>
               ))}
+              <DropdownMenuItem
+                data-testid="open-more-languages"
+                onSelect={() => {
+                  setAddingTranslation(false);
+                  setLanguageModalOpen(true);
+                }}
+              >
+                More languages & Bilingual mode…
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
           <Button
@@ -287,7 +299,18 @@ export function ScriptTabs({
           if (language !== null) requestTranslation(language);
         }}
       />
+
+      <SubtitleLanguageModal
+        open={languageModalOpen}
+        onOpenChange={setLanguageModalOpen}
+        onTranslate={({ targetLanguage }) => {
+          setLanguageModalOpen(false);
+          requestTranslation(targetLanguage);
+        }}
+        isTranslating={translate.isPending}
+      />
     </div>
+
   );
 }
 

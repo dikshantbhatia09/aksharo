@@ -10,6 +10,7 @@ import {
   computeWordYOffsetMs,
   evaluateKineticWordState,
   packMicroPacingLines,
+  allocateCrossLingualWordTiming,
   type TimedWordItem,
 } from "./spring.js";
 
@@ -234,4 +235,36 @@ describe("Word-by-Word Kinetic Animation Engine (Pillar 4 §01)", () => {
       expect(elapsed).toBeLessThan(10); // Far faster than 16.6ms
     });
   });
+
+  describe("allocateCrossLingualWordTiming (Pillar 4 §09)", () => {
+    it("allocates word timestamps such that total translated duration strictly matches original duration", () => {
+      const translated = "Never give up on your biggest dreams, they are closer than you think!";
+      const startSec = 1.2;
+      const endSec = 4.75;
+
+      const words = allocateCrossLingualWordTiming(translated, startSec, endSec);
+
+      expect(words.length).toBeGreaterThan(0);
+      expect(words[0]?.startSec).toBe(startSec);
+      expect(words[words.length - 1]?.endSec).toBe(endSec);
+      expect(words[words.length - 1]!.endSec - words[0]!.startSec).toBeCloseTo(endSec - startSec, 5);
+
+      for (let i = 0; i < words.length; i++) {
+        const w = words[i]!;
+        expect(w.startSec).toBeLessThanOrEqual(w.endSec);
+        if (i > 0) {
+          expect(w.startSec).toBeGreaterThanOrEqual(words[i - 1]!.endSec);
+        }
+      }
+    });
+
+    it("handles empty strings and zero durations without error", () => {
+      expect(allocateCrossLingualWordTiming("", 1.0, 2.0)).toEqual([]);
+      const zero = allocateCrossLingualWordTiming("Test token", 1.5, 1.5);
+      expect(zero).toHaveLength(2);
+      expect(zero[0]?.startSec).toBe(1.5);
+      expect(zero[0]?.endSec).toBe(1.5);
+    });
+  });
 });
+

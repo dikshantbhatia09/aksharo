@@ -31,6 +31,7 @@ from worker_ai.translate.providers.base import (
     TranslationRequest,
     TranslationSegment,
 )
+from worker_ai.translate.timing import CrossLingualWordTiming, allocate_cross_lingual_timing_ms
 
 __all__ = [
     "MAX_LENGTH_RETRIES",
@@ -61,6 +62,7 @@ class TranslatedSegmentOut:
     #: True when the 1.3x budget still could not be met by retrying and the text
     #: was hard-truncated — reported so the job event can flag it for review.
     truncated: bool = False
+    words: tuple[CrossLingualWordTiming, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -80,6 +82,7 @@ async def translate_segments(
     source_language: str,
     target_language: str,
     glossary: tuple[str, ...] = (),
+    timing: dict[str, tuple[int, int]] | None = None,
 ) -> TranslateSegmentsResult:
     """Translate `segments` (`(segmentId, text)`, document order) end to end.
 
@@ -146,7 +149,15 @@ async def translate_segments(
         if was_truncated:
             text = truncate_to_budget(source_text, text)
             truncated_count += 1
-        out.append(TranslatedSegmentOut(segment_id=segment_id, text=text, truncated=was_truncated))
+        words: tuple[CrossLingualWordTiming, ...] = ()
+        if timing is not None and segment_id in timing:
+            s_ms, e_ms = timing[segment_id]
+            words = tuple(allocate_cross_lingual_timing_ms(text, s_ms, e_ms))
+        out.append(
+            TranslatedSegmentOut(
+                segment_id=segment_id, text=text, truncated=was_truncated, words=words
+            )
+        )
 
     return TranslateSegmentsResult(
         segments=tuple(out),

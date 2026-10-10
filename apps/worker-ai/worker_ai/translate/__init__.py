@@ -15,12 +15,23 @@ from worker_ai.translate.service import (
     TranslateSegmentsResult,
     translate_segments,
 )
+from worker_ai.translate.timing import (
+    CrossLingualWordTiming,
+    allocate_cross_lingual_timing_ms,
+    allocate_cross_lingual_timing_sec,
+    compute_word_weight,
+)
 
 __all__ = [
     "MAX_LENGTH_RATIO",
     "MAX_LENGTH_RETRIES",
     "AllProvidersFailedError",
+    "CrossLingualWordTiming",
     "TranslateSegmentsResult",
     "TranslatedSegmentOut",
+    "allocate_cross_lingual_timing_ms",
+    "allocate_cross_lingual_timing_sec",
+    "compute_word_weight",
     "translate_segments",
 ]
+
