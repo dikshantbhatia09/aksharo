@@ -31,6 +31,7 @@ import {
   splitScreenFrame,
   stackedFilter,
   stackedFrame,
+  streamerSplitFilter,
   toSplitScreenConfig,
   type DynamicReframeTrajectory,
   type LayoutCut,
@@ -1858,3 +1859,59 @@ describe("BLURRED_FIT mode (Pillar 3 §05 Blurred Background Canvas Fit)", () =>
     );
   });
 });
+
+describe("STREAMER_SPLIT mode (Pillar 3 §07 Streamer Gameplay & Facecam Split Engine)", () => {
+  const fullHd = { width: 1920, height: 1080 };
+
+  it("computes Top 35% facecam crop and Bottom 65% centered gameplay crop", () => {
+    const frame = clipFrame(fullHd, {
+      layoutMode: "STREAMER_SPLIT",
+      maxHeight: 1920,
+      facecamBox: { x: 1400, y: 720, width: 460, height: 320 },
+      streamerDividerColor: "#8B5CF6",
+    });
+    expect(frame).not.toBeNull();
+    if (frame === null) return;
+
+    expect(frame.layoutMode).toBe("STREAMER_SPLIT");
+    expect(frame.output).toEqual({ width: 1080, height: 1920 });
+    expect(frame.streamerSplit).toBeDefined();
+
+    const split = frame.streamerSplit!;
+    expect(split.topPaneHeight).toBe(672); // 35% of 1920
+    expect(split.bottomPaneHeight).toBe(1248); // 65% of 1920
+    expect(split.dividerColor).toBe("#8B5CF6");
+
+    // Facecam crop matches provided coordinates (clamped / even)
+    expect(split.facecamCrop.x).toBe(1400);
+    expect(split.facecamCrop.y).toBe(720);
+    expect(split.facecamCrop.width).toBe(460);
+    expect(split.facecamCrop.height).toBe(320);
+
+    // Gameplay crop centered on 16:9 frame, width matching bottom pane aspect ratio
+    expect(split.gameplayCrop.height).toBe(1080);
+    expect(split.gameplayCrop.width).toBe(936);
+    expect(split.gameplayCrop.x).toBe(492);
+    expect(split.gameplayCrop.y).toBe(0);
+
+    const filter = clipFilter(frame);
+    expect(filter).toBe(streamerSplitFilter(frame));
+    expect(filter).toContain("crop=460:320:1400:720,scale=1080:672[facecam]");
+    expect(filter).toContain("crop=936:1080:492:0,scale=1080:1248[gameplay]");
+    expect(filter).toContain("[facecam][gameplay]vstack[stacked]");
+    expect(filter).toContain("drawbox=y=671:color=#8B5CF6:width=1080:height=3:t=fill");
+  });
+
+  it("falls back to default bottom-right facecam corner when no facecamBox provided", () => {
+    const frame = clipFrame(fullHd, {
+      layoutMode: "STREAMER_SPLIT",
+      maxHeight: 1920,
+    });
+    expect(frame?.layoutMode).toBe("STREAMER_SPLIT");
+    expect(frame?.streamerSplit?.topPaneHeight).toBe(672);
+    expect(frame?.streamerSplit?.bottomPaneHeight).toBe(1248);
+    expect(frame?.streamerSplit?.facecamCrop.x).toBeGreaterThan(1000);
+    expect(frame?.streamerSplit?.facecamCrop.y).toBeGreaterThan(600);
+  });
+});
+

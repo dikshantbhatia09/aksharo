@@ -125,6 +125,25 @@ export function buildPaneAssignmentsForLayout(
     ];
   }
 
+  if (layoutType === "STREAMER") {
+    const topH = Math.round(ch * 0.35); // 672
+    const botH = ch - topH; // 1248
+    const topPos = { x: 0, y: 0, width: cw, height: topH };
+    const botPos = { x: 0, y: topH, width: cw, height: botH };
+    return [
+      {
+        speakerId: activeSpeakerId,
+        cropRect: { x: 1362, y: 702, width: 480, height: 324 },
+        canvasPosition: topPos,
+      },
+      {
+        speakerId: "GAMEPLAY",
+        cropRect: { x: 492, y: 0, width: 936, height: 1080 },
+        canvasPosition: botPos,
+      },
+    ];
+  }
+
   // GRID_4 (2×2 Grid)
   const gridSpeakers = ordered.slice(0, 4);
   while (gridSpeakers.length < 4) {
@@ -254,6 +273,7 @@ const LAYOUT_LABELS: Readonly<Record<DirectorLayoutType, string>> = {
   TRI_PANEL: "Tri-Panel Grid (Top 60% + 2 Bottom)",
   GRID_4: "2×2 Reaction Grid (4 Speakers)",
   SPLIT_2: "2-Speaker Vertical Split",
+  STREAMER: "Streamer Split (Top 35% + Gameplay 65%)",
 };
 
 export function MultiSpeakerGridSwitcher({

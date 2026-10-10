@@ -125,7 +125,7 @@ export interface OffthreadVideoProps {
   readonly endAt?: number;
   readonly muted?: boolean;
   readonly volume?: number;
-  readonly "data-pane"?: "top" | "bottom" | "solo";
+  readonly "data-pane"?: "top" | "bottom" | "solo" | "facecam" | "gameplay";
   readonly "data-testid"?: string;
 }
 

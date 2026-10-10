@@ -428,8 +428,9 @@ export const SplitScreenSegmentSchema = z.strictObject({
  * - `SPLIT_2`: Vertical 2-way split (Top 1080 × 960, Bottom 1080 × 960)
  * - `TRI_PANEL`: Active Speaker in Top 60% (1080 × 1152), Two Panelists in Bottom 40% (2 × 540 × 768)
  * - `GRID_4`: 2×2 reaction grid (4 × 540 × 960)
+ * - `STREAMER`: Streamer Gameplay & Facecam Split (Top 35% 1080 × 672, Bottom 65% 1080 × 1248)
  */
-export const DIRECTOR_LAYOUT_TYPES = ["SOLO", "SPLIT_2", "TRI_PANEL", "GRID_4"] as const;
+export const DIRECTOR_LAYOUT_TYPES = ["SOLO", "SPLIT_2", "TRI_PANEL", "GRID_4", "STREAMER"] as const;
 export type DirectorLayoutType = (typeof DIRECTOR_LAYOUT_TYPES)[number];
 
 export interface LayoutPaneAssignment {
@@ -454,7 +455,7 @@ export interface LayoutPaneAssignment {
 export interface LayoutCut {
   readonly startSec: number;
   readonly endSec: number;
-  readonly layoutType: "SOLO" | "SPLIT_2" | "TRI_PANEL" | "GRID_4";
+  readonly layoutType: DirectorLayoutType;
   readonly activeSpeakerId: string;
   readonly paneAssignments: Array<{
     readonly speakerId: string;

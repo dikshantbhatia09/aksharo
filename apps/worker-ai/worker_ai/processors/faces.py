@@ -23,19 +23,26 @@ from worker_ai.passes.faces import (
     DEFAULT_DEADBAND_RATIO,
     DEFAULT_INTERVAL_MS,
     DEFAULT_NATURAL_FREQ,
+    DEFAULT_STREAMER_DIVIDER_COLOR,
+    FACECAM_OVERLAY,
     LAYOUT_SINGLE_SPEAKER,
+    LAYOUT_STREAMER_SPLIT,
     LAYOUT_TWO_SPEAKER_CONVERSATION,
     TWO_SPEAKER_MIN_SEPARATION_RATIO,
+    FacecamRect,
     SmoothedKeyframe,
     SpeakerCluster,
+    StreamerClassification,
     TwoSpeakerClassification,
     YuNetOnnxDetector,
     apply_critically_damped_smoothing,
     build_reframe_trajectory,
     calculate_mouth_aspect_ratio,
+    classify_streamer_layout,
     classify_two_speaker_layout,
     cluster_speaker_faces_kmeans,
     correlate_active_speaker,
+    detect_corner_facecam,
     detect_face_track,
     extract_raw_face_centers,
     face_track_document,
@@ -51,8 +58,13 @@ __all__ = [
     "DEFAULT_DAMPING_RATIO",
     "DEFAULT_DEADBAND_RATIO",
     "DEFAULT_NATURAL_FREQ",
+    "DEFAULT_STREAMER_DIVIDER_COLOR",
+    "FACECAM_OVERLAY",
+    "FacecamRect",
     "LAYOUT_SINGLE_SPEAKER",
+    "LAYOUT_STREAMER_SPLIT",
     "LAYOUT_TWO_SPEAKER_CONVERSATION",
+    "StreamerClassification",
     "TWO_SPEAKER_MIN_SEPARATION_RATIO",
     "SmoothedKeyframe",
     "SpeakerCluster",
@@ -60,9 +72,11 @@ __all__ = [
     "apply_critically_damped_smoothing",
     "build_reframe_trajectory",
     "calculate_mouth_aspect_ratio",
+    "classify_streamer_layout",
     "classify_two_speaker_layout",
     "cluster_speaker_faces_kmeans",
     "correlate_active_speaker",
+    "detect_corner_facecam",
     "extract_raw_face_centers",
     "kmeans_face_clusters",
     "plan_dialogue_monologue_segments",
@@ -102,6 +116,30 @@ async def process_faces(context: JobContext) -> ProcessorOutcome:
         source_width=source_width,
         source_height=source_height,
     )
+    streamer_layout = classify_streamer_layout(
+        samples, source_width=source_width, source_height=source_height
+    )
+    if streamer_layout.is_streamer and streamer_layout.facecam_rect is not None:
+        document["streamerLayout"] = {
+            "layout": streamer_layout.layout,
+            "isStreamer": streamer_layout.is_streamer,
+            "confidence": streamer_layout.confidence,
+            "facecam": {
+                "corner": streamer_layout.facecam_rect.corner,
+                "x": streamer_layout.facecam_rect.x,
+                "y": streamer_layout.facecam_rect.y,
+                "width": streamer_layout.facecam_rect.width,
+                "height": streamer_layout.facecam_rect.height,
+                "stabilityScore": streamer_layout.facecam_rect.stability_score,
+                "presenceShare": streamer_layout.facecam_rect.presence_share,
+            },
+            "facecamCrop": streamer_layout.facecam_crop,
+            "gameplayCrop": streamer_layout.gameplay_crop,
+            "topPaneHeight": streamer_layout.top_pane_height,
+            "bottomPaneHeight": streamer_layout.bottom_pane_height,
+            "dividerColor": streamer_layout.divider_color,
+        }
+
     path = context.workdir / "faces.json"
     path.write_text(json.dumps(document, separators=(",", ":")), encoding="utf-8")
 
@@ -128,16 +166,21 @@ async def process_faces(context: JobContext) -> ProcessorOutcome:
             "mediaId": media_id,
             "samples": len(samples),
             "samplesWithFaces": with_faces,
+            "isStreamer": streamer_layout.is_streamer,
         },
     )
     duration_s = len(samples) * DEFAULT_INTERVAL_MS / 1000
+    res_dict: dict[str, Any] = {
+        "mediaId": media_id,
+        "facesKey": key,
+        "samples": len(samples),
+        "samplesWithFaces": with_faces,
+    }
+    if streamer_layout.is_streamer and "streamerLayout" in document:
+        res_dict["streamerLayout"] = document["streamerLayout"]
+
     return ProcessorOutcome(
-        result={
-            "mediaId": media_id,
-            "facesKey": key,
-            "samples": len(samples),
-            "samplesWithFaces": with_faces,
-        },
+        result=res_dict,
         usage=JobUsage(
             media_seconds=duration_s, provider="worker-ai/faces", cost_minor=0, actual_tenths=0
         ),

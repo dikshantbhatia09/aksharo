@@ -74,8 +74,15 @@ export {
 export const DEFAULT_CENTER_X = 0.5;
 export const DEFAULT_CENTER_Y = 0.5;
 
-/** Screen Share, Presentation Slide & Blurred Background Fit Layout Modes (Pillar 3 §04 & §05). */
-export type ClipLayoutMode = "CROP_FACE" | "CANVAS_FIT" | "PIP_BUBBLE" | "BLURRED_FIT";
+/** Screen Share, Presentation Slide, Blurred Background Fit & Streamer Layout Modes (Pillar 3 §04, §05 & §07). */
+export type ClipLayoutMode =
+  | "CROP_FACE"
+  | "CANVAS_FIT"
+  | "PIP_BUBBLE"
+  | "BLURRED_FIT"
+  | "STREAMER_SPLIT";
+
+export const DEFAULT_STREAMER_DIVIDER_COLOR = "#8B5CF6";
 
 /** Floating presenter webcam PIP bubble position on the 9:16 canvas (Pillar 3 §04 §2.1). */
 export type PipBubblePosition = "top-right" | "bottom-center";
@@ -96,6 +103,31 @@ export interface PipWebcamInput {
   readonly height: number;
   readonly position?: PipBubblePosition;
   readonly diameter?: number;
+}
+
+export interface FacecamBoxInput {
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+}
+
+export interface StreamerSplitPlacement {
+  readonly facecamCrop: {
+    readonly width: number;
+    readonly height: number;
+    readonly x: number;
+    readonly y: number;
+  };
+  readonly gameplayCrop: {
+    readonly width: number;
+    readonly height: number;
+    readonly x: number;
+    readonly y: number;
+  };
+  readonly topPaneHeight: number;
+  readonly bottomPaneHeight: number;
+  readonly dividerColor: string;
 }
 
 export interface CanvasFitPlacement {
@@ -139,6 +171,8 @@ export interface ClipFrame {
   readonly canvasFit?: CanvasFitPlacement;
   /** Optional presenter circular PIP bubble placement for `PIP_BUBBLE`. */
   readonly pipBubble?: PipBubblePlacement;
+  /** Optional Streamer Gameplay + Facecam Split placement for `STREAMER_SPLIT` (Pillar 3 §07). */
+  readonly streamerSplit?: StreamerSplitPlacement;
 }
 
 export interface CropKeyframe {
@@ -170,6 +204,10 @@ export interface ClipFrameOptions {
   readonly pipWebcam?: PipWebcamInput;
   /** Optional explicit vertical offset for the fitted 16:9 slide (e.g. 656 or 360). */
   readonly slideY?: number;
+  /** Optional streamer corner facecam crop bounding box for `STREAMER_SPLIT` (Pillar 3 §07). */
+  readonly facecamBox?: FacecamBoxInput;
+  /** Optional streamer neon divider color (defaults to `#8B5CF6`). */
+  readonly streamerDividerColor?: string;
 }
 
 function resolvePipBubblePlacement(
@@ -214,6 +252,52 @@ function resolvePipBubblePlacement(
   return {
     crop: { width: side, height: side, x: cropX, y: cropY },
     canvas: { x: canvasX, y: canvasY, diameter, position },
+  };
+}
+
+function resolveStreamerSplitPlacement(
+  source: { readonly width: number; readonly height: number },
+  canvas: { readonly width: number; readonly height: number },
+  facecamBox?: FacecamBoxInput,
+  dividerColor: string = DEFAULT_STREAMER_DIVIDER_COLOR,
+): StreamerSplitPlacement {
+  const { width, height } = source;
+  const topPaneHeight = Math.round(canvas.height * 0.35); // 672 on 1920 canvas
+  const bottomPaneHeight = canvas.height - topPaneHeight; // 1248 on 1920 canvas
+
+  // 1. Centered gameplay crop for bottom 65% pane
+  const gameplayAspect = canvas.width / Math.max(1, bottomPaneHeight); // e.g. 1080 / 1248 = 0.86538
+  const gameH = floorEven(height);
+  const gameW = Math.min(floorEven(width), even(Math.round(gameH * gameplayAspect)));
+  const gameX = Math.floor(Math.max(0, width - gameW) / 4) * 2;
+  const gameplayCrop = { width: gameW, height: gameH, x: gameX, y: 0 };
+
+  // 2. Corner facecam crop
+  let rawX = facecamBox?.x ?? 0.72;
+  let rawY = facecamBox?.y ?? 0.66;
+  let rawW = facecamBox?.width ?? 0.25;
+  let rawH = facecamBox?.height ?? 0.30;
+
+  // Normalise 0..1 fractions vs pixel coordinates
+  if (rawX <= 1.5 && rawY <= 1.5 && rawW <= 1.5 && rawH <= 1.5) {
+    rawX *= width;
+    rawY *= height;
+    rawW *= width;
+    rawH *= height;
+  }
+
+  const camW = floorEven(clamp(Math.round(rawW), 32, width));
+  const camH = floorEven(clamp(Math.round(rawH), 32, height));
+  const camX = floorEven(clamp(Math.round(rawX), 0, Math.max(0, width - camW)));
+  const camY = floorEven(clamp(Math.round(rawY), 0, Math.max(0, height - camH)));
+  const facecamCrop = { width: camW, height: camH, x: camX, y: camY };
+
+  return {
+    facecamCrop,
+    gameplayCrop,
+    topPaneHeight,
+    bottomPaneHeight,
+    dividerColor,
   };
 }
 
@@ -306,6 +390,30 @@ export function clipFrame(
       output: { width: outWidth, height: outHeight },
       layoutMode: options.layoutMode,
       canvasFit,
+    };
+  }
+
+  if (options.layoutMode === "STREAMER_SPLIT") {
+    const outHeight = limit;
+    const outWidth = even((limit * shape.width) / shape.height);
+    const fullCrop: ClipFrame["crop"] = {
+      width: floorEven(width),
+      height: floorEven(height),
+      x: 0,
+      y: 0,
+    };
+    const streamerSplit = resolveStreamerSplitPlacement(
+      { width, height },
+      { width: outWidth, height: outHeight },
+      options.facecamBox,
+      options.streamerDividerColor ?? DEFAULT_STREAMER_DIVIDER_COLOR,
+    );
+    return {
+      source: { width, height },
+      crop: fullCrop,
+      output: { width: outWidth, height: outHeight },
+      layoutMode: "STREAMER_SPLIT",
+      streamerSplit,
     };
   }
 
@@ -557,11 +665,31 @@ export function blurredFitFilter(frame: ClipFrame): string {
   return canvasFitFilter(frame);
 }
 
+export function streamerSplitFilter(frame: ClipFrame): string {
+  const split = frame.streamerSplit;
+  if (split === undefined) {
+    return canvasFitFilter(frame);
+  }
+  const cam = split.facecamCrop;
+  const game = split.gameplayCrop;
+  const divY = Math.max(0, split.topPaneHeight - 1);
+  const color = split.dividerColor || DEFAULT_STREAMER_DIVIDER_COLOR;
+  return [
+    `[0:v]crop=${String(cam.width)}:${String(cam.height)}:${String(cam.x)}:${String(cam.y)},scale=${String(frame.output.width)}:${String(split.topPaneHeight)}[facecam]`,
+    `[0:v]crop=${String(game.width)}:${String(game.height)}:${String(game.x)}:${String(game.y)},scale=${String(frame.output.width)}:${String(split.bottomPaneHeight)}[gameplay]`,
+    `[facecam][gameplay]vstack[stacked]`,
+    `[stacked]drawbox=y=${String(divY)}:color=${color}:width=${String(frame.output.width)}:height=3:t=fill,setsar=1,format=yuv420p`,
+  ].join(";");
+}
+
 export function clipFilter(
   frame: ClipFrame,
   trajectory?: DynamicReframeTrajectory,
   leadOffsetSec = 0,
 ): string {
+  if (frame.layoutMode === "STREAMER_SPLIT") {
+    return streamerSplitFilter(frame);
+  }
   if (frame.layoutMode === "PIP_BUBBLE") {
     return pipBubbleFilter(frame);
   }

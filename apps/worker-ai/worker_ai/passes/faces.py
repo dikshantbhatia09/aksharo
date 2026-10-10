@@ -47,26 +47,33 @@ __all__ = [
     "DEFAULT_DAMPING_RATIO",
     "DEFAULT_INTERVAL_MS",
     "DEFAULT_NATURAL_FREQ",
+    "DEFAULT_STREAMER_DIVIDER_COLOR",
+    "FACECAM_OVERLAY",
     "FACE_TRACK_VERSION",
+    "FaceBox",
+    "FaceSample",
+    "FacecamRect",
     "LAYOUT_SINGLE_SPEAKER",
+    "LAYOUT_STREAMER_SPLIT",
     "LAYOUT_TWO_SPEAKER_CONVERSATION",
     "MAX_FACES_PER_SAMPLE",
     "MIN_FACE_HEIGHT",
-    "TWO_SPEAKER_MIN_SEPARATION_RATIO",
-    "FaceBox",
-    "FaceSample",
     "SmoothedKeyframe",
     "SpeakerCluster",
+    "StreamerClassification",
+    "TWO_SPEAKER_MIN_SEPARATION_RATIO",
     "TwoSpeakerClassification",
     "YuNetOnnxDetector",
     "apply_critically_damped_smoothing",
     "bound_faces",
     "build_reframe_trajectory",
     "calculate_mouth_aspect_ratio",
+    "classify_streamer_layout",
     "classify_two_speaker_layout",
     "cluster_speaker_faces_kmeans",
     "correlate_active_speaker",
     "decode_yunet",
+    "detect_corner_facecam",
     "detect_face_track",
     "extract_raw_face_centers",
     "face_track_document",
@@ -1393,5 +1400,288 @@ def plan_dialogue_monologue_segments(
                 }
             )
     return segments
+
+
+LAYOUT_STREAMER_SPLIT: str = "STREAMER_SPLIT"
+FACECAM_OVERLAY: str = "FACECAM_OVERLAY"
+DEFAULT_STREAMER_DIVIDER_COLOR: str = "#8B5CF6"  # Twitch Purple
+STREAMER_TOP_PANE_SHARE: float = 0.35
+STREAMER_BOTTOM_PANE_SHARE: float = 0.65
+
+
+@dataclass(frozen=True, slots=True)
+class FacecamRect:
+    """Normalised bounding box and telemetry for a streamer webcam overlay."""
+
+    x: float
+    y: float
+    width: float
+    height: float
+    corner: str  # "top-left" | "top-right" | "bottom-left" | "bottom-right"
+    stability_score: float  # 0.0 .. 1.0 (higher = more stationary)
+    presence_share: float  # fraction of examined frames with a face in this corner
+    std_x: float  # normalized position standard deviation in X
+    std_y: float  # normalized position standard deviation in Y
+
+
+@dataclass(frozen=True, slots=True)
+class StreamerClassification:
+    """Classification and geometry of a streamer gameplay + corner facecam split."""
+
+    layout: str  # "STREAMER_SPLIT" | "SINGLE_SPEAKER"
+    is_streamer: bool
+    facecam_rect: FacecamRect | None
+    facecam_crop: dict[str, int]  # {x, y, width, height} in source pixels
+    gameplay_crop: dict[str, int]  # {x, y, width, height} in source pixels
+    top_pane_height: int  # 672 on 1080x1920
+    bottom_pane_height: int  # 1248 on 1080x1920
+    divider_color: str  # "#8B5CF6"
+    confidence: float
+
+
+def detect_corner_facecam(
+    samples: Sequence[FaceSample],
+    *,
+    source_width: int = 1920,
+    source_height: int = 1080,
+    max_scan_seconds: float = 30.0,
+    min_presence_ratio: float = 0.20,
+    max_position_std: float = 0.028,
+    min_stability_score: float = 0.60,
+) -> FacecamRect | None:
+    """Detect stationary human face persistently situated in one of the 4 corners of a 16:9 stream.
+
+    A stationary webcam overlay exhibits near-zero displacement across time (position standard deviation
+    <= max_position_std) and resides consistently in one corner quadrant.
+    """
+    if not samples:
+        return None
+
+    interval_ms = DEFAULT_INTERVAL_MS
+    max_samples = int(max_scan_seconds * 1000 / interval_ms) if interval_ms > 0 else 120
+    scanned_samples = samples[:max_samples]
+    total_scanned = len(scanned_samples)
+    if total_scanned == 0:
+        return None
+
+    corner_boxes: dict[str, list[tuple[float, float, FaceBox]]] = {
+        "top-left": [],
+        "top-right": [],
+        "bottom-left": [],
+        "bottom-right": [],
+    }
+
+    for sample in scanned_samples:
+        for box in sample.boxes:
+            cx = box.x + box.w / 2.0
+            cy = box.y + box.h / 2.0
+
+            # Must be a reasonable facecam face size (not taking over the entire frame)
+            if box.w > 0.30 or box.h > 0.35:
+                continue
+
+            # Classify into 4 corner quadrants
+            if cx <= 0.34 and cy <= 0.42:
+                corner_boxes["top-left"].append((cx, cy, box))
+            elif cx >= 0.66 and cy <= 0.42:
+                corner_boxes["top-right"].append((cx, cy, box))
+            elif cx <= 0.34 and cy >= 0.58:
+                corner_boxes["bottom-left"].append((cx, cy, box))
+            elif cx >= 0.66 and cy >= 0.58:
+                corner_boxes["bottom-right"].append((cx, cy, box))
+
+    best_candidate: FacecamRect | None = None
+    best_score: float = -1.0
+
+    for corner, hits in corner_boxes.items():
+        if not hits:
+            continue
+
+        presence_share = len(hits) / total_scanned
+        if presence_share < min_presence_ratio:
+            continue
+
+        cxs = [h[0] for h in hits]
+        cys = [h[1] for h in hits]
+        std_x = float(np.std(cxs)) if len(cxs) > 1 else 0.0
+        std_y = float(np.std(cys)) if len(cys) > 1 else 0.0
+
+        if std_x > max_position_std or std_y > max_position_std:
+            continue
+
+        # Position stability score (0.0 to 1.0)
+        stability_score = max(0.0, min(1.0, 1.0 - (std_x + std_y) * 15.0))
+        if stability_score < min_stability_score:
+            continue
+
+        # Median center and dimensions
+        median_cx = float(np.median(cxs))
+        median_cy = float(np.median(cys))
+        median_w = float(np.median([h[2].w for h in hits]))
+        median_h = float(np.median([h[2].h for h in hits]))
+
+        # Expand box around streamer's face with padding to frame head, shoulders, and webcam border
+        cam_w = min(0.48, max(0.18, median_w * 2.3))
+        cam_h = min(0.48, max(0.20, median_h * 2.1))
+
+        cam_x = max(0.0, min(1.0 - cam_w, median_cx - cam_w / 2.0))
+        cam_y = max(0.0, min(1.0 - cam_h, median_cy - cam_h / 2.0))
+
+        # Overall confidence score combining presence and stability
+        candidate_score = stability_score * 0.6 + presence_share * 0.4
+
+        if candidate_score > best_score:
+            best_score = candidate_score
+            best_candidate = FacecamRect(
+                x=round(cam_x, 4),
+                y=round(cam_y, 4),
+                width=round(cam_w, 4),
+                height=round(cam_h, 4),
+                corner=corner,
+                stability_score=round(stability_score, 4),
+                presence_share=round(presence_share, 4),
+                std_x=round(std_x, 4),
+                std_y=round(std_y, 4),
+            )
+
+    return best_candidate
+
+
+def classify_streamer_layout(
+    samples: Sequence[FaceSample] | None = None,
+    *,
+    source_width: int = 1920,
+    source_height: int = 1080,
+    canvas_width: int = 1080,
+    canvas_height: int = 1920,
+    manual_facecam_crop: Mapping[str, Any] | None = None,
+    divider_color: str = DEFAULT_STREAMER_DIVIDER_COLOR,
+    min_presence_ratio: float = 0.20,
+    max_position_std: float = 0.045,
+) -> StreamerClassification:
+    """Classify video stream as streamer gameplay + facecam layout and compute
+    pixel-perfect dual crop regions (Top 35% webcam, Bottom 65% gameplay).
+    """
+    top_pane_height = int(round(canvas_height * STREAMER_TOP_PANE_SHARE / 2.0)) * 2
+    bottom_pane_height = canvas_height - top_pane_height
+
+    def _even(val: float | int) -> int:
+        return int(math.floor(val / 2.0)) * 2
+
+    # 1. Action gameplay crop centered on 16:9 canvas for bottom 65% pane
+    # Target aspect ratio: canvas_width / bottom_pane_height (e.g. 1080 / 1248 = 0.86538)
+    gameplay_aspect = canvas_width / max(1, bottom_pane_height)
+    game_h = _even(source_height)
+    game_w = min(_even(source_width), _even(game_h * gameplay_aspect))
+    game_x = max(0, _even((source_width - game_w) / 2))
+    game_y = 0
+    gameplay_crop = {"x": game_x, "y": game_y, "width": game_w, "height": game_h}
+
+    # 2. Check for manual facecam crop or auto-detect
+    if manual_facecam_crop:
+        raw_x = float(manual_facecam_crop.get("x", 0))
+        raw_y = float(manual_facecam_crop.get("y", 0))
+        raw_w = float(manual_facecam_crop.get("width", manual_facecam_crop.get("w", 0.25)))
+        raw_h = float(manual_facecam_crop.get("height", manual_facecam_crop.get("h", 0.25)))
+
+        # Normalize or treat as pixels
+        if raw_x <= 1.0 and raw_y <= 1.0 and raw_w <= 1.0 and raw_h <= 1.0:
+            norm_x, norm_y, norm_w, norm_h = raw_x, raw_y, raw_w, raw_h
+            px_x = _even(norm_x * source_width)
+            px_y = _even(norm_y * source_height)
+            px_w = _even(norm_w * source_width)
+            px_h = _even(norm_h * source_height)
+        else:
+            px_x = _even(raw_x)
+            px_y = _even(raw_y)
+            px_w = _even(raw_w)
+            px_h = _even(raw_h)
+            norm_x = px_x / max(1, source_width)
+            norm_y = px_y / max(1, source_height)
+            norm_w = px_w / max(1, source_width)
+            norm_h = px_h / max(1, source_height)
+
+        corner = "top-left"
+        if norm_x >= 0.5 and norm_y >= 0.5:
+            corner = "bottom-right"
+        elif norm_x >= 0.5:
+            corner = "top-right"
+        elif norm_y >= 0.5:
+            corner = "bottom-left"
+
+        facecam_rect = FacecamRect(
+            x=round(norm_x, 4),
+            y=round(norm_y, 4),
+            width=round(norm_w, 4),
+            height=round(norm_h, 4),
+            corner=corner,
+            stability_score=1.0,
+            presence_share=1.0,
+            std_x=0.0,
+            std_y=0.0,
+        )
+
+        return StreamerClassification(
+            layout=LAYOUT_STREAMER_SPLIT,
+            is_streamer=True,
+            facecam_rect=facecam_rect,
+            facecam_crop={"x": px_x, "y": px_y, "width": px_w, "height": px_h},
+            gameplay_crop=gameplay_crop,
+            top_pane_height=top_pane_height,
+            bottom_pane_height=bottom_pane_height,
+            divider_color=divider_color,
+            confidence=1.0,
+        )
+
+    # 3. Auto-detect corner facecam
+    facecam = detect_corner_facecam(
+        samples or [],
+        source_width=source_width,
+        source_height=source_height,
+        min_presence_ratio=min_presence_ratio,
+        max_position_std=max_position_std,
+    )
+
+    if facecam is None:
+        # Default single speaker / non-streamer fallback
+        default_cam = {
+            "x": _even(source_width * 0.72),
+            "y": _even(source_height * 0.68),
+            "width": _even(source_width * 0.25),
+            "height": _even(source_height * 0.28),
+        }
+        return StreamerClassification(
+            layout=LAYOUT_SINGLE_SPEAKER,
+            is_streamer=False,
+            facecam_rect=None,
+            facecam_crop=default_cam,
+            gameplay_crop=gameplay_crop,
+            top_pane_height=top_pane_height,
+            bottom_pane_height=bottom_pane_height,
+            divider_color=divider_color,
+            confidence=0.0,
+        )
+
+    facecam_px = {
+        "x": _even(facecam.x * source_width),
+        "y": _even(facecam.y * source_height),
+        "width": _even(facecam.width * source_width),
+        "height": _even(facecam.height * source_height),
+    }
+
+    confidence = round(facecam.stability_score * 0.6 + facecam.presence_share * 0.4, 4)
+
+    return StreamerClassification(
+        layout=LAYOUT_STREAMER_SPLIT,
+        is_streamer=True,
+        facecam_rect=facecam,
+        facecam_crop=facecam_px,
+        gameplay_crop=gameplay_crop,
+        top_pane_height=top_pane_height,
+        bottom_pane_height=bottom_pane_height,
+        divider_color=divider_color,
+        confidence=confidence,
+    )
+
 
 
