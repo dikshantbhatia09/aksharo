@@ -165,7 +165,7 @@ export const LOGO_MARGIN_PCT = { min: 0, max: 15 } as const;
  * (2026-10-05), a picture cut away to over the words that name it.
  */
 export const OverlayKindSchema = z
-  .enum(["hook-title", "logo", "end-card", "b-roll"])
+  .enum(["hook-title", "logo", "end-card", "b-roll", "sticker"])
   .meta({ id: "OverlayKind", title: "OverlayKind" });
 
 /**
@@ -327,8 +327,31 @@ export const BRollOverlaySchema = z
   .meta({ id: "BRollOverlay", title: "BRollOverlay" });
 
 /**
+ * A sticker, reaction GIF or meme overlay (Pillar 6 §04).
+ * Positioned arbitrarily on the frame with normalized coordinates x, y (0..1), scale, rotation, and opacity.
+ */
+export const StickerOverlaySchema = z
+  .object({
+    id: UlidSchema,
+    kind: z.literal("sticker"),
+    startMs: MsSchema,
+    endMs: MsSchema,
+    assetUrl: z.string().min(1),
+    previewUrl: z.string().optional(),
+    x: z.number().min(0).max(1).default(0.5),
+    y: z.number().min(0).max(1).default(0.5),
+    scale: z.number().min(0.05).max(10).default(1),
+    rotation: z.number().default(0),
+    opacity: z.number().min(0).max(1).default(1),
+    isTransparent: z.boolean().default(true),
+    stickerType: z.enum(["sticker", "gif", "meme"]).optional(),
+    label: z.string().max(100).optional(),
+  })
+  .meta({ id: "StickerOverlay", title: "StickerOverlay" });
+
+/**
  * Something drawn over the video that is not a caption: a hook title, a logo,
- * an end card or a B-roll cutaway, told apart by `kind`.
+ * an end card, a B-roll cutaway or a sticker/reaction meme, told apart by `kind`.
  */
 export const OverlaySchema = z
   .discriminatedUnion("kind", [
@@ -336,6 +359,7 @@ export const OverlaySchema = z
     LogoOverlaySchema,
     EndCardOverlaySchema,
     BRollOverlaySchema,
+    StickerOverlaySchema,
   ])
   .meta({ id: "Overlay", title: "Overlay" });
 
@@ -404,6 +428,7 @@ export type EndCardOverlay = z.infer<typeof EndCardOverlaySchema>;
 export type BRollMode = z.infer<typeof BRollModeSchema>;
 export type BRollMotion = z.infer<typeof BRollMotionSchema>;
 export type BRollOverlay = z.infer<typeof BRollOverlaySchema>;
+export type StickerOverlay = z.infer<typeof StickerOverlaySchema>;
 export type Overlay = z.infer<typeof OverlaySchema>;
 export type EdgHot = z.infer<typeof EdgHotSchema>;
 export type EdgProjection = z.infer<typeof EdgProjectionSchema>;

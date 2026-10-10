@@ -113,6 +113,8 @@ function projectOverlay(overlay: Overlay, options: BuildRenderProjectionOptions)
       return options.brollImages !== undefined && !options.brollImages.has(overlay.image.assetId)
         ? []
         : [overlay];
+    default:
+      return [overlay];
   }
 }
 

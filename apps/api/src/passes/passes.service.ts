@@ -9,6 +9,7 @@ import {
   type AutocutPreset,
   type ReframeAspect,
   type ZoomPreset,
+  type ZoomTransition,
 } from "./passes.errors.js";
 import {
   quoteAutocut,
@@ -89,6 +90,7 @@ export interface StartZoomRequest {
   readonly projectId: string;
   readonly workspaceId: string;
   readonly preset: ZoomPreset;
+  readonly transition?: ZoomTransition;
   readonly skipCredits?: boolean;
   /** Override the worst-case hold (D07 run() first-step: macro plan hold). */
   readonly costOverrideTenths?: number;
@@ -297,6 +299,7 @@ export class PassesService {
         passId,
         passType: "zoom",
         preset: request.preset,
+        ...(request.transition === undefined ? {} : { transition: request.transition }),
         durationMs: media.durationMs,
         mediaId: media.id,
         emphasisWords,

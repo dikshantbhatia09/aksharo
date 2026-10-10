@@ -150,7 +150,9 @@ export async function buildRenderPreview(
       words: built.words,
       ...(built.speakerColours === undefined ? {} : { speakerColours: built.speakerColours }),
       // The hook title and the rest: the share viewer and a run's clip preview draw them too.
-      ...(built.overlays === undefined ? {} : { overlays: built.overlays }),
+      ...(built.overlays === undefined
+        ? {}
+        : { overlays: built.overlays as unknown as EdgProjection["overlays"] }),
     };
   }
 

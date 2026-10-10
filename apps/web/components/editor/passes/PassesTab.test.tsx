@@ -390,5 +390,38 @@ describe("<PassesTab />", () => {
       expect(screen.getByTestId("silence-threshold-slider")).toBeInTheDocument();
       expect(screen.getByTestId("time-saved-badge")).toHaveTextContent("Trimmed 1.0s of dead air!");
     });
+
+    it("renders dynamic camera zoom visual pacing panel with active zooms badge", async () => {
+      const items: PassItem[] = [
+        {
+          itemId: "z1",
+          passId: "pass-2",
+          kind: "zoom",
+          startMs: 2000,
+          endMs: 3040,
+          payload: { target: { x: 0, y: 0, w: 1, h: 1 }, scaleFrom: 1.0, scaleTo: 1.18, easing: "velocity" },
+          state: "accepted",
+          confidence: 0.95,
+        },
+      ];
+      const store = buildStore(items);
+      const passes: Pass[] = [
+        {
+          passId: "pass-2",
+          type: "zoom",
+          engine: "zoom@1",
+          params: {},
+          status: "ready",
+          items,
+        },
+      ];
+      renderWithProviders(
+        <PassesTab projectId={PROJECT} store={store} passes={passes} sourceDurationMs={10_000} />,
+      );
+      expect(screen.getByTestId("visual-pacing-panel")).toBeInTheDocument();
+      expect(screen.getByTestId("active-preset-cadence")).toHaveTextContent("every 4s");
+      expect(screen.getByTestId("zoom-count-badge")).toHaveTextContent("1 dynamic zoom active");
+      expect(screen.getByTestId("apply-zoom-pacing-button")).toBeInTheDocument();
+    });
   });
 });

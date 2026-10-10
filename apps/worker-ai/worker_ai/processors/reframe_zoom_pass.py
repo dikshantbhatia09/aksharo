@@ -177,7 +177,19 @@ async def process_zoom(context: JobContext) -> ProcessorOutcome:
     payload = context.envelope.payload
     pass_id = context.payload_str("passId", required=True)
     preset = context.payload_str("preset", default="standard")
+    transition = payload.get("transition") if isinstance(payload.get("transition"), str) else None
     duration_ms = _int(payload.get("durationMs"), default=0)
+
+    if preset == "off":
+        return ProcessorOutcome(
+            result={
+                "passId": pass_id,
+                "passType": "zoom",
+                "preset": "off",
+                "items": [],
+            },
+            usage=JobUsage(media_seconds=duration_ms / 1000 if duration_ms else None),
+        )
 
     if _payload_needs_sampling(payload):
         await context.progress(5, message="sampling frames and audio from the proxy")
@@ -212,6 +224,7 @@ async def process_zoom(context: JobContext) -> ProcessorOutcome:
         preset=preset,
         scene_cuts=scene_cuts_ms,
         cut_ranges=guarded,
+        transition=transition,
     )
     await context.progress(90, message=f"{len(events)} zoom events proposed")
 
@@ -345,7 +358,7 @@ def _zoom_item_wire(context: JobContext, pass_id: str, event: ZoomEvent) -> dict
         "startMs": event.start_ms,
         "endMs": event.end_ms,
         "scaleFrom": 1.0,
-        "scaleTo": event.keyframes[2].scale if len(event.keyframes) > 2 else 1.0,
+        "scaleTo": max((k.scale for k in event.keyframes), default=1.0),
         "target": {
             "x": max(0.0, event.keyframes[0].cx - 0.15),
             "y": max(0.0, event.keyframes[0].cy - 0.15),

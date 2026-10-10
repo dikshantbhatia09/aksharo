@@ -890,6 +890,7 @@ model Workspace {
   brollAssets            BrollAsset[]
   stylePresets           StylePreset[]
   brandKits              BrandKit[]
+  workspaceBrandKit      WorkspaceBrandKit?
   fonts                  Font[]
   customFonts            CustomFont[]
   memoryEntries          MemoryEntry[]
@@ -1555,6 +1556,24 @@ model BrandKit {
   @@unique([workspaceId, name])
   @@index([workspaceId])
   @@map("brand_kits")
+}
+
+model WorkspaceBrandKit {
+  id            String   @id @default(uuid()) @db.VarChar(36)
+  workspaceId   String   @unique @map("workspace_id") @db.Char(26)
+  logoUrl       String?  @map("logo_url")
+  logoPosition  String   @default("TOP_LEFT") @map("logo_position")
+  logoScalePct  Int      @default(15) @map("logo_scale_pct")
+  logoOpacity   Float    @default(0.85) @map("logo_opacity")
+  socialHandle  String?  @map("social_handle")
+  introVideoUrl String?  @map("intro_video_url")
+  outroVideoUrl String?  @map("outro_video_url")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  workspace     Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@map("workspace_brand_kits")
 }
 
 /// Uploaded fonts carry a licence warranty and are served only to the owning

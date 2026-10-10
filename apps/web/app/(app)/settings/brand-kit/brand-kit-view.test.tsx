@@ -277,4 +277,44 @@ describe("<BrandKitView /> music (2026-10-04)", () => {
     expect(await screen.findByTestId("brand-kit-music-choose")).toBeDisabled();
     expect(screen.getByTestId("brand-kit-music-on")).toBeDisabled();
   });
+
+  it("allows configuring and saving intro/outro bumpers and social handle", async () => {
+    const user = userEvent.setup();
+    const { fetchMock } = renderWithProviders(<BrandKitView />, {
+      routes: {
+        "/brand-kit": WITH_MUSIC,
+        "/api/v1/workspaces/01J00000000000000000000000/brand-kit": {
+          workspaceId: "01J00000000000000000000000",
+          logoUrl: "https://cdn.test/logo.png",
+          logoPosition: "TOP_LEFT",
+          logoScalePct: 15,
+          logoOpacity: 0.85,
+          socialHandle: null,
+          introVideoUrl: null,
+          outroVideoUrl: null,
+        },
+      },
+    });
+
+    const introInput = await screen.findByTestId("brand-kit-intro-bumper");
+    const outroInput = screen.getByTestId("brand-kit-outro-bumper");
+    const handleInput = screen.getByTestId("brand-kit-social-handle");
+    const posSelect = screen.getByTestId("brand-kit-corner-position");
+    const saveBumpersBtn = screen.getByTestId("brand-kit-save-bumpers");
+
+    await user.type(introInput, "https://cdn.test/intro.mp4");
+    await user.type(outroInput, "https://cdn.test/outro.mp4");
+    await user.type(handleInput, "@aksharo_clips");
+    await user.selectOptions(posSelect, "TOP_RIGHT");
+
+    await user.click(saveBumpersBtn);
+
+    await waitFor(() => {
+      const calls = fetchMock.mock.calls.filter(
+        ([input, init]) =>
+          String(input).includes("/brand-kit") && (init as RequestInit | undefined)?.method === "PUT",
+      );
+      expect(calls.length).toBeGreaterThan(0);
+    });
+  });
 });

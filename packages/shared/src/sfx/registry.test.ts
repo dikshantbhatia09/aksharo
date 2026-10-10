@@ -60,3 +60,4 @@ test("getSfxAsset returns expected asset by id", () => {
   const missing = getSfxAsset("non_existent_sfx");
   assert.equal(missing, undefined);
 });
+

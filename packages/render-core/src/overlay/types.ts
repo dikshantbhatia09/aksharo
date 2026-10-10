@@ -21,6 +21,8 @@ export const LOGO_KIND = "logo";
 export const END_CARD_KIND = "end-card";
 /** A B-roll cutaway (2026-10-05). */
 export const BROLL_KIND = "b-roll";
+/** A sticker, reaction GIF or meme overlay (Pillar 6 §04). */
+export const STICKER_KIND = "sticker";
 
 /**
  * An image an overlay draws: a workspace's uploaded logo, or a picture of its
@@ -104,8 +106,25 @@ export interface BRollTrack {
   readonly label?: string;
 }
 
+export interface StickerTrack {
+  readonly id: string;
+  readonly kind: typeof STICKER_KIND;
+  readonly startMs: number;
+  readonly endMs: number;
+  readonly assetUrl: string;
+  readonly previewUrl?: string;
+  readonly x: number;
+  readonly y: number;
+  readonly scale: number;
+  readonly rotation: number;
+  readonly opacity: number;
+  readonly isTransparent: boolean;
+  readonly stickerType?: "sticker" | "gif" | "meme";
+  readonly label?: string;
+}
+
 /** Any overlay, told apart by `kind`. */
-export type OverlayTrack = HookTitleTrack | LogoTrack | EndCardTrack | BRollTrack;
+export type OverlayTrack = HookTitleTrack | LogoTrack | EndCardTrack | BRollTrack | StickerTrack;
 
 /**
  * Every image the overlays draw (a brand logo, in a corner or on an end card,

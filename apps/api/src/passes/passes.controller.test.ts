@@ -73,6 +73,27 @@ describe("PassesController — every start route writes an audit row", () => {
     );
   });
 
+  it("startZoom with transition and pacing preset", async () => {
+    const h = harness();
+    h.passes.startZoom.mockResolvedValue(accepted("01JPASS000000000000000ZO2"));
+
+    await h.controller.startZoom(principal(), PROJECT_ID, { preset: "fast", transition: "jump" });
+
+    expect(h.passes.startZoom).toHaveBeenCalledWith(
+      expect.objectContaining({
+        projectId: PROJECT_ID,
+        preset: "fast",
+        transition: "jump",
+      }),
+    );
+    expect(h.audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "pass.zoom.started",
+        resourceId: "01JPASS000000000000000ZO2",
+      }),
+    );
+  });
+
   it("startReframe", async () => {
     const h = harness();
     h.passes.startReframe.mockResolvedValue(accepted("01JPASS000000000000000RFM"));

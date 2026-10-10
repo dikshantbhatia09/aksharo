@@ -14,11 +14,13 @@ function Harness({
   broll = false,
   music = false,
   stock = false,
+  stickers = false,
 }: {
   readonly initial?: EditorRailTab;
   readonly broll?: boolean;
   readonly music?: boolean;
   readonly stock?: boolean;
+  readonly stickers?: boolean;
 }): React.JSX.Element {
   const [active, setActive] = React.useState<EditorRailTab>(initial);
   return (
@@ -32,6 +34,7 @@ function Harness({
         {...(broll ? { broll: <div data-testid="broll-content">B-roll body</div> } : {})}
         {...(music ? { music: <div data-testid="music-content">Music body</div> } : {})}
         {...(stock ? { stock: <div data-testid="stock-content">Stock body</div> } : {})}
+        {...(stickers ? { stickers: <div data-testid="stickers-content">Stickers body</div> } : {})}
       />
     </TooltipProvider>
   );
@@ -124,6 +127,18 @@ describe("<EditorRail />", () => {
     expect(screen.getByTestId("editor-rail-tab-stock")).toBeInTheDocument();
     await user.click(screen.getByTestId("editor-rail-tab-stock"));
     expect(screen.getByTestId("stock-content")).toBeVisible();
+    expect(screen.getByTestId("captions-content").closest('[role="tabpanel"]')).not.toBeVisible();
+  });
+
+  it("offers the Stickers tab and switches to it on click (Pillar 6 §04)", async () => {
+    const user = userEvent.setup();
+    const { unmount } = render(<Harness />);
+    expect(screen.queryByTestId("editor-rail-tab-stickers")).toBeNull();
+    unmount();
+    render(<Harness stickers />);
+    expect(screen.getByTestId("editor-rail-tab-stickers")).toBeInTheDocument();
+    await user.click(screen.getByTestId("editor-rail-tab-stickers"));
+    expect(screen.getByTestId("stickers-content")).toBeVisible();
     expect(screen.getByTestId("captions-content").closest('[role="tabpanel"]')).not.toBeVisible();
   });
 });

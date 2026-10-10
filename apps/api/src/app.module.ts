@@ -58,6 +58,7 @@ import { ClipReviewModule } from "./repurpose/review/clip-review.module.js";
 import { SchedulerTasksModule } from "./scheduler/scheduler-tasks.module.js";
 import { ShareModule } from "./share/share.module.js";
 import { StockModule } from "./stock/stock.module.js";
+import { StickersModule } from "./stickers/stickers.module.js";
 import { StreakModule } from "./streak/streak.module.js";
 import { StylesModule } from "./styles/styles.module.js";
 import { SupportModule } from "./support/support.module.js";
@@ -156,6 +157,8 @@ import { WorkspacesModule } from "./workspaces/workspaces.module.js";
     BrollModule,
     // Pillar 6 §02: Integrated stock media library (Pexels, Pixabay, Storyblocks)
     StockModule,
+    // Pillar 6 §04: Sticker, Meme & Reaction GIF Overlay Engine (Giphy, Tenor, Curated)
+    StickersModule,
     ExportsModule,
     ReferralsModule,
     // B12: Academy tracks/progress/rewards + What's-new (`AcademyModule`), and

@@ -36,7 +36,7 @@ import {
   uncutClock,
   wordsBetween,
 } from "@montaj/edg";
-import type { Segment } from "@montaj/edg";
+import type { Segment, StickerOverlay } from "@montaj/edg";
 import { faceTrackOnCanvas, resolveStyle } from "@montaj/render-core";
 import type { FontRegistry, Shaper } from "@montaj/render-core";
 import { fromAcceptedItems } from "@montaj/timemap";
@@ -102,6 +102,9 @@ import {
 import { EditorRail, type EditorRailTab } from "@/components/editor/rail/EditorRail";
 import { LibraryPanel } from "@/components/editor/rail/LibraryPanel";
 import { MusicPickerDrawer } from "@/components/editor/music-picker-drawer";
+import { StickerOverlayCanvas } from "@/components/editor/sticker-overlay-canvas";
+import { StickersDrawer } from "@/components/editor/stickers-drawer";
+import type { StickerAssetItem } from "@/components/editor/stickers/use-stickers-library";
 import { StockDrawer } from "@/components/editor/stock-drawer";
 import { RetranscribeDialog } from "@/components/editor/RetranscribeDialog";
 import { ShareDialog } from "@/components/editor/ShareDialog";
@@ -904,6 +907,46 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
     );
   }
 
+  const stickerOverlays = useMemo(
+    () =>
+      (state.hot.overlays ?? []).filter(
+        (overlay): overlay is StickerOverlay => overlay.kind === "sticker",
+      ),
+    [state.hot.overlays],
+  );
+
+  const onInsertSticker = useCallback(
+    (sticker: StickerAssetItem, cachedUrl?: string) => {
+      const startMs = Math.max(0, playheadSnapshot.ms);
+      const endMs = Math.min(
+        primaryMedia?.durationMs ?? 30000,
+        startMs + 2500,
+      );
+      const overlay: StickerOverlay = {
+        id: newId(),
+        kind: "sticker",
+        startMs,
+        endMs,
+        assetUrl: cachedUrl || sticker.url,
+        previewUrl: sticker.previewUrl,
+        x: 0.5,
+        y: 0.5,
+        scale: 1.0,
+        rotation: 0,
+        opacity: 1.0,
+        isTransparent: sticker.isTransparent,
+        stickerType: sticker.type,
+        label: sticker.title,
+      };
+      store.submitOp(
+        { type: "SetOverlay", opId: newId(), overlay },
+        { label: `Insert ${sticker.type}: ${sticker.title}` },
+      );
+      toast.success(`Inserted ${sticker.title}`);
+    },
+    [playheadSnapshot.ms, primaryMedia?.durationMs, store],
+  );
+
   const audioHot = state.hot.audio as
     | { clean?: { cleanId?: string | null }; ducking?: { enabled?: boolean; duckDb?: number } }
     | undefined;
@@ -1489,6 +1532,13 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
                           }}
                         />
                       }
+                      stickers={
+                        <StickersDrawer
+                          projectId={projectId}
+                          transcriptText={allLiveWords.map((w) => w.t).join(" ")}
+                          onInsertSticker={onInsertSticker}
+                        />
+                      }
                     />
                   </div>
                 </ResizablePanel>
@@ -1721,7 +1771,55 @@ function EditorReady(props: EditorReadyProps): React.JSX.Element {
                       }}
                     >
                       {({ fit, canvas }) => (
-                        <CropWindowOverlay cropRect={currentCrop} canvas={canvas} fit={fit} />
+                        <>
+                          <CropWindowOverlay cropRect={currentCrop} canvas={canvas} fit={fit} />
+                          {stickerOverlays
+                            .filter(
+                              (s) =>
+                                playheadSnapshot.ms >= s.startMs &&
+                                playheadSnapshot.ms <= s.endMs,
+                            )
+                            .map((st) => (
+                              <StickerOverlayCanvas
+                                key={st.id}
+                                sticker={{
+                                  id: st.id,
+                                  url: st.assetUrl,
+                                  title: st.label,
+                                  isTransparent: st.isTransparent,
+                                }}
+                                x={st.x}
+                                y={st.y}
+                                scale={st.scale}
+                                rotation={st.rotation}
+                                opacity={st.opacity}
+                                canvas={canvas}
+                                fit={fit}
+                                onChange={(transform) => {
+                                  store.submitOp(
+                                    {
+                                      type: "SetOverlay",
+                                      opId: newId(),
+                                      overlay: {
+                                        ...st,
+                                        x: transform.x,
+                                        y: transform.y,
+                                        scale: transform.scale,
+                                        rotation: transform.rotation,
+                                      },
+                                    },
+                                    { label: "Transform sticker" },
+                                  );
+                                }}
+                                onDelete={() => {
+                                  store.submitOp(
+                                    { type: "RemoveOverlay", opId: newId(), overlayId: st.id },
+                                    { label: "Remove sticker" },
+                                  );
+                                }}
+                              />
+                            ))}
+                        </>
                       )}
                     </CaptionStage>
                     {/* K04: resolution indicator, Safe Zone toggle and Replace-media,

@@ -146,6 +146,26 @@ async def test_zoom_pass_with_no_cues_produces_no_items() -> None:
     assert outcome.result["items"] == []
 
 
+async def test_zoom_pass_with_preset_off_produces_no_items() -> None:
+    payload = _zoom_payload(preset="off")
+    context = _context(**payload)
+    outcome = await process_pass(context)
+    assert outcome.result["preset"] == "off"
+    assert outcome.result["items"] == []
+
+
+async def test_zoom_pass_with_jump_transition() -> None:
+    payload = _zoom_payload(transition="jump")
+    context = _context(**payload)
+    outcome = await process_pass(context)
+    assert outcome.result["passType"] == "zoom"
+    items = outcome.result["items"]
+    assert len(items) == 2
+    for item in items:
+        assert item["scaleTo"] == pytest.approx(1.2)
+
+
+
 # ---------------------------------------------------------------------------
 # reframe pass end to end
 # ---------------------------------------------------------------------------

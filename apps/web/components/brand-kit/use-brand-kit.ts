@@ -164,10 +164,48 @@ export const brandKitEndpoints = {
     auth: "bearer",
     operationId: "deleteBrandKitMusic",
   }),
+  getWorkspaceBrandKit: defineEndpoint<void, WorkspaceBrandKitData>({
+    method: "GET",
+    path: "/api/v1/workspaces/{id}/brand-kit",
+    auth: "bearer",
+  }),
+  updateWorkspaceBrandKit: defineEndpoint<UpdateWorkspaceBrandKitData, WorkspaceBrandKitData>({
+    method: "PUT",
+    path: "/api/v1/workspaces/{id}/brand-kit",
+    auth: "bearer",
+  }),
 } as const;
+
+export interface WorkspaceBrandKitData {
+  readonly id?: string;
+  readonly workspaceId: string;
+  readonly logoUrl?: string | null;
+  readonly logoPosition: "TOP_LEFT" | "TOP_RIGHT" | "BOTTOM_LEFT" | "BOTTOM_RIGHT";
+  readonly logoScalePct: number;
+  readonly logoOpacity: number;
+  readonly socialHandle?: string | null;
+  readonly introVideoUrl?: string | null;
+  readonly outroVideoUrl?: string | null;
+  readonly createdAt?: string;
+  readonly updatedAt?: string;
+}
+
+export interface UpdateWorkspaceBrandKitData {
+  readonly logoUrl?: string | null;
+  readonly logoPosition?: "TOP_LEFT" | "TOP_RIGHT" | "BOTTOM_LEFT" | "BOTTOM_RIGHT";
+  readonly logoScalePct?: number;
+  readonly logoOpacity?: number;
+  readonly socialHandle?: string | null;
+  readonly introVideoUrl?: string | null;
+  readonly outroVideoUrl?: string | null;
+}
 
 export const brandKitKeys = {
   kit: (workspaceId: string) => ["brand-kit", workspaceId] as const,
+};
+
+export const workspaceBrandKitKeys = {
+  kit: (workspaceId: string) => ["workspace-brand-kit", workspaceId] as const,
 };
 
 /** The largest logo the API takes (`LOGO_MAX_BYTES`), for a friendly check before any upload. */
@@ -375,3 +413,39 @@ export function useRemoveMusic(): UseMutationResult<BrandKitView, Error, void> {
     onSuccess: store,
   });
 }
+
+export function useWorkspaceBrandKit(): UseQueryResult<WorkspaceBrandKitData, Error> {
+  const client = useApiClient();
+  const rawWorkspaceId = useWorkspaceId();
+  const workspaceId = rawWorkspaceId ?? "";
+  return useQuery({
+    queryKey: workspaceBrandKitKeys.kit(workspaceId),
+    queryFn: () =>
+      client.call(brandKitEndpoints.getWorkspaceBrandKit, {
+        params: { id: workspaceId },
+      }),
+    enabled: workspaceId !== "",
+  });
+}
+
+export function useUpdateWorkspaceBrandKit(): UseMutationResult<
+  WorkspaceBrandKitData,
+  Error,
+  UpdateWorkspaceBrandKitData
+> {
+  const client = useApiClient();
+  const rawWorkspaceId = useWorkspaceId();
+  const workspaceId = rawWorkspaceId ?? "";
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body) =>
+      client.call(brandKitEndpoints.updateWorkspaceBrandKit, {
+        params: { id: workspaceId },
+        body,
+      }),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(workspaceBrandKitKeys.kit(workspaceId), updated);
+    },
+  });
+}
+

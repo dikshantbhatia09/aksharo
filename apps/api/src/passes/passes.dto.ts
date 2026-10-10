@@ -1,7 +1,7 @@
 import { ApiProperty } from "@nestjs/swagger";
 import { z } from "zod";
 
-import { AUTOCUT_PRESETS, REFRAME_ASPECTS, ZOOM_PRESETS } from "./passes.errors.js";
+import { AUTOCUT_PRESETS, REFRAME_ASPECTS, ZOOM_PRESETS, ZOOM_TRANSITIONS } from "./passes.errors.js";
 import { zodDto } from "../common/validation/zod-validation.pipe.js";
 
 /**
@@ -37,6 +37,7 @@ const ReframeOptions = z.object({
 
 const StartZoomRequest = z.object({
   preset: z.enum(ZOOM_PRESETS).default("standard"),
+  transition: z.enum(ZOOM_TRANSITIONS).optional(),
 });
 
 export class StartZoomRequestDto extends zodDto(StartZoomRequest) {}

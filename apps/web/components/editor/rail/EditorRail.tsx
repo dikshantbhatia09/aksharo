@@ -13,14 +13,14 @@
  * "Captions" renders (`children`), so relocating it here changes nothing
  * about caption-editing behaviour.
  */
-import { Captions, Film, FolderOpen, Images, Music, Type } from "lucide-react";
+import { Captions, Film, FolderOpen, Images, Music, Smile, Type } from "lucide-react";
 import * as React from "react";
 
 import { cn, Tooltip, TooltipContent, TooltipTrigger } from "@montaj/ui";
 
 import type { LucideIcon } from "lucide-react";
 
-export type EditorRailTab = "captions" | "fonts" | "library" | "broll" | "music" | "stock";
+export type EditorRailTab = "captions" | "fonts" | "library" | "broll" | "music" | "stock" | "stickers";
 
 const TABS: readonly {
   readonly id: EditorRailTab;
@@ -36,6 +36,8 @@ const TABS: readonly {
   { id: "music", label: "Music", icon: Music },
   // Integrated stock media library (Pillar 6 §02: Pexels, Pixabay, Storyblocks).
   { id: "stock", label: "Stock", icon: Film },
+  // Animated stickers, GIFs and reaction memes (Pillar 6 §04).
+  { id: "stickers", label: "Stickers", icon: Smile },
 ];
 
 export interface EditorRailProps {
@@ -51,6 +53,8 @@ export interface EditorRailProps {
   readonly music?: React.ReactNode;
   /** The Stock tab's content (Pillar 6 §02); without it the tab is not offered. */
   readonly stock?: React.ReactNode;
+  /** The Stickers & Memes tab's content (Pillar 6 §04); without it the tab is not offered. */
+  readonly stickers?: React.ReactNode;
   readonly className?: string;
 }
 
@@ -63,12 +67,14 @@ export function EditorRail({
   broll,
   music,
   stock,
+  stickers,
   className,
 }: EditorRailProps): React.JSX.Element {
   const tabs = TABS.filter((tab) => {
     if (tab.id === "broll") return broll !== undefined;
     if (tab.id === "music") return music !== undefined;
     if (tab.id === "stock") return stock !== undefined;
+    if (tab.id === "stickers") return stickers !== undefined;
     return true;
   });
   return (
@@ -136,6 +142,11 @@ export function EditorRail({
         {stock === undefined ? null : (
           <div role="tabpanel" hidden={active !== "stock"} className="h-full">
             {stock}
+          </div>
+        )}
+        {stickers === undefined ? null : (
+          <div role="tabpanel" hidden={active !== "stickers"} className="h-full">
+            {stickers}
           </div>
         )}
       </div>

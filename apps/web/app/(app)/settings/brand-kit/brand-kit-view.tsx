@@ -32,6 +32,8 @@ import {
   useSaveBrandKit,
   useUploadLogo,
   useUploadMusic,
+  useWorkspaceBrandKit,
+  useUpdateWorkspaceBrandKit,
   type BrandKitView as BrandKitResponse,
 } from "@/components/brand-kit/use-brand-kit";
 import { CaptionStage } from "@/components/editor/canvas/CaptionStage";
@@ -774,6 +776,156 @@ function MusicGroup({
   );
 }
 
+function BumpersGroup({
+  canEdit,
+}: {
+  readonly canEdit: boolean;
+}): React.JSX.Element {
+  const wbkQuery = useWorkspaceBrandKit();
+  const updateWbk = useUpdateWorkspaceBrandKit();
+  const data = wbkQuery.data;
+  const [introUrl, setIntroUrl] = React.useState(data?.introVideoUrl ?? "");
+  const [outroUrl, setOutroUrl] = React.useState(data?.outroVideoUrl ?? "");
+  const [handle, setHandle] = React.useState(data?.socialHandle ?? "");
+  const [position, setPosition] = React.useState<"TOP_LEFT" | "TOP_RIGHT" | "BOTTOM_LEFT" | "BOTTOM_RIGHT">(
+    data?.logoPosition ?? "TOP_LEFT",
+  );
+  const [savedMsg, setSavedMsg] = React.useState(false);
+
+  React.useEffect(() => {
+    if (data) {
+      setIntroUrl(data.introVideoUrl ?? "");
+      setOutroUrl(data.outroVideoUrl ?? "");
+      setHandle(data.socialHandle ?? "");
+      setPosition(data.logoPosition ?? "TOP_LEFT");
+    }
+  }, [data]);
+
+  const onSaveBumpers = (): void => {
+    updateWbk.mutate(
+      {
+        introVideoUrl: introUrl || null,
+        outroVideoUrl: outroUrl || null,
+        socialHandle: handle || null,
+        logoPosition: position,
+      },
+      {
+        onSuccess: () => {
+          setSavedMsg(true);
+          setTimeout(() => setSavedMsg(false), 3000);
+        },
+      },
+    );
+  };
+
+  return (
+    <SettingsGroup
+      title="Video Bumpers & Social Overlays"
+      description="Stitch signature 1.5–2.5s intro motion stingers and 2.0–3.0s outro CTA cards onto your shorts with -14 LUFS loudness matching."
+      testId="brand-kit-bumpers"
+    >
+      <Card className="flex flex-col gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-fg-0 text-sm font-medium" htmlFor="brand-kit-intro-bumper">
+              Intro Bumper MP4 URI
+            </label>
+            <p className="text-fg-2 text-xs">
+              1.5–2.5s branded motion sting stitched to the front of every clip.
+            </p>
+            <Input
+              id="brand-kit-intro-bumper"
+              data-testid="brand-kit-intro-bumper"
+              placeholder="https://.../intro-bumper.mp4"
+              value={introUrl}
+              disabled={!canEdit || updateWbk.isPending}
+              onChange={(e) => setIntroUrl(e.target.value)}
+            />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-fg-0 text-sm font-medium" htmlFor="brand-kit-outro-bumper">
+              Outro Bumper / CTA Card MP4 URI
+            </label>
+            <p className="text-fg-2 text-xs">
+              2.0–3.0s concluding call-to-action video stitched to the end.
+            </p>
+            <Input
+              id="brand-kit-outro-bumper"
+              data-testid="brand-kit-outro-bumper"
+              placeholder="https://.../outro-cta.mp4"
+              value={outroUrl}
+              disabled={!canEdit || updateWbk.isPending}
+              onChange={(e) => setOutroUrl(e.target.value)}
+            />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-fg-0 text-sm font-medium" htmlFor="brand-kit-social-handle">
+              Social Media Handle Badge
+            </label>
+            <p className="text-fg-2 text-xs">
+              E.g. @aksharo or your channel handle across platforms.
+            </p>
+            <Input
+              id="brand-kit-social-handle"
+              data-testid="brand-kit-social-handle"
+              placeholder="@yourhandle"
+              value={handle}
+              disabled={!canEdit || updateWbk.isPending}
+              onChange={(e) => setHandle(e.target.value)}
+            />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-fg-0 text-sm font-medium" htmlFor="brand-kit-corner-position">
+              Corner Logo Bug Position
+            </label>
+            <p className="text-fg-2 text-xs">
+              Persistent placement safe from platform header and UI buttons.
+            </p>
+            <select
+              id="brand-kit-corner-position"
+              data-testid="brand-kit-corner-position"
+              className={SELECT_CLASS}
+              value={position}
+              disabled={!canEdit || updateWbk.isPending}
+              onChange={(e) => setPosition(e.target.value as typeof position)}
+            >
+              <option value="TOP_LEFT">Top Left (Safe X=60px, Y=180px)</option>
+              <option value="TOP_RIGHT">Top Right</option>
+              <option value="BOTTOM_LEFT">Bottom Left</option>
+              <option value="BOTTOM_RIGHT">Bottom Right</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-4 pt-2 border-t border-neutral-700/50">
+          <span className="text-fg-2 text-xs">
+            {savedMsg
+              ? "✓ Bumpers and social handle settings saved!"
+              : updateWbk.isPending
+              ? "Saving bumper configuration…"
+              : "Settings are automatically applied during video rendering."}
+          </span>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            disabled={!canEdit || updateWbk.isPending}
+            onClick={onSaveBumpers}
+            data-testid="brand-kit-save-bumpers"
+          >
+            Save bumper settings
+          </Button>
+        </div>
+      </Card>
+    </SettingsGroup>
+  );
+}
+
 export function BrandKitView(): React.JSX.Element {
   const session = useSession();
   const canEdit = session !== null && session.role !== "viewer";
@@ -885,6 +1037,8 @@ export function BrandKitView(): React.JSX.Element {
               set("music", patch);
             }}
           />
+
+          <BumpersGroup canEdit={canEdit} />
 
           <SettingsGroup
             title="Logo placement"

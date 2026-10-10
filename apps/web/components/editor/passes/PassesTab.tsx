@@ -25,7 +25,14 @@ import { PluginActivationCue } from "./PluginActivationCue";
 import { PromptedEditBox } from "./PromptedEditBox";
 import { ProposalCard } from "./ProposalCard";
 import { PacingControls } from "../pacing-controls";
-import { startAutocutPass, type AutocutPreset } from "../../../lib/passes/client";
+import { VisualPacingPanel } from "../visual-pacing-panel";
+import {
+  startAutocutPass,
+  startZoomPass,
+  type AutocutPreset,
+  type ZoomPreset,
+  type ZoomTransition,
+} from "../../../lib/passes/client";
 import {
   decideItems,
   decidedItemIds,
@@ -182,12 +189,19 @@ export function PassesTab({
   const [runDialogOpen, setRunDialogOpen] = React.useState(false);
   const [preset, setPreset] = React.useState<AutocutPreset>("standard");
   const [silenceThreshold, setSilenceThreshold] = React.useState(0.4);
+  const [zoomPreset, setZoomPreset] = React.useState<ZoomPreset>("standard");
+  const [zoomTransition, setZoomTransition] = React.useState<ZoomTransition>("ease");
+  const [isApplyingZoom, setIsApplyingZoom] = React.useState(false);
   const [runningJobId, setRunningJobId] = React.useState<string | null>(null);
   const [runError, setRunError] = React.useState<string | null>(null);
 
   const progress = usePassRunProgress(projectId, runningJobId);
 
   const allRows = React.useMemo(() => reviewRows(passes), [passes]);
+  const activeZoomCount = React.useMemo(
+    () => allRows.filter((r) => r.item.kind === "zoom").length,
+    [allRows],
+  );
   const rows = React.useMemo(
     () => filterRows(allRows, { kind, status, minConfidence }),
     [allRows, kind, status, minConfidence],
@@ -313,6 +327,29 @@ export function PassesTab({
     }
   }, [client, projectId, preset, silenceThreshold]);
 
+  const runZoom = React.useCallback(
+    async (targetPreset: ZoomPreset, targetTransition: ZoomTransition) => {
+      if (targetPreset === "off") return;
+      setIsApplyingZoom(true);
+      setRunError(null);
+      try {
+        const response = await client.call(startZoomPass, {
+          params: { projectId },
+          body: {
+            preset: targetPreset,
+            transition: targetTransition,
+          },
+        });
+        setRunningJobId(response.jobId);
+      } catch (error) {
+        setRunError(error instanceof Error ? error.message : "could not start zoom pass");
+      } finally {
+        setIsApplyingZoom(false);
+      }
+    },
+    [client, projectId],
+  );
+
   const estimate = estimateAutocutQuote(sourceDurationMs);
 
   return (
@@ -360,6 +397,18 @@ export function PassesTab({
           timeSavedSeconds={summary.removedMs / 1000}
           onApply={() => setRunDialogOpen(true)}
           isApplying={progress !== null && progress.status === "running"}
+        />
+      )}
+
+      {isLocalProject ? null : (
+        <VisualPacingPanel
+          preset={zoomPreset}
+          transition={zoomTransition}
+          onPresetChange={setZoomPreset}
+          onTransitionChange={setZoomTransition}
+          onApply={runZoom}
+          activeZoomCount={activeZoomCount}
+          isApplying={isApplyingZoom || (progress !== null && progress.status === "running")}
         />
       )}
 

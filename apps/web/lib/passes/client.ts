@@ -40,3 +40,20 @@ export const startAutocutPass = defineEndpoint<StartAutocutRequestBody, PassAcce
   auth: "bearer",
   operationId: "startAutocutPass",
 });
+
+export type ZoomPreset = "off" | "subtle" | "standard" | "fast" | "punchy";
+export type ZoomTransition = "ease" | "jump" | "creep" | "alternate";
+
+export interface StartZoomRequestBody {
+  readonly preset: ZoomPreset;
+  readonly transition?: ZoomTransition;
+}
+
+/** `POST /projects/{id}/passes/zoom` — quotes, holds credits, enqueues `ai.pass` zoom pass. */
+export const startZoomPass = defineEndpoint<StartZoomRequestBody, PassAcceptedResponse>({
+  method: "POST",
+  path: "/projects/{projectId}/passes/zoom",
+  auth: "bearer",
+  operationId: "startZoomPass",
+});
+

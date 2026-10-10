@@ -25,9 +25,13 @@ export type PassErrorCode = (typeof PASS_ERROR_CODES)[keyof typeof PASS_ERROR_CO
 export const AUTOCUT_PRESETS = ["gentle", "standard", "tight"] as const;
 export type AutocutPreset = (typeof AUTOCUT_PRESETS)[number];
 
-/** Zoom punch-in presets (B19 §3); mirrors `worker_ai.passes.zoom.ZOOM_PRESETS`. */
-export const ZOOM_PRESETS = ["subtle", "standard", "punchy"] as const;
+/** Zoom punch-in presets (B19 §3, Pillar 6 §03); mirrors `worker_ai.passes.zoom.ZOOM_PRESETS`. */
+export const ZOOM_PRESETS = ["off", "subtle", "standard", "fast", "punchy"] as const;
 export type ZoomPreset = (typeof ZOOM_PRESETS)[number];
+
+/** Zoom transition styles. */
+export const ZOOM_TRANSITIONS = ["ease", "jump", "creep", "alternate"] as const;
+export type ZoomTransition = (typeof ZOOM_TRANSITIONS)[number];
 
 /** Reframe output aspects a `reframe` pass can target (B19 §4). */
 export const REFRAME_ASPECTS = ["9:16", "1:1"] as const;

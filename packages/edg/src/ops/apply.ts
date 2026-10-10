@@ -942,6 +942,11 @@ function cleanOverlay(overlay: Overlay): Overlay {
       const label = rawLabel?.trim() ?? "";
       return label === "" ? rest : { ...rest, label };
     }
+    case "sticker": {
+      const { label: rawLabel, ...rest } = overlay;
+      const label = rawLabel?.trim();
+      return label ? { ...rest, label } : rest;
+    }
   }
 }
 

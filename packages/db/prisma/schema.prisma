@@ -42,6 +42,7 @@ model Workspace {
   zoomIntegration   WorkspaceZoomIntegration?
   uploadSessions    MediaUploadSession[]
   podcastShows      PodcastShow[]
+  workspaceBrandKit WorkspaceBrandKit?
 }
 
 model WorkspaceMember {
@@ -233,6 +234,22 @@ model BrandAsset {
 
   createdAt   DateTime  @default(now())
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+model WorkspaceBrandKit {
+  id              String    @id @default(uuid())
+  workspaceId     String    @unique
+  logoUrl         String?
+  logoPosition    String    @default("TOP_LEFT") // TOP_LEFT, TOP_RIGHT
+  logoScalePct    Int       @default(15) // 15% width
+  logoOpacity     Float     @default(0.85)
+  socialHandle    String?   // e.g. "@crestmond"
+  introVideoUrl   String?   // S3 URI of intro bumper MP4
+  outroVideoUrl   String?   // S3 URI of outro bumper MP4
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  workspace       Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 }
 
 model ExportJob {

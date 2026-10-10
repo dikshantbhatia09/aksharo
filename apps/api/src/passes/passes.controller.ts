@@ -131,6 +131,7 @@ export class PassesController {
       projectId,
       workspaceId: principal.workspaceId,
       preset: body.preset,
+      ...(body.transition === undefined ? {} : { transition: body.transition }),
     });
     await this.recordPassStarted("zoom", principal, projectId, result);
     return result;
