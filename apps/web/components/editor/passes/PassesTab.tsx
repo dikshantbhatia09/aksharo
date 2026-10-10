@@ -24,6 +24,7 @@ import {
 import { PluginActivationCue } from "./PluginActivationCue";
 import { PromptedEditBox } from "./PromptedEditBox";
 import { ProposalCard } from "./ProposalCard";
+import { PacingControls } from "../pacing-controls";
 import { startAutocutPass, type AutocutPreset } from "../../../lib/passes/client";
 import {
   decideItems,
@@ -180,6 +181,7 @@ export function PassesTab({
   const [focusedIndex, setFocusedIndex] = React.useState(0);
   const [runDialogOpen, setRunDialogOpen] = React.useState(false);
   const [preset, setPreset] = React.useState<AutocutPreset>("standard");
+  const [silenceThreshold, setSilenceThreshold] = React.useState(0.4);
   const [runningJobId, setRunningJobId] = React.useState<string | null>(null);
   const [runError, setRunError] = React.useState<string | null>(null);
 
@@ -297,14 +299,19 @@ export function PassesTab({
     try {
       const response = await client.call(startAutocutPass, {
         params: { projectId },
-        body: { preset },
+        body: {
+          preset,
+          options: {
+            minSilenceMs: Math.round(silenceThreshold * 1000),
+          },
+        },
       });
       setRunningJobId(response.jobId);
       setRunDialogOpen(false);
     } catch (error) {
       setRunError(error instanceof Error ? error.message : "could not start the pass");
     }
-  }, [client, projectId, preset]);
+  }, [client, projectId, preset, silenceThreshold]);
 
   const estimate = estimateAutocutQuote(sourceDurationMs);
 
@@ -345,6 +352,16 @@ export function PassesTab({
           </div>
         ) : null}
       </div>
+
+      {isLocalProject ? null : (
+        <PacingControls
+          thresholdSeconds={silenceThreshold}
+          onChangeThreshold={setSilenceThreshold}
+          timeSavedSeconds={summary.removedMs / 1000}
+          onApply={() => setRunDialogOpen(true)}
+          isApplying={progress !== null && progress.status === "running"}
+        />
+      )}
 
       {isLocalProject ? null : <PluginActivationCues />}
 
@@ -463,6 +480,22 @@ export function PassesTab({
                 <option value="standard">Standard</option>
                 <option value="aggressive">Aggressive</option>
               </select>
+            </label>
+            <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                <span>Silence threshold</span>
+                <span style={{ fontWeight: 600 }}>{silenceThreshold.toFixed(2)}s</span>
+              </div>
+              <input
+                data-testid="dialog-silence-threshold-slider"
+                type="range"
+                min={0.2}
+                max={1.0}
+                step={0.05}
+                value={silenceThreshold}
+                onChange={(e) => setSilenceThreshold(Number.parseFloat(e.target.value))}
+                style={{ width: "100%" }}
+              />
             </label>
             <p data-testid="autocut-quote-estimate">
               Estimated cost: {estimate.credits} credits ({estimate.reason})

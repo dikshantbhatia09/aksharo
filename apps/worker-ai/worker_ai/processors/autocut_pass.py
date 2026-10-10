@@ -125,6 +125,9 @@ async def _process_autocut(context: JobContext) -> ProcessorOutcome:
         protected_ranges=_read_ranges(payload.get("protectedRanges")),
         guarded_word_ids=frozenset(_read_string_list(payload.get("guardedWordIds"))),
         guarded_ranges=_read_ranges(payload.get("guardedRanges")),
+        compress_pauses=bool(options.get("compressPauses", False)),
+        lead_decay_ms=_int(options.get("leadDecayMs"), default=120),
+        trail_onset_ms=_int(options.get("trailOnsetMs"), default=130),
     )
 
     await context.progress(40, message=f"running autocut ({len(words)} words)")

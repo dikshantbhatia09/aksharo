@@ -369,5 +369,26 @@ describe("<PassesTab />", () => {
       expect(screen.queryByTestId("passes-plugin-cues")).not.toBeInTheDocument();
       expect(screen.queryByTestId("passes-plugin-cue-resolve")).not.toBeInTheDocument();
     });
+
+    it("renders pacing controls with silence slider and time saved badge", async () => {
+      const items = [cutItem("i1", 1000, 2000, "accepted", 0.9)];
+      const store = buildStore(items);
+      const passes: Pass[] = [
+        {
+          passId: "pass-1",
+          type: "autocut",
+          engine: "autocut@2",
+          params: {},
+          status: "ready",
+          items,
+        },
+      ];
+      renderWithProviders(
+        <PassesTab projectId={PROJECT} store={store} passes={passes} sourceDurationMs={10_000} />,
+      );
+      expect(screen.getByTestId("pacing-controls")).toBeInTheDocument();
+      expect(screen.getByTestId("silence-threshold-slider")).toBeInTheDocument();
+      expect(screen.getByTestId("time-saved-badge")).toHaveTextContent("Trimmed 1.0s of dead air!");
+    });
   });
 });
